@@ -14,7 +14,6 @@ import torch
 import torch.nn.functional as F
 from pytest_mock import MockerFixture
 
-from lightly_train._methods.distillation import distillation
 from lightly_train._methods.distillation.distillation import (
     Distillation,
     DistillationArgs,
@@ -175,18 +174,40 @@ class TestDistillation:
         queue_size = 10
         batch_size = 2
 
-        # Instantiate the distillation method.
-        mock_automodel = mocker.patch.object(distillation, "AutoModel")
-        mock_automodel.from_pretrained.return_value.layernorm.weight.shape = (
-            teacher_embed_dim,
+        # Mock build_model_from_cfg to return a dummy teacher model
+        dummy_teacher = mocker.MagicMock()
+        dummy_teacher.eval = mocker.Mock()
+        mock_build_model = mocker.patch(
+            "lightly_train._methods.distillation.distillation.build_model_from_cfg"
         )
+        mock_build_model.return_value = (dummy_teacher, None, teacher_embed_dim)
+
+        # Mock torch.load to prevent actual checkpoint loading
+        mock_torch_load = mocker.patch(
+            "lightly_train._methods.distillation.distillation.torch.load"
+        )
+        mock_torch_load.return_value = {"mock_state_dict": True}
+
+        # Mock get_config_path to avoid depending on actual file system
+        mock_config_path = mocker.patch(
+            "lightly_train._methods.distillation.distillation.get_config_path"
+        )
+        mock_load_and_merge_config = mocker.patch(
+            "lightly_train._methods.distillation.distillation.load_and_merge_config"
+        )
+
+        # Patch urlretrieve to avoid downloading
+        mock_urlretrieve = mocker.patch(
+            "lightly_train._methods.distillation.distillation.urlretrieve"
+        )
+
+        # Instantiate the distillation method.
         distill = Distillation(
             method_args=DistillationArgs(queue_size=queue_size),
             optimizer_args=DistillationLARSArgs(),
             embedding_model=helpers.get_embedding_model(),
             global_batch_size=batch_size,
         )
-        mock_automodel.from_pretrained.assert_called_once()
 
         # Set the queue to be full of ones at the end.
         distill.teacher_queue[-batch_size:, :] = 1.0
@@ -220,18 +241,39 @@ class TestDistillation:
         queue_size = 10
         batch_size = 12
 
-        # Instantiate the distillation method.
-        mock_automodel = mocker.patch.object(distillation, "AutoModel")
-        mock_automodel.from_pretrained.return_value.layernorm.weight.shape = (
-            teacher_embed_dim,
+        # Mock build_model_from_cfg to return a dummy teacher model
+        dummy_teacher = mocker.MagicMock()
+        dummy_teacher.eval = mocker.Mock()
+        mock_build_model = mocker.patch(
+            "lightly_train._methods.distillation.distillation.build_model_from_cfg"
         )
+        mock_build_model.return_value = (dummy_teacher, None, teacher_embed_dim)
+
+        # Mock torch.load to prevent actual checkpoint loading
+        mock_torch_load = mocker.patch(
+            "lightly_train._methods.distillation.distillation.torch.load"
+        )
+        mock_torch_load.return_value = {"mock_state_dict": True}
+
+        # Mock get_config_path to avoid depending on actual file system
+        mock_config_path = mocker.patch(
+            "lightly_train._methods.distillation.distillation.get_config_path"
+        )
+        mock_load_and_merge_config = mocker.patch(
+            "lightly_train._methods.distillation.distillation.load_and_merge_config"
+        )
+
+        # Patch urlretrieve to avoid downloading
+        mock_urlretrieve = mocker.patch(
+            "lightly_train._methods.distillation.distillation.urlretrieve"
+        )
+
         distill = Distillation(
             method_args=DistillationArgs(queue_size=queue_size),
             optimizer_args=DistillationLARSArgs(),
             embedding_model=helpers.get_embedding_model(),
             global_batch_size=batch_size,
         )
-        mock_automodel.from_pretrained.assert_called_once()
 
         # Initialize the queue with zeros except ones at the end.
         distill.teacher_queue = torch.zeros([queue_size, teacher_embed_dim])
