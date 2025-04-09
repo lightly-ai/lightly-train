@@ -35,7 +35,6 @@ dependencies = [
     "torch>=2.1.0,<2.6",        # PyTorch Lightning is not yet compatible with PyTorch 2.6
     "torchvision>=0.16.0",      # torchvision 0.15.0 was yanked
     "tqdm>=4.0.0",
-    "transformers>=4.40",
 ]
 
 
@@ -114,7 +113,6 @@ module = [
     "timm.*",
     "torchvision.*",
     "ultralytics.*",
-    "transformers"
 ]
 ignore_missing_imports = true
 
