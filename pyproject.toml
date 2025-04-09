@@ -97,6 +97,7 @@ version = {attr = "lightly_train.__version__"}
 strict = true
 disallow_untyped_defs = true
 ignore_missing_imports = false
+exclude = "src/lightly_train/_modules/dinov2/"
 # Disabled because some type: ignore flags are only required on specific Python versions
 # resulting in false positives.
 warn_unused_ignores = false
