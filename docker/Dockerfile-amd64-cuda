@@ -1,0 +1,50 @@
+# Builds lightly/train:latest image on DockerHub. TODO: Add link
+# Image is CUDA-optimized for single/multi-GPU training and inference
+
+# Start FROM PyTorch image https://hub.docker.com/r/pytorch/pytorch
+# We use CUDA 11.8 because it is compatible with older CUDA Drivers (>=450.80.02 linux, >=452.39 windows).
+# See https://docs.nvidia.com/deploy/cuda-compatibility/#minor-version-compatibility
+# The CUDA Driver is the only component from the host system that has to be compatible with the docker image.
+# The PyTorch and cuDNN versions are independent of the host system.
+#
+# The PyTorch 2.5.1 image comes with Python 3.11.
+FROM pytorch/pytorch:2.5.1-cuda11.8-cudnn9-runtime AS runtime
+
+# Install packages into the system Python and skip creating a virtual environment.
+ENV UV_SYSTEM_PYTHON="true" \
+    # Do not cache dependencies as they would also be saved in the docker image.
+    UV_NO_CACHE="true"
+
+# Required for uv installation.
+RUN apt-get update && apt-get install -y make curl
+
+# Install Pillow-SIMD dependencies.
+RUN apt-get update && apt-get install -y python3.11-dev libjpeg8-dev libjpeg-turbo-progs libtiff5-dev libwebp-dev gcc
+
+# Create working directory
+WORKDIR /home/lightly_train
+
+# Set and create the directory to save pretrained torch models into
+ENV TORCH_HOME="/home/lightly_train/.cache/torch"
+RUN mkdir -p ${TORCH_HOME} && chmod -R a+w $TORCH_HOME
+
+# Set and create the directory to save pretrained huggingface models into
+ENV HF_HOME="/home/lightly_train/.cache/huggingface"
+RUN mkdir -p ${HF_HOME} && chmod -R a+w $HF_HOME
+
+# Install uv
+COPY Makefile /home/lightly_train
+RUN make install-uv
+
+# Add uv to PATH
+ENV PATH="/root/.local/bin:$PATH"
+
+# Install the package dependencies.
+COPY pyproject.toml /home/lightly_train
+RUN make install-docker-dependencies && make download-docker-models
+
+# Copy the package itself
+COPY src /home/lightly_train/src
+
+# Install the package.
+RUN make install-docker

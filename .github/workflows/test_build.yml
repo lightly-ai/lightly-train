@@ -1,0 +1,58 @@
+name: Test Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Install packages into system environment.
+  # Follows: https://docs.astral.sh/uv/guides/integration/github/#using-uv-pip
+  UV_SYSTEM_PYTHON: 1
+
+jobs:
+  detect-code-changes:
+    name: Detect Code Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run-tests: ${{ steps.filter.outputs.run-tests }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            run-tests:
+              - '!docs/**'
+              - '!docker/**'
+              - '!.github/**'
+              - '.github/workflows/test_build.yml'
+  test-build:
+    name: Test Build
+    needs: detect-code-changes
+    if: needs.detect-code-changes.outputs.run-tests == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set Up uv
+        uses: astral-sh/setup-uv@v5
+        id: setup-uv
+        with:
+          version: 0.6.11
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+          python-version: "3.10"
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Set Up Environment
+        run: |
+          make install-dist
+      - name: Build
+        run: |
+          make dist

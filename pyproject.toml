@@ -1,0 +1,151 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lightly_train"
+description = "Train models with self-supervised learning in a single command"
+authors = [
+    { name = "Lightly Team" },
+]
+readme = "README.md"
+license = { "text" = "AGPL-3.0" }
+keywords = [
+    "machine-learning",
+    "computer-vision",
+    "deep-learning",
+    "self-supervised-learning",
+    "contrastive-learning",
+    "pytorch",
+    "python",
+    "pretrained-models",
+    "embeddings",
+]
+dynamic = ["version"]
+requires-python = ">=3.8, <3.13"    # 3.13 is not yet supported by PyTorch, Torchvision, and PyTorch Lightning
+dependencies = [
+    "albumentations>=1.3.1,!=1.4.18,!=1.4.19,!=1.4.20,!=1.4.21,!=1.4.22", # 1.4.18-1.4.22 will cause mypy issues
+    "eval-type-backport>=0.2",  # Required for Pydantic. Allows 3.10 types in old Python versions.
+    "lightly>=1.5.16",
+    "omegaconf>=2.3",
+    "psutil>=5.0",
+    "pyarrow>=15.0.0",
+    "pytorch_lightning>=2.1",
+    "tensorboard>=2.10.0",
+    "torch>=2.1.0,<2.6",        # PyTorch Lightning is not yet compatible with PyTorch 2.6
+    "torchvision>=0.16.0",      # torchvision 0.15.0 was yanked
+    "tqdm>=4.0.0",
+    "transformers>=4.40",
+]
+
+
+[project.optional-dependencies]
+dev = [
+    "licenseheaders>=0.8.8",
+    "mdformat>=0.7.21; python_version>='3.9'",  # Older versions change formatting behavior
+    "mypy>=1.10.0",
+    "pre-commit>=3.5.0",
+    "pytest-examples>=0.0.13,<0.0.16", # 0.0.16 and 0.0.17 (latest to date) will cause the following failure when running pytest: "TypeError: 'ABCMeta' object is not subscriptable"
+    "pytest-mock>=3.14.0",
+    "pytest>=8.0.0",
+    "ruff>=0.4.0",
+    "types-pillow>=10.2.0",
+    "types-tqdm>=4.0.0",
+
+    # Docs
+    "furo>=2024.04.27",
+    "myst_parser>=3.0",
+    "sphinx-autoapi>=3.0",
+    "sphinx-copybutton>=0.5.2",
+    "sphinx-design>=0.6.1; python_version>='3.9'",
+    "sphinx-inline-tabs>=2023.4.21",
+    "sphinxcontrib-googleanalytics>=0.4",
+    "sphinx>=7.1",              # Allow old sphinx version for Python 3.8 compatibility
+]
+notebook = [
+    "notebook>=7.2.3",
+]
+# Note: rfdetr, or one of its dependencies, installs opencv-python and opencv-python-headless
+# which can result in conflicts.
+rfdetr = [
+    "rfdetr>=1.0.8",
+    "onnxruntime>=1.21.0", # onnxruntime is required for onnxsim, which is required for rfdetr
+]
+super-gradients = [
+    "super-gradients>=3.7",
+]
+tensorboard = [] # Keep for backwards compatibility
+timm = [
+    "timm>=1.0.3",
+]
+ultralytics = [
+    "ultralytics>=8.1.0",
+]
+wandb = [
+    "wandb>=0.17.2", # contain fixes for numpy>=2.0 support
+]
+
+[project.scripts]
+lightly-train = "lightly_train._cli:_cli_entrypoint"
+
+[tool.setuptools]
+package-dir = {""= "src"}
+
+[tool.setuptools.dynamic]
+version = {attr = "lightly_train.__version__"}
+
+[tool.mypy]
+strict = true
+disallow_untyped_defs = true
+ignore_missing_imports = false
+# Disabled because some type: ignore flags are only required on specific Python versions
+# resulting in false positives.
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = [
+    "albumentations.*",
+    "lightly.*",
+    "lightning_fabric.loggers.logger",
+    "lightning_fabric.utilities.rank_zero",
+    "rfdetr.*",
+    "super_gradients.*",
+    "tensorboard.*",
+    "timm.*",
+    "torchvision.*",
+    "ultralytics.*",
+    "transformers"
+]
+ignore_missing_imports = true
+
+# Required for TIMM which does no re-export the create_model function in timm/__init__.py
+implicit_reexport = true
+
+[tool.ruff.lint]
+# Enable isort rules.
+extend-select = ["I"]
+
+[tool.ruff.lint.isort]
+# Make sure that lightly_train is in the last import group.
+# For details, see https://github.com/lightly-ai/lightly-train/pull/67
+known-first-party = ["lightly_train"]
+
+[tool.ruff.lint.pydocstyle]
+# Use Google-style docstrings.
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore `E402` (import violations) in root `__init__.py`.
+"src/lightly_train/__init__.py" = ["E402"]
+
+[tool.uv]
+override-dependencies = [
+  "sphinx>=7.1",              # Override dependency from SuperGradients on sphinx<=4.1
+]
+
+
+[tool.pytest.ini_options]
+# Make pytest discover all files in the tests directory. This is usuful for showing
+# detailed assertion errors outside of the test file, for example when using a helper
+# function from `tests/helpers.py`.
+python_files = "tests/*.py tests/**/*.py"

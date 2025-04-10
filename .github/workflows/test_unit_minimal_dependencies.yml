@@ -1,0 +1,71 @@
+name: Test Unit Minimal Dependencies
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Install packages into system environment.
+  # Follows: https://docs.astral.sh/uv/guides/integration/github/#using-uv-pip
+  UV_SYSTEM_PYTHON: 1
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-code-changes:
+    name: Detect Code Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run-tests: ${{ steps.filter.outputs.run-tests }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            run-tests:
+              - '!docs/**'
+              - '!docker/**'
+              - '!.github/**'
+              - '.github/workflows/test_unit_minimal_dependencies.yml'
+  test-unit-minimal-dependencies:
+    name: Test Unit Minimal Dependencies
+    needs: detect-code-changes
+    if: needs.detect-code-changes.outputs.run-tests == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.8"]
+        dependencies: ["minimal", "minimal-extras"]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set Up uv
+        uses: astral-sh/setup-uv@v5
+        id: setup-uv
+        with:
+          version: 0.6.11
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+          python-version: ${{ matrix.python }}
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Set Up FFmpeg
+        if: ${{ matrix.dependencies == 'minimal-extras' }}
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: 4.3.1
+      - name: Set Up Environment
+        run: |
+          make install-${{ matrix.dependencies }}
+      - name: Run Pytest
+        run: |
+          make test-ci

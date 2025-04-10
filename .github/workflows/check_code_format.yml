@@ -1,0 +1,85 @@
+name: Check Code Format
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Install packages into system environment.
+  # Follows: https://docs.astral.sh/uv/guides/integration/github/#using-uv-pip
+  UV_SYSTEM_PYTHON: 1
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-code-changes:
+    name: Detect Code Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run-tests: ${{ steps.filter.outputs.run-tests }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            run-tests:
+              - '!docs/**'
+              - '!docker/**'
+              - '!.github/**'
+              - '.github/workflows/check_code_format.yml'
+  check-code-format:
+    name: Check Code Format
+    needs: detect-code-changes
+    if: needs.detect-code-changes.outputs.run-tests == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.8", "3.12"]
+    steps:
+      - name: Setup cmake
+        # TODO(04/25, Guarin): Check if this is still needed on GitHub hosted runners.
+        # TODO(04/04, Yutong): cmake executable is installed as a requirement for RFDETR support
+        # this setup is included only as a last resort because
+        # including cmake in the dependencies does not add cmake exec to PATH
+        # We should remove it once RFDETR improves their dependency spec since it causes a lot of overhead on the CI.
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.22.x'
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set Up uv
+        uses: astral-sh/setup-uv@v5
+        id: setup-uv
+        with:
+          version: 0.6.11
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+          python-version: ${{ matrix.python }}
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Set Up Environment
+        run: |
+          make install-pinned-${{ matrix.python }}
+      - name: Run Format Check
+        # Run the format check only on the latest Python version as earlier versions
+        # might format the code differently.
+        if: ${{ matrix.python == '3.12' }}
+        run: |
+          make format-check
+      - name: Run Type Check
+        run: |
+          make type-check
+      - name: Run Header Check
+        run: |
+          make add-header
+          git diff --name-only .
+          git diff --quiet --name-only . || exit -1

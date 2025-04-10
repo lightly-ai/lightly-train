@@ -1,0 +1,11 @@
+.sidebar-version {
+    display: flex;
+    color: var(--color-brand-primary);
+    font-size: 1rem;
+    text-align: left;
+    padding: var(--sidebar-item-spacing-vertical) var(--sidebar-item-spacing-horizontal);
+}
+
+.sidebar-version:visited {
+    color: var(--color-brand-primary);
+}
