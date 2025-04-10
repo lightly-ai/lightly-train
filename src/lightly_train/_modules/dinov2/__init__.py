@@ -7,3 +7,7 @@
 #
 
 __version__ = "0.0.1"
+
+from lightly_train._modules.dinov2.build_teacher import get_teacher_model
+
+__all__ = ["get_teacher_model"]
