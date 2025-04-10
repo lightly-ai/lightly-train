@@ -54,7 +54,6 @@ written in Markdown (MyST flavor). For more information regarding formatting, se
 - https://pradyunsg.me/furo/reference/
 - https://myst-parser.readthedocs.io/en/latest/syntax/typography.html
 
-
 ### Contributor License Agreement (CLA)
 
 To contribute to this repository, you must sign a [Contributor License Agreement (CLA)](CLA.md). This is a one-time process done through GitHub when you open your first pull request. You will be prompted automatically.
