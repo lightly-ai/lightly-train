@@ -7,9 +7,12 @@
 #
 
 
-from lightly_train._modules.dinov2.models import vision_transformer as vits
-from typing import Union, Tuple
+from typing import Tuple, Union
+
 from torch.nn import Module
+
+from lightly_train._modules.dinov2.models import vision_transformer as vits
+
 
 def build_model(args, only_teacher=False, img_size=224):
     args.arch = args.arch.removesuffix("_memeff")
@@ -39,9 +42,7 @@ def build_model(args, only_teacher=False, img_size=224):
     return student, teacher, embed_dim
 
 
-def build_model_from_cfg(cfg, only_teacher=False) -> Union[
-    Tuple[Module, Module, int],
-]:
+def build_model_from_cfg(cfg, only_teacher=False) -> Union[Tuple[Module, Module, int],]:
     return build_model(
         cfg.student, only_teacher=only_teacher, img_size=cfg.crops.global_crops_size
     )
