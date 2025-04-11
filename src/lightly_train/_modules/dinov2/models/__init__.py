@@ -14,7 +14,9 @@ from torch.nn import Module
 from lightly_train._modules.dinov2.models import vision_transformer as vits
 
 
-def build_model(args, only_teacher=False, img_size=224):
+def build_model(
+    args, only_teacher=False, img_size=224
+) -> Union[Tuple[Module, int], Tuple[Module, Module, int]]:
     args.arch = args.arch.removesuffix("_memeff")
     if "vit" in args.arch:
         vit_kwargs = dict(
