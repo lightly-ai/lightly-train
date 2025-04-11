@@ -97,7 +97,6 @@ version = {attr = "lightly_train.__version__"}
 strict = true
 disallow_untyped_defs = true
 ignore_missing_imports = false
-exclude = "src/lightly_train/_modules/dinov2/"
 # Disabled because some type: ignore flags are only required on specific Python versions
 # resulting in false positives.
 warn_unused_ignores = false
@@ -107,7 +106,6 @@ module = [
     "albumentations.*",
     "lightly.*",
     "lightning_fabric.loggers.logger",
-    "lightning_fabric.utilities.rank_zero",
     "rfdetr.*",
     "super_gradients.*",
     "tensorboard.*",
@@ -116,6 +114,22 @@ module = [
     "ultralytics.*",
 ]
 ignore_missing_imports = true
+
+ 
+[[tool.mypy.overrides]]
+module = [
+    "lightly_train._modules.dinov2.*"
+]
+ignore_errors = true
+
+
+[[tool.mypy.overrides]]
+module = [
+    "lightning_fabric.utilities.rank_zero"
+]
+ignore_missing_imports = false
+disable_error_code = ["attr-defined"]
+
 
 # Required for TIMM which does no re-export the create_model function in timm/__init__.py
 implicit_reexport = true
