@@ -127,7 +127,7 @@ ignore_errors = true
 module = [
     "lightning_fabric.utilities.rank_zero"
 ]
-ignore_missing_imports = false
+ignore_missing_imports = true
 disable_error_code = ["attr-defined"]
 
 
