@@ -8,8 +8,9 @@ LightlyTrain is officially supported on
 
 - Linux: CPU or CUDA
 - MacOS: CPU only
+- Windows (experimental): CPU or CUDA
 
-We are planning to support MPS for MacOS, and to support Windows in the future.
+We are planning to support MPS for MacOS.
 
 ## Installation from PyPI
 
