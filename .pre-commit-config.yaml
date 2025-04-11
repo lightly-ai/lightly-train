@@ -10,3 +10,8 @@ repos:
     - id: check-added-large-files
       description: "Avoid committing large files."
       args: ["--maxkb=2000", "--enforce-all"]
+ - repo: https://github.com/fastai/nbdev
+   rev: 2.4.2
+   hooks:
+    - id: nbdev_clean
+      args: [--fname=examples]
