@@ -281,7 +281,13 @@ def get_dataset_mmap_filenames(
     communicated between the processes and every process has to create its own memory-
     mapped file.
     """
-    if not SLURMEnvironment.detect():
+    if platform.system() == "Windows" or SLURMEnvironment.detect():
+        # On Windows or SLURM, every rank creates its own temporary file
+        return memory_mapped_sequence.memory_mapped_sequence_from_filenames(
+            filenames=filenames,
+            mmap_filepath=mmap_filepath,
+        )
+    else:
         if common_helpers.is_rank_zero():
             # Save filenames to memory mapped file and return them.
             return memory_mapped_sequence.memory_mapped_sequence_from_filenames(
@@ -293,13 +299,7 @@ def get_dataset_mmap_filenames(
             return memory_mapped_sequence.memory_mapped_sequence_from_file(
                 mmap_filepath=mmap_filepath
             )
-    else:
-        # every rank creates its own memory-mapped sequence
-        return memory_mapped_sequence.memory_mapped_sequence_from_filenames(
-            filenames=filenames,
-            mmap_filepath=mmap_filepath,
-        )
-
+        
 
 def get_dataset(
     data: PathLike | Dataset[DatasetItem],
