@@ -39,10 +39,7 @@ static-checks: format-check type-check
 # Files to format with mdformat.
 # This is needed to avoid formatting files in .venv. The mdformat command has an
 # --exclude option but only on Python 3.13+.
-# Adding the pull_request_template to the list of files to format is a workaround to
-# avoid formatting the files in the ISSUE_TEMPLATE directory. They contain yaml 
-# frontmatter which is not directly supported by mdformat
-MDFORMAT_FILES := docker docs src tests *.md .github/pull_request_template.md
+MDFORMAT_FILES := .github docker docs src tests *.md
 
 # run formatter
 .PHONY: format
