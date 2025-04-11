@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import os
 from typing import Any, Literal
 
 import torch
@@ -104,6 +105,10 @@ class Distillation(Method):
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
         )
+        # Set a dummy token to prevent Hugging Face Hub warning.
+        if "HF_TOKEN" not in os.environ:
+            os.environ["HF_TOKEN"] = ""
+
         # Instantiate the teacher model.
         self.teacher_embedding_model = AutoModel.from_pretrained(method_args.teacher)
 
