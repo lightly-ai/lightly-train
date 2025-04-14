@@ -11,3 +11,5 @@ resnet/index
 yolo/index
 depth_estimation/index
 ```
+
+Also, we have developed some Google Colab notebooks for some packages we support. You can find them in the following table:
