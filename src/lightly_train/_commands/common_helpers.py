@@ -299,7 +299,7 @@ def get_dataset_mmap_filenames(
             return memory_mapped_sequence.memory_mapped_sequence_from_file(
                 mmap_filepath=mmap_filepath
             )
-        
+
 
 def get_dataset(
     data: PathLike | Dataset[DatasetItem],
