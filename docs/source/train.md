@@ -26,7 +26,7 @@ lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvisio
 ````
 
 ```{important}
-The default pretraining method `distillation` is recommended, as it consistently outperforms others in extensive experiments. Batch sizes between `128` and `1536` strike a good balance between speed and performance. Moreover, long training runs, such as 2,000 epochs on COCO, significantly improve results.
+The default pretraining method `distillation` is recommended, as it consistently outperforms others in extensive experiments. Batch sizes between `128` and `1536` strike a good balance between speed and performance. Moreover, long training runs, such as 2,000 epochs on COCO, significantly improve results. Check the [Methods](#methods-comparison) page for more details why `distillation` is the best choice.
 ```
 
 This will pretrain a ResNet-50 model from TorchVision using images from `my_data_dir`

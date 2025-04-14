@@ -344,6 +344,6 @@ For more advanced options, explore the [LightlyTrain Python API](#lightly-train)
 
 ## Next Steps
 
-- Go beyond the default distillation pretraining and experiment with other pre-training methods in LightlyTrain, such as DINO or SimCLR.
+- Go beyond the default distillation pretraining and experiment with other pretraining methods in LightlyTrain. Check [Methods](#methods) for more information.
 - Try various [Torchvision models](#models-torchvision) supported by LightlyTrain.
 - Use the pre-trained model for other tasks, like {ref}`image embeddings <embed>`.
