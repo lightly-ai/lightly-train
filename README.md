@@ -29,6 +29,12 @@ a wide range of model architectures and use-cases out of the box.
 - 🏗️ **Model & Task Agnostic**: Compatible with any architecture and task, including detection, classification, and segmentation.
 - 🚀 **Industrial-Scale Support**: LightlyTrain scales from thousands to millions of images. Supports on-prem, cloud, single, and multi-GPU setups.
 
+![Benchmark Results](https://github.com/user-attachments/assets/99cded12-7f16-498d-ab54-aee60b26b5ae)
+
+> On COCO, YOLOv8-s models pretrained with LightlyTrain achieve high performance across all tested label fractions.
+> These improvements hold for other architectures like YOLOv11, RT-DETR, and Faster R-CNN.
+> See our [announcement post](https://www.lightly.ai/blog/introducing-lightly-train) for more details.
+
 ## How It Works [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
 
 Install Lightly**Train**:
