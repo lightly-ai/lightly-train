@@ -80,7 +80,7 @@ The following arguments are available for all methods {ref}`methods-distillation
 
 Can be disabled by setting to `None`.
 
-```python
+```python skip_ruff
 "random_resize": {
     "min_scale": float,
     "max_scale": float,
@@ -91,7 +91,7 @@ Can be disabled by setting to `None`.
 
 Cannot be disabled, required for all transforms.
 
-```python
+```python skip_ruff
 "image_size": tuple[int, int]  # height, width
 ```
 
@@ -99,7 +99,7 @@ Cannot be disabled, required for all transforms.
 
 Can be disabled by setting to `None`.
 
-```python
+```python skip_ruff
 "random_flip": {
     "horizontal_prob": float, # probability of applying horizontal flip
     "vertical_prob": float,   # probability of applying vertical flip
@@ -110,7 +110,7 @@ Can be disabled by setting to `None`.
 
 Can be disabled by setting to `None`.
 
-```python
+```python skip_ruff
 "random_rotation": {
     "prob": float,   # probability of applying rotation
     "degrees": int,  # maximum rotation angle in degrees
@@ -121,7 +121,7 @@ Can be disabled by setting to `None`.
 
 Can be disabled by setting to `None`.
 
-```python
+```python skip_ruff
 "color_jitter": {
     "prob": float,       # probability of applying color jitter
     "strength": float,   # multiplier for all parameters below
@@ -136,7 +136,7 @@ Can be disabled by setting to `None`.
 
 Can be disabled by setting to `None`.
 
-```python
+```python skip_ruff
 "random_gray_scale": float  # probability of converting to grayscale
 ```
 
@@ -144,7 +144,7 @@ Can be disabled by setting to `None`.
 
 Can be disabled by setting to `None`.
 
-```python
+```python skip_ruff
 "gaussian_blur": {
     "prob": float,                     # probability of applying blur
     "sigmas": tuple[float, float],          # range of sigma values
@@ -156,7 +156,7 @@ Can be disabled by setting to `None`.
 
 Can be disabled by setting to `None`.
 
-```python
+```python skip_ruff
 "solarize": {
     "prob": float,      # probability of applying solarization
     "threshold": float  # threshold value in range [0, 1]
@@ -167,7 +167,7 @@ Can be disabled by setting to `None`.
 
 Cannot be disabled, required for all transforms.
 
-```python
+```python skip_ruff
 "normalize": {
     "mean": tuple[float, float, float],  # means of the three channels
     "std": tuple[float, float, float]    # standard deviations of the three channels
@@ -175,14 +175,16 @@ Cannot be disabled, required for all transforms.
 ```
 
 ## Arguments unique to methods
+
 The methods Distillation and SimCLR have no transform configuration options beyond the globally available ones, which were listed above.
 
 ### DINO
+
 DINO uses a multi-crop strategy with two full-resolution "global" views (which have slightly different augmentation parameters) and optional additional smaller resolution "local" views (default: 6 views).
 
 Besides the default arguments, the following DINO-specific arguments are available. Note that `local_view` itself can be disabled by setting it to `None`. Additionally, some augmentations within these structures can be disabled by setting them to `None`:
 
-```python
+```python skip_ruff
 "global_view_1": {                     # modifications for second global view (cannot be disabled)
     "gaussian_blur": {                 # can be disabled by setting to None
         "prob": float,                 
