@@ -10,6 +10,8 @@ Lightly**Train** supports the following pretraining methods:
 
 For detailed information on each method, please refer to the respective sections below.
 
+(methods-comparison)=
+
 ## Which Method to Choose?
 
 We strongly recommend Lightly’s custom distillation method (the default in LightlyTrain) for pretraining your models.

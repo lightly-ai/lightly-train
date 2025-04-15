@@ -57,7 +57,7 @@ This is a minimal example for illustration purposes. In practice you would want 
 a larger dataset (>=10'000 images), more epochs (>=100), and a larger batch size (>=128).
 
 **Best Choice**: 
-The default pretraining method `distillation` is recommended, as it consistently outperforms others in extensive experiments. Batch sizes between `128` and `1536` strike a good balance between speed and performance. Moreover, long training runs, such as 2,000 epochs on COCO, significantly improve results.
+The default pretraining method `distillation` is recommended, as it consistently outperforms others in extensive experiments. Batch sizes between `128` and `1536` strike a good balance between speed and performance. Moreover, long training runs, such as 2,000 epochs on COCO, significantly improve results. Check the [Methods](#methods-comparison) page for more details why `distillation` is the best choice.
 ```
 
 ```{tip}
