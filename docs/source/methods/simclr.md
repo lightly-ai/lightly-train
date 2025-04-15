@@ -32,8 +32,7 @@ SimCLR learns representations by creating two augmented views of the same imageâ
 
 - **Models**: SimCLR is specifically optimized for convolutional neural networks, with a focus on ResNet architectures. Using transformer-based models is doable but less common.
 - **Batch Size**: We recommend a minimum of 256, though somewhere between 1024 and 4096 is ideal since SimCLR usually benefits from large batch sizes.
-- **Number of Epochs**: We recommend a minimum of 800 epochs based on the top-5 linear evaludation results using ResNet-50 on ImageNet-1k reported by the original paper. The top-1 results continues to increase even after 3200 epochs. Also, using a large number of epochs compensates for using a relatively smaller batch size.
-
+- **Number of Epochs**: We recommend a minimum of 800 epochs based on the top-5 linear evaluation results using ResNet-50 on ImageNet-1k reported by the original paper. The top-1 results continues to increase even after 3200 epochs. Also, using a large number of epochs compensates for using a relatively smaller batch size.
 ## Default Augmentation Settings
 
 The following are the default augmentation settings for SimCLR. To learn how you can override these settings, see {ref}`method-transform-args`.
