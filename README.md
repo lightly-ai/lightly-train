@@ -74,7 +74,9 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 ...
 ```
 
-**See also**: Looking for a full fine-tuning example? Head over to the [Quick Start](quick_start.md#fine-tune)!
+**See also**: Looking for a full fine-tuning example? Head over to the [Quick Start](https://docs.lightly.ai/train/stable/quick_start.html#fine-tune)!
+
+**See also**: Want to get more hands-on with LightlyTrain? Check out our [Tutorials](https://docs.lightly.ai/train/stable/tutorials/index.html) for more examples!
 
 **See also**: Want to use your pretrained model to generate image embeddings instead? Check out the [embed](https://docs.lightly.ai/train/stable/embed.html) guide!
 
