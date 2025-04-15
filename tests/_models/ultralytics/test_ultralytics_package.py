@@ -86,7 +86,7 @@ class TestUltralyticsPackage:
                 assert module.training
                 # The training mode of the main module after export depends on the
                 # Ultralytics version. It changed from always being True to being False
-                # for pre-trained models (e.g. yolov8n.pt) in v8.3.39. Since then the
+                # for pretrained models (e.g. yolov8n.pt) in v8.3.39. Since then the
                 # YOLO class has a __getattr__ method that forwards calls to the
                 # underlying model, see: https://github.com/ultralytics/ultralytics/blob/e60992214c91d3ba169965053af69d6eb233b45e/ultralytics/engine/model.py#L1150
                 # This results in models loaded from checkpoints having the training

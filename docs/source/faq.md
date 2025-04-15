@@ -41,7 +41,7 @@ For full details see the {ref}`installation page <installation>`.
 
 ```{dropdown} <h6>What are the system requirements?<a class="headerlink" id="what-are-the-system-requirements" href="#what-are-the-system-requirements" title="Link to this heading">¶</a></h6>
 LightlyTrain requires:
-- Linux (CUDA & CPU) or MacOS (CPU only). Windows support is coming soon!
+- Linux (CUDA & CPU), MacOS (CPU only) or Windows (CUDA & CPU).
 - Python 3.8 or higher
 - PyTorch 2.1 or higher
 - CUDA-compatible GPU(s) for fast training

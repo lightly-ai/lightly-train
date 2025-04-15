@@ -12,7 +12,7 @@
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
 [![Python](https://img.shields.io/badge/Python-3.8%7C3.9%7C3.10%7C3.11%7C3.12-blue.svg)](https://docs.lightly.ai/train/stable/installation.html)
-[![OS](https://img.shields.io/badge/OS-Linux%7CMacOS%7CWindows%20%28soon%21%29-blue.svg)](https://docs.lightly.ai/train/stable/installation.html)
+[![OS](https://img.shields.io/badge/OS-Linux%7CMacOS%7CWindows-blue.svg)](https://docs.lightly.ai/train/stable/installation.html)
 [![Docker](https://img.shields.io/badge/Docker-blue?logo=docker&logoColor=fff)](https://docs.lightly.ai/train/stable/docker.html#)
 [![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/)
 [![Discord](https://img.shields.io/discord/752876370337726585?logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94)
@@ -34,6 +34,14 @@ a wide range of model architectures and use-cases out of the box.
 - 🔄 **Domain Adaptation**: Improve models by pretraining on your domain-specific data (e.g. video analytics, agriculture, automotive, healthcare, manufacturing, retail, and more).
 - 🏗️ **Model & Task Agnostic**: Compatible with any architecture and task, including detection, classification, and segmentation.
 - 🚀 **Industrial-Scale Support**: LightlyTrain scales from thousands to millions of images. Supports on-prem, cloud, single, and multi-GPU setups.
+
+```{figure} https://github.com/user-attachments/assets/554c4db2-d910-4cfb-9238-6a5d0faaeff8
+:alt: benchmark results
+
+On COCO, YOLOv8-s models pretrained with LightlyTrain achieve high performance across all tested label fractions.
+These improvements hold for other architectures like YOLOv11, RT-DETR, and Faster R-CNN.
+See our [announcement post](https://www.lightly.ai/blog/introducing-lightly-train) for more details.
+```
 
 ## How It Works [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
 

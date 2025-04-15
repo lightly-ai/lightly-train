@@ -1,14 +1,11 @@
+(python-api)=
+
 # Python API
 
-(lightly-train)=
+In the pages listed below, one can find the documentation for the Python modules of LightlyTrain.
 
-# lightly_train
+```{toctree}
+:maxdepth: 1
 
-Documentation for `lightly_train` module.
-
-```{eval-rst}
-
-.. automodule:: lightly_train
-    :members: embed, export, list_methods, list_models, train
-
+lightly_train
 ```

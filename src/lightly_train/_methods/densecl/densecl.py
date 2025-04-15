@@ -56,7 +56,7 @@ class DenseCLSGDArgs(SGDArgs):
 
 
 class DenseCLArgs(MethodArgs):
-    # Default values for ImageNet1k pre-training from paper.
+    # Default values for ImageNet1k pretraining from paper.
 
     # Projection head
     hidden_dim: int = 2048
