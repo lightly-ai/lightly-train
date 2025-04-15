@@ -2,7 +2,7 @@
 
 # Configuring Image Augmentations
 
-Pre-training relies strongly on image augmentations such as:
+Pretraining relies strongly on image augmentations such as:
 
 - **Random Cropping and Resizing**: Crops random parts of images and resizes them to fixed resolutions.
 - **Random Horizontal and Vertical Flipping**: Mirrors images across horizontal or vertical axes.
