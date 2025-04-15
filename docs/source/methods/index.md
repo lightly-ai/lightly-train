@@ -4,9 +4,9 @@
 
 Lightly**Train** supports the following pretraining methods:
 
-- [Distillation (recommended 🚀)](#methods-distillation)
-- [DINO](#methods-dino)
-- [SimCLR](#methods-simclr)
+- {ref}`methods-distillation`
+- {ref}`methods-dino`
+- {ref}`methods-simclr`
 
 ```{seealso}
 This page is meant to help you choosing the best method for your use case. If you are instead interested in the technical details of each method, please refer to the individual method’s pages linked above.
