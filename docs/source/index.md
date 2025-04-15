@@ -35,7 +35,7 @@ a wide range of model architectures and use-cases out of the box.
 - 🏗️ **Model & Task Agnostic**: Compatible with any architecture and task, including detection, classification, and segmentation.
 - 🚀 **Industrial-Scale Support**: LightlyTrain scales from thousands to millions of images. Supports on-prem, cloud, single, and multi-GPU setups.
 
-```{figure} https://github.com/user-attachments/assets/99cded12-7f16-498d-ab54-aee60b26b5ae
+```{figure} https://github.com/user-attachments/assets/554c4db2-d910-4cfb-9238-6a5d0faaeff8
 :alt: benchmark results
 
 On COCO, YOLOv8-s models pretrained with LightlyTrain achieve high performance across all tested label fractions.
