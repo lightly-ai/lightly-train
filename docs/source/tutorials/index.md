@@ -12,7 +12,7 @@ yolo/index
 depth_estimation/index
 ```
 
-We've also developed some Google Colab notebooks for some packages we support. You can find them in the following page:
+We've also prepared some Google Colab notebooks for some packages we support. You can find them in the following page:
 
 ```{toctree}
 :maxdepth: 1
