@@ -25,7 +25,7 @@ from lightly_train._methods.distillation.distillation_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._modules.dinov2 import get_teacher_model
+from lightly_train._modules.teachers import get_teacher
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -106,7 +106,7 @@ class Distillation(Method):
             global_batch_size=global_batch_size,
         )
         # Get the teacher model.
-        self.teacher_embedding_model, teacher_embed_dim = get_teacher_model(
+        self.teacher_embedding_model, teacher_embed_dim = get_teacher(
             teacher_name=method_args.teacher
         )
 
