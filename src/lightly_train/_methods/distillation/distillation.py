@@ -7,7 +7,6 @@
 #
 from __future__ import annotations
 
-import os
 from typing import Any, Literal
 
 import torch
@@ -15,11 +14,9 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Flatten, Linear, init
 from torch.optim.optimizer import Optimizer
-from transformers import (
-    AutoModel,
-)
 
 from lightly_train import _scaling
+from lightly_train._commands._warnings import filter_huggingface_warnings
 from lightly_train._configs.validate import no_auto
 from lightly_train._methods.distillation.distillation_loss import DistillationLoss
 from lightly_train._methods.distillation.distillation_transform import (
@@ -37,6 +34,12 @@ from lightly_train._transforms.transform import (
     MethodTransform,
 )
 from lightly_train.types import Batch
+
+filter_huggingface_warnings()
+
+from transformers import (  # noqa: E402
+    AutoModel,
+)
 
 
 class DistillationArgs(MethodArgs):
@@ -105,10 +108,6 @@ class Distillation(Method):
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
         )
-        # Set a dummy token to prevent Hugging Face Hub warning.
-        if "HF_TOKEN" not in os.environ:
-            os.environ["HF_TOKEN"] = ""
-
         # Instantiate the teacher model.
         self.teacher_embedding_model = AutoModel.from_pretrained(method_args.teacher)
 
