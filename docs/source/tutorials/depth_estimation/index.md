@@ -6,7 +6,7 @@
 This tutorial requires substantial computational resources. We recommend at least 4 x RTX-4090 GPUs (or comparable) and approximately 3-4 days of training time.
 ```
 
-This advanced tutorial demonstrates how to pretrain and fine-tune a U-Net from [fast.ai](https://github.com/fastai/fastai) for monocular depth estimation while exploring the customization capabilities of Lightly**Train**. We will pre-train two ResNet-50 encoders with different augmentation settings to analyze their impact on model performance.
+This advanced tutorial demonstrates how to pretrain and fine-tune a U-Net from [fast.ai](https://github.com/fastai/fastai) for monocular depth estimation while exploring the customization capabilities of Lightly**Train**. We will pretrain two ResNet-50 encoders with different augmentation settings to analyze their impact on model performance.
 
 To begin, install the required dependencies:
 
@@ -22,7 +22,7 @@ The tutorial consists of three main steps:
 
 ## Data Downloading and Processing
 
-For this implementation, we utilize two complementary datasets: [MegaDepth](https://www.cs.cornell.edu/projects/megadepth/) for pretraining and [DIODE](https://diode-dataset.org/) for fine-tuning. MegaDepth provides a comprehensive collection of outdoor scenes with synthetic depth maps derived from structure-from-motion reconstruction. While the synthetic depth maps aren't used during pre-training, the dataset's extensive outdoor scene distribution aligns well with our target domain. DIODE complements this with high-precision LiDAR-scanned ground-truth depth maps, ensuring accurate supervision during fine-tuning.
+For this implementation, we utilize two complementary datasets: [MegaDepth](https://www.cs.cornell.edu/projects/megadepth/) for pretraining and [DIODE](https://diode-dataset.org/) for fine-tuning. MegaDepth provides a comprehensive collection of outdoor scenes with synthetic depth maps derived from structure-from-motion reconstruction. While the synthetic depth maps aren't used during pretraining, the dataset's extensive outdoor scene distribution aligns well with our target domain. DIODE complements this with high-precision LiDAR-scanned ground-truth depth maps, ensuring accurate supervision during fine-tuning.
 
 To obtain the MegaDepth dataset run the following command (approximately 200GB):
 

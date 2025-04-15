@@ -53,7 +53,7 @@ class UltralyticsFeatureExtractor(Module, FeatureExtractor):
     def __init__(self, model: YOLO) -> None:
         super().__init__()
         _enable_gradients(model=model)
-        # Set model to training mode. This is necessary for Ultralytics pre-trained
+        # Set model to training mode. This is necessary for Ultralytics pretrained
         # models as they are loaded in eval mode by default.
         model.model.train()
         self._model = model

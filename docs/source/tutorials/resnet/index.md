@@ -2,7 +2,7 @@
 
 # Classification with Torchvision's ResNet
 
-This tutorial demonstrates how to pre-train a ResNet model from [Torchvision](https://pytorch.org/vision/stable/) using LightlyTrain and then fine-tune it for classification using the PyTorch Lightning framework. We will perform both steps on the [Human Detection Dataset](https://www.kaggle.com/datasets/constantinwerner/human-detection-dataset/data) from Kaggle.
+This tutorial demonstrates how to pretrain a ResNet model from [Torchvision](https://pytorch.org/vision/stable/) using LightlyTrain and then fine-tune it for classification using the PyTorch Lightning framework. We will perform both steps on the [Human Detection Dataset](https://www.kaggle.com/datasets/constantinwerner/human-detection-dataset/data) from Kaggle.
 
 ## Install LightlyTrain
 
@@ -165,15 +165,15 @@ plt.show()
 
 ![Human Detection Dataset](human-detection-dataset.jpg)
 
-## Pre-train ResNet with LightlyTrain
+## Pretrain ResNet with LightlyTrain
 
-We will use LightlyTrain to pre-train a ResNet18 model.
+We will use LightlyTrain to pretrain a ResNet18 model.
 
 The following scripts or CLI commands will:
 
 - Initialize a ResNet18 model from Torchvision weights using LightlyTrain.
-- Pre-train the ResNet18 model on the Human Detection Dataset.
-- Export the pre-trained ResNet18 model.
+- Pretrain the ResNet18 model on the Human Detection Dataset.
+- Export the pretrained ResNet18 model.
 
 ````{tab} Python
 ```python
@@ -203,11 +203,11 @@ lightly-train train out="out/my_experiment" data=datasets/"human detection datas
 
 ## Fine-tune ResNet with PyTorch Lightning
 
-We will use PyTorch Lightning to fine-tune the ResNet18 model pre-trained with LightlyTrain on the Human Detection Dataset.
+We will use PyTorch Lightning to fine-tune the ResNet18 model pretrained with LightlyTrain on the Human Detection Dataset.
 
 The following Python script will:
 
-- Load the pre-trained ResNet18 model.
+- Load the pretrained ResNet18 model.
 - Define a PyTorch Lightning module and change the last layer to output two classes.
 - Define a PyTorch Lightning data module with training and validation data loaders.
 - Initialize a PyTorch Lightning trainer.
@@ -338,7 +338,7 @@ if __name__ == "__main__":
     trainer.fit(model, data_module)
 ```
 
-Congratulations! You have successfully pre-trained a model using LightlyTrain and fine-tuned it for classification using PyTorch Lightning.
+Congratulations! You have successfully pretrained a model using LightlyTrain and fine-tuned it for classification using PyTorch Lightning.
 
 For more advanced options, explore the [LightlyTrain Python API](#lightly-train) and [PyTorch Lightning documentation](https://pytorch-lightning.readthedocs.io).
 
@@ -346,4 +346,4 @@ For more advanced options, explore the [LightlyTrain Python API](#lightly-train)
 
 - Go beyond the default distillation pretraining and experiment with other pretraining methods in LightlyTrain. Check [Methods](#methods) for more information.
 - Try various [Torchvision models](#models-torchvision) supported by LightlyTrain.
-- Use the pre-trained model for other tasks, like {ref}`image embeddings <embed>`.
+- Use the pretrained model for other tasks, like {ref}`image embeddings <embed>`.

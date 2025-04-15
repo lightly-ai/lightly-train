@@ -38,7 +38,7 @@ class RFDETRFeatureExtractor(Module, FeatureExtractor):
         assert isinstance(feature_dim, int)
 
         self._model = model
-        # Set model to training mode. This is necessary for RFDETR pre-trained
+        # Set model to training mode. This is necessary for RFDETR pretrained
         # models as the DINOv2 backbone is in eval mode by default.
         self._model.train()
 
