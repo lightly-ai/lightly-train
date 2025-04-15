@@ -72,6 +72,13 @@ lightly-train train \
 
 The next sections will cover which arguments are available across all methods, and also the arguments unique to specific methods.
 
+```{seealso}
+Interested in the default augmentation settings for each method? Check the method pages:
+ - {ref}`methods-dino`
+ - {ref}`methods-distillation`
+ - {ref}`methods-simclr`
+```
+
 ## Arguments available for all methods
 
 The following arguments are available for all methods {ref}`methods-distillation`, {ref}`methods-dino` and {ref}`methods-simclr`.
