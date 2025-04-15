@@ -17,7 +17,6 @@ from torch.nn import Flatten, Linear, init
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
-from lightly_train._commands._warnings import filter_huggingface_warnings
 from lightly_train._configs.validate import no_auto
 from lightly_train._methods.distillation.distillation_loss import DistillationLoss
 from lightly_train._methods.distillation.distillation_transform import (
