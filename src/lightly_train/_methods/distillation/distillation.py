@@ -14,11 +14,9 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Flatten, Linear, init
 from torch.optim.optimizer import Optimizer
-from transformers import (
-    AutoModel,
-)
 
 from lightly_train import _scaling
+from lightly_train._commands._warnings import filter_huggingface_warnings
 from lightly_train._configs.validate import no_auto
 from lightly_train._methods.distillation.distillation_loss import DistillationLoss
 from lightly_train._methods.distillation.distillation_transform import (
@@ -36,6 +34,13 @@ from lightly_train._transforms.transform import (
     MethodTransform,
 )
 from lightly_train.types import Batch
+
+# TODO(Thomas, 04/25): Remove this once the dependence on Transformers is removed.
+filter_huggingface_warnings()
+
+from transformers import (  # noqa: E402
+    AutoModel,
+)
 
 
 class DistillationArgs(MethodArgs):

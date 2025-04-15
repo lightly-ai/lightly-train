@@ -16,6 +16,8 @@ This page is meant to help you choosing the best method for your use case. If yo
 Want to customize the augmentations for a specific method? Check out {ref}`method-transform-args`.
 ```
 
+(methods-comparison)=
+
 ## Which Method to Choose?
 
 We strongly recommend Lightly’s custom distillation method (the default in LightlyTrain) for pretraining your models.

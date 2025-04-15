@@ -89,3 +89,11 @@ def filter_warnings() -> None:
     warnings.filterwarnings(
         "ignore", message="Grad strides do not match bucket view strides"
     )
+
+
+def filter_huggingface_warnings() -> None:
+    # HuggingFace warning when used in Colab.
+    # TODO(Thomas, 04/25): Remove this once the dependence on Transformers is removed.
+    warnings.filterwarnings(
+        "ignore", category=UserWarning, module="huggingface_hub.utils._auth"
+    )
