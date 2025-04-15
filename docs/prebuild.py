@@ -55,7 +55,7 @@ def dump_transformargs_for_methods(dest_dir: Path) -> None:
         args = common_helpers.pretty_format_args(transform_args().model_dump())
         # write to file
         with open(dest_dir / f"{method}_transform_args.md", "w") as f:
-            f.write("```python\n")
+            f.write("```json\n")
             f.write(args + "\n")
             f.write("```\n")
 
