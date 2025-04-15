@@ -14,10 +14,10 @@ from urllib.request import urlretrieve
 import torch
 from torch.nn import Module
 
-from lightly_train._modules.dinov2.configs import (
+from lightly_train._modules.teachers.dinov2.configs import (
     load_and_merge_config,
 )
-from lightly_train._modules.dinov2.models import build_model_from_cfg
+from lightly_train._modules.teachers.dinov2.models import build_model_from_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,8 @@ TEACHER_MODELS = {
 }
 
 
-def get_teacher_model(teacher_name: str) -> tuple[Module, int]:
-    """Loads a teacher model and its pre-trained weights from a name.
+def get_dinov2_teacher(teacher_name: str) -> tuple[Module, int]:
+    """Loads a DINOv2 teacher model and its pre-trained weights from a name.
 
     Returns the model in eval mode along with its embedding dimension.
     Raises a ValueError if the teacher name is unknown.

@@ -11,7 +11,7 @@ from typing import Tuple, Union
 
 from torch.nn import Module
 
-from lightly_train._modules.dinov2.models import vision_transformer as vits
+from lightly_train._modules.teachers.dinov2.models import vision_transformer as vits
 
 
 def build_model(

@@ -176,7 +176,7 @@ class TestDistillation:
 
         # Mock the teacher model.
         mock_get_teacher_model = mocker.patch(
-            "lightly_train._methods.distillation.distillation.get_teacher_model"
+            "lightly_train._methods.distillation.distillation.get_teacher"
         )
         mock_get_teacher_model.return_value = (None, teacher_embed_dim)
 
@@ -222,7 +222,7 @@ class TestDistillation:
 
         # Mock the teacher model.
         mock_get_teacher_model = mocker.patch(
-            "lightly_train._methods.distillation.distillation.get_teacher_model"
+            "lightly_train._methods.distillation.distillation.get_teacher"
         )
         mock_get_teacher_model.return_value = (None, teacher_embed_dim)
 

@@ -19,13 +19,13 @@ import torch
 import torch.nn as nn
 from torch.nn.init import trunc_normal_
 
-from lightly_train._modules.dinov2.layers import (
+from lightly_train._modules.teachers.dinov2.layers import (
     MemEffAttention,
     Mlp,
     PatchEmbed,
     SwiGLUFFNFused,
 )
-from lightly_train._modules.dinov2.layers import (
+from lightly_train._modules.teachers.dinov2.layers import (
     NestedTensorBlock as Block,
 )
 

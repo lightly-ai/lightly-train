@@ -17,10 +17,13 @@ from typing import Any, Callable, Dict, List, Tuple
 import torch
 from torch import Tensor, nn
 
-from lightly_train._modules.dinov2.layers.attention import Attention, MemEffAttention
-from lightly_train._modules.dinov2.layers.drop_path import DropPath
-from lightly_train._modules.dinov2.layers.layer_scale import LayerScale
-from lightly_train._modules.dinov2.layers.mlp import Mlp
+from lightly_train._modules.teachers.dinov2.layers.attention import (
+    Attention,
+    MemEffAttention,
+)
+from lightly_train._modules.teachers.dinov2.layers.drop_path import DropPath
+from lightly_train._modules.teachers.dinov2.layers.layer_scale import LayerScale
+from lightly_train._modules.teachers.dinov2.layers.mlp import Mlp
 
 logger = logging.getLogger(__name__)
 
