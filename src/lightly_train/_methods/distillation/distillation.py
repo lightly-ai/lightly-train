@@ -35,6 +35,7 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import Batch
 
+# TODO(Thomas, 04/25): Remove this once the dependence on Transformers is removed.
 filter_huggingface_warnings()
 
 from transformers import (  # noqa: E402
