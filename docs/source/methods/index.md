@@ -10,6 +10,8 @@ Lightly**Train** supports the following pretraining methods:
 
 For detailed information on each method, please refer to the respective sections below.
 
+(methods-comparison)=
+
 ## Which Method to Choose?
 
 We strongly recommend Lightlyâ€™s custom distillation method (the default in LightlyTrain) for pretraining your models.
@@ -159,3 +161,11 @@ SimCLR learns representations by creating two augmented views of the same imageâ
 - **Models**: SimCLR is specifically optimized for convolutional neural networks, with a focus on ResNet architectures. Using transformer-based models is doable but less common.
 - **Batch Size**: We recommend a minimum of 256, though somewhere between 1024 and 4096 is ideal since SimCLR usually benefits from large batch sizes.
 - **Number of Epochs**: We recommend a minimum of 800 epochs based on the top-5 linear evaludation results using ResNet-50 on ImageNet-1k reported by the original paper. The top-1 results continues to increase even after 3200 epochs. Also, using a large number of epochs compensates for using a relatively smaller batch size.
+
+```{toctree}
+---
+hidden:
+maxdepth: 1
+---
+method_transform_args
+```

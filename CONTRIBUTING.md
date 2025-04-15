@@ -56,6 +56,8 @@ written in Markdown (MyST flavor). For more information regarding formatting, se
 
 ### Contributor License Agreement (CLA)
 
-To contribute to this repository, you must sign a [Contributor License Agreement (CLA)](CLA.md). This is a one-time process done through GitHub when you open your first pull request. You will be prompted automatically.
+To contribute to this repository, you must sign a Contributor License Agreement (CLA).
+This is a one-time process done through GitHub when you open your first pull request.
+You will be prompted automatically.
 
 By signing the CLA, you agree that your contributions may be used under the terms of the project license.

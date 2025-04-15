@@ -79,8 +79,8 @@ dataset = check_det_dataset("VOC.yaml")
 
 detections = sv.DetectionDataset.from_yolo(
     data_yaml_path=dataset["yaml_file"],
-    images_directory_path=f"{settings["datasets_dir"]}/VOC/images/train2012",
-    annotations_directory_path=f"{settings["datasets_dir"]}/VOC/labels/train2012",
+    images_directory_path=f"{settings['datasets_dir']}/VOC/images/train2012",
+    annotations_directory_path=f"{settings['datasets_dir']}/VOC/labels/train2012",
 )
 
 with open(dataset["yaml_file"], "r") as f:
@@ -172,6 +172,6 @@ For more advanced options, explore the [LightlyTrain Python API](#lightly-train)
 
 ## Next Steps
 
-- Go beyond the default distillation pretraining and experiment other pre-training learning methods in LightlyTrain, such as DINO or SimCLR.
+- Go beyond the default distillation pretraining and experiment other pretraining learning methods in LightlyTrain. Check [Methods](#methods) for more information.
 - Try various YOLO models (`YOLOv5`, `YOLOv6`, `YOLOv8`).
 - Use the pre-trained model for other tasks, like {ref}`image embeddings <embed>`.
