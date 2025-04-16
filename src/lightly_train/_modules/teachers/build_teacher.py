@@ -10,7 +10,7 @@ from typing import Tuple
 from torch.nn import Module
 
 
-def get_teacher(teacher_name: str) -> tuple[Module, int]:
+def get_teacher(teacher_name: str) -> Tuple[Module, int]:
     """Loads a teacher model and its pre-trained weights from a name.
 
     Returns the model in eval mode along with its embedding dimension.
