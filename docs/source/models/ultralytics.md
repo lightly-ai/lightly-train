@@ -18,8 +18,8 @@ Using Ultralytics models might require a commercial Ultralytics license. See the
 For YOLOv12, we recommend using the [original YOLOv12 package](#models-yolov12) developed by the authors of YOLOv12, since the official Ultralytics implementations are not stable yet.
 ```
 
-Models ending with `.pt` load pre-trained weights by Ultralytics. Models ending with
-`.yaml` are not pre-trained.
+Models ending with `.pt` load pretrained weights by Ultralytics. Models ending with
+`.yaml` are not pretrained.
 
 ## Pretrain and Fine-tune an Ultralytics Model
 

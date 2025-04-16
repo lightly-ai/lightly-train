@@ -2,7 +2,7 @@
 
 # Object Detection with Ultralytics' YOLO
 
-This tutorial demonstrates how to pre-train a YOLO model using LightlyTrain and then fine-tune it for object detection using the `ultralytics` framework. We will perform both steps on the [PASCAL VOC dataset](http://host.robots.ox.ac.uk/pascal/VOC/).
+This tutorial demonstrates how to pretrain a YOLO model using LightlyTrain and then fine-tune it for object detection using the `ultralytics` framework. We will perform both steps on the [PASCAL VOC dataset](http://host.robots.ox.ac.uk/pascal/VOC/).
 
 ```{warning}
 Using Ultralytics models might require a commercial Ultralytics license. See the
@@ -59,7 +59,7 @@ tree -d <DATASET-DIR>/VOC -I VOCdevkit
 ```
 
 ```{note}
-Labels are not required for self-supervised pre-training. We will use the labels only for finetuning.
+Labels are not required for self-supervised pretraining. We will use the labels only for finetuning.
 ```
 
 ## Inspect a few Images
@@ -112,16 +112,16 @@ fig.show()
 
 ![VOC2012 Training Samples](samples_VOC_train2012.png)
 
-## Pre-train and Fine-tune
+## Pretrain and Fine-tune
 
-We will use LightlyTrain to pre-train a YOLO11 model.
+We will use LightlyTrain to pretrain a YOLO11 model.
 
 The following scripts or CLI commands will:
 
 - Initialize a YOLO11s model with random weights.
-- Pre-train the YOLO11s model on the training images of PASCAL VOC using distillation pretraining.
-- Export the pre-trained YOLO11s model.
-- Fine-tune the pre-trained model on PASCAL VOC dataset using labels.
+- Pretrain the YOLO11s model on the training images of PASCAL VOC using distillation pretraining.
+- Export the pretrained YOLO11s model.
+- Fine-tune the pretrained model on PASCAL VOC dataset using labels.
 
 ````{tab} Python
 ```python
@@ -132,7 +132,7 @@ from ultralytics import settings
 data_path = f"{settings["datasets_dir"]}/VOC/images/train2012"
 
 if __name__ == "__main__":
-    # Pre-train with LightlyTrain.
+    # Pretrain with LightlyTrain.
     lightly_train.train(
         out="out/my_experiment",            # Output directory.
         model="ultralytics/yolo11s.yaml",   # Pass the YOLO model.
@@ -166,7 +166,7 @@ yolo detect train model="out/my_experiment/exported_models/exported_last.pt" dat
 ```
 ````
 
-Congratulations! You have successfully pre-trained a model using LightlyTrain and fine-tuned it for object detection using Ultralytics.
+Congratulations! You have successfully pretrained a model using LightlyTrain and fine-tuned it for object detection using Ultralytics.
 
 For more advanced options, explore the [LightlyTrain Python API](#lightly-train) and [Ultralytics documentation](https://docs.ultralytics.com).
 
@@ -174,4 +174,4 @@ For more advanced options, explore the [LightlyTrain Python API](#lightly-train)
 
 - Go beyond the default distillation pretraining and experiment other pretraining learning methods in LightlyTrain. Check [Methods](#methods) for more information.
 - Try various YOLO models (`YOLOv5`, `YOLOv6`, `YOLOv8`).
-- Use the pre-trained model for other tasks, like {ref}`image embeddings <embed>`.
+- Use the pretrained model for other tasks, like {ref}`image embeddings <embed>`.
