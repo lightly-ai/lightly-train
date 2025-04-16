@@ -191,6 +191,7 @@ class TestDistillation:
             embedding_model=helpers.get_embedding_model(),
             global_batch_size=batch_size,
         )
+        mock_get_teacher_model.assert_called_once()
 
         # Set the queue to be full of ones at the end.
         distill.teacher_queue[-batch_size:, :] = 1.0
@@ -241,6 +242,7 @@ class TestDistillation:
             embedding_model=helpers.get_embedding_model(),
             global_batch_size=batch_size,
         )
+        mock_get_teacher_model.assert_called_once()
 
         # Initialize the queue with zeros except ones at the end.
         distill.teacher_queue = torch.zeros([queue_size, teacher_embed_dim])
