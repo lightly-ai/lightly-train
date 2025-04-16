@@ -25,7 +25,7 @@ from lightly_train._methods.distillation.distillation_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._modules.teachers import get_teacher
+from lightly_train._modules.teachers.build_teacher import get_teacher
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType

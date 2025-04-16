@@ -15,7 +15,9 @@ def get_teacher(teacher_name: str) -> Module:
     Raises a ValueError if the teacher name is unknown.
     """
     if teacher_name.startswith("dinov2_"):
-        from lightly_train._modules.teachers.dinov2 import get_dinov2_teacher
+        from lightly_train._modules.teachers.dinov2.build_teacher import (
+            get_dinov2_teacher,
+        )
 
         return get_dinov2_teacher(teacher_name)
     else:
