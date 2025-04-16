@@ -30,7 +30,7 @@ TEACHER_MODELS = {
 }
 
 
-def get_dinov2_teacher(teacher_name: str) -> tuple[Module, int]:
+def get_dinov2_teacher(teacher_name: str) -> Module:
     """Loads a DINOv2 teacher model and its pre-trained weights from a name.
 
     Returns the model in eval mode along with its embedding dimension.
@@ -48,7 +48,7 @@ def get_dinov2_teacher(teacher_name: str) -> tuple[Module, int]:
     cfg = load_and_merge_config(config_path)
 
     # Build model
-    model, _, embed_dim = build_model_from_cfg(cfg)
+    model, _, _ = build_model_from_cfg(cfg)
     model.eval()
 
     # Cache checkpoint
@@ -66,7 +66,7 @@ def get_dinov2_teacher(teacher_name: str) -> tuple[Module, int]:
     model.load_state_dict(ckpt, strict=True)
     logger.info(f"Loaded teacher weights from {checkpoint_path}")
 
-    return model, embed_dim
+    return model
 
 
 def get_config_path(config_name: str) -> str:

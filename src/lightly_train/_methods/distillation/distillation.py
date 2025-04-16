@@ -106,9 +106,7 @@ class Distillation(Method):
             global_batch_size=global_batch_size,
         )
         # Get the teacher model.
-        self.teacher_embedding_model, teacher_embed_dim = get_teacher(
-            teacher_name=method_args.teacher
-        )
+        self.teacher_embedding_model = get_teacher(teacher_name=method_args.teacher)
 
         # Store the student model.
         self.student_embedding_model = embedding_model
@@ -116,7 +114,7 @@ class Distillation(Method):
 
         # Instantiate a linear projection head that performs the mapping from the student embedding space to the teacher embedding space.
         self.student_projection_head = Linear(
-            embedding_model.embed_dim, teacher_embed_dim
+            embedding_model.embed_dim, self.teacher_embedding_model.embed_dim
         )
 
         # Initialize the weights of the linear projection head with a truncated normal.
@@ -130,7 +128,12 @@ class Distillation(Method):
         self.teacher_queue: Tensor
         self.register_buffer(
             "teacher_queue",
-            torch.zeros([no_auto(method_args.queue_size), teacher_embed_dim]),
+            torch.zeros(
+                [
+                    no_auto(method_args.queue_size),
+                    self.teacher_embedding_model.embed_dim,
+                ]
+            ),
         )
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:

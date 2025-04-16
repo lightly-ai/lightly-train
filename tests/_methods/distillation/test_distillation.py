@@ -175,10 +175,14 @@ class TestDistillation:
         batch_size = 2
 
         # Mock the teacher model.
+        mock_teacher_model = mocker.Mock()
+        mock_teacher_model.embed_dim = teacher_embed_dim
+
+        # Mock the getter of the teacher model.
         mock_get_teacher_model = mocker.patch(
             "lightly_train._methods.distillation.distillation.get_teacher"
         )
-        mock_get_teacher_model.return_value = (None, teacher_embed_dim)
+        mock_get_teacher_model.return_value = mock_teacher_model
 
         # Instantiate the distillation method.
         distill = Distillation(
@@ -221,10 +225,14 @@ class TestDistillation:
         batch_size = 12
 
         # Mock the teacher model.
+        mock_teacher_model = mocker.Mock()
+        mock_teacher_model.embed_dim = teacher_embed_dim
+
+        # Mock the getter of the teacher model.
         mock_get_teacher_model = mocker.patch(
             "lightly_train._methods.distillation.distillation.get_teacher"
         )
-        mock_get_teacher_model.return_value = (None, teacher_embed_dim)
+        mock_get_teacher_model.return_value = mock_teacher_model
 
         # Instantiate the distillation method.
         distill = Distillation(
