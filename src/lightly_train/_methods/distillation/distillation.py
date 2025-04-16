@@ -77,7 +77,7 @@ class DistillationArgs(MethodArgs):
             )
         elif self.queue_size >= scaling_info.dataset_size:
             raise ValueError(
-                f"The specified queue size ({self.queue_size}) cannot be larger than the dataset size ({scaling_info.dataset_size})."
+                f"The specified queue size ('{self.queue_size}') cannot be larger than the dataset size ('{scaling_info.dataset_size}')."
             )
 
 

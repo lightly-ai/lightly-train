@@ -21,4 +21,4 @@ def get_teacher(teacher_name: str) -> Module:
 
         return get_dinov2_teacher(teacher_name)
     else:
-        raise ValueError(f"Unknown teacher: {teacher_name}")
+        raise ValueError(f"Unknown teacher: '{teacher_name}'")

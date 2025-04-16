@@ -57,14 +57,14 @@ def get_dinov2_teacher(teacher_name: str) -> Module:
     checkpoint_path = cache_dir / Path(url).name
 
     if not checkpoint_path.exists():
-        logger.info(f"Downloading teacher weights from: {url}")
+        logger.info(f"Downloading teacher weights from: '{url}'")
         urlretrieve(url, checkpoint_path)
     else:
-        logger.info(f"Using cached teacher weights from: {checkpoint_path}")
+        logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
 
     ckpt = torch.load(checkpoint_path, map_location="cpu")
     model.load_state_dict(ckpt, strict=True)
-    logger.info(f"Loaded teacher weights from {checkpoint_path}")
+    logger.info(f"Loaded teacher weights from '{checkpoint_path}'")
 
     return model
 
