@@ -45,7 +45,7 @@ def get_dinov2_teacher(teacher_name: str) -> Module:
 
     # Load config
     config_path = get_config_path(config_name)
-    cfg = load_and_merge_config(config_path)
+    cfg = load_and_merge_config(str(config_path))
 
     # Build model
     model, _, _ = build_model_from_cfg(cfg)
@@ -69,10 +69,10 @@ def get_dinov2_teacher(teacher_name: str) -> Module:
     return model
 
 
-def get_config_path(config_name: str) -> str:
+def get_config_path(config_name: str) -> Path:
     """Resolves a relative config path like 'eval/vitb14_pretrain
     into an absolute path relative to the configs package.
     """
     config_dir = Path(__file__).parent / "configs"
     full_path = config_dir / config_name
-    return str(full_path)
+    return full_path
