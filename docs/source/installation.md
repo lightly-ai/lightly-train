@@ -2,7 +2,6 @@
 
 # Installation
 
-
 ## Installation from PyPI
 
 Lightly**Train** is available on [PyPI](https://pypi.org/project/lightly-train/) and can be installed via pip or other package managers.
@@ -25,18 +24,17 @@ See {ref}`docker` for Docker installation instructions.
 
 ## Platform Compatibility
 
-| Platform | Supported Compute          |
+| Platform | Supported Compute |
 |----------|----------------------------|
-| Linux    | CPU or CUDA                |
-| MacOS    | CPU (MPS is planned)       |
-| Windows  | CPU or CUDA (experimental) |
-
+| Linux | CPU or CUDA |
+| MacOS | CPU (MPS is planned) |
+| Windows | CPU or CUDA (experimental) |
 
 ## Version Compatibility
 
-| `lightly-train` | `torch`         | `torchvision` | `pytorch-lightning` | Python           |
+| `lightly-train` | `torch` | `torchvision` | `pytorch-lightning` | Python |
 |:---------------:|:---------------:|:-------------:|:-------------------:|:----------------:|
-| `0.6`           | `>=2.1`, `<2.6` | `>=0.16`      | `>=2.1`, `<2.6`     | `>=3.8`, `<3.13` |
+| `0.6` | `>=2.1`, `<2.6` | `>=0.16` | `>=2.1`, `<2.6` | `>=3.8`, `<3.13` |
 
 ```{warning}
 We recommend installing versions of the `torch`, `torchvision`, and `pytorch-lightning` packages that
