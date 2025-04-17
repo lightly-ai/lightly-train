@@ -2,15 +2,6 @@
 
 # Installation
 
-## Platform Compatibility
-
-LightlyTrain is officially supported on
-
-- Linux: CPU or CUDA
-- MacOS: CPU only
-- Windows (experimental): CPU or CUDA
-
-We are planning to support MPS for MacOS.
 
 ## Installation from PyPI
 
@@ -31,6 +22,29 @@ pip install --upgrade lightly-train
 ```
 
 See {ref}`docker` for Docker installation instructions.
+
+## Platform Compatibility
+
+| Platform | Supported Compute          |
+|----------|----------------------------|
+| Linux    | CPU or CUDA                |
+| MacOS    | CPU (MPS is planned)       |
+| Windows  | CPU or CUDA (experimental) |
+
+
+## Version Compatibility
+
+| `lightly-train` | `torch`         | `torchvision` | `pytorch-lightning` | Python           |
+|:---------------:|:---------------:|:-------------:|:-------------------:|:----------------:|
+| `0.6`           | `>=2.1`, `<2.6` | `>=0.16`      | `>=2.1`, `<2.6`     | `>=3.8`, `<3.13` |
+
+```{warning}
+We recommend installing versions of the `torch`, `torchvision`, and `pytorch-lightning` packages that
+are compatible with each other. The latest compatible versions are `torch==2.5 torchvision==0.21 pytorch-lightning==2.5`.
+
+See the [Torchvision](https://github.com/pytorch/vision?tab=readme-ov-file#installation) and [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/versioning.html#compatibility-matrix)
+documentation for more information on version compatibility between different PyTorch packages.
+```
 
 (optional-dependencies)=
 
