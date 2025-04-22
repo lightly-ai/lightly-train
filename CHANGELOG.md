@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix image size mismatch issue when using TIMM models and DINO.
+
 ### Security
 
 ## [0.6.2] - 2025-04-09
