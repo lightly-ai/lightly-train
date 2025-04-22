@@ -30,7 +30,7 @@ TEACHER_MODELS = {
 }
 
 
-def get_dinov2_teacher(teacher_name: str) -> Module:
+def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
     """Loads a DINOv2 teacher model and its pre-trained weights from a name.
 
     Returns the model in eval mode along with its embedding dimension.
@@ -43,18 +43,19 @@ def get_dinov2_teacher(teacher_name: str) -> Module:
     url = teacher_info["url"]
     config_name = teacher_info["config"]
 
-    # Load config
+    # Load config.
     config_path = get_config_path(config_name)
     cfg = load_and_merge_config(str(config_path))
 
-    # Build model
+    # Build model.
     model, _, _ = build_model_from_cfg(cfg)
     model.eval()
 
-    # Cache checkpoint
-    cache_dir = Path.home() / ".cache" / "lightlytrain" / "checkpoints"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = cache_dir / Path(url).name
+    # Create the directory if it doesn't exist.
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    # Cache the teacher checkpoint.
+    checkpoint_path = checkpoint_dir / Path(url).name
 
     if not checkpoint_path.exists():
         logger.info(f"Downloading teacher weights from: '{url}'")
