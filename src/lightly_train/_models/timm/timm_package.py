@@ -54,6 +54,10 @@ class TIMMPackage(Package):
         args = dict(pretrained=False)
         if model_args is not None:
             args.update(model_args)
+        # vit and eva models has dynamic_image_size default to False, which would not allow inputs with different image sizes for e.g. dino
+        if model_name.startswith("vit") or model_name.startswith("eva"):
+            args.update({"dynamic_img_size": True})
+
         # Type ignore as typing **args correctly is too complex
         model: Module = timm.create_model(model_name, **args)  # type: ignore[arg-type]
         return model
