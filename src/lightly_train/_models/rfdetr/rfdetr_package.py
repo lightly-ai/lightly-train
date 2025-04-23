@@ -51,6 +51,7 @@ class RFDETRPackage(Package):
     ) -> Module:
         try:
             from rfdetr import RFDETRBase, RFDETRLarge
+            from rfdetr.detr import RFDETR
             from rfdetr.main import HOSTED_MODELS
             from rfdetr.models.lwdetr import LWDETR
         except ImportError:
@@ -71,10 +72,10 @@ class RFDETRPackage(Package):
             )
         if "base" in model_name:
             # Type ignore as typing **args correctly is too complex
-            model_rfdetr = RFDETRBase(**args)  # type: ignore[arg-type]
+            model_rfdetr: RFDETR = RFDETRBase(**args)  # type: ignore[arg-type, no-untyped-call]
         elif "large" in model_name:
             # Type ignore as typing **args correctly is too complex
-            model_rfdetr = RFDETRLarge(**args)  # type: ignore[arg-type]
+            model_rfdetr = RFDETRLarge(**args)  # type: ignore[arg-type, no-untyped-call]
         else:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. "
