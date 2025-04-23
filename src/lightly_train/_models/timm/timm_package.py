@@ -52,11 +52,11 @@ class TIMMPackage(Package):
                 f"Cannot create model '{model_name}' because timm is not installed."
             )
         args = dict(pretrained=False)
-        if model_args is not None:
-            args.update(model_args)
         # vit and eva models have dynamic_img_size defaulting to False, which would not allow inputs with varying image sizes, e.g., for DINO
         if model_name.startswith("vit") or model_name.startswith("eva"):
             args.update({"dynamic_img_size": True})
+        if model_args is not None:
+            args.update(model_args)
 
         # Type ignore as typing **args correctly is too complex
         model: Module = timm.create_model(model_name, **args)  # type: ignore[arg-type]
