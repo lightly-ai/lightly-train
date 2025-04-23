@@ -207,9 +207,9 @@ We're committed to supporting both open-source and commercial users.
 
 This repository includes code from the following open-source projects:
 
-- **DINOv2**  
-  - Source: [facebookresearch/dinov2](https://github.com/facebookresearch/dinov2)  
-  - License: Apache 2.0  
+- **DINOv2**
+  - Source: [facebookresearch/dinov2](https://github.com/facebookresearch/dinov2)
+  - License: Apache 2.0
   - License file: [`licenses/DINOv2_LICENSE`](licences/DINOv2_LICENSE)
 
 All third-party code is used in accordance with their respective licenses.
