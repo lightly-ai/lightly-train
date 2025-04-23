@@ -203,6 +203,17 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
 We're committed to supporting both open-source and commercial users.
 [Contact us](https://www.lightly.ai/contact) to discuss the best licensing option for your project!
 
+## Third-Party Code and Licenses
+
+This repository includes code from the following open-source projects:
+
+- **DINOv2**  
+  - Source: [facebookresearch/dinov2](https://github.com/facebookresearch/dinov2)  
+  - License: Apache 2.0  
+  - License file: [`licenses/DINOv2_LICENSE`](licences/DINOv2_LICENSE)
+
+All third-party code is used in accordance with their respective licenses.
+
 ## Contact
 
 [![Website](https://img.shields.io/badge/Website-lightly.ai-blue?style=for-the-badge&logo=safari&logoColor=white)](https://www.lightly.ai/contact) <br>
