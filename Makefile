@@ -76,13 +76,14 @@ type-check:
 .PHONY: add-header
 add-header:
 	licenseheaders -t dev_tools/licenseheader.tmpl -d src \
-		-x src/lightly_train/_modules/teachers/dinov2
+		-x src/lightly_train/_modules/teachers/dinov2 \
+		-E py
 	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
 	# Apply the Apache 2.0 license header to DINOv2-derived files
 	licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
-		-d src/lightly_train/_modules/teachers/dinov2
-
+		-d src/lightly_train/_modules/teachers/dinov2 \
+		-E py
 
 
 ### Testing
