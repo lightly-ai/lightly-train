@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from urllib.request import urlretrieve
 
 import torch
 from torch.nn import Module
 
+from lightly_train._data.download import download_from_url
 from lightly_train._modules.teachers.dinov2.configs import (
     load_and_merge_config,
 )
@@ -58,8 +58,11 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
     checkpoint_path = checkpoint_dir / Path(url).name
 
     if not checkpoint_path.exists():
-        logger.info(f"Downloading teacher weights from: '{url}'")
-        urlretrieve(url, checkpoint_path)
+        logger.info(
+            f"Downloading teacher weights from: '{url}' and saving them to: '{checkpoint_path}'. "
+            "The cache directory location can be configured with the LIGHTLY_TRAIN_CACHE_DIR environment variable."
+        )
+        download_from_url(url, checkpoint_path, timeout=10.0)
     else:
         logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
 
