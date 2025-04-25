@@ -339,37 +339,37 @@ def get_dataset_mmap_filenames(
     """
     tmp_path = mmap_filepath.with_suffix(".temp")
     LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC = "LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC"
-    if is_rank_zero():
-        # Save filenames to temporary file. Create the final file only once rank zero has
-        # finished writing all the filenames.
-        try:
+    try:
+        if is_rank_zero():
+            # Save filenames to temporary file. Create the final file only once rank zero has
+            # finished writing all the filenames.
             memory_mapped_sequence.write_filenames_to_file(
                 filenames=filenames,
                 mmap_filepath=tmp_path,
             )
             # Rename the temporary file to mmap_filepath.
             tmp_path.replace(mmap_filepath.resolve())
-        finally:
-            tmp_path.unlink(missing_ok=True)
-    else:
-        # Wait for rank zero to finish writing the filenames.
-        timeout_sec = int(os.getenv(LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC, 300))
-        start_time_sec = time.time()
-        while not mmap_filepath.exists():
-            if tmp_path.exists():
-                # Reset timeout if the temporary file exists. This means that rank zero
-                # is still writing the filenames.
-                start_time_sec = time.time()
+        else:
+            # Wait for rank zero to finish writing the filenames.
+            timeout_sec = int(os.getenv(LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC, 300))
+            start_time_sec = time.time()
+            while not mmap_filepath.exists():
+                if tmp_path.exists():
+                    # Reset timeout if the temporary file exists. This means that rank zero
+                    # is still writing the filenames.
+                    start_time_sec = time.time()
 
-            if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
-                raise RuntimeError(
-                    f"Rank {get_rank()}: Timeout after {timeout_sec} seconds "
-                    f"while waiting for the memory-mapped file '{mmap_filepath}' to be created. "
-                    "Please contact Lightly support if this happens. This is most likely a bug. "
-                    f"You can increase the timeout with the {LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC} "
-                    "environment variable. Setting it to -1 disables the timeout. "
-                )
-            time.sleep(0.2)
+                if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
+                    raise RuntimeError(
+                        f"Rank {get_rank()}: Timeout after {timeout_sec} seconds "
+                        f"while waiting for the memory-mapped file '{mmap_filepath}' to be created. "
+                        "Please contact Lightly support if this happens. This is most likely a bug. "
+                        f"You can increase the timeout with the {LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC} "
+                        "environment variable. Setting it to -1 disables the timeout. "
+                    )
+                time.sleep(0.2)
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
     # Return memory-mapped filenames from file.
     return memory_mapped_sequence.memory_mapped_sequence_from_file(
