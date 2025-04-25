@@ -148,12 +148,12 @@ def get_sha256(value: Any) -> str:
 
 @contextlib.contextmanager
 def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
-    """Verify that the out directory is the same on all ranks.
+    """Verify that the out path is the same on all ranks.
 
-    This is important for distributed training, as the out directory is used as
+    This is important for distributed training, as the out path is used as
     a deterministic value that is consistent across all ranks.
 
-    A common case where this can fail is when the out directory contains a timestamp
+    A common case where this can fail is when the out path contains a timestamp
     in the path that is generated inside the training script. For example with:
     >>> out = f"out/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
     This will result in different paths for each rank as the timestamp is generated
@@ -161,7 +161,7 @@ def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
     """
     out_dir = Path(out).resolve()
     out_tmp = get_verify_out_tmp_dir() / get_sha256(out_dir)
-    logger.debug(f"Creating temporary file '{out_tmp}' to verify out directory.")
+    logger.debug(f"Creating temporary file '{out_tmp}' to verify out path.")
 
     LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC = (
         "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC"
@@ -182,9 +182,9 @@ def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
                     raise RuntimeError(
                         f"Rank {get_rank()}: Timeout after {timeout_sec} seconds "
-                        "while verifying that all ranks (processes) have the same 'out' directory. "
-                        "This means that the 'out' directory is not set to the same path on all ranks. "
-                        "If the path to your 'out' directory contains any timestamps make sure that "
+                        "while verifying that all ranks (processes) have the same 'out' path. "
+                        "This means that the 'out' path is not set to the same path on all ranks. "
+                        "If the path to your 'out' path contains any timestamps make sure that "
                         "they are provided from OUTSIDE of the training script. Either via the "
                         "command line or an environment variable. Timestamps created inside a Python "
                         "script, for example with 'datetime.now()' or 'time.time()', will result "

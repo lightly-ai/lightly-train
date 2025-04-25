@@ -123,7 +123,9 @@ def embed_from_config(config: EmbedConfig) -> None:
     )
     # Create a temporary file to use as a memory map for dataset items. The
     # file has to exist while the dataset is used.
-    with common_helpers.get_dataset_temp_mmap_path(out=out_path) as mmap_filepath:
+    with common_helpers.verify_out_dir_equal_on_all_ranks(
+        out=out_path
+    ), common_helpers.get_dataset_temp_mmap_path(out=out_path) as mmap_filepath:
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform,
