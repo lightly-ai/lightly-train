@@ -1,7 +1,7 @@
 <picture>
   <!-- Use absolute links for images to make them render correctly on PyPI and Dockerhub -->
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/lightly-ai/lightly-train/refs/heads/main/docs/source/_static/lightly_train_light.svg">
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/lightly-ai/lightly-train/blob/main/docs/source/_static/lightly_train_dark.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lightly-ai/lightly-train/refs/heads/main/docs/source/_static/lightly_train_dark.svg">
   <img alt="LightlyTrain Logo" src="https://raw.githubusercontent.com/lightly-ai/lightly-train/refs/heads/main/docs/source/_static/lightly_train_light.svg">
 </picture>
 
