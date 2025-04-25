@@ -119,7 +119,7 @@ def test_write_filenames_to_file(
     "chunk_size",
     [0, -1],
 )
-def test_memory_mapped_sequence_from_filenames__invalid_chunks(
+def test_write_filenames_to_file__invalid_chunks(
     chunk_size: int, tmp_path: Path
 ) -> None:
     with pytest.raises(
