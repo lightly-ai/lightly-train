@@ -219,7 +219,7 @@ Use `checkpoint="path/to/checkpoint.ckpt"` to load model weights from a checkpoi
 - This is useful for continuing training with a different setup.
 
 ```{important}
-- `resume=True` and `checkpoint=...` are mutually exclusive and can not not be used together.
+- `resume=True` and `checkpoint=...` are mutually exclusive and cannot not be used together.
 - If `overwrite=True` is set, training will start fresh, overwriting existing outputs or checkpoints in the specified output directory.
 ```
 
