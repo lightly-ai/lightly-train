@@ -66,7 +66,7 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
 
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     model.load_state_dict(ckpt, strict=True)
-    logger.info(f"Loaded teacher weights from '{checkpoint_path}'")
+    logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
 
     return model
 
