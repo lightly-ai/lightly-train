@@ -60,7 +60,7 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
             f"Downloading teacher weights from: '{url}' and saving them to: '{checkpoint_path}'. "
             "The cache directory location can be configured with the LIGHTLY_TRAIN_CACHE_DIR environment variable."
         )
-        download_from_url(url, checkpoint_path, timeout=10.0)
+        download_from_url(url, checkpoint_path, timeout=180.0)
     else:
         logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
 
