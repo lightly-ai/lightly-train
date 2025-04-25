@@ -19,6 +19,24 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
+def write_filenames_to_file(
+    filenames: Iterable[str],
+    mmap_filepath: Path,
+    chunk_size: int = 10_000,
+    column_name: str = "filenames",
+) -> None:
+    """Writes the filenames to a file for memory mapping."""
+    if chunk_size <= 0:
+        raise ValueError(f"Invalid `chunk_size` {chunk_size} must be positive!")
+    logger.debug(f"Writing filenames to '{mmap_filepath}' (chunk_size={chunk_size})")
+    _stream_write_table_to_file(
+        items=filenames,
+        mmap_filepath=mmap_filepath,
+        chunk_size=chunk_size,
+        column_name=column_name,
+    )
+
+
 def memory_mapped_sequence_from_filenames(
     filenames: Iterable[str],
     mmap_filepath: Path,

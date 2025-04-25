@@ -236,7 +236,7 @@ def train_from_config(config: TrainConfig) -> None:
     # file has to exist while the dataset is used.
     # TODO(Philipp, 10/24): For training it could make sense to store the
     # file in the output directory and recover it on resume.
-    with common_helpers.get_dataset_temp_mmap_path() as mmap_filepath:
+    with common_helpers.get_dataset_temp_mmap_path(out=out_dir) as mmap_filepath:
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform_instance,

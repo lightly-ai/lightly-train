@@ -8,14 +8,15 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import logging
 import os
-import platform
+import tempfile
+import time
 import warnings
 from enum import Enum
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Any, Generator, Iterable, Literal
 
 import torch
@@ -23,9 +24,6 @@ from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
 from pytorch_lightning.accelerators.cuda import CUDAAccelerator
 from pytorch_lightning.accelerators.mps import MPSAccelerator
-from pytorch_lightning.plugins.environments import (  # type: ignore[attr-defined]
-    SLURMEnvironment,
-)
 from pytorch_lightning.strategies.strategy import Strategy
 from torch.nn import Module
 from torch.utils.data import Dataset
@@ -89,7 +87,7 @@ def get_accelerator(
         return CPUAccelerator()
 
 
-def _get_rank() -> int | None:
+def get_rank() -> int | None:
     """Get the rank of the current process.
 
     Copied from https://github.com/Lightning-AI/pytorch-lightning/blob/06a8d5bf33faf0a4f9a24207ae77b439354350af/src/lightning/fabric/utilities/rank_zero.py#L39-L49
@@ -107,7 +105,7 @@ def _get_rank() -> int | None:
 
 def is_rank_zero() -> bool:
     """Check if the current process is running on the first device."""
-    local_rank = _get_rank()
+    local_rank = get_rank()
     return local_rank == 0 or local_rank is None
 
 
@@ -233,40 +231,32 @@ def export_model(model: Module, format: ModelFormat, out: Path) -> None:
 
 
 @contextlib.contextmanager
-def get_dataset_temp_mmap_path() -> Generator[Path, Any, Any]:
-    """Generate file in temporary directory to be used for memory-mapping the dataset.
-
-    In case the Lightning Trainer is used to spawn the processes, rank 0 will run first
-    and create the memory-mapped file and share this via the env variable
-    LIGHTLY_TRAIN_DATASET_MMAP_PATH. This allows all processes to use the same file.
-
-    In case training runs on SLURM with the `srun` command, the control over spawning
-    the processes is given to SLURM and `srun` immediately runs the script `--ntasks-per-node`
-    many times in parallel. Therefore a common location of the temporary file can't be
-    communicated between the processes and every process has to create its own memory-mapped
-    file.
-    On Windows, each process creates its own temporary file due to file handling restrictions.
-    """
-    if platform.system() == "Windows" or SLURMEnvironment.detect():
-        # On Windows or SLURM, every rank creates its own temporary file
-        with NamedTemporaryFile(delete=True) as mmap_file:
-            mmap_filepath = Path(mmap_file.name)
-            # Close the file here to prevent failures on Windows, as it will be accessed
-            # by another process.
-            mmap_file.close()
-            yield mmap_filepath
-    else:
-        # Unix-like systems can share the same file between processes
-        LIGHTLY_TRAIN_DATASET_MMAP_PATH = "LIGHTLY_TRAIN_DATASET_MMAP_PATH"
+def get_dataset_temp_mmap_path(out: Path) -> Generator[Path, Any, Any]:
+    """Generate file in temporary directory to be used for memory-mapping the dataset."""
+    temp_dir = Path(tempfile.gettempdir())
+    # Create unique filename for the memory-mapped file based on the out path.
+    # We use the out path as a deterministic value that is consistent across all ranks.
+    # We need a determinstic value from "outside" at this point in the code as the
+    # code might already be running on multiple processes depending on how it was
+    # started. We cannot create a new filename based on a random value as this would
+    # create a different filename for each process. Creating the filename on rank zero
+    # and sharing it across all ranks is also complicated here as torch.distributed
+    # is not necessarily initialized yet and there are many forms of parallelism to
+    # handle (fork/spawn, torch.distributed, SLURM, etc.).
+    out_hash = hashlib.sha256(str(out).encode()).hexdigest()
+    mmap_filepath = (temp_dir / "lightly-train" / "data" / out_hash).with_suffix(
+        ".mmap"
+    )
+    mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        # Delete the file if already exists from a previous run.
         if common_helpers.is_rank_zero():
-            with NamedTemporaryFile(delete=True) as mmap_file:
-                mmap_filepath = Path(mmap_file.name)
-                os.environ[LIGHTLY_TRAIN_DATASET_MMAP_PATH] = str(mmap_filepath)
-                yield mmap_filepath
-        else:
-            # Make sure that all ranks use the same memory-mapped file.
-            mmap_filepath = Path(os.environ[LIGHTLY_TRAIN_DATASET_MMAP_PATH])
-            yield mmap_filepath
+            mmap_filepath.unlink(missing_ok=True)
+
+        yield mmap_filepath
+    finally:
+        if common_helpers.is_rank_zero():
+            mmap_filepath.unlink(missing_ok=True)
 
 
 def get_dataset_mmap_filenames(
@@ -275,30 +265,43 @@ def get_dataset_mmap_filenames(
 ) -> MemoryMappedSequence[str]:
     """Returns memory-mapped filenames shared across all ranks.
 
-    In case training runs on SLURM with the `srun` command, the control over spawning
-    the processes is given to SLURM and `srun` immediately runs the script `--ntasks-per-node`
-    many times in parallel. Therefore a common location of the temporary file can't be
-    communicated between the processes and every process has to create its own memory-
-    mapped file.
+    Filenames are written to mmap_filepath by rank zero and read by all ranks.
     """
-    if platform.system() == "Windows" or SLURMEnvironment.detect():
-        # On Windows or SLURM, every rank creates its own temporary file
-        return memory_mapped_sequence.memory_mapped_sequence_from_filenames(
+    if common_helpers.is_rank_zero():
+        # Save filenames to temporary file. Create the final file only once rank zero has
+        # finished writing all the filenames.
+        temp_path = mmap_filepath.with_suffix(".temp")
+        memory_mapped_sequence.write_filenames_to_file(
             filenames=filenames,
-            mmap_filepath=mmap_filepath,
+            mmap_filepath=temp_path,
         )
+        # Rename the temporary file to mmap_filepath.
+        temp_path.replace(mmap_filepath.resolve())
     else:
-        if common_helpers.is_rank_zero():
-            # Save filenames to memory mapped file and return them.
-            return memory_mapped_sequence.memory_mapped_sequence_from_filenames(
-                filenames=filenames,
-                mmap_filepath=mmap_filepath,
-            )
-        else:
-            # Return memory-mapped filenames from file.
-            return memory_mapped_sequence.memory_mapped_sequence_from_file(
-                mmap_filepath=mmap_filepath
-            )
+        # Wait for rank zero to finish writing the filenames.
+        timeout_sec = int(os.getenv("LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC", 3600))
+        start_time_sec = time.time()
+        while not mmap_filepath.exists():
+            if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
+                raise RuntimeError(
+                    f"Rank {common_helpers.get_rank()}: Timeout after {timeout_sec} seconds "
+                    f"while waiting for memory-mapped file '{mmap_filepath}' to be created. "
+                    "Please verify that the 'out' directory is set to the same path on all "
+                    "ranks (processes). "
+                    "Any timestamps in the path must be provided from OUTSIDE of the training "
+                    "script, either via the command line or an environment variable. Timestamps "
+                    "created inside a Python script, for example with 'datetime.now()' or "
+                    "'time.time()', will result in different values for each rank and must not be "
+                    "used."
+                    "The timeout can be configured with the LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC environment "
+                    "variable. Setting it to -1 disables the timeout. "
+                )
+            time.sleep(0.2)
+
+    # Return memory-mapped filenames from file.
+    return memory_mapped_sequence.memory_mapped_sequence_from_file(
+        mmap_filepath=mmap_filepath
+    )
 
 
 def get_dataset(
