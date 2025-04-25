@@ -21,9 +21,21 @@ logger = logging.getLogger(__name__)
 
 
 TEACHER_MODELS = {
+    "dinov2_vits14": {
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth",
+        "config": "eval/vits14_pretrain",
+    },
     "dinov2_vitb14": {
         "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth",
         "config": "eval/vitb14_pretrain",
+    },
+    "dinov2_vitl14": {
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth",
+        "config": "eval/vitl14_pretrain",
+    },
+    "dinov2_vitg14": {
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth",
+        "config": "eval/vitg14_pretrain",
     },
 }
 
