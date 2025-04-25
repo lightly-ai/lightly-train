@@ -1,7 +1,8 @@
 <picture>
-  <source media="(prefers-color-scheme: light)" srcset="./docs/source/_static/lightly_train_light.svg">
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/source/_static/lightly_train_dark.svg">
-  <img alt="LightlyTrain Logo" src="./docs/source/_static/lightly_train_light.svg">
+  <!-- Use absolute links for images to make them render correctly on PyPI and Dockerhub -->
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/lightly-ai/lightly-train/refs/heads/main/docs/source/_static/lightly_train_light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/lightly-ai/lightly-train/blob/main/docs/source/_static/lightly_train_dark.svg">
+  <img alt="LightlyTrain Logo" src="https://raw.githubusercontent.com/lightly-ai/lightly-train/refs/heads/main/docs/source/_static/lightly_train_light.svg">
 </picture>
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
@@ -29,7 +30,7 @@ a wide range of model architectures and use-cases out of the box.
 - 🏗️ **Model & Task Agnostic**: Compatible with any architecture and task, including detection, classification, and segmentation.
 - 🚀 **Industrial-Scale Support**: LightlyTrain scales from thousands to millions of images. Supports on-prem, cloud, single, and multi-GPU setups.
 
-![Benchmark Results](https://github.com/user-attachments/assets/554c4db2-d910-4cfb-9238-6a5d0faaeff8)
+![Benchmark Results](https://cdn.prod.website-files.com/62cd5ce03261cb3e98188470/67fe4efa0209fb4eb0c3da5c_Introducing%20LightlyTrain_imag_1.png)
 
 > On COCO, YOLOv8-s models pretrained with LightlyTrain achieve high performance across all tested label fractions.
 > These improvements hold for other architectures like YOLOv11, RT-DETR, and Faster R-CNN.
