@@ -86,7 +86,7 @@ def get_accelerator(
         return CPUAccelerator()
 
 
-def get_rank() -> int | None:
+def _get_rank() -> int | None:
     """Get the rank of the current process.
 
     Copied from https://github.com/Lightning-AI/pytorch-lightning/blob/06a8d5bf33faf0a4f9a24207ae77b439354350af/src/lightning/fabric/utilities/rank_zero.py#L39-L49
@@ -104,7 +104,7 @@ def get_rank() -> int | None:
 
 def is_rank_zero() -> bool:
     """Check if the current process is running on the first device."""
-    local_rank = get_rank()
+    local_rank = _get_rank()
     return local_rank == 0 or local_rank is None
 
 
@@ -181,7 +181,7 @@ def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
             while not out_tmp.exists():
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
                     raise RuntimeError(
-                        f"Rank {get_rank()}: Timeout after {timeout_sec} seconds "
+                        f"Rank {_get_rank()}: Timeout after {timeout_sec} seconds "
                         "while verifying that all ranks (processes) have the same 'out' path. "
                         "This means that the 'out' path is not set to the same path on all ranks. "
                         "If the path to your 'out' path contains any timestamps make sure that "
@@ -361,7 +361,7 @@ def get_dataset_mmap_filenames(
 
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
                     raise RuntimeError(
-                        f"Rank {get_rank()}: Timeout after {timeout_sec} seconds "
+                        f"Rank {_get_rank()}: Timeout after {timeout_sec} seconds "
                         f"while waiting for the memory-mapped file '{mmap_filepath}' to be created. "
                         "Please contact Lightly support if this happens. This is most likely a bug. "
                         f"You can increase the timeout with the {LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC} "
