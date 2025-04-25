@@ -107,7 +107,6 @@ module = [
     "albumentations.*",
     "lightly.*",
     "lightning_fabric.loggers.logger",
-    "rfdetr.*",
     "super_gradients.*",
     "tensorboard.*",
     "timm.*",
@@ -126,7 +125,8 @@ ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = [
-    "lightning_fabric.utilities.rank_zero"
+    "lightning_fabric.utilities.rank_zero",
+    "rfdetr.*",
 ]
 ignore_missing_imports = true
 disable_error_code = ["attr-defined"]
