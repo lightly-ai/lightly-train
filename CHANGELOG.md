@@ -10,8 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Faster dataset initialization with SLURM and Windows.
-- Transforms and methods are now documented on dedicated pages.
-- Add [version compatibility table](https://docs.lightly.ai/train/stable/installation.html#version-compatibility) to the documentation.
 
 ### Changed
 
@@ -21,9 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix image size mismatch issue when using TIMM models and DINO.
-
 ### Security
+
+## [0.6.3] - 2025-04-23
+
+### Added
+
+- Transforms and methods are now documented on dedicated pages.
+- Add [version compatibility table](https://docs.lightly.ai/train/stable/installation.html#version-compatibility) to the documentation.
+
+### Fixed
+
+- Fix image size mismatch issue when using TIMM models and DINO.
 
 ## [0.6.2] - 2025-04-09
 
@@ -31,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Document [RF-DETR models](https://docs.lightly.ai/train/stable/models/rtdetr.html).
 - Add [frequently asked questions](https://docs.lightly.ai/train/stable/faq.html) page.
-- Add \[Torchvision classification tutorial\](https://docs.lightly.ai/train/stable/tutorials/resnet/index.html
+- Add [Torchvision classification tutorial](https://docs.lightly.ai/train/stable/tutorials/resnet/index.html).
 - Add [depth estimation tutorial](https://docs.lightly.ai/train/stable/tutorials/depth_estimation/index.html).
 
 ### Changed
