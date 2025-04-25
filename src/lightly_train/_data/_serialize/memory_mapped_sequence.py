@@ -37,42 +37,6 @@ def write_filenames_to_file(
     )
 
 
-def memory_mapped_sequence_from_filenames(
-    filenames: Iterable[str],
-    mmap_filepath: Path,
-    chunk_size: int = 10_000,
-    column_name: str = "filenames",
-) -> MemoryMappedSequence[str]:
-    """Creates and returns a memory mapped sequence from the iterable filenames.
-
-    Args:
-        filenames:
-            Iterable of filenames.
-        mmap_filepath:
-            Path to the PyArrow file used for the memory map.
-        chunk_size:
-            Number of filenames written to the file at once.
-        column:
-            The column name in which filenames are stored.
-
-    Returns:
-        A memory mapped sequence of filenames.
-    """
-
-    if chunk_size <= 0:
-        raise ValueError(f"Invalid `chunk_size` {chunk_size} must be positive!")
-    logger.debug(f"Writing filenames to '{mmap_filepath}' (chunk_size={chunk_size})")
-    _stream_write_table_to_file(
-        items=filenames,
-        mmap_filepath=mmap_filepath,
-        chunk_size=chunk_size,
-        column_name=column_name,
-    )
-    return memory_mapped_sequence_from_file(
-        mmap_filepath=mmap_filepath, column_name=column_name
-    )
-
-
 def memory_mapped_sequence_from_file(
     mmap_filepath: Path, column_name: str = "filenames"
 ) -> MemoryMappedSequence[str]:
