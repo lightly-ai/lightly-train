@@ -163,6 +163,9 @@ def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
     out_tmp = get_verify_out_tmp_dir() / get_sha256(out_dir)
     logger.debug(f"Creating temporary file '{out_tmp}' to verify out directory.")
 
+    LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC = (
+        "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC"
+    )
     try:
         if is_rank_zero():
             out_tmp.unlink(missing_ok=True)
@@ -173,7 +176,7 @@ def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
             yield
         else:
             # Wait for rank zero to create the temporary file.
-            timeout_sec = int(os.getenv("LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC", 30))
+            timeout_sec = int(os.getenv(LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC, 30))
             start_time_sec = time.time()
             while not out_tmp.exists():
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
@@ -186,7 +189,7 @@ def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
                         "command line or an environment variable. Timestamps created inside a Python "
                         "script, for example with 'datetime.now()' or 'time.time()', will result "
                         "in different values for each rank and must not be used. "
-                        "The timeout can be configured with the LIGHTLY_TRAIN_VERIFY_OUT_TIMEOUT_SEC "
+                        f"The timeout can be configured with the {LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC} "
                         "environment variable. Setting it to -1 disables the timeout. "
                     )
                 time.sleep(0.1)
@@ -334,29 +337,37 @@ def get_dataset_mmap_filenames(
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
     """
+    tmp_path = mmap_filepath.with_suffix(".temp")
+    LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC = "LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC"
     if is_rank_zero():
         # Save filenames to temporary file. Create the final file only once rank zero has
         # finished writing all the filenames.
-        temp_path = mmap_filepath.with_suffix(".temp")
-        memory_mapped_sequence.write_filenames_to_file(
-            filenames=filenames,
-            mmap_filepath=temp_path,
-        )
-        # Rename the temporary file to mmap_filepath.
-        temp_path.replace(mmap_filepath.resolve())
+        try:
+            memory_mapped_sequence.write_filenames_to_file(
+                filenames=filenames,
+                mmap_filepath=tmp_path,
+            )
+            # Rename the temporary file to mmap_filepath.
+            tmp_path.replace(mmap_filepath.resolve())
+        finally:
+            tmp_path.unlink(missing_ok=True)
     else:
         # Wait for rank zero to finish writing the filenames.
-        timeout_sec = int(os.getenv("LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC", 3600))
+        timeout_sec = int(os.getenv(LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC, 300))
         start_time_sec = time.time()
         while not mmap_filepath.exists():
+            if tmp_path.exists():
+                # Reset timeout if the temporary file exists. This means that rank zero
+                # is still writing the filenames.
+                start_time_sec = time.time()
+
             if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
                 raise RuntimeError(
                     f"Rank {get_rank()}: Timeout after {timeout_sec} seconds "
                     f"while waiting for the memory-mapped file '{mmap_filepath}' to be created. "
-                    "Please contact Lightly support if this happens. This is most likely to a bug, "
-                    "a slow filesystem or a huge dataset. If the dataset is huge, consider increasing "
-                    "the timeout with the LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC environment variable. "
-                    "Setting it to -1 disables the timeout. "
+                    "Please contact Lightly support if this happens. This is most likely a bug. "
+                    f"You can increase the timeout with the {LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC} "
+                    "environment variable. Setting it to -1 disables the timeout. "
                 )
             time.sleep(0.2)
 
