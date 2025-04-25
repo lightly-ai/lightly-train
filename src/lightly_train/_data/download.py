@@ -33,5 +33,4 @@ def download_from_url(url: str, destination: Path, timeout: float = 10.0) -> Non
                         out_file.write(chunk)
                         t.update(len(chunk))
     except (URLError, HTTPError, TimeoutError, Exception) as e:
-        logger.error(f"Failed to download weights from {url}: {e}")
-        raise RuntimeError(f"Download failed: {e}")
+        raise RuntimeError(f"Download from '{url}' failed: '{e}'")
