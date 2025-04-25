@@ -28,7 +28,6 @@ from pytorch_lightning.strategies.strategy import Strategy
 from torch.nn import Module
 from torch.utils.data import Dataset
 
-from lightly_train._commands import common_helpers
 from lightly_train._data import image_dataset
 from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
@@ -125,6 +124,75 @@ def get_out_dir(out: PathLike, resume: bool, overwrite: bool) -> Path:
             )
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
+
+
+def get_tmp_dir() -> Path:
+    """Get the temporary directory for Lightly Train."""
+    return Path(tempfile.gettempdir()) / "lightly-train"
+
+
+def get_data_tmp_dir() -> Path:
+    """Get the temporary directory for Lightly Train data."""
+    return get_tmp_dir() / "data"
+
+
+def get_verify_out_tmp_dir() -> Path:
+    """Get the temporary directory for Lightly Train verify out."""
+    return get_tmp_dir() / "verify-out"
+
+
+def get_sha256(value: Any) -> str:
+    """Get the SHA256 hash of a value."""
+    return hashlib.sha256(str(value).encode()).hexdigest()
+
+
+@contextlib.contextmanager
+def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
+    """Verify that the out directory is the same on all ranks.
+
+    This is important for distributed training, as the out directory is used as
+    a deterministic value that is consistent across all ranks.
+
+    A common case where this can fail is when the out directory contains a timestamp
+    in the path that is generated inside the training script. For example with:
+    >>> out = f"out/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+    This will result in different paths for each rank as the timestamp is generated
+    on each rank separately.
+    """
+    out_dir = Path(out).resolve()
+    out_tmp = get_verify_out_tmp_dir() / get_sha256(out_dir)
+    logger.debug(f"Creating temporary file '{out_tmp}' to verify out directory.")
+
+    try:
+        if is_rank_zero():
+            out_tmp.unlink(missing_ok=True)
+            out_tmp.parent.mkdir(parents=True, exist_ok=True)
+            out_tmp.touch()
+            # Write the out directory to the temporary file for debugging.
+            out_tmp.write_text(str(out_dir))
+            yield
+        else:
+            # Wait for rank zero to create the temporary file.
+            timeout_sec = int(os.getenv("LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC", 30))
+            start_time_sec = time.time()
+            while not out_tmp.exists():
+                if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
+                    raise RuntimeError(
+                        f"Rank {get_rank()}: Timeout after {timeout_sec} seconds "
+                        "while verifying that all ranks (processes) have the same 'out' directory. "
+                        "This means that the 'out' directory is not set to the same path on all ranks. "
+                        "If the path to your 'out' directory contains any timestamps make sure that "
+                        "they are provided from OUTSIDE of the training script. Either via the "
+                        "command line or an environment variable. Timestamps created inside a Python "
+                        "script, for example with 'datetime.now()' or 'time.time()', will result "
+                        "in different values for each rank and must not be used. "
+                        "The timeout can be configured with the LIGHTLY_TRAIN_VERIFY_OUT_TIMEOUT_SEC "
+                        "environment variable. Setting it to -1 disables the timeout. "
+                    )
+                time.sleep(0.1)
+            yield
+    finally:
+        out_tmp.unlink(missing_ok=True)
 
 
 def pretty_format_args(args: dict[str, Any], indent: int = 4) -> str:
@@ -232,30 +300,29 @@ def export_model(model: Module, format: ModelFormat, out: Path) -> None:
 
 @contextlib.contextmanager
 def get_dataset_temp_mmap_path(out: Path) -> Generator[Path, Any, Any]:
-    """Generate file in temporary directory to be used for memory-mapping the dataset."""
-    temp_dir = Path(tempfile.gettempdir())
-    # Create unique filename for the memory-mapped file based on the out path.
-    # We use the out path as a deterministic value that is consistent across all ranks.
-    # We need a determinstic value from "outside" at this point in the code as the
-    # code might already be running on multiple processes depending on how it was
-    # started. We cannot create a new filename based on a random value as this would
-    # create a different filename for each process. Creating the filename on rank zero
-    # and sharing it across all ranks is also complicated here as torch.distributed
-    # is not necessarily initialized yet and there are many forms of parallelism to
-    # handle (fork/spawn, torch.distributed, SLURM, etc.).
-    out_hash = hashlib.sha256(str(out).encode()).hexdigest()
-    mmap_filepath = (temp_dir / "lightly-train" / "data" / out_hash).with_suffix(
-        ".mmap"
-    )
+    """Generate file in temporary directory to be used for memory-mapping the dataset.
+
+    Creates a unique filename for the memory-mapped file based on the out path.
+    We use the out path as a deterministic value that is consistent across all ranks.
+    We need a determinstic value from "outside" at this point in the code as the
+    code might already be running on multiple processes depending on how it was
+    started. We cannot create a new filename based on a random value as this would
+    create a different filename for each process. Creating the filename on rank zero
+    and sharing it across all ranks is also complicated here as torch.distributed
+    is not necessarily initialized yet and there are many forms of parallelism to
+    handle (fork/spawn, torch.distributed, SLURM, etc.).
+    """
+    out_hash = get_sha256(out)
+    mmap_filepath = (get_data_tmp_dir() / out_hash).with_suffix(".mmap")
     mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
     try:
         # Delete the file if already exists from a previous run.
-        if common_helpers.is_rank_zero():
+        if is_rank_zero():
             mmap_filepath.unlink(missing_ok=True)
 
         yield mmap_filepath
     finally:
-        if common_helpers.is_rank_zero():
+        if is_rank_zero():
             mmap_filepath.unlink(missing_ok=True)
 
 
@@ -267,7 +334,7 @@ def get_dataset_mmap_filenames(
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
     """
-    if common_helpers.is_rank_zero():
+    if is_rank_zero():
         # Save filenames to temporary file. Create the final file only once rank zero has
         # finished writing all the filenames.
         temp_path = mmap_filepath.with_suffix(".temp")
@@ -284,17 +351,12 @@ def get_dataset_mmap_filenames(
         while not mmap_filepath.exists():
             if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
                 raise RuntimeError(
-                    f"Rank {common_helpers.get_rank()}: Timeout after {timeout_sec} seconds "
-                    f"while waiting for memory-mapped file '{mmap_filepath}' to be created. "
-                    "Please verify that the 'out' directory is set to the same path on all "
-                    "ranks (processes). "
-                    "Any timestamps in the path must be provided from OUTSIDE of the training "
-                    "script, either via the command line or an environment variable. Timestamps "
-                    "created inside a Python script, for example with 'datetime.now()' or "
-                    "'time.time()', will result in different values for each rank and must not be "
-                    "used."
-                    "The timeout can be configured with the LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC environment "
-                    "variable. Setting it to -1 disables the timeout. "
+                    f"Rank {get_rank()}: Timeout after {timeout_sec} seconds "
+                    f"while waiting for the memory-mapped file '{mmap_filepath}' to be created. "
+                    "Please contact Lightly support if this happens. This is most likely to a bug, "
+                    "a slow filesystem or a huge dataset. If the dataset is huge, consider increasing "
+                    "the timeout with the LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC environment variable. "
+                    "Setting it to -1 disables the timeout. "
                 )
             time.sleep(0.2)
 

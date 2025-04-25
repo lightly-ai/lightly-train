@@ -119,6 +119,59 @@ def test_get_out_dir__nonempty(
             common_helpers.get_out_dir(out=tmp_path, resume=resume, overwrite=overwrite)
 
 
+def test_verify_out_dir_equal_on_all_ranks(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    out_dir = tmp_path / "out"
+    # Simulate calling the function from rank 0
+    mocker.patch.dict(os.environ, {"RANK": "0"})
+    with common_helpers.verify_out_dir_equal_on_all_ranks(out_dir):
+        # Simulate calling the function from rank 1
+        mocker.patch.dict(os.environ, {"RANK": "1"})
+        with common_helpers.verify_out_dir_equal_on_all_ranks(out_dir):
+            pass
+
+    # Make sure that no files are left in the temporary directory.
+    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+
+
+def test_verify_out_dir_equal_on_all_ranks__different(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    out_dir_rank0 = tmp_path / "rank0"
+    out_dir_rank1 = tmp_path / "rank1"
+
+    # Simulate calling the function from rank 0
+    mocker.patch.dict(os.environ, {"RANK": "0"})
+    with common_helpers.verify_out_dir_equal_on_all_ranks(out_dir_rank0):
+        # Simulate calling the function from rank 1
+        mocker.patch.dict(
+            os.environ, {"RANK": "1", "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC": "1"}
+        )
+        with pytest.raises(RuntimeError, match="Rank 1: Timeout after 1 seconds"):
+            with common_helpers.verify_out_dir_equal_on_all_ranks(out_dir_rank1):
+                pass
+
+    # Make sure that no files are left in the temporary directory.
+    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+
+
+def test_verify_out_dir_equal_on_all_ranks__no_rank0(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    out_dir = tmp_path / "rank1"
+
+    mocker.patch.dict(
+        os.environ, {"RANK": "1", "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC": "1"}
+    )
+    with pytest.raises(RuntimeError, match="Rank 1: Timeout after 1 seconds"):
+        with common_helpers.verify_out_dir_equal_on_all_ranks(out_dir):
+            pass
+
+    # Make sure that no files are left in the temporary directory.
+    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+
+
 @pytest.mark.parametrize(
     "input_args, expected_output",
     [
@@ -369,8 +422,8 @@ def test_get_dataset_mmap_filenames__rank_error(
     )
 
     # Simulate calling the function from rank 1.
-    mocker.patch.dict(os.environ, {"RANK": "1", "LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC": "5"})
-    with pytest.raises(RuntimeError, match="Rank 1: Timeout after 5 seconds"):
+    mocker.patch.dict(os.environ, {"RANK": "1", "LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC": "1"})
+    with pytest.raises(RuntimeError, match="Rank 1: Timeout after 1 seconds"):
         common_helpers.get_dataset_mmap_filenames(
             filenames=filenames,
             mmap_filepath=mmap_filepath_rank1,
