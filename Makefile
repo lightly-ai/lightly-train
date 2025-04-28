@@ -75,9 +75,15 @@ type-check:
 # adding the license header to all files
 .PHONY: add-header
 add-header:
-	licenseheaders -t dev_tools/licenseheader.tmpl -d src
+	licenseheaders -t dev_tools/licenseheader.tmpl -d src \
+		-x src/lightly_train/_modules/teachers/dinov2 \
+		-E py
 	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
+	# Apply the Apache 2.0 license header to DINOv2-derived files
+	licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
+		-d src/lightly_train/_modules/teachers/dinov2 \
+		-E py
 
 
 ### Testing
@@ -139,7 +145,7 @@ DOCKER_EXTRAS := --extra tensorboard --extra timm --extra wandb --extra rfdetr
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
-EXCLUDE_NEWER_DATE := "2025-03-25"
+EXCLUDE_NEWER_DATE := "2025-04-23"
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
 # on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
