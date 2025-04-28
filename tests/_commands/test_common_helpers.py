@@ -400,6 +400,28 @@ def test_get_dataset__path__empty(tmp_path: Path) -> None:
         )
 
 
+def test_get_dataset__dirs_and_files(tmp_path: Path) -> None:
+    single_img1 = tmp_path / "img.jpg"
+    single_img2 = tmp_path / "img_2.jpg"
+    single_img1.touch()
+    single_img2.touch()
+    img_dir = tmp_path / "dir"
+    os.makedirs(str(img_dir), exist_ok=True)
+    (img_dir / "img_1.jpg").touch()
+    (img_dir / "img_3.jpg").touch()
+    assert os.path.isdir(str(img_dir))
+    mmap_filepath = Path(tmp_path / "test.pyarrow")
+    _ = common_helpers.get_dataset(
+        data=[
+            single_img1,
+            single_img2,
+            img_dir,
+        ],
+        transform=ToTensorV2(),
+        mmap_filepath=mmap_filepath,
+    )
+
+
 def test_get_dataset__dataset() -> None:
     dataset = MockDataset(torch.rand(10, 3, 224, 224))
     dataset_1 = common_helpers.get_dataset(

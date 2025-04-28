@@ -16,7 +16,7 @@ import warnings
 from enum import Enum
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Generator, Iterable, Literal
+from typing import Any, Generator, Iterable, Literal, Sequence
 
 import torch
 from pytorch_lightning.accelerators.accelerator import Accelerator
@@ -133,6 +133,34 @@ def pretty_format_args(args: dict[str, Any], indent: int = 4) -> str:
     args = sanitize_config_dict(args)
 
     return json.dumps(args, indent=indent, sort_keys=True)
+
+
+def remove_excessive_args(
+    args: dict[str, Any], limit_keys: set[str] | None = None, num_elems: int = 5
+) -> dict[str, Any]:
+    """Limit the number of elements in sequences of a dict to a certain number. This is
+    strictly for logging purposes. Does not work with nested structures.
+
+    Args:
+        args: The dictionary to limit.
+        limit_keys: The keys to limit. If None, all keys are limited.
+        num_elems: Number of elements to keep in the sequence.
+
+    Returns:
+        The dictionary with sequences limited to a certain number of elements.
+    """
+    if limit_keys is None:
+        limit_keys = set(args.keys())
+    for key in limit_keys:
+        if (
+            isinstance(args[key], Sequence)
+            and not isinstance(args[key], str)
+            and len(args[key]) > num_elems
+        ):
+            args[key] = type(args[key])(
+                (*args[key][: num_elems - 2], "...", args[key][-1])
+            )
+    return args
 
 
 def sanitize_config_dict(args: dict[str, Any]) -> dict[str, Any]:
@@ -302,7 +330,7 @@ def get_dataset_mmap_filenames(
 
 
 def get_dataset(
-    data: PathLike | Dataset[DatasetItem],
+    data: PathLike | Sequence[PathLike] | Dataset[DatasetItem],
     transform: Transform,
     mmap_filepath: Path | None,
 ) -> Dataset[DatasetItem]:
@@ -310,24 +338,29 @@ def get_dataset(
         logger.debug("Using provided dataset.")
         return data
 
-    data = Path(data).resolve()
-    logger.debug(f"Making sure data directory '{data}' exists and is not empty.")
-    if not data.exists():
-        raise ValueError(f"Data directory '{data}' does not exist!")
-    elif not data.is_dir():
-        raise ValueError(f"Data path '{data}' is not a directory!")
-    elif data.is_dir() and not any(data.iterdir()):
-        raise ValueError(f"Data directory '{data}' is empty!")
+    if isinstance(data, (str, Path)):
+        data = [data]
+    if len(data) == 0:
+        raise ValueError("Data list is empty!")
+    _data: Sequence[Path] = [Path(d).resolve() for d in data]
+    logger.debug("Making sure data directories and files exist and are not empty.")
+    for d in _data:
+        if not d.exists():
+            raise ValueError(f"Data directory or file '{d}' does not exist!")
+        if d.is_dir() and not any(d.iterdir()):
+            raise ValueError(f"Data directory '{d}' is empty!")
+
     if mmap_filepath is None:
         raise ValueError("Memory-mapped file path must be provided.")
 
-    logger.info(f"Initializing dataset from '{data}'.")
     # NOTE(Guarin, 01/25): The bottleneck for dataset initialization is filename
     # listing and not the memory mapping. Listing the train set from ImageNet takes
     # about 30 seconds. This is mostly because os.walk is not parallelized.
-    filenames = image_dataset.list_image_filenames(image_dir=data)
+    files = image_dataset.list_image_files(_data)
+    common_dir, filenames = image_dataset.list_image_filenames(files)
+    logger.info(f"Initializing dataset from files in '{common_dir}'.")
     return ImageDataset(
-        image_dir=data,
+        image_dir=common_dir,
         image_filenames=get_dataset_mmap_filenames(
             filenames=filenames,
             mmap_filepath=mmap_filepath,

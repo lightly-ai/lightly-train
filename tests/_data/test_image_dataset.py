@@ -26,16 +26,17 @@ from ..helpers import DummyMethodTransform
 
 @pytest.fixture
 def flat_image_dir(tmp_path: Path) -> Path:
-    return _create_images(tmp_path=tmp_path, filenames=["image1.jpg", "image2.jpg"])
+    img_dir = tmp_path / "images"
+    _create_images(base_path=img_dir, filenames=["image1.jpg", "image2.jpg"])
+    return img_dir
 
 
 @pytest.fixture
 def image_dir_being_symlink(tmp_path: Path) -> Path:
     """Returns a path being a symlink to a normal image directory."""
-    path_original = _create_images(
-        tmp_path=tmp_path, filenames=["image1.jpg", "image2.jpg"]
-    )
-    path_symlink = tmp_path / "contains_symlinks"
+    path_original = tmp_path / "images_symlinktarget"
+    _create_images(base_path=path_original, filenames=["image1.jpg", "image2.jpg"])
+    path_symlink = tmp_path / "images_symlinksource"
     path_symlink.symlink_to(path_original)
     return path_symlink
 
@@ -46,9 +47,8 @@ def image_dir_containing_symlinks(tmp_path: Path) -> Path:
     Returns a path not being a symlink but containing a symlink to a normal image
     directory.
     """
-    path_original = _create_images(
-        tmp_path=tmp_path, filenames=["image1.jpg", "image2.jpg"]
-    )
+    path_original = tmp_path / "images_symlinktarget"
+    _create_images(base_path=path_original, filenames=["image1.jpg", "image2.jpg"])
     path_containing_symlink = tmp_path / "contains_symlinks"
     path_containing_symlink.mkdir(parents=True, exist_ok=True)
     link_source = path_containing_symlink / "link"
@@ -58,9 +58,11 @@ def image_dir_containing_symlinks(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def nested_image_dir(tmp_path: Path) -> Path:
-    return _create_images(
-        tmp_path=tmp_path, filenames=["class1/image1.jpg", "class2/image2.jpg"]
+    img_dir = tmp_path / "images_nested"
+    _create_images(
+        base_path=img_dir, filenames=["class1/image1.jpg", "class2/image2.jpg"]
     )
+    return img_dir
 
 
 class TestImageDataset:
@@ -100,7 +102,8 @@ class TestImageDataset:
     )
     def test___getitem____mode(self, tmp_path: Path, mode: str, extension: str) -> None:
         filenames = [ImageFilename(f"image1.{extension}")]
-        image_dir = _create_images(tmp_path=tmp_path, filenames=filenames, mode=mode)
+        image_dir = tmp_path / "images"
+        _create_images(base_path=image_dir, filenames=filenames, mode=mode)
         dataset = ImageDataset(
             image_dir=image_dir,
             image_filenames=filenames,
@@ -112,7 +115,8 @@ class TestImageDataset:
 
     def test___getitem____truncated(self, tmp_path: Path) -> None:
         filenames = [ImageFilename("image1.jpg")]
-        image_dir = _create_images(tmp_path=tmp_path, filenames=filenames)
+        image_dir = tmp_path / "images"
+        _create_images(base_path=image_dir, filenames=filenames)
 
         # Truncate the image by 10 bytes.
         first_image_path = next(image_dir.glob("*.jpg"))
@@ -133,12 +137,10 @@ class TestImageDataset:
     def test___getitem____masks(self, tmp_path: Path) -> None:
         img_filenames = [ImageFilename("image1.jpg")]
         mask_filenames = [ImageFilename("image1.png")]
-        image_dir = _create_images(
-            tmp_path=tmp_path / "images", filenames=img_filenames
-        )
-        mask_dir = _create_images(
-            tmp_path=tmp_path / "masks", filenames=mask_filenames, mode="L"
-        )
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        _create_images(base_path=image_dir, filenames=img_filenames)
+        _create_images(base_path=mask_dir, filenames=mask_filenames, mode="L")
         dataset = ImageDataset(
             image_dir=image_dir,
             image_filenames=img_filenames,
@@ -184,40 +186,89 @@ class TestImageDataset:
             assert batch["filename"] == filenames
 
 
-def test_list_image_filenames__flat(flat_image_dir: Path) -> None:
-    filenames = image_dataset.list_image_filenames(image_dir=flat_image_dir)
-    assert sorted(list(filenames)) == [
-        "image1.jpg",
-        "image2.jpg",
-    ]
-
-
-def test_list_image_filenames__dir_is_symlink(image_dir_being_symlink: Path) -> None:
-    filenames = image_dataset.list_image_filenames(image_dir=image_dir_being_symlink)
-    assert sorted(list(filenames)) == [
-        "image1.jpg",
-        "image2.jpg",
-    ]
-
-
-def test_list_image_filenames__dir_contains_symlinks(
-    image_dir_containing_symlinks: Path,
-) -> None:
-    filenames = image_dataset.list_image_filenames(
-        image_dir=image_dir_containing_symlinks
+def test_list_image_files__single_flat_dir(flat_image_dir: Path) -> None:
+    file_paths = image_dataset.list_image_files(imgs_and_dirs=[flat_image_dir])
+    assert sorted(file_paths) == sorted(
+        [
+            flat_image_dir / "image1.jpg",
+            flat_image_dir / "image2.jpg",
+        ]
     )
-    assert sorted(list(filenames)) == [
-        "link/image1.jpg",
-        "link/image2.jpg",
-    ]
 
 
-def test_list_image_filenames__nested(nested_image_dir: Path) -> None:
-    filenames = image_dataset.list_image_filenames(image_dir=nested_image_dir)
-    assert sorted(list(filenames)) == [
-        "class1/image1.jpg",
-        "class2/image2.jpg",
+def test_list_image_files__single_nested_dir(nested_image_dir: Path) -> None:
+    file_paths = image_dataset.list_image_files(imgs_and_dirs=[nested_image_dir])
+    assert sorted(file_paths) == sorted(
+        [
+            nested_image_dir / "class1" / "image1.jpg",
+            nested_image_dir / "class2" / "image2.jpg",
+        ]
+    )
+
+
+def test_list_image_files__multiple_dirs(
+    flat_image_dir: Path, nested_image_dir: Path
+) -> None:
+    file_paths = image_dataset.list_image_files(
+        imgs_and_dirs=[flat_image_dir, nested_image_dir]
+    )
+    assert sorted(file_paths) == sorted(
+        [
+            flat_image_dir / "image1.jpg",
+            flat_image_dir / "image2.jpg",
+            nested_image_dir / "class1" / "image1.jpg",
+            nested_image_dir / "class2" / "image2.jpg",
+        ]
+    )
+
+
+def test_list_image_files__dir_is_symlink(image_dir_being_symlink: Path) -> None:
+    file_paths = image_dataset.list_image_files(imgs_and_dirs=[image_dir_being_symlink])
+    target_path = image_dir_being_symlink.resolve().parent / "images_symlinktarget"
+    assert sorted(file_paths) == sorted(
+        [
+            target_path / "image1.jpg",
+            target_path / "image2.jpg",
+        ]
+    )
+
+
+def test_list_image_files__multiple_dirs_with_symlinks(
+    flat_image_dir: Path, nested_image_dir: Path, image_dir_containing_symlinks: Path
+) -> None:
+    file_paths = image_dataset.list_image_files(
+        imgs_and_dirs=[flat_image_dir, nested_image_dir, image_dir_containing_symlinks]
+    )
+    target_path = (
+        image_dir_containing_symlinks.resolve().parent / "images_symlinktarget"
+    )
+    assert sorted(file_paths) == sorted(
+        [
+            flat_image_dir / "image1.jpg",
+            flat_image_dir / "image2.jpg",
+            nested_image_dir / "class1" / "image1.jpg",
+            nested_image_dir / "class2" / "image2.jpg",
+            target_path / "image1.jpg",
+            target_path / "image2.jpg",
+        ]
+    )
+
+
+def test_list_image_filenames() -> None:
+    file_paths = [
+        Path("class1/image1.jpg"),
+        Path("class1/image2.jpg"),
+        Path("class2/image3.jpg"),
+        Path("image4.jpg"),
     ]
+    common_dir, filenames = image_dataset.list_image_filenames(imgs=file_paths)
+    assert sorted(list(filenames)) == [
+        ImageFilename("class1/image1.jpg"),
+        ImageFilename("class1/image2.jpg"),
+        ImageFilename("class2/image3.jpg"),
+        ImageFilename("image4.jpg"),
+    ]
+    assert common_dir == Path.cwd()
 
 
 @pytest.mark.parametrize(
@@ -264,19 +315,27 @@ def test_list_image_filenames__nested(nested_image_dir: Path) -> None:
     ],
 )
 def test_list_image_filenames__extensions(extension: str, tmp_path: Path) -> None:
-    image_dir = _create_images(
-        tmp_path=tmp_path, filenames=[f"image{i}{extension}" for i in range(1, 3)]
+    base_path = tmp_path / "images"
+    filenames = [f"image{i}{extension}" for i in range(1, 3)]
+    imgs = [base_path / filename for filename in filenames]
+    _create_images(
+        base_path=tmp_path / "images",
+        filenames=[f"image{i}{extension}" for i in range(1, 3)],
     )
-    filenames = image_dataset.list_image_filenames(image_dir=image_dir)
-    assert sorted(list(filenames)) == [
+    _, _filenames = image_dataset.list_image_filenames(imgs=imgs)
+    assert sorted(list(_filenames)) == [
         f"image1{extension}",
         f"image2{extension}",
     ]
 
 
-def _create_images(tmp_path: Path, filenames: Iterable[str], mode: str = "RGB") -> Path:
-    image_dir = tmp_path / "images"
+def _create_images(
+    base_path: Path, filenames: Iterable[str], mode: str = "RGB"
+) -> list[Path]:
+    """Create images in the given directory with the given filenames and return their
+    paths.
+    """
     helpers.create_images(
-        image_dir=image_dir, files=filenames, height=32, width=32, mode=mode
+        image_dir=base_path, files=filenames, height=32, width=32, mode=mode
     )
-    return image_dir
+    return [base_path / filename for filename in filenames]
