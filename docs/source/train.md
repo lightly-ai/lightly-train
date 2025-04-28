@@ -214,7 +214,6 @@ Use `resume=True` to **resume a previously interrupted or crashed training run**
 
 Use `checkpoint="path/to/checkpoint.ckpt"` to load model weights from a checkpoint, but start a new training run.
 
-- You **must use a new output directory**.
 - You are free to **change training parameters**.
 - This is useful for continuing training with a different setup.
 
