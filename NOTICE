@@ -1,0 +1,13 @@
+This project incorporates the following third-party components:
+
+---
+
+**DINOv2**
+
+- Source: https://github.com/facebookresearch/dinov2
+- License: Apache License 2.0
+- License file: licenses/DINOv2_LICENSE
+
+---
+
+All third-party code is used in accordance with their respective licenses.

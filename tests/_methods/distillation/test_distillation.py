@@ -14,7 +14,6 @@ import torch
 import torch.nn.functional as F
 from pytest_mock import MockerFixture
 
-from lightly_train._methods.distillation import distillation
 from lightly_train._methods.distillation.distillation import (
     Distillation,
     DistillationArgs,
@@ -175,18 +174,24 @@ class TestDistillation:
         queue_size = 10
         batch_size = 2
 
-        # Instantiate the distillation method.
-        mock_automodel = mocker.patch.object(distillation, "AutoModel")
-        mock_automodel.from_pretrained.return_value.layernorm.weight.shape = (
-            teacher_embed_dim,
+        # Mock the teacher model.
+        mock_teacher_model = mocker.Mock()
+        mock_teacher_model.embed_dim = teacher_embed_dim
+
+        # Mock the getter of the teacher model.
+        mock_get_teacher_model = mocker.patch(
+            "lightly_train._methods.distillation.distillation.get_teacher"
         )
+        mock_get_teacher_model.return_value = mock_teacher_model
+
+        # Instantiate the distillation method.
         distill = Distillation(
             method_args=DistillationArgs(queue_size=queue_size),
             optimizer_args=DistillationLARSArgs(),
             embedding_model=helpers.get_embedding_model(),
             global_batch_size=batch_size,
         )
-        mock_automodel.from_pretrained.assert_called_once()
+        mock_get_teacher_model.assert_called_once()
 
         # Set the queue to be full of ones at the end.
         distill.teacher_queue[-batch_size:, :] = 1.0
@@ -220,18 +225,24 @@ class TestDistillation:
         queue_size = 10
         batch_size = 12
 
-        # Instantiate the distillation method.
-        mock_automodel = mocker.patch.object(distillation, "AutoModel")
-        mock_automodel.from_pretrained.return_value.layernorm.weight.shape = (
-            teacher_embed_dim,
+        # Mock the teacher model.
+        mock_teacher_model = mocker.Mock()
+        mock_teacher_model.embed_dim = teacher_embed_dim
+
+        # Mock the getter of the teacher model.
+        mock_get_teacher_model = mocker.patch(
+            "lightly_train._methods.distillation.distillation.get_teacher"
         )
+        mock_get_teacher_model.return_value = mock_teacher_model
+
+        # Instantiate the distillation method.
         distill = Distillation(
             method_args=DistillationArgs(queue_size=queue_size),
             optimizer_args=DistillationLARSArgs(),
             embedding_model=helpers.get_embedding_model(),
             global_batch_size=batch_size,
         )
-        mock_automodel.from_pretrained.assert_called_once()
+        mock_get_teacher_model.assert_called_once()
 
         # Initialize the queue with zeros except ones at the end.
         distill.teacher_queue = torch.zeros([queue_size, teacher_embed_dim])
