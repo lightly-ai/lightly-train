@@ -305,7 +305,9 @@ def test_pretty_format_args__custom_model() -> None:
         ),
     ],
 )
-def test_remove_excessive_args__all_keys(args, expected) -> None:
+def test_remove_excessive_args__all_keys(
+    args: dict[str, Any], expected: dict[str, Any]
+) -> None:
     assert common_helpers.remove_excessive_args(args=args) == expected
 
 
