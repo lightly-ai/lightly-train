@@ -41,7 +41,7 @@ class TestRFDETRPackage:
         assert (model_name in model_names) is supported
 
     def test_is_supported_model__true(self) -> None:
-        model = RFDETRBase().model.model
+        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
         assert RFDETRPackage.is_supported_model(model)
 
     def test_is_supported_model__false(self) -> None:
@@ -57,16 +57,16 @@ class TestRFDETRPackage:
         assert isinstance(model, LWDETR)
 
     def test_get_feature_extractor(self) -> None:
-        model = RFDETRBase().model.model
+        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
         fe = RFDETRPackage.get_feature_extractor(model=model)
         assert isinstance(fe, RFDETRFeatureExtractor)
 
     def test_export_model(self, tmp_path: Path) -> None:
         out = tmp_path / "model.pt"
-        model = RFDETRBase().model.model
+        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
 
         RFDETRPackage.export_model(model=model, out=out)
-        model_exported = RFDETRBase(pretrain_weights=out.as_posix()).model.model
+        model_exported = RFDETRBase(pretrain_weights=out.as_posix()).model.model  # type: ignore[no-untyped-call]
 
         # Check that parameters are the same.
         assert len(list(model.parameters())) == len(list(model_exported.parameters()))
