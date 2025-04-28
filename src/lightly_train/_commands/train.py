@@ -220,7 +220,7 @@ def train_from_config(config: TrainConfig) -> None:
     _logging.set_up_console_logging()
     _logging.set_up_file_logging(out_dir / "train.log")
     logger.info(
-        f"Args: {common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump()))}"
+        f"Args: {common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}"
     )
     logger.info(f"Using output directory '{out_dir}'.")
 
@@ -432,7 +432,7 @@ def log_resolved_config(config: TrainConfig, loggers: list[Logger]) -> None:
     """
     log_string = (
         "Resolved configuration:\n"
-        f"{common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump()))}"
+        f"{common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}\n"
     )
     logger.info(log_string)
 
