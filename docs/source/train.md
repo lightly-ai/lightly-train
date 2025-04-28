@@ -200,7 +200,7 @@ loggers.wandb=null
 
 ## Resume Training
 
-There are two distinct ways to continue training, depending on your intention:
+There are two distinct ways to continue training, depending on your intention.
 
 ### Resume Interrupted Training
 
@@ -218,6 +218,7 @@ Use `checkpoint="path/to/checkpoint.ckpt"` to load model weights from a checkpoi
 - You are free to **change training parameters**.
 - This is useful for continuing training with a different setup.
 
+### General Notes
 ```{important}
 - `resume=True` and `checkpoint=...` are mutually exclusive and can not not be used together.
 - If `overwrite=True` is set, training will start fresh, overwriting existing outputs or checkpoints in the specified output directory.
