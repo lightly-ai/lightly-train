@@ -233,6 +233,114 @@ def test_pretty_format_args__custom_model() -> None:
 
 
 @pytest.mark.parametrize(
+    "args, expected",
+    [
+        (
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": ["my_data_dir", "my_data_dir_2"],
+                "devices": [0, 1],
+            },
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": ["my_data_dir", "my_data_dir_2"],
+                "devices": [0, 1],
+            },
+        ),
+        (
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": [
+                    "my_data_dir",
+                    "my_data_dir_2",
+                    "my_data_dir_3",
+                    "my_data_dir_4",
+                    "my_data_dir_5",
+                    "my_data_dir_6",
+                ],
+                "devices": [0, 1],
+            },
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": [
+                    "my_data_dir",
+                    "my_data_dir_2",
+                    "my_data_dir_3",
+                    "...",
+                    "my_data_dir_6",
+                ],
+                "devices": [0, 1],
+            },
+        ),
+        (
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": [
+                    "my_data_dir",
+                    "my_data_dir_2",
+                    "my_data_dir_3",
+                    "my_data_dir_4",
+                    "my_data_dir_5",
+                    "my_data_dir_6",
+                ],
+                "devices": [0, 1, 2, 3, 4, 5, 6, 7],
+            },
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": [
+                    "my_data_dir",
+                    "my_data_dir_2",
+                    "my_data_dir_3",
+                    "...",
+                    "my_data_dir_6",
+                ],
+                "devices": [0, 1, 2, "...", 7],
+            },
+        ),
+    ],
+)
+def test_remove_excessive_args__all_keys(args, expected) -> None:
+    assert common_helpers.remove_excessive_args(args=args) == expected
+
+
+def test_remove_excessive_args__specific_key() -> None:
+    args = {
+        "model": "torchvision/resnet18",
+        "batch_size": 128,
+        "data": [
+            "my_data_dir",
+            "my_data_dir_2",
+            "my_data_dir_3",
+            "my_data_dir_4",
+            "my_data_dir_5",
+            "my_data_dir_6",
+        ],
+        "devices": [0, 1, 2, 3, 4, 5, 6, 7],
+    }
+    expected = {
+        "model": "torchvision/resnet18",
+        "batch_size": 128,
+        "data": [
+            "my_data_dir",
+            "my_data_dir_2",
+            "my_data_dir_3",
+            "...",
+            "my_data_dir_6",
+        ],
+        "devices": [0, 1, 2, 3, 4, 5, 6, 7],
+    }
+    assert (
+        common_helpers.remove_excessive_args(args=args, limit_keys={"data"}) == expected
+    )
+
+
+@pytest.mark.parametrize(
     "num_workers,os_cpu_count,num_devices_per_node,expected_result",
     [
         (0, None, 1, 0),
