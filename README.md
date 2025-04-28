@@ -203,10 +203,6 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
 We're committed to supporting both open-source and commercial users.
 [Contact us](https://www.lightly.ai/contact) to discuss the best licensing option for your project!
 
-## Third-Party Code
-
-See [`NOTICE`](./NOTICE) for a list of third-party libraries and their respective licenses.
-
 ## Contact
 
 [![Website](https://img.shields.io/badge/Website-lightly.ai-blue?style=for-the-badge&logo=safari&logoColor=white)](https://www.lightly.ai/contact) <br>
