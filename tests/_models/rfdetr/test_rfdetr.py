@@ -20,7 +20,7 @@ from rfdetr.detr import RFDETRBase
 
 class TestRFDETRFeatureExtractor:
     def test_init(self) -> None:
-        model = RFDETRBase().model.model
+        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
         feature_extractor = RFDETRFeatureExtractor(model=model)
 
         for name, param in feature_extractor.named_parameters():
@@ -30,7 +30,7 @@ class TestRFDETRFeatureExtractor:
             assert module.training, name
 
     def test_feature_dim(self) -> None:
-        model = RFDETRBase().model.model
+        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
 
         feature_extractor = RFDETRFeatureExtractor(model=model)
 
@@ -39,7 +39,7 @@ class TestRFDETRFeatureExtractor:
     def test_forward_features(
         self,
     ) -> None:
-        model_instance = RFDETRBase()
+        model_instance = RFDETRBase()  # type: ignore[no-untyped-call]
         model = model_instance.model.model
         device = model_instance.model.device
 
@@ -58,7 +58,7 @@ class TestRFDETRFeatureExtractor:
         )
 
     def test_forward_pool(self) -> None:
-        model_instance = RFDETRBase()
+        model_instance = RFDETRBase()  # type: ignore[no-untyped-call]
         model = model_instance.model.model
         device = model_instance.model.device
 

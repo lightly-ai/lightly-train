@@ -35,7 +35,7 @@ a wide range of model architectures and use-cases out of the box.
 - 🏗️ **Model & Task Agnostic**: Compatible with any architecture and task, including detection, classification, and segmentation.
 - 🚀 **Industrial-Scale Support**: LightlyTrain scales from thousands to millions of images. Supports on-prem, cloud, single, and multi-GPU setups.
 
-```{figure} https://github.com/user-attachments/assets/554c4db2-d910-4cfb-9238-6a5d0faaeff8
+```{figure} https://cdn.prod.website-files.com/62cd5ce03261cb3e98188470/67fe4efa0209fb4eb0c3da5c_Introducing%20LightlyTrain_imag_1.png
 :alt: benchmark results
 
 On COCO, YOLOv8-s models pretrained with LightlyTrain achieve high performance across all tested label fractions.
@@ -198,7 +198,7 @@ Please [contact us](https://www.lightly.ai/contact) to discuss the best licensin
 
 ## Contact
 
-[![Website](https://img.shields.io/badge/Website-lightly.ai-blue?style=for-the-badge&logo=safari&logoColor=white)](https://www.lightly.ai/contact) <br>
+[![Website](https://img.shields.io/badge/Website-lightly.ai-blue?style=for-the-badge&logo=safari&logoColor=white)](https://www.lightly.ai/lightly-train) <br>
 [![Discord](https://img.shields.io/discord/752876370337726585?style=for-the-badge&logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94) <br>
 [![GitHub](https://img.shields.io/badge/GitHub-lightly--ai-black?style=for-the-badge&logo=github&logoColor=white)](https://github.com/lightly-ai/lightly-train) <br>
 [![X](https://img.shields.io/badge/X-lightlyai-black?style=for-the-badge&logo=x&logoColor=white)](https://x.com/lightlyai) <br>
