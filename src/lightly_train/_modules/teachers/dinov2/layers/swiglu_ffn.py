@@ -43,15 +43,16 @@ try:
         from xformers.ops import SwiGLU
 
         XFORMERS_AVAILABLE = True
-        logger.warning("xFormers is available (SwiGLU)")
+        logger.debug("xFormers is available (SwiGLU).")
     else:
-        logger.warning("xFormers is disabled (SwiGLU)")
         raise ImportError
 except ImportError:
     SwiGLU = SwiGLUFFN
     XFORMERS_AVAILABLE = False
-
-    logger.warning("xFormers is not available (SwiGLU)")
+    logger.debug(
+        "xFormers is not available. This may slow down attention computation and overall training. "
+        "For faster performance, install it via `pip install xformers`."
+    )
 
 
 class SwiGLUFFNFused(SwiGLU):

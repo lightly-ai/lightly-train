@@ -32,14 +32,15 @@ try:
         from xformers.ops import fmha, index_select_cat, scaled_index_add
 
         XFORMERS_AVAILABLE = True
-        logger.warning("xFormers is available (Block)")
+        logger.debug("xFormers is available (Block).")
     else:
-        logger.warning("xFormers is disabled (Block)")
         raise ImportError
 except ImportError:
     XFORMERS_AVAILABLE = False
-
-    logger.warning("xFormers is not available (Block)")
+    logger.debug(
+        "xFormers is not available. This may slow down attention computation and overall training. "
+        "For faster performance, install it via `pip install xformers`."
+    )
 
 
 class Block(nn.Module):

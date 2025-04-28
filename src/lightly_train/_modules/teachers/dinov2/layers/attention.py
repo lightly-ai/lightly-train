@@ -21,13 +21,15 @@ try:
         from xformers.ops import memory_efficient_attention, unbind
 
         XFORMERS_AVAILABLE = True
-        logger.warning("xFormers is available (Attention)")
+        logger.debug("xFormers is available (Attention).")
     else:
-        logger.warning("xFormers is disabled (Attention)")
         raise ImportError
 except ImportError:
     XFORMERS_AVAILABLE = False
-    logger.warning("xFormers is not available (Attention)")
+    logger.debug(
+        "xFormers is not available. This may slow down attention computation and overall training. "
+        "For faster performance, install it via `pip install xformers`."
+    )
 
 
 class Attention(nn.Module):

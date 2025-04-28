@@ -147,13 +147,13 @@ class DinoVisionTransformer(nn.Module):
             ]  # stochastic depth decay rule
 
         if ffn_layer == "mlp":
-            logger.info("using MLP layer as FFN")
+            logger.debug("using MLP layer as FFN")
             ffn_layer = Mlp
         elif ffn_layer == "swiglufused" or ffn_layer == "swiglu":
-            logger.info("using SwiGLU layer as FFN")
+            logger.debug("using SwiGLU layer as FFN")
             ffn_layer = SwiGLUFFNFused
         elif ffn_layer == "identity":
-            logger.info("using Identity layer as FFN")
+            logger.debug("using Identity layer as FFN")
 
             def f(*args, **kwargs):
                 return nn.Identity()
