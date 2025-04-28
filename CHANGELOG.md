@@ -11,9 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Distillation uses the official DINOv2 implementation for the teacher model.
+
 ### Deprecated
 
 ### Removed
+
+- Dependency on the transformers library.
 
 ### Fixed
 

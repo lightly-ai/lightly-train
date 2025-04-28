@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
 
 import torch
@@ -16,7 +17,6 @@ from torch.nn import Flatten, Linear, init
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
-from lightly_train._commands._warnings import filter_huggingface_warnings
 from lightly_train._configs.validate import no_auto
 from lightly_train._methods.distillation.distillation_loss import DistillationLoss
 from lightly_train._methods.distillation.distillation_transform import (
@@ -25,6 +25,7 @@ from lightly_train._methods.distillation.distillation_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._modules.teachers.build_teacher import get_teacher
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -35,12 +36,7 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import Batch
 
-# TODO(Thomas, 04/25): Remove this once the dependence on Transformers is removed.
-filter_huggingface_warnings()
-
-from transformers import (  # noqa: E402
-    AutoModel,
-)
+logger = logging.getLogger(__name__)
 
 
 class DistillationArgs(MethodArgs):
@@ -53,7 +49,7 @@ class DistillationArgs(MethodArgs):
     temperature: float = 0.07
 
     # Default teacher
-    teacher: str = "facebook/dinov2-base"
+    teacher: str = "dinov2_vitb14"
 
     def resolve_auto(
         self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs
@@ -109,11 +105,8 @@ class Distillation(Method):
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
         )
-        # Instantiate the teacher model.
-        self.teacher_embedding_model = AutoModel.from_pretrained(method_args.teacher)
-
-        # Infer the dimension of the DINOv2 teacher features.
-        teacher_embed_dim = self.teacher_embedding_model.layernorm.weight.shape[0]
+        # Get the teacher model.
+        self.teacher_embedding_model = get_teacher(teacher_name=method_args.teacher)
 
         # Store the student model.
         self.student_embedding_model = embedding_model
@@ -121,7 +114,7 @@ class Distillation(Method):
 
         # Instantiate a linear projection head that performs the mapping from the student embedding space to the teacher embedding space.
         self.student_projection_head = Linear(
-            embedding_model.embed_dim, teacher_embed_dim
+            embedding_model.embed_dim, self.teacher_embedding_model.embed_dim
         )
 
         # Initialize the weights of the linear projection head with a truncated normal.
@@ -135,7 +128,12 @@ class Distillation(Method):
         self.teacher_queue: Tensor
         self.register_buffer(
             "teacher_queue",
-            torch.zeros([no_auto(method_args.queue_size), teacher_embed_dim]),
+            torch.zeros(
+                [
+                    no_auto(method_args.queue_size),
+                    self.teacher_embedding_model.embed_dim,
+                ]
+            ),
         )
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
@@ -183,10 +181,7 @@ class Distillation(Method):
     @torch.no_grad()
     def _forward_teacher(self, x: Tensor) -> Tensor:
         # Forward the images through the teacher model.
-        x = self.teacher_embedding_model(x)["last_hidden_state"]
-
-        # Select the [CLS] token from the (B, 1 + N, D) teacher features.
-        x = x[:, 0, :]
+        x = self.teacher_embedding_model(x)
 
         # L2-normalize the features.
         x = F.normalize(x, dim=-1, p=2)

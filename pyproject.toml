@@ -35,7 +35,6 @@ dependencies = [
     "torch>=2.1.0,<2.6",        # PyTorch Lightning is not yet compatible with PyTorch 2.6
     "torchvision>=0.16.0",      # torchvision 0.15.0 was yanked
     "tqdm>=4.0.0",
-    "transformers>=4.40",
 ]
 
 
@@ -108,16 +107,30 @@ module = [
     "albumentations.*",
     "lightly.*",
     "lightning_fabric.loggers.logger",
-    "lightning_fabric.utilities.rank_zero",
-    "rfdetr.*",
     "super_gradients.*",
     "tensorboard.*",
     "timm.*",
     "torchvision.*",
     "ultralytics.*",
-    "transformers"
 ]
 ignore_missing_imports = true
+ 
+ 
+[[tool.mypy.overrides]]
+module = [
+    "lightly_train._modules.teachers.dinov2.*"
+]
+ignore_errors = true
+
+
+[[tool.mypy.overrides]]
+module = [
+    "lightning_fabric.utilities.rank_zero",
+    "rfdetr.*",
+]
+ignore_missing_imports = true
+disable_error_code = ["attr-defined"]
+
 
 # Required for TIMM which does no re-export the create_model function in timm/__init__.py
 implicit_reexport = true
