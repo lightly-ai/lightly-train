@@ -198,6 +198,32 @@ loggers={"wandb": None}
 loggers.wandb=null
 ````
 
+## Resume Training
+
+There are two distinct ways to continue training, depending on your intention.
+
+### Resume Interrupted Training
+
+Use `resume=True` to **resume a previously interrupted or crashed training run**. This will pick up exactly where the training left off.
+
+- You **must use the same `output_dir`** as the original run.
+- You **must not change any training parameters** (e.g., learning rate, batch size, data, etc.).
+- This is intended for continuing the *same* run without modification.
+
+### Load Weights for a New Run
+
+Use `checkpoint="path/to/checkpoint.ckpt"` to load model weights from a checkpoint, but start a new training run.
+
+- You are free to **change training parameters**.
+- This is useful for continuing training with a different setup.
+
+### General Notes
+
+```{important}
+- `resume=True` and `checkpoint=...` are mutually exclusive and cannot be used together.
+- If `overwrite=True` is set, training will start fresh, overwriting existing outputs or checkpoints in the specified output directory.
+```
+
 ## Advanced Options
 
 ### Input Image Resolution
