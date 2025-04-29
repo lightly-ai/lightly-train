@@ -187,7 +187,7 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
     on each rank separately.
     """
     out_dir = Path(out).resolve()
-    # Add the node rank to the filename. This makes sure that we each node verifies
+    # Add the node rank to the filename. This makes sure that each node verifies
     # its out directory separately, even if the nodes are using a shared filesystem.
     out_tmp = get_verify_out_tmp_dir() / get_sha256(f"{out_dir}-{get_node_rank() or 0}")
     logger.debug(f"Creating temporary file '{out_tmp}' to verify out path.")
