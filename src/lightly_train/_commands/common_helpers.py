@@ -28,6 +28,11 @@ from pytorch_lightning.strategies.strategy import Strategy
 from torch.nn import Module
 from torch.utils.data import Dataset
 
+from lightly_train._constants import (
+    LIGHTLY_TRAIN_MASK_DIR,
+    LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC,
+    LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC,
+)
 from lightly_train._data import image_dataset
 from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
@@ -37,9 +42,6 @@ from lightly_train._models import package_helpers
 from lightly_train.types import DatasetItem, PathLike, Transform
 
 logger = logging.getLogger(__name__)
-
-
-LIGHTLY_TRAIN_MASK_DIR = os.environ.get("LIGHTLY_TRAIN_MASK_DIR", None)
 
 
 def get_checkpoint_path(checkpoint: PathLike) -> Path:
@@ -190,9 +192,6 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
     out_tmp = get_verify_out_tmp_dir() / get_sha256(f"{out_dir}-{get_node_rank() or 0}")
     logger.debug(f"Creating temporary file '{out_tmp}' to verify out path.")
 
-    LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC = (
-        "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC"
-    )
     try:
         if is_local_rank_zero():
             _unlink_and_ignore(out_tmp)
@@ -370,7 +369,6 @@ def get_dataset_mmap_filenames(
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
     """
     tmp_path = mmap_filepath.with_suffix(".temp")
-    LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC = "LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC"
     try:
         if is_local_rank_zero():
             # Save filenames to temporary file. Create the final file only once rank zero has
@@ -434,6 +432,7 @@ def get_dataset(
     # listing and not the memory mapping. Listing the train set from ImageNet takes
     # about 30 seconds. This is mostly because os.walk is not parallelized.
     filenames = image_dataset.list_image_filenames(image_dir=data)
+    mask_dir = os.getenv(LIGHTLY_TRAIN_MASK_DIR)
     return ImageDataset(
         image_dir=data,
         image_filenames=get_dataset_mmap_filenames(
@@ -441,7 +440,7 @@ def get_dataset(
             mmap_filepath=mmap_filepath,
         ),
         transform=transform,
-        mask_dir=Path(LIGHTLY_TRAIN_MASK_DIR) if LIGHTLY_TRAIN_MASK_DIR else None,
+        mask_dir=Path(mask_dir) if mask_dir is not None else None,
     )
 
 
