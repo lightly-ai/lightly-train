@@ -86,8 +86,8 @@ def get_accelerator(
         return CPUAccelerator()
 
 
-def _get_rank() -> int | None:
-    """Get the rank of the current process.
+def get_global_rank() -> int | None:
+    """Get the global rank of the current process.
 
     Copied from https://github.com/Lightning-AI/pytorch-lightning/blob/06a8d5bf33faf0a4f9a24207ae77b439354350af/src/lightning/fabric/utilities/rank_zero.py#L39-L49
     """
@@ -98,13 +98,38 @@ def _get_rank() -> int | None:
         rank = os.environ.get(key)
         if rank is not None:
             return int(rank)
-    # None to differentiate whether an environment variable was set at all
     return None
 
 
-def is_rank_zero() -> bool:
-    """Check if the current process is running on the first device."""
-    local_rank = _get_rank()
+def get_local_rank() -> int | None:
+    """Get the local rank of the current process."""
+    rank_keys = ("LOCAL_RANK", "SLURM_LOCALID", "JSM_NAMESPACE_LOCAL_RANK")
+    for key in rank_keys:
+        rank = os.environ.get(key)
+        if rank is not None:
+            return int(rank)
+    return None
+
+
+def get_node_rank() -> int | None:
+    """Get the node rank of the current process."""
+    rank_keys = ("NODE_RANK", "GROUP_RANK", "SLURM_NODEID")
+    for key in rank_keys:
+        rank = os.environ.get(key)
+        if rank is not None:
+            return int(rank)
+    return None
+
+
+def is_global_rank_zero() -> bool:
+    """Check if the current process is running on the global rank zero."""
+    global_rank = get_global_rank()
+    return global_rank == 0 or global_rank is None
+
+
+def is_local_rank_zero() -> bool:
+    """Check if the current process is running on the local rank zero."""
+    local_rank = get_local_rank()
     return local_rank == 0 or local_rank is None
 
 
@@ -117,7 +142,7 @@ def get_out_dir(out: PathLike, resume: bool, overwrite: bool) -> Path:
 
         dir_not_empty = any(out_dir.iterdir())
 
-        if dir_not_empty and (not (resume or overwrite)) and is_rank_zero():
+        if dir_not_empty and (not (resume or overwrite)) and is_global_rank_zero():
             raise ValueError(
                 f"Output '{out_dir}' is not empty! Set overwrite=True to overwrite the "
                 "directory or resume=True to resume training."
@@ -147,11 +172,11 @@ def get_sha256(value: Any) -> str:
 
 
 @contextlib.contextmanager
-def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
-    """Verify that the out path is the same on all ranks.
+def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, None]:
+    """Verify that the out path is the same on all local ranks.
 
     This is important for distributed training, as the out path is used as
-    a deterministic value that is consistent across all ranks.
+    a deterministic value that must be consistent across all local ranks.
 
     A common case where this can fail is when the out path contains a timestamp
     in the path that is generated inside the training script. For example with:
@@ -160,14 +185,16 @@ def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
     on each rank separately.
     """
     out_dir = Path(out).resolve()
-    out_tmp = get_verify_out_tmp_dir() / get_sha256(out_dir)
+    # Add the node rank to the filename. This makes sure that we each node verifies
+    # its out directory separately, even if the nodes are using a shared filesystem.
+    out_tmp = get_verify_out_tmp_dir() / get_sha256(f"{out_dir}-{get_node_rank() or 0}")
     logger.debug(f"Creating temporary file '{out_tmp}' to verify out path.")
 
     LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC = (
         "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC"
     )
     try:
-        if is_rank_zero():
+        if is_local_rank_zero():
             out_tmp.unlink(missing_ok=True)
             out_tmp.parent.mkdir(parents=True, exist_ok=True)
             out_tmp.touch()
@@ -181,7 +208,7 @@ def verify_out_dir_equal_on_all_ranks(out: Path) -> Generator[None, None, None]:
             while not out_tmp.exists():
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
                     raise RuntimeError(
-                        f"Rank {_get_rank()}: Timeout after {timeout_sec} seconds "
+                        f"Rank {get_global_rank()}: Timeout after {timeout_sec} seconds "
                         "while verifying that all ranks (processes) have the same 'out' path. "
                         "This means that the 'out' path is not set to the same path on all ranks. "
                         "If the path to your 'out' path contains any timestamps make sure that "
@@ -286,7 +313,7 @@ class ModelFormat(Enum):
 
 
 def export_model(model: Module, format: ModelFormat, out: Path) -> None:
-    if not is_rank_zero():
+    if not is_global_rank_zero():
         return
     logger.debug(f"Exporting model to '{out}' in format '{format}'.")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -306,26 +333,31 @@ def get_dataset_temp_mmap_path(out: Path) -> Generator[Path, Any, Any]:
     """Generate file in temporary directory to be used for memory-mapping the dataset.
 
     Creates a unique filename for the memory-mapped file based on the out path.
-    We use the out path as a deterministic value that is consistent across all ranks.
+    We use the out path as a deterministic value that is consistent across all ranks
+    on the same node.
+
     We need a determinstic value from "outside" at this point in the code as the
     code might already be running on multiple processes depending on how it was
     started. We cannot create a new filename based on a random value as this would
-    create a different filename for each process. Creating the filename on rank zero
-    and sharing it across all ranks is also complicated here as torch.distributed
-    is not necessarily initialized yet and there are many forms of parallelism to
-    handle (fork/spawn, torch.distributed, SLURM, etc.).
+    create a different filename for each process. Creating the filename on global
+    rank zero and sharing it across all ranks is also complicated here as
+    torch.distributed is not necessarily initialized yet and there are many forms
+    of parallelism to handle (fork/spawn, torch.distributed, SLURM, etc.).
+
+    The filename is different on each node. This is necessary to avoid multiple
+    processes writing to the same file in case the nodes use a shared filesystem.
     """
-    out_hash = get_sha256(out)
+    out_hash = get_sha256(f"{out}-{get_node_rank() or 0}")
     mmap_filepath = (get_data_tmp_dir() / out_hash).with_suffix(".mmap")
     mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
     try:
-        # Delete the file if already exists from a previous run.
-        if is_rank_zero():
+        # Delete the file if it already exists from a previous run.
+        if is_local_rank_zero():
             mmap_filepath.unlink(missing_ok=True)
 
         yield mmap_filepath
     finally:
-        if is_rank_zero():
+        if is_local_rank_zero():
             mmap_filepath.unlink(missing_ok=True)
 
 
@@ -340,7 +372,7 @@ def get_dataset_mmap_filenames(
     tmp_path = mmap_filepath.with_suffix(".temp")
     LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC = "LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC"
     try:
-        if is_rank_zero():
+        if is_local_rank_zero():
             # Save filenames to temporary file. Create the final file only once rank zero has
             # finished writing all the filenames.
             memory_mapped_sequence.write_filenames_to_file(
@@ -361,7 +393,7 @@ def get_dataset_mmap_filenames(
 
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
                     raise RuntimeError(
-                        f"Rank {_get_rank()}: Timeout after {timeout_sec} seconds "
+                        f"Rank {get_global_rank()}: Timeout after {timeout_sec} seconds "
                         f"while waiting for the memory-mapped file '{mmap_filepath}' to be created. "
                         "Please contact Lightly support if this happens. This is most likely a bug. "
                         f"You can increase the timeout with the {LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC} "
