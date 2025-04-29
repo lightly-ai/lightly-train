@@ -195,7 +195,7 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
     )
     try:
         if is_local_rank_zero():
-            out_tmp.unlink(missing_ok=True)
+            _unlink_and_ignore(out_tmp)
             out_tmp.parent.mkdir(parents=True, exist_ok=True)
             out_tmp.touch()
             # Write the out directory to the temporary file for debugging.
@@ -222,7 +222,7 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
                 time.sleep(0.1)
             yield
     finally:
-        out_tmp.unlink(missing_ok=True)
+        _unlink_and_ignore(out_tmp)
 
 
 def pretty_format_args(args: dict[str, Any], indent: int = 4) -> str:
@@ -353,12 +353,12 @@ def get_dataset_temp_mmap_path(out: Path) -> Generator[Path, Any, Any]:
     try:
         # Delete the file if it already exists from a previous run.
         if is_local_rank_zero():
-            mmap_filepath.unlink(missing_ok=True)
+            _unlink_and_ignore(mmap_filepath)
 
         yield mmap_filepath
     finally:
         if is_local_rank_zero():
-            mmap_filepath.unlink(missing_ok=True)
+            _unlink_and_ignore(mmap_filepath)
 
 
 def get_dataset_mmap_filenames(
@@ -401,7 +401,7 @@ def get_dataset_mmap_filenames(
                     )
                 time.sleep(0.2)
     finally:
-        tmp_path.unlink(missing_ok=True)
+        _unlink_and_ignore(tmp_path)
 
     # Return memory-mapped filenames from file.
     return memory_mapped_sequence.memory_mapped_sequence_from_file(
@@ -443,3 +443,14 @@ def get_dataset(
         transform=transform,
         mask_dir=Path(LIGHTLY_TRAIN_MASK_DIR) if LIGHTLY_TRAIN_MASK_DIR else None,
     )
+
+
+def _unlink_and_ignore(path: Path) -> None:
+    """Unlink a file and ignore the error if it fails.
+
+    Errors can happen if we do not have permission to access the file.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
