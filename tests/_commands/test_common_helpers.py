@@ -147,9 +147,9 @@ def test_verify_out_dir_equal_on_all_local_ranks__different(
         # Simulate calling the function from rank 1
         mocker.patch.dict(
             os.environ,
-            {"LOCAL_RANK": "1", "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC": "1"},
+            {"LOCAL_RANK": "1", "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC": "0.1"},
         )
-        with pytest.raises(RuntimeError, match="Rank 1: Timeout after 1 seconds"):
+        with pytest.raises(RuntimeError, match="Rank 1: Timeout after 0.1 seconds"):
             with common_helpers.verify_out_dir_equal_on_all_local_ranks(out_dir_rank1):
                 pass
 
@@ -163,9 +163,10 @@ def test_verify_out_dir_equal_on_all_local_ranks__no_rank0(
     out_dir = tmp_path / "rank1"
 
     mocker.patch.dict(
-        os.environ, {"LOCAL_RANK": "1", "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC": "1"}
+        os.environ,
+        {"LOCAL_RANK": "1", "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC": "0.1"},
     )
-    with pytest.raises(RuntimeError, match="Rank 1: Timeout after 1 seconds"):
+    with pytest.raises(RuntimeError, match="Rank 1: Timeout after 0.1 seconds"):
         with common_helpers.verify_out_dir_equal_on_all_local_ranks(out_dir):
             pass
 
@@ -424,9 +425,9 @@ def test_get_dataset_mmap_filenames__rank_error(
 
     # Simulate calling the function from rank 1.
     mocker.patch.dict(
-        os.environ, {"LOCAL_RANK": "1", "LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC": "1"}
+        os.environ, {"LOCAL_RANK": "1", "LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC": "0.1"}
     )
-    with pytest.raises(RuntimeError, match="Rank 1: Timeout after 1 seconds"):
+    with pytest.raises(RuntimeError, match="Rank 1: Timeout after 0.1 seconds"):
         common_helpers.get_dataset_mmap_filenames(
             filenames=filenames,
             mmap_filepath=mmap_filepath_rank1,

@@ -202,7 +202,7 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
             yield
         else:
             # Wait for rank zero to create the temporary file.
-            timeout_sec = int(os.getenv(LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC, 30))
+            timeout_sec = float(os.getenv(LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC, 30))
             start_time_sec = time.time()
             while not out_tmp.exists():
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
@@ -381,7 +381,7 @@ def get_dataset_mmap_filenames(
             tmp_path.replace(mmap_filepath.resolve())
         else:
             # Wait for rank zero to finish writing the filenames.
-            timeout_sec = int(os.getenv(LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC, 300))
+            timeout_sec = float(os.getenv(LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC, 300))
             start_time_sec = time.time()
             while not mmap_filepath.exists():
                 if tmp_path.exists():
