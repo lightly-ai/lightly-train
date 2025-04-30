@@ -70,8 +70,9 @@ and checkpoints organized.
 
 ## Data
 
-The data directory `data="my_data_dir"` can have any structure, including nested
-subdirectories. Lightly**Train** finds all images in the directory recursively.
+Lightly**Train** expects a folder containing images or a list of (possibly mixed) folders and image files.
+Any folder will be recursively traversed and finds all image files within it (even in
+nested subdirectories).
 
 The following image formats are supported:
 
@@ -84,6 +85,46 @@ The following image formats are supported:
 - tif
 - tiff
 - webp
+
+Example of passing a single folder `my_data_dir`:
+
+```bash
+my_data_dir
+├── class0
+│   ├── image0.jpg
+│   └── image1.jpg
+└── class1
+    └── image0.jpg
+```
+
+```python skip_ruff
+lightly_train.train(
+    out="out/my_experiment",            # Output directory
+    data="my_data_dir",                 # Directory with images
+    model="torchvision/resnet18",       # Model to train
+)
+```
+
+Example of passing a (mixed) list of files and folders:
+
+```bash
+├── image2.jpg
+├── image3.jpg
+└── my_data_dir
+    ├── class0
+    │   ├── image0.jpg
+    │   └── image1.jpg
+    └── class1
+        └── image0.jpg
+```
+
+```python skip_ruff
+lightly_train.train(
+    out="out/my_experiment",            # Output directory
+    data=["image2.jpg", "image3.jpg", "my_data_dir"],                 # Directory with images
+    model="torchvision/resnet18",       # Model to train
+)
+```
 
 ## Model
 
