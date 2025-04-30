@@ -338,33 +338,50 @@ def get_dataset(
         logger.debug("Using provided dataset.")
         return data
 
-    if isinstance(data, (str, Path)):
-        data = [data]
-    if len(data) == 0:
-        raise ValueError("Data list is empty!")
-    _data: Sequence[Path] = [Path(d).resolve() for d in data]
-    logger.debug("Making sure data directories and files exist and are not empty.")
-    for d in _data:
-        if not d.exists():
-            raise ValueError(f"Data directory or file '{d}' does not exist!")
-        if d.is_dir() and not any(d.iterdir()):
-            raise ValueError(f"Data directory '{d}' is empty!")
-
     if mmap_filepath is None:
         raise ValueError("Memory-mapped file path must be provided.")
 
-    # NOTE(Guarin, 01/25): The bottleneck for dataset initialization is filename
-    # listing and not the memory mapping. Listing the train set from ImageNet takes
-    # about 30 seconds. This is mostly because os.walk is not parallelized.
-    files = image_dataset.list_image_files(_data)
-    common_dir, filenames = image_dataset.list_image_filenames(files)
-    logger.info(f"Initializing dataset from files in '{common_dir}'.")
-    return ImageDataset(
-        image_dir=common_dir,
-        image_filenames=get_dataset_mmap_filenames(
-            filenames=filenames,
-            mmap_filepath=mmap_filepath,
-        ),
-        transform=transform,
-        mask_dir=Path(LIGHTLY_TRAIN_MASK_DIR) if LIGHTLY_TRAIN_MASK_DIR else None,
-    )
+    if isinstance(data, (str, Path)):
+        data = Path(data).resolve()
+        if not data.exists():
+            raise ValueError(f"Data directory '{data}' does not exist!")
+        elif not data.is_dir():
+            raise ValueError(f"Data path '{data}' is not a directory!")
+        elif data.is_dir() and not any(data.iterdir()):
+            raise ValueError(f"Data directory '{data}' is empty!")
+        # Use relative paths as filenames when a single directory or file is provided to
+        # reduce the file size.
+        filenames = image_dataset.list_image_filenames(image_dir=data)
+        return ImageDataset(
+            image_dir=data,
+            image_filenames=get_dataset_mmap_filenames(
+                filenames=filenames,
+                mmap_filepath=mmap_filepath,
+            ),
+            transform=transform,
+            mask_dir=Path(LIGHTLY_TRAIN_MASK_DIR) if LIGHTLY_TRAIN_MASK_DIR else None,
+        )
+
+    elif isinstance(data, Sequence) and not isinstance(data, str):
+        data = [Path(d).resolve() for d in data]
+        if LIGHTLY_TRAIN_MASK_DIR:
+            raise ValueError(
+                "Mask directory is not supported when multiple directories or files "
+                "are provided."
+            )
+
+        for d in data:
+            if not d.exists():
+                raise ValueError(f"Data directory or file '{d}' does not exist!")
+            elif d.is_dir() and not any(d.iterdir()):
+                raise ValueError(f"Data directory '{d}' is empty!")
+        files = image_dataset.list_image_files(imgs_and_dirs=data)
+        filenames = image_dataset.list_image_filenames(files=files)
+        return ImageDataset(
+            image_dir=None,
+            image_filenames=get_dataset_mmap_filenames(
+                filenames=filenames,
+                mmap_filepath=mmap_filepath,
+            ),
+            transform=transform,
+        )

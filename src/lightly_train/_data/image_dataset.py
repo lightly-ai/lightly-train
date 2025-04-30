@@ -32,7 +32,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 class ImageDataset(Dataset[DatasetItem]):
     def __init__(
         self,
-        image_dir: Path,
+        image_dir: Path | None,
         image_filenames: Sequence[ImageFilename],
         transform: Transform,
         mask_dir: Path | None = None,
@@ -44,7 +44,10 @@ class ImageDataset(Dataset[DatasetItem]):
 
     def __getitem__(self, idx: int) -> DatasetItem:
         filename = self.image_filenames[idx]
-        image = _open_image(self.image_dir / filename)
+        if self.image_dir is None:
+            image = _open_image(Path(filename))
+        else:
+            image = _open_image(self.image_dir / filename)
 
         input: TransformInput = {"image": image}
 
@@ -67,25 +70,37 @@ class ImageDataset(Dataset[DatasetItem]):
         return len(self.image_filenames)
 
 
-def list_image_filenames(imgs: Sequence[Path]) -> tuple[Path, Sequence[ImageFilename]]:
-    """Extract common path from a list of image files and return the filenames, i.e.
-    the relative paths to the common path.
+def list_image_filenames(
+    image_dir: Path | None = None, files: Iterable[Path] | None = None
+) -> Iterable[ImageFilename]:
+    """List image filenames relative to `image_dir` recursively.
 
     Args:
-        imgs: A list of image files to scan for images.
+        image_dir:
+            The root directory to scan for images.
 
     Returns:
-        A tuple containing: 1. The common path of the passed files and dirs, 2. A list
-            of absolute paths pointing to the image files.
+        An iterable of image filenames relative to `image_dir`.
     """
-    common_parent_dir = os.path.commonpath(imgs)
-    image_filenames = [
-        ImageFilename(str(img.relative_to(common_parent_dir))) for img in imgs
-    ]
-    return Path(common_parent_dir).resolve(), image_filenames
+    if (image_dir is not None and files is not None) or (
+        image_dir is None and files is None
+    ):
+        raise ValueError(
+            "Either `image_dir` or `files` must be provided, but not both."
+        )
+    elif files is not None:
+        # print(next(iter(files)).resolve())
+        return (ImageFilename(str(fpath.resolve())) for fpath in files)
+    elif image_dir is not None:
+        return (
+            ImageFilename(str(fpath.relative_to(image_dir)))
+            for fpath in _get_image_filepaths(image_dir=image_dir)
+        )
+    else:
+        raise ValueError("Either `image_dir` or `files` must be provided.")
 
 
-def list_image_files(imgs_and_dirs: Sequence[Path]) -> Sequence[Path]:
+def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
     """List image files recursively from the given list of image files and directories.
 
     Args:
@@ -95,17 +110,15 @@ def list_image_files(imgs_and_dirs: Sequence[Path]) -> Sequence[Path]:
     Returns:
         A list of absolute paths pointing to the image files.
     """
-    image_files = []
     for img_or_dir in imgs_and_dirs:
         if img_or_dir.is_file() and (
             img_or_dir.suffix in _pil_supported_image_extensions()
         ):
-            image_files += [img_or_dir]
+            yield img_or_dir.resolve()
         elif img_or_dir.is_dir():
-            image_files += list(_get_image_filepaths(img_or_dir))
+            yield from _get_image_filepaths(img_or_dir)
         else:
             raise ValueError(f"Invalid path: {img_or_dir}")
-    return [img.resolve() for img in image_files]
 
 
 def _get_image_filepaths(image_dir: Path) -> Iterable[Path]:

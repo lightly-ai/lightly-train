@@ -224,36 +224,40 @@ def test_list_image_files__multiple_dirs(
     )
 
 
-def test_list_image_files__dir_is_symlink(image_dir_being_symlink: Path) -> None:
-    file_paths = image_dataset.list_image_files(imgs_and_dirs=[image_dir_being_symlink])
-    target_path = image_dir_being_symlink.resolve().parent / "images_symlinktarget"
+def test_list_image_filenames__dir_is_symlink(image_dir_being_symlink: Path) -> None:
+    file_paths = image_dataset.list_image_filenames(image_dir=image_dir_being_symlink)
     assert sorted(file_paths) == sorted(
         [
-            target_path / "image1.jpg",
-            target_path / "image2.jpg",
+            "image1.jpg",
+            "image2.jpg",
         ]
     )
 
 
-def test_list_image_files__multiple_dirs_with_symlinks(
+def test_list_image_filenames__multiple_dirs_with_symlinks(
     flat_image_dir: Path, nested_image_dir: Path, image_dir_containing_symlinks: Path
 ) -> None:
     file_paths = image_dataset.list_image_files(
         imgs_and_dirs=[flat_image_dir, nested_image_dir, image_dir_containing_symlinks]
     )
-    target_path = (
-        image_dir_containing_symlinks.resolve().parent / "images_symlinktarget"
+    file_names = image_dataset.list_image_filenames(
+        files=file_paths,
     )
-    assert sorted(file_paths) == sorted(
+    target_dir = image_dir_containing_symlinks.parent / "images_symlinktarget"
+    file_names = sorted(list(file_names))
+    expected = sorted(
         [
-            flat_image_dir / "image1.jpg",
-            flat_image_dir / "image2.jpg",
-            nested_image_dir / "class1" / "image1.jpg",
-            nested_image_dir / "class2" / "image2.jpg",
-            target_path / "image1.jpg",
-            target_path / "image2.jpg",
+            ImageFilename(flat_image_dir / "image1.jpg"),
+            ImageFilename(flat_image_dir / "image2.jpg"),
+            ImageFilename(nested_image_dir / "class1" / "image1.jpg"),
+            ImageFilename(nested_image_dir / "class2" / "image2.jpg"),
+            ImageFilename(target_dir / "image1.jpg"),
+            ImageFilename(target_dir / "image2.jpg"),
         ]
     )
+    for file_name, expected_name in zip(file_names, expected):
+        print(f"{file_name=}, {expected_name=}")
+    assert file_names == expected
 
 
 def test_list_image_filenames() -> None:
@@ -263,14 +267,14 @@ def test_list_image_filenames() -> None:
         Path("class2/image3.jpg"),
         Path("image4.jpg"),
     ]
-    common_dir, filenames = image_dataset.list_image_filenames(imgs=file_paths)
+    filenames = image_dataset.list_image_filenames(files=file_paths)
+    common_dir = Path.cwd()
     assert sorted(list(filenames)) == [
-        ImageFilename("class1/image1.jpg"),
-        ImageFilename("class1/image2.jpg"),
-        ImageFilename("class2/image3.jpg"),
-        ImageFilename("image4.jpg"),
+        ImageFilename(common_dir / "class1" / "image1.jpg"),
+        ImageFilename(common_dir / "class1" / "image2.jpg"),
+        ImageFilename(common_dir / "class2" / "image3.jpg"),
+        ImageFilename(common_dir / "image4.jpg"),
     ]
-    assert common_dir == Path.cwd()
 
 
 @pytest.mark.parametrize(
@@ -324,10 +328,10 @@ def test_list_image_filenames__extensions(extension: str, tmp_path: Path) -> Non
         base_path=tmp_path / "images",
         filenames=[f"image{i}{extension}" for i in range(1, 3)],
     )
-    _, _filenames = image_dataset.list_image_filenames(imgs=imgs)
+    _filenames = image_dataset.list_image_filenames(files=imgs)
     assert sorted(list(_filenames)) == [
-        f"image1{extension}",
-        f"image2{extension}",
+        ImageFilename(base_path / f"image1{extension}"),
+        ImageFilename(base_path / f"image2{extension}"),
     ]
 
 
