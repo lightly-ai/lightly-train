@@ -216,7 +216,9 @@ class ModelFormat(Enum):
         raise ValueError(f"{value} is not a valid {cls.__name__}")
 
 
-def export_model(model: Module, format: ModelFormat, out: Path) -> None:
+def export_model(
+    model: Module, format: ModelFormat, out: Path, log_example: bool = True
+) -> None:
     if not is_rank_zero():
         return
     logger.debug(f"Exporting model to '{out}' in format '{format}'.")
@@ -227,7 +229,7 @@ def export_model(model: Module, format: ModelFormat, out: Path) -> None:
         torch.save(model.state_dict(), out)
     elif format == ModelFormat.PACKAGE_DEFAULT:
         package = package_helpers.get_package_from_model(model=model)
-        package.export_model(model=model, out=out)
+        package.export_model(model=model, out=out, log_example=log_example)
     else:
         raise ValueError(f"Invalid format: '{format.value}' is not supported ")
 

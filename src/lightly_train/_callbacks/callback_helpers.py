@@ -22,6 +22,7 @@ from lightly_train._callbacks.callback_args import (
     CallbackArgs,
 )
 from lightly_train._callbacks.checkpoint import ModelCheckpoint
+from lightly_train._callbacks.export import ModelExport
 from lightly_train._callbacks.tqdm_progress_bar import DataWaitTQDMProgressBar
 from lightly_train._checkpoint import CheckpointLightlyTrainModels
 from lightly_train._configs import validate
@@ -48,6 +49,7 @@ def get_callbacks(
 ) -> list[Callback]:
     callbacks: list[Callback] = []
     callbacks.append(DataWaitTQDMProgressBar())
+    callbacks.append(ModelExport(model, out_dir=out))
     if callback_args.learning_rate_monitor is not None:
         callbacks.append(
             LearningRateMonitor(**callback_args.learning_rate_monitor.model_dump())
