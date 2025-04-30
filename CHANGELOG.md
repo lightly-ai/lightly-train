@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Model is exported after each epoch instead of only at the end.
+
 ### Changed
 
 - Distillation uses the official DINOv2 implementation for the teacher model.
