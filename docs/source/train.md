@@ -106,6 +106,7 @@ lightly_train.train(
 )
 ```
 ````
+
 ````{tab} Command Line
 ```bash
 lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18"
@@ -134,6 +135,7 @@ lightly_train.train(
 )
 ```
 ````
+
 ````{tab} Command Line
 ```bash
 lightly-train train out="out/my_experiment" data='["image2.jpg", "image3.jpg", "my_data_dir"]' model="torchvision/resnet18"
