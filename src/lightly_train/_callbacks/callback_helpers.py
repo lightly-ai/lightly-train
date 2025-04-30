@@ -49,7 +49,7 @@ def get_callbacks(
 ) -> list[Callback]:
     callbacks: list[Callback] = []
     callbacks.append(DataWaitTQDMProgressBar())
-    callbacks.append(ModelExport(model, out_dir=out))
+    callbacks.append(ModelExport(model=model, out_dir=out))
     if callback_args.learning_rate_monitor is not None:
         callbacks.append(
             LearningRateMonitor(**callback_args.learning_rate_monitor.model_dump())

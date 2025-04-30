@@ -13,7 +13,8 @@ from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import Callback
 from torch.nn import Module
 
-from lightly_train._commands.common_helpers import ModelFormat, export_model
+from lightly_train._commands import common_helpers
+from lightly_train._commands.common_helpers import ModelFormat
 
 
 class ModelExport(Callback):
@@ -31,7 +32,7 @@ class ModelExport(Callback):
         if export_path.exists():
             export_path.unlink()
 
-        export_model(
+        common_helpers.export_model(
             model=self._model,
             out=export_path,
             format=ModelFormat.PACKAGE_DEFAULT,
