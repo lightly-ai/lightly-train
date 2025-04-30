@@ -516,7 +516,7 @@ def test_get_dataset__dirs_and_files(tmp_path: Path) -> None:
     single_img1.touch()
     single_img2.touch()
     img_dir = tmp_path / "dir"
-    os.makedirs(str(img_dir), exist_ok=True)
+    img_dir.mkdir(parents=True, exist_ok=True)
     (img_dir / "img_1.jpg").touch()
     (img_dir / "img_3.jpg").touch()
     assert os.path.isdir(str(img_dir))
