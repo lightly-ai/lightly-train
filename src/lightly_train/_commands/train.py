@@ -415,7 +415,7 @@ class FunctionTrainConfig(TrainConfig):
 class CLITrainConfig(FunctionTrainConfig):
     # CLI configuration with simpler types for better error messages.
     out: str
-    data: str
+    data: str | Sequence[str]
     model: str
     checkpoint: str | None = None
     accelerator: str = "auto"
