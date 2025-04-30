@@ -97,6 +97,7 @@ my_data_dir
     └── image0.jpg
 ```
 
+````{tab} Python
 ```python skip_ruff
 lightly_train.train(
     out="out/my_experiment",            # Output directory
@@ -104,6 +105,12 @@ lightly_train.train(
     model="torchvision/resnet18",       # Model to train
 )
 ```
+````
+````{tab} Command Line
+```bash
+lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18"
+```
+````
 
 Example of passing a (mixed) list of files and folders:
 
@@ -111,13 +118,14 @@ Example of passing a (mixed) list of files and folders:
 ├── image2.jpg
 ├── image3.jpg
 └── my_data_dir
-    ├── class0
+    ├── dir0
     │   ├── image0.jpg
     │   └── image1.jpg
-    └── class1
+    └── dir1
         └── image0.jpg
 ```
 
+````{tab} Python
 ```python skip_ruff
 lightly_train.train(
     out="out/my_experiment",            # Output directory
@@ -125,6 +133,12 @@ lightly_train.train(
     model="torchvision/resnet18",       # Model to train
 )
 ```
+````
+````{tab} Command Line
+```bash
+lightly-train train out="out/my_experiment" data='["image2.jpg", "image3.jpg", "my_data_dir"]' model="torchvision/resnet18"
+```
+````
 
 ## Model
 
