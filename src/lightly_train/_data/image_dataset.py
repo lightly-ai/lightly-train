@@ -71,7 +71,7 @@ class ImageDataset(Dataset[DatasetItem]):
 
 
 def list_image_filenames(
-    image_dir: Path | None = None, files: Iterable[Path] | None = None
+    *, image_dir: Path | None = None, files: Iterable[Path] | None = None
 ) -> Iterable[ImageFilename]:
     """List image filenames relative to `image_dir` recursively.
 
