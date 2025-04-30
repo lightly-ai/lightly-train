@@ -469,14 +469,14 @@ def get_dataset(
         # reduce the file size.
         filenames = image_dataset.list_image_filenames(image_dir=data)
         return ImageDataset(
-                image_dir=data,
-                image_filenames=get_dataset_mmap_filenames(
-                    filenames=filenames,
-                    mmap_filepath=mmap_filepath,
-                ),
-                transform=transform,
-                mask_dir=Path(mask_dir) if mask_dir is not None else None,
-            )
+            image_dir=data,
+            image_filenames=get_dataset_mmap_filenames(
+                filenames=filenames,
+                mmap_filepath=mmap_filepath,
+            ),
+            transform=transform,
+            mask_dir=Path(mask_dir) if mask_dir is not None else None,
+        )
 
     elif isinstance(data, Sequence) and not isinstance(data, str):
         data = [Path(d).resolve() for d in data]
