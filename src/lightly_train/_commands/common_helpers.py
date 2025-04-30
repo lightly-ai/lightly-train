@@ -126,13 +126,21 @@ def get_node_rank() -> int | None:
 def is_global_rank_zero() -> bool:
     """Check if the current process is running on the global rank zero."""
     global_rank = get_global_rank()
-    return global_rank == 0 or global_rank is None
+    # Check node rank because process might be assigned to a node but not yet
+    # a global rank.
+    return global_rank == 0 or (global_rank is None and is_node_rank_zero())
 
 
 def is_local_rank_zero() -> bool:
     """Check if the current process is running on the local rank zero."""
     local_rank = get_local_rank()
     return local_rank == 0 or local_rank is None
+
+
+def is_node_rank_zero() -> bool:
+    """Check if the current process is running on the node rank zero."""
+    node_rank = get_node_rank()
+    return node_rank == 0 or node_rank is None
 
 
 def get_out_dir(out: PathLike, resume: bool, overwrite: bool) -> Path:
