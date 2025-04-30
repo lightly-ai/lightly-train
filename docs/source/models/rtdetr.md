@@ -19,18 +19,18 @@ To install RT-DETR for use with LightlyTrain, first clone the repository:
 git clone https://github.com/lyuwenyu/RT-DETR.git
 ```
 
-We assume that all commands are executed from the `RT-DETR/rtdetr_pytorch` directory
+We assume that all commands are executed from the `RT-DETR/rtdetrv2_pytorch` directory
 unless otherwise stated:
 
 ```bash
-cd RT-DETR/rtdetr_pytorch
+cd RT-DETR/rtdetrv2_pytorch
 ```
 
 Next, create a Python environment using your preferred tool and install the required dependencies.
 Some dependencies are fixed to specific versions to ensure compatibility with RT-DETR:
 
 ```bash
-pip install lightly-train -r requirements.txt "numpy==1.26" "pytorch-lightning==2.1.0" pycocotools
+pip install lightly-train -r requirements.txt
 ```
 
 ## Pretrain and Fine-tune an RT-DETR Model
@@ -38,8 +38,8 @@ pip install lightly-train -r requirements.txt "numpy==1.26" "pytorch-lightning==
 ### Pretrain
 
 Run the following script to pretrain an RT-DETR model. The script must either
-be executed from inside the `RT-DETR/rtdetr_pytorch` directory or the
-`RT-DETR/rtdetr_pytorch` directory must be added to the Python path.
+be executed from inside the `RT-DETR/rtdetrv2_pytorch` directory or the
+`RT-DETR/rtdetrv2_pytorch` directory must be added to the Python path.
 
 ```python
 # pretrain_rtdetr.py
@@ -74,6 +74,7 @@ if __name__ == "__main__":
     # Load the RT-DETR model
     # Change the config file to the desired RT-DETR model
     config = YAMLConfig("configs/rtdetr/rtdetr_r50vd_6x_coco.yml")
+    config.yaml_cfg["PResNet"]["pretrained"] = False
     model = config.model
 
     # Pretrain the model
@@ -99,7 +100,7 @@ export CUDA_VISIBLE_DEVICES=0
 python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml --resume out/my_experiment/pretrained_model.pt
 ```
 
-See the [RT-DETR repository](https://github.com/lyuwenyu/RT-DETR/tree/main/rtdetr_pytorch)
+See the [RT-DETR repository](https://github.com/lyuwenyu/RT-DETR/tree/main/rtdetrv2_pytorch)
 for more information on how to fine-tune a model.
 
 ## Supported Models

@@ -15,7 +15,9 @@ from lightly_train._modules.teachers.dinov2.models import vision_transformer as 
 def build_model(
     args, only_teacher=False, img_size=224
 ) -> Union[Tuple[Module, int], Tuple[Module, Module, int]]:
-    args.arch = args.arch.removesuffix("_memeff")
+    suffix = "_memeff"
+    if args.arch.endswith(suffix):
+        args.arch = args.arch[:-len(suffix)]
     if "vit" in args.arch:
         vit_kwargs = dict(
             img_size=img_size,
