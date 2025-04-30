@@ -455,6 +455,8 @@ def get_dataset(
     if mmap_filepath is None:
         raise ValueError("Memory-mapped file path must be provided.")
 
+    mask_dir = os.getenv(LIGHTLY_TRAIN_MASK_DIR)
+
     if isinstance(data, (str, Path)):
         data = Path(data).resolve()
         if not data.exists():
@@ -466,20 +468,19 @@ def get_dataset(
         # Use relative paths as filenames when a single directory or file is provided to
         # reduce the file size.
         filenames = image_dataset.list_image_filenames(image_dir=data)
-        mask_dir = os.getenv(LIGHTLY_TRAIN_MASK_DIR)
-    return ImageDataset(
-            image_dir=data,
-            image_filenames=get_dataset_mmap_filenames(
-                filenames=filenames,
-                mmap_filepath=mmap_filepath,
-            ),
-            transform=transform,
-            mask_dir=Path(mask_dir) if mask_dir is not None else None,
-        )
+        return ImageDataset(
+                image_dir=data,
+                image_filenames=get_dataset_mmap_filenames(
+                    filenames=filenames,
+                    mmap_filepath=mmap_filepath,
+                ),
+                transform=transform,
+                mask_dir=Path(mask_dir) if mask_dir is not None else None,
+            )
 
     elif isinstance(data, Sequence) and not isinstance(data, str):
         data = [Path(d).resolve() for d in data]
-        if LIGHTLY_TRAIN_MASK_DIR:
+        if mask_dir is not None:
             raise ValueError(
                 "Mask directory is not supported when multiple directories or files "
                 "are provided."
