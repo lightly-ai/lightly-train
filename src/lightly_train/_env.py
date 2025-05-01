@@ -54,6 +54,11 @@ class Env:
         default=None,
         type_=Path,
     )
+    LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO: EnvVar[int] = EnvVar(
+        name="LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO",
+        default=16,
+        type_=int,
+    )
     LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC: EnvVar[float] = EnvVar(
         name="LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC",
         default=300,

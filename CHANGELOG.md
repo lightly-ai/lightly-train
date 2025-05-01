@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `num_workers="auto"` now limits the number of workers to a maximum of 16 workers/GPU
+  to avoid overloading systems with many CPU cores.
+
 ### Security
 
 ## [0.6.3] - 2025-04-23

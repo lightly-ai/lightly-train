@@ -305,6 +305,7 @@ def test_pretty_format_args__custom_model() -> None:
         ("auto", 8, 3, 1),
         ("auto", 16, 1, 15),
         ("auto", 64, 7, 8),
+        ("auto", 64, 1, 16),  # Capped by LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO
     ],
 )
 def test_get_num_workers(

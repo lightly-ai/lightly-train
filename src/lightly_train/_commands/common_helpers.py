@@ -267,6 +267,11 @@ def get_num_workers(
             # Leave 1 CPU for the main process on every device
             num_workers_auto = max(num_cpus_per_device - 1, 0)
 
+        # Limit the number of automatically created workers in case
+        # the system has a lot of CPUs.
+        num_workers_auto = min(
+            num_workers_auto, Env.LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO.value
+        )
         return num_workers_auto
     else:
         return num_workers
