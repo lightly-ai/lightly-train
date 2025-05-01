@@ -32,6 +32,11 @@ class EnvVar(Generic[T]):
 
 
 class Env:
+    LIGHTLY_TRAIN_CACHE_DIR = EnvVar[Path](
+        name="LIGHTLY_TRAIN_CACHE_DIR",
+        default=Path.home() / ".cache" / "lightly-train",
+        type_=Path,
+    )
     LIGHTLY_TRAIN_MASK_DIR = EnvVar[Path | None](
         name="LIGHTLY_TRAIN_MASK_DIR",
         default=None,

@@ -28,12 +28,12 @@ from pytorch_lightning.strategies.strategy import Strategy
 from torch.nn import Module
 from torch.utils.data import Dataset
 
-from lightly_train._env import Env
 from lightly_train._data import image_dataset
 from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._embedding.embedding_format import EmbeddingFormat
+from lightly_train._env import Env
 from lightly_train._models import package_helpers
 from lightly_train.types import DatasetItem, PathLike, Transform
 
