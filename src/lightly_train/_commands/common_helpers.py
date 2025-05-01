@@ -28,6 +28,7 @@ from pytorch_lightning.strategies.strategy import Strategy
 from torch.nn import Module
 from torch.utils.data import Dataset
 
+from lightly_train._commands import _lightning_rank_zero
 from lightly_train._constants import (
     LIGHTLY_TRAIN_MASK_DIR,
     LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC,
@@ -88,19 +89,7 @@ def get_accelerator(
         return CPUAccelerator()
 
 
-def get_global_rank() -> int | None:
-    """Get the global rank of the current process.
-
-    Copied from https://github.com/Lightning-AI/pytorch-lightning/blob/06a8d5bf33faf0a4f9a24207ae77b439354350af/src/lightning/fabric/utilities/rank_zero.py#L39-L49
-    """
-    # SLURM_PROCID can be set even if SLURM is not managing the multiprocessing,
-    # therefore LOCAL_RANK needs to be checked first
-    rank_keys = ("RANK", "LOCAL_RANK", "SLURM_PROCID", "JSM_NAMESPACE_RANK")
-    for key in rank_keys:
-        rank = os.environ.get(key)
-        if rank is not None:
-            return int(rank)
-    return None
+get_global_rank = _lightning_rank_zero.get_global_rank
 
 
 def get_local_rank() -> int | None:

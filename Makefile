@@ -77,13 +77,17 @@ type-check:
 add-header:
 	licenseheaders -t dev_tools/licenseheader.tmpl -d src \
 		-x src/lightly_train/_modules/teachers/dinov2 \
+		-x src/lightly_train/_commands/_lightning_rank_zero.py \
 		-E py
-	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
 	# Apply the Apache 2.0 license header to DINOv2-derived files
 	licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
 		-d src/lightly_train/_modules/teachers/dinov2 \
 		-E py
+
+	# Apply the Apache 2.0 license header to PyTorch Lighting derived files
+	licenseheaders -t dev_tools/pytorch_lightning_licenseheader.tmpl \
+		-f src/lightly_train/_commands/_lightning_rank_zero.py
 
 
 ### Testing
