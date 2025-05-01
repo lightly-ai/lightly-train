@@ -23,12 +23,24 @@ class EnvVar(Generic[T]):
 
     @property
     def value(self) -> T:
-        raw = self.raw_value
+        """Returns the value of the environment variable converted to its type."""
+        raw = os.getenv(self.name)
         return self.type_(raw) if raw is not None else self.default
 
     @property
     def raw_value(self) -> str | None:
-        return os.getenv(self.name)
+        """Returns the raw value of the environment variable as a string.
+
+        Returns None if the variable is not set and has no default value.
+        """
+        raw = os.getenv(self.name)
+        return (
+            raw
+            if raw is not None
+            else str(self.default)
+            if self.default is not None
+            else None
+        )
 
 
 class Env:
