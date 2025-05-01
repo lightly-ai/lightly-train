@@ -44,22 +44,22 @@ class EnvVar(Generic[T]):
 
 
 class Env:
-    LIGHTLY_TRAIN_CACHE_DIR = EnvVar[Path](
+    LIGHTLY_TRAIN_CACHE_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_CACHE_DIR",
         default=Path.home() / ".cache" / "lightly-train",
         type_=Path,
     )
-    LIGHTLY_TRAIN_MASK_DIR = EnvVar[Path | None](
+    LIGHTLY_TRAIN_MASK_DIR: EnvVar[Path | None] = EnvVar(
         name="LIGHTLY_TRAIN_MASK_DIR",
         default=None,
         type_=Path,
     )
-    LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC = EnvVar[float](
+    LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC: EnvVar[float] = EnvVar(
         name="LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC",
         default=300,
         type_=float,
     )
-    LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC = EnvVar[float](
+    LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC: EnvVar[float] = EnvVar(
         name="LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC",
         default=30,
         type_=float,
