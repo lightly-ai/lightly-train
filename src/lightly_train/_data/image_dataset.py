@@ -32,7 +32,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 class ImageDataset(Dataset[DatasetItem]):
     def __init__(
         self,
-        image_dir: Path,
+        image_dir: Path | None,
         image_filenames: Sequence[ImageFilename],
         transform: Transform,
         mask_dir: Path | None = None,
@@ -44,7 +44,10 @@ class ImageDataset(Dataset[DatasetItem]):
 
     def __getitem__(self, idx: int) -> DatasetItem:
         filename = self.image_filenames[idx]
-        image = _open_image(self.image_dir / filename)
+        if self.image_dir is None:
+            image = _open_image(Path(filename))
+        else:
+            image = _open_image(self.image_dir / filename)
 
         input: TransformInput = {"image": image}
 
@@ -67,7 +70,9 @@ class ImageDataset(Dataset[DatasetItem]):
         return len(self.image_filenames)
 
 
-def list_image_filenames(image_dir: Path) -> Iterable[ImageFilename]:
+def list_image_filenames(
+    *, image_dir: Path | None = None, files: Iterable[Path] | None = None
+) -> Iterable[ImageFilename]:
     """List image filenames relative to `image_dir` recursively.
 
     Args:
@@ -77,10 +82,42 @@ def list_image_filenames(image_dir: Path) -> Iterable[ImageFilename]:
     Returns:
         An iterable of image filenames relative to `image_dir`.
     """
-    return (
-        ImageFilename(str(fpath.relative_to(image_dir)))
-        for fpath in _get_image_filepaths(image_dir=image_dir)
-    )
+    if (image_dir is not None and files is not None) or (
+        image_dir is None and files is None
+    ):
+        raise ValueError(
+            "Either `image_dir` or `files` must be provided, but not both."
+        )
+    elif files is not None:
+        return (ImageFilename(str(fpath.resolve())) for fpath in files)
+    elif image_dir is not None:
+        return (
+            ImageFilename(str(fpath.relative_to(image_dir)))
+            for fpath in _get_image_filepaths(image_dir=image_dir)
+        )
+    else:
+        raise ValueError("Either `image_dir` or `files` must be provided.")
+
+
+def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
+    """List image files recursively from the given list of image files and directories.
+
+    Args:
+        imgs_and_dirs: A list of (relative or absolute) paths to image files and
+            directories that should be scanned for images.
+
+    Returns:
+        A list of absolute paths pointing to the image files.
+    """
+    for img_or_dir in imgs_and_dirs:
+        if img_or_dir.is_file() and (
+            img_or_dir.suffix in _pil_supported_image_extensions()
+        ):
+            yield img_or_dir.resolve()
+        elif img_or_dir.is_dir():
+            yield from _get_image_filepaths(img_or_dir)
+        else:
+            raise ValueError(f"Invalid path: {img_or_dir}")
 
 
 def _get_image_filepaths(image_dir: Path) -> Iterable[Path]:
