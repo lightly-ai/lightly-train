@@ -5,8 +5,10 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 import os
-from typing import Type
+from typing import Any
 
 import pytest
 from pytest_mock import MockerFixture
@@ -35,7 +37,7 @@ class TestEnvVar:
         mocker: MockerFixture,
         env_value: str | None,
         default: int,
-        type_: Type,
+        type_: Any,
         convert_empty_str_to_default: bool,
         expected: int,
     ) -> None:
