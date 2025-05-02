@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Model is exported after each epoch instead of only at the end.
+- Model is exported after every n-th epoch instead of only at the end. Default n=1
 
 ### Changed
 
