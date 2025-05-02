@@ -10,12 +10,12 @@ from __future__ import annotations
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
 
-from lightly_train._models.feature_extractor import (
+from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
 )
 from lightly_train._models.super_gradients.super_gradients import (
-    SuperGradientsFeatureExtractor,
+    SuperGradientsModelWrapper,
 )
 
 try:
@@ -26,7 +26,7 @@ except ImportError:
     CustomizableDetector = None
 
 
-class CustomizableDetectorFeatureExtractor(SuperGradientsFeatureExtractor):
+class CustomizableDetectorFeatureExtractor(SuperGradientsModelWrapper):
     _SUPPORTED_MODEL_CLASSES = (
         (CustomizableDetector,) if CustomizableDetector is not None else tuple()
     )

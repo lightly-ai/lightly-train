@@ -15,7 +15,7 @@ import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class CustomPackage(Package):
 
     @classmethod
     def is_supported_model(cls, model: Module) -> bool:
-        return isinstance(model, FeatureExtractor)
+        return isinstance(model, ModelWrapper)
 
     @classmethod
     def get_model(
@@ -39,8 +39,8 @@ class CustomPackage(Package):
         raise NotImplementedError()
 
     @classmethod
-    def get_feature_extractor(cls, model: Module) -> FeatureExtractor:
-        if not isinstance(model, FeatureExtractor):
+    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+        if not isinstance(model, ModelWrapper):
             raise TypeError(
                 "Unsupported model type: Model does not implement FeatureExtractor interface."
             )

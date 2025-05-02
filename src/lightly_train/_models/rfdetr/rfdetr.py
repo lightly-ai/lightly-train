@@ -10,8 +10,8 @@ import logging
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
 
-from lightly_train._models.feature_extractor import (
-    FeatureExtractor,
+from lightly_train._models.model_wrapper import (
+    ModelWrapper,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
 )
@@ -19,7 +19,7 @@ from lightly_train._models.feature_extractor import (
 logger = logging.getLogger(__name__)
 
 
-class RFDETRFeatureExtractor(Module, FeatureExtractor):
+class RFDETRModelWrapper(Module, ModelWrapper):
     def __init__(self, model: Module) -> None:
         super().__init__()
         from rfdetr.models.backbone import Backbone

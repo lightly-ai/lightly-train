@@ -16,10 +16,10 @@ import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 from lightly_train._models.ultralytics.ultralytics import (
-    UltralyticsFeatureExtractor,
+    UltralyticsModelWrapper,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,8 +93,8 @@ class UltralyticsPackage(Package):
         return model
 
     @classmethod
-    def get_feature_extractor(cls, model: Module) -> FeatureExtractor:
-        return UltralyticsFeatureExtractor(model=model)
+    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+        return UltralyticsModelWrapper(model=model)
 
     @classmethod
     def export_model(cls, model: Module, out: Path) -> None:

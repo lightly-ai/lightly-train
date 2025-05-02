@@ -15,8 +15,8 @@ from lightning_utilities.core.imports import RequirementCache
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Identity, Module, Sequential, Upsample
 
-from lightly_train._models.feature_extractor import (
-    FeatureExtractor,
+from lightly_train._models.model_wrapper import (
+    ModelWrapper,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
 )
@@ -49,7 +49,7 @@ YOLOV12_ORIGINAL_AVAILABLE = _get_direct_url() is not None
 YOLOV11_AVAILABLE = RequirementCache("ultralytics>=8.3.0")
 
 
-class UltralyticsFeatureExtractor(Module, FeatureExtractor):
+class UltralyticsModelWrapper(Module, ModelWrapper):
     def __init__(self, model: YOLO) -> None:
         super().__init__()
         _enable_gradients(model=model)

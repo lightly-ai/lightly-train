@@ -13,7 +13,7 @@ from typing import Any
 
 from torch.nn import Module
 
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 
 
 class Package(ABC):
@@ -50,7 +50,7 @@ class Package(ABC):
 
     @classmethod
     @abstractmethod
-    def get_feature_extractor(cls, model: Module) -> FeatureExtractor:
+    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
         """Get the feature extractor class for the model from this package.
 
         Assumes that the model is supported by the package.
@@ -60,3 +60,4 @@ class Package(ABC):
     @classmethod
     def export_model(cls, model: Module, out: Path) -> None:
         raise NotImplementedError(f"Exporting {cls.name} models is not supported.")
+
