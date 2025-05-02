@@ -479,19 +479,19 @@ def get_dataset(
         )
 
     elif isinstance(data, Sequence) and not isinstance(data, str):
-        data = [Path(d).resolve() for d in data]
+        _data: Sequence[Path] = [Path(d).resolve() for d in data]
         if mask_dir is not None:
             raise ValueError(
                 "Mask directory is not supported when multiple directories or files "
                 "are provided."
             )
 
-        for d in data:
+        for d in _data:
             if not d.exists():
                 raise ValueError(f"Data directory or file '{d}' does not exist!")
             elif d.is_dir() and not any(d.iterdir()):
                 raise ValueError(f"Data directory '{d}' is empty!")
-        files = image_dataset.list_image_files(imgs_and_dirs=data)
+        files = image_dataset.list_image_files(imgs_and_dirs=_data)
         filenames = image_dataset.list_image_filenames(files=files)
         return ImageDataset(
             image_dir=None,
@@ -500,6 +500,10 @@ def get_dataset(
                 mmap_filepath=mmap_filepath,
             ),
             transform=transform,
+        )
+    else:
+        raise ValueError(
+            "Data must be a directory, a list of directories or files, or a dataset."
         )
 
 
