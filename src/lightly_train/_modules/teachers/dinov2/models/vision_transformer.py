@@ -48,7 +48,6 @@ def check_xformers():
         )
 
 
-check_xformers()
 
 
 def named_apply(
@@ -127,6 +126,7 @@ class DinoVisionTransformer(nn.Module):
             interpolate_antialias: (str) flag to apply anti-aliasing when interpolating positional embeddings
             interpolate_offset: (float) work-around offset to apply when interpolating positional embeddings
         """
+        check_xformers()
         super().__init__()
         norm_layer = partial(nn.LayerNorm, eps=1e-6)
 
