@@ -16,9 +16,9 @@ from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Identity, Module, Sequential, Upsample
 
 from lightly_train._models.model_wrapper import (
-    ModelWrapper,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
+    ModelWrapper,
 )
 
 if TYPE_CHECKING:

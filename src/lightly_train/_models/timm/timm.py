@@ -12,9 +12,9 @@ from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
 
 from lightly_train._models.model_wrapper import (
-    ModelWrapper,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
+    ModelWrapper,
 )
 
 logger = logging.getLogger(__name__)
