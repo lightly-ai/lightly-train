@@ -29,16 +29,12 @@ from torch.nn import Module
 from torch.utils.data import Dataset
 
 from lightly_train._commands import _lightning_rank_zero
-from lightly_train._constants import (
-    LIGHTLY_TRAIN_MASK_DIR,
-    LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC,
-    LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC,
-)
 from lightly_train._data import image_dataset
 from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._embedding.embedding_format import EmbeddingFormat
+from lightly_train._env import Env
 from lightly_train._models import package_helpers
 from lightly_train.types import DatasetItem, PathLike, Transform
 
@@ -199,7 +195,7 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
             yield
         else:
             # Wait for rank zero to create the temporary file.
-            timeout_sec = float(os.getenv(LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC, 30))
+            timeout_sec = Env.LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC.value
             start_time_sec = time.time()
             while not out_tmp.exists():
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
@@ -212,7 +208,7 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
                         "command line or an environment variable. Timestamps created inside a Python "
                         "script, for example with 'datetime.now()' or 'time.time()', will result "
                         "in different values for each rank and must not be used. "
-                        f"The timeout can be configured with the {LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC} "
+                        f"The timeout can be configured with the {Env.LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC.name} "
                         "environment variable. Setting it to -1 disables the timeout. "
                     )
                 time.sleep(0.1)
@@ -308,7 +304,9 @@ class ModelFormat(Enum):
         raise ValueError(f"{value} is not a valid {cls.__name__}")
 
 
-def export_model(model: Module, format: ModelFormat, out: Path) -> None:
+def export_model(
+    model: Module, format: ModelFormat, out: Path, log_example: bool = True
+) -> None:
     if not is_global_rank_zero():
         return
     logger.debug(f"Exporting model to '{out}' in format '{format}'.")
@@ -319,7 +317,7 @@ def export_model(model: Module, format: ModelFormat, out: Path) -> None:
         torch.save(model.state_dict(), out)
     elif format == ModelFormat.PACKAGE_DEFAULT:
         package = package_helpers.get_package_from_model(model=model)
-        package.export_model(model=model, out=out)
+        package.export_model(model=model, out=out, log_example=log_example)
     else:
         raise ValueError(f"Invalid format: '{format.value}' is not supported ")
 
@@ -378,7 +376,7 @@ def get_dataset_mmap_filenames(
             tmp_path.replace(mmap_filepath.resolve())
         else:
             # Wait for rank zero to finish writing the filenames.
-            timeout_sec = float(os.getenv(LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC, 300))
+            timeout_sec = Env.LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC.value
             start_time_sec = time.time()
             while not mmap_filepath.exists():
                 if tmp_path.exists():
@@ -391,7 +389,7 @@ def get_dataset_mmap_filenames(
                         f"Rank {get_global_rank()}: Timeout after {timeout_sec} seconds "
                         f"while waiting for the memory-mapped file '{mmap_filepath}' to be created. "
                         "Please contact Lightly support if this happens. This is most likely a bug. "
-                        f"You can increase the timeout with the {LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC} "
+                        f"You can increase the timeout with the {Env.LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC.name} "
                         "environment variable. Setting it to -1 disables the timeout. "
                     )
                 time.sleep(0.2)
@@ -429,7 +427,6 @@ def get_dataset(
     # listing and not the memory mapping. Listing the train set from ImageNet takes
     # about 30 seconds. This is mostly because os.walk is not parallelized.
     filenames = image_dataset.list_image_filenames(image_dir=data)
-    mask_dir = os.getenv(LIGHTLY_TRAIN_MASK_DIR)
     return ImageDataset(
         image_dir=data,
         image_filenames=get_dataset_mmap_filenames(
@@ -437,7 +434,7 @@ def get_dataset(
             mmap_filepath=mmap_filepath,
         ),
         transform=transform,
-        mask_dir=Path(mask_dir) if mask_dir is not None else None,
+        mask_dir=Env.LIGHTLY_TRAIN_MASK_DIR.value,
     )
 
 

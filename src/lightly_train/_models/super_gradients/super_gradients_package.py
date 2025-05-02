@@ -86,39 +86,41 @@ class SuperGradientsPackage(Package):
         raise UnknownModelError(f"Unknown {cls.name} model: '{type(model)}'")
 
     @classmethod
-    def export_model(cls, model: Module, out: Path) -> None:
+    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
         torch.save(model.state_dict(), out)
+        if log_example:
+            model_name = getattr(model, "_sg_model_name", None)
+            num_classes = getattr(model, "num_classes", None)
+            if not model_name:
+                logger.warning(
+                    "Usage example can not be constructed since the model name is unknown."
+                )
+                # TODO this should not happen! We should always have a model name.
+                return
 
-        model_name = getattr(model, "_sg_model_name", None)
-        num_classes = getattr(model, "num_classes", None)
-        if not model_name:
-            logger.warning(
-                "Usage example can not be constructed since the model name is unknown."
+            log_message_code = [
+                "from super_gradients.training import models",
+                "",
+                "# Load the pretrained model",
+                "model = models.get(",
+                f"    model_name='{model_name}',",
+                f"    checkpoint_path='{out}',",
+                f"    num_classes={num_classes},"
+                if num_classes is not None
+                else "None",
+                "    <custom_args>,",
+                ")",
+                "",
+                "# Finetune or evaluate the model",
+                "...",
+            ]
+
+            # Filter out None values
+            log_message_code = [line for line in log_message_code if line != "None"]
+
+            logger.info(
+                package_helpers.format_log_msg_model_usage_example(log_message_code)
             )
-            # TODO this should not happen! We should always have a model name.
-            return
-
-        log_message_code = [
-            "from super_gradients.training import models",
-            "",
-            "# Load the pretrained model",
-            "model = models.get(",
-            f"    model_name='{model_name}',",
-            f"    checkpoint_path='{out}',",
-            f"    num_classes={num_classes}," if num_classes is not None else "None",
-            "    <custom_args>,",
-            ")",
-            "",
-            "# Finetune or evaluate the model",
-            "...",
-        ]
-
-        # Filter out None values
-        log_message_code = [line for line in log_message_code if line != "None"]
-
-        logger.info(
-            package_helpers.format_log_msg_model_usage_example(log_message_code)
-        )
 
 
 # Create singleton instance of the package. The singleton should be used whenever

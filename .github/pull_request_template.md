@@ -10,3 +10,8 @@
 
 - [ ] Yes
 - [ ] Not needed (internal change)
+
+## Did you update the documentation?
+
+- [ ] Yes
+- [ ] Not needed (internal change without effects for user)
