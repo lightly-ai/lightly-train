@@ -112,6 +112,12 @@ class TestUltralyticsFeatureExtractor:
         pool = feature_extractor.forward_pool({"features": x})["pooled_features"]
         assert pool.shape == (1, 512, 1, 1)
 
+    @pytest.mark.parametrize("model_name", ["yolov8s.yaml", "yolov8s-cls.yaml"])
+    def test_get_model(self, model_name: str) -> None:
+        model = YOLO(model_name)
+        feature_extractor = UltralyticsFeatureExtractor(model=model)
+        assert feature_extractor.get_model() is model
+
 
 def test__sppf_skip_cv2_bn_act() -> None:
     sppf = SPPF(128, 5)

@@ -69,3 +69,10 @@ class TestRFDETRFeatureExtractor:
         pool = feature_extractor.forward_pool({"features": x})["pooled_features"]
 
         assert pool.shape == (1, expected_dim, 1, 1)
+
+    def test_get_model(self) -> None:
+        model_instance = RFDETRBase()
+        model = model_instance.model.model
+        feature_extractor = RFDETRFeatureExtractor(model=model)
+        model = feature_extractor.get_model()
+        assert model is model_instance.model.model

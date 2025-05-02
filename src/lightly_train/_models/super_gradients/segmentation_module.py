@@ -61,3 +61,6 @@ class SegmentationModuleFeatureExtractor(SuperGradientsFeatureExtractor):
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
+
+    def get_model(self) -> Module:
+        return self._model

@@ -25,6 +25,9 @@ class TestCustomPackage:
             def forward_pool(self, x: Tensor) -> Tensor:
                 return torch.zeros(1)
 
+            def get_model(self) -> Module:
+                return self
+
         model = DummyCustomModel()
         assert CustomPackage.is_supported_model(model)
 
@@ -58,6 +61,20 @@ class TestCustomPackage:
                 return 1
 
             def forward_features(self, x: Tensor) -> Tensor:
+                return torch.zeros(1)
+
+        model = DummyCustomModel()
+        assert not CustomPackage.is_supported_model(model)
+
+    def test_is_custom_model__no_get_model(self, mocker: MockerFixture) -> None:
+        class DummyCustomModel(Module):
+            def feature_dim(self) -> int:
+                return 1
+
+            def forward_features(self, x: Tensor) -> Tensor:
+                return torch.zeros(1)
+
+            def forward_pool(self, x: Tensor) -> Tensor:
                 return torch.zeros(1)
 
         model = DummyCustomModel()

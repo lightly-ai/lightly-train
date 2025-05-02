@@ -39,6 +39,11 @@ class TestTIMMFeatureExtractor:
         y = extractor.forward_pool({"features": x})["pooled_features"]
         assert y.shape == (1, 32, 1, 1)
 
+    def test_get_model(self) -> None:
+        model = timm.create_model("resnet18")
+        extractor = TIMMFeatureExtractor(model=model)
+        assert extractor.get_model() is model
+
     def test_forward__equality_to_model(self) -> None:
         model = timm.create_model("resnet18")
         extractor = TIMMFeatureExtractor(model=model)

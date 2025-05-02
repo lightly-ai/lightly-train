@@ -75,4 +75,6 @@ class ModelGetter(Protocol):
 
 
 @runtime_checkable
-class FeatureExtractor(ForwardFeatures, ForwardPool, FeatureDim, Protocol): ...
+class FeatureExtractor(
+    ForwardFeatures, ForwardPool, FeatureDim, ModelGetter, Protocol
+): ...

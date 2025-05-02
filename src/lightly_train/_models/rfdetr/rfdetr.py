@@ -37,7 +37,7 @@ class RFDETRFeatureExtractor(Module, FeatureExtractor):
         feature_dim = encoder._out_feature_channels[-1]
         assert isinstance(feature_dim, int)
 
-        self._model = model
+        self._model: Module = model
         # Set model to training mode. This is necessary for RFDETR pretrained
         # models as the DINOv2 backbone is in eval mode by default.
         self._model.train()
@@ -55,3 +55,6 @@ class RFDETRFeatureExtractor(Module, FeatureExtractor):
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
+
+    def get_model(self) -> Module:
+        return self._model

@@ -69,6 +69,9 @@ class UltralyticsFeatureExtractor(Module, FeatureExtractor):
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
 
+    def get_model(self) -> YOLO:
+        return self._model
+
 
 def _get_backbone(model: YOLO) -> tuple[Sequential, int]:
     """Extracts the backbone and feature dimension from the model.
