@@ -27,7 +27,7 @@ class ModelExport(Callback):
         self,
         model: Module,
         out_dir: Path,
-        every_n_epochs: int,
+        every_n_epochs: int = 1,
     ):
         self._model = model
         self._out_dir = out_dir
