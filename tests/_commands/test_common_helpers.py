@@ -303,9 +303,8 @@ def test_pretty_format_args__custom_model() -> None:
         ("auto", 4, 8, 0),
         ("auto", 8, 1, 7),
         ("auto", 8, 3, 1),
-        ("auto", 16, 1, 15),
+        ("auto", 16, 1, 8),  # Capped by LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO
         ("auto", 64, 7, 8),
-        ("auto", 64, 1, 8),  # Capped by LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO
     ],
 )
 def test_get_num_workers(
@@ -332,6 +331,8 @@ def test_get_num_workers(
         ("auto", 1, "8", 7),
         ("auto", 2, "8", 7),  # num_devices_per_node is ignored
         ("auto", 1, "", 8),  # fallback to default value of 8 workers
+        # SLURM_CPUS_PER_TASK overrules LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO
+        ("auto", 1, "16", 15),
     ],
 )
 def test_get_num_workers__slurm(
