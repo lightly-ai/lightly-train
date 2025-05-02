@@ -295,7 +295,7 @@ dist: clean
 ### Downloads
 
 # Download the models used in the docker image.
-# Models are saved to HF_CACHE location.
+# Models are saved to LIGHTLY_TRAIN_CACHE_DIR location.
 .PHONY: download-docker-models
 download-docker-models:
-	huggingface-cli download facebook/dinov2-base config.json model.safetensors
+	wget -P "${LIGHTLY_TRAIN_CACHE_DIR}/weights" https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth
