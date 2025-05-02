@@ -90,10 +90,10 @@ Example of passing a single folder `my_data_dir`:
 
 ```bash
 my_data_dir
-├── class0
+├── dir0
 │   ├── image0.jpg
 │   └── image1.jpg
-└── class1
+└── dir1
     └── image0.jpg
 ```
 
