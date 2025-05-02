@@ -77,24 +77,24 @@ class TorchvisionPackage(Package):
         return module_to_cls
 
     @classmethod
-    def export_model(cls, model: Module, out: Path) -> None:
+    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
         torch.save(model.state_dict(), out)
-
-        model_name = "<model_name>"
-        log_message_code = [
-            "from torchvision import models",
-            "import torch",
-            "",
-            "# Load the pretrained model",
-            f"model = models.{model_name}()  # Specify the used model here",
-            f"model.load_state_dict(torch.load('{out}', weights_only=True))",
-            "",
-            "# Finetune or evaluate the model",
-            "...",
-        ]
-        logger.info(
-            package_helpers.format_log_msg_model_usage_example(log_message_code)
-        )
+        if log_example:
+            model_name = "<model_name>"
+            log_message_code = [
+                "from torchvision import models",
+                "import torch",
+                "",
+                "# Load the pretrained model",
+                f"model = models.{model_name}()  # Specify the used model here",
+                f"model.load_state_dict(torch.load('{out}', weights_only=True))",
+                "",
+                "# Finetune or evaluate the model",
+                "...",
+            ]
+            logger.info(
+                package_helpers.format_log_msg_model_usage_example(log_message_code)
+            )
 
 
 # Create singleton instance of the package. The singleton should be used whenever
