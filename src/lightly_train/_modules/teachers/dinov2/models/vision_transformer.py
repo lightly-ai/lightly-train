@@ -9,13 +9,16 @@
 #   https://github.com/facebookresearch/dino/blob/main/vision_transformer.py
 #   https://github.com/rwightman/pytorch-image-models/tree/master/timm/models/vision_transformer.py
 
+import importlib
 import logging
 import math
+import os
 from functools import partial
 from typing import Callable, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
+from pytorch_lightning.utilities import rank_zero_only
 from torch.nn.init import trunc_normal_
 
 from lightly_train._modules.teachers.dinov2.layers import (
@@ -29,6 +32,23 @@ from lightly_train._modules.teachers.dinov2.layers import (
 )
 
 logger = logging.getLogger(__name__)
+
+XFORMERS_INSTALLED = importlib.util.find_spec("xformers") is not None
+XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
+
+
+@rank_zero_only
+def check_xformers():
+    if XFORMERS_INSTALLED and XFORMERS_ENABLED:
+        logger.debug("xFormers is available.")
+    else:
+        logger.warning(
+            "xFormers is not available. This may slow down attention computation and overall training. "
+            "For faster performance, install it via `pip install xformers`."
+        )
+
+
+check_xformers()
 
 
 def named_apply(
