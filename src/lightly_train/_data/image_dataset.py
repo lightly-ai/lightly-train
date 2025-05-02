@@ -89,7 +89,6 @@ def list_image_filenames(
             "Either `image_dir` or `files` must be provided, but not both."
         )
     elif files is not None:
-        # print(next(iter(files)).resolve())
         return (ImageFilename(str(fpath.resolve())) for fpath in files)
     elif image_dir is not None:
         return (
