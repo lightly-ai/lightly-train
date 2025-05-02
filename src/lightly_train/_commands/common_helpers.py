@@ -467,6 +467,9 @@ def get_dataset(
             raise ValueError(f"Data directory '{data}' is empty!")
         # Use relative paths as filenames when a single directory or file is provided to
         # reduce the file size.
+        # NOTE(Guarin, 01/25): The bottleneck for dataset initialization is filename
+        # listing and not the memory mapping. Listing the train set from ImageNet takes
+        # about 30 seconds. This is mostly because os.walk is not parallelized.
         filenames = image_dataset.list_image_filenames(image_dir=data)
         return ImageDataset(
             image_dir=data,
