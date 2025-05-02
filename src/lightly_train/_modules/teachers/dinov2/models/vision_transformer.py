@@ -9,7 +9,6 @@
 #   https://github.com/facebookresearch/dino/blob/main/vision_transformer.py
 #   https://github.com/rwightman/pytorch-image-models/tree/master/timm/models/vision_transformer.py
 
-import importlib
 import logging
 import math
 import os
@@ -18,6 +17,7 @@ from typing import Callable, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
+from lightning_utilities.core.imports import RequirementCache
 from pytorch_lightning.utilities import rank_zero_only
 from torch.nn.init import trunc_normal_
 
@@ -33,7 +33,7 @@ from lightly_train._modules.teachers.dinov2.layers import (
 
 logger = logging.getLogger(__name__)
 
-XFORMERS_INSTALLED = importlib.util.find_spec("xformers") is not None
+XFORMERS_INSTALLED = RequirementCache("xformers>=0.0.18") is not None
 XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
 
 
