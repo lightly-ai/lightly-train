@@ -478,7 +478,7 @@ def get_dataset(
             mask_dir=Path(mask_dir) if mask_dir is not None else None,
         )
 
-    elif isinstance(data, Sequence) and not isinstance(data, str):
+    elif isinstance(data, Sequence):
         _data: Sequence[Path] = [Path(d).resolve() for d in data]
         if mask_dir is not None:
             raise ValueError(
