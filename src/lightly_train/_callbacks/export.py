@@ -13,9 +13,9 @@ from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import Callback
 from torch.nn import Module
 
-from lightly_train._configs.config import PydanticConfig
 from lightly_train._commands import common_helpers
 from lightly_train._commands.common_helpers import ModelFormat
+from lightly_train._configs.config import PydanticConfig
 
 
 class ModelExportArgs(PydanticConfig):
