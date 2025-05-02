@@ -108,7 +108,7 @@ def test_get_out_dir__nonempty(
     rank_zero: bool,
 ) -> None:
     (tmp_path / "some_file.txt").touch()
-    mocker.patch.object(common_helpers, "is_rank_zero", return_value=rank_zero)
+    mocker.patch.object(common_helpers, "is_global_rank_zero", return_value=rank_zero)
     if resume or overwrite or (not rank_zero):
         assert (
             common_helpers.get_out_dir(out=tmp_path, resume=resume, overwrite=overwrite)
@@ -117,6 +117,61 @@ def test_get_out_dir__nonempty(
     else:
         with pytest.raises(ValueError):
             common_helpers.get_out_dir(out=tmp_path, resume=resume, overwrite=overwrite)
+
+
+def test_verify_out_dir_equal_on_all_local_ranks(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    out_dir = tmp_path / "out"
+    # Simulate calling the function from rank 0
+    mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
+    with common_helpers.verify_out_dir_equal_on_all_local_ranks(out_dir):
+        # Simulate calling the function from rank 1
+        mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
+        with common_helpers.verify_out_dir_equal_on_all_local_ranks(out_dir):
+            pass
+
+    # Make sure that no files are left in the temporary directory.
+    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+
+
+def test_verify_out_dir_equal_on_all_local_ranks__different(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    out_dir_rank0 = tmp_path / "rank0"
+    out_dir_rank1 = tmp_path / "rank1"
+
+    # Simulate calling the function from rank 0
+    mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
+    with common_helpers.verify_out_dir_equal_on_all_local_ranks(out_dir_rank0):
+        # Simulate calling the function from rank 1
+        mocker.patch.dict(
+            os.environ,
+            {"LOCAL_RANK": "1", "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC": "0.1"},
+        )
+        with pytest.raises(RuntimeError, match="Rank 1: Timeout after 0.1 seconds"):
+            with common_helpers.verify_out_dir_equal_on_all_local_ranks(out_dir_rank1):
+                pass
+
+    # Make sure that no files are left in the temporary directory.
+    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+
+
+def test_verify_out_dir_equal_on_all_local_ranks__no_rank0(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    out_dir = tmp_path / "rank1"
+
+    mocker.patch.dict(
+        os.environ,
+        {"LOCAL_RANK": "1", "LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC": "0.1"},
+    )
+    with pytest.raises(RuntimeError, match="Rank 1: Timeout after 0.1 seconds"):
+        with common_helpers.verify_out_dir_equal_on_all_local_ranks(out_dir):
+            pass
+
+    # Make sure that no files are left in the temporary directory.
+    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
 
 
 @pytest.mark.parametrize(
@@ -296,27 +351,27 @@ def test_get_num_workers__slurm(
     )
 
 
-def test_get_dataset_temp_mmap_path__rank0() -> None:
-    with common_helpers.get_dataset_temp_mmap_path() as mmap_path:
-        assert mmap_path.exists()
-        assert mmap_path.is_file()
+def test_get_dataset_temp_mmap_path(tmp_path: Path) -> None:
+    with common_helpers.get_dataset_temp_mmap_path(out=tmp_path) as mmap_path:
+        mmap_path.touch()
+    # Make sure file is deleted after exiting the context manager.
+    assert not mmap_path.exists()
 
 
-def test_get_dataset_temp_mmap_path__rank1(mocker: MockerFixture) -> None:
-    with common_helpers.get_dataset_temp_mmap_path() as mmap_path_rank0:
-        # Simulate calling the function from rank 1
-        mocker.patch.dict(os.environ, {"RANK": "1"})
-        with common_helpers.get_dataset_temp_mmap_path() as mmap_path_rank1:
-            assert mmap_path_rank0 == mmap_path_rank1
+def test_get_dataset_temp_mmap_path__rank(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    # Simulate calling the function from rank 0
+    mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
+    with common_helpers.get_dataset_temp_mmap_path(out=tmp_path) as mmap_path_rank0:
+        pass
 
+    # Simulate calling the function from rank 1
+    mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
+    with common_helpers.get_dataset_temp_mmap_path(out=tmp_path) as mmap_path_rank1:
+        pass
 
-def test_get_dataset_temp_mmap_path__rank1_srun(mocker: MockerFixture) -> None:
-    mocker.patch.dict(os.environ, {"SLURM_NTASKS": "2"})  # created through srun useage
-    with common_helpers.get_dataset_temp_mmap_path() as mmap_path_rank0:
-        # Simulate calling the function from rank 1
-        mocker.patch.dict(os.environ, {"RANK": "1"})
-        with common_helpers.get_dataset_temp_mmap_path() as mmap_path_rank1:
-            assert mmap_path_rank0 != mmap_path_rank1
+    assert mmap_path_rank0 == mmap_path_rank1
 
 
 def test_get_dataset_mmap_filenames__rank0(tmp_path: Path) -> None:
@@ -329,17 +384,21 @@ def test_get_dataset_mmap_filenames__rank0(tmp_path: Path) -> None:
     assert list(mmap_filenames) == filenames
 
 
-def test_get_dataset_mmap_filenames__rank1(
+def test_get_dataset_mmap_filenames__rank(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
     filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
     mmap_filepath = tmp_path / "test.mmap"
+
+    # Simulate calling the function from rank 0
+    mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
     mmap_filenames_rank0 = common_helpers.get_dataset_mmap_filenames(
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
+
     # Simulate calling the function from rank 1
-    mocker.patch.dict(os.environ, {"RANK": "1"})
+    mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
     mmap_filenames_rank1 = common_helpers.get_dataset_mmap_filenames(
         filenames=filenames,
         mmap_filepath=mmap_filepath,
@@ -348,16 +407,30 @@ def test_get_dataset_mmap_filenames__rank1(
     assert list(mmap_filenames_rank1) == filenames
 
 
-def test_get_dataset_mmap_filenames__rank1_error(
+def test_get_dataset_mmap_filenames__rank_error(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
-    # Check that function fails if it is called from rank1 before rank0.
-    # Simulate calling the function from rank 1
-    mocker.patch.dict(os.environ, {"RANK": "1"})
-    with pytest.raises(FileNotFoundError):
+    # Test that the function raises an error if it is called with different paths
+    # from different ranks.
+    filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
+    mmap_filepath_rank0 = tmp_path / "rank0.mmap"
+    mmap_filepath_rank1 = tmp_path / "rank1.mmap"
+
+    # Simulate calling the function from rank 0.
+    mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
+    common_helpers.get_dataset_mmap_filenames(
+        filenames=filenames,
+        mmap_filepath=mmap_filepath_rank0,
+    )
+
+    # Simulate calling the function from rank 1.
+    mocker.patch.dict(
+        os.environ, {"LOCAL_RANK": "1", "LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC": "0.1"}
+    )
+    with pytest.raises(RuntimeError, match="Rank 1: Timeout after 0.1 seconds"):
         common_helpers.get_dataset_mmap_filenames(
-            filenames=["file1.jpg", "file2.jpg", "file3.jpg"],
-            mmap_filepath=tmp_path / "test.mmap",
+            filenames=filenames,
+            mmap_filepath=mmap_filepath_rank1,
         )
 
 

@@ -18,8 +18,11 @@ from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSe
 
 class TestMemoryMappedSequence:
     def test_index(self, tmp_path: Path) -> None:
-        sequence = memory_mapped_sequence.memory_mapped_sequence_from_filenames(
+        memory_mapped_sequence.write_filenames_to_file(
             filenames=["image1.jpg", "image2.jpg", "image3.jpg"],
+            mmap_filepath=tmp_path / "test.arrow",
+        )
+        sequence = memory_mapped_sequence.memory_mapped_sequence_from_file(
             mmap_filepath=tmp_path / "test.arrow",
         )
         assert len(sequence) == 3
@@ -30,8 +33,11 @@ class TestMemoryMappedSequence:
             sequence[3]
 
     def test_slice(self, tmp_path: Path) -> None:
-        sequence = memory_mapped_sequence.memory_mapped_sequence_from_filenames(
+        memory_mapped_sequence.write_filenames_to_file(
             filenames=["image1.jpg", "image2.jpg", "image3.jpg"],
+            mmap_filepath=tmp_path / "test.arrow",
+        )
+        sequence = memory_mapped_sequence.memory_mapped_sequence_from_file(
             mmap_filepath=tmp_path / "test.arrow",
         )
         assert len(sequence) == 3
@@ -40,8 +46,11 @@ class TestMemoryMappedSequence:
         assert sequence[0:100] == ["image1.jpg", "image2.jpg", "image3.jpg"]
 
     def test_pickle(self, tmp_path: Path) -> None:
-        sequence = memory_mapped_sequence.memory_mapped_sequence_from_filenames(
+        memory_mapped_sequence.write_filenames_to_file(
             filenames=["image1.jpg", "image2.jpg", "image3.jpg"],
+            mmap_filepath=tmp_path / "test.arrow",
+        )
+        sequence = memory_mapped_sequence.memory_mapped_sequence_from_file(
             mmap_filepath=tmp_path / "test.arrow",
         )
         assert len(sequence) == 3
@@ -89,13 +98,17 @@ class TestMemoryMappedSequence:
 
 @pytest.mark.parametrize("chunk_size", [1, 2, 10_000])
 @pytest.mark.parametrize("column_name", ["", "hi"])
-def test_memory_mapped_sequence_from_filenames(
+def test_write_filenames_to_file(
     chunk_size: int, column_name: str, tmp_path: Path
 ) -> None:
-    sequence = memory_mapped_sequence.memory_mapped_sequence_from_filenames(
+    memory_mapped_sequence.write_filenames_to_file(
         filenames=["image1.jpg", "image2.jpg", "image3.jpg"],
         mmap_filepath=tmp_path / "test.arrow",
         chunk_size=chunk_size,
+        column_name=column_name,
+    )
+    sequence = memory_mapped_sequence.memory_mapped_sequence_from_file(
+        mmap_filepath=tmp_path / "test.arrow",
         column_name=column_name,
     )
     assert len(sequence) == 3
@@ -106,13 +119,13 @@ def test_memory_mapped_sequence_from_filenames(
     "chunk_size",
     [0, -1],
 )
-def test_memory_mapped_sequence_from_filenames__invalid_chunks(
+def test_write_filenames_to_file__invalid_chunks(
     chunk_size: int, tmp_path: Path
 ) -> None:
     with pytest.raises(
         ValueError, match=f"Invalid `chunk_size` {chunk_size} must be positive!"
     ):
-        memory_mapped_sequence.memory_mapped_sequence_from_filenames(
+        memory_mapped_sequence.write_filenames_to_file(
             filenames=["image1.jpg", "image2.jpg", "image3.jpg"],
             mmap_filepath=tmp_path / "test.arrow",
             chunk_size=chunk_size,

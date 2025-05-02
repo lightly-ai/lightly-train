@@ -19,28 +19,13 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def memory_mapped_sequence_from_filenames(
+def write_filenames_to_file(
     filenames: Iterable[str],
     mmap_filepath: Path,
     chunk_size: int = 10_000,
     column_name: str = "filenames",
-) -> MemoryMappedSequence[str]:
-    """Creates and returns a memory mapped sequence from the iterable filenames.
-
-    Args:
-        filenames:
-            Iterable of filenames.
-        mmap_filepath:
-            Path to the PyArrow file used for the memory map.
-        chunk_size:
-            Number of filenames written to the file at once.
-        column:
-            The column name in which filenames are stored.
-
-    Returns:
-        A memory mapped sequence of filenames.
-    """
-
+) -> None:
+    """Writes the filenames to a file for memory mapping."""
     if chunk_size <= 0:
         raise ValueError(f"Invalid `chunk_size` {chunk_size} must be positive!")
     logger.debug(f"Writing filenames to '{mmap_filepath}' (chunk_size={chunk_size})")
@@ -49,9 +34,6 @@ def memory_mapped_sequence_from_filenames(
         mmap_filepath=mmap_filepath,
         chunk_size=chunk_size,
         column_name=column_name,
-    )
-    return memory_mapped_sequence_from_file(
-        mmap_filepath=mmap_filepath, column_name=column_name
     )
 
 
