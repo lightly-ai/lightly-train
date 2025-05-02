@@ -73,7 +73,7 @@ def test_get_callbacks__default(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
     )
-    assert len(callbacks) == 5
+    assert len(callbacks) == 6
     early_stopping = next(c for c in callbacks if isinstance(c, EarlyStopping))
     model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert early_stopping.monitor == "train_loss"
@@ -96,7 +96,7 @@ def test_get_callbacks__disable(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
     )
-    assert len(callbacks) == 3
+    assert len(callbacks) == 4
     assert any(isinstance(c, DeviceStatsMonitor) for c in callbacks)
     assert any(isinstance(c, ModelCheckpoint) for c in callbacks)
 
