@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Support lists of files and folders as input to the `embed` and `train` commands.
-
 - Faster dataset initialization with SLURM and Windows.
 
 ### Changed
