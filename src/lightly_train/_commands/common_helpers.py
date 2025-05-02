@@ -442,7 +442,7 @@ def get_dataset(
     if mmap_filepath is None:
         raise ValueError("Memory-mapped file path must be provided.")
 
-    mask_dir = os.getenv(LIGHTLY_TRAIN_MASK_DIR)
+    mask_dir = Env.LIGHTLY_TRAIN_MASK_DIR.value
 
     if isinstance(data, (str, Path)):
         data = Path(data).resolve()
