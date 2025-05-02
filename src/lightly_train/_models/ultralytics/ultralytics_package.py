@@ -97,7 +97,7 @@ class UltralyticsPackage(Package):
         return UltralyticsFeatureExtractor(model=model)
 
     @classmethod
-    def export_model(cls, model: Module, out: Path) -> None:
+    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
         try:
             import ultralytics
             from ultralytics import YOLO
@@ -123,18 +123,19 @@ class UltralyticsPackage(Package):
         else:
             raise RuntimeError(f"Cannot save Ultralytics model with version {version}")
 
-        log_message_code = [
-            "from ultralytics import YOLO",
-            "",
-            "# Load the pretrained model",
-            f"model = YOLO('{out}')",
-            "",
-            "# Finetune or evaluate the model",
-            "...",
-        ]
-        logger.info(
-            package_helpers.format_log_msg_model_usage_example(log_message_code)
-        )
+        if log_example:
+            log_message_code = [
+                "from ultralytics import YOLO",
+                "",
+                "# Load the pretrained model",
+                f"model = YOLO('{out}')",
+                "",
+                "# Finetune or evaluate the model",
+                "...",
+            ]
+            logger.info(
+                package_helpers.format_log_msg_model_usage_example(log_message_code)
+            )
 
 
 # Create singleton instance of the package. The singleton should be used whenever

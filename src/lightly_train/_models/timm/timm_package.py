@@ -71,31 +71,32 @@ class TIMMPackage(Package):
         return TIMMFeatureExtractor(model)
 
     @classmethod
-    def export_model(cls, model: Module, out: Path) -> None:
+    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
         torch.save(model.state_dict(), out)
 
-        model_name = model.pretrained_cfg.get("architecture", None)
-        if not model_name:
-            logger.warning(
-                "Usage example can not be constructed since the model name is unknown."
-            )
-            return
+        if log_example:
+            model_name = model.pretrained_cfg.get("architecture", None)
+            if not model_name:
+                logger.warning(
+                    "Usage example can not be constructed since the model name is unknown."
+                )
+                return
 
-        log_message_code = [
-            "import timm",
-            "",
-            "# Load the pretrained model",
-            "model = timm.create_model(",
-            f"    model_name='{model_name}',",
-            f"    checkpoint_path='{out}',",
-            ")",
-            "",
-            "# Finetune or evaluate the model",
-            "...",
-        ]
-        logger.info(
-            package_helpers.format_log_msg_model_usage_example(log_message_code)
-        )
+            log_message_code = [
+                "import timm",
+                "",
+                "# Load the pretrained model",
+                "model = timm.create_model(",
+                f"    model_name='{model_name}',",
+                f"    checkpoint_path='{out}',",
+                ")",
+                "",
+                "# Finetune or evaluate the model",
+                "...",
+            ]
+            logger.info(
+                package_helpers.format_log_msg_model_usage_example(log_message_code)
+            )
 
 
 # Create singleton instance of the package. The singleton should be used whenever

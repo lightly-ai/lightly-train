@@ -10,6 +10,7 @@ from __future__ import annotations
 from pydantic import Field
 
 from lightly_train._callbacks.checkpoint import ModelCheckpointArgs
+from lightly_train._callbacks.export import ModelExportArgs
 from lightly_train._configs.config import PydanticConfig
 
 
@@ -35,6 +36,7 @@ class CallbackArgs(PydanticConfig):
         default_factory=DeviceStatsMonitorArgs
     )
     early_stopping: EarlyStoppingArgs | None = Field(default_factory=EarlyStoppingArgs)
+    model_export: ModelExportArgs | None = Field(default_factory=ModelExportArgs)
     model_checkpoint: ModelCheckpointArgs | None = Field(
         default_factory=ModelCheckpointArgs
     )
