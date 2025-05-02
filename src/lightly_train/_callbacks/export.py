@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import time
 
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import Callback
@@ -39,16 +38,13 @@ class ModelExport(Callback):
     def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         if pl_module.current_epoch % self._every_n_epochs == 0:
             # Delete the previous export if it exists
-            export_path = self._out_dir / f"exported_last_{pl_module.current_epoch}.pt"
+            export_path = self._out_dir / "exported_last.pt"
             if export_path.exists():
                 export_path.unlink()
             
-            export_start = time.time()
             common_helpers.export_model(
                 model=self._model,
                 out=export_path,
                 format=ModelFormat.PACKAGE_DEFAULT,
                 log_example=False,
             )
-            export_end = time.time()
-            print(f"Exported model in {export_end - export_start:.2f} seconds")
