@@ -19,7 +19,7 @@ from lightly_train._configs.config import PydanticConfig
 
 
 class ModelExportArgs(PydanticConfig):
-    every_n_epochs: int | None = None
+    every_n_epochs: int = 1
 
 
 class ModelExport(Callback):
@@ -27,12 +27,10 @@ class ModelExport(Callback):
         self,
         model: Module,
         out_dir: Path,
-        every_n_epochs: int | None,
+        every_n_epochs: int,
     ):
         self._model = model
         self._out_dir = out_dir
-        if every_n_epochs is None:
-            every_n_epochs = 1
         self._every_n_epochs = every_n_epochs
 
     def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
