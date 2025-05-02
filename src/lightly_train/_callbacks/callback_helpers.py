@@ -49,7 +49,6 @@ def get_callbacks(
 ) -> list[Callback]:
     callbacks: list[Callback] = []
     callbacks.append(DataWaitTQDMProgressBar())
-    callbacks.append(ModelExport(model=model, out_dir=out))
     if callback_args.learning_rate_monitor is not None:
         callbacks.append(
             LearningRateMonitor(**callback_args.learning_rate_monitor.model_dump())
@@ -60,6 +59,14 @@ def get_callbacks(
         )
     if callback_args.early_stopping is not None:
         callbacks.append(EarlyStopping(**callback_args.early_stopping.model_dump()))
+    if callback_args.model_export is not None:
+        callbacks.append(
+            ModelExport(
+                model=model,
+                out_dir=out / "exported_models",
+                **callback_args.model_export.model_dump(),
+            )
+        )
     if callback_args.model_checkpoint is not None:
         callbacks.append(
             ModelCheckpoint(
