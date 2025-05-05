@@ -11,10 +11,10 @@ from abc import ABC, abstractmethod
 
 from torch.nn import Module
 
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 
 
-class SuperGradientsFeatureExtractor(ABC, FeatureExtractor):
+class SuperGradientsModelWrapper(ABC, ModelWrapper):
     @classmethod
     @abstractmethod
     def is_supported_model_cls(cls, model_cls: type[Module]) -> bool: ...

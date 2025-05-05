@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from lightly_train._models.rfdetr.rfdetr import RFDETRFeatureExtractor
+from lightly_train._models.rfdetr.rfdetr import RFDETRModelWrapper
 from lightly_train._models.rfdetr.rfdetr_package import RFDETRPackage
 
 from ...helpers import DummyCustomModel
@@ -56,10 +56,10 @@ class TestRFDETRPackage:
         model = RFDETRPackage.get_model(model_name=model_name)
         assert isinstance(model, LWDETR)
 
-    def test_get_feature_extractor(self) -> None:
+    def test_get_model_wrapper(self) -> None:
         model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
-        fe = RFDETRPackage.get_feature_extractor(model=model)
-        assert isinstance(fe, RFDETRFeatureExtractor)
+        fe = RFDETRPackage.get_model_wrapper(model=model)
+        assert isinstance(fe, RFDETRModelWrapper)
 
     def test_export_model(self, tmp_path: Path) -> None:
         out = tmp_path / "model.pt"

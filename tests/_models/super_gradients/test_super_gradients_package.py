@@ -66,7 +66,7 @@ class TestSuperGradientsPackage:
             ("pp_lite_t_seg50", SegmentationModuleFeatureExtractor),
         ],
     )
-    def test_get_feature_extractor(self, model_name: str, expected_cls: type) -> None:
+    def test_get_model_wrapper(self, model_name: str, expected_cls: type) -> None:
         model = models.get(model_name, num_classes=2)
-        fe = SuperGradientsPackage.get_feature_extractor(model)
+        fe = SuperGradientsPackage.get_model_wrapper(model)
         assert isinstance(fe, expected_cls)
