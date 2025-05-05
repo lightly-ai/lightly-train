@@ -14,7 +14,7 @@ from typing import Any
 from torch.nn import Module
 
 from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 from lightly_train._models.rfdetr.rfdetr_package import RFDETR_PACKAGE
 from lightly_train._models.super_gradients.super_gradients_package import (
@@ -71,11 +71,11 @@ def get_model(model: str | Module, model_args: dict[str, Any] | None = None) -> 
     return package.get_model(model_name, model_args)
 
 
-def get_feature_extractor(model: Module) -> FeatureExtractor:
-    """Returns a feature extractor class for the given model."""
+def get_model_wrapper(model: Module) -> ModelWrapper:
+    """Returns a model wrapper class for the given model."""
     for package in list_packages():
         if package.is_supported_model(model):
-            return package.get_feature_extractor(model)
+            return package.get_model_wrapper(model)
 
     raise UnknownModelError(f"Unknown model: '{model.__class__.__name__}'")
 

@@ -12,7 +12,7 @@ import pytest
 import torch
 from lightning_utilities.core.imports import RequirementCache
 
-from lightly_train._models.ultralytics.ultralytics import UltralyticsFeatureExtractor
+from lightly_train._models.ultralytics.ultralytics import UltralyticsModelWrapper
 from lightly_train._models.ultralytics.ultralytics_package import UltralyticsPackage
 
 if importlib_util.find_spec("ultralytics") is None:
@@ -54,10 +54,10 @@ class TestUltralyticsPackage:
         model = UltralyticsPackage.get_model(model_name=model_name)
         assert isinstance(model, YOLO)
 
-    def test_get_feature_extractor(self) -> None:
+    def test_get_model_wrapper(self) -> None:
         model = YOLO("yolov8s.yaml")
-        fe = UltralyticsPackage.get_feature_extractor(model=model)
-        assert isinstance(fe, UltralyticsFeatureExtractor)
+        fe = UltralyticsPackage.get_model_wrapper(model=model)
+        assert isinstance(fe, UltralyticsModelWrapper)
 
     def test_export_model(self, tmp_path: Path) -> None:
         out = tmp_path / "model.pt"

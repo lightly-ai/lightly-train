@@ -28,9 +28,10 @@ WORKDIR /home/lightly_train
 ENV TORCH_HOME="/home/lightly_train/.cache/torch"
 RUN mkdir -p ${TORCH_HOME} && chmod -R a+w $TORCH_HOME
 
-# Set and create the directory to save pretrained huggingface models into
-ENV HF_HOME="/home/lightly_train/.cache/huggingface"
-RUN mkdir -p ${HF_HOME} && chmod -R a+w $HF_HOME
+# Set and create the directory to save pretrained models into
+ENV LIGHTLY_TRAIN_CACHE_DIR="/home/lightly_train/.cache/lightly-train"
+RUN mkdir -p ${LIGHTLY_TRAIN_CACHE_DIR} && chmod -R a+w $LIGHTLY_TRAIN_CACHE_DIR
+RUN WEIGHTS_PATH="${LIGHTLY_TRAIN_CACHE_DIR}/weights" && mkdir -p ${WEIGHTS_PATH} && chmod -R a+w $WEIGHTS_PATH
 
 # Install uv
 COPY Makefile /home/lightly_train

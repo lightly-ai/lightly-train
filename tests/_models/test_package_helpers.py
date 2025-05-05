@@ -87,10 +87,10 @@ def test_get_model__custom() -> None:
     assert CUSTOM_PACKAGE.is_supported_model(model)
 
 
-def test_get_feature_extractor__timm() -> None:
+def test_get_model_wrapper__timm() -> None:
     pytest.importorskip("timm")
     model = package_helpers.get_model("timm/resnet18")
-    feature_extractor = package_helpers.get_feature_extractor(model=model)
+    feature_extractor = package_helpers.get_model_wrapper(model=model)
 
     x = torch.rand(1, 3, 64, 64)
     y_model = model(x)
