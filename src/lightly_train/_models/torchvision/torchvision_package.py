@@ -17,11 +17,11 @@ from torch.nn import Module
 from torchvision import models as torchvision_models
 
 from lightly_train._models import package_helpers
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 from lightly_train._models.torchvision.convnext import ConvNeXtFeatureExtractor
 from lightly_train._models.torchvision.resnet import ResNetFeatureExtractor
-from lightly_train._models.torchvision.torchvision import TorchvisionFeatureExtractor
+from lightly_train._models.torchvision.torchvision import TorchvisionModelWrapper
 from lightly_train.errors import UnknownModelError
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ class TorchvisionPackage(Package):
         return model
 
     @classmethod
-    def get_feature_extractor(cls, model: Module) -> FeatureExtractor:
+    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
         feature_extractor_cls = cls._model_cls_to_extractor_cls().get(type(model))
         if feature_extractor_cls is not None:
             return feature_extractor_cls(model)
@@ -69,7 +69,7 @@ class TorchvisionPackage(Package):
     @classmethod
     def _model_cls_to_extractor_cls(
         cls,
-    ) -> dict[type[Module], type[TorchvisionFeatureExtractor]]:
+    ) -> dict[type[Module], type[TorchvisionModelWrapper]]:
         module_to_cls = {}
         for feature_extractor_cls in cls._FEATURE_EXTRACTORS:
             for model_cls in feature_extractor_cls._torchvision_models:

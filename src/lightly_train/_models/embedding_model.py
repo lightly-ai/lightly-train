@@ -10,7 +10,7 @@ from __future__ import annotations
 from torch import Tensor
 from torch.nn import Conv2d, Identity, Module
 
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 
 
 # EmbeddingModel is not combined into a single class with FeatureExtractor to keep
@@ -22,15 +22,15 @@ from lightly_train._models.feature_extractor import FeatureExtractor
 class EmbeddingModel(Module):
     def __init__(
         self,
-        feature_extractor: FeatureExtractor,
+        model_wrapper: ModelWrapper,
         embed_dim: None | int = None,
     ):
         """A model that extracts features from input data and maps them to an embedding
         space.
 
         Args:
-            feature_extractor:
-                The feature extractor that extracts features from input data.
+            model_wrapper:
+                A feature extractor that implements the `ModelWrapper` interface.
             embed_dim:
                 The dimensionality of the embedding space. If None, the output of the
                 feature extractor is used as the embedding.
@@ -39,12 +39,12 @@ class EmbeddingModel(Module):
                 the features are embedded and returned without pooling.
         """
         super().__init__()
-        self.feature_extractor = feature_extractor
+        self.model_wrapper = model_wrapper
         self.embed_head = (
             Identity()
             if embed_dim is None
             else Conv2d(
-                in_channels=self.feature_extractor.feature_dim(),
+                in_channels=self.model_wrapper.feature_dim(),
                 out_channels=embed_dim,
                 kernel_size=1,
             )
@@ -53,7 +53,7 @@ class EmbeddingModel(Module):
     @property
     def embed_dim(self) -> int:
         if isinstance(self.embed_head, Identity):
-            return self.feature_extractor.feature_dim()
+            return self.model_wrapper.feature_dim()
         else:
             out_channels: int = self.embed_head.out_channels
             return out_channels
@@ -72,9 +72,9 @@ class EmbeddingModel(Module):
             Embeddings with shape (B, embed_dim, H_out, W_out). H_out and W_out depend
             on the pooling layer of the feature extractor and are 1 in most cases.
         """
-        features_out = self.feature_extractor.forward_features(x)
+        features_out = self.model_wrapper.forward_features(x)
         x = features_out["features"]
         if pool:
-            x = self.feature_extractor.forward_pool(features_out)["pooled_features"]
+            x = self.model_wrapper.forward_pool(features_out)["pooled_features"]
         x = self.embed_head(x)
         return x

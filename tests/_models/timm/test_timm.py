@@ -21,20 +21,20 @@ except ImportError:
     pytest.skip("timm is not installed", allow_module_level=True)
 
 from lightly_train._models.timm import timm as timm_feature_extractor
-from lightly_train._models.timm.timm import TIMMFeatureExtractor
+from lightly_train._models.timm.timm import TIMMModelWrapper
 
 
 class TestTIMMFeatureExtractor:
     def test_forward_features(self) -> None:
         model = timm.create_model("resnet18")
-        extractor = TIMMFeatureExtractor(model=model)
+        extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 64, 64)
         y = extractor.forward_features(x)["features"]
         assert y.shape == (1, 512, 2, 2)
 
     def test_forward_pool(self) -> None:
         model = timm.create_model("resnet18")
-        extractor = TIMMFeatureExtractor(model=model)
+        extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 32, 2, 2)
         y = extractor.forward_pool({"features": x})["pooled_features"]
         assert y.shape == (1, 32, 1, 1)
@@ -46,7 +46,7 @@ class TestTIMMFeatureExtractor:
 
     def test_forward__equality_to_model(self) -> None:
         model = timm.create_model("resnet18")
-        extractor = TIMMFeatureExtractor(model=model)
+        extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 64, 64)
 
         predictions = model.forward_head(extractor.forward_features(x)["features"])
@@ -56,14 +56,14 @@ class TestTIMMFeatureExtractor:
 
     def test_forward__resnet18__shape(self) -> None:
         model = timm.create_model("resnet18")
-        extractor = TIMMFeatureExtractor(model=model)
+        extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 64, 64)
         y = extractor.forward_pool(extractor.forward_features(x))["pooled_features"]
         assert y.shape == (1, 512, 1, 1)
 
     def test_forward__flexivit_small__shape(self) -> None:
         model = timm.create_model("flexivit_small")
-        extractor = TIMMFeatureExtractor(model=model)
+        extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 240, 240)
         y = extractor.forward_pool(extractor.forward_features(x))["pooled_features"]
         assert y.shape == (1, 384, 1, 1)

@@ -9,14 +9,14 @@ from torch import Tensor
 from torchvision.models import ResNet
 from torchvision.models._utils import IntermediateLayerGetter
 
-from lightly_train._models.feature_extractor import (
+from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
 )
-from lightly_train._models.torchvision.torchvision import TorchvisionFeatureExtractor
+from lightly_train._models.torchvision.torchvision import TorchvisionModelWrapper
 
 
-class ResNetFeatureExtractor(TorchvisionFeatureExtractor):
+class ResNetFeatureExtractor(TorchvisionModelWrapper):
     _torchvision_models = [ResNet]
     _torchvision_model_name_pattern = r"resnet.*"
 

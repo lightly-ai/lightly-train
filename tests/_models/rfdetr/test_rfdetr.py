@@ -10,7 +10,7 @@ from importlib import util as importlib_util
 import pytest
 import torch
 
-from lightly_train._models.rfdetr.rfdetr import RFDETRFeatureExtractor
+from lightly_train._models.rfdetr.rfdetr import RFDETRModelWrapper
 
 if importlib_util.find_spec("rfdetr") is None:
     pytest.skip("rfdetr is not installed", allow_module_level=True)
@@ -21,7 +21,7 @@ from rfdetr.detr import RFDETRBase
 class TestRFDETRFeatureExtractor:
     def test_init(self) -> None:
         model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
-        feature_extractor = RFDETRFeatureExtractor(model=model)
+        feature_extractor = RFDETRModelWrapper(model=model)
 
         for name, param in feature_extractor.named_parameters():
             assert param.requires_grad, name
@@ -32,7 +32,7 @@ class TestRFDETRFeatureExtractor:
     def test_feature_dim(self) -> None:
         model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
 
-        feature_extractor = RFDETRFeatureExtractor(model=model)
+        feature_extractor = RFDETRModelWrapper(model=model)
 
         assert feature_extractor.feature_dim() == 384
 
@@ -43,7 +43,7 @@ class TestRFDETRFeatureExtractor:
         model = model_instance.model.model
         device = model_instance.model.device
 
-        feature_extractor = RFDETRFeatureExtractor(model=model)
+        feature_extractor = RFDETRModelWrapper(model=model)
 
         image_size = 224
         expected_dim = feature_extractor.feature_dim()
@@ -62,7 +62,7 @@ class TestRFDETRFeatureExtractor:
         model = model_instance.model.model
         device = model_instance.model.device
 
-        feature_extractor = RFDETRFeatureExtractor(model=model)
+        feature_extractor = RFDETRModelWrapper(model=model)
 
         expected_dim = feature_extractor.feature_dim()
         x = torch.rand(1, expected_dim, 7, 7).to(device=device)

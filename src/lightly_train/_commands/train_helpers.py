@@ -190,8 +190,8 @@ def get_dataloader(
 
 def get_embedding_model(model: Module, embed_dim: int | None = None) -> EmbeddingModel:
     logger.debug(f"Getting embedding model with embedding dimension {embed_dim}.")
-    feature_extractor = package_helpers.get_feature_extractor(model=model)
-    return EmbeddingModel(feature_extractor=feature_extractor, embed_dim=embed_dim)
+    feature_extractor = package_helpers.get_model_wrapper(model=model)
+    return EmbeddingModel(model_wrapper=feature_extractor, embed_dim=embed_dim)
 
 
 def get_trainer(
