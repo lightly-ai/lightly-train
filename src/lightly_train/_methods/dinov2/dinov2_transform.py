@@ -33,6 +33,7 @@ class DINOv2LocalViewTransformArgs(DINOLocalViewTransformArgs):
         default_factory=DINOv2LocalViewRandomResizeArgs
     )
 
+
 class DINOv2TransformArgs(DINOTransformArgs):
     random_resize: DINOv2RandomResizeArgs | None = Field(
         default_factory=DINOv2RandomResizeArgs

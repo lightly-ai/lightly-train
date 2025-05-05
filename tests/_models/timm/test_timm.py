@@ -41,7 +41,7 @@ class TestTIMMFeatureExtractor:
 
     def test_get_model(self) -> None:
         model = timm.create_model("resnet18")
-        extractor = TIMMFeatureExtractor(model=model)
+        extractor = TIMMModelWrapper(model=model)
         assert extractor.get_model() is model
 
     def test_forward__equality_to_model(self) -> None:

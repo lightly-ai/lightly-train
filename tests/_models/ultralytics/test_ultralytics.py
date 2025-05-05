@@ -115,7 +115,7 @@ class TestUltralyticsModelWrapper:
     @pytest.mark.parametrize("model_name", ["yolov8s.yaml", "yolov8s-cls.yaml"])
     def test_get_model(self, model_name: str) -> None:
         model = YOLO(model_name)
-        feature_extractor = UltralyticsFeatureExtractor(model=model)
+        feature_extractor = UltralyticsModelWrapper(model=model)
         assert feature_extractor.get_model() is model
 
 
