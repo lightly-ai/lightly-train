@@ -22,7 +22,7 @@ class ResNetFeatureExtractor(TorchvisionModelWrapper):
 
     def __init__(self, model: ResNet) -> None:
         super().__init__()
-        self._model = model
+        self._model = [model]
         self._features = IntermediateLayerGetter(
             model=model, return_layers={"layer4": "out"}
         )
@@ -39,4 +39,4 @@ class ResNetFeatureExtractor(TorchvisionModelWrapper):
         return {"pooled_features": self._pool(x["features"])}
 
     def get_model(self) -> ResNet:
-        return self._model
+        return self._model[0]
