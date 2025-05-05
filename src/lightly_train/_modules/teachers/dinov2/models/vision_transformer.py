@@ -32,7 +32,7 @@ from lightly_train._modules.teachers.dinov2.layers import (
 
 logger = logging.getLogger(__name__)
 
-XFORMERS_INSTALLED = RequirementCache("xformers>=0.0.18") is not None
+XFORMERS_INSTALLED = RequirementCache("xformers>=0.0.18")
 XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
 
 
