@@ -5,6 +5,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+
+# Note: This file is identical (up to renaming) to src/lightly_train/_methods/distillation/distillation_transform.py
 from __future__ import annotations
 
 from pydantic import Field
