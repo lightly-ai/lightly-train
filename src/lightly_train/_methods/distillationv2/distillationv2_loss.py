@@ -31,10 +31,10 @@ class DistillationV2Loss(Module):
 
         Args:
             teacher_features: Tensor containing teacher representations from the current batch.
-                The expected shape is (batch_size, n_features feature_dim).
+                The expected shape is (batch_size, n_features, feature_dim).
                 n_features is the number of tokens per sequence in the teacher model.
             student_features: Tensor containing student representations from the current batch.
-                The expected shape is (batch_size, n_features feature_dim).
+                The expected shape is (batch_size, n_features, feature_dim).
 
         Returns:
             MSE loss as a scalar tensor.
