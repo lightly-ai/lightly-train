@@ -18,7 +18,6 @@ from typing import Callable, Sequence, Tuple, Union
 import torch
 import torch.nn as nn
 from lightning_utilities.core.imports import RequirementCache
-from pytorch_lightning.utilities import rank_zero_only
 from torch.nn.init import trunc_normal_
 
 from lightly_train._modules.teachers.dinov2.layers import (
@@ -37,7 +36,6 @@ XFORMERS_INSTALLED = RequirementCache("xformers>=0.0.18") is not None
 XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
 
 
-@rank_zero_only
 def check_xformers():
     if XFORMERS_INSTALLED and XFORMERS_ENABLED:
         logger.debug("xFormers is available.")
@@ -46,8 +44,6 @@ def check_xformers():
             "xFormers is not available. This may slow down attention computation and overall training. "
             "For faster performance, install it via `pip install xformers`."
         )
-
-
 
 
 def named_apply(
