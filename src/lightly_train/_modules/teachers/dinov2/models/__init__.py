@@ -2,7 +2,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
 # This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.#
+# found in the LICENSE file in the root directory of this source tree.
+#
 
 
 from typing import Tuple, Union
@@ -17,7 +18,7 @@ def build_model(
 ) -> Union[Tuple[Module, int], Tuple[Module, Module, int]]:
     suffix = "_memeff"
     if args.arch.endswith(suffix):
-        args.arch = args.arch[:-len(suffix)]
+        args.arch = args.arch[: -len(suffix)]
     if "vit" in args.arch:
         vit_kwargs = dict(
             img_size=img_size,

@@ -17,7 +17,7 @@ import time
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal
+from typing import Any, Generator, Iterable, Literal, Sequence
 
 import torch
 from pytorch_lightning.accelerators.accelerator import Accelerator
@@ -28,16 +28,13 @@ from pytorch_lightning.strategies.strategy import Strategy
 from torch.nn import Module
 from torch.utils.data import Dataset
 
-from lightly_train._constants import (
-    LIGHTLY_TRAIN_MASK_DIR,
-    LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC,
-    LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC,
-)
+from lightly_train._commands import _lightning_rank_zero
 from lightly_train._data import image_dataset
 from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._embedding.embedding_format import EmbeddingFormat
+from lightly_train._env import Env
 from lightly_train._models import package_helpers
 from lightly_train.types import DatasetItem, PathLike, Transform
 
@@ -88,19 +85,7 @@ def get_accelerator(
         return CPUAccelerator()
 
 
-def get_global_rank() -> int | None:
-    """Get the global rank of the current process.
-
-    Copied from https://github.com/Lightning-AI/pytorch-lightning/blob/06a8d5bf33faf0a4f9a24207ae77b439354350af/src/lightning/fabric/utilities/rank_zero.py#L39-L49
-    """
-    # SLURM_PROCID can be set even if SLURM is not managing the multiprocessing,
-    # therefore LOCAL_RANK needs to be checked first
-    rank_keys = ("RANK", "LOCAL_RANK", "SLURM_PROCID", "JSM_NAMESPACE_RANK")
-    for key in rank_keys:
-        rank = os.environ.get(key)
-        if rank is not None:
-            return int(rank)
-    return None
+get_global_rank = _lightning_rank_zero.get_global_rank
 
 
 def get_local_rank() -> int | None:
@@ -210,7 +195,7 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
             yield
         else:
             # Wait for rank zero to create the temporary file.
-            timeout_sec = float(os.getenv(LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC, 30))
+            timeout_sec = Env.LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC.value
             start_time_sec = time.time()
             while not out_tmp.exists():
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
@@ -223,7 +208,7 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
                         "command line or an environment variable. Timestamps created inside a Python "
                         "script, for example with 'datetime.now()' or 'time.time()', will result "
                         "in different values for each rank and must not be used. "
-                        f"The timeout can be configured with the {LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC} "
+                        f"The timeout can be configured with the {Env.LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC.name} "
                         "environment variable. Setting it to -1 disables the timeout. "
                     )
                 time.sleep(0.1)
@@ -236,6 +221,34 @@ def pretty_format_args(args: dict[str, Any], indent: int = 4) -> str:
     args = sanitize_config_dict(args)
 
     return json.dumps(args, indent=indent, sort_keys=True)
+
+
+def remove_excessive_args(
+    args: dict[str, Any], limit_keys: set[str] | None = None, num_elems: int = 5
+) -> dict[str, Any]:
+    """Limit the number of elements in sequences of a dict to a certain number. This is
+    strictly for logging purposes. Does not work with nested structures.
+
+    Args:
+        args: The dictionary to limit.
+        limit_keys: The keys to limit. If None, all keys are limited.
+        num_elems: Number of elements to keep in the sequence.
+
+    Returns:
+        The dictionary with sequences limited to a certain number of elements.
+    """
+    if limit_keys is None:
+        limit_keys = set(args.keys())
+    for key in limit_keys:
+        if (
+            isinstance(args[key], Sequence)
+            and not isinstance(args[key], str)
+            and len(args[key]) > num_elems
+        ):
+            args[key] = type(args[key])(
+                (*args[key][: num_elems - 2], "...", args[key][-1])
+            )
+    return args
 
 
 def sanitize_config_dict(args: dict[str, Any]) -> dict[str, Any]:
@@ -319,7 +332,9 @@ class ModelFormat(Enum):
         raise ValueError(f"{value} is not a valid {cls.__name__}")
 
 
-def export_model(model: Module, format: ModelFormat, out: Path) -> None:
+def export_model(
+    model: Module, format: ModelFormat, out: Path, log_example: bool = True
+) -> None:
     if not is_global_rank_zero():
         return
     logger.debug(f"Exporting model to '{out}' in format '{format}'.")
@@ -330,7 +345,7 @@ def export_model(model: Module, format: ModelFormat, out: Path) -> None:
         torch.save(model.state_dict(), out)
     elif format == ModelFormat.PACKAGE_DEFAULT:
         package = package_helpers.get_package_from_model(model=model)
-        package.export_model(model=model, out=out)
+        package.export_model(model=model, out=out, log_example=log_example)
     else:
         raise ValueError(f"Invalid format: '{format.value}' is not supported ")
 
@@ -389,7 +404,7 @@ def get_dataset_mmap_filenames(
             tmp_path.replace(mmap_filepath.resolve())
         else:
             # Wait for rank zero to finish writing the filenames.
-            timeout_sec = float(os.getenv(LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC, 300))
+            timeout_sec = Env.LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC.value
             start_time_sec = time.time()
             while not mmap_filepath.exists():
                 if tmp_path.exists():
@@ -402,7 +417,7 @@ def get_dataset_mmap_filenames(
                         f"Rank {get_global_rank()}: Timeout after {timeout_sec} seconds "
                         f"while waiting for the memory-mapped file '{mmap_filepath}' to be created. "
                         "Please contact Lightly support if this happens. This is most likely a bug. "
-                        f"You can increase the timeout with the {LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC} "
+                        f"You can increase the timeout with the {Env.LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC.name} "
                         "environment variable. Setting it to -1 disables the timeout. "
                     )
                 time.sleep(0.2)
@@ -416,7 +431,7 @@ def get_dataset_mmap_filenames(
 
 
 def get_dataset(
-    data: PathLike | Dataset[DatasetItem],
+    data: PathLike | Sequence[PathLike] | Dataset[DatasetItem],
     transform: Transform,
     mmap_filepath: Path | None,
 ) -> Dataset[DatasetItem]:
@@ -424,32 +439,62 @@ def get_dataset(
         logger.debug("Using provided dataset.")
         return data
 
-    data = Path(data).resolve()
-    logger.debug(f"Making sure data directory '{data}' exists and is not empty.")
-    if not data.exists():
-        raise ValueError(f"Data directory '{data}' does not exist!")
-    elif not data.is_dir():
-        raise ValueError(f"Data path '{data}' is not a directory!")
-    elif data.is_dir() and not any(data.iterdir()):
-        raise ValueError(f"Data directory '{data}' is empty!")
     if mmap_filepath is None:
         raise ValueError("Memory-mapped file path must be provided.")
 
-    logger.info(f"Initializing dataset from '{data}'.")
-    # NOTE(Guarin, 01/25): The bottleneck for dataset initialization is filename
-    # listing and not the memory mapping. Listing the train set from ImageNet takes
-    # about 30 seconds. This is mostly because os.walk is not parallelized.
-    filenames = image_dataset.list_image_filenames(image_dir=data)
-    mask_dir = os.getenv(LIGHTLY_TRAIN_MASK_DIR)
-    return ImageDataset(
-        image_dir=data,
-        image_filenames=get_dataset_mmap_filenames(
-            filenames=filenames,
-            mmap_filepath=mmap_filepath,
-        ),
-        transform=transform,
-        mask_dir=Path(mask_dir) if mask_dir is not None else None,
-    )
+    mask_dir = Env.LIGHTLY_TRAIN_MASK_DIR.value
+
+    if isinstance(data, (str, Path)):
+        data = Path(data).resolve()
+        if not data.exists():
+            raise ValueError(f"Data directory '{data}' does not exist!")
+        elif not data.is_dir():
+            raise ValueError(f"Data path '{data}' is not a directory!")
+        elif data.is_dir() and not any(data.iterdir()):
+            raise ValueError(f"Data directory '{data}' is empty!")
+        # Use relative paths as filenames when a single directory or file is provided to
+        # reduce the file size.
+        # NOTE(Guarin, 01/25): The bottleneck for dataset initialization is filename
+        # listing and not the memory mapping. Listing the train set from ImageNet takes
+        # about 30 seconds. This is mostly because os.walk is not parallelized.
+        filenames = image_dataset.list_image_filenames(image_dir=data)
+        return ImageDataset(
+            image_dir=data,
+            image_filenames=get_dataset_mmap_filenames(
+                filenames=filenames,
+                mmap_filepath=mmap_filepath,
+            ),
+            transform=transform,
+            mask_dir=Path(mask_dir) if mask_dir is not None else None,
+        )
+
+    elif isinstance(data, Sequence):
+        _data: Sequence[Path] = [Path(d).resolve() for d in data]
+        if mask_dir is not None:
+            raise ValueError(
+                "Mask directory is not supported when multiple directories or files "
+                "are provided."
+            )
+
+        for d in _data:
+            if not d.exists():
+                raise ValueError(f"Data directory or file '{d}' does not exist!")
+            elif d.is_dir() and not any(d.iterdir()):
+                raise ValueError(f"Data directory '{d}' is empty!")
+        files = image_dataset.list_image_files(imgs_and_dirs=_data)
+        filenames = image_dataset.list_image_filenames(files=files)
+        return ImageDataset(
+            image_dir=None,
+            image_filenames=get_dataset_mmap_filenames(
+                filenames=filenames,
+                mmap_filepath=mmap_filepath,
+            ),
+            transform=transform,
+        )
+    else:
+        raise ValueError(
+            "Data must be a directory, a list of directories or files, or a dataset."
+        )
 
 
 def _unlink_and_ignore(path: Path) -> None:

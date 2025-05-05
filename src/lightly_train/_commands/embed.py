@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal, Sized
+from typing import Literal, Sequence, Sized
 
 from omegaconf import DictConfig
 from pydantic import ConfigDict, Field, field_validator
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 def embed(
     out: PathLike,
-    data: PathLike,
+    data: PathLike | Sequence[PathLike],
     checkpoint: PathLike,
     format: str | EmbeddingFormat = "torch",
     image_size: int | tuple[int, int] = (224, 224),
@@ -58,7 +58,8 @@ def embed(
         out:
             Filepath where the embeddings will be saved. For example "embeddings.csv".
         data:
-            Directory containing the images to embed.
+            Directory containing the images to embed or a sequence of image directories
+            and files.
         checkpoint:
             Path to the LightlyTrain checkpoint file used for embedding. The location of
             the checkpoint depends on the train command. If training was run with
@@ -100,7 +101,9 @@ def embed_from_config(config: EmbedConfig) -> None:
     _logging.set_up_console_logging()
     logger.info(common_helpers.pretty_format_args(args=config.model_dump()))
 
-    logger.info(f"Embedding images in '{config.data}'.")
+    logger.info(
+        f"Embedding images in '{common_helpers.remove_excessive_args({'data': config.data})}'."
+    )
     format = _get_format(format=config.format)
     out_path = common_helpers.get_out_path(out=config.out, overwrite=config.overwrite)
     checkpoint_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
@@ -153,7 +156,7 @@ def embed_from_dictconfig(config: DictConfig) -> None:
 
 class EmbedConfig(PydanticConfig):
     out: PathLike
-    data: PathLike
+    data: PathLike | Sequence[PathLike]
     checkpoint: PathLike
     format: str | EmbeddingFormat = "torch"
     image_size: int | tuple[int, int] = Field(default=(224, 224))

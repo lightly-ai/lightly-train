@@ -22,6 +22,7 @@ from lightly_train._callbacks.callback_args import (
     CallbackArgs,
 )
 from lightly_train._callbacks.checkpoint import ModelCheckpoint
+from lightly_train._callbacks.export import ModelExport
 from lightly_train._callbacks.tqdm_progress_bar import DataWaitTQDMProgressBar
 from lightly_train._checkpoint import CheckpointLightlyTrainModels
 from lightly_train._configs import validate
@@ -58,6 +59,14 @@ def get_callbacks(
         )
     if callback_args.early_stopping is not None:
         callbacks.append(EarlyStopping(**callback_args.early_stopping.model_dump()))
+    if callback_args.model_export is not None:
+        callbacks.append(
+            ModelExport(
+                model=model,
+                out_dir=out / "exported_models",
+                **callback_args.model_export.model_dump(),
+            )
+        )
     if callback_args.model_checkpoint is not None:
         callbacks.append(
             ModelCheckpoint(

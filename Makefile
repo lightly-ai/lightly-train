@@ -77,6 +77,7 @@ type-check:
 add-header:
 	licenseheaders -t dev_tools/licenseheader.tmpl -d src \
 		-x src/lightly_train/_modules/teachers/dinov2 \
+		-x src/lightly_train/_commands/_lightning_rank_zero.py \
 		-E py
 	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
@@ -84,6 +85,10 @@ add-header:
 	licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
 		-d src/lightly_train/_modules/teachers/dinov2 \
 		-E py
+
+	# Apply the Apache 2.0 license header to PyTorch Lighting derived files
+	licenseheaders -t dev_tools/pytorch_lightning_licenseheader.tmpl \
+		-f src/lightly_train/_commands/_lightning_rank_zero.py
 
 
 ### Testing
@@ -295,7 +300,7 @@ dist: clean
 ### Downloads
 
 # Download the models used in the docker image.
-# Models are saved to HF_CACHE location.
+# Models are saved to LIGHTLY_TRAIN_CACHE_DIR location.
 .PHONY: download-docker-models
 download-docker-models:
-	huggingface-cli download facebook/dinov2-base config.json model.safetensors
+	curl -o "${LIGHTLY_TRAIN_CACHE_DIR}/weights/dinov2_vitb14_pretrain.pth" https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth
