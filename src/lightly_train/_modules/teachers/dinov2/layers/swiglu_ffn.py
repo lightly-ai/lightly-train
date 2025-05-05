@@ -5,14 +5,11 @@
 # found in the LICENSE file in the root directory of this source tree.
 #
 
-import logging
 import os
 from typing import Callable, Optional
 
 import torch.nn.functional as F
 from torch import Tensor, nn
-
-logger = logging.getLogger(__name__)
 
 
 class SwiGLUFFN(nn.Module):
@@ -44,16 +41,11 @@ try:
         from xformers.ops import SwiGLU
 
         XFORMERS_AVAILABLE = True
-        logger.debug("xFormers is available (SwiGLU).")
     else:
         raise ImportError
 except ImportError:
     SwiGLU = SwiGLUFFN
     XFORMERS_AVAILABLE = False
-    logger.debug(
-        "xFormers is not available. This may slow down attention computation and overall training. "
-        "For faster performance, install it via `pip install xformers`."
-    )
 
 
 class SwiGLUFFNFused(SwiGLU):
