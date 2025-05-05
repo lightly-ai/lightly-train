@@ -7,6 +7,8 @@ This project incorporates the following third-party components:
 - Source: https://github.com/facebookresearch/dinov2
 - License: Apache License 2.0
 - License file: licenses/DINOv2_LICENSE
+- Modifications:
+  - The logging related to xFormers availability has been changed and moved to a single place. Affected files: .../attention.py, .../block.py, .../swiglu_ffn.py, vision_transformer.py
 
 **PyTorch Lightning**
 - Source: https://github.com/Lightning-AI/pytorch-lightning
