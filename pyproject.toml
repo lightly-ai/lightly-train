@@ -84,6 +84,9 @@ ultralytics = [
 wandb = [
     "wandb>=0.17.2", # contain fixes for numpy>=2.0 support
 ]
+xformers = [
+    "xformers>=0.0.18",
+]
 
 [project.scripts]
 lightly-train = "lightly_train._cli:_cli_entrypoint"
