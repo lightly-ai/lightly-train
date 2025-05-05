@@ -15,9 +15,9 @@ import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
-from lightly_train._models.rfdetr.rfdetr import RFDETRFeatureExtractor
+from lightly_train._models.rfdetr.rfdetr import RFDETRModelWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -89,11 +89,11 @@ class RFDETRPackage(Package):
             raise ValueError(f"Model must be of type 'LWDETR', got {type(model_full)}")
 
     @classmethod
-    def get_feature_extractor(cls, model: Module) -> FeatureExtractor:
-        return RFDETRFeatureExtractor(model)
+    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+        return RFDETRModelWrapper(model)
 
     @classmethod
-    def export_model(cls, model: Module, out: Path) -> None:
+    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
         try:
             from rfdetr.models.lwdetr import LWDETR
         except ImportError:
@@ -104,19 +104,19 @@ class RFDETRPackage(Package):
             raise ValueError(f"Model must be of type 'LWDETR', got {type(model)}")
 
         torch.save({"model": model.state_dict()}, out)
-
-        log_message_code = [
-            "from rfdetr import RFDETRBase, RFDETRLarge # based on the model you used",
-            "",
-            "# Load the pretrained model",
-            f"model = RFDETRBase(pretrain_weights={out})",
-            "",
-            "# Finetune or evaluate the model",
-            "...",
-        ]
-        logger.info(
-            package_helpers.format_log_msg_model_usage_example(log_message_code)
-        )
+        if log_example:
+            log_message_code = [
+                "from rfdetr import RFDETRBase, RFDETRLarge # based on the model you used",
+                "",
+                "# Load the pretrained model",
+                f"model = RFDETRBase(pretrain_weights={out})",
+                "",
+                "# Finetune or evaluate the model",
+                "...",
+            ]
+            logger.info(
+                package_helpers.format_log_msg_model_usage_example(log_message_code)
+            )
 
 
 # Create singleton instance of the package. The singleton should be used whenever

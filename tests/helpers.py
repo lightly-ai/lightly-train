@@ -34,7 +34,7 @@ from lightly_train._models import (
     package_helpers as feature_extractor_api,
 )
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._transforms.transform import (
     MethodTransform,
@@ -78,14 +78,14 @@ def get_model() -> Module:
     return DummyCustomModel()
 
 
-def get_feature_extractor(model: Module | None = None) -> FeatureExtractor:
+def get_model_wrapper(model: Module | None = None) -> ModelWrapper:
     if model is None:
         model = get_model()
-    return feature_extractor_api.get_feature_extractor(model=model)
+    return feature_extractor_api.get_model_wrapper(model=model)
 
 
 def get_embedding_model(model: Module | None = None) -> EmbeddingModel:
-    return EmbeddingModel(feature_extractor=get_feature_extractor(model=model))
+    return EmbeddingModel(model_wrapper=get_model_wrapper(model=model))
 
 
 def get_method(model: Module | None = None) -> Method:

@@ -16,10 +16,10 @@ import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 from lightly_train._models.ultralytics.ultralytics import (
-    UltralyticsFeatureExtractor,
+    UltralyticsModelWrapper,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,11 +93,11 @@ class UltralyticsPackage(Package):
         return model
 
     @classmethod
-    def get_feature_extractor(cls, model: Module) -> FeatureExtractor:
-        return UltralyticsFeatureExtractor(model=model)
+    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+        return UltralyticsModelWrapper(model=model)
 
     @classmethod
-    def export_model(cls, model: Module, out: Path) -> None:
+    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
         try:
             import ultralytics
             from ultralytics import YOLO
@@ -123,18 +123,19 @@ class UltralyticsPackage(Package):
         else:
             raise RuntimeError(f"Cannot save Ultralytics model with version {version}")
 
-        log_message_code = [
-            "from ultralytics import YOLO",
-            "",
-            "# Load the pretrained model",
-            f"model = YOLO('{out}')",
-            "",
-            "# Finetune or evaluate the model",
-            "...",
-        ]
-        logger.info(
-            package_helpers.format_log_msg_model_usage_example(log_message_code)
-        )
+        if log_example:
+            log_message_code = [
+                "from ultralytics import YOLO",
+                "",
+                "# Load the pretrained model",
+                f"model = YOLO('{out}')",
+                "",
+                "# Finetune or evaluate the model",
+                "...",
+            ]
+            logger.info(
+                package_helpers.format_log_msg_model_usage_example(log_message_code)
+            )
 
 
 # Create singleton instance of the package. The singleton should be used whenever

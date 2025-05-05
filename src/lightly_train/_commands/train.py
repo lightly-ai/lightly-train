@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 
 # Import old types for compatibility with omegaconf.
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 import pytorch_lightning
 from omegaconf import DictConfig
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 def train(
     out: PathLike,
-    data: PathLike,
+    data: PathLike | Sequence[PathLike],
     model: str | Module,
     method: str = "distillation",
     method_args: dict[str, Any] | None = None,
@@ -89,7 +89,8 @@ def train(
         out:
             Output directory to save logs, checkpoints, and other artifacts.
         data:
-            Path to a directory containing images.
+            Path to a directory containing images or a sequence of image directories and
+            files.
         model:
             Model name or instance to use for training.
         method:
@@ -218,7 +219,9 @@ def train_from_config(config: TrainConfig) -> None:
     _warnings.filter_train_warnings()
     _logging.set_up_console_logging()
     _logging.set_up_file_logging(out_dir / "train.log")
-    logger.info(f"Args: {common_helpers.pretty_format_args(args=config.model_dump())}")
+    logger.info(
+        f"Args: {common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}"
+    )
     logger.info(f"Using output directory '{out_dir}'.")
 
     # Log system information.
@@ -236,7 +239,9 @@ def train_from_config(config: TrainConfig) -> None:
     # file has to exist while the dataset is used.
     # TODO(Philipp, 10/24): For training it could make sense to store the
     # file in the output directory and recover it on resume.
-    with common_helpers.get_dataset_temp_mmap_path() as mmap_filepath:
+    with common_helpers.verify_out_dir_equal_on_all_local_ranks(
+        out=out_dir
+    ), common_helpers.get_dataset_temp_mmap_path(out=out_dir) as mmap_filepath:
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform_instance,
@@ -367,7 +372,7 @@ def train_from_dictconfig(config: DictConfig) -> None:
 
 class TrainConfig(PydanticConfig):
     out: PathLike
-    data: PathLike
+    data: PathLike | Sequence[PathLike]
     model: str | Module
     method: str = "distillation"
     method_args: dict[str, Any] | MethodArgs | None = None
@@ -410,7 +415,7 @@ class FunctionTrainConfig(TrainConfig):
 class CLITrainConfig(FunctionTrainConfig):
     # CLI configuration with simpler types for better error messages.
     out: str
-    data: str
+    data: str | Sequence[str]
     model: str
     checkpoint: str | None = None
     accelerator: str = "auto"
@@ -429,7 +434,7 @@ def log_resolved_config(config: TrainConfig, loggers: list[Logger]) -> None:
     """
     log_string = (
         "Resolved configuration:\n"
-        f"{common_helpers.pretty_format_args(args=config.model_dump())}"
+        f"{common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}\n"
     )
     logger.info(log_string)
 

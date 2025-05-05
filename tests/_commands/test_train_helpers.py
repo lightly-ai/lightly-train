@@ -33,7 +33,7 @@ from lightly_train._methods.simclr.simclr_transform import (
     SimCLRTransformArgs,
 )
 from lightly_train._models import package_helpers
-from lightly_train._models.feature_extractor import FeatureExtractor
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
@@ -230,7 +230,7 @@ def test_get_embedding_model__custom(embed_dim: int | None) -> None:
     model = package_helpers.get_model(model=DummyCustomModel())
     x = torch.rand(1, 3, 224, 224)
     embedding_model = train_helpers.get_embedding_model(model, embed_dim=embed_dim)
-    assert isinstance(embedding_model.feature_extractor, FeatureExtractor)
+    assert isinstance(embedding_model.model_wrapper, ModelWrapper)
     embedding = embedding_model.forward(x)
     assert embedding.shape == (1, embedding_model.embed_dim, 1, 1)
 
