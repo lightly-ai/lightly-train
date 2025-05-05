@@ -6,7 +6,6 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-
 # * Note: This file is almost identical to tests/_methods/dino/test_dino_transform.py
 from __future__ import annotations
 
@@ -14,6 +13,7 @@ import numpy as np
 
 from lightly_train._methods.dinov2.dinov2_transform import DINOv2Transform
 from lightly_train.types import NDArrayImage, TransformInput
+
 
 def test_dinov2_transform_shapes() -> None:
     img_np: NDArrayImage = np.random.uniform(0, 255, size=(1234, 1234, 3)).astype(
