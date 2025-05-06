@@ -10,9 +10,13 @@ from __future__ import annotations
 import copy
 
 from torch import Tensor
-from torch.nn import Identity, Module
+from torch.nn import AdaptiveAvgPool2d, Identity, Module
 
-from lightly_train._models.model_wrapper import ForwardFeaturesOutput, ModelWrapper
+from lightly_train._models.model_wrapper import (
+    ForwardFeaturesOutput,
+    ForwardPoolOutput,
+    ModelWrapper,
+)
 from lightly_train._modules.teachers.dinov2.layers.block import Block
 
 
@@ -21,21 +25,24 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
         super().__init__()
         self._model = model
         self._feature_dim = int(self._model.embed_dim)
-
+        self._pool = AdaptiveAvgPool2d((1, 1))
+    
     def feature_dim(self) -> int:
         return self._feature_dim
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
         return {"features": self._model(x)}
     
+    def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
+        return {"pooled_features": self._pool(x["features"])}
+
     def get_teacher(self) -> Module:
         teacher = copy.deepcopy(self._model)
         if teacher.chunked_blocks:
             for chunked_blocks in teacher.blocks:
                 update_blocks_student_to_teacher(chunked_blocks)
         else:
-            update_blocks_student_to_teacher(teacher.blocks)
-                
+            update_blocks_student_to_teacher(teacher.blocks)             
         return teacher
 
 def update_blocks_student_to_teacher(blocks: list[Block]) -> None:
