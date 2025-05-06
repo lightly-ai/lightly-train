@@ -13,11 +13,11 @@ import torch
 from torch.nn import Module
 
 from lightly_train._data.download import download_from_url
-from lightly_train._modules.teachers.dinov2.configs import (
-    load_and_merge_config,
-    get_config_path,
-)
 from lightly_train._modules.teachers.dinov2.configs import MODELS as TEACHER_MODELS
+from lightly_train._modules.teachers.dinov2.configs import (
+    get_config_path,
+    load_and_merge_config,
+)
 from lightly_train._modules.teachers.dinov2.models import build_model_from_cfg
 
 logger = logging.getLogger(__name__)
