@@ -16,7 +16,7 @@ from torch.nn import Module
 
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.package import Package
-from lightly_train._modules.teachers.dinov2.configs import MODELS as VIT_MODELS
+from lightly_train._modules.teachers.dinov2.configs import TRAIN_MODELS as VIT_MODELS
 from lightly_train._modules.teachers.dinov2.configs import (
     get_config_path,
     load_and_merge_config,
@@ -30,11 +30,11 @@ logger = logging.getLogger(__name__)
 
 
 class DINOv2ViTPackage(Package):
-    name = "DINOv2VIT"
+    name = "dinov2_vit"
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return list(VIT_MODELS.keys())
+        return [f"{cls.name}/"+entry for entry in list(VIT_MODELS.keys())]
     
     @classmethod
     def is_supported_model(cls, model: Module) -> bool:
@@ -48,16 +48,11 @@ class DINOv2ViTPackage(Package):
             raise ValueError(f"Unknown model: {model_name}")
         
         model_info = VIT_MODELS[model_name]
-        #url = model_info["url"] # TODO do we want to allow pretrained loading?
         config_name = model_info["config"]
 
         # Load config.
         config_path = get_config_path(config_name)
         cfg = load_and_merge_config(str(config_path))
-
-        suffix = "_memeff"
-        if cfg.student.arch.endswith(suffix):
-            cfg.student.arch = cfg.student.arch[: -len(suffix)]
 
         model_builders = {  
             "vit_small": vits.vit_small,
@@ -78,7 +73,7 @@ class DINOv2ViTPackage(Package):
         )
         
         model = model_builder(
-            mg_size=cfg.crops.global_crops_size,
+            img_size=cfg.crops.global_crops_size,
             patch_size=cfg.student.patch_size,
             init_values=cfg.student.layerscale,
             ffn_layer=cfg.student.ffn_layer,
@@ -98,11 +93,7 @@ class DINOv2ViTPackage(Package):
 
     @classmethod
     def get_model_wrapper(cls, model: Module) -> DINOv2ViTModelWrapper:
-        if not isinstance(model, DINOv2ViTModelWrapper):
-            raise TypeError(
-                "Unsupported model type: Model does not implement FeatureExtractor interface."
-            )
-        return model
+        return DINOv2ViTModelWrapper(model)
 
     @classmethod
     def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:

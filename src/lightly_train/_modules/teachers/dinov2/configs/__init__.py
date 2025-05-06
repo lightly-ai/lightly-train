@@ -28,6 +28,15 @@ MODELS = {
     },
 }
 
+TRAIN_MODELS = {
+    "vitl14": {
+        "config": "train/vitl14",
+    },
+    "vitg14": {
+        "config": "train/vitg14",
+    },
+}
+
 def load_config(config_name: str):
     config_filename = config_name + ".yaml"
     return OmegaConf.load(pathlib.Path(__file__).parent.resolve() / config_filename)
@@ -44,6 +53,6 @@ def get_config_path(config_name: str) -> pathlib.Path:
     """Resolves a relative config path like 'eval/vitb14_pretrain
     into an absolute path relative to the configs package.
     """
-    config_dir = pathlib.Path(__file__).parent / "configs"
+    config_dir = pathlib.Path(__file__).parent
     full_path = config_dir / config_name
     return full_path
