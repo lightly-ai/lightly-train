@@ -257,7 +257,7 @@ def get_num_workers(
             num_devices_per_node=num_devices_per_node
         )
         if num_cpus_per_device is None:
-            num_workers_auto = 8
+            num_workers_auto = Env.LIGHTLY_TRAIN_DEFAULT_NUM_WORKERS_AUTO.value
         else:
             # Leave 1 CPU for the main process on every device
             num_workers_auto = max(num_cpus_per_device - 1, 0)

@@ -63,8 +63,16 @@ class Env:
         default=None,
         type_=Path,
     )
+    # Maximum number of workers in case num_workers is set to "auto".
     LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO: EnvVar[int] = EnvVar(
         name="LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO",
+        default=8,
+        type_=int,
+    )
+    # Default number of workers in case num_workers is set to "auto" but LightlyTrain
+    # cannot automatically determined the number of available CPUs.
+    LIGHTLY_TRAIN_DEFAULT_NUM_WORKERS_AUTO: EnvVar[int] = EnvVar(
+        name="LIGHTLY_TRAIN_DEFAULT_NUM_WORKERS_AUTO",
         default=8,
         type_=int,
     )
