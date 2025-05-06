@@ -27,7 +27,6 @@ class TestEnvVar:
             (None, 42, int, True, 42),
             ("100", 42, int, True, 100),
             ("", 42, int, True, 42),
-            # ("", 42, int, False, "") # Raises error as it tries converting empty string to int
             ("", "42", str, True, "42"),
             ("", "42", str, False, ""),
         ],
