@@ -71,7 +71,8 @@ _TRAIN_HELP_MSG = f"""
         out (str, required):
             Output directory to save logs, checkpoints, and other artifacts.
         data (str, required):
-            Path to a directory containing images.
+            Path to a directory containing images or a sequence of image directories and
+            files.
         model (str, required):
             Model name for training. For example 'torchvision/resnet50'.
             Run `lightly-train list_models` to see all supported models.
@@ -253,7 +254,8 @@ _EMBED_HELP_MSG = f"""
         out (str, required):
             Filepath where the embeddings will be saved. For example "embeddings.csv".
         data (str, required):
-            Directory containing the images to embed.
+            Directory containing the images to embed or a sequence of image directories
+            and files.
         checkpoint (str, required):
             Path to the LightlyTrain checkpoint file used for embedding. The location of
             the checkpoint depends on the train command. If training was run with

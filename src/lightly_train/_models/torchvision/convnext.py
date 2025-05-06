@@ -8,14 +8,14 @@
 from torch import Tensor
 from torchvision.models import ConvNeXt
 
-from lightly_train._models.feature_extractor import (
+from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
 )
-from lightly_train._models.torchvision.torchvision import TorchvisionFeatureExtractor
+from lightly_train._models.torchvision.torchvision import TorchvisionModelWrapper
 
 
-class ConvNeXtFeatureExtractor(TorchvisionFeatureExtractor):
+class ConvNeXtFeatureExtractor(TorchvisionModelWrapper):
     _torchvision_models = [ConvNeXt]
     _torchvision_model_name_pattern = r"convnext.*"
 

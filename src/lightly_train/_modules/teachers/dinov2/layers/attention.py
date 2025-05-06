@@ -9,12 +9,9 @@
 #   https://github.com/facebookresearch/dino/blob/master/vision_transformer.py
 #   https://github.com/rwightman/pytorch-image-models/tree/master/timm/models/vision_transformer.py
 
-import logging
 import os
 
 from torch import Tensor, nn
-
-logger = logging.getLogger(__name__)
 
 XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
 try:
@@ -22,15 +19,10 @@ try:
         from xformers.ops import memory_efficient_attention, unbind
 
         XFORMERS_AVAILABLE = True
-        logger.debug("xFormers is available (Attention).")
     else:
         raise ImportError
 except ImportError:
     XFORMERS_AVAILABLE = False
-    logger.debug(
-        "xFormers is not available. This may slow down attention computation and overall training. "
-        "For faster performance, install it via `pip install xformers`."
-    )
 
 
 class Attention(nn.Module):

@@ -288,6 +288,116 @@ def test_pretty_format_args__custom_model() -> None:
 
 
 @pytest.mark.parametrize(
+    "args, expected",
+    [
+        (
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": ["my_data_dir", "my_data_dir_2"],
+                "devices": [0, 1],
+            },
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": ["my_data_dir", "my_data_dir_2"],
+                "devices": [0, 1],
+            },
+        ),
+        (
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": [
+                    "my_data_dir",
+                    "my_data_dir_2",
+                    "my_data_dir_3",
+                    "my_data_dir_4",
+                    "my_data_dir_5",
+                    "my_data_dir_6",
+                ],
+                "devices": [0, 1],
+            },
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": [
+                    "my_data_dir",
+                    "my_data_dir_2",
+                    "my_data_dir_3",
+                    "...",
+                    "my_data_dir_6",
+                ],
+                "devices": [0, 1],
+            },
+        ),
+        (
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": [
+                    "my_data_dir",
+                    "my_data_dir_2",
+                    "my_data_dir_3",
+                    "my_data_dir_4",
+                    "my_data_dir_5",
+                    "my_data_dir_6",
+                ],
+                "devices": [0, 1, 2, 3, 4, 5, 6, 7],
+            },
+            {
+                "model": "torchvision/resnet18",
+                "batch_size": 128,
+                "data": [
+                    "my_data_dir",
+                    "my_data_dir_2",
+                    "my_data_dir_3",
+                    "...",
+                    "my_data_dir_6",
+                ],
+                "devices": [0, 1, 2, "...", 7],
+            },
+        ),
+    ],
+)
+def test_remove_excessive_args__all_keys(
+    args: dict[str, Any], expected: dict[str, Any]
+) -> None:
+    assert common_helpers.remove_excessive_args(args=args) == expected
+
+
+def test_remove_excessive_args__specific_key() -> None:
+    args = {
+        "model": "torchvision/resnet18",
+        "batch_size": 128,
+        "data": [
+            "my_data_dir",
+            "my_data_dir_2",
+            "my_data_dir_3",
+            "my_data_dir_4",
+            "my_data_dir_5",
+            "my_data_dir_6",
+        ],
+        "devices": [0, 1, 2, 3, 4, 5, 6, 7],
+    }
+    expected = {
+        "model": "torchvision/resnet18",
+        "batch_size": 128,
+        "data": [
+            "my_data_dir",
+            "my_data_dir_2",
+            "my_data_dir_3",
+            "...",
+            "my_data_dir_6",
+        ],
+        "devices": [0, 1, 2, 3, 4, 5, 6, 7],
+    }
+    assert (
+        common_helpers.remove_excessive_args(args=args, limit_keys={"data"}) == expected
+    )
+
+
+@pytest.mark.parametrize(
     "num_workers,os_cpu_count,num_devices_per_node,expected_result",
     [
         (0, None, 1, 0),
@@ -473,6 +583,28 @@ def test_get_dataset__path__empty(tmp_path: Path) -> None:
             transform=ToTensorV2(),
             mmap_filepath=None,
         )
+
+
+def test_get_dataset__dirs_and_files(tmp_path: Path) -> None:
+    single_img1 = tmp_path / "img.jpg"
+    single_img2 = tmp_path / "img_2.jpg"
+    single_img1.touch()
+    single_img2.touch()
+    img_dir = tmp_path / "dir"
+    img_dir.mkdir(parents=True, exist_ok=True)
+    (img_dir / "img_1.jpg").touch()
+    (img_dir / "img_3.jpg").touch()
+    assert os.path.isdir(str(img_dir))
+    mmap_filepath = Path(tmp_path / "test.pyarrow")
+    _ = common_helpers.get_dataset(
+        data=[
+            single_img1,
+            single_img2,
+            img_dir,
+        ],
+        transform=ToTensorV2(),
+        mmap_filepath=mmap_filepath,
+    )
 
 
 def test_get_dataset__dataset() -> None:

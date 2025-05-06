@@ -27,7 +27,7 @@ from lightly_train._callbacks.tqdm_progress_bar import DataWaitTQDMProgressBar
 from lightly_train._checkpoint import CheckpointLightlyTrainModels
 from lightly_train._configs import validate
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._models.feature_extractor import ModelGetter
+from lightly_train._models.model_wrapper import ModelGetter
 from lightly_train._transforms.transform import NormalizeArgs
 
 
