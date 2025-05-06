@@ -49,6 +49,14 @@ class Env:
         default=Path.home() / ".cache" / "lightly-train",
         type_=Path,
     )
+    # Timeout in seconds for the dataloader to collect a batch from the workers. This is
+    # used to prevent the dataloader from hanging indefinitely. Set to 0 to disable the
+    # timeout.
+    LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC: EnvVar[int] = EnvVar(
+        name="LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC",
+        default=180,
+        type_=int,
+    )
     LIGHTLY_TRAIN_MASK_DIR: EnvVar[Path | None] = EnvVar(
         name="LIGHTLY_TRAIN_MASK_DIR",
         default=None,

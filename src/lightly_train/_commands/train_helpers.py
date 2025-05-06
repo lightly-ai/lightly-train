@@ -25,7 +25,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._configs import validate
-from lightly_train._constants import DATALOADER_TIMEOUT
+from lightly_train._env import Env
 from lightly_train._methods import method_helpers
 from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
@@ -170,7 +170,7 @@ def get_dataloader(
             over other arguments.
     """
     logger.debug(f"Using batch size per device {batch_size}.")
-    timeout = DATALOADER_TIMEOUT if num_workers > 0 else 0
+    timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC if num_workers > 0 else 0
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
         batch_size=batch_size,
