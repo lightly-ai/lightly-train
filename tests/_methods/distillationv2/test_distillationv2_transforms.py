@@ -15,7 +15,7 @@ from lightly_train._methods.distillationv2.distillationv2_transform import (
 from lightly_train.types import TransformInput
 
 
-class TestDistillationTransform:
+class TestDistillationV2Transform:
     def test_transform_shapes(self) -> None:
         img_np = np.random.uniform(0, 255, size=(1234, 1234, 3))
         input: TransformInput = {
