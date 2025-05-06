@@ -9,7 +9,6 @@
 #   https://github.com/facebookresearch/dino/blob/master/vision_transformer.py
 #   https://github.com/rwightman/pytorch-image-models/tree/master/timm/layers/patch_embed.py
 
-import logging
 import os
 from typing import Any, Callable, Dict, List, Tuple
 
@@ -24,24 +23,16 @@ from lightly_train._modules.teachers.dinov2.layers.drop_path import DropPath
 from lightly_train._modules.teachers.dinov2.layers.layer_scale import LayerScale
 from lightly_train._modules.teachers.dinov2.layers.mlp import Mlp
 
-logger = logging.getLogger(__name__)
-
-
 XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
 try:
     if XFORMERS_ENABLED:
         from xformers.ops import fmha, index_select_cat, scaled_index_add
 
         XFORMERS_AVAILABLE = True
-        logger.debug("xFormers is available (Block).")
     else:
         raise ImportError
 except ImportError:
     XFORMERS_AVAILABLE = False
-    logger.debug(
-        "xFormers is not available. This may slow down attention computation and overall training. "
-        "For faster performance, install it via `pip install xformers`."
-    )
 
 
 class Block(nn.Module):
