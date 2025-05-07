@@ -7,9 +7,11 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import torch
+import torch.distributed as dist
 from torch.nn import Module
 
 from lightly_train._data.download import download_from_url
@@ -68,15 +70,29 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
     # Cache the teacher checkpoint.
     checkpoint_path = checkpoint_dir / Path(url).name
 
-    if not checkpoint_path.exists():
-        logger.info(
-            f"Downloading teacher weights from: '{url}' and saving them to: '{checkpoint_path}'. "
-            "The cache directory location can be configured with the LIGHTLY_TRAIN_CACHE_DIR environment variable."
-        )
-        download_from_url(url, checkpoint_path, timeout=180.0)
-    else:
-        logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
+    # Get the local rank and whether we are in a distributed environment.
+    is_distributed = dist.is_available() and dist.is_initialized()
+    local_rank = int(
+        os.environ.get("LOCAL_RANK") or os.environ.get("SLURM_LOCALID") or 0
+    )
+    is_local_main = local_rank == 0
 
+    # Only the first rank from each node should download the checkpoint.
+    if is_local_main:
+        if not checkpoint_path.exists():
+            logger.info(
+                f"Downloading teacher weights from: '{url}' and saving them to: "
+                f"'{checkpoint_path}'. The cache directory location can be configured "
+                "with the LIGHTLY_TRAIN_CACHE_DIR environment variable."
+            )
+            download_from_url(url, checkpoint_path, timeout=180.0)
+        else:
+            logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
+
+    if is_distributed:
+        dist.barrier()
+
+    # Load the checkpoint.
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     model.load_state_dict(ckpt, strict=True)
     logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
