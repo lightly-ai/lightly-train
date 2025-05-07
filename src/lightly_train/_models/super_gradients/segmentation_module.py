@@ -46,9 +46,9 @@ class SegmentationModuleFeatureExtractor(SuperGradientsModelWrapper):
         return cls._SUPPORTED_MODEL_CLASSES
 
     def feature_dim(self) -> int:
-        out_channels: list[int] | int = self._model[
-            0
-        ].backbone.get_backbone_output_number_of_channels()
+        out_channels: list[int] | int = (
+            self._backbone.get_backbone_output_number_of_channels()
+        )
         return out_channels[-1] if isinstance(out_channels, list) else out_channels
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:

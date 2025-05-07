@@ -46,7 +46,7 @@ class CustomizableDetectorFeatureExtractor(SuperGradientsModelWrapper):
         return cls._SUPPORTED_MODEL_CLASSES
 
     def feature_dim(self) -> int:
-        out_channels: list[int] | int = self._model[0].backbone.out_channels
+        out_channels: list[int] | int = self._backbone.out_channels
         return out_channels[-1] if isinstance(out_channels, list) else out_channels
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
