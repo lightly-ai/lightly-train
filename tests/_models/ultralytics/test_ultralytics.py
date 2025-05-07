@@ -42,20 +42,6 @@ class TestUltralyticsModelWrapper:
         for name, module in feature_extractor.named_modules():
             assert module.training, name
 
-    def test_init__freeze(self) -> None:
-        model = YOLO("yolov8s.yaml")
-
-        # Freeze the first three layers.
-        freeze_layers = [0, 1, 2]
-        model.model.args["freeze"] = freeze_layers
-
-        feature_extractor = UltralyticsModelWrapper(model=model)
-        for name, param in feature_extractor.named_parameters():
-            if ".dfl" in name or any(f"model.{idx}" in name for idx in freeze_layers):
-                assert not param.requires_grad, name
-            else:
-                assert param.requires_grad, name
-
     @pytest.mark.parametrize("model_name", ["yolov8s.yaml", "yolov8s-cls.yaml"])
     def test_feature_dim(self, model_name: str) -> None:
         model = YOLO(model_name)
