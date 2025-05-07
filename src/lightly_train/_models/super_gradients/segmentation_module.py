@@ -47,7 +47,7 @@ class SegmentationModuleFeatureExtractor(SuperGradientsModelWrapper):
 
     def feature_dim(self) -> int:
         out_channels: list[int] | int = (
-            self._model.backbone.get_backbone_output_number_of_channels()
+            self._model[0].backbone.get_backbone_output_number_of_channels()
         )
         return out_channels[-1] if isinstance(out_channels, list) else out_channels
 

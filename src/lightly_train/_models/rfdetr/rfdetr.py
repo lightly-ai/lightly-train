@@ -37,7 +37,7 @@ class RFDETRModelWrapper(Module, ModelWrapper):
         feature_dim = encoder._out_feature_channels[-1]
         assert isinstance(feature_dim, int)
 
-        self._model: Module = [model]
+        self._model: list[Module] = [model]
         # Set model to training mode. This is necessary for RFDETR pretrained
         # models as the DINOv2 backbone is in eval mode by default.
         self._encoder = encoder.train()
