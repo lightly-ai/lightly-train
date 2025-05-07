@@ -39,7 +39,7 @@ class ModelExport(Callback):
             export_path = self._out_dir / "exported_last.pt"
             if export_path.exists():
                 export_path.unlink()
-            
+
             common_helpers.export_model(
                 model=self._model,
                 out=export_path,
