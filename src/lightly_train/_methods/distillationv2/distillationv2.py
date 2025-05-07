@@ -79,12 +79,14 @@ class DistillationV2(Method):
         # Store the student model.
         self.student_embedding_model = embedding_model
 
-        # Instantiate a linear projection head that performs the mapping from the student embedding space to the teacher embedding space.
+        # Instantiate a linear projection head that performs the mapping
+        # from the student embedding space to the teacher embedding space.
         self.student_projection_head = Linear(
             embedding_model.embed_dim, self.teacher_embedding_dim
         )
 
-        # Initialize the weights of the linear projection head with a truncated normal.
+        # Initialize the weights of the linear projection head with a
+        # truncated normal.
         init.trunc_normal_(self.student_projection_head.weight, std=0.02)
 
         # Instantiate the criterion.
@@ -135,10 +137,12 @@ class DistillationV2(Method):
         # The projection head expects tensors with channel last format.
         x = x.permute(0, 2, 3, 1)
 
-        # Forward the student features through the projection head to match the dimension of the teacher: (B, H, W, C) -> (B, H, W, D).
+        # Forward the student features through the projection head to
+        # match the dimension of the teacher: (B, H, W, C) -> (B, H, W, D).
         x = self.student_projection_head(x)
 
-        # Resize the student spatial features to have the same resolution as the teacher spatial features.
+        # Resize the student spatial features to have the same resolution
+        # as the teacher spatial features.
         x = x.permute(0, 3, 1, 2)  # (B, H, W, D) -> (B, D, H, W)
         x = F.interpolate(
             x,
@@ -147,7 +151,8 @@ class DistillationV2(Method):
             align_corners=False,
         )
 
-        # Flatten the spatial dimensions to match the teacher features: (B, D, H, W) -> (B, H * W, D).
+        # Flatten the spatial dimensions to match the teacher features:
+        # (B, D, H, W) -> (B, H * W, D).
         x = x.permute(0, 2, 3, 1).view(b, -1, self.teacher_embedding_dim)
 
         return x
