@@ -31,7 +31,22 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
         return self._feature_dim
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
-        return {"features": self._model(x)}
+        rt = self._model(x, is_training=True) # forcing to return all patches
+        if rt["x_norm_patchtokens"].dim() == 3:
+            patches_resolution = self._model.patch_embed.patches_resolution
+            features_reshaped = rt["x_norm_patchtokens"].reshape(
+                rt["x_norm_patchtokens"].shape[0],
+                rt["x_norm_patchtokens"].shape[2],
+                patches_resolution[0],
+                patches_resolution[1],
+            )
+        elif rt["x_norm_patchtokens"].dim() == 4:
+            features_reshaped = rt["x_norm_patchtokens"]
+        else:
+            raise ValueError(
+                f"Unexpected shape for x_norm_patchtokens: {rt['x_norm_patchtokens'].shape}"
+            )
+        return {"features": features_reshaped, "cls_token": rt["x_norm_clstoken"]}
     
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
