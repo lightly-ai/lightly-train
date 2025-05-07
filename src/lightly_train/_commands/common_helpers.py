@@ -275,15 +275,26 @@ def get_num_workers(
     The number of workers are per dataloader. Every device has its own dataloader.
     """
     if num_workers == "auto":
+        # Handle SLURM and respect SLURM_CPUS_PER_TASK setting
+        slurm_cpus_per_task = Env.SLURM_CPUS_PER_TASK.value
+        if slurm_cpus_per_task is not None:
+            # Leave 1 CPU for the main process on every device
+            return max(slurm_cpus_per_task - 1, 0)
+
         num_cpus_per_device = _get_num_cpus_per_device(
             num_devices_per_node=num_devices_per_node
         )
         if num_cpus_per_device is None:
-            num_workers_auto = 8
+            num_workers_auto = Env.LIGHTLY_TRAIN_DEFAULT_NUM_WORKERS_AUTO.value
         else:
             # Leave 1 CPU for the main process on every device
             num_workers_auto = max(num_cpus_per_device - 1, 0)
 
+        # Limit the number of automatically created workers in case
+        # the system has a lot of CPUs.
+        num_workers_auto = min(
+            num_workers_auto, Env.LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO.value
+        )
         return num_workers_auto
     else:
         return num_workers
@@ -292,12 +303,7 @@ def get_num_workers(
 def _get_num_cpus_per_device(num_devices_per_node: int) -> int | None:
     """Returns the number of available CPUs per device."""
     if _is_slurm():
-        cpus_per_task = os.getenv("SLURM_CPUS_PER_TASK")
-        logger.debug(f"SLURM_CPUS_PER_TASK: {cpus_per_task}")
-        if cpus_per_task and isinstance(cpus_per_task, str):
-            cpu_count = int(cpus_per_task)
-        else:
-            cpu_count = None
+        return Env.SLURM_CPUS_PER_TASK.value
     else:
         cpu_count = os.cpu_count()
         if cpu_count is not None:

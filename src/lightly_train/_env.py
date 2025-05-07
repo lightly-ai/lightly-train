@@ -20,12 +20,21 @@ class EnvVar(Generic[T]):
     name: str
     default: T
     type_: Callable[[str], T]
+    # If True, empty strings are converted to the default value. This happens for:
+    # MY_ENV_VAR=
+    # MY_ENV_VAR=""
+    convert_empty_str_to_default: bool = True
 
     @property
     def value(self) -> T:
         """Returns the value of the environment variable converted to its type."""
         raw = os.getenv(self.name)
-        return self.type_(raw) if raw is not None else self.default
+        if raw is None:
+            return self.default
+        elif self.convert_empty_str_to_default and raw == "":
+            return self.default
+        else:
+            return self.type_(raw)
 
     @property
     def raw_value(self) -> str | None:
@@ -62,6 +71,19 @@ class Env:
         default=None,
         type_=Path,
     )
+    # Maximum number of workers in case num_workers is set to "auto".
+    LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO: EnvVar[int] = EnvVar(
+        name="LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO",
+        default=8,
+        type_=int,
+    )
+    # Default number of workers in case num_workers is set to "auto" but LightlyTrain
+    # cannot automatically determined the number of available CPUs.
+    LIGHTLY_TRAIN_DEFAULT_NUM_WORKERS_AUTO: EnvVar[int] = EnvVar(
+        name="LIGHTLY_TRAIN_DEFAULT_NUM_WORKERS_AUTO",
+        default=8,
+        type_=int,
+    )
     LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC: EnvVar[float] = EnvVar(
         name="LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC",
         default=300,
@@ -71,4 +93,9 @@ class Env:
         name="LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC",
         default=30,
         type_=float,
+    )
+    SLURM_CPUS_PER_TASK: EnvVar[int | None] = EnvVar(
+        name="SLURM_CPUS_PER_TASK",
+        default=None,
+        type_=int,
     )
