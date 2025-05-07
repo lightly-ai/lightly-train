@@ -11,9 +11,11 @@ from typing import Literal
 
 import pytest
 import torch
+from pytest_mock import MockerFixture
 
 from lightly_train._methods.distillationv2.distillationv2 import (
     DistillationV2,
+    DistillationV2Args,
     DistillationV2LARSArgs,
 )
 from lightly_train._optim.optimizer_args import OptimizerArgs
@@ -93,3 +95,56 @@ class TestDistillation:
         assert expected_values == unique_values, (
             "Mixup should only produce 0, 1, lambda and 1 - lambda when fed with binary images."
         )
+
+    def test_forward_student_output_shape(self, mocker: MockerFixture) -> None:
+        """Test that _forward_student returns expected shape."""
+        # Set constants.
+        batch_size, channels, height, width = 2, 3, 224, 224
+        student_embed_dim = 32
+        teacher_embed_dim = 48
+        n_blocks = 2
+        patch_size = 14
+        n_tokens = (height // patch_size) * (width // patch_size)
+
+        # Create dummy images.
+        x = torch.randn(batch_size, channels, height, width)
+
+        # Patch the teacher model
+        mock_teacher_model = mocker.Mock()
+        mock_teacher_model.embed_dim = teacher_embed_dim
+        mock_teacher_model.patch_size = patch_size
+        mock_teacher_model.get_intermediate_layers.return_value = [
+            torch.randn(
+                batch_size,
+                n_tokens,
+                teacher_embed_dim,
+            )
+            for _ in range(n_blocks)
+        ]
+        mock_get_teacher = mocker.patch(
+            "lightly_train._methods.distillationv2.distillationv2.get_teacher"
+        )
+        mock_get_teacher.return_value = mock_teacher_model
+
+        # Patch the student embedding model.
+        mock_student_model = mocker.Mock()
+        mock_student_model.embed_dim = student_embed_dim
+        mock_student_model.return_value = torch.randn(
+            batch_size, student_embed_dim, 7, 7
+        )
+
+        # Init distillation method.
+        distill = DistillationV2(
+            method_args=DistillationV2Args(n_teacher_blocks=n_blocks),
+            optimizer_args=DistillationV2LARSArgs(),
+            embedding_model=mock_student_model,
+            global_batch_size=batch_size,
+        )
+        mock_get_teacher.assert_called_once()
+
+        # Run _forward_student.
+        out = distill._forward_student(x)
+
+        # Expected shape: (batch_size, n_tokens, teacher_embedding_dim).
+        print(out.shape, distill.teacher_embedding_dim)
+        assert out.shape == (batch_size, n_tokens, distill.teacher_embedding_dim)
