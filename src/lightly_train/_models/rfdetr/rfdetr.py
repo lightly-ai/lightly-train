@@ -37,12 +37,10 @@ class RFDETRModelWrapper(Module, ModelWrapper):
         feature_dim = encoder._out_feature_channels[-1]
         assert isinstance(feature_dim, int)
 
-        self._model: Module = model
+        self._model: Module = [model]
         # Set model to training mode. This is necessary for RFDETR pretrained
         # models as the DINOv2 backbone is in eval mode by default.
-        self._model.train()
-
-        self._encoder = encoder
+        self._encoder = encoder.train()
         self._feature_dim = feature_dim
         self._pool = AdaptiveAvgPool2d((1, 1))
 
@@ -57,4 +55,4 @@ class RFDETRModelWrapper(Module, ModelWrapper):
         return {"pooled_features": self._pool(x["features"])}
 
     def get_model(self) -> Module:
-        return self._model
+        return self._model[0]

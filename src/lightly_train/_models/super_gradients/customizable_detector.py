@@ -33,7 +33,8 @@ class CustomizableDetectorFeatureExtractor(SuperGradientsModelWrapper):
 
     def __init__(self, model: Module) -> None:
         super().__init__()
-        self._model = model
+        self._model = [model]
+        self._backbone = model.backbone
         self._pool = AdaptiveAvgPool2d((1, 1))
 
     @classmethod
@@ -49,7 +50,7 @@ class CustomizableDetectorFeatureExtractor(SuperGradientsModelWrapper):
         return out_channels[-1] if isinstance(out_channels, list) else out_channels
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
-        features: list[Tensor | None] | Tensor = self._model.backbone(x)
+        features: list[Tensor | None] | Tensor = self._backbone(x)
         if isinstance(features, Tensor):
             features = [features]
 
@@ -61,4 +62,4 @@ class CustomizableDetectorFeatureExtractor(SuperGradientsModelWrapper):
         return {"pooled_features": self._pool(x["features"])}
 
     def get_model(self) -> Module:
-        return self._model
+        return self._model[0]

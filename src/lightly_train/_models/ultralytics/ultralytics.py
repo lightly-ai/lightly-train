@@ -56,7 +56,7 @@ class UltralyticsModelWrapper(Module, ModelWrapper):
         # Set model to training mode. This is necessary for Ultralytics pretrained
         # models as they are loaded in eval mode by default.
         model.model.train()
-        self._model = model
+        self._model = [model]
         self._backbone, self._feature_dim = _get_backbone(model)
         self._pool = AdaptiveAvgPool2d((1, 1))
 
@@ -70,7 +70,7 @@ class UltralyticsModelWrapper(Module, ModelWrapper):
         return {"pooled_features": self._pool(x["features"])}
 
     def get_model(self) -> YOLO:
-        return self._model
+        return self._model[0]
 
 
 def _get_backbone(model: YOLO) -> tuple[Sequential, int]:
