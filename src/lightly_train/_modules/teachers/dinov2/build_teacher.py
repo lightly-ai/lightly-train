@@ -7,13 +7,13 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 import torch
 import torch.distributed as dist
 from torch.nn import Module
 
+from lightly_train._commands.common_helpers import is_local_rank_zero
 from lightly_train._data.download import download_from_url
 from lightly_train._modules.teachers.dinov2.configs import (
     load_and_merge_config,
@@ -72,13 +72,9 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
 
     # Get the local rank and whether we are in a distributed environment.
     is_distributed = dist.is_available() and dist.is_initialized()
-    local_rank = int(
-        os.environ.get("LOCAL_RANK") or os.environ.get("SLURM_LOCALID") or 0
-    )
-    is_local_main = local_rank == 0
 
     # Only the first rank from each node should download the checkpoint.
-    if is_local_main:
+    if is_local_rank_zero():
         if not checkpoint_path.exists():
             logger.info(
                 f"Downloading teacher weights from: '{url}' and saving them to: "
