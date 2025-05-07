@@ -7,8 +7,6 @@
 #
 from __future__ import annotations
 
-import copy
-
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Identity, Module
 
@@ -51,14 +49,12 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
 
-    def get_teacher(self) -> Module:
-        teacher = copy.deepcopy(self._model)
-        if teacher.chunked_blocks:
-            for chunked_blocks in teacher.blocks:
+    def make_teacher(self) -> None:
+        if self._model.chunked_blocks:
+            for chunked_blocks in self._model.blocks:
                 update_blocks_student_to_teacher(chunked_blocks)
         else:
-            update_blocks_student_to_teacher(teacher.blocks)             
-        return teacher
+            update_blocks_student_to_teacher(self._model.blocks)             
 
 def update_blocks_student_to_teacher(blocks: list[Block]) -> None:
     for block in blocks:

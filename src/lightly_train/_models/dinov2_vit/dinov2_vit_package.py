@@ -14,6 +14,7 @@ from typing import Any, Callable, cast
 import torch
 from torch.nn import Module
 
+from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.package import Package
 from lightly_train._modules.teachers.dinov2.configs import TRAIN_MODELS as VIT_MODELS
@@ -98,7 +99,22 @@ class DINOv2ViTPackage(Package):
     @classmethod
     def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
         torch.save(model.state_dict(), out)
-        #TODO: finish implement export_model
+
+        if log_example:
+            log_message_code = [
+                "from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOv2ViTPackage",
+                "import torch",
+                "",
+                "# Load the pretrained model",
+                "model = DINOv2ViTPackage.get_model('dinov2_vit/<vitXX>') # Replace with the model name used in train",
+                f"model.load_state_dict(torch.load('{out}', weights_only=True))",
+                "",
+                "# Finetune or evaluate the model",
+                "...",
+            ]
+            logger.info(
+                package_helpers.format_log_msg_model_usage_example(log_message_code)
+            )
 
 # Create singleton instance of the package. The singleton should be used whenever
 # possible.

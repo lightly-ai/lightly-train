@@ -5,9 +5,11 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from pathlib import Path
 from typing import cast
 
 import pytest
+import torch
 
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOv2ViTPackage
@@ -66,4 +68,23 @@ class TestDINOv2ViTPackage:
         fe = DINOv2ViTPackage.get_model_wrapper(model=model)
         assert isinstance(fe, DINOv2ViTModelWrapper)
     
-    #TODO test export
+    @pytest.mark.parametrize(
+        "model_name",
+        ["vits14"],
+    )
+    def test_export_model(self, model_name: str, tmp_path: Path) -> None:
+        model = DINOv2ViTPackage.get_model(model_name)
+        out_path = tmp_path / "model.pt"
+        DINOv2ViTPackage.export_model(model=model, out= out_path, log_example=False)
+
+        model_exported = DINOv2ViTPackage.get_model(model_name)
+        model_exported.load_state_dict(torch.load(out_path, weights_only=True))
+
+        assert len(list(model.parameters())) == len(list(model_exported.parameters()))
+        for (name, param), (name_exp, param_exp) in zip(
+            model.named_parameters(), model_exported.named_parameters()
+        ):
+            assert name == name_exp
+            assert param.dtype == param_exp.dtype
+            assert param.requires_grad == param_exp.requires_grad
+            assert torch.allclose(param, param_exp, rtol=1e-3, atol=1e-4)
