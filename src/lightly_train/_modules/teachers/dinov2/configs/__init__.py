@@ -29,6 +29,12 @@ MODELS = {
 }
 
 TRAIN_MODELS = {
+    "vits14": {
+        "config": "train/vits14",
+    },
+    "vitb14": {
+        "config": "train/vitb14",
+    },
     "vitl14": {
         "config": "train/vitl14",
     },
