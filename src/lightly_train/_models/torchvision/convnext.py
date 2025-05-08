@@ -21,6 +21,7 @@ class ConvNeXtFeatureExtractor(TorchvisionModelWrapper):
 
     def __init__(self, model: ConvNeXt) -> None:
         super().__init__()
+        self._model = [model]
         self._features = model.features
         self._pool = model.avgpool
         # Use linear layer from classifier to get feature dimension as last layer of
@@ -36,3 +37,6 @@ class ConvNeXtFeatureExtractor(TorchvisionModelWrapper):
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
+
+    def get_model(self) -> ConvNeXt:
+        return self._model[0]

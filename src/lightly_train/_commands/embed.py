@@ -25,12 +25,12 @@ from lightly_train._checkpoint import Checkpoint
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._constants import DATALOADER_TIMEOUT
 from lightly_train._embedding.embedding_format import EmbeddingFormat
 from lightly_train._embedding.embedding_predictor import EmbeddingPredictor
 from lightly_train._embedding.embedding_transform import EmbeddingTransform
 from lightly_train._embedding.writers import writer_helpers
 from lightly_train._embedding.writers.embedding_writer import EmbeddingWriter
+from lightly_train._env import Env
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._transforms.transform import NormalizeArgs
 from lightly_train.types import DatasetItem, PathLike
@@ -238,7 +238,7 @@ def _get_dataloader(
                 f"Detected dataset size {dataset_size} and batch size "
                 f"{old_batch_size}. Reducing batch size to {batch_size}."
             )
-    timeout = DATALOADER_TIMEOUT if num_workers > 0 else 0
+    timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
     return DataLoader(
         dataset=dataset,
         batch_size=batch_size,
