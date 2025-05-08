@@ -146,5 +146,4 @@ class TestDistillation:
         out = distill._forward_student(x)
 
         # Expected shape: (batch_size, n_tokens, teacher_embedding_dim).
-        print(out.shape, distill.teacher_embedding_dim)
         assert out.shape == (batch_size, n_tokens, distill.teacher_embedding_dim)
