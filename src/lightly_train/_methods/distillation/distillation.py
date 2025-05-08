@@ -267,3 +267,14 @@ class Distillation(Method):
                 for k, v in self.teacher_embedding_model.state_dict().items()
             }
         )
+
+    @torch.no_grad()
+    def _broadcast_teacher_weights(self) -> None:
+        for param in self.teacher_embedding_model.state_dict().values():
+            if isinstance(param, torch.Tensor):
+                torch.distributed.broadcast(param, src=0)
+
+    def on_fit_start(self) -> None:
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            logger.info("Broadcasting teacher weights from rank 0 to all ranks.")
+            self._broadcast_teacher_weights()
