@@ -149,11 +149,7 @@ class DINOv2Args(MethodArgs):
 class DINOv2AdamWArgs(AdamWArgs):
     lr: float = 0.0005
     weight_decay: float = 0.04
-
-
-class DINOv2SGDArgs(SGDArgs):
-    lr: float = 0.03
-    weight_decay: float = 0.0001
+    weight_decay_end: float = 0.4
 
 
 class DINOv2(Method):
@@ -227,7 +223,7 @@ class DINOv2(Method):
             self.student_embedding_model, self.teacher_embedding_model, m=momentum
         )
         update_momentum(
-            self.student_projection_head, self.teacher_projection_head, m=momentum
+            self.student_dino_head, self.teacher_dino_head, m=momentum
         )
 
         views = batch["views"]
@@ -279,9 +275,7 @@ class DINOv2(Method):
         optim_type: OptimizerType | Literal["auto"],
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
-            "auto": DINOv2SGDArgs,
             OptimizerType.ADAMW: DINOv2AdamWArgs,
-            OptimizerType.SGD: DINOv2SGDArgs,
         }
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 
