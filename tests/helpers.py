@@ -34,7 +34,11 @@ from lightly_train._models import (
     package_helpers as feature_extractor_api,
 )
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.model_wrapper import (
+    ForwardFeaturesOutput,
+    ForwardPoolOutput,
+    ModelWrapper,
+)
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._transforms.transform import (
     MethodTransform,
@@ -43,7 +47,7 @@ from lightly_train._transforms.transform import (
 from lightly_train.types import TransformInput, TransformOutput
 
 
-class DummyCustomModel(Module):
+class DummyCustomModel(Module, ModelWrapper):
     def __init__(self, feature_dim: int = 2):
         super().__init__()
         self._feature_dim = feature_dim
@@ -54,12 +58,12 @@ class DummyCustomModel(Module):
         return self._feature_dim
 
     # Not typed as ForwardFeaturesOutput to have same interface as users.
-    def forward_features(self, x: Tensor) -> dict[str, Any]:
+    def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
         return {"features": self.conv(x)}
 
     # Not typed as ForwardFeaturesOutput -> ForwardPoolOutput to have same interface
     # as users.
-    def forward_pool(self, x: dict[str, Any]) -> dict[str, Any]:
+    def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self.global_pool(x["features"])}
 
     def get_model(self) -> Module:

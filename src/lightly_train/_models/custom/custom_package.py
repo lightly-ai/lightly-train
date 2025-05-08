@@ -9,42 +9,24 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
 import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
-from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import LimitedPackage
 
 logger = logging.getLogger(__name__)
 
 
-class CustomPackage(Package):
+class CustomPackage(LimitedPackage):
     name = "custom"
 
     @classmethod
-    def list_model_names(cls) -> list[str]:
-        return []
-
-    @classmethod
     def is_supported_model(cls, model: Module) -> bool:
-        return isinstance(model, ModelWrapper)
-
-    @classmethod
-    def get_model(
-        cls, model_name: str, model_args: dict[str, Any] | None = None
-    ) -> Module:
-        raise NotImplementedError()
-
-    @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
-        if not isinstance(model, ModelWrapper):
-            raise TypeError(
-                "Unsupported model type: Model does not implement FeatureExtractor interface."
-            )
-        return model
+        """Check if the model is supported by this package."""
+        # Custom package supports all models.
+        return isinstance(model, Module)
 
     @classmethod
     def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:

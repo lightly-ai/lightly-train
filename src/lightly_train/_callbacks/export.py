@@ -11,11 +11,11 @@ from pathlib import Path
 
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import Callback
-from torch.nn import Module
 
 from lightly_train._commands import common_helpers
 from lightly_train._commands.common_helpers import ModelFormat
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._models.model_wrapper import ModelWrapper
 
 
 class ModelExportArgs(PydanticConfig):
@@ -25,11 +25,11 @@ class ModelExportArgs(PydanticConfig):
 class ModelExport(Callback):
     def __init__(
         self,
-        model: Module,
+        wrapped_model: ModelWrapper,
         out_dir: Path,
         every_n_epochs: int = 1,
     ):
-        self._model = model
+        self._model = wrapped_model
         self._out_dir = out_dir
         self._every_n_epochs = every_n_epochs
 
@@ -41,7 +41,7 @@ class ModelExport(Callback):
                 export_path.unlink()
 
             common_helpers.export_model(
-                model=self._model,
+                model=self._model.get_model(),
                 out=export_path,
                 format=ModelFormat.PACKAGE_DEFAULT,
                 log_example=False,

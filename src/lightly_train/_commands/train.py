@@ -21,7 +21,6 @@ from pytorch_lightning.strategies.strategy import Strategy
 from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type: ignore[attr-defined]
     _PRECISION_INPUT,
 )
-from torch.nn import Module
 
 from lightly_train import _logging, _system
 from lightly_train._callbacks import callback_helpers
@@ -35,6 +34,7 @@ from lightly_train._loggers.logger_args import LoggerArgs
 from lightly_train._methods import method_helpers
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._transforms.transform import MethodTransformArgs
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 def train(
     out: PathLike,
     data: PathLike | Sequence[PathLike],
-    model: str | Module,
+    model: str | ModelWrapper,
     method: str = "distillation",
     method_args: dict[str, Any] | None = None,
     embed_dim: int | None = None,
@@ -250,11 +250,12 @@ def train_from_config(config: TrainConfig) -> None:
         scaling_info = train_helpers.get_scaling_info(
             dataset=dataset, epochs=config.epochs
         )
-        model_instance = package_helpers.get_model(
+        wrapped_model = package_helpers.get_wrapped_model(
             model=config.model, model_args=config.model_args
         )
+        model = wrapped_model.get_model()
         embedding_model = train_helpers.get_embedding_model(
-            model=model_instance, embed_dim=config.embed_dim
+            model=wrapped_model, embed_dim=config.embed_dim
         )
         log_every_n_steps = train_helpers.get_lightning_logging_interval(
             dataset_size=scaling_info.dataset_size, batch_size=config.batch_size
@@ -269,7 +270,8 @@ def train_from_config(config: TrainConfig) -> None:
         callback_instances = callback_helpers.get_callbacks(
             callback_args=config.callbacks,
             out=out_dir,
-            model=callback_helpers.get_checkpoint_model(model=model_instance),
+            wrapped_model=wrapped_model,
+            model=model,
             embedding_model=embedding_model,
             normalize_args=transform_instance.transform_args.normalize,
         )
@@ -341,7 +343,7 @@ def train_from_config(config: TrainConfig) -> None:
         train_helpers.load_checkpoint(
             checkpoint=config.checkpoint,
             resume=config.resume,
-            model=model_instance,
+            model=model,
             embedding_model=embedding_model,
             method=method_instance,
         )
@@ -356,7 +358,7 @@ def train_from_config(config: TrainConfig) -> None:
         trainer_instance.save_checkpoint(out_dir / "checkpoints" / "last.ckpt")
     logger.info("Training completed.")
     common_helpers.export_model(
-        model=model_instance,
+        model=model,
         out=out_dir / "exported_models" / "exported_last.pt",
         format=ModelFormat.PACKAGE_DEFAULT,
     )
@@ -373,7 +375,7 @@ def train_from_dictconfig(config: DictConfig) -> None:
 class TrainConfig(PydanticConfig):
     out: PathLike
     data: PathLike | Sequence[PathLike]
-    model: str | Module
+    model: str | ModelWrapper
     method: str = "distillation"
     method_args: dict[str, Any] | MethodArgs | None = None
     embed_dim: int | None = None
