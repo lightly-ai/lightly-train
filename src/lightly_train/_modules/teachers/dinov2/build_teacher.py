@@ -13,7 +13,7 @@ import torch
 import torch.distributed as dist
 from torch.nn import Module
 
-from lightly_train._commands.common_helpers import is_local_rank_zero
+from lightly_train._commands.common_helpers import is_global_rank_zero
 from lightly_train._data.download import download_from_url
 from lightly_train._modules.teachers.dinov2.configs import (
     load_and_merge_config,
@@ -70,11 +70,8 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
     # Cache the teacher checkpoint.
     checkpoint_path = checkpoint_dir / Path(url).name
 
-    # Get the local rank and whether we are in a distributed environment.
-    is_distributed = dist.is_available() and dist.is_initialized()
-
     # Only the first rank from each node should download the checkpoint.
-    if is_local_rank_zero():
+    if is_global_rank_zero():
         if not checkpoint_path.exists():
             logger.info(
                 f"Downloading teacher weights from: '{url}' and saving them to: "
@@ -82,16 +79,18 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
                 "with the LIGHTLY_TRAIN_CACHE_DIR environment variable."
             )
             download_from_url(url, checkpoint_path, timeout=180.0)
+
         else:
             logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
 
-    if is_distributed:
-        dist.barrier()
+        # Load the checkpoint.
+        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        model.load_state_dict(ckpt, strict=True)
+        logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
 
-    # Load the checkpoint.
-    ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    model.load_state_dict(ckpt, strict=True)
-    logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
+    # Ensure all processes wait for the first rank to finish downloading.
+    if dist.is_available() and dist.is_initialized():
+        dist.barrier()
 
     return model
 
