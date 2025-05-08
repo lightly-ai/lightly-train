@@ -35,7 +35,7 @@ class DINOv2ViTPackage(Package):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [f"{cls.name}/"+entry for entry in list(VIT_MODELS.keys())]
+        return [f"{cls.name}/{entry}" for entry in list(VIT_MODELS.keys())]
     
     @classmethod
     def is_supported_model(cls, model: Module) -> bool:
@@ -118,4 +118,4 @@ class DINOv2ViTPackage(Package):
 
 # Create singleton instance of the package. The singleton should be used whenever
 # possible.
-DINOV2_VIT_Package_PACKAGE = DINOv2ViTPackage()
+DINOV2_VIT_PACKAGE = DINOv2ViTPackage()

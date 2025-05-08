@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from typing import cast
+
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Identity, Module
 
@@ -16,6 +18,9 @@ from lightly_train._models.model_wrapper import (
     ModelWrapper,
 )
 from lightly_train._modules.teachers.dinov2.layers.block import Block
+from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 
 
 class DINOv2ViTModelWrapper(Module, ModelWrapper):
@@ -48,6 +53,9 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
     
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
+    
+    def get_model(self) -> DinoVisionTransformer:
+        return cast(DinoVisionTransformer, self._model)
 
     def make_teacher(self) -> None:
         if self._model.chunked_blocks:
