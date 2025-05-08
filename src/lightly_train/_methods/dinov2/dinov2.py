@@ -172,11 +172,49 @@ class DINOv2(Method):
         )
         self.method_args = method_args
         self.teacher_embedding_model = embedding_model
-        self.teacher_projection_head = DINOProjectionHead()
+        
+        self.teacher_dino_head = DINOProjectionHead(
+            input_dim=self.input_dim,
+            hidden_dim=self.method_args.hidden_dim,
+            bottleneck_dim=self.method_args.bottleneck_dim,
+            output_dim=self.method_args.output_dim,
+            norm_last_layer=False
+        )
+        if self.ibot_separate_head:
+            self.teacher_ibot_head = DINOProjectionHead(
+                input_dim=self.input_dim,
+                hidden_dim=self.method_args.hidden_dim,
+                bottleneck_dim=self.method_args.bottleneck_dim,
+                output_dim=self.method_args.output_dim,
+                norm_last_layer=False
+            )
+        else:
+            self.teacher_ibot_head = self.teacher_dino_head
+        
         self.student_embedding_model = copy.deepcopy(self.teacher_embedding_model)
-        self.student_projection_head = DINOProjectionHead()
+        
+        self.student_dino_head = DINOProjectionHead(
+            input_dim=self.input_dim,
+            hidden_dim=self.method_args.hidden_dim,
+            bottleneck_dim=self.method_args.bottleneck_dim,
+            output_dim=self.method_args.output_dim, 
+            freeze_last_layer=1, 
+            norm_last_layer=False
+        )
+        if self.ibot_separate_head:
+            self.student_ibot_head = DINOProjectionHead(
+                input_dim=self.input_dim,
+                hidden_dim=self.method_args.hidden_dim,
+                bottleneck_dim=self.method_args.bottleneck_dim,
+                output_dim=self.method_args.output_dim, 
+                freeze_last_layer=1, 
+                norm_last_layer=False
+            )
+        else:
+            self.student_ibot_head = self.student_dino_head
+        
         self.flatten = Flatten()
-        self.criterion = DINOLoss()
+        self.dino_loss = DINOLoss()
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
         momentum = cosine_schedule(
@@ -211,7 +249,7 @@ class DINOv2(Method):
             # Process only global views
             x_student = self._forward_student(global_views)
 
-        loss = self.criterion(
+        loss = self.dino_loss(
             teacher_out=x_teacher.chunk(2),
             student_out=x_student.chunk(len_views),
             epoch=self.current_epoch,
