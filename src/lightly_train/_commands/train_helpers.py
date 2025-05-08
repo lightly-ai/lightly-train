@@ -29,8 +29,8 @@ from lightly_train._env import Env
 from lightly_train._methods import method_helpers
 from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
-from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim import optimizer_helpers
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -188,10 +188,11 @@ def get_dataloader(
     return DataLoader(**dataloader_kwargs)
 
 
-def get_embedding_model(model: Module, embed_dim: int | None = None) -> EmbeddingModel:
+def get_embedding_model(
+    model: ModelWrapper, embed_dim: int | None = None
+) -> EmbeddingModel:
     logger.debug(f"Getting embedding model with embedding dimension {embed_dim}.")
-    feature_extractor = package_helpers.get_model_wrapper(model=model)
-    return EmbeddingModel(model_wrapper=feature_extractor, embed_dim=embed_dim)
+    return EmbeddingModel(model_wrapper=model, embed_dim=embed_dim)
 
 
 def get_trainer(

@@ -69,7 +69,8 @@ def test_get_callbacks__default(tmp_path: Path) -> None:
     callbacks = callback_helpers.get_callbacks(
         callback_args=callback_args,
         out=tmp_path,
-        model=model,
+        wrapped_model=model,
+        model=model.get_model(),
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
     )
@@ -92,7 +93,8 @@ def test_get_callbacks__disable(tmp_path: Path) -> None:
     callbacks = callback_helpers.get_callbacks(
         callback_args=callback_args,
         out=tmp_path,
-        model=model,
+        wrapped_model=model,
+        model=model.get_model(),
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
     )
@@ -110,7 +112,8 @@ def test_get_callbacks__user_config(tmp_path: Path) -> None:
     callbacks = callback_helpers.get_callbacks(
         callback_args=callback_args,
         out=tmp_path,
-        model=model,
+        wrapped_model=model,
+        model=model.get_model(),
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
     )
@@ -121,7 +124,7 @@ def test_get_callbacks__user_config(tmp_path: Path) -> None:
 
 def test_get_checkpoint_model() -> None:
     model = helpers.get_model()
-    checkpoint_model = callback_helpers.get_checkpoint_model(model=model)
+    checkpoint_model = model.get_model()
     assert not isinstance(checkpoint_model, DummyCustomModel)
 
 
@@ -137,6 +140,6 @@ def test_get_checkpoint_model__no_model_getter() -> None:
             return torch.zeros(1)
 
     model = DummyCustomModel()
-    checkpoint_model = callback_helpers.get_checkpoint_model(model=model)
+    checkpoint_model = model.get_model()
     assert model == checkpoint_model
     assert isinstance(checkpoint_model, DummyCustomModel)

@@ -16,13 +16,13 @@ from torch.nn import Module
 
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import FrameworkPackage
 from lightly_train._models.rfdetr.rfdetr import RFDETRModelWrapper
 
 logger = logging.getLogger(__name__)
 
 
-class RFDETRPackage(Package):
+class RFDETRPackage(FrameworkPackage):
     name = "rfdetr"
 
     @classmethod

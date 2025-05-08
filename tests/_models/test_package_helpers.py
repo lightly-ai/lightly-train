@@ -11,13 +11,13 @@ from torchvision.models import ResNet
 
 from lightly_train._models import package_helpers
 from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
-from lightly_train._models.package import Package
+from lightly_train._models.package import LimitedPackage
 from lightly_train._models.timm.timm_package import TIMM_PACKAGE
 from tests.helpers import DummyCustomModel
 
 
 @pytest.mark.parametrize("package", [CUSTOM_PACKAGE, TIMM_PACKAGE])
-def test_list_packages(package: Package) -> None:
+def test_list_packages(package: LimitedPackage) -> None:
     assert package in package_helpers.list_packages()
 
 
