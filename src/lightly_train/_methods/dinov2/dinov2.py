@@ -44,12 +44,14 @@ class DINOv2Args(MethodArgs):
     """Args for DINOv2 method for ImageNet dataset."""
 
     # projection head
+    input_dim: int = 384
     hidden_dim: int = 2048
     bottleneck_dim: int = 256
     output_dim: int | Literal["auto"] = "auto"
-    student_freeze_last_layer_epochs: int = 1
     batch_norm: bool = False
-    norm_last_layer: bool = True
+    student_freeze_last_layer_epochs: int = 1
+    norm_last_layer: bool = False
+    ibot_separate_head: bool = False
     # loss
     teacher_temp: float | Literal["auto"] = "auto"
     warmup_teacher_temp: float | Literal["auto"] = "auto"
@@ -168,47 +170,49 @@ class DINOv2(Method):
         )
         self.method_args = method_args
         self.teacher_embedding_model = embedding_model
-        
+
         self.teacher_dino_head = DINOProjectionHead(
-            input_dim=self.input_dim,
+            input_dim=self.method_args.input_dim,
             hidden_dim=self.method_args.hidden_dim,
             bottleneck_dim=self.method_args.bottleneck_dim,
             output_dim=self.method_args.output_dim,
-            norm_last_layer=False
+            batch_norm=self.method_args.batch_norm,
+            norm_last_layer=self.method_args.norm_last_layer,
         )
-        if self.ibot_separate_head:
+        if self.method_args.ibot_separate_head:
             self.teacher_ibot_head = DINOProjectionHead(
-                input_dim=self.input_dim,
+                input_dim=self.method_args.input_dim,
                 hidden_dim=self.method_args.hidden_dim,
                 bottleneck_dim=self.method_args.bottleneck_dim,
                 output_dim=self.method_args.output_dim,
-                norm_last_layer=False
+                norm_last_layer=self.method_args.norm_last_layer,
             )
         else:
             self.teacher_ibot_head = self.teacher_dino_head
-        
+
         self.student_embedding_model = copy.deepcopy(self.teacher_embedding_model)
-        
+
         self.student_dino_head = DINOProjectionHead(
-            input_dim=self.input_dim,
+            input_dim=self.method_args.input_dim,
             hidden_dim=self.method_args.hidden_dim,
             bottleneck_dim=self.method_args.bottleneck_dim,
-            output_dim=self.method_args.output_dim, 
-            freeze_last_layer=1, 
-            norm_last_layer=False
+            output_dim=self.method_args.output_dim,
+            batch_norm=self.method_args.batch_norm,
+            freeze_last_layer=self.method_args.student_freeze_last_layer_epochs,
+            norm_last_layer=self.method_args.norm_last_layer,
         )
-        if self.ibot_separate_head:
+        if self.method_args.ibot_separate_head:
             self.student_ibot_head = DINOProjectionHead(
-                input_dim=self.input_dim,
+                input_dim=self.method_args.input_dim,
                 hidden_dim=self.method_args.hidden_dim,
                 bottleneck_dim=self.method_args.bottleneck_dim,
-                output_dim=self.method_args.output_dim, 
-                freeze_last_layer=1, 
-                norm_last_layer=False
+                output_dim=self.method_args.output_dim,
+                freeze_last_layer=self.method_args.student_freeze_last_layer_epochs,
+                norm_last_layer=self.method_args.norm_last_layer,
             )
         else:
             self.student_ibot_head = self.student_dino_head
-        
+
         self.flatten = Flatten()
         self.dino_loss = DINOLoss()
 
@@ -222,9 +226,7 @@ class DINOv2(Method):
         update_momentum(
             self.student_embedding_model, self.teacher_embedding_model, m=momentum
         )
-        update_momentum(
-            self.student_dino_head, self.teacher_dino_head, m=momentum
-        )
+        update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
 
         views = batch["views"]
         global_views = torch.cat(views[:2])
