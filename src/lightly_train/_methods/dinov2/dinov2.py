@@ -11,7 +11,9 @@ import copy
 from typing import Any, Literal
 
 import torch
-from lightly.loss import KoLeoLoss # we use LightlySSL's KoLeoLoss for better numerical stability
+from lightly.loss import (
+    KoLeoLoss,
+)  # we use LightlySSL's KoLeoLoss for better numerical stability
 from lightly.models.modules.heads import DINOProjectionHead
 from lightly.models.utils import update_momentum
 from lightly.utils import optim
@@ -22,7 +24,10 @@ from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
 from lightly_train._configs.validate import no_auto
-from lightly_train._methods.dinov2.dinov2_loss import DINOLoss, iBOTPatchLoss  # we use the original DINOLoss and iBOTPatchLoss
+from lightly_train._methods.dinov2.dinov2_loss import (
+    DINOLoss,
+    iBOTPatchLoss,
+)  # we use the original DINOLoss and iBOTPatchLoss
 from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2Transform,
 )
@@ -44,6 +49,10 @@ from lightly_train.types import Batch
 class DINOv2Args(MethodArgs):
     """Args for DINOv2 method for ImageNet dataset."""
 
+    # crops
+    global_crops_number: int = 2
+    local_crops_number: int = 8
+
     # projection head
     input_dim: int = 384
     hidden_dim: int = 2048
@@ -53,6 +62,7 @@ class DINOv2Args(MethodArgs):
     student_freeze_last_layer_epochs: int = 1
     norm_last_layer: bool = False
     ibot_separate_head: bool = False
+
     # loss
     dino_loss_weight: float = 1.0
     ibot_loss_weight: float = 1.0
@@ -62,9 +72,11 @@ class DINOv2Args(MethodArgs):
     warmup_teacher_temp_epochs: int | Literal["auto"] = "auto"
     student_temp: float = 0.1
     center_momentum: float = 0.9
+
     # momentum
     momentum_start: float | Literal["auto"] = "auto"
     momentum_end: float = 1.0
+
     # weight decay
     weight_decay_start: float | Literal["auto"] = "auto"
     weight_decay_end: float | Literal["auto"] = "auto"
@@ -218,7 +230,7 @@ class DINOv2(Method):
             self.student_ibot_head = self.student_dino_head
 
         self.flatten = Flatten()
-        
+
         self.dino_loss = DINOLoss()
         self.ibot_loss = iBOTPatchLoss()
         self.koleo_loss = KoLeoLoss()
@@ -255,21 +267,42 @@ class DINOv2(Method):
             x_student = self._forward_student(global_views)
 
         # Compute the losses
-        dino_loss = self.dino_loss(
-            teacher_out_softmaxed_centered_list=x_teacher.chunk(2),
-            student_output_list=x_student.chunk(len_views),
+        n_local_crops = self.method_args.local_crops_number
+        n_global_crops = self.method_args.global_crops_number
+
+        n_global_crops_loss_terms = (n_global_crops - 1) * n_global_crops
+        n_local_crops_loss_terms = max(n_local_crops * n_global_crops, 1)
+
+        dino_global_loss = (
+            self.dino_loss(
+                teacher_out_softmaxed_centered_list=x_teacher.chunk(2),
+                student_output_list=x_student.chunk(len_views),
+            )
+            * n_global_crops
+            / (n_global_crops_loss_terms + n_local_crops_loss_terms)
         )
-        
+        if n_local_crops > 0:
+            dino_local_loss = self.dino_loss(
+                teacher_out_softmaxed_centered_list=x_teacher.chunk(2),
+                student_output_list=x_student.chunk(len_views),
+            ) / (n_global_crops_loss_terms + n_local_crops_loss_terms)
+
         ibot_loss = self.ibot_loss(
             teacher_patch_tokens=x_teacher.chunk(2),
             student_patch_tokens=x_student.chunk(len_views),
         )
-        
-        koleo_loss = sum(
-            self.koleo_loss(token) for token in x_student.chunk(2)
+
+        koleo_loss = sum(self.koleo_loss(token) for token in x_student.chunk(2))
+        dino_loss_weight = self.method_args.dino_loss_weight
+        ibot_loss_weight = self.method_args.ibot_loss_weight
+        koleo_loss_weight = self.method_args.koleo_loss_weight
+
+        loss = (
+            dino_loss_weight * dino_global_loss
+            + dino_loss_weight * dino_local_loss
+            + ibot_loss_weight * ibot_loss
+            + koleo_loss_weight * koleo_loss
         )
-        
-        loss = self.method_args.dino_loss_weight * dino_loss + self.method_args.ibot_loss_weight * ibot_loss + self.method_args.koleo_loss_weight * koleo_loss
 
         return TrainingStepResult(loss=loss)
 
