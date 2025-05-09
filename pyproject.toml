@@ -121,7 +121,8 @@ ignore_missing_imports = true
  
 [[tool.mypy.overrides]]
 module = [
-    "lightly_train._modules.teachers.dinov2.*"
+    "lightly_train._modules.teachers.dinov2.*",
+    "lightly_train._methods.dinov2.dinov2_loss.*"
 ]
 ignore_errors = true
 
@@ -129,6 +130,7 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = [
     "lightning_fabric.utilities.rank_zero",
+    "lightly_train._methods.dinov2.dinov2_loss.*",
     "rfdetr.*",
 ]
 ignore_missing_imports = true
