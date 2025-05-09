@@ -401,7 +401,10 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
     data = tmp_path / "data"
     # Use 12 images to make sure that we have at least 3 batches. We need 3 batches for
     # DINO to show updates in the model due to the teacher/student setup and momentum
-    # updates.
+    # updates. The following happens:
+    # After step 1: Student batch norm has not yet changed.
+    # After step 2: Student batch norm has changed, but teacher is still the same.
+    # After step 3: Teacher gets EMA update from student.
     helpers.create_images(image_dir=data, files=12)
 
     # Part 1: Generate a checkpoint.
@@ -433,8 +436,7 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         checkpoint=last_ckpt_path,
         accelerator="cpu",
         devices=1,
-        # Increase momentum to make sure batch norms are different
-        method_args={"momentum_start": 0.5},
+        optim_args={"lr": 10},  # Make sure that parameters change meaningfully.
     )
     spy_load_state_dict.assert_called_once()
     call_args = spy_load_state_dict.call_args_list[0]
