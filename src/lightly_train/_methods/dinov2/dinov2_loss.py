@@ -1,14 +1,16 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 import os
 
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import nn
-
 
 XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
 try:
@@ -19,20 +21,21 @@ try:
             s = s.float()
             t = t.float()
             if s.ndim == 2:
-                return -cross_entropy(s.unsqueeze(0), t.unsqueeze(0), temp, bw_inplace=True).squeeze(0)
+                return -cross_entropy(
+                    s.unsqueeze(0), t.unsqueeze(0), temp, bw_inplace=True
+                ).squeeze(0)
             elif s.ndim == 3:
                 return -cross_entropy(s, t, temp, bw_inplace=True)
-
 
         XFORMERS_AVAILABLE = True
     else:
         raise ImportError
 except ImportError:
+
     def lossfunc(t, s, temp):
         return torch.sum(t * F.log_softmax(s / temp, dim=-1), dim=-1)
-    
-    XFORMERS_AVAILABLE = False
 
+    XFORMERS_AVAILABLE = False
 
 
 class DINOLoss(nn.Module):
@@ -61,7 +64,9 @@ class DINOLoss(nn.Module):
     def sinkhorn_knopp_teacher(self, teacher_output, teacher_temp, n_iterations=3):
         teacher_output = teacher_output.float()
         world_size = dist.get_world_size() if dist.is_initialized() else 1
-        Q = torch.exp(teacher_output / teacher_temp).t()  # Q is K-by-B for consistency with notations from our paper
+        Q = torch.exp(
+            teacher_output / teacher_temp
+        ).t()  # Q is K-by-B for consistency with notations from our paper
         B = Q.shape[1] * world_size  # number of samples to assign
         K = Q.shape[0]  # how many prototypes
 
@@ -120,7 +125,9 @@ class DINOLoss(nn.Module):
                 self.reduce_handle.wait()
             _t = self.async_batch_center / (self.len_teacher_output * world_size)
 
-            self.center = self.center * self.center_momentum + _t * (1 - self.center_momentum)
+            self.center = self.center * self.center_momentum + _t * (
+                1 - self.center_momentum
+            )
 
             self.updated = True
 
@@ -153,10 +160,14 @@ class iBOTPatchLoss(nn.Module):
         # return F.softmax((teacher_patch_tokens.sub_(self.center)) / teacher_temp, dim=-1)
 
     @torch.no_grad()
-    def sinkhorn_knopp_teacher(self, teacher_output, teacher_temp, n_masked_patches_tensor, n_iterations=3):
+    def sinkhorn_knopp_teacher(
+        self, teacher_output, teacher_temp, n_masked_patches_tensor, n_iterations=3
+    ):
         teacher_output = teacher_output.float()
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
-        Q = torch.exp(teacher_output / teacher_temp).t()  # Q is K-by-B for consistency with notations from our paper
+        Q = torch.exp(
+            teacher_output / teacher_temp
+        ).t()  # Q is K-by-B for consistency with notations from our paper
         # B = Q.shape[1] * world_size # number of samples to assign
         B = n_masked_patches_tensor
         dist.all_reduce(B)
@@ -193,7 +204,9 @@ class iBOTPatchLoss(nn.Module):
         t = teacher_patch_tokens
         s = student_patch_tokens
         loss = torch.sum(t * F.log_softmax(s / self.student_temp, dim=-1), dim=-1)
-        loss = torch.sum(loss * student_masks_flat.float(), dim=-1) / student_masks_flat.sum(dim=-1).clamp(min=1.0)
+        loss = torch.sum(
+            loss * student_masks_flat.float(), dim=-1
+        ) / student_masks_flat.sum(dim=-1).clamp(min=1.0)
         return -loss.mean()
 
     def forward_masked(
@@ -227,7 +240,9 @@ class iBOTPatchLoss(nn.Module):
     def reduce_center_update(self, teacher_patch_tokens):
         self.updated = False
         self.len_teacher_patch_tokens = len(teacher_patch_tokens)
-        self.async_batch_center = torch.sum(teacher_patch_tokens.mean(1), dim=0, keepdim=True)
+        self.async_batch_center = torch.sum(
+            teacher_patch_tokens.mean(1), dim=0, keepdim=True
+        )
         if dist.is_initialized():
             self.reduce_handle = dist.all_reduce(self.async_batch_center, async_op=True)
 
@@ -240,7 +255,9 @@ class iBOTPatchLoss(nn.Module):
                 self.reduce_handle.wait()
             _t = self.async_batch_center / (self.len_teacher_patch_tokens * world_size)
 
-            self.center = self.center * self.center_momentum + _t * (1 - self.center_momentum)
+            self.center = self.center * self.center_momentum + _t * (
+                1 - self.center_momentum
+            )
 
             self.updated = True
 
