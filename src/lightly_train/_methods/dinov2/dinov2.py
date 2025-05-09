@@ -11,7 +11,7 @@ import copy
 from typing import Any, Literal
 
 import torch
-from lightly.loss import DINOLoss
+from lightly.loss import KoLeoLoss # we use LightlySSL's KoLeoLoss for better numerical stability
 from lightly.models.modules.heads import DINOProjectionHead
 from lightly.models.utils import update_momentum
 from lightly.utils import optim
@@ -22,6 +22,7 @@ from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
 from lightly_train._configs.validate import no_auto
+from lightly_train._methods.dinov2.dinov2_loss import DINOLoss, iBOTPatchLoss  # we use the original DINOLoss and iBOTPatchLoss
 from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2Transform,
 )
@@ -53,6 +54,9 @@ class DINOv2Args(MethodArgs):
     norm_last_layer: bool = False
     ibot_separate_head: bool = False
     # loss
+    dino_loss_weight: float = 1.0
+    ibot_loss_weight: float = 1.0
+    koleo_loss_weight: float = 0.1
     teacher_temp: float | Literal["auto"] = "auto"
     warmup_teacher_temp: float | Literal["auto"] = "auto"
     warmup_teacher_temp_epochs: int | Literal["auto"] = "auto"
@@ -214,7 +218,10 @@ class DINOv2(Method):
             self.student_ibot_head = self.student_dino_head
 
         self.flatten = Flatten()
+        
         self.dino_loss = DINOLoss()
+        self.ibot_loss = iBOTPatchLoss()
+        self.koleo_loss = KoLeoLoss()
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
         momentum = cosine_schedule(
@@ -247,11 +254,22 @@ class DINOv2(Method):
             # Process only global views
             x_student = self._forward_student(global_views)
 
-        loss = self.dino_loss(
-            teacher_out=x_teacher.chunk(2),
-            student_out=x_student.chunk(len_views),
-            epoch=self.current_epoch,
+        # Compute the losses
+        dino_loss = self.dino_loss(
+            teacher_out_softmaxed_centered_list=x_teacher.chunk(2),
+            student_output_list=x_student.chunk(len_views),
         )
+        
+        ibot_loss = self.ibot_loss(
+            teacher_patch_tokens=x_teacher.chunk(2),
+            student_patch_tokens=x_student.chunk(len_views),
+        )
+        
+        koleo_loss = sum(
+            self.koleo_loss(token) for token in x_student.chunk(2)
+        )
+        
+        loss = self.method_args.dino_loss_weight * dino_loss + self.method_args.ibot_loss_weight * ibot_loss + self.method_args.koleo_loss_weight * koleo_loss
 
         return TrainingStepResult(loss=loss)
 
