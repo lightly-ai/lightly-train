@@ -88,6 +88,8 @@ def test_train(
 
     # Check that we can resume training
     last_ckpt_path = out / "checkpoints" / "last.ckpt"
+    first_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
+
     with caplog.at_level(logging.INFO):
         train.train(
             out=out,
@@ -105,6 +107,27 @@ def test_train(
     )
     # Epochs in checkpoint are 0-indexed. Epoch 1 is therefore the second epoch.
     assert torch.load(last_ckpt_path)["epoch"] == 1
+
+    # Check that exported checkpoint weights changed between first and second run.
+    second_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
+    first_state_dict = first_ckpt.lightly_train.models.model.state_dict()
+    second_state_dict = second_ckpt.lightly_train.models.model.state_dict()
+    assert first_state_dict.keys() == second_state_dict.keys()
+    for key in first_state_dict.keys():
+        if key.startswith("fc."):
+            # Skip the last layer as it is not pretrained.
+            continue
+        assert not torch.equal(first_state_dict[key], second_state_dict[key])
+
+    # Check that last.ckpt and exported_model.pt contain same information. If this fails
+    # it means that checkpoint loading is not working correctly.
+    exported_state_dict = torch.load(out / "exported_models" / "exported_last.pt")
+    assert second_state_dict.keys() == exported_state_dict.keys()
+    for key in second_state_dict.keys():
+        if key.startswith("fc."):
+            # Skip the last layer as it is not pretrained.
+            continue
+        assert torch.equal(second_state_dict[key], exported_state_dict[key])
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
@@ -376,7 +399,13 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
     """
     out = tmp_path / "out"
     data = tmp_path / "data"
-    helpers.create_images(image_dir=data, files=10)
+    # Use 12 images to make sure that we have at least 3 batches. We need 3 batches for
+    # DINO to show updates in the model due to the teacher/student setup and momentum
+    # updates. The following happens:
+    # After step 1: Student batch norm has not yet changed.
+    # After step 2: Student batch norm has changed, but teacher is still the same.
+    # After step 3: Teacher gets EMA update from student.
+    helpers.create_images(image_dir=data, files=12)
 
     # Part 1: Generate a checkpoint.
     train.train(
@@ -388,8 +417,10 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         num_workers=0,
         epochs=0,
         accelerator="cpu",
+        devices=1,
     )
     last_ckpt_path = out / "checkpoints" / "last.ckpt"
+    first_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
 
     # Part 2: Load the checkpoint
     spy_load_state_dict = mocker.spy(train.train_helpers, "load_state_dict")  # type: ignore[attr-defined]
@@ -404,8 +435,31 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         overwrite=True,
         checkpoint=last_ckpt_path,
         accelerator="cpu",
+        devices=1,
+        optim_args={"lr": 10},  # Make sure that parameters change meaningfully.
     )
     spy_load_state_dict.assert_called_once()
     call_args = spy_load_state_dict.call_args_list[0]
     args, kwargs = call_args
     assert kwargs["checkpoint"] == last_ckpt_path
+
+    # Check that exported checkpoint weights changed between first and second run.
+    second_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
+    first_state_dict = first_ckpt.lightly_train.models.model.state_dict()
+    second_state_dict = second_ckpt.lightly_train.models.model.state_dict()
+    assert first_state_dict.keys() == second_state_dict.keys()
+    for key in first_state_dict.keys():
+        if key.startswith("fc."):
+            # Skip the last layer as it is not pretrained.
+            continue
+        assert not torch.equal(first_state_dict[key], second_state_dict[key])
+
+    # Check that last.ckpt and exported_model.pt contain same information. If this fails
+    # it means that checkpoint loading is not working correctly.
+    exported_state_dict = torch.load(out / "exported_models" / "exported_last.pt")
+    assert second_state_dict.keys() == exported_state_dict.keys()
+    for key in second_state_dict.keys():
+        if key.startswith("fc."):
+            # Skip the last layer as it is not pretrained.
+            continue
+        assert torch.equal(second_state_dict[key], exported_state_dict[key])
