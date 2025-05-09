@@ -185,6 +185,13 @@ class DINOv2(Method):
         )
         self.method_args = method_args
         
+        # Calculate the number of crops
+        self.n_local_crops = method_args.local_crops_number
+        self.n_global_crops = method_args.global_crops_number
+        self.n_global_crops_loss_terms = (self.n_global_crops - 1) * self.n_global_crops
+        self.n_local_crops_loss_terms = max(self.n_local_crops * self.n_global_crops, 1)
+        
+        # Create teacher models
         self.teacher_embedding_model = embedding_model
         
         head_input_dim: int = self.teacher_embedding_model.embed_dim
@@ -208,6 +215,7 @@ class DINOv2(Method):
         else:
             self.teacher_ibot_head = self.teacher_dino_head
 
+        # Create student models
         self.student_embedding_model = copy.deepcopy(self.teacher_embedding_model)
         self.student_dino_head = DINOProjectionHead(
             input_dim=head_input_dim,
@@ -232,6 +240,7 @@ class DINOv2(Method):
 
         self.flatten = Flatten()
 
+        # Losses
         self.dino_loss = DINOLoss()
         self.ibot_loss = iBOTPatchLoss()
         self.koleo_loss = KoLeoLoss()
@@ -272,25 +281,19 @@ class DINOv2(Method):
             x_student = self._forward_student(global_views)
 
         # Compute the losses
-        n_local_crops = self.method_args.local_crops_number
-        n_global_crops = self.method_args.global_crops_number
-
-        n_global_crops_loss_terms = (n_global_crops - 1) * n_global_crops
-        n_local_crops_loss_terms = max(n_local_crops * n_global_crops, 1)
-
         dino_global_loss = (
             self.dino_loss(
                 teacher_out_softmaxed_centered_list=x_teacher.chunk(2),
                 student_output_list=x_student.chunk(len_views),
             )
-            * n_global_crops
-            / (n_global_crops_loss_terms + n_local_crops_loss_terms)
+            * self.n_global_crops
+            / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
         )
-        if n_local_crops > 0:
+        if self.n_local_crops > 0:
             dino_local_loss = self.dino_loss(
                 teacher_out_softmaxed_centered_list=x_teacher.chunk(2),
                 student_output_list=x_student.chunk(len_views),
-            ) / (n_global_crops_loss_terms + n_local_crops_loss_terms)
+            ) / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
 
         ibot_loss = self.ibot_loss(
             teacher_patch_tokens=x_teacher.chunk(2),
@@ -298,7 +301,6 @@ class DINOv2(Method):
         )
 
         koleo_loss = sum(self.koleo_loss(token) for token in x_student.chunk(2))
-
 
         loss = (
             self.dino_loss_weight * dino_global_loss
