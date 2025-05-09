@@ -399,17 +399,21 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
     """
     out = tmp_path / "out"
     data = tmp_path / "data"
-    helpers.create_images(image_dir=data, files=10)
+    # Use 12 images to make sure that we have at least 3 batches. We need 3 batches for
+    # DINO to show updates in the model due to the teacher/student setup and momentum
+    # updates.
+    helpers.create_images(image_dir=data, files=12)
 
     # Part 1: Generate a checkpoint.
     train.train(
         out=out,
         data=data,
         model="torchvision/resnet18",
-        method="simclr",
+        method="dino",
         batch_size=4,
         num_workers=0,
         epochs=0,
+        devices=1,
         accelerator="cpu",
     )
     last_ckpt_path = out / "checkpoints" / "last.ckpt"
@@ -421,13 +425,15 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         out=out,
         data=data,
         model="torchvision/resnet18",
-        method="simclr",
+        method="dino",
         batch_size=4,
         num_workers=0,
         epochs=1,
         overwrite=True,
         checkpoint=last_ckpt_path,
         accelerator="cpu",
+        # Increase momentum to make sure batch norms are different
+        method_args={"momentum_start": 0.5},
     )
     spy_load_state_dict.assert_called_once()
     call_args = spy_load_state_dict.call_args_list[0]
