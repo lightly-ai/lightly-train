@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import torch
@@ -44,6 +45,14 @@ from lightly_train._transforms.transform import (
     MethodTransform,
 )
 from lightly_train.types import Batch
+
+
+@dataclass
+class DINOv2TrainingStepResult:
+    dino_global_loss: Tensor
+    dino_local_loss: Tensor | None
+    ibot_loss: Tensor
+    koleo_loss: Tensor
 
 
 class DINOv2Args(MethodArgs):
@@ -184,16 +193,16 @@ class DINOv2(Method):
             global_batch_size=global_batch_size,
         )
         self.method_args = method_args
-        
+
         # Calculate the number of crops
         self.n_local_crops = method_args.local_crops_number
         self.n_global_crops = method_args.global_crops_number
         self.n_global_crops_loss_terms = (self.n_global_crops - 1) * self.n_global_crops
         self.n_local_crops_loss_terms = max(self.n_local_crops * self.n_global_crops, 1)
-        
+
         # Create teacher models
         self.teacher_embedding_model = embedding_model
-        
+
         head_input_dim: int = self.teacher_embedding_model.embed_dim
         ibot_separate_head: bool = self.method_args.ibot_separate_head
         self.teacher_dino_head = DINOProjectionHead(
@@ -244,10 +253,50 @@ class DINOv2(Method):
         self.dino_loss = DINOLoss()
         self.ibot_loss = iBOTPatchLoss()
         self.koleo_loss = KoLeoLoss()
-        
+
         self.dino_loss_weight = self.method_args.dino_loss_weight
         self.ibot_loss_weight = self.method_args.ibot_loss_weight
         self.koleo_loss_weight = self.method_args.koleo_loss_weight
+
+    def training_step(self, batch: Batch, batch_idx: int) -> Tensor:
+        training_step_log: DINOv2TrainingStepResult = self.training_step_impl(
+            batch, batch_idx
+        )
+
+        dino_global_loss = training_step_log.dino_global_loss
+        dino_local_loss = training_step_log.dino_local_loss
+        ibot_loss = training_step_log.ibot_loss
+        koleo_loss = training_step_log.koleo_loss
+
+        log_dict = {
+            "dino_global_loss": dino_global_loss,
+            "ibot_loss": ibot_loss,
+            "koleo_loss": koleo_loss,
+        }
+
+        if dino_local_loss is not None:
+            log_dict["dino_local_loss"] = dino_local_loss
+
+        views = batch["views"]
+        self.log_dict(
+            log_dict,
+            prog_bar=True,
+            sync_dist=True,
+            batch_size=len(views[0]),
+        )
+
+        if self.global_step == 0:
+            # Show example views of the images in the first batch only.
+            self._log_example_views(train_batch=batch)
+
+        loss = (
+            self.dino_loss_weight * dino_global_loss
+            + self.dino_loss_weight * dino_local_loss
+            + self.ibot_loss_weight * ibot_loss
+            + self.koleo_loss_weight * koleo_loss
+        )
+
+        return loss
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
         momentum = cosine_schedule(
@@ -302,26 +351,24 @@ class DINOv2(Method):
 
         koleo_loss = sum(self.koleo_loss(token) for token in x_student.chunk(2))
 
-        loss = (
-            self.dino_loss_weight * dino_global_loss
-            + self.dino_loss_weight * dino_local_loss
-            + self.ibot_loss_weight * ibot_loss
-            + self.koleo_loss_weight * koleo_loss
+        return TrainingStepResult(
+            dino_global_loss=dino_global_loss,
+            dino_local_loss=dino_local_loss if self.n_local_crops > 0 else None,
+            ibot_loss=ibot_loss,
+            koleo_loss=koleo_loss,
         )
-
-        return TrainingStepResult(loss=loss)
 
     @torch.no_grad()
     def _forward_teacher(self, x: Tensor) -> Tensor:
         x = self.teacher_embedding_model(x)
         x = self.flatten(x)
-        x = self.teacher_projection_head(x)
+        x = self.teacher_dino_head(x)
         return x
 
     def _forward_student(self, x: Tensor) -> Tensor:
         x = self.student_embedding_model(x)
         x = self.flatten(x)
-        x = self.student_projection_head(x)
+        x = self.student_dino_head(x)
         return x
 
     @staticmethod
