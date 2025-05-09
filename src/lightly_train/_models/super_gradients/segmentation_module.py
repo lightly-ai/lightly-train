@@ -33,7 +33,8 @@ class SegmentationModuleFeatureExtractor(SuperGradientsModelWrapper):
 
     def __init__(self, model: Module) -> None:
         super().__init__()
-        self._model = model
+        self._model = [model]
+        self._backbone = model.backbone
         self._pool = AdaptiveAvgPool2d((1, 1))
 
     @classmethod
@@ -46,12 +47,12 @@ class SegmentationModuleFeatureExtractor(SuperGradientsModelWrapper):
 
     def feature_dim(self) -> int:
         out_channels: list[int] | int = (
-            self._model.backbone.get_backbone_output_number_of_channels()
+            self._backbone.get_backbone_output_number_of_channels()
         )
         return out_channels[-1] if isinstance(out_channels, list) else out_channels
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
-        features: list[Tensor | None] | Tensor = self._model.backbone(x)
+        features: list[Tensor | None] | Tensor = self._backbone(x)
         if isinstance(features, Tensor):
             features = [features]
 
@@ -61,3 +62,6 @@ class SegmentationModuleFeatureExtractor(SuperGradientsModelWrapper):
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
+
+    def get_model(self) -> Module:
+        return self._model[0]

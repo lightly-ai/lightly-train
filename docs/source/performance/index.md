@@ -107,9 +107,12 @@ moving the images to local fast storage, e.g., an SSD, or by using a faster netw
 
 Furthermore, the `num_workers` parameter should be
 increased to allow more dataloading workers to run in parallel.
-By default, the `num_workers` parameter is set to `(num_CPU_cores - num_devices) / num_devices`.
+By default, the `num_workers` parameter is set to `min((num_CPU_cores - num_devices) / num_devices, 8)`.
 This ensures that `num_workers` * `num_devices` is as large as possible while
-not overloading the CPU with more total workers than cores.
+not overloading the CPU with more total workers than cores. The default number of workers
+is capped at 8 workers per device to avoid excessive CPU usage on systems with many
+CPU cores. The maximum value can be configured with the `LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO`
+environment variable. No maximum is applied if `num_workers` is set manually.
 
 ```{toctree}
 ---

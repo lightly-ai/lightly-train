@@ -50,6 +50,9 @@ class TIMMModelWrapper(Module, ModelWrapper):
             features = features.unsqueeze(-1)
         return {"pooled_features": features}
 
+    def get_model(self) -> Module:
+        return self._model
+
 
 def _get_forward_features_fn(model: Module) -> Callable[[Module, Tensor], Tensor]:
     """Get the forward_features function for the model.
