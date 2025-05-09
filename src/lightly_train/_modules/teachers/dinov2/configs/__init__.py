@@ -1,10 +1,10 @@
 #
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# Modifications Copyright 2025 Lightly AG
 #
 # This source code is licensed under the Apache License, Version 2.0
 # found in the LICENSE file in the root directory of this source tree.
 #
+
 # Modifications Copyright 2025 Lightly AG:
 # - added get_config_path function
 # - added MODELS and TRAIN_MODELS dictionaries

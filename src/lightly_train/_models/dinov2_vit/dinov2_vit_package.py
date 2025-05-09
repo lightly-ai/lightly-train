@@ -37,7 +37,7 @@ class DINOv2ViTPackage(Package):
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [f"{cls.name}/{entry}" for entry in list(VIT_MODELS.keys())]
-    
+
     @classmethod
     def is_supported_model(cls, model: Module) -> bool:
         return isinstance(model, DinoVisionTransformer)
@@ -48,7 +48,7 @@ class DINOv2ViTPackage(Package):
     ) -> DinoVisionTransformer:
         if model_name not in VIT_MODELS:
             raise ValueError(f"Unknown model: {model_name}")
-        
+
         model_info = VIT_MODELS[model_name]
         config_name = model_info["config"]
 
@@ -56,7 +56,7 @@ class DINOv2ViTPackage(Package):
         config_path = get_config_path(config_name)
         cfg = load_and_merge_config(str(config_path))
 
-        model_builders = {  
+        model_builders = {
             "vit_small": vits.vit_small,
             "vit_base": vits.vit_base,
             "vit_large": vits.vit_large,
@@ -64,10 +64,8 @@ class DINOv2ViTPackage(Package):
         }
         model_builder = model_builders.get(cfg.student.arch, None)
         if model_builder is None:
-            raise TypeError(
-                f"Unsupported architecture type {cfg.student.arch}."
-            )
-        
+            raise TypeError(f"Unsupported architecture type {cfg.student.arch}.")
+
         kwargs = dict(
             img_size=cfg.crops.global_crops_size,
             patch_size=cfg.student.patch_size,
@@ -81,14 +79,13 @@ class DINOv2ViTPackage(Package):
             interpolate_offset=cfg.student.interpolate_offset,
             interpolate_antialias=cfg.student.interpolate_antialias,
             # Student only--------------------------------------------------------------
-            drop_path_rate=cfg.student.drop_path_rate, 
+            drop_path_rate=cfg.student.drop_path_rate,
             drop_path_uniform=cfg.student.drop_path_uniform,
         )
         kwargs.update(model_args or {})
-        
+
         model = model_builder(**kwargs)
         return model
-    
 
     @classmethod
     def get_model_wrapper(cls, model: Module) -> ModelWrapper:
@@ -113,6 +110,7 @@ class DINOv2ViTPackage(Package):
             logger.info(
                 package_helpers.format_log_msg_model_usage_example(log_message_code)
             )
+
 
 # Create singleton instance of the package. The singleton should be used whenever
 # possible.

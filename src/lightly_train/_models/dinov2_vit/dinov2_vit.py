@@ -24,12 +24,12 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
         self._model = model
         self._feature_dim = int(self._model.embed_dim)
         self._pool = AdaptiveAvgPool2d((1, 1))
-    
+
     def feature_dim(self) -> int:
         return self._feature_dim
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
-        rt = self._model(x, is_training=True) # forcing to return all patches
+        rt = self._model(x, is_training=True)  # forcing to return all patches
         if rt["x_norm_patchtokens"].dim() == 3:
             patches_resolution = self._model.patch_embed.patches_resolution
             features_reshaped = rt["x_norm_patchtokens"].reshape(
@@ -45,10 +45,10 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
                 f"Unexpected shape for x_norm_patchtokens: {rt['x_norm_patchtokens'].shape}"
             )
         return {"features": features_reshaped, "cls_token": rt["x_norm_clstoken"]}
-    
+
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
-    
+
     def get_model(self) -> Module:
         return self._model
 
@@ -57,7 +57,8 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
             for chunked_blocks in self._model.blocks:
                 update_blocks_student_to_teacher(chunked_blocks)
         else:
-            update_blocks_student_to_teacher(self._model.blocks)             
+            update_blocks_student_to_teacher(self._model.blocks)
+
 
 def update_blocks_student_to_teacher(blocks: list[Block]) -> None:
     for block in blocks:

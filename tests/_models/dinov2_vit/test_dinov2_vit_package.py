@@ -37,7 +37,7 @@ class TestDINOv2ViTPackage:
     def test_list_model_names(self, model_name: str, supported: bool) -> None:
         model_names = DINOv2ViTPackage.list_model_names()
         assert (model_name in model_names) is supported
-    
+
     def test_is_supported_model__true(self) -> None:
         model = vit_small()
         assert DINOv2ViTPackage.is_supported_model(model)
@@ -45,7 +45,7 @@ class TestDINOv2ViTPackage:
     def test_is_supported_model__false(self) -> None:
         model = DummyCustomModel()
         assert not DINOv2ViTPackage.is_supported_model(model)
-    
+
     @pytest.mark.parametrize(
         "model_name",
         ["vits14", "vitb14"],
@@ -58,7 +58,7 @@ class TestDINOv2ViTPackage:
         model = vit_small()
         fe = DINOv2ViTPackage.get_model_wrapper(model=model)
         assert isinstance(fe, DINOv2ViTModelWrapper)
-    
+
     @pytest.mark.parametrize(
         "model_name",
         ["vits14"],
@@ -66,7 +66,7 @@ class TestDINOv2ViTPackage:
     def test_export_model(self, model_name: str, tmp_path: Path) -> None:
         model = DINOv2ViTPackage.get_model(model_name)
         out_path = tmp_path / "model.pt"
-        DINOv2ViTPackage.export_model(model=model, out= out_path, log_example=False)
+        DINOv2ViTPackage.export_model(model=model, out=out_path, log_example=False)
 
         model_exported = DINOv2ViTPackage.get_model(model_name)
         model_exported.load_state_dict(torch.load(out_path, weights_only=True))

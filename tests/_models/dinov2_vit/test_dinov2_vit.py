@@ -28,13 +28,13 @@ class TestDINOv2ViTModelWrapper:
 
         for name, module in feature_extractor.named_modules():
             assert module.training, name
-    
+
     def test_feature_dim(self) -> None:
         model = vit_small()
         feature_extractor = DINOv2ViTModelWrapper(model=model)
 
         assert feature_extractor.feature_dim() == 384
-    
+
     def test_forward_features(self) -> None:
         model = vit_small()
         feature_extractor = DINOv2ViTModelWrapper(model=model)
@@ -44,20 +44,22 @@ class TestDINOv2ViTModelWrapper:
         cls_token = feature_extractor.forward_features(x)["cls_token"]
         assert features.shape == (1, 384, 14, 14)
         assert cls_token.shape == (1, 384)
-    
+
     def test_forward_pool(self) -> None:
         model = vit_small()
         feature_extractor = DINOv2ViTModelWrapper(model=model)
 
         x = torch.rand(1, 384, 14, 14)
-        pooled_features = feature_extractor.forward_pool({"features": x})["pooled_features"]
+        pooled_features = feature_extractor.forward_pool({"features": x})[
+            "pooled_features"
+        ]
         assert pooled_features.shape == (1, 384, 1, 1)
-    
+
     def test_get_model(self) -> None:
         model = vit_small()
         extractor = DINOv2ViTModelWrapper(model=model)
         assert extractor.get_model() is model
-    
+
     @pytest.mark.parametrize(
         "model_name",
         ["vits14"],
