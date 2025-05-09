@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any
 
 import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 from lightly_train._modules.teachers.dinov2.configs import TRAIN_MODELS as VIT_MODELS
 from lightly_train._modules.teachers.dinov2.configs import (
@@ -67,13 +68,7 @@ class DINOv2ViTPackage(Package):
                 f"Unsupported architecture type {cfg.student.arch}."
             )
         
-        # Cast the model builder to the correct type
-        model_builder = cast(
-            Callable[...,DinoVisionTransformer],
-            model_builder
-        )
-        
-        model = model_builder(
+        kwargs = dict(
             img_size=cfg.crops.global_crops_size,
             patch_size=cfg.student.patch_size,
             init_values=cfg.student.layerscale,
@@ -89,12 +84,15 @@ class DINOv2ViTPackage(Package):
             drop_path_rate=cfg.student.drop_path_rate, 
             drop_path_uniform=cfg.student.drop_path_uniform,
         )
+        kwargs.update(model_args or {})
+        
+        model = model_builder(**kwargs)
         return model
     
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> DINOv2ViTModelWrapper:
-        return DINOv2ViTModelWrapper(model)
+    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+        return DINOv2ViTModelWrapper(model=model)
 
     @classmethod
     def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:

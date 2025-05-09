@@ -1,5 +1,6 @@
 #
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+# Modifications Copyright 2025 Lightly AG
 #
 # This source code is licensed under the Apache License, Version 2.0
 # found in the LICENSE file in the root directory of this source tree.
@@ -8,6 +9,9 @@
 # References:
 #   https://github.com/facebookresearch/dino/blob/main/vision_transformer.py
 #   https://github.com/rwightman/pytorch-image-models/tree/master/timm/models/vision_transformer.py
+#
+# Modifications Copyright 2025 Lightly AG:
+# - added type hints for return values of the functions vit_small, vit_base, vit_large, and vit_giant2
 
 import logging
 import math
@@ -401,7 +405,7 @@ def init_weights_vit_timm(module: nn.Module, name: str = ""):
             nn.init.zeros_(module.bias)
 
 
-def vit_small(patch_size=16, num_register_tokens=0, **kwargs):
+def vit_small(patch_size=16, num_register_tokens=0, **kwargs)  -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=384,
@@ -415,7 +419,7 @@ def vit_small(patch_size=16, num_register_tokens=0, **kwargs):
     return model
 
 
-def vit_base(patch_size=16, num_register_tokens=0, **kwargs):
+def vit_base(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=768,
@@ -429,7 +433,7 @@ def vit_base(patch_size=16, num_register_tokens=0, **kwargs):
     return model
 
 
-def vit_large(patch_size=16, num_register_tokens=0, **kwargs):
+def vit_large(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=1024,
@@ -443,7 +447,7 @@ def vit_large(patch_size=16, num_register_tokens=0, **kwargs):
     return model
 
 
-def vit_giant2(patch_size=16, num_register_tokens=0, **kwargs):
+def vit_giant2(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTransformer:
     """
     Close to ViT-giant, with embed-dim 1536 and 24 heads => embed-dim per head 64
     """

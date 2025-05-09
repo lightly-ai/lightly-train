@@ -6,7 +6,6 @@
 # LICENSE file in the root directory of this source tree.
 #
 import copy
-from typing import cast
 
 import pytest
 import torch
@@ -15,18 +14,9 @@ from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOv2ViTPackage
 from lightly_train._modules.teachers.dinov2.layers.drop_path import DropPath
 from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
-    DinoVisionTransformer,
-)
-from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
-    vit_small as vit_small_untyped,
+    vit_small as vit_small,
 )
 
-
-def vit_small() -> DinoVisionTransformer:
-    return cast(
-        DinoVisionTransformer,
-        vit_small_untyped() # type: ignore[no-untyped-call]
-    )
 
 class TestDINOv2ViTModelWrapper:
     def test_init(self) -> None:
