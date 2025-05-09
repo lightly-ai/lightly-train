@@ -54,7 +54,6 @@ class DINOv2Args(MethodArgs):
     local_crops_number: int = 8
 
     # projection head
-    input_dim: int = 384
     hidden_dim: int = 2048
     bottleneck_dim: int = 256
     output_dim: int | Literal["auto"] = "auto"
@@ -185,19 +184,22 @@ class DINOv2(Method):
             global_batch_size=global_batch_size,
         )
         self.method_args = method_args
+        
         self.teacher_embedding_model = embedding_model
-
+        
+        head_input_dim: int = self.teacher_embedding_model.embed_dim
+        ibot_separate_head: bool = self.method_args.ibot_separate_head
         self.teacher_dino_head = DINOProjectionHead(
-            input_dim=self.method_args.input_dim,
+            input_dim=head_input_dim,
             hidden_dim=self.method_args.hidden_dim,
             bottleneck_dim=self.method_args.bottleneck_dim,
             output_dim=self.method_args.output_dim,
             batch_norm=self.method_args.batch_norm,
             norm_last_layer=self.method_args.norm_last_layer,
         )
-        if self.method_args.ibot_separate_head:
+        if ibot_separate_head:
             self.teacher_ibot_head = DINOProjectionHead(
-                input_dim=self.method_args.input_dim,
+                input_dim=head_input_dim,
                 hidden_dim=self.method_args.hidden_dim,
                 bottleneck_dim=self.method_args.bottleneck_dim,
                 output_dim=self.method_args.output_dim,
@@ -207,9 +209,8 @@ class DINOv2(Method):
             self.teacher_ibot_head = self.teacher_dino_head
 
         self.student_embedding_model = copy.deepcopy(self.teacher_embedding_model)
-
         self.student_dino_head = DINOProjectionHead(
-            input_dim=self.method_args.input_dim,
+            input_dim=head_input_dim,
             hidden_dim=self.method_args.hidden_dim,
             bottleneck_dim=self.method_args.bottleneck_dim,
             output_dim=self.method_args.output_dim,
@@ -217,9 +218,9 @@ class DINOv2(Method):
             freeze_last_layer=self.method_args.student_freeze_last_layer_epochs,
             norm_last_layer=self.method_args.norm_last_layer,
         )
-        if self.method_args.ibot_separate_head:
+        if ibot_separate_head:
             self.student_ibot_head = DINOProjectionHead(
-                input_dim=self.method_args.input_dim,
+                input_dim=head_input_dim,
                 hidden_dim=self.method_args.hidden_dim,
                 bottleneck_dim=self.method_args.bottleneck_dim,
                 output_dim=self.method_args.output_dim,
@@ -234,6 +235,10 @@ class DINOv2(Method):
         self.dino_loss = DINOLoss()
         self.ibot_loss = iBOTPatchLoss()
         self.koleo_loss = KoLeoLoss()
+        
+        self.dino_loss_weight = self.method_args.dino_loss_weight
+        self.ibot_loss_weight = self.method_args.ibot_loss_weight
+        self.koleo_loss_weight = self.method_args.koleo_loss_weight
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
         momentum = cosine_schedule(
@@ -293,15 +298,13 @@ class DINOv2(Method):
         )
 
         koleo_loss = sum(self.koleo_loss(token) for token in x_student.chunk(2))
-        dino_loss_weight = self.method_args.dino_loss_weight
-        ibot_loss_weight = self.method_args.ibot_loss_weight
-        koleo_loss_weight = self.method_args.koleo_loss_weight
+
 
         loss = (
-            dino_loss_weight * dino_global_loss
-            + dino_loss_weight * dino_local_loss
-            + ibot_loss_weight * ibot_loss
-            + koleo_loss_weight * koleo_loss
+            self.dino_loss_weight * dino_global_loss
+            + self.dino_loss_weight * dino_local_loss
+            + self.ibot_loss_weight * ibot_loss
+            + self.koleo_loss_weight * koleo_loss
         )
 
         return TrainingStepResult(loss=loss)
@@ -334,7 +337,7 @@ class DINOv2(Method):
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(
-            modules=[self.student_embedding_model, self.student_projection_head]
+            modules=[self.student_embedding_model, self.student_dino_head]
         )
 
     def configure_gradient_clipping(
@@ -348,7 +351,7 @@ class DINOv2(Method):
             gradient_clip_val=3.0,
             gradient_clip_algorithm="norm",
         )
-        self.student_projection_head.cancel_last_layer_gradients(self.current_epoch)
+        self.student_dino_head.cancel_last_layer_gradients(self.current_epoch)
 
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
         weight_decay = cosine_schedule(
