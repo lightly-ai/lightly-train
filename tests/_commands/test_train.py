@@ -413,8 +413,8 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         batch_size=4,
         num_workers=0,
         epochs=0,
-        devices=1,
         accelerator="cpu",
+        devices=1,
     )
     last_ckpt_path = out / "checkpoints" / "last.ckpt"
     first_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
@@ -432,6 +432,7 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         overwrite=True,
         checkpoint=last_ckpt_path,
         accelerator="cpu",
+        devices=1,
         # Increase momentum to make sure batch norms are different
         method_args={"momentum_start": 0.5},
     )
