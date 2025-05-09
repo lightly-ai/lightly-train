@@ -10,6 +10,7 @@ from __future__ import annotations
 from lightly_train._methods.densecl.densecl import DenseCL
 from lightly_train._methods.dino.dino import DINO
 from lightly_train._methods.distillation.distillation import Distillation
+from lightly_train._methods.distillationv2.distillationv2 import DistillationV2
 from lightly_train._methods.method import Method
 from lightly_train._methods.simclr.simclr import SimCLR
 
@@ -21,7 +22,9 @@ def list_methods() -> list[str]:
 
     See the documentation for more information: https://docs.lightly.ai/train/stable/methods/
     """
-    return sorted(list(set(_method_name_to_cls().keys()) - HIDDEN_METHODS))
+    method_names = set(m.__name__.lower() for m in _method_name_to_cls().values())
+    method_names -= HIDDEN_METHODS
+    return sorted(list(method_names))
 
 
 def _list_methods() -> list[str]:
@@ -29,7 +32,10 @@ def _list_methods() -> list[str]:
 
     See the documentation for more information: https://docs.lightly.ai/train/stable/methods/
     """
-    return sorted(_method_name_to_cls().keys())
+    method_names = sorted(
+        list(set(m.__name__.lower() for m in _method_name_to_cls().values()))
+    )
+    return method_names
 
 
 def get_method_cls(method: str | Method) -> type[Method]:
@@ -45,12 +51,15 @@ def get_method_cls(method: str | Method) -> type[Method]:
 
 
 def _method_name_to_cls() -> dict[str, type[Method]]:
-    return {
+    mapping = {
         m.__name__.lower(): m
         for m in [
             DenseCL,
             DINO,
-            Distillation,
+            DistillationV2,
             SimCLR,
         ]
     }
+    mapping["distillation"] = DistillationV2
+    mapping["distillationv1"] = Distillation
+    return mapping
