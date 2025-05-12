@@ -103,19 +103,28 @@ class TestDINOLoss:
         expected_center = mean * (1 - center_momentum) * torch.ones(out_dim)
         assert torch.allclose(dino_loss.center, expected_center)
 
-    def test_forward(self):
+    def test_forward(
+        self,
+        batch_size=4,
+        out_dim=2,
+        teacher_temp=0.04,
+        student_temp=0.1,
+        center_momentum=0.9,
+    ) -> None:
         """Test that the forward method returns a non-negative scalar"""
 
-        # two views, same predictions -> minimal loss
-        loss_module = DINOLoss(out_dim=3, student_temp=1.0)
+        dino_loss = DINOLoss(
+            out_dim=out_dim, student_temp=student_temp, center_momentum=center_momentum
+        )
 
-        # teacher outputs all mass on class 2
-        teacher = torch.tensor([[0.0, 0.0, 1.0]])
-        teacher_sm = torch.softmax(teacher, dim=-1)
-        student_views = [torch.randn(2, 3) for _ in range(2)]
-
-        # inject identical teacher list
-        loss = loss_module.forward(student_views, [teacher_sm, teacher_sm])
+        teacher_output = torch.randn(batch_size, out_dim)
+        teacher_softmaxed = dino_loss.softmax_center_teacher(
+            teacher_output, teacher_temp=teacher_temp
+        )
+        dino_loss.update_center(teacher_output)
+        
+        student_output = [torch.randn(batch_size, out_dim) for _ in range(2)]
+        loss = dino_loss(student_output, [teacher_softmaxed, teacher_softmaxed])
 
         # loss should be non-negative scalar
         assert loss.ndim == 0 and loss.item() >= 0
@@ -206,16 +215,46 @@ class TestIBotPatchLoss:
         expected_center = mean * (1 - center_momentum) * torch.ones(patch_out_dim)
         assert torch.allclose(ibot_loss.center, expected_center)
 
-    def test_forward_masked_consistency(self):
-        module = iBOTPatchLoss(patch_out_dim=3, student_temp=1.0)
-        B, N, D = 2, 4, 3
-        # random patch tokens
-        teacher = torch.randn(B, N, D)
-        student = torch.randn(B, N, D)
-        mask = torch.tensor([[1, 0, 1, 0], [0, 1, 1, 1]])
-        # compute loss via both pathways
-        direct = module.forward(student, teacher, mask)
-        masked = module.forward_masked(student, teacher, mask, n_masked_patches=3)
-        # loss should be finite scalar
-        for L in (direct, masked):
-            assert torch.isfinite(L).all() and L.ndim == 0
+    def test_forward_masked(
+        self,
+        out_dim=2,
+        teacher_temp=0.1,
+        student_temp=0.2,
+        center_momentum=0.9,
+    ) -> None:
+        ibot_loss = iBOTPatchLoss(
+            patch_out_dim=out_dim, 
+            student_temp=student_temp, 
+            center_momentum=center_momentum
+        )
+        
+        masked_teacher_output = torch.tensor([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
+        masked_student_output = torch.tensor([[0.7, 0.8], [0.9, 1.0], [1.1, 1.2]])
+        mask = torch.tensor(
+            [
+                [[True, False], [True, False]],
+                [[False, False], [False, True]],
+                [[False, False], [False, False]],
+            ]
+        )
+        masks_weight = torch.tensor(
+            [0.5, 1, 0]
+        )
+        n_masked_patches=masked_teacher_output.shape[0]
+        
+        masked_teacher_softmaxed = ibot_loss.softmax_center_teacher(
+            masked_teacher_output.unsqueeze(0), teacher_temp=teacher_temp
+        )
+        ibot_loss.update_center(masked_teacher_output.unsqueeze(0))
+        
+        loss = ibot_loss.forward_masked(
+            teacher_patch_tokens_masked=masked_teacher_softmaxed,
+            student_patch_tokens_masked=masked_student_output,
+            student_masks_flat=mask,
+            n_masked_patches=n_masked_patches,
+            masks_weight=masks_weight,
+        )
+        assert loss == pytest.approx(0.4057, rel=0.0001)
+        
+        expected_center = 0.1 * masked_teacher_output.mean(0)
+        assert torch.all(torch.isclose(ibot_loss.center.value, expected_center))
