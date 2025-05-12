@@ -50,6 +50,9 @@ Distillation achieves the best performance on various tasks compared to DINO and
 - **Compute Intensive**: DINO requires a lot more compute than distillation, partly due to the number of crops required in its multi-crop strategy. However, it is still less compute-intensive than SimCLR.
 - **Instable Training**: DINO uses a “momentum teacher” whose weights update more slowly than the student’s. If some of the parameters (e.g. the teacher temperature) is not set properly, the teacher’s embeddings can shift in a way that the student cannot catch up. This destabilizes training and can lead to a oscillating and even rising loss.
 
+### When to use DINOv2?
+TODO
+
 ### When to use SimCLR?
 
 #### Pros
