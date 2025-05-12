@@ -41,6 +41,7 @@ def test_list_methods_private() -> None:
         "densecl",
         "dino",
         "distillation",
+        "distillationv1",
         "distillationv2",
         "simclr",
     ]
@@ -50,6 +51,7 @@ def test_list_methods_public() -> None:
     assert method_helpers.list_methods() == [
         "dino",
         "distillation",
+        "distillationv1",
         "distillationv2",
         "simclr",
     ]

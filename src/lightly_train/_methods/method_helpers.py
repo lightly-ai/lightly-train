@@ -22,7 +22,7 @@ def list_methods() -> list[str]:
 
     See the documentation for more information: https://docs.lightly.ai/train/stable/methods/
     """
-    method_names = set(m.__name__.lower() for m in _method_name_to_cls().values())
+    method_names = set(_method_name_to_cls().keys())
     method_names -= HIDDEN_METHODS
     return sorted(list(method_names))
 
@@ -32,9 +32,7 @@ def _list_methods() -> list[str]:
 
     See the documentation for more information: https://docs.lightly.ai/train/stable/methods/
     """
-    method_names = sorted(
-        list(set(m.__name__.lower() for m in _method_name_to_cls().values()))
-    )
+    method_names = sorted(_method_name_to_cls().keys())
     return method_names
 
 
