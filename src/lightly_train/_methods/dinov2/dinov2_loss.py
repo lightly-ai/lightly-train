@@ -170,7 +170,8 @@ class iBOTPatchLoss(nn.Module):
         ).t()  # Q is K-by-B for consistency with notations from our paper
         # B = Q.shape[1] * world_size # number of samples to assign
         B = n_masked_patches_tensor
-        dist.all_reduce(B)
+        if dist.is_initialized():
+            dist.all_reduce(B)
         K = Q.shape[0]  # how many prototypes
 
         # make the matrix sums to 1
