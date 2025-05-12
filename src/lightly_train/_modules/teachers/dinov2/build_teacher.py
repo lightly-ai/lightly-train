@@ -70,7 +70,7 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
     # Cache the teacher checkpoint.
     checkpoint_path = checkpoint_dir / Path(url).name
 
-    # Only the first rank from each node should download the checkpoint.
+    # Only the global rank zero downloads the checkpoint.
     if is_global_rank_zero():
         if not checkpoint_path.exists():
             logger.info(
