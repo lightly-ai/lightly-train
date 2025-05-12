@@ -478,21 +478,21 @@ def test_load_checkpoint(tmp_path: Path, mocker: MockerFixture) -> None:
     checkpoint_path = tmp_path / "checkpoint.pth"
     checkpoint = helpers.get_checkpoint()
     checkpoint.save(checkpoint_path)
-    model = DummyCustomModel()
-    embedding_model = EmbeddingModel(wrapped_model=model)
-    method = helpers.get_method(wrapped_model=model)
+    wrapped_model = DummyCustomModel()
+    embedding_model = EmbeddingModel(wrapped_model=wrapped_model)
+    method = helpers.get_method(wrapped_model=wrapped_model)
     spy_load_state_dict = mocker.spy(train_helpers, "load_state_dict")
 
     train_helpers.load_checkpoint(
         checkpoint=checkpoint_path,
         resume=False,
-        model=model,
+        wrapped_model=wrapped_model,
         embedding_model=embedding_model,
         method=method,
     )
 
     spy_load_state_dict.assert_called_once_with(
-        model=model.get_model(),
+        model=wrapped_model.get_model(),
         embedding_model=embedding_model,
         method=method,
         checkpoint=checkpoint_path,
@@ -504,7 +504,7 @@ def test_load_checkpoint__no_checkpoint(mocker: MockerFixture) -> None:
     train_helpers.load_checkpoint(
         checkpoint=None,
         resume=False,
-        model=mocker.MagicMock(),
+        wrapped_model=mocker.MagicMock(),
         embedding_model=mocker.MagicMock(),
         method=mocker.MagicMock(),
     )
@@ -521,7 +521,7 @@ def test_load_checkpoint__checkpoint_and_resume(
         train_helpers.load_checkpoint(
             checkpoint=tmp_path / "checkpoint.pth",
             resume=True,
-            model=mocker.MagicMock(),
+            wrapped_model=mocker.MagicMock(),
             embedding_model=mocker.MagicMock(),
             method=mocker.MagicMock(),
         )

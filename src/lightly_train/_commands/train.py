@@ -344,7 +344,7 @@ def train_from_config(config: TrainConfig) -> None:
         train_helpers.load_checkpoint(
             checkpoint=config.checkpoint,
             resume=config.resume,
-            model=wrapped_model,
+            wrapped_model=wrapped_model,
             embedding_model=embedding_model,
             method=method_instance,
         )

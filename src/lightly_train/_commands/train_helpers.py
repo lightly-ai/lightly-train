@@ -382,11 +382,11 @@ def get_method(
 def load_checkpoint(
     checkpoint: PathLike | None,
     resume: bool,
-    model: ModelWrapper,
+    wrapped_model: ModelWrapper,
     embedding_model: EmbeddingModel,
     method: Method,
 ) -> None:
-    model_ = model.get_model()
+    model = wrapped_model.get_model()
     if checkpoint is not None:
         if resume:
             raise ValueError(
@@ -394,7 +394,7 @@ def load_checkpoint(
             )
         logger.info(f"Loading model weights from '{checkpoint}'.")
         load_state_dict(
-            model=model_,
+            model=model,
             embedding_model=embedding_model,
             method=method,
             checkpoint=checkpoint,
