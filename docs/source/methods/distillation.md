@@ -4,6 +4,12 @@
 
 Knowledge distillation involves transferring knowledge from a large, compute-intensive teacher model to a smaller, efficient student model by encouraging similarity between the student and teacher representations. It addresses the challenge of bridging the gap between state-of-the-art large-scale vision models and smaller, more computationally efficient models suitable for practical applications.
 
+```{note}
+Starting from **LightlyTrain 0.7.0**, `method="distillation"` uses a new, improved `v2` implementation
+that achieves higher accuracy and trains up to 3x faster. The previous version is still available via
+`method="distillationv1"` for backward compatibility.
+```
+
 ## Use Distillation in LightlyTrain
 
 ````{tab} Python
@@ -26,12 +32,12 @@ lightly-train train out=out/my_experiment data=my_data_dir model="torchvision/re
 
 ## What's under the Hood
 
-Our distillation method draws inspiration from the [Knowledge Distillation: A Good Teacher is Patient and Consistent](https://arxiv.org/abs/2106.05237) paper. We made some modification so that labels are not required by obtaining the weights of a pseudo classifier using the different image-level representations from the batch. More specifically, we use a ViT-B/14 from [DINOv2](https://arxiv.org/pdf/2304.07193) as the teacher backbone, which we use to compute a queue of representations to serve the role of a pseudo classifier. The teacher batch representations are projected on the queue to obtain soft pseudo labels which can then be used to supervise the student representations when projected on the queue. The KL-divergence is used to enforce similarity between the teacher pseudo-labels and the student predictions.
+Our distillation method is straightforward: it applies a mean squared error (MSE) loss directly between the features of the student and teacher networks when processing the same image. We use a ViT-B/14 backbone from [DINOv2](https://arxiv.org/pdf/2304.07193) as the teacher model. Inspired by [*Knowledge Distillation: A Good Teacher is Patient and Consistent*](https://arxiv.org/abs/2106.05237), we apply strong, identical augmentations to both teacher and student inputs to ensure consistency of the objective.
 
 ## Lightly Recommendations
 
 - **Models**: Knowledge distillation is agnostic to the choice of student backbone networks.
-- **Batch Size**: We recommend somewhere between 128 and 1536 for knowledge distillation.
+- **Batch Size**: We recommend somewhere between 128 and 2048 for knowledge distillation.
 - **Number of Epochs**: We recommend somewhere between 100 and 3000. However, distillation benefits from longer schedules and models still improve after training for more than 3000 epochs. For small datasets (\<100k images) it can also be beneficial to train up to 10000 epochs.
 
 ## Default Augmentation Settings
@@ -40,8 +46,3 @@ The following are the default augmentation settings for Distillation. To learn h
 
 ```{include} _auto/distillation_transform_args.md
 ```
-
-## Note
-
-Starting from **LightlyTrain 0.7**, `method="distillation"` uses a new, improved `v2` implementation.\
-The previous version is still available via `method="distillationv1"` for backward compatibility.
