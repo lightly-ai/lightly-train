@@ -68,12 +68,10 @@ class TestDINOLoss:
             teacher_output, teacher_temp=teacher_temp, n_iterations=n_iterations
         )
 
-        print(Q)
-
         # Q shape = [B, K]
         assert Q.shape == (batch_size, out_dim)
 
-        # column sums ≈ B/K = 4/2 = 2
+        # column sums ≈ B/K
         col_sums = Q.sum(dim=0)
         assert torch.allclose(col_sums, torch.ones(out_dim) * batch_size / out_dim)
 
@@ -116,40 +114,66 @@ class TestDINOLoss:
 
 @pytest.mark.usefixtures("no_dist")
 class TestIBotPatchLoss:
-    def test_softmax_center_teacher(self):
+    def test_softmax_center_teacher(
+        self,
+        batch_size=4,
+        patch_out_dim=2,
+        teacher_temp=0.04,
+        student_temp=0.1,
+        center_momentum=0.9,
+    ):
         """Test that the softmax_center_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
 
-        module = iBOTPatchLoss(patch_out_dim=4, student_temp=1.0, center_momentum=0.5)
-        # initialize center to zeros
-        t_out = torch.randn(5, 4)
-        sm = module.softmax_center_teacher(t_out, teacher_temp=2.0)
-        # each row of sm sums to 1
-        sums = sm.sum(dim=-1)
-
-        assert torch.allclose(sums, torch.ones_like(sums), atol=1e-6)
-
-    def test_patch_sinkhorn(self):
-        module = iBOTPatchLoss(patch_out_dim=2, student_temp=1.0)
-        # reuse sinkhorn_knopp_teacher from module
-        logits = torch.zeros(4, 2)
-        n_masked = torch.tensor(4)
-        Q = module.sinkhorn_knopp_teacher(
-            logits, teacher_temp=1.0, n_masked_patches_tensor=n_masked, n_iterations=4
+        ibot_loss = iBOTPatchLoss(
+            patch_out_dim=patch_out_dim, student_temp=student_temp, center_momentum=center_momentum
         )
-        assert Q.shape == (4, 2)
-        # normalized as above
-        assert torch.allclose(Q.sum(dim=1), torch.ones(4), atol=1e-5)
 
-        # # Q shape = [B, K]
-        # assert Q.shape == (6, 3)
-        # # column sums ≈ 1
-        # col_sums = Q.sum(dim=0)
-        # assert torch.allclose(col_sums, torch.ones_like(col_sums), atol=1e-5)
-        # # row sums ≈ B/K = 6/3 = 2
-        # row_sums = Q.sum(dim=1)
-        # assert torch.allclose(row_sums, torch.full_like(row_sums, 2.0), atol=1e-5)
+        teacher_output = torch.randn(batch_size, patch_out_dim)
+        softmax = ibot_loss.softmax_center_teacher(
+            teacher_output, teacher_temp=teacher_temp
+        )
+
+        sums = softmax.sum(dim=-1)
+
+        assert torch.allclose(sums, torch.ones(batch_size))
+
+
+    def test_sinkhorn_knopp_teacher(
+        self,
+        batch_size=4,
+        patch_out_dim=2,
+        teacher_temp=0.04,
+        student_temp=0.1,
+        center_momentum=0.9,
+        n_iterations=4,
+    ):
+        """Test that the sinkhorn_knopp_teacher method returns a tensor
+        with the same shape as the input tensor and that each row sums to 1.
+        """
+
+        ibot_loss = iBOTPatchLoss(
+            patch_out_dim=patch_out_dim, student_temp=student_temp, center_momentum=center_momentum
+        )
+
+        teacher_output = torch.zeros(batch_size, patch_out_dim)
+        n_masked_patches_tensor = torch.randint(high=batch_size, size=(1,))
+        Q = ibot_loss.sinkhorn_knopp_teacher(
+            teacher_output, teacher_temp=teacher_temp, n_masked_patches_tensor=n_masked_patches_tensor, n_iterations=n_iterations
+        )
+
+        # Q shape = [B, K]
+        assert Q.shape == (batch_size, patch_out_dim)
+
+        # column sums ≈ B/K
+        col_sums = Q.sum(dim=0)
+        assert torch.allclose(col_sums, torch.ones(patch_out_dim) * batch_size / patch_out_dim)
+
+        # row sums ≈ 1
+        row_sums = Q.sum(dim=1)
+        assert torch.allclose(row_sums, torch.ones(batch_size))
+
 
     def test_update_center_momentum(self):
         """Test that the update_center method updates the center
