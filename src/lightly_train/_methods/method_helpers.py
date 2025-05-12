@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from lightly_train._methods.densecl.densecl import DenseCL
 from lightly_train._methods.dino.dino import DINO
+from lightly_train._methods.dinov2.dinov2 import DINOv2
 from lightly_train._methods.distillation.distillation import Distillation
 from lightly_train._methods.method import Method
 from lightly_train._methods.simclr.simclr import SimCLR
@@ -50,6 +51,7 @@ def _method_name_to_cls() -> dict[str, type[Method]]:
         for m in [
             DenseCL,
             DINO,
+            DINOv2,
             Distillation,
             SimCLR,
         ]

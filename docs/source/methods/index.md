@@ -6,6 +6,7 @@ Lightly**Train** supports the following pretraining methods:
 
 - {ref}`methods-distillation`
 - {ref}`methods-dino`
+- {ref}`methods-dinov2`
 - {ref}`methods-simclr`
 
 ```{seealso}
@@ -67,6 +68,7 @@ maxdepth: 1
 ---
 distillation
 dino
+dinov2
 simclr
 method_transform_args
 ```

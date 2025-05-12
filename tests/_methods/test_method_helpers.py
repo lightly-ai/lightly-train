@@ -12,6 +12,7 @@ import pytest
 from lightly_train._methods import method_helpers
 from lightly_train._methods.densecl.densecl import DenseCL
 from lightly_train._methods.dino.dino import DINO
+from lightly_train._methods.dino.dinov2 import DINOv2
 from lightly_train._methods.distillation.distillation import Distillation
 from lightly_train._methods.method import Method
 from lightly_train._methods.simclr.simclr import SimCLR
@@ -24,6 +25,7 @@ from .. import helpers
     [
         ("densecl", DenseCL),
         ("dino", DINO),
+        ("dinov2", DINOv2),
         ("simclr", SimCLR),
         ("distillation", Distillation),
         (helpers.get_method(), SimCLR),
@@ -37,6 +39,7 @@ def test_list_methods_private() -> None:
     assert method_helpers._list_methods() == [
         "densecl",
         "dino",
+        "dinov2",
         "distillation",
         "simclr",
     ]
@@ -45,6 +48,7 @@ def test_list_methods_private() -> None:
 def test_list_methods_public() -> None:
     assert method_helpers.list_methods() == [
         "dino",
+        "dinov2",
         "distillation",
         "simclr",
     ]
