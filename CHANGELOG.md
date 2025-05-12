@@ -12,12 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support lists of files and folders as input to the `embed` and `train` commands.
 - Faster dataset initialization with SLURM and Windows.
 - Model is exported after every n-th epoch instead of only at the end. Default n=1
-- Add DistillationV2 to the methods.
+- Add `DistillationV2` to the methods.
+- `DistillationV2` is used with `method="distillation"` or `method="distillationv2"`.
 
 ### Changed
 
 - Distillation uses the official DINOv2 implementation for the teacher model.
 - The RT-DETR example uses RT-DETRv2, which is backward compatible while imposing fewer constraints on package versions.
+- The original distillation method is now selected with `method="distillationv1"`.
 
 ### Deprecated
 
