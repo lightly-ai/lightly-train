@@ -90,7 +90,7 @@ def test_export__torchvision(tmp_path: Path) -> None:
     loaded_model = torchvision_models.resnet18()
     loaded_model.load_state_dict(torch.load(out))
     assert isinstance(loaded_model, type(model))
-    assert torch.allclose(loaded_model.conv1.weight, model.conv1.weight)
+    assert torch.equal(loaded_model.conv1.weight, model.conv1.weight)
 
 
 @pytest.mark.skipif(YOLO is None, reason="ultralytics is not installed")
@@ -236,7 +236,7 @@ def test_export_from_dictconfig(tmp_path: Path) -> None:
 def _assert_state_dict_equal(a: dict[str, Tensor], b: dict[str, Tensor]) -> None:
     assert a.keys() == b.keys()
     for key in a.keys():
-        assert torch.allclose(a[key], b[key])
+        assert torch.equal(a[key], b[key])
 
 
 def _get_checkpoint(
