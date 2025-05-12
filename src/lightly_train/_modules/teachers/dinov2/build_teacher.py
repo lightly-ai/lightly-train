@@ -12,6 +12,7 @@ from pathlib import Path
 import torch
 from torch.nn import Module
 
+from lightly_train._commands.common_helpers import is_global_rank_zero
 from lightly_train._data.download import download_from_url
 from lightly_train._modules.teachers.dinov2.configs import MODELS as TEACHER_MODELS
 from lightly_train._modules.teachers.dinov2.configs import (
@@ -50,17 +51,22 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
     # Cache the teacher checkpoint.
     checkpoint_path = checkpoint_dir / Path(url).name
 
-    if not checkpoint_path.exists():
-        logger.info(
-            f"Downloading teacher weights from: '{url}' and saving them to: '{checkpoint_path}'. "
-            "The cache directory location can be configured with the LIGHTLY_TRAIN_CACHE_DIR environment variable."
-        )
-        download_from_url(url, checkpoint_path, timeout=180.0)
-    else:
-        logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
+    # Only the global rank zero downloads the checkpoint.
+    if is_global_rank_zero():
+        if not checkpoint_path.exists():
+            logger.info(
+                f"Downloading teacher weights from: '{url}' and saving them to: "
+                f"'{checkpoint_path}'. The cache directory location can be configured "
+                "with the LIGHTLY_TRAIN_CACHE_DIR environment variable."
+            )
+            download_from_url(url, checkpoint_path, timeout=180.0)
 
-    ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    model.load_state_dict(ckpt, strict=True)
-    logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
+        else:
+            logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
+
+        # Load the checkpoint.
+        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        model.load_state_dict(ckpt, strict=True)
+        logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
 
     return model
