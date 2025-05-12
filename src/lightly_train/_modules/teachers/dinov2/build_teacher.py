@@ -10,7 +10,6 @@ import logging
 from pathlib import Path
 
 import torch
-import torch.distributed as dist
 from torch.nn import Module
 
 from lightly_train._commands.common_helpers import is_global_rank_zero
@@ -87,10 +86,6 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
         ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
         model.load_state_dict(ckpt, strict=True)
         logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
-
-    # Ensure all processes wait for the first rank to finish downloading.
-    if dist.is_available() and dist.is_initialized():
-        dist.barrier()
 
     return model
 
