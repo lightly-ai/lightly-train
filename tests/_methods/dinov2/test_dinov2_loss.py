@@ -21,37 +21,65 @@ def no_dist(monkeypatch):
 
 @pytest.mark.usefixtures("no_dist")
 class TestDINOLoss:
-    def test_softmax_center_teacher(self):
+    def test_softmax_center_teacher(
+        self,
+        batch_size=4,
+        out_dim=2,
+        teacher_temp=0.04,
+        student_temp=0.1,
+        center_momentum=0.9,
+    ):
         """Test that the softmax_center_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
 
-        module = DINOLoss(out_dim=4, student_temp=1.0, center_momentum=0.5)
-        # initialize center to zeros
-        t_out = torch.randn(5, 4)
-        sm = module.softmax_center_teacher(t_out, teacher_temp=2.0)
-        # each row of sm sums to 1
-        sums = sm.sum(dim=-1)
+        dino_loss = DINOLoss(
+            out_dim=out_dim, student_temp=student_temp, center_momentum=center_momentum
+        )
 
-        assert torch.allclose(sums, torch.ones_like(sums), atol=1e-6)
+        teacher_output = torch.randn(batch_size, out_dim)
+        softmax = dino_loss.softmax_center_teacher(
+            teacher_output, teacher_temp=teacher_temp
+        )
 
-    def test_sinkhorn_knopp_teacher(self):
+        sums = softmax.sum(dim=-1)
+
+        assert torch.allclose(sums, torch.ones(batch_size))
+
+    def test_sinkhorn_knopp_teacher(
+        self,
+        batch_size=4,
+        out_dim=2,
+        teacher_temp=0.04,
+        student_temp=0.1,
+        center_momentum=0.9,
+        n_iterations=4,
+    ):
         """Test that the sinkhorn_knopp_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
 
-        module = DINOLoss(out_dim=3)
-        # create uniform teacher log-probs so assignment trivial
-        logits = torch.zeros(6, 3)  # Q matrix will be uniform
-        Q = module.sinkhorn_knopp_teacher(logits, teacher_temp=1.0, n_iterations=5)
+        dino_loss = DINOLoss(
+            out_dim=out_dim, student_temp=student_temp, center_momentum=center_momentum
+        )
+
+        teacher_output = torch.zeros(batch_size, out_dim)
+        Q = dino_loss.sinkhorn_knopp_teacher(
+            teacher_output, teacher_temp=teacher_temp, n_iterations=n_iterations
+        )
+
+        print(Q)
+
         # Q shape = [B, K]
-        assert Q.shape == (6, 3)
-        # column sums ≈ 1
+        assert Q.shape == (batch_size, out_dim)
+
+        # column sums ≈ B/K = 4/2 = 2
         col_sums = Q.sum(dim=0)
-        assert torch.allclose(col_sums, torch.ones_like(col_sums), atol=1e-5)
-        # row sums ≈ B/K = 6/3 = 2
+        assert torch.allclose(col_sums, torch.ones(out_dim) * batch_size / out_dim)
+
+        # row sums ≈ 1
         row_sums = Q.sum(dim=1)
-        assert torch.allclose(row_sums, torch.full_like(row_sums, 2.0), atol=1e-5)
+        assert torch.allclose(row_sums, torch.ones(batch_size))
 
     def test_update_center_momentum(self):
         """Test that the update_center method updates the center
