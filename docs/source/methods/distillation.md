@@ -40,3 +40,8 @@ The following are the default augmentation settings for Distillation. To learn h
 
 ```{include} _auto/distillation_transform_args.md
 ```
+
+## Note
+
+Starting from **LightlyTrain 0.7**, `method="distillation"` uses a new, improved `v2` implementation.\
+The previous version is still available via `method="distillationv1"` for backward compatibility.
