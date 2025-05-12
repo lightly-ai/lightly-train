@@ -189,10 +189,10 @@ def get_dataloader(
 
 
 def get_embedding_model(
-    model: ModelWrapper, embed_dim: int | None = None
+    wrapped_model: ModelWrapper, embed_dim: int | None = None
 ) -> EmbeddingModel:
     logger.debug(f"Getting embedding model with embedding dimension {embed_dim}.")
-    return EmbeddingModel(model_wrapper=model, embed_dim=embed_dim)
+    return EmbeddingModel(wrapped_model=wrapped_model, embed_dim=embed_dim)
 
 
 def get_trainer(
@@ -382,10 +382,11 @@ def get_method(
 def load_checkpoint(
     checkpoint: PathLike | None,
     resume: bool,
-    model: Module,
+    model: ModelWrapper,
     embedding_model: EmbeddingModel,
     method: Method,
 ) -> None:
+    model_ = model.get_model()
     if checkpoint is not None:
         if resume:
             raise ValueError(
@@ -393,7 +394,7 @@ def load_checkpoint(
             )
         logger.info(f"Loading model weights from '{checkpoint}'.")
         load_state_dict(
-            model=model,
+            model=model_,
             embedding_model=embedding_model,
             method=method,
             checkpoint=checkpoint,

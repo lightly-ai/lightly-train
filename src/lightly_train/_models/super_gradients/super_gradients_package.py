@@ -18,7 +18,7 @@ from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import (
     ModelWrapper,
 )
-from lightly_train._models.package import FrameworkPackage
+from lightly_train._models.package import Package
 from lightly_train._models.super_gradients.customizable_detector import (
     CustomizableDetectorFeatureExtractor,
 )
@@ -30,7 +30,7 @@ from lightly_train.errors import UnknownModelError
 logger = logging.getLogger(__name__)
 
 
-class SuperGradientsPackage(FrameworkPackage):
+class SuperGradientsPackage(Package):
     name = "super_gradients"
 
     # Sadly SuperGradients doesn't expose a common interface for all models. We have to

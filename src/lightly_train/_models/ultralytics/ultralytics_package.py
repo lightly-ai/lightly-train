@@ -17,7 +17,7 @@ from torch.nn import Module
 
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import FrameworkPackage
+from lightly_train._models.package import Package
 from lightly_train._models.ultralytics.ultralytics import (
     UltralyticsModelWrapper,
 )
@@ -25,7 +25,7 @@ from lightly_train._models.ultralytics.ultralytics import (
 logger = logging.getLogger(__name__)
 
 
-class UltralyticsPackage(FrameworkPackage):
+class UltralyticsPackage(Package):
     name = "ultralytics"
 
     @classmethod

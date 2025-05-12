@@ -11,23 +11,20 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import torch
 from pytorch_lightning.callbacks import (
     DeviceStatsMonitor,
     EarlyStopping,
 )
-from torch import Tensor
-from torch.nn import Module
 
 from lightly_train._callbacks import callback_helpers
 from lightly_train._callbacks.callback_args import (
     CallbackArgs,
 )
 from lightly_train._callbacks.checkpoint import ModelCheckpoint, ModelCheckpointArgs
+from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._transforms.transform import NormalizeArgs
 from lightly_train.errors import ConfigValidationError
 
-from .. import helpers
 from ..helpers import DummyCustomModel
 
 
@@ -63,14 +60,13 @@ def test_get_callback_args__failure() -> None:
 
 
 def test_get_callbacks__default(tmp_path: Path) -> None:
-    model = helpers.get_model()
-    embedding_model = helpers.get_embedding_model(model=model)
+    model = DummyCustomModel()
+    embedding_model = EmbeddingModel(wrapped_model=model)
     callback_args = CallbackArgs()
     callbacks = callback_helpers.get_callbacks(
         callback_args=callback_args,
         out=tmp_path,
         wrapped_model=model,
-        model=model.get_model(),
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
     )
@@ -84,8 +80,8 @@ def test_get_callbacks__default(tmp_path: Path) -> None:
 
 
 def test_get_callbacks__disable(tmp_path: Path) -> None:
-    model = helpers.get_model()
-    embedding_model = helpers.get_embedding_model(model=model)
+    model = DummyCustomModel()
+    embedding_model = EmbeddingModel(wrapped_model=model)
     callback_args = CallbackArgs(
         learning_rate_monitor=None,
         early_stopping=None,
@@ -94,7 +90,6 @@ def test_get_callbacks__disable(tmp_path: Path) -> None:
         callback_args=callback_args,
         out=tmp_path,
         wrapped_model=model,
-        model=model.get_model(),
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
     )
@@ -104,8 +99,8 @@ def test_get_callbacks__disable(tmp_path: Path) -> None:
 
 
 def test_get_callbacks__user_config(tmp_path: Path) -> None:
-    model = helpers.get_model()
-    embedding_model = helpers.get_embedding_model(model=model)
+    model = DummyCustomModel()
+    embedding_model = EmbeddingModel(wrapped_model=model)
     callback_args = CallbackArgs(
         model_checkpoint=ModelCheckpointArgs(every_n_epochs=5),
     )
@@ -113,7 +108,6 @@ def test_get_callbacks__user_config(tmp_path: Path) -> None:
         callback_args=callback_args,
         out=tmp_path,
         wrapped_model=model,
-        model=model.get_model(),
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
     )
@@ -123,23 +117,6 @@ def test_get_callbacks__user_config(tmp_path: Path) -> None:
 
 
 def test_get_checkpoint_model() -> None:
-    model = helpers.get_model()
-    checkpoint_model = model.get_model()
-    assert not isinstance(checkpoint_model, DummyCustomModel)
-
-
-def test_get_checkpoint_model__no_model_getter() -> None:
-    class DummyCustomModel(Module):
-        def feature_dim(self) -> int:
-            return 1
-
-        def forward_features(self, x: Tensor) -> Tensor:
-            return torch.zeros(1)
-
-        def forward_pool(self, x: Tensor) -> Tensor:
-            return torch.zeros(1)
-
     model = DummyCustomModel()
     checkpoint_model = model.get_model()
-    assert model == checkpoint_model
-    assert isinstance(checkpoint_model, DummyCustomModel)
+    assert not isinstance(checkpoint_model, DummyCustomModel)

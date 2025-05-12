@@ -15,7 +15,7 @@ from torch.nn import Module
 
 from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import FrameworkPackage, LimitedPackage
+from lightly_train._models.package import BasePackage, Package
 from lightly_train._models.rfdetr.rfdetr_package import RFDETR_PACKAGE
 from lightly_train._models.super_gradients.super_gradients_package import (
     SUPER_GRADIENTS_PACKAGE,
@@ -26,7 +26,7 @@ from lightly_train._models.ultralytics.ultralytics_package import ULTRALYTICS_PA
 from lightly_train.errors import UnknownModelError
 
 
-def list_packages() -> list[LimitedPackage]:
+def list_base_packages() -> list[BasePackage]:
     """Lists all supported packages."""
     return [
         RFDETR_PACKAGE,
@@ -40,17 +40,14 @@ def list_packages() -> list[LimitedPackage]:
     ]
 
 
-def list_framework_packages() -> list[FrameworkPackage]:
+def list_full_packages() -> list[Package]:
     """Lists all supported framework packages."""
-    return [
-        package for package in list_packages() if isinstance(package, FrameworkPackage)
-    ]
+    return [package for package in list_base_packages() if isinstance(package, Package)]
 
 
-def get_package(package_name: str) -> LimitedPackage:
+def get_package(package_name: str) -> BasePackage:
     """Get a package by name."""
-    # Don't include custom package. It should never be fetched by name.
-    packages = {p.name: p for p in list_packages()}
+    packages = {p.name: p for p in list_base_packages()}
     try:
         return packages[package_name]
     except KeyError:
@@ -66,45 +63,27 @@ def list_model_names() -> list[str]:
     See the documentation for more information: https://docs.lightly.ai/train/stable/models/
     """
     return sorted(
-        chain.from_iterable(p.list_model_names() for p in list_framework_packages())
+        chain.from_iterable(p.list_model_names() for p in list_full_packages())
     )
 
 
 def get_wrapped_model(
-    model: str | ModelWrapper, model_args: dict[str, Any] | None = None
+    model: str, model_args: dict[str, Any] | None = None
 ) -> ModelWrapper:
     """Returns a wrapped model instance given a model name or instance."""
-    if isinstance(model, ModelWrapper):
-        return model
-
-    model = get_model(model=model, model_args=model_args)
-    return get_model_wrapper(model=model)
-
-
-def get_model(model: str | Module, model_args: dict[str, Any] | None = None) -> Module:
-    """Returns a model instance given a model name or instance."""
-    if isinstance(model, Module):
-        return model
-
-    package_name, model_name = _parse_model_name(model=model)
-    package = get_package(package_name=package_name)
-    assert isinstance(package, FrameworkPackage)
-    return package.get_model(model_name, model_args)
+    package_name, model_name = _parse_model_name(model)
+    package = get_package(package_name)
+    # This can never be a BasePackage, because calling get_wrapped_model() makes no sense
+    # for a BasePackage.
+    assert isinstance(package, Package)
+    model_instance = package.get_model(model_name, model_args=model_args)
+    return package.get_model_wrapper(model_instance)
 
 
-def get_model_wrapper(model: Module) -> ModelWrapper:
-    """Returns a model wrapper class for the given model."""
-    for package in list_framework_packages():
-        if package.is_supported_model(model):
-            return package.get_model_wrapper(model)
-
-    raise UnknownModelError(f"Unknown model: '{model.__class__.__name__}'")
-
-
-def get_package_from_model(model: Module) -> LimitedPackage:
+def get_package_from_model(model: Module) -> BasePackage:
     """Returns the package of the model. If the model is not part of any package,
     the custom package is returned."""
-    for package in list_packages():
+    for package in list_base_packages():
         if package.is_supported_model(model):
             return package
 

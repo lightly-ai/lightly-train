@@ -250,12 +250,14 @@ def train_from_config(config: TrainConfig) -> None:
         scaling_info = train_helpers.get_scaling_info(
             dataset=dataset, epochs=config.epochs
         )
-        wrapped_model = package_helpers.get_wrapped_model(
-            model=config.model, model_args=config.model_args
-        )
-        model = wrapped_model.get_model()
+        if not isinstance(config.model, ModelWrapper):
+            wrapped_model = package_helpers.get_wrapped_model(
+                model=config.model, model_args=config.model_args
+            )
+        else:
+            wrapped_model = config.model
         embedding_model = train_helpers.get_embedding_model(
-            model=wrapped_model, embed_dim=config.embed_dim
+            wrapped_model=wrapped_model, embed_dim=config.embed_dim
         )
         log_every_n_steps = train_helpers.get_lightning_logging_interval(
             dataset_size=scaling_info.dataset_size, batch_size=config.batch_size
@@ -271,7 +273,6 @@ def train_from_config(config: TrainConfig) -> None:
             callback_args=config.callbacks,
             out=out_dir,
             wrapped_model=wrapped_model,
-            model=model,
             embedding_model=embedding_model,
             normalize_args=transform_instance.transform_args.normalize,
         )
@@ -343,7 +344,7 @@ def train_from_config(config: TrainConfig) -> None:
         train_helpers.load_checkpoint(
             checkpoint=config.checkpoint,
             resume=config.resume,
-            model=model,
+            model=wrapped_model,
             embedding_model=embedding_model,
             method=method_instance,
         )
@@ -358,7 +359,7 @@ def train_from_config(config: TrainConfig) -> None:
         trainer_instance.save_checkpoint(out_dir / "checkpoints" / "last.ckpt")
     logger.info("Training completed.")
     common_helpers.export_model(
-        model=model,
+        model=wrapped_model.get_model(),
         out=out_dir / "exported_models" / "exported_last.pt",
         format=ModelFormat.PACKAGE_DEFAULT,
     )

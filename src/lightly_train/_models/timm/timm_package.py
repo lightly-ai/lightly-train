@@ -17,13 +17,13 @@ from torch.nn import Module
 
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import FrameworkPackage
+from lightly_train._models.package import Package
 from lightly_train._models.timm.timm import TIMMModelWrapper
 
 logger = logging.getLogger(__name__)
 
 
-class TIMMPackage(FrameworkPackage):
+class TIMMPackage(Package):
     name = "timm"
 
     @classmethod

@@ -7,37 +7,40 @@
 #
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 from torch.nn import Module
 
 from lightly_train._models.model_wrapper import ModelWrapper
 
 
-@runtime_checkable
-class LimitedPackage(Protocol):
+class BasePackage(ABC):
     name: str  # The name of the package.
 
     @classmethod
+    @abstractmethod
     def export_model(
         cls, model: Module, out: Path, log_example: bool = True
     ) -> None: ...
 
     @classmethod
+    @abstractmethod
     def is_supported_model(cls, model: Module) -> bool:
         """Check if the model is supported by this package."""
         ...
 
 
-@runtime_checkable
-class FrameworkPackage(LimitedPackage, Protocol):
+class Package(BasePackage):
     @classmethod
+    @abstractmethod
     def list_model_names(cls) -> list[str]:
         """List all supported models by this package."""
         ...
 
     @classmethod
+    @abstractmethod
     def get_model(
         cls, model_name: str, model_args: dict[str, Any] | None = None
     ) -> Module:
@@ -48,6 +51,7 @@ class FrameworkPackage(LimitedPackage, Protocol):
         ...
 
     @classmethod
+    @abstractmethod
     def get_model_wrapper(cls, model: Module) -> ModelWrapper:
         """Get the feature extractor class for the model from this package.
 

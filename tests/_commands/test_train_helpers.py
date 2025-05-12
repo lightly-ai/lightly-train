@@ -33,6 +33,7 @@ from lightly_train._methods.simclr.simclr_transform import (
     SimCLRTransformArgs,
 )
 from lightly_train._models import package_helpers
+from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -213,7 +214,7 @@ def test_get_embedding_model(
     if model_name.startswith("timm/"):
         pytest.importorskip("timm")
     x = torch.rand(1, 3, 224, 224)
-    model = package_helpers.get_model(model_name, model_args=model_args)
+    model = package_helpers.get_wrapped_model(model_name, model_args=model_args)
     embedding_model = train_helpers.get_embedding_model(model, embed_dim=embed_dim)
     embedding = embedding_model.forward(x)
     assert embedding.shape == (1, embedding_model.embed_dim, 1, 1)
@@ -222,12 +223,12 @@ def test_get_embedding_model(
         and "num_classes" in model_args
         and not model_name.startswith("torchvision/")
     ):
-        assert model.num_classes == model_args["num_classes"]
+        assert model.get_model().num_classes == model_args["num_classes"]
 
 
 @pytest.mark.parametrize("embed_dim", [None, 64])
 def test_get_embedding_model__custom(embed_dim: int | None) -> None:
-    model = package_helpers.get_model(model=DummyCustomModel())
+    model = DummyCustomModel()
     x = torch.rand(1, 3, 224, 224)
     embedding_model = train_helpers.get_embedding_model(model, embed_dim=embed_dim)
     assert isinstance(embedding_model.model_wrapper, ModelWrapper)
@@ -409,7 +410,7 @@ def test_get_method_args(
 
 
 def test_get_method() -> None:
-    embedding_model = helpers.get_embedding_model()
+    embedding_model = EmbeddingModel(wrapped_model=DummyCustomModel())
     method = train_helpers.get_method(
         method_cls=SimCLR,
         method_args=SimCLRArgs(temperature=0.2),
@@ -477,9 +478,9 @@ def test_load_checkpoint(tmp_path: Path, mocker: MockerFixture) -> None:
     checkpoint_path = tmp_path / "checkpoint.pth"
     checkpoint = helpers.get_checkpoint()
     checkpoint.save(checkpoint_path)
-    model = helpers.get_model()
-    embedding_model = helpers.get_embedding_model(model=model)
-    method = helpers.get_method(model=model)
+    model = DummyCustomModel()
+    embedding_model = EmbeddingModel(wrapped_model=model)
+    method = helpers.get_method(wrapped_model=model)
     spy_load_state_dict = mocker.spy(train_helpers, "load_state_dict")
 
     train_helpers.load_checkpoint(
@@ -491,7 +492,7 @@ def test_load_checkpoint(tmp_path: Path, mocker: MockerFixture) -> None:
     )
 
     spy_load_state_dict.assert_called_once_with(
-        model=model,
+        model=model.get_model(),
         embedding_model=embedding_model,
         method=method,
         checkpoint=checkpoint_path,
@@ -534,13 +535,13 @@ def test_load_state_dict(tmp_path: Path) -> None:
     checkpoint.save(checkpoint_path)
 
     # Generate a new model and make it different from the model in the checkpoint.
-    model_2 = helpers.get_model()
-    next(model_2.parameters()).data += 1
-    embedding_model_2 = helpers.get_embedding_model(model=model_2)
-    method_2 = helpers.get_method(model=model_2)
+    model_2 = DummyCustomModel()
+    next(model_2.get_model().parameters()).data += 1
+    embedding_model_2 = EmbeddingModel(wrapped_model=model_2)
+    method_2 = helpers.get_method(wrapped_model=model_2)
 
     train_helpers.load_state_dict(
-        model=model_2,
+        model=model_2.get_model(),
         embedding_model=embedding_model_2,
         method=method_2,
         checkpoint=checkpoint_path,
@@ -548,18 +549,24 @@ def test_load_state_dict(tmp_path: Path) -> None:
 
     # Assert that the model, embedding model, and method have updated the weights.
     assert_close(
-        list(model_2.parameters()),
+        list(model_2.get_model().parameters()),
         list(checkpoint.lightly_train.models.model.parameters()),
     )
     assert torch.allclose(
-        next(embedding_model_2.parameters()),
-        next(checkpoint.lightly_train.models.embedding_model.parameters()),
+        next(embedding_model_2.model_wrapper.get_model().parameters()),
+        next(
+            checkpoint.lightly_train.models.embedding_model.model_wrapper.get_model().parameters()
+        ),
     )
     assert torch.allclose(
-        next(method_2.parameters()),
+        next(method_2.embedding_model.model_wrapper.get_model().parameters()),
         next(checkpoint.lightly_train.models.model.parameters()),
     )
 
     # Assert that the model, embedding model, and method share the same parameter objects.
-    assert next(model_2.parameters()) is next(embedding_model_2.parameters())
-    assert next(model_2.parameters()) is next(method_2.parameters())
+    assert next(model_2.get_model().parameters()) is next(
+        embedding_model_2.model_wrapper.get_model().parameters()
+    )
+    assert next(model_2.get_model().parameters()) is next(
+        method_2.embedding_model.model_wrapper.get_model().parameters()
+    )

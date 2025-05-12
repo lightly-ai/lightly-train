@@ -16,12 +16,18 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 from torch import Tensor
-from torch.nn import Module
 from torchvision import models as torchvision_models
 
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._commands import export
 from lightly_train._commands.export import CLIExportConfig, ExportConfig
+from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.super_gradients.super_gradients_package import (
+    SUPER_GRADIENTS_PACKAGE,
+)
+from lightly_train._models.timm.timm_package import TIMM_PACKAGE
+from lightly_train._models.torchvision.torchvision_package import TORCHVISION_PACKAGE
+from lightly_train._models.ultralytics.ultralytics_package import ULTRALYTICS_PACKAGE
 
 from .. import helpers
 
@@ -83,7 +89,9 @@ def test_export__torch_model(tmp_path: Path) -> None:
 def test_export__torchvision(tmp_path: Path) -> None:
     """Check that exporting in torchvision format works as expected."""
     model = torchvision_models.resnet18()
-    ckpt_path, ckpt = _get_checkpoint(tmp_path=tmp_path, model=model)
+    ckpt_path, ckpt = _get_checkpoint(
+        tmp_path=tmp_path, wrapped_model=TORCHVISION_PACKAGE.get_model_wrapper(model)
+    )
     out = tmp_path / "out.pt"
     export.export(out=out, checkpoint=ckpt_path)
 
@@ -96,7 +104,9 @@ def test_export__torchvision(tmp_path: Path) -> None:
 @pytest.mark.skipif(YOLO is None, reason="ultralytics is not installed")
 def test_export__ultralytics(tmp_path: Path) -> None:
     model = YOLO("yolov8n.yaml")
-    ckpt_path, ckpt = _get_checkpoint(tmp_path=tmp_path, model=model)
+    ckpt_path, ckpt = _get_checkpoint(
+        tmp_path=tmp_path, wrapped_model=ULTRALYTICS_PACKAGE.get_model_wrapper(model)
+    )
     out = tmp_path / "out.pt"
     export.export(out=out, checkpoint=ckpt_path)
     loaded_model = YOLO(out)
@@ -106,7 +116,9 @@ def test_export__ultralytics(tmp_path: Path) -> None:
 @pytest.mark.skipif(YOLO is None, reason="ultralytics is not installed")
 def test_export__ultralytics_option__deprecation_warning(tmp_path: Path) -> None:
     model = YOLO("yolov8n.yaml")
-    ckpt_path, ckpt = _get_checkpoint(tmp_path=tmp_path, model=model)
+    ckpt_path, ckpt = _get_checkpoint(
+        tmp_path=tmp_path, wrapped_model=ULTRALYTICS_PACKAGE.get_model_wrapper(model)
+    )
     out = tmp_path / "out.pt"
     with pytest.warns(
         FutureWarning,
@@ -131,7 +143,10 @@ def test_export__super_gradients(tmp_path: Path) -> None:
     model = super_gradient_models.get(model_name="yolo_nas_s", num_classes=3)
     model.backbone.stem.conv.branch_3x3.conv.weight.data.fill_(1.234)
 
-    ckpt_path, ckpt = _get_checkpoint(tmp_path=tmp_path, model=model)
+    ckpt_path, ckpt = _get_checkpoint(
+        tmp_path=tmp_path,
+        wrapped_model=SUPER_GRADIENTS_PACKAGE.get_model_wrapper(model),
+    )
     out = tmp_path / "out.pt"
     export.export(out=out, checkpoint=ckpt_path)
 
@@ -159,7 +174,9 @@ def test_export__timm(tmp_path: Path) -> None:
 
     model = timm.create_model("resnet18", pretrained=False)
 
-    ckpt_path, ckpt = _get_checkpoint(tmp_path=tmp_path, model=model)
+    ckpt_path, ckpt = _get_checkpoint(
+        tmp_path=tmp_path, wrapped_model=TIMM_PACKAGE.get_model_wrapper(model)
+    )
     out = tmp_path / "out.pt"
     export.export(out=out, checkpoint=ckpt_path)
 
@@ -240,9 +257,9 @@ def _assert_state_dict_equal(a: dict[str, Tensor], b: dict[str, Tensor]) -> None
 
 
 def _get_checkpoint(
-    tmp_path: Path, model: Module | None = None
+    tmp_path: Path, wrapped_model: ModelWrapper | None = None
 ) -> tuple[Path, Checkpoint]:
-    checkpoint = helpers.get_checkpoint(model=model)
+    checkpoint = helpers.get_checkpoint(wrapped_model=wrapped_model)
     ckpt_path = tmp_path / "last.ckpt"
     checkpoint.save(ckpt_path)
     return ckpt_path, checkpoint

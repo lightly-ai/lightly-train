@@ -339,7 +339,10 @@ class ModelFormat(Enum):
 
 
 def export_model(
-    model: Module, format: ModelFormat, out: Path, log_example: bool = True
+    model: Module,
+    format: ModelFormat,
+    out: Path,
+    log_example: bool = True,
 ) -> None:
     if not is_global_rank_zero():
         return

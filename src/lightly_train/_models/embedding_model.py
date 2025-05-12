@@ -22,7 +22,7 @@ from lightly_train._models.model_wrapper import ModelWrapper
 class EmbeddingModel(Module):
     def __init__(
         self,
-        model_wrapper: ModelWrapper,
+        wrapped_model: ModelWrapper,
         embed_dim: None | int = None,
     ):
         """A model that extracts features from input data and maps them to an embedding
@@ -39,7 +39,7 @@ class EmbeddingModel(Module):
                 the features are embedded and returned without pooling.
         """
         super().__init__()
-        self.model_wrapper = model_wrapper
+        self.model_wrapper = wrapped_model
         self.embed_head = (
             Identity()
             if embed_dim is None

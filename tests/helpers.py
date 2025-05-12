@@ -30,9 +30,6 @@ from lightly_train._commands import extract_video_frames
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._methods.method import Method
 from lightly_train._methods.simclr.simclr import SimCLR, SimCLRArgs
-from lightly_train._models import (
-    package_helpers as feature_extractor_api,
-)
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
@@ -47,7 +44,7 @@ from lightly_train._transforms.transform import (
 from lightly_train.types import TransformInput, TransformOutput
 
 
-class DummyCustomModel(Module, ModelWrapper):
+class DummyCustomModel(ModelWrapper):
     def __init__(self, feature_dim: int = 2):
         super().__init__()
         self._feature_dim = feature_dim
@@ -78,41 +75,27 @@ class DummyMethodTransform(MethodTransform):
         return [self.transform(**input)]
 
 
-def get_model() -> Module:
-    return DummyCustomModel()
-
-
-def get_model_wrapper(model: Module | None = None) -> ModelWrapper:
-    if model is None:
-        model = get_model()
-    return feature_extractor_api.get_model_wrapper(model=model)
-
-
-def get_embedding_model(model: Module | None = None) -> EmbeddingModel:
-    return EmbeddingModel(model_wrapper=get_model_wrapper(model=model))
-
-
-def get_method(model: Module | None = None) -> Method:
+def get_method(wrapped_model: ModelWrapper) -> Method:
     return SimCLR(
         method_args=SimCLRArgs(),
         optimizer_args=AdamWArgs(),
-        embedding_model=get_embedding_model(model=model),
+        embedding_model=EmbeddingModel(wrapped_model=wrapped_model),
         global_batch_size=2,
     )
 
 
 def get_checkpoint(
-    model: Module | None = None, dtype: torch.dtype = torch.float32
+    wrapped_model: ModelWrapper | None = None, dtype: torch.dtype = torch.float32
 ) -> Checkpoint:
-    if model is None:
-        model = get_model()
-    embedding_model = get_embedding_model(model=model).to(dtype)
-    method = get_method(model=model).to(dtype)
+    if wrapped_model is None:
+        wrapped_model = DummyCustomModel()
+    embedding_model = EmbeddingModel(wrapped_model=wrapped_model).to(dtype)
+    method = get_method(wrapped_model=wrapped_model).to(dtype)
     return Checkpoint(
         state_dict=method.state_dict(),
         lightly_train=CheckpointLightlyTrain.from_now(
             models=CheckpointLightlyTrainModels(
-                model=model, embedding_model=embedding_model
+                model=wrapped_model.get_model(), embedding_model=embedding_model
             ),
             normalize_args=NormalizeArgs(),
         ),

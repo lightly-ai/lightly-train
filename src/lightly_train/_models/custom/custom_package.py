@@ -14,12 +14,12 @@ import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
-from lightly_train._models.package import LimitedPackage
+from lightly_train._models.package import BasePackage
 
 logger = logging.getLogger(__name__)
 
 
-class CustomPackage(LimitedPackage):
+class CustomPackage(BasePackage):
     name = "custom"
 
     @classmethod

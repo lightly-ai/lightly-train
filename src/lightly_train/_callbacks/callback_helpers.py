@@ -16,7 +16,6 @@ from pytorch_lightning.callbacks import (
     EarlyStopping,
     LearningRateMonitor,
 )
-from torch.nn import Module
 
 from lightly_train._callbacks.callback_args import (
     CallbackArgs,
@@ -45,9 +44,9 @@ def get_callbacks(
     normalize_args: NormalizeArgs,
     out: Path,
     wrapped_model: ModelWrapper,
-    model: Module,
     embedding_model: EmbeddingModel,
 ) -> list[Callback]:
+    model = wrapped_model.get_model()
     callbacks: list[Callback] = []
     callbacks.append(DataWaitTQDMProgressBar())
     if callback_args.learning_rate_monitor is not None:
