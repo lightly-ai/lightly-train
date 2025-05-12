@@ -12,8 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support lists of files and folders as input to the `embed` and `train` commands.
 - Faster dataset initialization with SLURM and Windows.
 - Model is exported after every n-th epoch instead of only at the end. Default n=1
-- Add `DistillationV2` to the methods.
-- `DistillationV2` is used with `method="distillation"` or `method="distillationv2"`.
+- New, improved distillationv2 method that achieves higher accuracy and trains up to 3x faster than distillationv1.
+  The new method is selected as default by LightlyTrain with `method="distillation"`. The old distillation method
+  can still be used with `method="distillationv1"` for backwards compatibility.
 
 ### Changed
 
