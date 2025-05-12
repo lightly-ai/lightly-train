@@ -28,7 +28,7 @@ class TestDINOLoss:
         teacher_temp=0.04,
         student_temp=0.1,
         center_momentum=0.9,
-    ):
+    ) -> None:
         """Test that the softmax_center_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
@@ -54,7 +54,7 @@ class TestDINOLoss:
         student_temp=0.1,
         center_momentum=0.9,
         n_iterations=4,
-    ):
+    ) -> None:
         """Test that the sinkhorn_knopp_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
@@ -79,20 +79,29 @@ class TestDINOLoss:
         row_sums = Q.sum(dim=1)
         assert torch.allclose(row_sums, torch.ones(batch_size))
 
-    def test_update_center_momentum(self):
+    def test_update_center_momentum(
+        self,
+        batch_size=4,
+        out_dim=2,
+        student_temp=0.1,
+        center_momentum=0.9,
+        mean=2,
+    ) -> None:
         """Test that the update_center method updates the center
         correctly with the given momentum.
         """
 
-        module = DINOLoss(out_dim=2, center_momentum=0.0)
+        dino_loss = DINOLoss(
+            out_dim=out_dim, student_temp=student_temp, center_momentum=center_momentum
+        )
 
         # call update & apply on a known tensor
-        teacher = torch.ones(3, 2) * 2.0  # mean = [2,2]
-        module.update_center(teacher)
-        module.apply_center_update()
+        teacher_output = torch.ones(batch_size, out_dim) * mean
+        dino_loss.update_center(teacher_output)
+        dino_loss.apply_center_update()
 
-        # with momentum=0, center should equal the batch mean exactly
-        assert torch.allclose(module.center, torch.tensor([[2.0, 2.0]]))
+        expected_center = mean * (1 - center_momentum) * torch.ones(out_dim)
+        assert torch.allclose(dino_loss.center, expected_center)
 
     def test_forward(self):
         """Test that the forward method returns a non-negative scalar"""
@@ -121,7 +130,7 @@ class TestIBotPatchLoss:
         teacher_temp=0.04,
         student_temp=0.1,
         center_momentum=0.9,
-    ):
+    ) -> None:
         """Test that the softmax_center_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
@@ -139,7 +148,6 @@ class TestIBotPatchLoss:
 
         assert torch.allclose(sums, torch.ones(batch_size))
 
-
     def test_sinkhorn_knopp_teacher(
         self,
         batch_size=4,
@@ -148,7 +156,7 @@ class TestIBotPatchLoss:
         student_temp=0.1,
         center_momentum=0.9,
         n_iterations=4,
-    ):
+    ) -> None:
         """Test that the sinkhorn_knopp_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
@@ -173,22 +181,30 @@ class TestIBotPatchLoss:
         # row sums ≈ 1
         row_sums = Q.sum(dim=1)
         assert torch.allclose(row_sums, torch.ones(batch_size))
-
-
-    def test_update_center_momentum(self):
+        
+    def test_update_center_momentum(
+        self,
+        batch_size=4,
+        patch_out_dim=2,
+        student_temp=0.1,
+        center_momentum=0.9,
+        mean=2,
+    ) -> None:
         """Test that the update_center method updates the center
         correctly with the given momentum.
         """
 
-        module = DINOLoss(out_dim=2, center_momentum=0.0)
+        ibot_loss = iBOTPatchLoss(
+            patch_out_dim=patch_out_dim, student_temp=student_temp, center_momentum=center_momentum
+        )
 
         # call update & apply on a known tensor
-        teacher = torch.ones(3, 2) * 2.0  # mean = [2,2]
-        module.update_center(teacher)
-        module.apply_center_update()
+        teacher_output = torch.ones(batch_size, patch_out_dim) * mean
+        ibot_loss.update_center(teacher_output)
+        ibot_loss.apply_center_update()
 
-        # with momentum=0, center should equal the batch mean exactly
-        assert torch.allclose(module.center, torch.tensor([[2.0, 2.0]]))
+        expected_center = mean * (1 - center_momentum) * torch.ones(patch_out_dim)
+        assert torch.allclose(ibot_loss.center, expected_center)
 
     def test_forward_masked_consistency(self):
         module = iBOTPatchLoss(patch_out_dim=3, student_temp=1.0)
