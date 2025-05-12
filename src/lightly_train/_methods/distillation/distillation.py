@@ -270,6 +270,10 @@ class Distillation(Method):
 
     @torch.no_grad()
     def _broadcast_teacher_weights(self) -> None:
+        """Broadcast the teacher weights from rank 0 to all ranks.
+        This is necessary to ensure that all ranks have the same teacher weights.
+        Only global rank 0 downloads the teacher weights.
+        """
         for param in self.teacher_embedding_model.state_dict().values():
             if isinstance(param, torch.Tensor):
                 torch.distributed.broadcast(param, src=0)
