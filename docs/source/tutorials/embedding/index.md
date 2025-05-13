@@ -1,5 +1,7 @@
 # Embedding Model for Satellite Images with Torchvision's ResNet
 
+[![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/torchvision_embedding_model.ipynb)
+
 This tutorial demonstrates how to train an embedding model with LightlyTrain on
 unlabeled data. The model is then used to generate embeddings from the images and
 visualize them in 2D. Embedding models are useful for a variety of tasks such as:
