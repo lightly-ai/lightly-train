@@ -10,7 +10,7 @@ import torch
 import torch.distributed as dist
 from _pytest.monkeypatch import MonkeyPatch
 
-from lightly_train._methods.dinov2.dinov2_loss import DINOLoss, iBOTPatchLoss
+from lightly_train._methods.dinov2.dinov2_loss import DINOLoss, IBOTPatchLoss
 
 
 @pytest.fixture
@@ -143,7 +143,7 @@ class TestIBotPatchLoss:
         with the same shape as the input tensor and that each row sums to 1.
         """
 
-        ibot_loss = iBOTPatchLoss(
+        ibot_loss = IBOTPatchLoss(
             patch_out_dim=patch_out_dim,
             student_temp=student_temp,
             center_momentum=center_momentum,
@@ -171,7 +171,7 @@ class TestIBotPatchLoss:
         with the same shape as the input tensor and that each row sums to 1.
         """
 
-        ibot_loss = iBOTPatchLoss(
+        ibot_loss = IBOTPatchLoss(
             patch_out_dim=patch_out_dim,
             student_temp=student_temp,
             center_momentum=center_momentum,
@@ -205,7 +205,7 @@ class TestIBotPatchLoss:
         correctly with the given momentum.
         """
 
-        ibot_loss = iBOTPatchLoss(
+        ibot_loss = IBOTPatchLoss(
             patch_out_dim=patch_out_dim,
             student_temp=student_temp,
             center_momentum=center_momentum,
@@ -228,7 +228,7 @@ class TestIBotPatchLoss:
     ) -> None:
         """Test that the forward method returns correct values"""
 
-        ibot_loss = iBOTPatchLoss(
+        ibot_loss = IBOTPatchLoss(
             patch_out_dim=out_dim,
             student_temp=student_temp,
             center_momentum=center_momentum,

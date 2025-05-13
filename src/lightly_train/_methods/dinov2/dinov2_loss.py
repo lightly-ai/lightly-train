@@ -149,7 +149,7 @@ class DINOLoss(nn.Module):
             self.updated = True
 
 
-class iBOTPatchLoss(nn.Module):
+class IBOTPatchLoss(nn.Module):
     def __init__(
         self,
         patch_out_dim: int,
