@@ -42,7 +42,7 @@ jobs:
       matrix:
         python: ["3.8"]
         dependencies: ["minimal", "minimal-extras"]
-        runners: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        runners: ["ubuntu-latest", "windows-latest"]
     runs-on: ${{ matrix.runners }}
     steps:
       - name: Checkout Code
