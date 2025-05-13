@@ -5,19 +5,23 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+
+from __future__ import annotations
+
 import os
+from typing import List
 
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
-from torch import nn
+from torch import Tensor, nn
 
 XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
 try:
     if XFORMERS_ENABLED:
-        from xformers.ops import cross_entropy
+        from xformers.ops import cross_entropy  # type: ignore[import]
 
-        def lossfunc(t, s, temp):
+        def lossfunc(t: Tensor, s: Tensor, temp: float):  # type: ignore[no-untyped-def]
             s = s.float()
             t = t.float()
             if s.ndim == 2:
@@ -26,13 +30,17 @@ try:
                 ).squeeze(0)
             elif s.ndim == 3:
                 return -cross_entropy(s, t, temp, bw_inplace=True)
+            else:
+                raise ValueError(
+                    f"Invalid tensor shape: {s.shape}. Expected 2D or 3D tensor."
+                )
 
         XFORMERS_AVAILABLE = True
     else:
         raise ImportError
 except ImportError:
 
-    def lossfunc(t, s, temp):
+    def lossfunc(t: Tensor, s: Tensor, temp: float):  # type: ignore[no-untyped-def]
         return torch.sum(t * F.log_softmax(s / temp, dim=-1), dim=-1)
 
     XFORMERS_AVAILABLE = False
@@ -41,27 +49,31 @@ except ImportError:
 class DINOLoss(nn.Module):
     def __init__(
         self,
-        out_dim,
-        student_temp=0.1,
-        center_momentum=0.9,
-    ):
+        out_dim: int,
+        student_temp: float = 0.1,
+        center_momentum: float = 0.9,
+    ) -> None:
         super().__init__()
         self.student_temp = student_temp
         self.center_momentum = center_momentum
         self.register_buffer("center", torch.zeros(1, out_dim))
+        # Type hint for self.center
+        self.center: torch.Tensor
         self.updated = True
         self.reduce_handle = None
-        self.len_teacher_output = None
-        self.async_batch_center = None
 
     @torch.no_grad()
-    def softmax_center_teacher(self, teacher_output, teacher_temp):
+    def softmax_center_teacher(
+        self, teacher_output: Tensor, teacher_temp: float
+    ) -> Tensor:
         self.apply_center_update()
         # teacher centering and sharpening
         return F.softmax((teacher_output - self.center) / teacher_temp, dim=-1)
 
     @torch.no_grad()
-    def sinkhorn_knopp_teacher(self, teacher_output, teacher_temp, n_iterations=3):
+    def sinkhorn_knopp_teacher(
+        self, teacher_output: Tensor, teacher_temp: float, n_iterations: int = 3
+    ) -> Tensor:
         teacher_output = teacher_output.float()
         world_size = dist.get_world_size() if dist.is_initialized() else 1
         Q = torch.exp(
@@ -91,33 +103,38 @@ class DINOLoss(nn.Module):
         Q *= B  # the columns must sum to 1 so that Q is an assignment
         return Q.t()
 
-    def forward(self, student_output_list, teacher_out_softmaxed_centered_list):
+    def forward(
+        self,
+        student_output_list: List[Tensor],
+        teacher_out_softmaxed_centered_list: List[Tensor],
+    ) -> Tensor:
         """
         Cross-entropy between softmax outputs of the teacher and student networks.
         """
         # TODO: Use cross_entropy_distribution here
-        total_loss = 0
+        total_loss: Tensor = torch.tensor(0.0, device=student_output_list[0].device)
         for s in student_output_list:
             lsm = F.log_softmax(s / self.student_temp, dim=-1)
             for t in teacher_out_softmaxed_centered_list:
                 loss = torch.sum(t * lsm, dim=-1)
                 total_loss -= loss.mean()
+
         return total_loss
 
     @torch.no_grad()
-    def update_center(self, teacher_output):
+    def update_center(self, teacher_output: Tensor) -> None:
         self.reduce_center_update(teacher_output)
 
     @torch.no_grad()
-    def reduce_center_update(self, teacher_output):
+    def reduce_center_update(self, teacher_output: Tensor) -> None:
         self.updated = False
-        self.len_teacher_output = len(teacher_output)
+        self.len_teacher_output = teacher_output.shape[0]
         self.async_batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
         if dist.is_initialized():
             self.reduce_handle = dist.all_reduce(self.async_batch_center, async_op=True)
 
     @torch.no_grad()
-    def apply_center_update(self):
+    def apply_center_update(self) -> None:
         if self.updated is False:
             world_size = dist.get_world_size() if dist.is_initialized() else 1
 
@@ -133,18 +150,27 @@ class DINOLoss(nn.Module):
 
 
 class iBOTPatchLoss(nn.Module):
-    def __init__(self, patch_out_dim, student_temp=0.1, center_momentum=0.9):
+    def __init__(
+        self,
+        patch_out_dim: int,
+        student_temp: float = 0.1,
+        center_momentum: float = 0.9,
+    ) -> None:
         super().__init__()
         self.student_temp = student_temp
         self.center_momentum = center_momentum
         self.register_buffer("center", torch.zeros(1, 1, patch_out_dim))
+        # Type hint for self.center
+        self.center: torch.Tensor
         self.updated = True
         self.reduce_handle = None
-        self.len_teacher_patch_tokens = None
-        self.async_batch_center = None
+        # self.len_teacher_patch_tokens = None
+        # self.async_batch_center = None
 
     @torch.no_grad()
-    def softmax_center_teacher(self, teacher_patch_tokens, teacher_temp):
+    def softmax_center_teacher(
+        self, teacher_patch_tokens: Tensor, teacher_temp: float
+    ) -> Tensor:
         self.apply_center_update()
         # teacher centering and sharpening
         #
@@ -161,8 +187,12 @@ class iBOTPatchLoss(nn.Module):
 
     @torch.no_grad()
     def sinkhorn_knopp_teacher(
-        self, teacher_output, teacher_temp, n_masked_patches_tensor, n_iterations=3
-    ):
+        self,
+        teacher_output: Tensor,
+        teacher_temp: float,
+        n_masked_patches_tensor: Tensor,
+        n_iterations: int = 3,
+    ) -> Tensor:
         teacher_output = teacher_output.float()
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
         Q = torch.exp(
@@ -195,7 +225,12 @@ class iBOTPatchLoss(nn.Module):
         Q *= B  # the columns must sum to 1 so that Q is an assignment
         return Q.t()
 
-    def forward(self, student_patch_tokens, teacher_patch_tokens, student_masks_flat):
+    def forward(
+        self,
+        student_patch_tokens: Tensor,
+        teacher_patch_tokens: Tensor,
+        student_masks_flat: Tensor,
+    ) -> Tensor:
         """
         Cross-entropy between softmax outputs of the teacher and student networks.
         student_patch_tokens: (B, N, D) tensor
@@ -212,16 +247,16 @@ class iBOTPatchLoss(nn.Module):
 
     def forward_masked(
         self,
-        student_patch_tokens_masked,
-        teacher_patch_tokens_masked,
-        student_masks_flat,
-        n_masked_patches=None,
-        masks_weight=None,
-    ):
+        student_patch_tokens_masked: Tensor,
+        teacher_patch_tokens_masked: Tensor,
+        student_masks_flat: Tensor,
+        n_masked_patches: int | None = None,
+        masks_weight: Tensor | None = None,
+    ) -> Tensor:
         t = teacher_patch_tokens_masked
         s = student_patch_tokens_masked
         # loss = torch.sum(t * F.log_softmax(s / self.student_temp, dim=-1), dim=-1)
-        loss = lossfunc(t, s, self.student_temp)
+        loss: Tensor = lossfunc(t, s, self.student_temp)
         if masks_weight is None:
             masks_weight = (
                 (1 / student_masks_flat.sum(-1).clamp(min=1.0))
@@ -231,14 +266,16 @@ class iBOTPatchLoss(nn.Module):
         if n_masked_patches is not None:
             loss = loss[:n_masked_patches]
         loss = loss * masks_weight
-        return -loss.sum() / student_masks_flat.shape[0]
+
+        B: int = student_masks_flat.shape[0]
+        return -loss.sum() / B
 
     @torch.no_grad()
-    def update_center(self, teacher_patch_tokens):
+    def update_center(self, teacher_patch_tokens: Tensor) -> None:
         self.reduce_center_update(teacher_patch_tokens)
 
     @torch.no_grad()
-    def reduce_center_update(self, teacher_patch_tokens):
+    def reduce_center_update(self, teacher_patch_tokens: Tensor) -> None:
         self.updated = False
         self.len_teacher_patch_tokens = len(teacher_patch_tokens)
         self.async_batch_center = torch.sum(
@@ -248,7 +285,7 @@ class iBOTPatchLoss(nn.Module):
             self.reduce_handle = dist.all_reduce(self.async_batch_center, async_op=True)
 
     @torch.no_grad()
-    def apply_center_update(self):
+    def apply_center_update(self) -> None:
         if self.updated is False:
             world_size = dist.get_world_size() if dist.is_initialized() else 1
 
