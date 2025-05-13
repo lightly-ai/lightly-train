@@ -34,7 +34,7 @@ class ModelExport(Callback):
         self._out_dir = out_dir
         self._every_n_epochs = every_n_epochs
 
-    @rank_zero_only
+    @rank_zero_only  # type: ignore[misc]
     def _safe_export_model(self, export_path: Path) -> None:
         """Export the model to the specified path, deleting any existing file."""
         if export_path.exists():
