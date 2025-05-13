@@ -20,7 +20,6 @@ from pytorch_lightning.strategies.strategy import Strategy
 from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type: ignore[attr-defined]
     _PRECISION_INPUT,
 )
-from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._checkpoint import Checkpoint
@@ -386,7 +385,6 @@ def load_checkpoint(
     embedding_model: EmbeddingModel,
     method: Method,
 ) -> None:
-    model = wrapped_model.get_model()
     if checkpoint is not None:
         if resume:
             raise ValueError(
@@ -402,7 +400,10 @@ def load_checkpoint(
 
 
 def load_state_dict(
-    wrapped_model: ModelWrapper, embedding_model: EmbeddingModel, method: Method, checkpoint: PathLike
+    wrapped_model: ModelWrapper,
+    embedding_model: EmbeddingModel,
+    method: Method,
+    checkpoint: PathLike,
 ) -> None:
     ckpt = Checkpoint.from_path(Path(checkpoint))
     wrapped_model.load_state_dict(ckpt.lightly_train.models.wrapped_model.state_dict())
