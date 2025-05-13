@@ -65,8 +65,7 @@ class DINOLoss(nn.Module):
         self.student_temp = student_temp
         self.center_momentum = center_momentum
         self.register_buffer("center", torch.zeros(1, out_dim))
-        # Type hint for self.center
-        self.center: torch.Tensor
+        self.center: torch.Tensor  # Type hint for self.center
         self.updated = True
         self.reduce_handle = None
 
@@ -168,8 +167,7 @@ class IBOTPatchLoss(nn.Module):
         self.student_temp = student_temp
         self.center_momentum = center_momentum
         self.register_buffer("center", torch.zeros(1, 1, patch_out_dim))
-        # Type hint for self.center
-        self.center: torch.Tensor
+        self.center: torch.Tensor  # Type hint for self.center
         self.updated = True
         self.reduce_handle = None
 
@@ -178,18 +176,8 @@ class IBOTPatchLoss(nn.Module):
         self, teacher_patch_tokens: Tensor, teacher_temp: float
     ) -> Tensor:
         self.apply_center_update()
-        # teacher centering and sharpening
-        #
-        # WARNING:
-        #   as self.center is a float32, everything gets casted to float32 afterwards
-        #
-        # teacher_patch_tokens = teacher_patch_tokens.float()
-        # return F.softmax((teacher_patch_tokens.sub_(self.center.to(teacher_patch_tokens.dtype))).mul_(1 / teacher_temp), dim=-1)
 
         return F.softmax((teacher_patch_tokens - self.center) / teacher_temp, dim=-1)
-
-        # this is experimental, keep everything in float16 and let's see what happens:
-        # return F.softmax((teacher_patch_tokens.sub_(self.center)) / teacher_temp, dim=-1)
 
     @torch.no_grad()
     def sinkhorn_knopp_teacher(
