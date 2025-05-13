@@ -36,6 +36,8 @@ from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._embedding.embedding_format import EmbeddingFormat
 from lightly_train._env import Env
 from lightly_train._models import package_helpers
+from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train.types import DatasetItem, PathLike, Transform
 
 logger = logging.getLogger(__name__)
@@ -317,6 +319,7 @@ def _is_slurm() -> bool:
 
 class ModelPart(Enum):
     MODEL = "model"
+    WRAPPED_MODEL = "wrapped_model"
     EMBEDDING_MODEL = "embedding_model"
 
 
@@ -339,13 +342,14 @@ class ModelFormat(Enum):
 
 
 def export_model(
-    model: Module,
+    model: Module | ModelWrapper | EmbeddingModel,
     format: ModelFormat,
     out: Path,
     log_example: bool = True,
 ) -> None:
     if not is_global_rank_zero():
         return
+
     logger.debug(f"Exporting model to '{out}' in format '{format}'.")
     out.parent.mkdir(parents=True, exist_ok=True)
     if format == ModelFormat.TORCH_MODEL:
@@ -353,6 +357,10 @@ def export_model(
     elif format == ModelFormat.TORCH_STATE_DICT:
         torch.save(model.state_dict(), out)
     elif format == ModelFormat.PACKAGE_DEFAULT:
+        if isinstance(model, EmbeddingModel):
+            model = model.model_wrapper.get_model()
+        elif isinstance(model, ModelWrapper):
+            model = model.get_model()
         package = package_helpers.get_package_from_model(model=model)
         package.export_model(model=model, out=out, log_example=log_example)
     else:

@@ -14,6 +14,7 @@ import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import BasePackage
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,9 @@ class CustomPackage(BasePackage):
         return isinstance(model, Module)
 
     @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
+    def export_model(
+        cls, model: Module, out: Path, log_example: bool = True
+    ) -> None:
         torch.save(model.state_dict(), out)
         if log_example:
             model_name = model.__class__.__name__

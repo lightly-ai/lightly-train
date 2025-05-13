@@ -89,7 +89,7 @@ class SuperGradientsPackage(Package):
 
     @classmethod
     def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
-        torch.save(model.state_dict(), out)
+        torch.save(model.get_model().state_dict(), out)
         if log_example:
             model_name = getattr(model, "_sg_model_name", None)
             num_classes = getattr(model, "num_classes", None)

@@ -359,7 +359,7 @@ def train_from_config(config: TrainConfig) -> None:
         trainer_instance.save_checkpoint(out_dir / "checkpoints" / "last.ckpt")
     logger.info("Training completed.")
     common_helpers.export_model(
-        model=wrapped_model.get_model(),
+        model=wrapped_model,
         out=out_dir / "exported_models" / "exported_last.pt",
         format=ModelFormat.PACKAGE_DEFAULT,
     )

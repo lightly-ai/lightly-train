@@ -20,6 +20,7 @@ from torchvision import models as torchvision_models
 
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._commands import export
+from lightly_train._commands.common_helpers import ModelPart
 from lightly_train._commands.export import CLIExportConfig, ExportConfig
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.super_gradients.super_gradients_package import (
@@ -45,10 +46,10 @@ else:
 def test_export__torch_state_dict(tmp_path: Path) -> None:
     """Check that exporting a model's state dict works as expected."""
     ckpt_path, ckpt = _get_checkpoint(tmp_path)
-    model = ckpt.lightly_train.models.model
+    wrapped_model = ckpt.lightly_train.models.wrapped_model
     embedding_model = ckpt.lightly_train.models.embedding_model
     part_expected = [
-        ("model", model.state_dict()),
+        ("model", wrapped_model.get_model().state_dict()),
         ("embedding_model", embedding_model.state_dict()),
     ]
 
@@ -66,10 +67,10 @@ def test_export__torch_state_dict(tmp_path: Path) -> None:
 def test_export__torch_model(tmp_path: Path) -> None:
     """Check that exporting a model works as expected."""
     ckpt_path, ckpt = _get_checkpoint(tmp_path)
-    model = ckpt.lightly_train.models.model
+    wrapped_model = ckpt.lightly_train.models.wrapped_model
     embedding_model = ckpt.lightly_train.models.embedding_model
     part_expected = [
-        ("model", model),
+        ("model", wrapped_model.get_model()),
         ("embedding_model", embedding_model),
     ]
 
@@ -131,7 +132,7 @@ def test_export__ultralytics_option__deprecation_warning(tmp_path: Path) -> None
         export.export(
             out=out,
             checkpoint=ckpt_path,
-            part="model",
+            part="wrapped_model",
             format="ultralytics",
         )
 
@@ -159,11 +160,13 @@ def test_export__super_gradients(tmp_path: Path) -> None:
 
 def test_export__custom(tmp_path: Path) -> None:
     ckpt_path, ckpt = _get_checkpoint(tmp_path)
-    model = ckpt.lightly_train.models.model
+    wrapped_model = ckpt.lightly_train.models.wrapped_model
 
     out_path = tmp_path / "model.pt"
-    export.export(out=out_path, checkpoint=ckpt_path)
-    _assert_state_dict_equal(torch.load(out_path), model.state_dict())
+    export.export(out=out_path, checkpoint=ckpt_path, part="wrapped_model")
+    _assert_state_dict_equal(
+        torch.load(out_path), wrapped_model.get_model().state_dict()
+    )
 
 
 @pytest.mark.skipif(
@@ -192,7 +195,7 @@ def test_export__invalid_part() -> None:
         ValueError,
         match=re.escape(
             "Invalid model part: 'invalid_part'. Valid parts are: "
-            "['model', 'embedding_model']"
+            "['model', 'wrapped_model', 'embedding_model']"
         ),
     ):
         export.export(
@@ -234,15 +237,23 @@ def test_export__parameters() -> None:
     helpers.assert_same_params(a=ExportConfig, b=CLIExportConfig, assert_type=False)
 
 
-def test_export_from_dictconfig(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "part",
+    [
+        "model",
+        "wrapped_model",
+        "embedding_model",
+    ],
+)
+def test_export_from_dictconfig(tmp_path: Path, part: ModelPart) -> None:
     ckpt_path, ckpt = _get_checkpoint(tmp_path)
     out_path = tmp_path / "model.pt"
-    model = ckpt.lightly_train.models.model
+    model = getattr(ckpt.lightly_train.models, part)
     config = OmegaConf.create(
         dict(
             checkpoint=str(ckpt_path),
             out=str(out_path),
-            part="model",
+            part=part,
             format="torch_state_dict",
         )
     )

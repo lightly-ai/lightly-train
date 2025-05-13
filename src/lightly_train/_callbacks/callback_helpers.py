@@ -46,7 +46,6 @@ def get_callbacks(
     wrapped_model: ModelWrapper,
     embedding_model: EmbeddingModel,
 ) -> list[Callback]:
-    model = wrapped_model.get_model()
     callbacks: list[Callback] = []
     callbacks.append(DataWaitTQDMProgressBar())
     if callback_args.learning_rate_monitor is not None:
@@ -71,7 +70,9 @@ def get_callbacks(
         callbacks.append(
             ModelCheckpoint(
                 models=CheckpointLightlyTrainModels(
-                    model=model, embedding_model=embedding_model
+                    model=wrapped_model.get_model(),
+                    wrapped_model=wrapped_model,
+                    embedding_model=embedding_model,
                 ),
                 dirpath=out / "checkpoints",
                 normalize_args=normalize_args,

@@ -44,7 +44,7 @@ from lightly_train._transforms.transform import (
 from lightly_train.types import TransformInput, TransformOutput
 
 
-class DummyCustomModel(ModelWrapper):
+class DummyCustomModel(Module, ModelWrapper):
     def __init__(self, feature_dim: int = 2):
         super().__init__()
         self._feature_dim = feature_dim
@@ -95,7 +95,9 @@ def get_checkpoint(
         state_dict=method.state_dict(),
         lightly_train=CheckpointLightlyTrain.from_now(
             models=CheckpointLightlyTrainModels(
-                model=wrapped_model.get_model(), embedding_model=embedding_model
+                model=wrapped_model.get_model(),
+                wrapped_model=wrapped_model,
+                embedding_model=embedding_model,
             ),
             normalize_args=NormalizeArgs(),
         ),

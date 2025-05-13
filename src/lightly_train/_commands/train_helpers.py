@@ -394,7 +394,7 @@ def load_checkpoint(
             )
         logger.info(f"Loading model weights from '{checkpoint}'.")
         load_state_dict(
-            model=model,
+            wrapped_model=wrapped_model,
             embedding_model=embedding_model,
             method=method,
             checkpoint=checkpoint,
@@ -402,10 +402,10 @@ def load_checkpoint(
 
 
 def load_state_dict(
-    model: Module, embedding_model: EmbeddingModel, method: Method, checkpoint: PathLike
+    wrapped_model: ModelWrapper, embedding_model: EmbeddingModel, method: Method, checkpoint: PathLike
 ) -> None:
     ckpt = Checkpoint.from_path(Path(checkpoint))
-    model.load_state_dict(ckpt.lightly_train.models.model.state_dict())
+    wrapped_model.load_state_dict(ckpt.lightly_train.models.wrapped_model.state_dict())
     embedding_model.load_state_dict(
         ckpt.lightly_train.models.embedding_model.state_dict()
     )

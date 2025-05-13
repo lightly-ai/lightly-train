@@ -41,7 +41,7 @@ class ModelExport(Callback):
                 export_path.unlink()
 
             common_helpers.export_model(
-                model=self._model.get_model(),
+                model=self._model,
                 out=export_path,
                 format=ModelFormat.PACKAGE_DEFAULT,
                 log_example=False,

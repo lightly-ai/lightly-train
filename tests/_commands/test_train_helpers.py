@@ -492,7 +492,7 @@ def test_load_checkpoint(tmp_path: Path, mocker: MockerFixture) -> None:
     )
 
     spy_load_state_dict.assert_called_once_with(
-        model=wrapped_model.get_model(),
+        wrapped_model=wrapped_model,
         embedding_model=embedding_model,
         method=method,
         checkpoint=checkpoint_path,
@@ -541,7 +541,7 @@ def test_load_state_dict(tmp_path: Path) -> None:
     method_2 = helpers.get_method(wrapped_model=model_2)
 
     train_helpers.load_state_dict(
-        model=model_2.get_model(),
+        wrapped_model=model_2,
         embedding_model=embedding_model_2,
         method=method_2,
         checkpoint=checkpoint_path,
@@ -550,7 +550,7 @@ def test_load_state_dict(tmp_path: Path) -> None:
     # Assert that the model, embedding model, and method have updated the weights.
     assert_close(
         list(model_2.get_model().parameters()),
-        list(checkpoint.lightly_train.models.model.parameters()),
+        list(checkpoint.lightly_train.models.wrapped_model.get_model().parameters()),
     )
     assert torch.allclose(
         next(embedding_model_2.model_wrapper.get_model().parameters()),
@@ -560,7 +560,7 @@ def test_load_state_dict(tmp_path: Path) -> None:
     )
     assert torch.allclose(
         next(method_2.embedding_model.model_wrapper.get_model().parameters()),
-        next(checkpoint.lightly_train.models.model.parameters()),
+        next(checkpoint.lightly_train.models.wrapped_model.get_model().parameters()),
     )
 
     # Assert that the model, embedding model, and method share the same parameter objects.

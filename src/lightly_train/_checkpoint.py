@@ -21,6 +21,7 @@ from torch.serialization import MAP_LOCATION
 
 import lightly_train
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._transforms.transform import NormalizeArgs
 
 logger = logging.getLogger(__name__)
@@ -72,11 +73,13 @@ class CheckpointLightlyTrain:
 @dataclass(frozen=True)
 class CheckpointLightlyTrainModels:
     model: Module
+    wrapped_model: ModelWrapper
     embedding_model: EmbeddingModel
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "model": self.model,
+            "wrapped_model": self.wrapped_model,
             "embedding_model": self.embedding_model,
         }
 
@@ -84,6 +87,7 @@ class CheckpointLightlyTrainModels:
     def from_dict(models: dict[str, Any]) -> CheckpointLightlyTrainModels:
         return CheckpointLightlyTrainModels(
             model=models["model"],
+            wrapped_model=models["wrapped_model"],
             embedding_model=models["embedding_model"],
         )
 
