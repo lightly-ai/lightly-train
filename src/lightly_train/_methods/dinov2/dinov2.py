@@ -78,11 +78,13 @@ class DINOv2Args(MethodArgs):
     dino_loss_weight: float = 1.0
     ibot_loss_weight: float = 1.0
     koleo_loss_weight: float = 0.1
+
+    student_temp: float = 0.1
+    center_momentum: float = 0.9
+
     teacher_temp: float = 0.04
     warmup_teacher_temp: float = 0.07
     warmup_teacher_temp_epochs: int = 30
-    student_temp: float = 0.1
-    center_momentum: float = 0.9
 
     # momentum
     momentum_start: float | Literal["auto"] = "auto"
@@ -186,7 +188,7 @@ class DINOv2ViTBArgs(DINOv2Args):
 class DINOv2ViTLArgs(DINOv2Args):
     # crops
     num_local_crops: int = 98
-    
+
     # projection head
     ibot_separate_head: bool = True
     bottleneck_dim: int = 384
@@ -197,7 +199,7 @@ class DINOv2ViTLArgs(DINOv2Args):
 class DINOv2ViTGArgs(DINOv2Args):
     # crops
     num_local_crops: int = 98
-    
+
     # projection head
     ibot_separate_head: bool = True
     bottleneck_dim: int = 384
@@ -225,7 +227,7 @@ class DINOv2(Method):
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
         )
-        
+
         # Load configs based on the model architecture
         model: DinoVisionTransformer = embedding_model.model_wrapper.get_model()
         embed_dim = model.embed_dim
@@ -244,9 +246,7 @@ class DINOv2(Method):
             # small
             method_args = DINOv2ViTSArgs()
         else:
-            raise ValueError(
-                f"Unsupported model configs."
-            )
+            raise ValueError("Unsupported model configs.")
 
         self.method_args = method_args
 
@@ -256,9 +256,11 @@ class DINOv2(Method):
         self.n_global_crops_loss_terms = (self.n_global_crops - 1) * self.n_global_crops
         self.n_local_crops_loss_terms = max(self.n_local_crops * self.n_global_crops, 1)
 
-        ibot_separate_head: bool = self.method_args.ibot_separate_head
-        # Create teacher models
+        # Create teacher and student embedding models
         self.teacher_embedding_model = embedding_model
+        self.student_embedding_model = copy.deepcopy(self.teacher_embedding_model)
+
+        # Create teacher and student dino heads
         self.teacher_dino_head = DINOProjectionHead(
             input_dim=embed_dim,
             hidden_dim=self.method_args.hidden_dim,
@@ -267,19 +269,6 @@ class DINOv2(Method):
             batch_norm=self.method_args.batch_norm,
             norm_last_layer=self.method_args.norm_last_layer,
         )
-        if ibot_separate_head:
-            self.teacher_ibot_head = DINOProjectionHead(
-                input_dim=embed_dim,
-                hidden_dim=self.method_args.hidden_dim,
-                bottleneck_dim=self.method_args.bottleneck_dim_ibot,
-                output_dim=self.method_args.output_dim,
-                norm_last_layer=self.method_args.norm_last_layer,
-            )
-        else:
-            self.teacher_ibot_head = self.teacher_dino_head
-
-        # Create student models
-        self.student_embedding_model = copy.deepcopy(self.teacher_embedding_model)
         self.student_dino_head = DINOProjectionHead(
             input_dim=embed_dim,
             hidden_dim=self.method_args.hidden_dim,
@@ -289,7 +278,17 @@ class DINOv2(Method):
             freeze_last_layer=self.method_args.student_freeze_last_layer_epochs,
             norm_last_layer=self.method_args.norm_last_layer,
         )
+
+        # Create teacher and student iBOT head
+        ibot_separate_head: bool = self.method_args.ibot_separate_head
         if ibot_separate_head:
+            self.teacher_ibot_head = DINOProjectionHead(
+                input_dim=embed_dim,
+                hidden_dim=self.method_args.hidden_dim,
+                bottleneck_dim=self.method_args.bottleneck_dim_ibot,
+                output_dim=self.method_args.output_dim,
+                norm_last_layer=self.method_args.norm_last_layer,
+            )
             self.student_ibot_head = DINOProjectionHead(
                 input_dim=embed_dim,
                 hidden_dim=self.method_args.hidden_dim,
@@ -299,18 +298,28 @@ class DINOv2(Method):
                 norm_last_layer=self.method_args.norm_last_layer,
             )
         else:
+            self.teacher_ibot_head = self.teacher_dino_head
             self.student_ibot_head = self.student_dino_head
 
-        self.flatten = Flatten()
-
         # Losses
-        self.dino_loss = DINOLoss()
-        self.ibot_loss = IBOTPatchLoss()
+        self.dino_loss = DINOLoss(
+            out_dim=self.method_args.output_dim,
+            student_temp=self.method_args.student_temp,
+            center_momentum=self.method_args.center_momentum,
+        )
+        self.ibot_loss = IBOTPatchLoss(
+            patch_out_dim=self.method_args.output_dim,
+            student_temp=self.method_args.student_temp,
+            center_momentum=self.method_args.center_momentum,
+        )
         self.koleo_loss = KoLeoLoss()
 
         self.dino_loss_weight = self.method_args.dino_loss_weight
         self.ibot_loss_weight = self.method_args.ibot_loss_weight
         self.koleo_loss_weight = self.method_args.koleo_loss_weight
+
+        # Create a flatten layer
+        self.flatten = Flatten()
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:
         training_step_log: DINOv2TrainingStepResult = self.training_step_impl(
@@ -369,6 +378,7 @@ class DINOv2(Method):
 
         # Process global views through teacher and student networks
         x_teacher = self._forward_teacher(global_views)
+        x_teacher_masked = self._forward_teacher(global_views)
 
         # Check if we have local views
         if (len_views := len(views)) > 2:
@@ -383,23 +393,32 @@ class DINOv2(Method):
             # Process only global views
             x_student = self._forward_student(global_views)
 
-        # Compute the losses
+        # Compute the DINO loss
+        x_teacher_softmaxed = self.dino_loss.softmax_center_teacher(
+            x_teacher, teacher_temp=self.method_args.teacher_temp
+        )
+        self.dino_loss.update_center(x_teacher)
         dino_global_loss = (
-            self.dino_loss(
-                teacher_out_softmaxed_centered_list=x_teacher.chunk(2),
+            self.dino_loss.forward(
+                teacher_out_softmaxed_centered_list=x_teacher_softmaxed.chunk(2),
                 student_output_list=x_student.chunk(len_views),
             )
             * self.n_global_crops
             / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
         )
         if self.n_local_crops > 0:
-            dino_local_loss = self.dino_loss(
-                teacher_out_softmaxed_centered_list=x_teacher.chunk(2),
+            dino_local_loss = self.dino_loss.forward(
+                teacher_out_softmaxed_centered_list=x_teacher_softmaxed.chunk(2),
                 student_output_list=x_student.chunk(len_views),
             ) / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
 
-        ibot_loss = self.ibot_loss(
-            teacher_patch_tokens=x_teacher.chunk(2),
+        # Compute the iBOT loss
+        x_teacher_masked_softmaxed = self.ibot_loss.softmax_center_teacher(
+            x_teacher_masked.unsqueeze(0), teacher_temp=self.method_args.teacher_temp
+        )
+        self.ibot_loss.update_center(x_teacher_masked.unsqueeze(0))
+        ibot_loss = self.ibot_loss.forward_masked(
+            teacher_patch_tokens=x_teacher_masked_softmaxed.chunk(2),
             student_patch_tokens=x_student.chunk(len_views),
         )
 
