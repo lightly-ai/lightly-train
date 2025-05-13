@@ -140,7 +140,7 @@ efficiently label your dataset.
 
 Let's check if the clusters make sense by coloring them according to the class labels
 that are available in this dataset. All filenames have the format `<class>/<image_name>.jpg`
-which let's us extract the class labels easily. Let's plot the embeddings again:
+which lets us extract the class labels easily. Let's plot the embeddings again:
 
 ```python skip_ruff
 import matplotlib.pyplot as plt
@@ -148,7 +148,7 @@ import matplotlib.pyplot as plt
 # Color embeddings based on class labels
 class_name_to_id = {class_name: i for i, class_name in enumerate({filename.split("/")[0] for filename in filenames})}
 filename_to_class_id = {filename: class_name_to_id[filename.split("/")[0]] for filename in filenames}
-color = [filename_to_color[filename] for filename in filenames]
+color = [filename_to_class_id[filename] for filename in filenames]
 
 # Plot
 plt.figure(figsize=(10, 8))
