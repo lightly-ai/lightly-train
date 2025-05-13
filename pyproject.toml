@@ -121,7 +121,7 @@ ignore_missing_imports = true
  
 [[tool.mypy.overrides]]
 module = [
-    "lightly_train._modules.teachers.dinov2.*",
+    "lightly_train._modules.teachers.dinov2.*"
 ]
 ignore_errors = true
 
