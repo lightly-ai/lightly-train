@@ -11,6 +11,7 @@
 # - Use dist.is_initialized() to control the all_reduce operation of B in distributed setting in the iBOTPatchLoss' sinkhorn_knopp_teacher
 # - Rename iBOTPatchLoss to IBOTPatchLoss
 # - Add type hints to the functions
+# - Remove dead code
 
 
 from __future__ import annotations
@@ -118,7 +119,7 @@ class DINOLoss(nn.Module):
         """
         Cross-entropy between softmax outputs of the teacher and student networks.
         """
-        # TODO: Use cross_entropy_distribution here
+
         total_loss: Tensor = torch.tensor(0.0, device=student_output_list[0].device)
         for s in student_output_list:
             lsm = F.log_softmax(s / self.student_temp, dim=-1)
@@ -171,8 +172,6 @@ class IBOTPatchLoss(nn.Module):
         self.center: torch.Tensor
         self.updated = True
         self.reduce_handle = None
-        # self.len_teacher_patch_tokens = None
-        # self.async_batch_center = None
 
     @torch.no_grad()
     def softmax_center_teacher(
@@ -201,11 +200,9 @@ class IBOTPatchLoss(nn.Module):
         n_iterations: int = 3,
     ) -> Tensor:
         teacher_output = teacher_output.float()
-        # world_size = dist.get_world_size() if dist.is_initialized() else 1
         Q = torch.exp(
             teacher_output / teacher_temp
         ).t()  # Q is K-by-B for consistency with notations from our paper
-        # B = Q.shape[1] * world_size # number of samples to assign
         B = n_masked_patches_tensor
         if dist.is_initialized():
             dist.all_reduce(B)
@@ -262,7 +259,6 @@ class IBOTPatchLoss(nn.Module):
     ) -> Tensor:
         t = teacher_patch_tokens_masked
         s = student_patch_tokens_masked
-        # loss = torch.sum(t * F.log_softmax(s / self.student_temp, dim=-1), dim=-1)
         loss: Tensor = lossfunc(t, s, self.student_temp)
         if masks_weight is None:
             masks_weight = (
