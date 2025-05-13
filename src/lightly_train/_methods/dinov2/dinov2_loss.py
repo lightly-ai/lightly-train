@@ -12,6 +12,7 @@
 # - Rename iBOTPatchLoss to IBOTPatchLoss
 # - Add type hints to the functions
 # - Remove dead code
+# - Add TODO for investigating the casting of self.center in IBOTPatchLoss
 
 
 from __future__ import annotations
@@ -177,6 +178,8 @@ class IBOTPatchLoss(nn.Module):
     ) -> Tensor:
         self.apply_center_update()
 
+        # TODO: self.center uses float32 which might cause unnecessary upcasting in fp16 settings which could slow down training
+        # we need to investigate how we should handle the casting in this case
         return F.softmax((teacher_patch_tokens - self.center) / teacher_temp, dim=-1)
 
     @torch.no_grad()
