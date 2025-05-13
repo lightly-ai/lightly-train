@@ -30,14 +30,10 @@ class TestDINOLoss:
         batch_size = 4
         out_dim = 2
 
-        dino_loss = DINOLoss(
-            out_dim=out_dim, student_temp=0.1, center_momentum=0.9
-        )
+        dino_loss = DINOLoss(out_dim=out_dim, student_temp=0.1, center_momentum=0.9)
 
         teacher_output = torch.randn(batch_size, out_dim)
-        softmax = dino_loss.softmax_center_teacher(
-            teacher_output, teacher_temp=0.04
-        )
+        softmax = dino_loss.softmax_center_teacher(teacher_output, teacher_temp=0.04)
 
         sums = softmax.sum(dim=-1)
 
@@ -50,9 +46,7 @@ class TestDINOLoss:
         batch_size = 4
         out_dim = 2
 
-        dino_loss = DINOLoss(
-            out_dim=out_dim, student_temp=0.1, center_momentum=0.9
-        )
+        dino_loss = DINOLoss(out_dim=out_dim, student_temp=0.1, center_momentum=0.9)
 
         teacher_output = torch.randn(batch_size, out_dim)
         Q = dino_loss.sinkhorn_knopp_teacher(
@@ -92,9 +86,7 @@ class TestDINOLoss:
         out_dim = 2
         teacher_temp = 0.04
 
-        dino_loss = DINOLoss(
-            out_dim=out_dim, student_temp=0.1, center_momentum=0.9
-        )
+        dino_loss = DINOLoss(out_dim=out_dim, student_temp=0.1, center_momentum=0.9)
 
         teacher_output = torch.tensor([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
         student_output = [
@@ -127,9 +119,7 @@ class TestIBotPatchLoss:
         )
 
         teacher_output = torch.randn(batch_size, patch_out_dim)
-        softmax = ibot_loss.softmax_center_teacher(
-            teacher_output, teacher_temp=0.04
-        )
+        softmax = ibot_loss.softmax_center_teacher(teacher_output, teacher_temp=0.04)
 
         sums = softmax.sum(dim=-1)
 
@@ -149,12 +139,11 @@ class TestIBotPatchLoss:
         )
 
         teacher_output = torch.randn(batch_size, patch_out_dim)
-        n_masked_patches_tensor = torch.randint(high=batch_size, size=(1,))
+        n_masked_patches_tensor = torch.randint(low=1, high=batch_size, size=(1,))
         Q = ibot_loss.sinkhorn_knopp_teacher(
             teacher_output,
             teacher_temp=0.04,
             n_masked_patches_tensor=n_masked_patches_tensor,
-            n_iterations=4,
         )
 
         # Q shape = [B, K]
