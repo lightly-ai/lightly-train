@@ -9,17 +9,17 @@ from __future__ import annotations
 
 from typing import (
     Any,
+    Dict,
     Iterator,
     Mapping,
     Protocol,
-    TypeVar,
     overload,
     runtime_checkable,
 )
 
 from torch import Tensor
 from torch.nn import Module, Parameter
-from typing_extensions import NotRequired, Required, TypedDict
+from typing_extensions import NotRequired, Required, TypedDict, TypeVar
 
 
 class ForwardFeaturesOutput(TypedDict, total=False):
@@ -87,7 +87,7 @@ class ModelGetter(Protocol):
 class NNModule(Protocol):
     """Method definitions for nn.Module, directly copied from torch.nn.Module."""
 
-    T_destination = TypeVar("T_destination", bound=dict[str, Any])
+    T_destination = TypeVar("T_destination", bound=Dict[str, Any])
 
     @overload
     def state_dict(
