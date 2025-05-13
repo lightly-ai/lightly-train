@@ -23,51 +23,40 @@ def no_dist(monkeypatch: MonkeyPatch) -> None:
 
 @pytest.mark.usefixtures("no_dist")
 class TestDINOLoss:
-    def test_softmax_center_teacher(
-        self,
-        batch_size: int = 4,
-        out_dim: int = 2,
-        teacher_temp: float = 0.04,
-        student_temp: float = 0.1,
-        center_momentum: float = 0.9,
-    ) -> None:
+    def test_softmax_center_teacher(self) -> None:
         """Test that the softmax_center_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
+        batch_size = 4
+        out_dim = 2
 
         dino_loss = DINOLoss(
-            out_dim=out_dim, student_temp=student_temp, center_momentum=center_momentum
+            out_dim=out_dim, student_temp=0.1, center_momentum=0.9
         )
 
         teacher_output = torch.randn(batch_size, out_dim)
         softmax = dino_loss.softmax_center_teacher(
-            teacher_output, teacher_temp=teacher_temp
+            teacher_output, teacher_temp=0.04
         )
 
         sums = softmax.sum(dim=-1)
 
         assert torch.allclose(sums, torch.ones(batch_size))
 
-    def test_sinkhorn_knopp_teacher(
-        self,
-        batch_size: int = 4,
-        out_dim: int = 2,
-        teacher_temp: float = 0.04,
-        student_temp: float = 0.1,
-        center_momentum: float = 0.9,
-        n_iterations: int = 4,
-    ) -> None:
+    def test_sinkhorn_knopp_teacher(self) -> None:
         """Test that the sinkhorn_knopp_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
+        batch_size = 4
+        out_dim = 2
 
         dino_loss = DINOLoss(
-            out_dim=out_dim, student_temp=student_temp, center_momentum=center_momentum
+            out_dim=out_dim, student_temp=0.1, center_momentum=0.9
         )
 
-        teacher_output = torch.zeros(batch_size, out_dim)
+        teacher_output = torch.randn(batch_size, out_dim)
         Q = dino_loss.sinkhorn_knopp_teacher(
-            teacher_output, teacher_temp=teacher_temp, n_iterations=n_iterations
+            teacher_output, teacher_temp=0.04, n_iterations=4
         )
 
         # Q shape = [B, K]
@@ -77,20 +66,17 @@ class TestDINOLoss:
         row_sums = Q.sum(dim=1)
         assert torch.allclose(row_sums, torch.ones(batch_size))
 
-    def test_update_center_momentum(
-        self,
-        batch_size: int = 4,
-        out_dim: int = 2,
-        student_temp: float = 0.1,
-        center_momentum: float = 0.9,
-        mean: int = 2,
-    ) -> None:
+    def test_update_center_momentum(self) -> None:
         """Test that the update_center method updates the center
         correctly with the given momentum.
         """
+        batch_size = 4
+        out_dim = 2
+        center_momentum = 0.9
+        mean = 2
 
         dino_loss = DINOLoss(
-            out_dim=out_dim, student_temp=student_temp, center_momentum=center_momentum
+            out_dim=out_dim, student_temp=0.1, center_momentum=center_momentum
         )
 
         # call update & apply on a known tensor
@@ -101,17 +87,13 @@ class TestDINOLoss:
         expected_center = mean * (1 - center_momentum) * torch.ones(out_dim)
         assert torch.allclose(dino_loss.center, expected_center)
 
-    def test_forward(
-        self,
-        out_dim: int = 2,
-        teacher_temp: float = 0.04,
-        student_temp: float = 0.1,
-        center_momentum: float = 0.9,
-    ) -> None:
+    def test_forward(self) -> None:
         """Test that the forward method returns correct values"""
+        out_dim = 2
+        teacher_temp = 0.04
 
         dino_loss = DINOLoss(
-            out_dim=out_dim, student_temp=student_temp, center_momentum=center_momentum
+            out_dim=out_dim, student_temp=0.1, center_momentum=0.9
         )
 
         teacher_output = torch.tensor([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
@@ -131,59 +113,48 @@ class TestDINOLoss:
 
 @pytest.mark.usefixtures("no_dist")
 class TestIBotPatchLoss:
-    def test_softmax_center_teacher(
-        self,
-        batch_size: int = 4,
-        patch_out_dim: int = 2,
-        teacher_temp: float = 0.04,
-        student_temp: float = 0.1,
-        center_momentum: float = 0.9,
-    ) -> None:
+    def test_softmax_center_teacher(self) -> None:
         """Test that the softmax_center_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
+        batch_size = 4
+        patch_out_dim = 2
 
         ibot_loss = IBOTPatchLoss(
             patch_out_dim=patch_out_dim,
-            student_temp=student_temp,
-            center_momentum=center_momentum,
+            student_temp=0.1,
+            center_momentum=0.9,
         )
 
         teacher_output = torch.randn(batch_size, patch_out_dim)
         softmax = ibot_loss.softmax_center_teacher(
-            teacher_output, teacher_temp=teacher_temp
+            teacher_output, teacher_temp=0.04
         )
 
         sums = softmax.sum(dim=-1)
 
         assert torch.allclose(sums, torch.ones(batch_size))
 
-    def test_sinkhorn_knopp_teacher(
-        self,
-        batch_size: int = 4,
-        patch_out_dim: int = 2,
-        teacher_temp: float = 0.04,
-        student_temp: float = 0.1,
-        center_momentum: float = 0.9,
-        n_iterations: int = 4,
-    ) -> None:
+    def test_sinkhorn_knopp_teacher(self) -> None:
         """Test that the sinkhorn_knopp_teacher method returns a tensor
         with the same shape as the input tensor and that each row sums to 1.
         """
+        batch_size = 4
+        patch_out_dim = 2
 
         ibot_loss = IBOTPatchLoss(
             patch_out_dim=patch_out_dim,
-            student_temp=student_temp,
-            center_momentum=center_momentum,
+            student_temp=0.1,
+            center_momentum=0.9,
         )
 
-        teacher_output = torch.rand(batch_size, patch_out_dim)
+        teacher_output = torch.randn(batch_size, patch_out_dim)
         n_masked_patches_tensor = torch.randint(high=batch_size, size=(1,))
         Q = ibot_loss.sinkhorn_knopp_teacher(
             teacher_output,
-            teacher_temp=teacher_temp,
+            teacher_temp=0.04,
             n_masked_patches_tensor=n_masked_patches_tensor,
-            n_iterations=n_iterations,
+            n_iterations=4,
         )
 
         # Q shape = [B, K]
@@ -193,21 +164,18 @@ class TestIBotPatchLoss:
         row_sums = Q.sum(dim=1)
         assert torch.allclose(row_sums, torch.ones(batch_size))
 
-    def test_update_center_momentum(
-        self,
-        batch_size: int = 4,
-        patch_out_dim: int = 2,
-        student_temp: float = 0.1,
-        center_momentum: float = 0.9,
-        mean: int = 2,
-    ) -> None:
+    def test_update_center_momentum(self) -> None:
         """Test that the update_center method updates the center
         correctly with the given momentum.
         """
+        batch_size = 4
+        patch_out_dim = 2
+        center_momentum = 0.9
+        mean = 2
 
         ibot_loss = IBOTPatchLoss(
             patch_out_dim=patch_out_dim,
-            student_temp=student_temp,
+            student_temp=0.1,
             center_momentum=center_momentum,
         )
 
@@ -219,19 +187,15 @@ class TestIBotPatchLoss:
         expected_center = mean * (1 - center_momentum) * torch.ones(patch_out_dim)
         assert torch.allclose(ibot_loss.center, expected_center)
 
-    def test_forward_masked(
-        self,
-        out_dim: int = 2,
-        teacher_temp: float = 0.1,
-        student_temp: float = 0.2,
-        center_momentum: float = 0.9,
-    ) -> None:
+    def test_forward_masked(self) -> None:
         """Test that the forward method returns correct values"""
+        out_dim = 2
+        teacher_temp = 0.1
 
         ibot_loss = IBOTPatchLoss(
             patch_out_dim=out_dim,
-            student_temp=student_temp,
-            center_momentum=center_momentum,
+            student_temp=0.2,
+            center_momentum=0.9,
         )
 
         masked_teacher_output = torch.tensor([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
