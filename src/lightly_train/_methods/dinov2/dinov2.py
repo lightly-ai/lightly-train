@@ -27,14 +27,17 @@ from lightly_train import _scaling
 from lightly_train._configs.validate import no_auto
 from lightly_train._methods.dinov2.dinov2_loss import (
     DINOLoss,
-    iBOTPatchLoss,
-)  # we use the original DINOLoss and iBOTPatchLoss
+    IBOTPatchLoss,
+)  # we use the original DINOLoss and IBOTPatchLoss
 from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2Transform,
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -63,13 +66,13 @@ class DINOv2Args(MethodArgs):
     local_crops_number: int = 8
 
     # projection head
+    ibot_separate_head: bool = False
     hidden_dim: int = 2048
     bottleneck_dim: int = 256
-    output_dim: int | Literal["auto"] = "auto"
+    output_dim: int = 65536
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
     norm_last_layer: bool = False
-    ibot_separate_head: bool = False
 
     # loss
     dino_loss_weight: float = 1.0
@@ -172,6 +175,30 @@ class DINOv2Args(MethodArgs):
             self.weight_decay_end = weight_decay
 
 
+class DINOv2ViTSArgs(DINOv2Args):
+    pass
+
+
+class DINOv2ViTBArgs(DINOv2Args):
+    pass
+
+
+class DINOv2ViTLArgs(DINOv2Args):
+    # projection head
+    ibot_separate_head: bool = True
+    bottleneck_dim: int = 384
+    bottleneck_dim_ibot: int = 256
+    output_dim: int = 131072
+
+
+class DINOv2ViTGArgs(DINOv2Args):
+    # projection head
+    ibot_separate_head: bool = True
+    bottleneck_dim: int = 384
+    bottleneck_dim_ibot: int = 256
+    output_dim: int = 131072
+
+
 class DINOv2AdamWArgs(AdamWArgs):
     lr: float = 0.0005
     weight_decay: float = 0.04
@@ -192,6 +219,23 @@ class DINOv2(Method):
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
         )
+        model: DinoVisionTransformer = embedding_model.model_wrapper.get_model()
+        embed_dim = model.embed_dim
+        depth = model.n_blocks
+        num_heads = model.num_heads
+        if depth == 40 and num_heads == 24 and embed_dim == 1536:
+            # giant
+            method_args = DINOv2ViTGArgs()
+        elif depth == 24 and num_heads == 16 and embed_dim == 1024:
+            # large
+            method_args = DINOv2ViTLArgs()
+        elif depth == 12 and num_heads == 12 and embed_dim == 768:
+            # base
+            method_args = DINOv2ViTBArgs()
+        elif depth == 12 and num_heads == 6 and embed_dim == 384:
+            # small
+            method_args = DINOv2ViTSArgs()
+
         self.method_args = method_args
 
         # Calculate the number of crops
@@ -203,10 +247,9 @@ class DINOv2(Method):
         # Create teacher models
         self.teacher_embedding_model = embedding_model
 
-        head_input_dim: int = self.teacher_embedding_model.embed_dim
         ibot_separate_head: bool = self.method_args.ibot_separate_head
         self.teacher_dino_head = DINOProjectionHead(
-            input_dim=head_input_dim,
+            input_dim=embed_dim,
             hidden_dim=self.method_args.hidden_dim,
             bottleneck_dim=self.method_args.bottleneck_dim,
             output_dim=self.method_args.output_dim,
@@ -215,9 +258,9 @@ class DINOv2(Method):
         )
         if ibot_separate_head:
             self.teacher_ibot_head = DINOProjectionHead(
-                input_dim=head_input_dim,
+                input_dim=embed_dim,
                 hidden_dim=self.method_args.hidden_dim,
-                bottleneck_dim=self.method_args.bottleneck_dim,
+                bottleneck_dim=self.method_args.bottleneck_dim_ibot,
                 output_dim=self.method_args.output_dim,
                 norm_last_layer=self.method_args.norm_last_layer,
             )
@@ -227,7 +270,7 @@ class DINOv2(Method):
         # Create student models
         self.student_embedding_model = copy.deepcopy(self.teacher_embedding_model)
         self.student_dino_head = DINOProjectionHead(
-            input_dim=head_input_dim,
+            input_dim=embed_dim,
             hidden_dim=self.method_args.hidden_dim,
             bottleneck_dim=self.method_args.bottleneck_dim,
             output_dim=self.method_args.output_dim,
@@ -237,9 +280,9 @@ class DINOv2(Method):
         )
         if ibot_separate_head:
             self.student_ibot_head = DINOProjectionHead(
-                input_dim=head_input_dim,
+                input_dim=embed_dim,
                 hidden_dim=self.method_args.hidden_dim,
-                bottleneck_dim=self.method_args.bottleneck_dim,
+                bottleneck_dim=self.method_args.bottleneck_dim_ibot,
                 output_dim=self.method_args.output_dim,
                 freeze_last_layer=self.method_args.student_freeze_last_layer_epochs,
                 norm_last_layer=self.method_args.norm_last_layer,
@@ -251,7 +294,7 @@ class DINOv2(Method):
 
         # Losses
         self.dino_loss = DINOLoss()
-        self.ibot_loss = iBOTPatchLoss()
+        self.ibot_loss = IBOTPatchLoss()
         self.koleo_loss = KoLeoLoss()
 
         self.dino_loss_weight = self.method_args.dino_loss_weight
