@@ -38,11 +38,12 @@ jobs:
     name: Test Unit Minimal Dependencies
     needs: detect-code-changes
     if: needs.detect-code-changes.outputs.run-tests == 'true'
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         python: ["3.8"]
         dependencies: ["minimal", "minimal-extras"]
+        runners: ["ubuntu-latest", "macos-latest", "windows-latest"]
+    runs-on: ${{ matrix.runners }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
