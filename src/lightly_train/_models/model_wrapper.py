@@ -19,13 +19,14 @@ from typing import (
 
 from torch import Tensor
 from torch.nn import Module, Parameter
-from typing_extensions import Required, TypedDict
+from typing_extensions import NotRequired, Required, TypedDict
 
 
 class ForwardFeaturesOutput(TypedDict, total=False):
     """Output of the forward_features method."""
 
     features: Required[Tensor]
+    cls_token: NotRequired[Tensor]
 
 
 class ForwardPoolOutput(TypedDict, total=False):

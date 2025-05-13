@@ -13,14 +13,12 @@ from typing import Any, Literal
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Flatten, Linear, init
+from torch.nn import Linear, init
 from torch.optim.optimizer import Optimizer
 
-from lightly_train import _scaling
-from lightly_train._configs.validate import no_auto
-from lightly_train._methods.distillation.distillation_loss import DistillationLoss
-from lightly_train._methods.distillation.distillation_transform import (
-    DistillationTransform,
+from lightly_train._methods.distillationv2.distillationv2_loss import DistillationV2Loss
+from lightly_train._methods.distillationv2.distillationv2_transform import (
+    DistillationV2Transform,
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
@@ -30,7 +28,6 @@ from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
-from lightly_train._scaling import ScalingInfo
 from lightly_train._transforms.transform import (
     MethodTransform,
 )
@@ -39,50 +36,18 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
-class DistillationArgs(MethodArgs):
-    """Args for Distillation method for dataset."""
+class DistillationV2Args(MethodArgs):
+    """Args for DistillationV2 method for dataset."""
 
-    # Default number of teacher embeddings to store in the queue to serve as pseudo classification weights.
-    queue_size: int | Literal["auto"] = "auto"
-
-    # Default temperature parameter to regulate the sharpness of the distributions in the loss.
-    temperature: float = 0.07
+    # Number of teacher blocks from the teacher model to use.
+    n_teacher_blocks: int = 2
 
     # Default teacher
     teacher: str = "dinov2_vitb14"
 
-    def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs
-    ) -> None:
-        if self.queue_size == "auto":
-            # Reduce the queue size for smaller datasets.
-            self.queue_size = _scaling.get_bucket_value(
-                input=scaling_info.dataset_size,
-                buckets=[
-                    # (dataset_size, queue_size)
-                    # Memory bank size is roughly 50% of the minimal dataset size and
-                    # 25% of the maximal dataset size for the given bucket. For example,
-                    # a bucket with 100-250 images has a queue size of 64.
-                    (50, 16),
-                    (100, 32),
-                    (250, 64),
-                    (500, 128),
-                    (1_000, 256),
-                    (2_000, 512),
-                    (4_000, 1024),
-                    (10_000, 2048),
-                    (20_000, 4096),
-                    (float("inf"), 8192),
-                ],
-            )
-        elif self.queue_size >= scaling_info.dataset_size:
-            raise ValueError(
-                f"The specified queue size ({self.queue_size}) cannot be larger than the dataset size ({scaling_info.dataset_size})."
-            )
 
-
-class DistillationLARSArgs(LARSArgs):
-    lr: float = 0.3
+class DistillationV2LARSArgs(LARSArgs):
+    lr: float = 1.5
     momentum: float = 0.9
     dampening: float = 0
     weight_decay: float = 1e-6
@@ -91,10 +56,10 @@ class DistillationLARSArgs(LARSArgs):
     eps: float = 1e-8
 
 
-class Distillation(Method):
+class DistillationV2(Method):
     def __init__(
         self,
-        method_args: DistillationArgs,
+        method_args: DistillationV2Args,
         optimizer_args: OptimizerArgs,
         embedding_model: EmbeddingModel,
         global_batch_size: int,
@@ -107,34 +72,26 @@ class Distillation(Method):
         )
         # Get the teacher model.
         self.teacher_embedding_model = get_teacher(teacher_name=method_args.teacher)
+        self.teacher_embedding_dim = (
+            method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim
+        )
 
         # Store the student model.
         self.student_embedding_model = embedding_model
-        self.flatten = Flatten(start_dim=1)
 
-        # Instantiate a linear projection head that performs the mapping from the student embedding space to the teacher embedding space.
+        # Instantiate a linear projection head that performs the mapping
+        # from the student embedding space to the teacher embedding space.
         self.student_projection_head = Linear(
-            embedding_model.embed_dim, self.teacher_embedding_model.embed_dim
+            embedding_model.embed_dim, self.teacher_embedding_dim
         )
 
-        # Initialize the weights of the linear projection head with a truncated normal.
+        # Initialize the weights of the linear projection head with a
+        # truncated normal.
         init.trunc_normal_(self.student_projection_head.weight, std=0.02)
 
         # Instantiate the criterion.
-        self.criterion = DistillationLoss(temperature=method_args.temperature)
+        self.criterion = DistillationV2Loss()
         self.method_args = method_args
-
-        # Initialize a buffer to store the teacher representations from previous batches. The queue is independent to each gpu.
-        self.teacher_queue: Tensor
-        self.register_buffer(
-            "teacher_queue",
-            torch.zeros(
-                [
-                    no_auto(method_args.queue_size),
-                    self.teacher_embedding_model.embed_dim,
-                ]
-            ),
-        )
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
         # Get the images. In distillation, we only use one view.
@@ -149,56 +106,55 @@ class Distillation(Method):
         # Get the [B, D] student features.
         x_student = self._forward_student(views)
 
-        # Update the queue
-        self._update_queue(x_teacher=x_teacher)
-
         # Compute the loss.
         loss = self.criterion(
             teacher_features=x_teacher,
             student_features=x_student,
-            queue=self.teacher_queue,
         )
 
         return TrainingStepResult(loss=loss)
 
     @torch.no_grad()
-    def _update_queue(self, x_teacher: Tensor) -> None:
-        # Get the batch and queue size.
-        B = x_teacher.size(0)
-        queue_size = self.teacher_queue.size(0)
-
-        # Handle cases where the queue size smaller than the batch size.
-        if B >= queue_size:
-            # When the queue is smaller than the batch, the queue is filled with a subset of the batch.
-            self.teacher_queue = x_teacher[:queue_size].clone()
-        else:
-            # Shift the queue by B to the right.
-            self.teacher_queue[B:] = self.teacher_queue[:-B].clone()
-
-            # Replace the first B elements in the queue.
-            self.teacher_queue[:B] = x_teacher
-
-    @torch.no_grad()
     def _forward_teacher(self, x: Tensor) -> Tensor:
         # Forward the images through the teacher model.
-        x = self.teacher_embedding_model(x)
-
-        # L2-normalize the features.
-        x = F.normalize(x, dim=-1, p=2)
+        x_list = self.teacher_embedding_model.get_intermediate_layers(
+            x, n=self.method_args.n_teacher_blocks
+        )
+        x = torch.cat(x_list, dim=-1)
         return x
 
     def _forward_student(self, x: Tensor) -> Tensor:
+        # Store the image size.
+        b, _, image_h, image_w = x.shape
+
+        # Infer the spatial size of the teacher features.
+        teacher_features_h = image_h // self.teacher_embedding_model.patch_size
+        teacher_features_w = image_w // self.teacher_embedding_model.patch_size
+
         # Forward the images through the student model.
-        x = self.student_embedding_model(x)
+        x = self.student_embedding_model(x, pool=False)
 
-        # Discard empty spatial dimensions: (B, C, 1, 1) -> (B, C).
-        x = self.flatten(x)
+        # The projection head expects tensors with channel last format.
+        x = x.permute(0, 2, 3, 1)
 
-        # Forward the student features through the projection head to match the dimension of the teacher: (B, C) -> (B, D).
+        # Forward the student features through the projection head to
+        # match the dimension of the teacher: (B, H, W, C) -> (B, H, W, D).
         x = self.student_projection_head(x)
 
-        # L2-normalize the features.
-        x = F.normalize(x, dim=-1, p=2)
+        # Resize the student spatial features to have the same resolution
+        # as the teacher spatial features.
+        x = x.permute(0, 3, 1, 2)  # (B, H, W, D) -> (B, D, H, W)
+        x = F.interpolate(
+            x,
+            size=(teacher_features_h, teacher_features_w),
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        # Flatten the spatial dimensions to match the teacher features:
+        # (B, D, H, W) -> (B, H * W, D).
+        x = x.permute(0, 2, 3, 1).view(b, -1, self.teacher_embedding_dim)
+
         return x
 
     @staticmethod
@@ -215,16 +171,16 @@ class Distillation(Method):
         return mixed_x
 
     @staticmethod
-    def method_args_cls() -> type[DistillationArgs]:
-        return DistillationArgs
+    def method_args_cls() -> type[DistillationV2Args]:
+        return DistillationV2Args
 
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
-            "auto": DistillationLARSArgs,
-            OptimizerType.LARS: DistillationLARSArgs,
+            "auto": DistillationV2LARSArgs,
+            OptimizerType.LARS: DistillationV2LARSArgs,
         }
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 
@@ -247,7 +203,7 @@ class Distillation(Method):
 
     @staticmethod
     def transform_cls() -> type[MethodTransform]:
-        return DistillationTransform
+        return DistillationV2Transform
 
     def on_save_checkpoint(self, checkpoint: dict[str, Any]) -> None:
         """Remove the teacher model from the checkpoint before saving."""
