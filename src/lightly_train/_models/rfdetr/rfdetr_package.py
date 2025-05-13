@@ -93,19 +93,21 @@ class RFDETRPackage(Package):
         return RFDETRModelWrapper(model)
 
     @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
+    def export_model(
+        cls, model: Module, out: Path, log_example: bool = True
+    ) -> None:
         try:
             from rfdetr.models.lwdetr import LWDETR
         except ImportError:
             raise ValueError(
                 f"Cannot create model because '{cls.name}' is not installed."
             )
-        if not isinstance(model.get_model(), LWDETR):
+        if not isinstance(model, LWDETR):
             raise ValueError(
-                f"Model must be of type 'LWDETR', got {type(model.get_model())}"
+                f"Model must be of type 'LWDETR', got {type(model)}"
             )
 
-        torch.save({"model": model.get_model().state_dict()}, out)
+        torch.save({"model": model.state_dict()}, out)
         if log_example:
             log_message_code = [
                 "from rfdetr import RFDETRBase, RFDETRLarge # based on the model you used",

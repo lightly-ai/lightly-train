@@ -27,8 +27,6 @@ from ..helpers import DummyCustomModel
         ("densecl", DenseCL),
         ("dino", DINO),
         ("simclr", SimCLR),
-        ("distillation", Distillation),
-        ("distillation", DistillationV2),
         ("distillationv1", Distillation),
         ("distillationv2", DistillationV2),
         (helpers.get_method(wrapped_model=DummyCustomModel()), SimCLR),
