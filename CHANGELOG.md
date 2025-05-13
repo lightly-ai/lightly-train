@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support lists of files and folders as input to the `embed` and `train` commands.
 - Faster dataset initialization with SLURM and Windows.
 - Model is exported after every n-th epoch instead of only at the end. Default n=1
+- A tutorial on how to [train embedding models with LightlyTrain](https://docs.lightly.ai/train/stable/tutorials/embedding/index.html).
 
 ### Changed
 
