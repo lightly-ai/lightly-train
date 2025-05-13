@@ -20,7 +20,6 @@ from torchvision import models as torchvision_models
 
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._commands import export
-from lightly_train._commands.common_helpers import ModelPart
 from lightly_train._commands.export import CLIExportConfig, ExportConfig
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.super_gradients.super_gradients_package import (
@@ -245,7 +244,7 @@ def test_export__parameters() -> None:
         "embedding_model",
     ],
 )
-def test_export_from_dictconfig(tmp_path: Path, part: ModelPart) -> None:
+def test_export_from_dictconfig(tmp_path: Path, part: str) -> None:
     ckpt_path, ckpt = _get_checkpoint(tmp_path)
     out_path = tmp_path / "model.pt"
     model = getattr(ckpt.lightly_train.models, part)
