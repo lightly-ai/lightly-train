@@ -62,8 +62,8 @@ class DINOv2Args(MethodArgs):
     """Args for DINOv2 method for ImageNet dataset."""
 
     # crops
-    global_crops_number: int = 2
-    local_crops_number: int = 8
+    num_global_crops: int = 2
+    num_local_crops: int = 8
 
     # projection head
     ibot_separate_head: bool = False
@@ -78,9 +78,9 @@ class DINOv2Args(MethodArgs):
     dino_loss_weight: float = 1.0
     ibot_loss_weight: float = 1.0
     koleo_loss_weight: float = 0.1
-    teacher_temp: float | Literal["auto"] = "auto"
-    warmup_teacher_temp: float | Literal["auto"] = "auto"
-    warmup_teacher_temp_epochs: int | Literal["auto"] = "auto"
+    teacher_temp: float = 0.04
+    warmup_teacher_temp: float = 0.07
+    warmup_teacher_temp_epochs: int = 30
     student_temp: float = 0.1
     center_momentum: float = 0.9
 
@@ -184,6 +184,9 @@ class DINOv2ViTBArgs(DINOv2Args):
 
 
 class DINOv2ViTLArgs(DINOv2Args):
+    # crops
+    num_local_crops: int = 98
+    
     # projection head
     ibot_separate_head: bool = True
     bottleneck_dim: int = 384
@@ -192,6 +195,9 @@ class DINOv2ViTLArgs(DINOv2Args):
 
 
 class DINOv2ViTGArgs(DINOv2Args):
+    # crops
+    num_local_crops: int = 98
+    
     # projection head
     ibot_separate_head: bool = True
     bottleneck_dim: int = 384
@@ -219,6 +225,8 @@ class DINOv2(Method):
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
         )
+        
+        # Load configs based on the model architecture
         model: DinoVisionTransformer = embedding_model.model_wrapper.get_model()
         embed_dim = model.embed_dim
         depth = model.n_blocks
@@ -235,19 +243,22 @@ class DINOv2(Method):
         elif depth == 12 and num_heads == 6 and embed_dim == 384:
             # small
             method_args = DINOv2ViTSArgs()
+        else:
+            raise ValueError(
+                f"Unsupported model configs."
+            )
 
         self.method_args = method_args
 
         # Calculate the number of crops
-        self.n_local_crops = method_args.local_crops_number
-        self.n_global_crops = method_args.global_crops_number
+        self.n_local_crops = self.method_args.num_local_crops
+        self.n_global_crops = self.method_args.num_global_crops
         self.n_global_crops_loss_terms = (self.n_global_crops - 1) * self.n_global_crops
         self.n_local_crops_loss_terms = max(self.n_local_crops * self.n_global_crops, 1)
 
+        ibot_separate_head: bool = self.method_args.ibot_separate_head
         # Create teacher models
         self.teacher_embedding_model = embedding_model
-
-        ibot_separate_head: bool = self.method_args.ibot_separate_head
         self.teacher_dino_head = DINOProjectionHead(
             input_dim=embed_dim,
             hidden_dim=self.method_args.hidden_dim,
