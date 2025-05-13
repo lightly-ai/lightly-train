@@ -130,7 +130,7 @@ plt.show()
 Visualization of the learned embeddings projected into 2D space with UMAP.
 ```
 
-We can see that the embeddings are nicely separated into well defined clusters. This
+We can see that the embeddings are nicely separated into well-defined clusters. This
 means that the model has learned meaningful representations. Such visualizations are
 extremely useful when curating a dataset. They can quickly give you an overview of your
 data including outliers and duplicates. Furthermore, the clusters can be used to
@@ -223,7 +223,7 @@ plt.show()
 
 We can see that the clusters from the LightlyTrain embeddings are much more compact
 and have fewer overlaps. This means that the model has learned better representations
-and will make fewer mistakes for embedding based tasks like image retrieval or
+and will make fewer mistakes for embedding-based tasks like image retrieval or
 clustering. This highlights how training an embedding model on the target dataset can
 improve the embedding quality significantly compared to using an off-the-shelf
 embedding model.
@@ -234,5 +234,5 @@ In this tutorial we have learned how to train an embedding model using unlabeled
 with LightlyTrain. We have also seen how to visualize the embeddings with UMAP and
 color them according to class labels. The visualizations show that the model has learned
 strong embeddings that capture the information of the images well and group similar
-images together. This is a great starting point for any embedding based task such as
+images together. This is a great starting point for any embedding-based task such as
 image retrieval, clustering, outlier detection or dataset curation.
