@@ -20,7 +20,6 @@ from lightly.models.utils import update_momentum
 from lightly.utils import optim
 from lightly.utils.scheduler import cosine_schedule
 from torch import Tensor
-from torch.nn import Flatten
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
@@ -36,6 +35,7 @@ from lightly_train._methods.dinov2.dinov2_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
     DinoVisionTransformer,
 )
@@ -217,9 +217,9 @@ class DINOv2(Method):
         )
 
         # Load configs based on the model architecture
-        model: DinoVisionTransformer = embedding_model.model_wrapper.get_model()
-        embed_dim = model.embed_dim
-
+        model_wrapper: DINOv2ViTModelWrapper = embedding_model.model_wrapper
+        model: DinoVisionTransformer = model_wrapper._model
+        embed_dim = model_wrapper._feature_dim
         self.method_args = self.method_args_cls(
             depth=model.n_blocks,
             num_heads=model.num_heads,
@@ -233,8 +233,8 @@ class DINOv2(Method):
         self.n_local_crops_loss_terms = max(self.n_local_crops * self.n_global_crops, 1)
 
         # Create teacher and student embedding models
-        self.teacher_embedding_model = embedding_model
-        self.student_embedding_model = copy.deepcopy(self.teacher_embedding_model)
+        self.teacher_embedding_model_wrapper = model_wrapper
+        self.student_embedding_model_wrapper = copy.deepcopy(self.teacher_embedding_model_wrapper)
 
         # Create teacher and student dino heads
         self.teacher_dino_head = DINOProjectionHead(
@@ -296,8 +296,6 @@ class DINOv2(Method):
         self.ibot_loss_weight = self.method_args.ibot_loss_weight
         self.koleo_loss_weight = self.method_args.koleo_loss_weight
 
-        # Create a flatten layer
-        self.flatten = Flatten()
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:
         training_step_log: DINOv2TrainingStepResult = self.training_step_impl(
@@ -347,7 +345,7 @@ class DINOv2(Method):
             end_value=self.method_args.momentum_end,
         )
         update_momentum(
-            self.student_embedding_model, self.teacher_embedding_model, m=momentum
+            self.student_embedding_model_wrapper, self.teacher_embedding_model_wrapper, m=momentum
         )
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
 
@@ -421,15 +419,19 @@ class DINOv2(Method):
 
     @torch.no_grad()
     def _forward_teacher(self, x: Tensor) -> Tensor:
-        x = self.teacher_embedding_model(x)
-        x = self.flatten(x)
-        x = self.teacher_dino_head(x)
+        results = self.teacher_embedding_model_wrapper.forward_features(x) # [B, C, H, W]
+        features = results["features"].flatten(2).permute(0, 2, 1) # [B, H*W, C]
+        cls_token = results["cls_token"] # [B]
+        
+        x = self.teacher_dino_head(x) # [B, D, H]
         return x
 
     def _forward_student(self, x: Tensor) -> Tensor:
-        x = self.student_embedding_model(x)
-        x = self.flatten(x)
-        x = self.student_dino_head(x)
+        results = self.student_embedding_model_wrapper.forward_features(x) # [B, C, H, W]
+        features = results["features"].flatten(2).permute(0, 2, 1) # [B, H*W, C]
+        cls_token = results["cls_token"] # [B]
+        
+        x = self.student_dino_head(x) # [B, D, H]
         return x
 
     @staticmethod
@@ -460,7 +462,7 @@ class DINOv2(Method):
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(
-            modules=[self.student_embedding_model, self.student_dino_head]
+            modules=[self.student_embedding_model_wrapper, self.student_dino_head]
         )
 
     def configure_gradient_clipping(
