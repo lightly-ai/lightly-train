@@ -30,7 +30,7 @@ from lightly_train._methods.dinov2.dinov2_loss import (
     IBOTPatchLoss,
 )  # we use the original DINOLoss and IBOTPatchLoss
 from lightly_train._methods.dinov2.dinov2_transform import (
-    DINOv2Transform,
+    DINOv2ViTSBTransform, DINOv2ViTLGTransform
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
@@ -44,9 +44,6 @@ from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.sgd_args import SGDArgs
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
-from lightly_train._transforms.transform import (
-    MethodTransform,
-)
 from lightly_train.types import Batch
 
 
@@ -60,10 +57,6 @@ class DINOv2TrainingStepResult:
 
 class DINOv2Args(MethodArgs):
     """Args for DINOv2 method for ImageNet dataset."""
-
-    # crops
-    num_global_crops: int = 2
-    num_local_crops: int = 8
 
     # projection head
     ibot_separate_head: bool = False
@@ -233,8 +226,8 @@ class DINOv2(Method):
         )()
 
         # Calculate the number of crops
-        self.n_global_crops = self.method_args.num_global_crops
-        self.n_local_crops = self.method_args.num_local_crops
+        self.n_global_crops = 2
+        self.n_local_crops = 8 # transform_cls().transform_args_cls().transform_args.local_view.num_views
         self.n_global_crops_loss_terms = (self.n_global_crops - 1) * self.n_global_crops
         self.n_local_crops_loss_terms = max(self.n_local_crops * self.n_global_crops, 1)
 
@@ -484,5 +477,18 @@ class DINOv2(Method):
         )
 
     @staticmethod
-    def transform_cls() -> type[MethodTransform]:
-        return DINOv2Transform
+    def transform_cls(
+        depth, num_heads, embed_dim
+    ) -> type[DINOv2ViTSBTransform | DINOv2ViTLGTransform]:
+        if depth == 40 and num_heads == 24 and embed_dim == 1536:
+            method_args = DINOv2ViTLGTransform  # giant
+        elif depth == 24 and num_heads == 16 and embed_dim == 1024:
+            method_args = DINOv2ViTLGTransform  # large
+        elif depth == 12 and num_heads == 12 and embed_dim == 768:
+            method_args = DINOv2ViTSBTransform  # base
+        elif depth == 12 and num_heads == 6 and embed_dim == 384:
+            method_args = DINOv2ViTSBTransform  # small
+        else:
+            raise ValueError("Unsupported model configs.")
+
+        return method_args
