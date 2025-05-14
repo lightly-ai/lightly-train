@@ -5,6 +5,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 import logging
 import os
 import tempfile
@@ -80,6 +82,7 @@ def _cleanup_file_handlers(logger_names: list[str]) -> None:
                 handler.close()
                 logger.removeHandler(handler)
 
+
 def test_set_up_file_logging() -> None:
     with tempfile.NamedTemporaryFile(delete=False) as file:
         file_path = Path(file.name)
@@ -92,12 +95,9 @@ def test_set_up_file_logging() -> None:
         logging.getLogger("lightly_train").critical("critical message")
 
         # Close handlers before reading
-        _cleanup_file_handlers([
-            "lightly_train",
-            "pytorch_lightning",
-            "torch",
-            "py.warnings"
-        ])
+        _cleanup_file_handlers(
+            ["lightly_train", "pytorch_lightning", "torch", "py.warnings"]
+        )
 
         logs = file_path.read_text()
         assert "debug message" in logs
@@ -107,10 +107,7 @@ def test_set_up_file_logging() -> None:
         assert "critical message" in logs
     finally:
         # Make sure handlers are closed before deletion attempt
-        _cleanup_file_handlers([
-            "lightly_train",
-            "pytorch_lightning",
-            "torch",
-            "py.warnings"
-        ])
+        _cleanup_file_handlers(
+            ["lightly_train", "pytorch_lightning", "torch", "py.warnings"]
+        )
         file_path.unlink(missing_ok=True)
