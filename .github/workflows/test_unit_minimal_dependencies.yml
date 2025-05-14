@@ -39,6 +39,7 @@ jobs:
     needs: detect-code-changes
     if: needs.detect-code-changes.outputs.run-tests == 'true'
     strategy:
+      fail-fast: false
       matrix:
         python: ["3.8"]
         dependencies: ["minimal", "minimal-extras"]
