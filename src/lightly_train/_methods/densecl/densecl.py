@@ -73,7 +73,7 @@ class DenseCLArgs(MethodArgs):
     momentum_end: float = 0.999
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs
+        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
     ) -> None:
         if self.memory_bank_size == "auto":
             # Reduce memory bank size for smaller datasets, otherwise training is

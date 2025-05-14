@@ -47,6 +47,7 @@ TRAIN_MODELS = {
     },
 }
 
+
 def load_config(config_name: str):
     config_filename = config_name + ".yaml"
     return OmegaConf.load(pathlib.Path(__file__).parent.resolve() / config_filename)

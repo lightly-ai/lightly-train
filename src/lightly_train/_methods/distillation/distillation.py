@@ -13,7 +13,7 @@ from typing import Any, Literal
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Flatten, Linear, init
+from torch.nn import Flatten, Linear, Module, init
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
@@ -52,7 +52,7 @@ class DistillationArgs(MethodArgs):
     teacher: str = "dinov2_vitb14"
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs
+        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
     ) -> None:
         if self.queue_size == "auto":
             # Reduce the queue size for smaller datasets.

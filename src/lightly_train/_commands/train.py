@@ -330,6 +330,7 @@ def train_from_config(config: TrainConfig) -> None:
             method_args=config.method_args,
             scaling_info=scaling_info,
             optimizer_args=config.optim_args,
+            model=model_instance,
         )
         method_instance = train_helpers.get_method(
             method_cls=method_cls,
