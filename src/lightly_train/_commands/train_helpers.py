@@ -20,7 +20,6 @@ from pytorch_lightning.strategies.strategy import Strategy
 from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type: ignore[attr-defined]
     _PRECISION_INPUT,
 )
-from lightly_train._models.model_wrapper import ModelWrapper
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 
@@ -352,7 +351,7 @@ def get_method_args(
     method_args: dict[str, Any] | MethodArgs | None,
     scaling_info: ScalingInfo,
     optimizer_args: OptimizerArgs,
-    model: ModelWrapper,
+    model: Module,
 ) -> MethodArgs:
     logger.debug(f"Getting method args for '{method_cls.__name__}'")
     if isinstance(method_args, MethodArgs):
