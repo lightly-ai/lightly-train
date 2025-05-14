@@ -260,20 +260,23 @@ def test_list_image_filenames__multiple_dirs_with_symlinks(
     assert file_names == expected
 
 
-def test_list_image_filenames() -> None:
+def test_list_image_filenames(tmp_path: Path) -> None:
+    # Create test directory structure
+    (tmp_path / "class1").mkdir()
+    (tmp_path / "class2").mkdir()
+
     file_paths = [
-        Path("class1/image1.jpg"),
-        Path("class1/image2.jpg"),
-        Path("class2/image3.jpg"),
-        Path("image4.jpg"),
+        tmp_path / "class1/image1.jpg",
+        tmp_path / "class1/image2.jpg",
+        tmp_path / "class2/image3.jpg",
+        tmp_path / "image4.jpg",
     ]
     filenames = image_dataset.list_image_filenames(files=file_paths)
-    common_dir = Path.cwd()
     assert sorted(list(filenames)) == [
-        ImageFilename(common_dir / "class1" / "image1.jpg"),
-        ImageFilename(common_dir / "class1" / "image2.jpg"),
-        ImageFilename(common_dir / "class2" / "image3.jpg"),
-        ImageFilename(common_dir / "image4.jpg"),
+        ImageFilename(tmp_path / "class1" / "image1.jpg"),
+        ImageFilename(tmp_path / "class1" / "image2.jpg"),
+        ImageFilename(tmp_path / "class2" / "image3.jpg"),
+        ImageFilename(tmp_path / "image4.jpg"),
     ]
 
 
