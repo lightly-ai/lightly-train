@@ -114,7 +114,7 @@ class DINOLoss(nn.Module):
     def forward(
         self,
         student_output_list: List[Tensor],
-        teacher_out_softmaxed_centered_list: List[Tensor],
+        teacher_out_softmaxed_centered_list: Tensor | List[Tensor],
     ) -> Tensor:
         """
         Cross-entropy between softmax outputs of the teacher and student networks.

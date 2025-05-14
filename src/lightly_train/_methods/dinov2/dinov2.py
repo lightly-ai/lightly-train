@@ -80,6 +80,8 @@ class DINOv2Args(MethodArgs):
     student_temp: float = 0.1
     center_momentum: float = 0.9
 
+    # centering
+    centering: Literal["softmax", "sinkhorn_knopp"] = "softmax"
     teacher_temp: float = 0.04
     warmup_teacher_temp: float = 0.07
     warmup_teacher_temp_epochs: int = 30
@@ -103,16 +105,21 @@ class DINOv2Args(MethodArgs):
         num_heads: int = model.num_heads
         self.embed_dim: int = model._embed_dim
         if depth == 40 and num_heads == 24 and self.embed_dim == 1536:  # giant
+            # projection head
             self.ibot_separate_head = True
             self.bottleneck_dim = 384
             self.bottleneck_dim_ibot = 256
             self.output_dim = 131072
+            # centering
+            self.centering = "sinkhorn_knopp"
         elif depth == 24 and num_heads == 16 and self.embed_dim == 1024:  # large
             # projection head
             self.ibot_separate_head = True
             self.bottleneck_dim = 384
             self.bottleneck_dim_ibot = 256
             self.output_dim = 131072
+            # centering
+            self.centering = "sinkhorn_knopp"
         elif depth == 12 and num_heads == 12 and self.embed_dim == 768:  # base
             pass
         elif depth == 12 and num_heads == 6 and self.embed_dim == 384:  # small
@@ -297,6 +304,10 @@ class DINOv2(Method):
         self.ibot_loss_weight = self.method_args.ibot_loss_weight
         self.koleo_loss_weight = self.method_args.koleo_loss_weight
 
+        # Centering
+        self.centering = self.method_args.centering
+        self.teacher_temp = self.method_args.teacher_temp
+
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:
         training_step_log: DINOv2TrainingStepResult = self.training_step_impl(
             batch, batch_idx
@@ -355,8 +366,8 @@ class DINOv2(Method):
         global_views = views[: self.n_global_crops]
 
         # Process global views through teacher and student networks
-        cls_tokens_teacher, masked_patch_tokens_teacher = self._forward_teacher(
-            global_views
+        teacher_cls_tokens_centered_list, teacher_masked_patch_tokens_centered = (
+            self._forward_teacher(global_views)
         )
 
         # Check if we have local views
@@ -371,15 +382,11 @@ class DINOv2(Method):
             x_student = self._forward_student(global_views)
 
         # Compute the DINO loss
-        x_teacher_softmaxed = self.dino_loss.softmax_center_teacher(
-            cls_tokens_teacher, teacher_temp=self.method_args.teacher_temp
-        )
-        self.dino_loss.update_center(cls_tokens_teacher)
         dino_global_loss = (
             self.dino_loss.forward(
-                teacher_out_softmaxed_centered_list=x_teacher_softmaxed.chunk(
-                    self.n_global_crops
-                ),
+                teacher_out_softmaxed_centered_list=[
+                    teacher_cls_tokens_centered_list.flatten(0, 1)
+                ],  # these were chunked and stacked in reverse so A is matched to B,
                 student_output_list=x_student.chunk(
                     self.n_global_crops + self.n_local_crops
                 ),
@@ -389,22 +396,17 @@ class DINOv2(Method):
         )
         if self.n_local_crops > 0:
             dino_local_loss = self.dino_loss.forward(
-                teacher_out_softmaxed_centered_list=x_teacher_softmaxed.chunk(
-                    self.n_global_crops
-                ),
+                teacher_out_softmaxed_centered_list=teacher_cls_tokens_centered_list,
                 student_output_list=x_student.chunk(
                     self.n_global_crops + self.n_local_crops
                 ),
             ) / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
 
         # Compute the iBOT loss
-        x_teacher_masked_softmaxed = self.ibot_loss.softmax_center_teacher(
-            masked_patch_tokens_teacher.unsqueeze(0),
-            teacher_temp=self.method_args.teacher_temp,
-        )
-        self.ibot_loss.update_center(masked_patch_tokens_teacher.unsqueeze(0))
         ibot_loss = self.ibot_loss.forward_masked(
-            teacher_patch_tokens=x_teacher_masked_softmaxed.chunk(self.n_global_crops),
+            teacher_patch_tokens=teacher_masked_patch_tokens_centered.chunk(
+                self.n_global_crops
+            ),
             student_patch_tokens=x_student.chunk(
                 self.n_global_crops + self.n_local_crops
             ),
@@ -422,10 +424,10 @@ class DINOv2(Method):
         )
 
     @torch.no_grad()
-    def _forward_teacher(self, x: Tensor) -> Tensor:
-        results = self.teacher_embedding_model_wrapper.forward_features(x)
-        patch_tokens = results["features"]  # [B, C, H, W]
-        cls_tokens = results["cls_token"]  # [B, 1, C]
+    def _forward_teacher(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        tokens = self.teacher_embedding_model_wrapper.forward_features(x)
+        patch_tokens = tokens["features"]  # [B, C, H, W]
+        cls_tokens = tokens["cls_token"]  # [B, 1, C]
 
         # process the cls tokens
         cls_tokens = cls_tokens.chunk(self.n_global_crops)
@@ -438,53 +440,85 @@ class DINOv2(Method):
         n_channels = patch_tokens.shape[-1]
 
         # pas the cls and patch tokens through the head
+        upperbound = patch_tokens.shape[1]  # TODO
+        mask_indices_list = torch.arange(1)  # TODO
+        n_masked_patches_tensor = torch.full(
+            (1,), fill_value=mask_indices_list.shape[0], dtype=torch.long
+        )
+        n_masked_patches = mask_indices_list.shape[0]
         if not self.ibot_separate_head:
-            upperbound = patch_tokens.shape[1]  # TODO
-            mask_indices_list = torch.arange(1)  # TODO
-            n_masked_patches = torch.full(
-                (1,), fill_value=mask_indices_list.shape[0], dtype=torch.long
-            )  # TODO
-
-            buffer_tensor_teacher = patch_tokens.new_zeros(
+            buffer_tokens = patch_tokens.new_zeros(
                 n_cls_tokens + upperbound, n_channels
             )
-            buffer_tensor_teacher[:n_cls_tokens].copy_(cls_tokens)
+            buffer_tokens[:n_cls_tokens].copy_(cls_tokens)
             torch.index_select(
                 patch_tokens.flatten(0, 1),
                 dim=0,
                 index=mask_indices_list,
-                out=buffer_tensor_teacher[
-                    n_cls_tokens : n_cls_tokens + n_masked_patches
-                ],
+                out=buffer_tokens[n_cls_tokens : n_cls_tokens + n_masked_patches],
             )
 
-            tokens_after_head = self.teacher_dino_head(buffer_tensor_teacher)
-            cls_tokens_after_head = tokens_after_head[:n_cls_tokens]
-            masked_patch_tokens_after_head = tokens_after_head[
+            tokens_after_head = self.teacher_dino_head.forward(buffer_tokens)
+
+            cls_tokens_after_dino = tokens_after_head[:n_cls_tokens]
+            masked_patch_tokens_after_ibot = tokens_after_head[
                 n_cls_tokens : n_cls_tokens + n_masked_patches
             ]
         else:
-            buffer_tensor_teacher = patch_tokens.new_zeros(upperbound, n_channels)
+            buffer_tokens = patch_tokens.new_zeros(upperbound, n_channels)
             torch.index_select(
                 patch_tokens.flatten(0, 1),
                 dim=0,
                 index=mask_indices_list,
-                out=buffer_tensor_teacher[:n_masked_patches],
+                out=buffer_tokens[:n_masked_patches],
             )
 
-            cls_tokens_after_head = self.teacher_dino_head(cls_tokens)
-            masked_patch_tokens_after_head = self.teacher_ibot_head(
-                buffer_tensor_teacher
+            cls_tokens_after_dino = self.teacher_dino_head.forward(cls_tokens)
+            masked_patch_tokens_after_ibot = self.teacher_ibot_head.forward(
+                buffer_tokens
             )[:n_masked_patches]
 
-        return cls_tokens_after_head, masked_patch_tokens_after_head
+        # centering
+        if self.centering == "softmax":
+            cls_tokens_centered = self.dino_loss.softmax_center_teacher(
+                cls_tokens_after_dino, teacher_temp=self.teacher_temp
+            ).view(self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:])
+            self.dino_loss.update_center(cls_tokens_after_dino)
+
+            masked_patch_tokens_after_ibot = masked_patch_tokens_after_ibot.unsqueeze(0)
+            masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
+                masked_patch_tokens_after_ibot[:, :n_masked_patches],
+                teacher_temp=self.teacher_temp,
+            )
+            masked_patch_tokens_centered = masked_patch_tokens_centered.squeeze(
+                0
+            )  # TODO: squeeze and unsqueeze
+            self.ibot_loss.update_center(
+                masked_patch_tokens_after_ibot[:n_masked_patches]
+            )
+
+        elif self.centering == "sinkhorn_knopp":
+            cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
+                cls_tokens_after_dino, teacher_temp=self.teacher_temp
+            ).view(self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:])
+            # TODO: update center missing?
+            masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
+                masked_patch_tokens_after_ibot,
+                teacher_temp=self.teacher_temp,
+                n_masked_patches_tensor=n_masked_patches_tensor,
+            )
+            # TODO: update center missing?
+        else:
+            raise ValueError(f"Unknown centering method: {self.centering}")
+
+        return cls_tokens_centered, masked_patch_tokens_centered
 
     def _forward_student(self, x: Tensor) -> Tensor:
-        results = self.student_embedding_model_wrapper.forward_features(
+        tokens = self.student_embedding_model_wrapper.forward_features(
             x
         )  # [B, C, H, W]
-        patch_tokens = results["features"].flatten(2).permute(0, 2, 1)  # [B, H*W, C]
-        cls_tokens = results["cls_token"]  # [B, 1, C]
+        patch_tokens = tokens["features"].flatten(2).permute(0, 2, 1)  # [B, H*W, C]
+        cls_tokens = tokens["cls_token"]  # [B, 1, C]
 
         patch_tokens_after_head = self.student_dino_head(patch_tokens)
         cls_tokens_after_head = self.student_ibot_head(cls_tokens)
