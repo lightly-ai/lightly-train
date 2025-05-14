@@ -113,7 +113,7 @@ class DINOLoss(nn.Module):
 
     def forward(
         self,
-        student_output_list: List[Tensor],
+        student_output_list: Tensor | List[Tensor],
         teacher_out_softmaxed_centered_list: Tensor | List[Tensor],
     ) -> Tensor:
         """
