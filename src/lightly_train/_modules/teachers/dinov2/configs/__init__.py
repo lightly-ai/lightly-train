@@ -35,9 +35,11 @@ MODELS = {
 TRAIN_MODELS = {
     "vits14": {
         "config": "train/vits14",
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth",
     },
     "vitb14": {
         "config": "train/vitb14",
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth",
     },
     "vitl14": {
         "config": "train/vitl14",

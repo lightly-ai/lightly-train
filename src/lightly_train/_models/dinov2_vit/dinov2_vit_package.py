@@ -27,6 +27,8 @@ from lightly_train._modules.teachers.dinov2.models import vision_transformer as 
 from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._modules.teachers.dinov2.dinov2_helper import load_weights
+
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,11 @@ class DINOv2ViTPackage(Package):
         if model_name not in VIT_MODELS:
             raise ValueError(f"Unknown model: {model_name}")
 
+        # check if model_args ha a argument "load_pretrained" and if so, remove it
+        load_pretrained = False
+        if model_args is not None and "load_pretrained" in model_args:
+            load_pretrained = model_args.pop("load_pretrained")
+        
         model_info = VIT_MODELS[model_name]
         config_name = model_info["config"]
 
@@ -85,6 +92,10 @@ class DINOv2ViTPackage(Package):
         kwargs.update(model_args or {})
 
         model = model_builder(**kwargs)
+
+        if load_pretrained:
+            model = load_weights(model=model, checkpoint_dir=Path.cwd(), url=model_info["url"])
+
         return model
 
     @classmethod
