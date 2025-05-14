@@ -73,16 +73,21 @@ def test__remove_handlers_by_type() -> None:
 
 
 def test_set_up_file_logging() -> None:
-    with tempfile.NamedTemporaryFile() as file:
-        _logging.set_up_file_logging(log_file_path=Path(file.name))
+    with tempfile.NamedTemporaryFile(delete=False) as file:
+        file_path = Path(file.name)
+    try:
+        _logging.set_up_file_logging(log_file_path=file_path)
         logging.getLogger("lightly_train").debug("debug message")
         logging.getLogger("lightly_train").info("info message")
         logging.getLogger("lightly_train").warning("warning message")
         logging.getLogger("lightly_train").error("error message")
         logging.getLogger("lightly_train").critical("critical message")
-        logs = pathlib.Path(file.name).read_text()
+
+        logs = file_path.read_text()
         assert "debug message" in logs
         assert "info message" in logs
         assert "warning message" in logs
         assert "error message" in logs
         assert "critical message" in logs
+    finally:
+        file_path.unlink(missing_ok=True)
