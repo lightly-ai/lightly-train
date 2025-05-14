@@ -9,7 +9,7 @@
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._scaling import ScalingInfo
-
+from lightly_train._models.model_wrapper import ModelWrapper
 
 class MethodArgs(PydanticConfig):
     """Arguments for a method.
@@ -20,7 +20,7 @@ class MethodArgs(PydanticConfig):
     pass
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs
+        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: ModelWrapper
     ) -> None:
         """Resolves all fields with the value 'auto' to their actual value."""
         pass
