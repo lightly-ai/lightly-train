@@ -71,6 +71,15 @@ def test__remove_handlers_by_type() -> None:
         assert not isinstance(handler, logging.StreamHandler)
 
 
+def _cleanup_file_handlers(logger_names: list[str]) -> None:
+    """Close all file handlers for the given loggers."""
+    for name in logger_names:
+        logger = logging.getLogger(name)
+        for handler in logger.handlers[:]:
+            if isinstance(handler, _logging.LightlyTrainRotatingFileHandler):
+                handler.close()
+                logger.removeHandler(handler)
+
 def test_set_up_file_logging() -> None:
     with tempfile.NamedTemporaryFile(delete=False) as file:
         file_path = Path(file.name)
@@ -82,6 +91,14 @@ def test_set_up_file_logging() -> None:
         logging.getLogger("lightly_train").error("error message")
         logging.getLogger("lightly_train").critical("critical message")
 
+        # Close handlers before reading
+        _cleanup_file_handlers([
+            "lightly_train",
+            "pytorch_lightning",
+            "torch",
+            "py.warnings"
+        ])
+
         logs = file_path.read_text()
         assert "debug message" in logs
         assert "info message" in logs
@@ -89,4 +106,11 @@ def test_set_up_file_logging() -> None:
         assert "error message" in logs
         assert "critical message" in logs
     finally:
+        # Make sure handlers are closed before deletion attempt
+        _cleanup_file_handlers([
+            "lightly_train",
+            "pytorch_lightning",
+            "torch",
+            "py.warnings"
+        ])
         file_path.unlink(missing_ok=True)
