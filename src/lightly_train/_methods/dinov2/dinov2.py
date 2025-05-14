@@ -30,7 +30,8 @@ from lightly_train._methods.dinov2.dinov2_loss import (
     IBOTPatchLoss,
 )  # we use the original DINOLoss and IBOTPatchLoss
 from lightly_train._methods.dinov2.dinov2_transform import (
-    DINOv2ViTSBTransform, DINOv2ViTLGTransform
+    DINOv2ViTLGTransform,
+    DINOv2ViTSBTransform,
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
@@ -227,7 +228,7 @@ class DINOv2(Method):
 
         # Calculate the number of crops
         self.n_global_crops = 2
-        self.n_local_crops = 8 # transform_cls().transform_args_cls().transform_args.local_view.num_views
+        self.n_local_crops = 8  # transform_cls().transform_args_cls().transform_args.local_view.num_views
         self.n_global_crops_loss_terms = (self.n_global_crops - 1) * self.n_global_crops
         self.n_local_crops_loss_terms = max(self.n_local_crops * self.n_global_crops, 1)
 
@@ -358,14 +359,12 @@ class DINOv2(Method):
         x_teacher_masked = self._forward_teacher(global_views)
 
         # Check if we have local views
-        if (len_views := len(views)) > self.n_global_crops:
+        if self.n_local_crops > 0:
             local_views = views[self.n_global_crops :]
-            x_student = torch.cat(
-                [
-                    self._forward_student(global_views),
-                    self._forward_student(local_views),
-                ]
-            )
+            x_student = [
+                self._forward_student(global_views),
+                self._forward_student(local_views),
+            ]
         else:
             # Process only global views
             x_student = self._forward_student(global_views)
@@ -377,16 +376,24 @@ class DINOv2(Method):
         self.dino_loss.update_center(x_teacher)
         dino_global_loss = (
             self.dino_loss.forward(
-                teacher_out_softmaxed_centered_list=x_teacher_softmaxed.chunk(2),
-                student_output_list=x_student.chunk(len_views),
+                teacher_out_softmaxed_centered_list=x_teacher_softmaxed.chunk(
+                    self.n_global_crops
+                ),
+                student_output_list=x_student.chunk(
+                    self.n_global_crops + self.n_local_crops
+                ),
             )
             * self.n_global_crops
             / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
         )
         if self.n_local_crops > 0:
             dino_local_loss = self.dino_loss.forward(
-                teacher_out_softmaxed_centered_list=x_teacher_softmaxed.chunk(2),
-                student_output_list=x_student.chunk(len_views),
+                teacher_out_softmaxed_centered_list=x_teacher_softmaxed.chunk(
+                    self.n_global_crops
+                ),
+                student_output_list=x_student.chunk(
+                    self.n_global_crops + self.n_local_crops
+                ),
             ) / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
 
         # Compute the iBOT loss
@@ -395,11 +402,15 @@ class DINOv2(Method):
         )
         self.ibot_loss.update_center(x_teacher_masked.unsqueeze(0))
         ibot_loss = self.ibot_loss.forward_masked(
-            teacher_patch_tokens=x_teacher_masked_softmaxed.chunk(2),
-            student_patch_tokens=x_student.chunk(len_views),
+            teacher_patch_tokens=x_teacher_masked_softmaxed.chunk(self.n_global_crops),
+            student_patch_tokens=x_student.chunk(
+                self.n_global_crops + self.n_local_crops
+            ),
         )
 
-        koleo_loss = sum(self.koleo_loss(token) for token in x_student.chunk(2))
+        koleo_loss = sum(
+            self.koleo_loss(token) for token in x_student.chunk(self.n_global_crops)
+        )  # only use global views
 
         return TrainingStepResult(
             dino_global_loss=dino_global_loss,
