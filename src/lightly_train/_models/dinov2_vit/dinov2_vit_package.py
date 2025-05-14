@@ -14,6 +14,7 @@ from typing import Any
 import torch
 from torch.nn import Module
 
+from lightly_train._data.cache import get_cache_dir
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -57,10 +58,9 @@ class DINOv2ViTPackage(Package):
             load_pretrained = model_args.pop("load_pretrained")
         
         model_info = VIT_MODELS[model_name]
-        config_name = model_info["config"]
 
         # Load config.
-        config_path = get_config_path(config_name)
+        config_path = get_config_path(model_info["config"])
         cfg = load_and_merge_config(str(config_path))
 
         model_builders = {
@@ -94,7 +94,9 @@ class DINOv2ViTPackage(Package):
         model = model_builder(**kwargs)
 
         if load_pretrained:
-            model = load_weights(model=model, checkpoint_dir=Path.cwd(), url=model_info["url"])
+            cache_dir = get_cache_dir()
+            checkpoint_dir = cache_dir / "weights"
+            model = load_weights(model=model, checkpoint_dir=checkpoint_dir, url=model_info["url"])
 
         return model
 
