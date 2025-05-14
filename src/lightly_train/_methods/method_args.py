@@ -6,9 +6,11 @@
 # LICENSE file in the root directory of this source tree.
 #
 from torch.nn import Module
+
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._scaling import ScalingInfo
+
 
 class MethodArgs(PydanticConfig):
     """Arguments for a method.

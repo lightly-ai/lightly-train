@@ -13,7 +13,7 @@ from typing import Any, Literal
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Flatten, Linear, init, Module
+from torch.nn import Flatten, Linear, Module, init
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Literal
 
 import pytest
+from torch.nn import Module
 
 from lightly_train._methods.simclr.simclr import SimCLR, SimCLRArgs, SimCLRSGDArgs
 from lightly_train._optim.adamw_args import AdamWArgs
@@ -22,7 +23,9 @@ class TestSimCLRArgs:
     def test_resolve_auto(self) -> None:
         args = SimCLRArgs()
         scaling_info = ScalingInfo(dataset_size=20_000, epochs=100)
-        args.resolve_auto(scaling_info=scaling_info, optimizer_args=AdamWArgs())
+        args.resolve_auto(
+            scaling_info=scaling_info, optimizer_args=AdamWArgs(), model=Module()
+        )
         assert not args.has_auto()
 
     @pytest.mark.parametrize(

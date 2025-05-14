@@ -359,7 +359,9 @@ def get_method_args(
     method_args = {} if method_args is None else method_args
     method_args_cls = method_cls.method_args_cls()
     args = validate.pydantic_model_validate(method_args_cls, method_args)
-    args.resolve_auto(scaling_info=scaling_info, optimizer_args=optimizer_args, model=model)
+    args.resolve_auto(
+        scaling_info=scaling_info, optimizer_args=optimizer_args, model=model
+    )
     return args
 
 

@@ -13,6 +13,7 @@ import pytest
 import torch
 import torch.nn.functional as F
 from pytest_mock import MockerFixture
+from torch.nn import Module
 
 from lightly_train._methods.distillation.distillation import (
     Distillation,
@@ -36,7 +37,9 @@ class TestDistillationArgs:
 
         # Infer the queue size.
         args.resolve_auto(
-            scaling_info=scaling_info, optimizer_args=DistillationLARSArgs()
+            scaling_info=scaling_info,
+            optimizer_args=DistillationLARSArgs(),
+            model=Module(),
         )
 
         # The expected queue size is 128 and it is expected to be an int.
@@ -53,7 +56,9 @@ class TestDistillationArgs:
 
         # Infer the queue size.
         args.resolve_auto(
-            scaling_info=scaling_info, optimizer_args=DistillationLARSArgs()
+            scaling_info=scaling_info,
+            optimizer_args=DistillationLARSArgs(),
+            model=Module(),
         )
 
         # The expected queue size is 8192 and it is expected to be an int.
@@ -72,7 +77,9 @@ class TestDistillationArgs:
         # Check that an error is raised.
         with pytest.raises(ValueError, match="cannot be larger than the dataset size"):
             args.resolve_auto(
-                scaling_info=scaling_info, optimizer_args=DistillationLARSArgs()
+                scaling_info=scaling_info,
+                optimizer_args=DistillationLARSArgs(),
+                model=Module(),
             )
 
     def test_resolve_auto_does_not_change_explicit_queue_size(self) -> None:
@@ -85,7 +92,9 @@ class TestDistillationArgs:
 
         # Resolve auto values.
         args.resolve_auto(
-            scaling_info=scaling_info, optimizer_args=DistillationLARSArgs()
+            scaling_info=scaling_info,
+            optimizer_args=DistillationLARSArgs(),
+            model=Module(),
         )
 
         # Verify that the queue size is unchanged.
