@@ -51,7 +51,12 @@ Distillation achieves the best performance on various tasks compared to DINO and
 - **Instable Training**: DINO uses a “momentum teacher” whose weights update more slowly than the student’s. If some of the parameters (e.g. the teacher temperature) is not set properly, the teacher’s embeddings can shift in a way that the student cannot catch up. This destabilizes training and can lead to a oscillating and even rising loss.
 
 ### When to use DINOv2?
-TODO
+
+DINOv2 instead of distillation should be selected only when both of the following conditions are met:
+- **The model architecture is a Vision Transformer (ViT)** — DINOv2 is specifically designed for ViT-based models.
+- **The application domain is significantly different from LVD-142M** — If your data is close to LVD-142M, using the distillation method is recommended, as it leverages a pretrained DINOv2 model as the teacher.
+
+In general it is recommend to start from DINOv2 pretrained weights.
 
 ### When to use SimCLR?
 
