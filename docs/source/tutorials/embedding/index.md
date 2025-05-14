@@ -132,11 +132,10 @@ plt.show()
 Visualization of the learned embeddings projected into 2D space with UMAP.
 ```
 
-We can see that the embeddings are nicely separated into well-defined clusters. This
-means that the model has learned meaningful representations. Such visualizations are
-extremely useful when curating a dataset. They can quickly give you an overview of your
-data including outliers and duplicates. Furthermore, the clusters can be used to
-efficiently label your dataset.
+We can see that the embeddings are nicely separated into well-defined clusters. Such
+visualizations are extremely useful when curating a dataset. They can quickly give you
+an overview of your data including outliers and duplicates. Furthermore, the clusters
+can be used to efficiently label your dataset.
 
 ## Color the Clusters
 
@@ -163,13 +162,15 @@ plt.show()
 Embeddings colored by ground truth class labels.
 ```
 
-The embeddings are well separated by class with few outliers. LightlyTrain has learned
-meaningful embeddings **without** using any class information! For reference, we show a
-comparison to embeddings generated with an ImageNet supervised pretrained model below:
+The embeddings are well separated by class with few outliers. The LightlyTrain model
+has learned meaningful embeddings **without** using any class information! For
+reference, we show a comparison to embeddings generated with an ImageNet supervised
+pretrained model below:
 
 ```{figure} /_static/images/tutorials/embedding/umap_lightly_train_imagenet_colored.jpg
 
-Comparison between embeddings generated with LightlyTrain and a supervised ImageNet pretrained model.
+Comparison between embeddings generated with LightlyTrain and a supervised ImageNet
+pretrained model.
 ```
 
 <!--
@@ -227,8 +228,7 @@ We can see that the clusters from the LightlyTrain embeddings are much more comp
 and have fewer overlaps. This means that the model has learned better representations
 and will make fewer mistakes for embedding-based tasks like image retrieval or
 clustering. This highlights how training an embedding model on the target dataset can
-improve the embedding quality significantly compared to using an off-the-shelf
-embedding model.
+improve the embeddings quality compared to using an off-the-shelf embedding model.
 
 ## Conclusion
 
@@ -236,5 +236,5 @@ In this tutorial we have learned how to train an embedding model using unlabeled
 with LightlyTrain. We have also seen how to visualize the embeddings with UMAP and
 color them according to class labels. The visualizations show that the model has learned
 strong embeddings that capture the information of the images well and group similar
-images together. This is a great starting point for any embedding-based task such as
-image retrieval, clustering, outlier detection or dataset curation.
+images together. This is a great starting point for fine-tuning or any embedding-based
+task such as image retrieval, clustering, outlier detection or dataset curation.
