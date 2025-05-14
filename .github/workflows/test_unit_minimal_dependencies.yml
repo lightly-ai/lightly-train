@@ -42,7 +42,7 @@ jobs:
       matrix:
         python: ["3.8"]
         dependencies: ["minimal", "minimal-extras"]
-        runners: ["ubuntu-latest", "windows-latest"]
+        runners: ["ubuntu-latest", "macos-latest", "windows-latest"]
     runs-on: ${{ matrix.runners }}
     steps:
       - name: Checkout Code
@@ -60,7 +60,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Set Up FFmpeg
-        if: ${{ matrix.dependencies == 'minimal-extras' }}
+        if: ${{ matrix.dependencies == 'minimal-extras' && matrix.runners != 'macos-latest' }}
         uses: FedericoCarboni/setup-ffmpeg@v3
         with:
           ffmpeg-version: 4.3.1
