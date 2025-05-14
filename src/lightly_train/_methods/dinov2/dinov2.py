@@ -20,6 +20,7 @@ from lightly.models.utils import update_momentum
 from lightly.utils import optim
 from lightly.utils.scheduler import cosine_schedule
 from torch import Tensor
+from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
@@ -36,9 +37,6 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
-    DinoVisionTransformer,
-)
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -58,6 +56,12 @@ class DINOv2TrainingStepResult:
 
 class DINOv2Args(MethodArgs):
     """Args for DINOv2 method for ImageNet dataset."""
+
+    # crops
+    n_global_crops = 2
+    n_local_crops = (
+        8  # transform_cls().transform_args_cls().transform_args.local_view.num_views
+    )
 
     # projection head
     ibot_separate_head: bool = False
@@ -89,10 +93,35 @@ class DINOv2Args(MethodArgs):
     weight_decay_end: float | Literal["auto"] = "auto"
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs
+        self,
+        scaling_info: ScalingInfo,
+        optimizer_args: OptimizerArgs,
+        model: Module,
     ) -> None:
-        dataset_size = scaling_info.dataset_size
+        # Determine the args based on the model architecture
+        depth: int = model.n_blocks
+        num_heads: int = model.num_heads
+        self.embed_dim: int = model._embed_dim
+        if depth == 40 and num_heads == 24 and self.embed_dim == 1536:  # giant
+            self.ibot_separate_head = True
+            self.bottleneck_dim = 384
+            self.bottleneck_dim_ibot = 256
+            self.output_dim = 131072
+        elif depth == 24 and num_heads == 16 and self.embed_dim == 1024:  # large
+            # projection head
+            self.ibot_separate_head = True
+            self.bottleneck_dim = 384
+            self.bottleneck_dim_ibot = 256
+            self.output_dim = 131072
+        elif depth == 12 and num_heads == 12 and self.embed_dim == 768:  # base
+            pass
+        elif depth == 12 and num_heads == 6 and self.embed_dim == 384:  # small
+            pass
+        else:
+            raise ValueError("Unsupported model configs.")
 
+        # Scale the args based on the dataset size
+        dataset_size = scaling_info.dataset_size
         if self.output_dim == "auto":
             # Default output dim of 65536 is too large for small datasets.
             self.output_dim = _scaling.get_bucket_value(
@@ -171,30 +200,6 @@ class DINOv2Args(MethodArgs):
             self.weight_decay_end = weight_decay
 
 
-class DINOv2ViTSArgs(DINOv2Args):
-    pass
-
-
-class DINOv2ViTBArgs(DINOv2Args):
-    pass
-
-
-class DINOv2ViTLArgs(DINOv2Args):
-    # projection head
-    ibot_separate_head: bool = True
-    bottleneck_dim: int = 384
-    bottleneck_dim_ibot: int = 256
-    output_dim: int = 131072
-
-
-class DINOv2ViTGArgs(DINOv2Args):
-    # projection head
-    ibot_separate_head: bool = True
-    bottleneck_dim: int = 384
-    bottleneck_dim_ibot: int = 256
-    output_dim: int = 131072
-
-
 class DINOv2AdamWArgs(AdamWArgs):
     lr: float = 0.0005
     weight_decay: float = 0.04
@@ -217,22 +222,16 @@ class DINOv2(Method):
         )
 
         # Load configs based on the model architecture
-        model_wrapper: DINOv2ViTModelWrapper = embedding_model.model_wrapper
-        model: DinoVisionTransformer = model_wrapper._model
-        embed_dim = model_wrapper._feature_dim
-        self.method_args = self.method_args_cls(
-            depth=model.n_blocks,
-            num_heads=model.num_heads,
-            embed_dim=embed_dim,
-        )()
+        self.method_args = method_args
 
         # Calculate the number of crops
-        self.n_global_crops = 2
-        self.n_local_crops = 8  # transform_cls().transform_args_cls().transform_args.local_view.num_views
+        self.n_global_crops = self.method_args.n_global_crops
+        self.n_local_crops = self.method_args.n_local_crops
         self.n_global_crops_loss_terms = (self.n_global_crops - 1) * self.n_global_crops
         self.n_local_crops_loss_terms = max(self.n_local_crops * self.n_global_crops, 1)
 
         # Create teacher and student embedding models
+        model_wrapper: DINOv2ViTModelWrapper = embedding_model.model_wrapper
         self.teacher_embedding_model_wrapper = model_wrapper
         self.student_embedding_model_wrapper = copy.deepcopy(
             self.teacher_embedding_model_wrapper
@@ -240,7 +239,7 @@ class DINOv2(Method):
 
         # Create teacher and student dino heads
         self.teacher_dino_head = DINOProjectionHead(
-            input_dim=embed_dim,
+            input_dim=self.method_args.embed_dim,
             hidden_dim=self.method_args.hidden_dim,
             bottleneck_dim=self.method_args.bottleneck_dim,
             output_dim=self.method_args.output_dim,
@@ -248,7 +247,7 @@ class DINOv2(Method):
             norm_last_layer=self.method_args.norm_last_layer,
         )
         self.student_dino_head = DINOProjectionHead(
-            input_dim=embed_dim,
+            input_dim=self.method_args.embed_dim,
             hidden_dim=self.method_args.hidden_dim,
             bottleneck_dim=self.method_args.bottleneck_dim,
             output_dim=self.method_args.output_dim,
@@ -261,7 +260,7 @@ class DINOv2(Method):
         self.ibot_separate_head: bool = self.method_args.ibot_separate_head
         if self.ibot_separate_head:
             self.teacher_ibot_head = DINOProjectionHead(
-                input_dim=embed_dim,
+                input_dim=self.method_args.embed_dim,
                 hidden_dim=self.method_args.hidden_dim,
                 bottleneck_dim=self.method_args.bottleneck_dim_ibot,
                 output_dim=self.method_args.output_dim,
@@ -269,7 +268,7 @@ class DINOv2(Method):
                 norm_last_layer=self.method_args.norm_last_layer,
             )
             self.student_ibot_head = DINOProjectionHead(
-                input_dim=embed_dim,
+                input_dim=self.method_args.embed_dim,
                 hidden_dim=self.method_args.hidden_dim,
                 bottleneck_dim=self.method_args.bottleneck_dim_ibot,
                 output_dim=self.method_args.output_dim,
@@ -441,7 +440,7 @@ class DINOv2(Method):
         # pas the cls and patch tokens through the head
         if not self.ibot_separate_head:
             upperbound = patch_tokens.shape[1]  # TODO
-            mask_indices_list = torch.arange()  # TODO
+            mask_indices_list = torch.arange(1)  # TODO
             n_masked_patches = torch.full(
                 (1,), fill_value=mask_indices_list.shape[0], dtype=torch.long
             )  # TODO
@@ -492,22 +491,8 @@ class DINOv2(Method):
 
         return patch_tokens_after_head, cls_tokens_after_head
 
-    @staticmethod
-    def method_args_cls(
-        depth, num_heads, embed_dim
-    ) -> type[DINOv2ViTSArgs | DINOv2ViTBArgs | DINOv2ViTLArgs | DINOv2ViTGArgs]:
-        if depth == 40 and num_heads == 24 and embed_dim == 1536:
-            method_args = DINOv2ViTGArgs  # giant
-        elif depth == 24 and num_heads == 16 and embed_dim == 1024:
-            method_args = DINOv2ViTLArgs  # large
-        elif depth == 12 and num_heads == 12 and embed_dim == 768:
-            method_args = DINOv2ViTBArgs  # base
-        elif depth == 12 and num_heads == 6 and embed_dim == 384:
-            method_args = DINOv2ViTSArgs  # small
-        else:
-            raise ValueError("Unsupported model configs.")
-
-        return method_args
+    def method_args_cls() -> type[DINOv2Args]:
+        return DINOv2Args
 
     @staticmethod
     def optimizer_args_cls(
@@ -552,14 +537,14 @@ class DINOv2(Method):
         depth, num_heads, embed_dim
     ) -> type[DINOv2ViTSBTransform | DINOv2ViTLGTransform]:
         if depth == 40 and num_heads == 24 and embed_dim == 1536:
-            method_args = DINOv2ViTLGTransform  # giant
+            transforms = DINOv2ViTLGTransform  # giant
         elif depth == 24 and num_heads == 16 and embed_dim == 1024:
-            method_args = DINOv2ViTLGTransform  # large
+            transforms = DINOv2ViTLGTransform  # large
         elif depth == 12 and num_heads == 12 and embed_dim == 768:
-            method_args = DINOv2ViTSBTransform  # base
+            transforms = DINOv2ViTSBTransform  # base
         elif depth == 12 and num_heads == 6 and embed_dim == 384:
-            method_args = DINOv2ViTSBTransform  # small
+            transforms = DINOv2ViTSBTransform  # small
         else:
             raise ValueError("Unsupported model configs.")
 
-        return method_args
+        return transforms
