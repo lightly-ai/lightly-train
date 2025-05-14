@@ -186,9 +186,6 @@ class DINOv2ViTBArgs(DINOv2Args):
 
 
 class DINOv2ViTLArgs(DINOv2Args):
-    # crops
-    num_local_crops: int = 98
-
     # projection head
     ibot_separate_head: bool = True
     bottleneck_dim: int = 384
@@ -197,9 +194,6 @@ class DINOv2ViTLArgs(DINOv2Args):
 
 
 class DINOv2ViTGArgs(DINOv2Args):
-    # crops
-    num_local_crops: int = 98
-
     # projection head
     ibot_separate_head: bool = True
     bottleneck_dim: int = 384
@@ -231,28 +225,16 @@ class DINOv2(Method):
         # Load configs based on the model architecture
         model: DinoVisionTransformer = embedding_model.model_wrapper.get_model()
         embed_dim = model.embed_dim
-        depth = model.n_blocks
-        num_heads = model.num_heads
-        if depth == 40 and num_heads == 24 and embed_dim == 1536:
-            # giant
-            method_args = DINOv2ViTGArgs()
-        elif depth == 24 and num_heads == 16 and embed_dim == 1024:
-            # large
-            method_args = DINOv2ViTLArgs()
-        elif depth == 12 and num_heads == 12 and embed_dim == 768:
-            # base
-            method_args = DINOv2ViTBArgs()
-        elif depth == 12 and num_heads == 6 and embed_dim == 384:
-            # small
-            method_args = DINOv2ViTSArgs()
-        else:
-            raise ValueError("Unsupported model configs.")
 
-        self.method_args = method_args
+        self.method_args = self.method_args_cls(
+            depth=model.n_blocks,
+            num_heads=model.num_heads,
+            embed_dim=embed_dim,
+        )()
 
         # Calculate the number of crops
-        self.n_local_crops = self.method_args.num_local_crops
         self.n_global_crops = self.method_args.num_global_crops
+        self.n_local_crops = self.method_args.num_local_crops
         self.n_global_crops_loss_terms = (self.n_global_crops - 1) * self.n_global_crops
         self.n_local_crops_loss_terms = max(self.n_local_crops * self.n_global_crops, 1)
 
@@ -287,6 +269,7 @@ class DINOv2(Method):
                 hidden_dim=self.method_args.hidden_dim,
                 bottleneck_dim=self.method_args.bottleneck_dim_ibot,
                 output_dim=self.method_args.output_dim,
+                batch_norm=self.method_args.batch_norm,
                 norm_last_layer=self.method_args.norm_last_layer,
             )
             self.student_ibot_head = DINOProjectionHead(
@@ -294,6 +277,7 @@ class DINOv2(Method):
                 hidden_dim=self.method_args.hidden_dim,
                 bottleneck_dim=self.method_args.bottleneck_dim_ibot,
                 output_dim=self.method_args.output_dim,
+                batch_norm=self.method_args.batch_norm,
                 freeze_last_layer=self.method_args.student_freeze_last_layer_epochs,
                 norm_last_layer=self.method_args.norm_last_layer,
             )
@@ -374,15 +358,15 @@ class DINOv2(Method):
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
 
         views = batch["views"]
-        global_views = torch.cat(views[:2])
+        global_views = views[: self.n_global_crops]
 
         # Process global views through teacher and student networks
         x_teacher = self._forward_teacher(global_views)
         x_teacher_masked = self._forward_teacher(global_views)
 
         # Check if we have local views
-        if (len_views := len(views)) > 2:
-            local_views = torch.cat(views[2:])
+        if (len_views := len(views)) > self.n_global_crops:
+            local_views = views[self.n_global_crops :]
             x_student = torch.cat(
                 [
                     self._forward_student(global_views),
@@ -445,8 +429,21 @@ class DINOv2(Method):
         return x
 
     @staticmethod
-    def method_args_cls() -> type[DINOv2Args]:
-        return DINOv2Args
+    def method_args_cls(
+        depth, num_heads, embed_dim
+    ) -> type[DINOv2ViTSArgs | DINOv2ViTBArgs | DINOv2ViTLArgs | DINOv2ViTGArgs]:
+        if depth == 40 and num_heads == 24 and embed_dim == 1536:
+            method_args = DINOv2ViTGArgs  # giant
+        elif depth == 24 and num_heads == 16 and embed_dim == 1024:
+            method_args = DINOv2ViTLArgs  # large
+        elif depth == 12 and num_heads == 12 and embed_dim == 768:
+            method_args = DINOv2ViTBArgs  # base
+        elif depth == 12 and num_heads == 6 and embed_dim == 384:
+            method_args = DINOv2ViTSArgs  # small
+        else:
+            raise ValueError("Unsupported model configs.")
+
+        return method_args
 
     @staticmethod
     def optimizer_args_cls(
