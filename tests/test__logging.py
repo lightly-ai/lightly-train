@@ -7,7 +7,6 @@
 #
 import logging
 import os
-import pathlib
 import tempfile
 from pathlib import Path
 
