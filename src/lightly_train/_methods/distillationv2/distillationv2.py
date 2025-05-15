@@ -43,7 +43,7 @@ class DistillationV2Args(MethodArgs):
     n_teacher_blocks: int = 2
 
     # Default teacher
-    teacher: str = "dinov2_vitb14"
+    teacher: str = "dinov2_vit/vitb14"
 
 
 class DistillationV2LARSArgs(LARSArgs):
