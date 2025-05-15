@@ -381,7 +381,7 @@ class DINOv2(Method):
 
         # Process local views through student network if they exist
         if self.n_local_crops > 0:
-            local_views = torch.cat(views[self.n_global_crops :])
+            local_views = torch.cat(views[self.n_global_crops :]) # L * [B, C, H, W] -> [L*B, C, H, W]
             student_cls_tokens_local, _ = self._forward_student(local_views)
 
         # Compute the DINO loss
@@ -434,7 +434,7 @@ class DINOv2(Method):
     def _forward_teacher(self, x: Tensor) -> tuple[Tensor, Tensor]:
         tokens = self.teacher_embedding_model_wrapper.forward_features(
             x
-        )  # input [G*B, ...]
+        )  # input [G*B, C, ...]
         patch_tokens = tokens["features"]  # [G*B, C, H, W]
         cls_tokens = tokens["cls_token"]  # [G*B, C]
 
@@ -529,34 +529,44 @@ class DINOv2(Method):
     def _forward_student(self, x: Tensor) -> tuple[Tensor, Tensor]:
         tokens = self.student_embedding_model_wrapper.forward_features(
             x
-        )  # [B, C, H, W]
-        patch_tokens = tokens["features"].flatten(2).permute(0, 2, 1)  # [B, H*W, C]
-        cls_tokens = tokens["cls_token"]  # [B, 1, C]
+        )  # input [L*B, C, ...]
+        patch_tokens = tokens["features"]  # [L*B, C, H, W]
+        cls_tokens = tokens["cls_token"]  # [L*B, C]
 
-        # process the cls tokens
-        n_cls_tokens = cls_tokens.shape[0]
-        n_channels = cls_tokens.shape[-1]
+        # process the patch tokens
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
 
-        upperbound = patch_tokens.shape[1]  # TODO
-        mask_indices_list = torch.arange(1)  # TODO
-        n_masked_patches = mask_indices_list.shape[0]  # TODO
+        # Masking
+        n_crops = patch_tokens.shape[0]  # L*B
+        n_tokens = patch_tokens.shape[1]  # H*W
+        n_channels = patch_tokens.shape[-1]  # C
+        masks = create_collated_masks(
+            n_crops=n_crops,
+            n_tokens=n_tokens,
+        )
+        upperbound = masks[
+            "upperbound"
+        ]  # bounded by int(L * B * mask_probability) * int(H * W * max_mask_ratio)
+        mask_indices_list = masks["mask_indices_list"]
+        n_masked_patches = mask_indices_list.shape[0]
+        
         if not self.ibot_separate_head:
             buffer_tokens = patch_tokens.new_zeros(
-                n_cls_tokens + upperbound, n_channels
+                n_crops + upperbound, n_channels
             )
-            buffer_tokens[:n_cls_tokens].copy_(cls_tokens)
+            buffer_tokens[:n_crops].copy_(cls_tokens)
             torch.index_select(
-                patch_tokens.flatten(0, 1),
+                patch_tokens.flatten(0, 1), # [L*B*H*W, C]
                 dim=0,
                 index=mask_indices_list,
-                out=buffer_tokens[n_cls_tokens : n_cls_tokens + n_masked_patches],
+                out=buffer_tokens[n_crops : n_crops + n_masked_patches],
             )
 
             tokens_after_head = self.student_dino_head.forward(buffer_tokens)
 
-            cls_tokens_after_dino = tokens_after_head[:n_cls_tokens]
+            cls_tokens_after_dino = tokens_after_head[:n_crops]
             masked_patch_tokens_after_ibot = tokens_after_head[
-                n_cls_tokens : n_cls_tokens + n_masked_patches
+                n_crops : n_crops + n_masked_patches
             ]
         else:
             buffer_tokens = patch_tokens.new_zeros(upperbound, n_channels)
