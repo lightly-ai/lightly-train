@@ -404,7 +404,7 @@ def init_weights_vit_timm(module: nn.Module, name: str = ""):
             nn.init.zeros_(module.bias)
 
 
-def vit_small(patch_size=16, num_register_tokens=0, **kwargs)  -> DinoVisionTransformer:
+def vit_small(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=384,
