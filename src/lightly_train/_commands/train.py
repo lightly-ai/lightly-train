@@ -21,6 +21,7 @@ from pytorch_lightning.strategies.strategy import Strategy
 from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type: ignore[attr-defined]
     _PRECISION_INPUT,
 )
+from torch.nn import Module
 
 from lightly_train import _logging, _system
 from lightly_train._callbacks import callback_helpers
@@ -46,7 +47,7 @@ logger = logging.getLogger(__name__)
 def train(
     out: PathLike,
     data: PathLike | Sequence[PathLike],
-    model: str | ModelWrapper,
+    model: str | Module | ModelWrapper,
     method: str = "distillation",
     method_args: dict[str, Any] | None = None,
     embed_dim: int | None = None,
@@ -374,7 +375,7 @@ def train_from_dictconfig(config: DictConfig) -> None:
 class TrainConfig(PydanticConfig):
     out: PathLike
     data: PathLike | Sequence[PathLike]
-    model: str | ModelWrapper
+    model: str | Module | ModelWrapper
     method: str = "distillation"
     method_args: dict[str, Any] | MethodArgs | None = None
     embed_dim: int | None = None

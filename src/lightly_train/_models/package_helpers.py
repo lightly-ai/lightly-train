@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from itertools import chain
 from os import linesep
-from typing import Any
+from typing import Any, Literal, overload
 
 from torch.nn import Module
 
@@ -66,22 +66,39 @@ def list_model_names() -> list[str]:
 
 
 def get_wrapped_model(
-    model: str | ModelWrapper, model_args: dict[str, Any] | None = None
+    model: str | Module | ModelWrapper, model_args: dict[str, Any] | None = None
 ) -> ModelWrapper:
     """Returns a wrapped model instance given a model name or instance."""
     if isinstance(model, ModelWrapper):
-        # If the model is already a ModelWrapper, return it.
         return model
-    package_name, model_name = _parse_model_name(model)
-    package = get_package(package_name)
-    model_instance = package.get_model(model_name, model_args=model_args)
-    return package.get_model_wrapper(model_instance)
+    if isinstance(model, str):
+        package_name, model_name = _parse_model_name(model)
+        package = get_package(package_name)
+        model = package.get_model(model_name, model_args=model_args)
+    else:
+        package = get_package_from_model(model, include_custom=False)
+    return package.get_model_wrapper(model)
 
 
-def get_package_from_model(model: Module) -> BasePackage:
+@overload
+def get_package_from_model(
+    model: Module, include_custom: Literal[False]
+) -> Package: ...
+
+
+@overload
+def get_package_from_model(
+    model: ModelWrapper, include_custom: Literal[True]
+) -> BasePackage: ...
+
+
+def get_package_from_model(
+    model: Module | ModelWrapper, include_custom: bool = True
+) -> BasePackage | Package:
     """Returns the package of the model. If the model is not part of any package,
     the custom package is returned."""
-    for package in list_base_packages():
+    packages = list_base_packages() if include_custom else list_packages()
+    for package in packages:
         if package.is_supported_model(model):
             return package
 

@@ -27,7 +27,7 @@ class BasePackage(ABC):
 
     @classmethod
     @abstractmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
         """Check if the model is supported by this package."""
         ...
 

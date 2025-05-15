@@ -46,7 +46,9 @@ class TorchvisionPackage(Package):
         return sorted(model_names)
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
         return type(model) in cls._model_cls_to_extractor_cls()
 
     @classmethod

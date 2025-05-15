@@ -54,7 +54,9 @@ class SuperGradientsPackage(Package):
         return sorted(model_names)
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
+        if isinstance(model, ModelWrapper):
+            return cls.is_supported_model_cls(model_cls=type(model.get_model()))
         return cls.is_supported_model_cls(model_cls=type(model))
 
     @classmethod

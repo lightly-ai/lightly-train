@@ -14,6 +14,7 @@ import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import BasePackage
 
 logger = logging.getLogger(__name__)
@@ -23,10 +24,9 @@ class CustomPackage(BasePackage):
     name = "custom"
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
         """Check if the model is supported by this package."""
-        # Custom package supports all models.
-        return isinstance(model, Module)
+        return isinstance(model, ModelWrapper)
 
     @classmethod
     def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
