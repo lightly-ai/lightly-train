@@ -250,12 +250,9 @@ def train_from_config(config: TrainConfig) -> None:
         scaling_info = train_helpers.get_scaling_info(
             dataset=dataset, epochs=config.epochs
         )
-        if not isinstance(config.model, ModelWrapper):
-            wrapped_model = package_helpers.get_wrapped_model(
-                model=config.model, model_args=config.model_args
-            )
-        else:
-            wrapped_model = config.model
+        wrapped_model = package_helpers.get_wrapped_model(
+            model=config.model, model_args=config.model_args
+        )
         embedding_model = train_helpers.get_embedding_model(
             wrapped_model=wrapped_model, embed_dim=config.embed_dim
         )

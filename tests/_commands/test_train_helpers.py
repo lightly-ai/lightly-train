@@ -232,7 +232,7 @@ def test_get_embedding_model__custom(embed_dim: int | None) -> None:
     model = DummyCustomModel()
     x = torch.rand(1, 3, 224, 224)
     embedding_model = train_helpers.get_embedding_model(model, embed_dim=embed_dim)
-    assert isinstance(embedding_model.model_wrapper, ModelWrapper)
+    assert isinstance(embedding_model.wrapped_model, ModelWrapper)
     embedding = embedding_model.forward(x)
     assert embedding.shape == (1, embedding_model.embed_dim, 1, 1)
 
@@ -555,9 +555,9 @@ def test_load_state_dict(tmp_path: Path) -> None:
         list(checkpoint.lightly_train.models.wrapped_model.get_model().parameters()),
     )
     assert torch.allclose(
-        next(embedding_model_2.model_wrapper.get_model().parameters()),
+        next(embedding_model_2.wrapped_model.get_model().parameters()),
         next(
-            checkpoint.lightly_train.models.embedding_model.model_wrapper.get_model().parameters()
+            checkpoint.lightly_train.models.embedding_model.wrapped_model.get_model().parameters()
         ),
     )
     assert torch.allclose(
@@ -567,7 +567,7 @@ def test_load_state_dict(tmp_path: Path) -> None:
 
     # Assert that the model, embedding model, and method share the same parameter objects.
     assert next(model_2.get_model().parameters()) is next(
-        embedding_model_2.model_wrapper.get_model().parameters()
+        embedding_model_2.wrapped_model.get_model().parameters()
     )
     assert next(model_2.get_model().parameters()) is next(
         method_2.embedding_model.model_wrapper.get_model().parameters()

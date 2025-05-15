@@ -358,7 +358,7 @@ def export_model(
         torch.save(model.state_dict(), out)
     elif format == ModelFormat.PACKAGE_DEFAULT:
         if isinstance(model, EmbeddingModel):
-            model = model.model_wrapper.get_model()
+            model = model.wrapped_model.get_model()
         elif isinstance(model, ModelWrapper):
             model = model.get_model()
         package = package_helpers.get_package_from_model(model=model)

@@ -40,14 +40,14 @@ def list_base_packages() -> list[BasePackage]:
     ]
 
 
-def list_full_packages() -> list[Package]:
+def list_packages() -> list[Package]:
     """Lists all supported framework packages."""
     return [package for package in list_base_packages() if isinstance(package, Package)]
 
 
-def get_package(package_name: str) -> BasePackage:
+def get_package(package_name: str) -> Package:
     """Get a package by name."""
-    packages = {p.name: p for p in list_base_packages()}
+    packages = {p.name: p for p in list_packages()}
     try:
         return packages[package_name]
     except KeyError:
@@ -62,20 +62,18 @@ def list_model_names() -> list[str]:
 
     See the documentation for more information: https://docs.lightly.ai/train/stable/models/
     """
-    return sorted(
-        chain.from_iterable(p.list_model_names() for p in list_full_packages())
-    )
+    return sorted(chain.from_iterable(p.list_model_names() for p in list_packages()))
 
 
 def get_wrapped_model(
-    model: str, model_args: dict[str, Any] | None = None
+    model: str | ModelWrapper, model_args: dict[str, Any] | None = None
 ) -> ModelWrapper:
     """Returns a wrapped model instance given a model name or instance."""
+    if isinstance(model, ModelWrapper):
+        # If the model is already a ModelWrapper, return it.
+        return model
     package_name, model_name = _parse_model_name(model)
     package = get_package(package_name)
-    # This can never be a BasePackage, because calling get_wrapped_model() makes no sense
-    # for a BasePackage.
-    assert isinstance(package, Package)
     model_instance = package.get_model(model_name, model_args=model_args)
     return package.get_model_wrapper(model_instance)
 

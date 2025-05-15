@@ -39,12 +39,12 @@ class EmbeddingModel(Module):
                 the features are embedded and returned without pooling.
         """
         super().__init__()
-        self.model_wrapper = wrapped_model
+        self.wrapped_model = wrapped_model
         self.embed_head = (
             Identity()
             if embed_dim is None
             else Conv2d(
-                in_channels=self.model_wrapper.feature_dim(),
+                in_channels=self.wrapped_model.feature_dim(),
                 out_channels=embed_dim,
                 kernel_size=1,
             )
@@ -53,7 +53,7 @@ class EmbeddingModel(Module):
     @property
     def embed_dim(self) -> int:
         if isinstance(self.embed_head, Identity):
-            return self.model_wrapper.feature_dim()
+            return self.wrapped_model.feature_dim()
         else:
             out_channels: int = self.embed_head.out_channels
             return out_channels
@@ -72,9 +72,9 @@ class EmbeddingModel(Module):
             Embeddings with shape (B, embed_dim, H_out, W_out). H_out and W_out depend
             on the pooling layer of the feature extractor and are 1 in most cases.
         """
-        features_out = self.model_wrapper.forward_features(x)
+        features_out = self.wrapped_model.forward_features(x)
         x = features_out["features"]
         if pool:
-            x = self.model_wrapper.forward_pool(features_out)["pooled_features"]
+            x = self.wrapped_model.forward_pool(features_out)["pooled_features"]
         x = self.embed_head(x)
         return x
