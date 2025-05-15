@@ -52,8 +52,9 @@ def load_weights(
 
     # Cache the teacher checkpoint. concatenate the node rank to the checkpoint path
     # to avoid overwriting the checkpoint if multiple nodes are used.
-    if get_node_rank() is not None:
-        file_name = f"{str(get_node_rank())}_{str(Path(url).name)}"
+    node_rank = get_node_rank()
+    if node_rank is not None:
+        file_name = f"{str(node_rank)}_{str(Path(url).name)}"
     else:
         file_name = str(Path(url).name)
     checkpoint_path = checkpoint_dir / Path(file_name)

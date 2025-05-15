@@ -42,7 +42,10 @@ logger = logging.getLogger(__name__)
 def updated_cfg_to_match_pretrained(
     cfg: DictConfig, cfg_pretrained: DictConfig | None
 ) -> DictConfig:
-    # Update the config to match the pretrained model
+    """
+    The train config is not compatible with the pretrained config. Hence, we need to
+    update the train config to match the pretrained config.
+    """
     if cfg_pretrained is None:
         return cfg
     cfg.student.ffn_layer = cfg_pretrained.student.ffn_layer
