@@ -68,5 +68,4 @@ maxdepth: 1
 distillation
 dino
 simclr
-method_transform_args
 ```
