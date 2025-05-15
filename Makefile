@@ -169,6 +169,11 @@ PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl
 PINNED_TORCHVISION_VERSION_PY312 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
 MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
+
+PINNED_TORCH_VERSION_M1 := "torch==2.4.0"
+PINNED_TORCHVISION_VERSION_M1 := "torchvision==0.19.0"
+MINIMAL_TORCH_VERSION_M1 := "torch==2.1.0"
+MINIMAL_TORCHVISION_VERSION_M1 := "torchvision==0.16.0"
 else
 PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
 PINNED_TORCH_VERSION_PY312 := "torch==2.4.0"
@@ -212,6 +217,13 @@ install-minimal:
 		--reinstall ${EDITABLE} "." --requirement pyproject.toml \
 		${MINIMAL_TORCH_VERSION_PY38} ${MINIMAL_TORCHVISION_VERSION_PY38}
 
+.PHONY: install-minimal-macos
+install-minimal-macos:
+	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} ${EDITABLE} ".[dev]"
+	uv pip install --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} \
+		--reinstall ${EDITABLE} "." --requirement pyproject.toml \
+		${MINIMAL_TORCH_VERSION_M1} ${MINIMAL_TORCHVISION_VERSION_M1}
+
 # Install package with minimal dependencies including extras.
 # See install-minimal for more information.
 .PHONY: install-minimal-extras
@@ -220,6 +232,13 @@ install-minimal-extras:
 	uv pip install --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} \
 		--reinstall ${EDITABLE} ".${EXTRAS_PY38}" --requirement pyproject.toml \
 		${MINIMAL_TORCH_VERSION_PY38} ${MINIMAL_TORCHVISION_VERSION_PY38}
+		
+.PHONY: install-minimal-extras-macos
+install-minimal-extras-macos:
+	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} ${EDITABLE} ".[dev]"
+	uv pip install --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} \
+		--reinstall ${EDITABLE} ".${EXTRAS_PY38}" --requirement pyproject.toml \
+		${MINIMAL_TORCH_VERSION_M1} ${MINIMAL_TORCHVISION_VERSION_M1}
 
 # Install package for Python 3.8 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE. This keeps CI stable if new versions of
@@ -236,6 +255,11 @@ install-pinned-3.8:
 	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY38}" --requirement pyproject.toml \
 		${PINNED_TORCH_VERSION_PY38} ${PINNED_TORCHVISION_VERSION_PY38}
 
+.PHONY: install-pinned-3.8
+install-pinned-3.8-macos:
+	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY38}" --requirement pyproject.toml \
+		${PINNED_TORCH_VERSION_M1} ${PINNED_TORCHVISION_VERSION_M1}
+
 # Install package for Python 3.12 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE.
 #
@@ -245,6 +269,11 @@ install-pinned-3.8:
 install-pinned-3.12:
 	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY312}" --requirement pyproject.toml \
 		${PINNED_TORCH_VERSION_PY312} ${PINNED_TORCHVISION_VERSION_PY312}
+
+.PHONY: install-pinned-3.12-macos
+install-pinned-3.12-macos:
+	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY312}" --requirement pyproject.toml \
+		${PINNED_TORCH_VERSION_M1} ${PINNED_TORCHVISION_VERSION_M1}
 
 # Install package with the latest dependencies for Python 3.8.
 .PHONY: install-latest-3.8
