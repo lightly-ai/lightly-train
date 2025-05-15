@@ -561,7 +561,7 @@ def test_load_state_dict(tmp_path: Path) -> None:
         ),
     )
     assert torch.allclose(
-        next(method_2.embedding_model.model_wrapper.get_model().parameters()),
+        next(method_2.embedding_model.wrapped_model.get_model().parameters()),
         next(checkpoint.lightly_train.models.wrapped_model.get_model().parameters()),
     )
 
@@ -570,5 +570,5 @@ def test_load_state_dict(tmp_path: Path) -> None:
         embedding_model_2.wrapped_model.get_model().parameters()
     )
     assert next(model_2.get_model().parameters()) is next(
-        method_2.embedding_model.model_wrapper.get_model().parameters()
+        method_2.embedding_model.wrapped_model.get_model().parameters()
     )
