@@ -14,6 +14,7 @@ from typing import Any
 from torch.nn import Module
 
 from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 from lightly_train._models.rfdetr.rfdetr_package import RFDETR_PACKAGE
@@ -23,7 +24,6 @@ from lightly_train._models.super_gradients.super_gradients_package import (
 from lightly_train._models.timm.timm_package import TIMM_PACKAGE
 from lightly_train._models.torchvision.torchvision_package import TORCHVISION_PACKAGE
 from lightly_train._models.ultralytics.ultralytics_package import ULTRALYTICS_PACKAGE
-from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOv2ViTPackage
 from lightly_train.errors import UnknownModelError
 
 
@@ -35,7 +35,7 @@ def list_packages() -> list[Package]:
         TIMM_PACKAGE,
         TORCHVISION_PACKAGE,
         ULTRALYTICS_PACKAGE,
-        DINOv2ViTPackage,
+        DINOV2_VIT_PACKAGE,
         # Custom package must be at end of list because we first want to check if a
         # model is part of one of the other packages. Custom is the last resort.
         CUSTOM_PACKAGE,

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from lightly_train._modules.teachers.dinov2.dinov2_helper import load_weights
 from torch.nn import Module
 
 from lightly_train._modules.teachers.dinov2.configs import MODELS as TEACHER_MODELS
@@ -16,9 +15,8 @@ from lightly_train._modules.teachers.dinov2.configs import (
     get_config_path,
     load_and_merge_config,
 )
+from lightly_train._modules.teachers.dinov2.dinov2_helper import load_weights
 from lightly_train._modules.teachers.dinov2.models import build_model_from_cfg
-
-
 
 
 def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:

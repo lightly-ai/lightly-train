@@ -6,11 +6,14 @@
 #
 import logging
 import os
+from pathlib import Path
+
 import torch
 
-from pathlib import Path
-from torch.nn import Module
 from lightly_train._data.download import download_from_url
+from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,7 @@ def get_local_rank() -> int | None:
             return int(rank)
     return None
 
+
 def get_node_rank() -> int | None:
     """Get the node rank of the current process."""
     rank_keys = ("NODE_RANK", "GROUP_RANK", "SLURM_NODEID")
@@ -33,13 +37,16 @@ def get_node_rank() -> int | None:
             return int(rank)
     return None
 
+
 def is_local_rank_zero() -> bool:
     """Check if the current process is running on the local rank zero."""
     local_rank = get_local_rank()
     return local_rank == 0 or local_rank is None
 
 
-def load_weights(model: Module, checkpoint_dir: Path, url: str) -> Module:
+def load_weights(
+    model: DinoVisionTransformer, checkpoint_dir: Path, url: str
+) -> DinoVisionTransformer:
     # Create the directory if it doesn't exist.
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
@@ -63,7 +70,7 @@ def load_weights(model: Module, checkpoint_dir: Path, url: str) -> Module:
 
         else:
             logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
-    
+
     # wait for the local zero ranks to finish downloading
     if torch.distributed.is_initialized():
         torch.distributed.barrier()

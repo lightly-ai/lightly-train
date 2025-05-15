@@ -12,8 +12,8 @@ student:
   arch: vit_large
   patch_size: 14
   drop_path_rate: 0.4
-  #ffn_layer: swiglufused this was the default value but then the loading is not working! TODO: fix this
-  # block_chunks: 4
+  ffn_layer: swiglufused
+  block_chunks: 4
 teacher:
   momentum_teacher: 0.994
 optim:

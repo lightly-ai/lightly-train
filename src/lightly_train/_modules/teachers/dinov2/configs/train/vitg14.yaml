@@ -13,7 +13,7 @@ student:
   patch_size: 14
   drop_path_rate: 0.4
   ffn_layer: swiglufused
-  #block_chunks: 4 TODO: fix this!
+  block_chunks: 4
 teacher:
   momentum_teacher: 0.994
 optim:

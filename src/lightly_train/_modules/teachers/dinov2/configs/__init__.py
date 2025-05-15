@@ -35,21 +35,18 @@ MODELS = {
 TRAIN_MODELS = {
     "vits14": {
         "config": "train/vits14",
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth",
     },
     "vitb14": {
         "config": "train/vitb14",
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth",
     },
     "vitl14": {
         "config": "train/vitl14",
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth",
     },
     "vitg14": {
         "config": "train/vitg14",
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth",
     },
 }
+
 
 def load_config(config_name: str):
     config_filename = config_name + ".yaml"
