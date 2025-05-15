@@ -9,6 +9,7 @@ from torch.nn import Module
 
 from lightly_train._data.cache import get_cache_dir
 
+
 def _parse_model_name(model: str) -> tuple[str, str]:
     parts = model.split("/")
     if len(parts) != 2:
@@ -19,6 +20,7 @@ def _parse_model_name(model: str) -> tuple[str, str]:
     package_name = parts[0]
     model_name = parts[1]
     return package_name, model_name
+
 
 def get_teacher(teacher_name: str) -> Module:
     """Loads a teacher model and its pre-trained weights from a name.

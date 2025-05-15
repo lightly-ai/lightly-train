@@ -82,7 +82,9 @@ class DINOv2ViTPackage(Package):
         Get a DINOv2 ViT model by name. Here the student version is build.
         """
         if model_name not in VIT_MODELS:
-            raise ValueError(f"Unknown model: {model_name} available models are: {cls.list_model_names()}")
+            raise ValueError(
+                f"Unknown model: {model_name} available models are: {cls.list_model_names()}"
+            )
 
         load_pretrained = False
         if model_args is not None and "pretrained" in model_args:
