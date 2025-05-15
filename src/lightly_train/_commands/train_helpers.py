@@ -411,6 +411,9 @@ def load_state_dict(
 ) -> None:
     ckpt = Checkpoint.from_path(Path(checkpoint))
     wrapped_model.load_state_dict(ckpt.lightly_train.models.wrapped_model.state_dict())
+    model = wrapped_model.get_model()
+    if isinstance(model, Module):
+        model.load_state_dict(ckpt.lightly_train.models.model.state_dict())
     embedding_model.load_state_dict(
         ckpt.lightly_train.models.embedding_model.state_dict()
     )
