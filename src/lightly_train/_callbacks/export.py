@@ -12,7 +12,6 @@ from pathlib import Path
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities import rank_zero_only
-from torch.nn import Module
 
 from lightly_train._commands import common_helpers
 from lightly_train._commands.common_helpers import ModelFormat

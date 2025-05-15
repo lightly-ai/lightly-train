@@ -20,6 +20,7 @@ from pytorch_lightning.strategies.strategy import Strategy
 from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type: ignore[attr-defined]
     _PRECISION_INPUT,
 )
+from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._checkpoint import Checkpoint
