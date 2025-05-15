@@ -362,14 +362,14 @@ class DINOv2(Method):
             m=momentum,
         )
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
-        
+
         # TODO: teacher temp scheduler
 
         views = batch["views"]
         global_views = views[: self.n_global_crops]
 
         # Process global views through teacher and student networks
-        teacher_cls_tokens_centered_list, teacher_masked_patch_tokens_centered = (
+        teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
             self._forward_teacher(global_views)
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
@@ -386,16 +386,16 @@ class DINOv2(Method):
             self.dino_loss.forward(
                 student_output_list=[student_cls_tokens_global],
                 teacher_out_softmaxed_centered_list=[
-                    teacher_cls_tokens_centered_list.flatten(0, 1)
+                    teacher_cls_tokens_centered.flatten(0, 1)
                 ],  # these were chunked and stacked in reverse so A is matched to B,
             )
             * self.n_global_crops
             / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
         )
-        if self.n_local_crops > 0: # TODO
+        if self.n_local_crops > 0:  # TODO
             dino_local_loss = self.dino_loss.forward(
                 student_output_list=student_cls_tokens_local.chunk(self.n_local_crops),
-                teacher_out_softmaxed_centered_list=teacher_cls_tokens_centered_list,
+                teacher_out_softmaxed_centered_list=teacher_cls_tokens_centered,
             ) / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
 
         # Compute the iBOT loss
@@ -500,7 +500,6 @@ class DINOv2(Method):
             self.ibot_loss.update_center(
                 masked_patch_tokens_after_ibot[:n_masked_patches]
             )
-
         elif self.centering == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
                 cls_tokens_after_dino, teacher_temp=self.teacher_temp
@@ -524,52 +523,46 @@ class DINOv2(Method):
         patch_tokens = tokens["features"].flatten(2).permute(0, 2, 1)  # [B, H*W, C]
         cls_tokens = tokens["cls_token"]  # [B, 1, C]
 
-        n_channels_global = cls_tokens.shape[-1]  # global
+        # process the cls tokens
+        n_cls_tokens = cls_tokens.shape[0]
+        n_channels = cls_tokens.shape[-1]
 
         upperbound = patch_tokens.shape[1]  # TODO
         mask_indices_list = torch.arange(1)  # TODO
         n_masked_patches = mask_indices_list.shape[0]  # TODO
-
-        local_cls_tokens = global_cls_tokens = cls_tokens
-        buffer_patch_tokens = patch_tokens.new_zeros(upperbound, n_channels_global)
-        buffer_patch_tokens[:n_masked_patches].copy_(
-            torch.index_select(
-                patch_tokens.flatten(0, 1), dim=0, index=mask_indices_list
+        if not self.ibot_separate_head:
+            buffer_tokens = patch_tokens.new_zeros(
+                n_cls_tokens + upperbound, n_channels
             )
-        )
-        if not self.ibot_separate_head:
-            global_buffer_patch_tokens = buffer_patch_tokens
-        else:
-            global_masked_patch_tokens_after_ibot = self.student_ibot_head(
-                buffer_patch_tokens
-            )[:n_masked_patches]
+            buffer_tokens[:n_cls_tokens].copy_(cls_tokens)
+            torch.index_select(
+                patch_tokens.flatten(0, 1),
+                dim=0,
+                index=mask_indices_list,
+                out=buffer_tokens[n_cls_tokens : n_cls_tokens + n_masked_patches],
+            )
 
-        try:
-            from xformers.ops import fmha
-        except ImportError:
-            raise AssertionError("xFormers is required for training")
+            tokens_after_head = self.student_dino_head.forward(buffer_tokens)
 
-        _attn_bias, cat_inputs = fmha.BlockDiagonalMask.from_tensor_list(
-            [
-                local_cls_tokens.unsqueeze(0),
-                global_cls_tokens.unsqueeze(0),
-                global_buffer_patch_tokens.unsqueeze(0),
+            cls_tokens_after_dino = tokens_after_head[:n_cls_tokens]
+            masked_patch_tokens_after_ibot = tokens_after_head[
+                n_cls_tokens : n_cls_tokens + n_masked_patches
             ]
-        )
-        outputs_list = _attn_bias.split(self.student_dino_head.forward(cat_inputs))
+        else:
+            buffer_tokens = patch_tokens.new_zeros(upperbound, n_channels)
+            torch.index_select(
+                patch_tokens.flatten(0, 1),
+                dim=0,
+                index=mask_indices_list,
+                out=buffer_tokens[:n_masked_patches],
+            )
 
-        local_cls_tokens_after_dino = outputs_list.pop(0).squeeze(0)
-        global_cls_tokens_after_dino = outputs_list.pop(0).squeeze(0)
-        if not self.ibot_separate_head:
-            global_masked_patch_tokens_after_ibot = outputs_list.pop(0).squeeze(
-                0
+            cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)
+            masked_patch_tokens_after_ibot = self.student_ibot_head.forward(
+                buffer_tokens
             )[:n_masked_patches]
 
-        return [
-            global_cls_tokens_after_dino,
-            global_masked_patch_tokens_after_ibot,
-            local_cls_tokens_after_dino,
-        ]
+        return cls_tokens_after_dino, masked_patch_tokens_after_ibot
 
     def method_args_cls() -> type[DINOv2Args]:
         return DINOv2Args
@@ -585,7 +578,10 @@ class DINOv2(Method):
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(
-            modules=[self.student_embedding_model_wrapper._model, self.student_dino_head]
+            modules=[
+                self.student_embedding_model_wrapper._model,
+                self.student_dino_head,
+            ]
         )
 
     def configure_gradient_clipping(
