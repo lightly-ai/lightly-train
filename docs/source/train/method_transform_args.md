@@ -16,9 +16,12 @@ Pretraining relies strongly on image augmentations such as:
 - **Random Solarization**: Inverts pixel values above a random threshold.
 - **Normalization**: Scales pixel values using predefined mean and standard deviation.
 
-While the default settings in LightlyTrain should work well for most use cases, for some 
-downstream tasks and image domains it might be beneficial to override the defaults and 
-adjust the applied augmentations. This can be done as follows:
+```{note}
+In 99% of cases, it is not necessary to modify the default image augmentations in
+LightlyTrain. The default settings are carefully tuned to work well for most use cases.
+However, for specific downstream tasks or unique image domains, you might want to
+override these defaults as shown below.
+```
 
 ````{tab} Python
 For the Python API, use a dictionary structure to override any augmentations settings and 
