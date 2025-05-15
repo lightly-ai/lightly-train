@@ -33,7 +33,7 @@ from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2ViTLGTransform,
     DINOv2ViTSBTransform,
 )
-from lightly_train._methods.dinov2.utils import create_collated_masks
+from lightly_train._methods.dinov2.utils import MaskingGenerator, create_collated_masks
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
@@ -374,11 +374,16 @@ class DINOv2(Method):
         # Masking
         self.n_global_crops = global_views.shape[0]  # G*B
         self.n_channels = global_views.shape[1]  # C
-        n_tokens = global_views.shape[2] * global_views.shape[3]  # H*W
+        h = global_views.shape[2]
+        w = global_views.shape[3]
 
+        mask_generator = MaskingGenerator(
+            input_size=(h, w),
+            max_num_patches=0.5 * h * w,
+        )
         masks = create_collated_masks(
             n_global_crops=self.n_global_crops,
-            n_tokens=n_tokens,
+            mask_generator=mask_generator,
         )
 
         self.collated_masks = masks["collated_masks"].to(
@@ -526,7 +531,7 @@ class DINOv2(Method):
                 teacher_temp=self.teacher_temp,
                 n_masked_patches_tensor=torch.tensor(
                     [self.n_masked_patches], dtype=torch.long
-                ),
+                ).to(device=self.device, non_blocking=True),
             )
         else:
             raise ValueError(f"Unknown centering method: {self.centering}")
