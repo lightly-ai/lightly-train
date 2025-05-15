@@ -531,12 +531,14 @@ def test_load_checkpoint__checkpoint_and_resume(
 
 def test_load_state_dict(tmp_path: Path) -> None:
     # Generate a checkpoint and save it on disk.
-    # This checkpoint contains a model, an embedding model, and a method.
+    # This checkpoint contains a model, a wrapped mode, an embedding model,
+    # and a method.
     checkpoint_path = tmp_path / "checkpoint.pth"
     checkpoint = helpers.get_checkpoint()
     checkpoint.save(checkpoint_path)
 
     # Generate a new model and make it different from the model in the checkpoint.
+    # Use .get_model() to get weights that are certainly in all 3 different models.
     model_2 = DummyCustomModel()
     next(model_2.get_model().parameters()).data += 1
     embedding_model_2 = EmbeddingModel(wrapped_model=model_2)
@@ -549,26 +551,27 @@ def test_load_state_dict(tmp_path: Path) -> None:
         checkpoint=checkpoint_path,
     )
 
-    # Assert that the model, embedding model, and method have updated the weights.
+    # Assert that the model, wrapped model, embedding model, and method have updated
+    # the weights.
     assert_close(
         list(model_2.get_model().parameters()),
-        list(checkpoint.lightly_train.models.wrapped_model.get_model().parameters()),
+        list(checkpoint.lightly_train.models.model.parameters()),
+    )
+    assert_close(
+        list(model_2.parameters()),
+        list(checkpoint.lightly_train.models.wrapped_model.parameters()),
     )
     assert torch.allclose(
-        next(embedding_model_2.wrapped_model.get_model().parameters()),
-        next(
-            checkpoint.lightly_train.models.embedding_model.wrapped_model.get_model().parameters()
-        ),
+        next(embedding_model_2.parameters()),
+        next(checkpoint.lightly_train.models.embedding_model.parameters()),
     )
     assert torch.allclose(
-        next(method_2.embedding_model.wrapped_model.get_model().parameters()),
+        next(method_2.parameters()),
         next(checkpoint.lightly_train.models.wrapped_model.get_model().parameters()),
     )
 
     # Assert that the model, embedding model, and method share the same parameter objects.
     assert next(model_2.get_model().parameters()) is next(
-        embedding_model_2.wrapped_model.get_model().parameters()
+        embedding_model_2.parameters()
     )
-    assert next(model_2.get_model().parameters()) is next(
-        method_2.embedding_model.wrapped_model.get_model().parameters()
-    )
+    assert next(model_2.get_model().parameters()) is next(method_2.parameters())

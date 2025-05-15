@@ -83,10 +83,10 @@ def test_get_model__ultralytics() -> None:
 
 def test_get_model_wrapper__timm() -> None:
     pytest.importorskip("timm")
-    feature_extractor = package_helpers.get_wrapped_model("timm/resnet18")
-    model = feature_extractor.get_model()
+    wrapped_model = package_helpers.get_wrapped_model("timm/resnet18")
+    model = wrapped_model.get_model()
 
     x = torch.rand(1, 3, 64, 64)
     y_model = model(x)
-    y_extractor = model.forward_head(feature_extractor.forward_features(x)["features"])
+    y_extractor = model.forward_head(wrapped_model.forward_features(x)["features"])
     torch.testing.assert_close(y_model, y_extractor)

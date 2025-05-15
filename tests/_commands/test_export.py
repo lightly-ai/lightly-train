@@ -49,6 +49,7 @@ def test_export__torch_state_dict(tmp_path: Path) -> None:
     embedding_model = ckpt.lightly_train.models.embedding_model
     part_expected = [
         ("model", wrapped_model.get_model().state_dict()),
+        ("wrapped_model", wrapped_model.state_dict()),
         ("embedding_model", embedding_model.state_dict()),
     ]
 
@@ -70,6 +71,7 @@ def test_export__torch_model(tmp_path: Path) -> None:
     embedding_model = ckpt.lightly_train.models.embedding_model
     part_expected = [
         ("model", wrapped_model.get_model()),
+        ("wrapped_model", wrapped_model),
         ("embedding_model", embedding_model),
     ]
 
@@ -131,7 +133,7 @@ def test_export__ultralytics_option__deprecation_warning(tmp_path: Path) -> None
         export.export(
             out=out,
             checkpoint=ckpt_path,
-            part="wrapped_model",
+            part="model",
             format="ultralytics",
         )
 
@@ -159,13 +161,11 @@ def test_export__super_gradients(tmp_path: Path) -> None:
 
 def test_export__custom(tmp_path: Path) -> None:
     ckpt_path, ckpt = _get_checkpoint(tmp_path)
-    wrapped_model = ckpt.lightly_train.models.wrapped_model
+    model = ckpt.lightly_train.models.model
 
     out_path = tmp_path / "model.pt"
-    export.export(out=out_path, checkpoint=ckpt_path, part="wrapped_model")
-    _assert_state_dict_equal(
-        torch.load(out_path), wrapped_model.get_model().state_dict()
-    )
+    export.export(out=out_path, checkpoint=ckpt_path)
+    _assert_state_dict_equal(torch.load(out_path), model.state_dict())
 
 
 @pytest.mark.skipif(
