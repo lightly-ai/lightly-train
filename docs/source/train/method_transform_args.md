@@ -4,19 +4,27 @@
 
 Pretraining relies strongly on image augmentations such as:
 
-- **Random Cropping and Resizing**: Crops random parts of images and resizes them to fixed resolutions.
-- **Random Horizontal and Vertical Flipping**: Mirrors images across horizontal or vertical axes.
+- **Random Cropping and Resizing**: Crops random parts of images and resizes them to fixed 
+  resolutions.
+- **Random Horizontal and Vertical Flipping**: Mirrors images across horizontal or vertical 
+  axes.
 - **Random Rotation**: Rotates images by random angles.
 - **Color Jittering**: Randomly modifies brightness, contrast, saturation, and hue.
 - **Random Grayscaling**: Converts images to grayscale with certain probability.
-- **Gaussian Blurring**: Applies Gaussian blur filter of random {math}`\sigma`, smoothing the image.
+- **Gaussian Blurring**: Applies Gaussian blur filter of random {math}`\sigma`, smoothing 
+  the image.
 - **Random Solarization**: Inverts pixel values above a random threshold.
 - **Normalization**: Scales pixel values using predefined mean and standard deviation.
 
-While the default settings in LightlyTrain should work well for most use cases, for some downstream tasks and image domains it might be beneficial to override the defaults and adjust the applied augmentations. This can be done as follows:
+While the default settings in LightlyTrain should work well for most use cases, for some 
+downstream tasks and image domains it might be beneficial to override the defaults and 
+adjust the applied augmentations. This can be done as follows:
 
 ````{tab} Python
-For the Python API, use a dictionary structure to override any augmentations settings and pass it to the `lightly_train.train` function through the `transform_args` argument. Many augmentations can also be selectively turned off completely by setting them to `None`, as is demonstrated in this example with the `color_jitter` augmentation.
+For the Python API, use a dictionary structure to override any augmentations settings and 
+pass it to the `lightly_train.train` function through the `transform_args` argument. Many 
+augmentations can also be selectively turned off completely by setting them to `None`, as 
+is demonstrated in this example with the `color_jitter` augmentation.
 ```python
 import lightly_train
 my_transform_args = {
@@ -42,10 +50,13 @@ There are two options on how you can configure the augmentations on the command 
 2. Pass all arguments as a single JSON structure
 
 ```{important}
-Make sure that any values that you pass through the command line are JSON-compatible. This means:
- - Strings inside JSON structures must have double quotes (wrap the whole structure by single quotes).
+Make sure that any values that you pass through the command line are JSON-compatible. This 
+means:
+ - Strings inside JSON structures must have double quotes (wrap the whole structure by 
+   single quotes).
  - Tuples do not exist, use bracketed notation (like a Python list).
- - JSON's correspondence to Python's `None` is `null`, which you will have to use in order to selectively turn off an augmentation.
+ - JSON's correspondence to Python's `None` is `null`, which you will have to use in order 
+   to selectively turn off an augmentation.
 ```
 
 An example of how you can use the bracketed notation, would be:
@@ -66,22 +77,25 @@ And an example of using a single JSON structure would look as follows:
 lightly-train train \
     out="out/my_experiment" \
     data="my_data_dir" model="torchvision/resnet18" \
-    transform_args='{"image_size": [128, 128], "random_resize": {"min_scale": 0.1}, "color_jitter": null}'
+    transform_args='{"image_size": [128, 128], "random_resize": {"min_scale": 0.1}, 
+    "color_jitter": null}'
 ```
 ````
 
-The next sections will cover which arguments are available across all methods, and also the arguments unique to specific methods.
+The next sections will cover which arguments are available across all methods, and also the 
+arguments unique to specific methods.
 
 ```{seealso}
 Interested in the default augmentation settings for each method? Check the method pages:
- - {ref}`methods-dino`
  - {ref}`methods-distillation`
+ - {ref}`methods-dino`
  - {ref}`methods-simclr`
 ```
 
 ## Arguments available for all methods
 
-The following arguments are available for all methods {ref}`methods-distillation`, {ref}`methods-dino` and {ref}`methods-simclr`.
+The following arguments are available for all methods {ref}`methods-distillation`, 
+{ref}`methods-dino` and {ref}`methods-simclr`.
 
 ### Random Cropping and Resizing
 
@@ -183,16 +197,22 @@ Cannot be disabled, required for all transforms.
 
 ## Arguments unique to methods
 
-The methods Distillation and SimCLR have no transform configuration options beyond the globally available ones, which were listed above.
+The methods Distillation and SimCLR have no transform configuration options beyond the 
+globally available ones, which were listed above.
 
 ### DINO
 
-DINO uses a multi-crop strategy with two full-resolution "global" views (which have slightly different augmentation parameters) and optional additional smaller resolution "local" views (default: 6 views).
+DINO uses a multi-crop strategy with two full-resolution "global" views (which have slightly 
+different augmentation parameters) and optional additional smaller resolution "local" views 
+(default: 6 views).
 
-Besides the default arguments, the following DINO-specific arguments are available. Note that `local_view` itself can be disabled by setting it to `None`. Additionally, some augmentations within these structures can be disabled by setting them to `None`:
+Besides the default arguments, the following DINO-specific arguments are available. Note 
+that `local_view` itself can be disabled by setting it to `None`. Additionally, some 
+augmentations within these structures can be disabled by setting them to `None`:
 
 ```python skip_ruff
-"global_view_1": {                     # modifications for second global view (cannot be disabled)
+"global_view_1": {                     # modifications for second global view (cannot be 
+                                       # disabled)
     "gaussian_blur": {                 # can be disabled by setting to None
         "prob": float,                 
         "sigmas": tuple[float, float],

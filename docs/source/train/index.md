@@ -305,3 +305,11 @@ Not all models support all image sizes.
 ### Performance Optimizations
 
 For performance optimizations, e.g. using accelerators, multi-GPU, multi-node, and half precision training, see the [performance](#performance) page.
+
+```{toctree}
+---
+hidden:
+maxdepth: 1
+---
+method_transform_args
+```
