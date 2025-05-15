@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
-from typing import Any, List, Literal
+from typing import Any, Literal
 
 import torch
 from lightly.loss import (
@@ -33,6 +33,7 @@ from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2ViTLGTransform,
     DINOv2ViTSBTransform,
 )
+from lightly_train._methods.dinov2.utils import create_collated_masks
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
@@ -366,7 +367,9 @@ class DINOv2(Method):
         # TODO: teacher temp scheduler
 
         views = batch["views"]
-        global_views = views[: self.n_global_crops]
+        global_views = torch.cat(
+            views[: self.n_global_crops]
+        )  # G * [B, C, H, W] -> [G*B, C, H, W]
 
         # Process global views through teacher and student networks
         teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
@@ -378,7 +381,7 @@ class DINOv2(Method):
 
         # Process local views through student network if they exist
         if self.n_local_crops > 0:
-            local_views = views[self.n_global_crops :]
+            local_views = torch.cat(views[self.n_global_crops :])
             student_cls_tokens_local, _ = self._forward_student(local_views)
 
         # Compute the DINO loss
@@ -429,49 +432,54 @@ class DINOv2(Method):
 
     @torch.no_grad()
     def _forward_teacher(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        tokens = self.teacher_embedding_model_wrapper.forward_features(x)
-        patch_tokens = tokens["features"]  # [B, C, H, W]
-        cls_tokens = tokens["cls_token"]  # [B, 1, C]
+        tokens = self.teacher_embedding_model_wrapper.forward_features(
+            x
+        )  # input [G*B, ...]
+        patch_tokens = tokens["features"]  # [G*B, C, H, W]
+        cls_tokens = tokens["cls_token"]  # [G*B, C]
 
         # process the cls tokens
-        cls_tokens = cls_tokens.chunk(self.n_global_crops)
+        cls_tokens = cls_tokens.chunk(self.n_global_crops)  # [G, B, C]
         # watch out: these are chunked and cat'd in reverse so A is matched to B in the global crops dino loss
-        cls_tokens = torch.cat((cls_tokens[1], cls_tokens[0]))
-        n_cls_tokens = cls_tokens.shape[0]
+        cls_tokens = torch.cat((cls_tokens[1], cls_tokens[0]))  # [G*B, C]
 
         # process the patch tokens
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [B, H*W, C]
-        n_channels = patch_tokens.shape[-1]
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
 
-        # pas the cls and patch tokens through the head
-        upperbound = patch_tokens.shape[1]  # TODO
-        mask_indices_list = torch.arange(1)  # TODO
-        n_masked_patches_tensor = torch.full(
-            (1,), fill_value=mask_indices_list.shape[0], dtype=torch.long
-        )  # TODO
-        n_masked_patches = mask_indices_list.shape[0]  # TODO
+        # Masking
+        n_crops = patch_tokens.shape[0]  # G*B
+        n_tokens = patch_tokens.shape[1]  # H*W
+        n_channels = patch_tokens.shape[-1]  # C
+        masks = create_collated_masks(
+            n_crops=n_crops,
+            n_tokens=n_tokens,
+        )
+        upperbound = masks[
+            "upperbound"
+        ]  # bounded by int(G * B * mask_probability) * int(H * W * max_mask_ratio)
+        mask_indices_list = masks["mask_indices_list"]
+        n_masked_patches = mask_indices_list.shape[0]
+
         if not self.ibot_separate_head:
-            buffer_tokens = patch_tokens.new_zeros(
-                n_cls_tokens + upperbound, n_channels
-            )
-            buffer_tokens[:n_cls_tokens].copy_(cls_tokens)
+            buffer_tokens = patch_tokens.new_zeros(n_crops + upperbound, n_channels)
+            buffer_tokens[:n_crops].copy_(cls_tokens)
             torch.index_select(
-                patch_tokens.flatten(0, 1),
+                patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
                 index=mask_indices_list,
-                out=buffer_tokens[n_cls_tokens : n_cls_tokens + n_masked_patches],
+                out=buffer_tokens[n_crops : n_crops + n_masked_patches],
             )
 
             tokens_after_head = self.teacher_dino_head.forward(buffer_tokens)
 
-            cls_tokens_after_dino = tokens_after_head[:n_cls_tokens]
+            cls_tokens_after_dino = tokens_after_head[:n_crops]
             masked_patch_tokens_after_ibot = tokens_after_head[
-                n_cls_tokens : n_cls_tokens + n_masked_patches
+                n_crops : n_crops + n_masked_patches
             ]
         else:
             buffer_tokens = patch_tokens.new_zeros(upperbound, n_channels)
             torch.index_select(
-                patch_tokens.flatten(0, 1),
+                patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
                 index=mask_indices_list,
                 out=buffer_tokens[:n_masked_patches],
@@ -508,7 +516,9 @@ class DINOv2(Method):
             masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=self.teacher_temp,
-                n_masked_patches_tensor=n_masked_patches_tensor,
+                n_masked_patches_tensor=torch.tensor(
+                    [n_masked_patches], dtype=torch.long
+                ),
             )
             # TODO: update center missing?
         else:
@@ -516,7 +526,7 @@ class DINOv2(Method):
 
         return cls_tokens_centered, masked_patch_tokens_centered
 
-    def _forward_student(self, x: Tensor) -> List[Tensor]:
+    def _forward_student(self, x: Tensor) -> tuple[Tensor, Tensor]:
         tokens = self.student_embedding_model_wrapper.forward_features(
             x
         )  # [B, C, H, W]
