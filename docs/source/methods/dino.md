@@ -36,7 +36,7 @@ DINO trains a student network to match the output of a momentum-averaged teacher
 
 ## Default Image Transform Settings
 
-The following are the default augmentation settings for DINO. To learn how you can override these settings, see {ref}`method-transform-args`.
+The following are the default transform settings for DINO. To learn how you can override these settings, see {ref}`method-transform-args`.
 
 ````{dropdown} Default Image Transforms
 ```{include} _auto/dino_transform_args.md

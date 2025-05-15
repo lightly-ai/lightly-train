@@ -2,7 +2,7 @@
 
 # Configuring Image Transforms
 
-Pretraining relies strongly on image transforms such as:
+Pretraining relies strongly on image transforms (augmentations) such as:
 
 - **Random Cropping and Resizing**: Crops random parts of images and resizes them to fixed
   resolutions.
@@ -214,8 +214,7 @@ that `local_view` itself can be disabled by setting it to `None`. Additionally, 
 transforms within these structures can be disabled by setting them to `None`:
 
 ```python skip_ruff
-"global_view_1": {                     # modifications for second global view (cannot be 
-                                       # disabled)
+"global_view_1": {                     # modifications for second global view (cannot be disabled)
     "gaussian_blur": {                 # can be disabled by setting to None
         "prob": float,                 
         "sigmas": tuple[float, float],

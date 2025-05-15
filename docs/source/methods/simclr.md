@@ -36,7 +36,7 @@ SimCLR learns representations by creating two augmented views of the same imageâ
 
 ## Default Image Transform Settings
 
-The following are the default augmentation settings for SimCLR. To learn how you can override these settings, see {ref}`method-transform-args`.
+The following are the default transform settings for SimCLR. To learn how you can override these settings, see {ref}`method-transform-args`.
 
 ````{dropdown} Default Image Transforms
 ```{include} _auto/simclr_transform_args.md

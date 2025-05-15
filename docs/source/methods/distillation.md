@@ -42,7 +42,7 @@ Our distillation method directly applies a mean squared error (MSE) loss between
 
 ## Default Image Transform Settings
 
-The following are the default augmentation settings for Distillation. To learn how you can override these settings, see {ref}`method-transform-args`.
+The following are the default transform settings for Distillation. To learn how you can override these settings, see {ref}`method-transform-args`.
 
 ````{dropdown} Default Image Transforms
 ```{include} _auto/distillation_transform_args.md
