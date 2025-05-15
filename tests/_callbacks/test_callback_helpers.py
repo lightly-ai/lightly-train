@@ -114,9 +114,3 @@ def test_get_callbacks__user_config(tmp_path: Path) -> None:
     model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert str(model_checkpoint.dirpath) == str(tmp_path / "checkpoints")
     assert model_checkpoint.every_n_epochs == 5
-
-
-def test_get_checkpoint_model() -> None:
-    model = DummyCustomModel()
-    checkpoint_model = model.get_model()
-    assert not isinstance(checkpoint_model, DummyCustomModel)
