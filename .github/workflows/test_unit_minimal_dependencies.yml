@@ -66,13 +66,8 @@ jobs:
         with:
           ffmpeg-version: 4.3.1
       - name: Set Up Environment
-        if: ${{ matrix.runners != 'macos-latest' }}
         run: |
           make install-${{ matrix.dependencies }}
-      - name: Set Up Environment
-        if: ${{ matrix.runners == 'macos-latest' }}
-        run: |
-          make install-${{ matrix.dependencies }}-macos
       - name: Run Pytest
         run: |
           make test-ci

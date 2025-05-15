@@ -69,11 +69,6 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Set Up Environment
-        if: ${{ matrix.runners != 'macos-latest' }}
-        run: |
-          make install-pinned-${{ matrix.python }}              # Install the dependencies
-      - name: Set Up Environment
-        if: ${{ matrix.runners == 'macos-latest' }}
         run: |
           make install-pinned-${{ matrix.python }}-macos       # Install the dependencies
       - name: Run Pytest
