@@ -53,7 +53,7 @@ def updated_cfg_to_match_pretrained(
 def get_pretrained_cfg_and_url(model_name: str) -> tuple[DictConfig | None, str]:
     if model_name not in VIT_PRETRAIN_MODELS:
         logger.warning(
-            f"Model {model_name} does not have a pretrained version. "
+            f"Model {model_name} does not have a pretrained version."
             "The non pretrained version will be used."
         )
         return None, ""
@@ -82,11 +82,11 @@ class DINOv2ViTPackage(Package):
         Get a DINOv2 ViT model by name. Here the student version is build.
         """
         if model_name not in VIT_MODELS:
-            raise ValueError(f"Unknown model: {model_name}")
+            raise ValueError(f"Unknown model: {model_name} available models are: {cls.list_model_names()}")
 
         load_pretrained = False
-        if model_args is not None and "load_pretrained" in model_args:
-            load_pretrained = model_args.pop("load_pretrained")
+        if model_args is not None and "pretrained" in model_args:
+            load_pretrained = model_args.pop("pretrained")
 
         # Get the model cfg and update if required.
         config_path = get_config_path(VIT_MODELS[model_name]["config"])

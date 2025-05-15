@@ -49,7 +49,7 @@ class DistillationArgs(MethodArgs):
     temperature: float = 0.07
 
     # Default teacher
-    teacher: str = "dinov2_vitb14"
+    teacher: str = "dinov2_vit/vitb14"
 
     def resolve_auto(
         self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs
