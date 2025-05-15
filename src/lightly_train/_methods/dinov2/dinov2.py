@@ -469,7 +469,7 @@ class DINOv2(Method):
         tokens = self.teacher_embedding_model_wrapper.forward_features(
             x
         )  # input [G*B, C, ...]
-        patch_tokens = tokens["features"]  # [G*B, C, H, W]
+        patches = tokens["features"]  # [G*B, C, H, W]
         cls_tokens = tokens["cls_token"]  # [G*B, C]
 
         # process the cls tokens
@@ -478,42 +478,43 @@ class DINOv2(Method):
         cls_tokens = torch.cat((cls_tokens[1], cls_tokens[0]))  # [G*B, C]
 
         # process the patch tokens
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
+        patches = patches.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
 
         # forward through the teacher dino and ibot heads
         if not self.ibot_separate_head:
-            buffer_tokens = patch_tokens.new_zeros(
+            buffer_tokens = patches.new_zeros(
                 self.n_crops + self.n_masked_patches_max, self.n_channels
-            )  # [G*B*H*W, C]
+            )  # [G*B+M_max, C]
             buffer_tokens[: self.n_crops].copy_(cls_tokens)
             torch.index_select(
-                patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+                patches.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
                 index=self.mask_indices_list,
                 out=buffer_tokens[self.n_crops : self.n_crops + self.n_masked_patches],
-            )
+            )  # [M, C]
 
-            tokens_after_head = self.teacher_dino_head.forward(buffer_tokens)
+            tokens_after_head = self.teacher_dino_head.forward(
+                buffer_tokens
+            )  # [G*B+M_max, D]
 
-            cls_tokens_after_dino = tokens_after_head[: self.n_crops]
+            cls_tokens_after_dino = tokens_after_head[: self.n_crops]  # [G*B, D]
             masked_patch_tokens_after_ibot = tokens_after_head[
                 self.n_crops : self.n_crops + self.n_masked_patches
-            ]
+            ]  # [M, D]
         else:
-            buffer_tokens = patch_tokens.new_zeros(
-                self.n_masked_patches_max, self.n_channels
-            )
-            torch.index_select(
-                patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+            masked_patch_tokens = torch.index_select(
+                patches.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
                 index=self.mask_indices_list,
                 out=buffer_tokens[: self.n_masked_patches],
-            )
+            )  # [M, C]
 
-            cls_tokens_after_dino = self.teacher_dino_head.forward(cls_tokens)
+            cls_tokens_after_dino = self.teacher_dino_head.forward(
+                cls_tokens
+            )  # [G*B, D]
             masked_patch_tokens_after_ibot = self.teacher_ibot_head.forward(
-                buffer_tokens
-            )[: self.n_masked_patches]
+                masked_patch_tokens
+            )  # [M, D]
 
         # centering
         if self.centering == "softmax":
@@ -553,46 +554,46 @@ class DINOv2(Method):
         tokens = self.student_embedding_model_wrapper.forward_features(
             x
         )  # input [G*B, C, ...]
-        patch_tokens = tokens["features"]  # [G*B, C, H, W]
+        patches = tokens["features"]  # [G*B, C, H, W]
         cls_tokens = tokens["cls_token"]  # [G*B, C]
 
         # process the patch tokens
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
+        patches = patches.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
 
         # forward through the student dino and ibot heads
         if not self.ibot_separate_head:
-            buffer_tokens = patch_tokens.new_zeros(
+            buffer_tokens = patches.new_zeros(
                 self.n_crops + self.n_masked_patches_max, self.n_channels
-            )
+            )  # [G*B+M_max, C]
             buffer_tokens[: self.n_crops].copy_(cls_tokens)
             torch.index_select(
-                patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+                patches.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
                 index=self.mask_indices_list,
                 out=buffer_tokens[self.n_crops : self.n_crops + self.n_masked_patches],
-            )
+            )  # [M, C]
 
-            tokens_after_head = self.student_dino_head.forward(buffer_tokens)
+            tokens_after_head = self.student_dino_head.forward(
+                buffer_tokens
+            )  # [G*B+M_max, D]
 
-            cls_tokens_after_dino = tokens_after_head[: self.n_crops]
+            cls_tokens_after_dino = tokens_after_head[: self.n_crops]  # [G*B, D]
             masked_patch_tokens_after_ibot = tokens_after_head[
                 self.n_crops : self.n_crops + self.n_masked_patches
-            ]
+            ]  # [M, D]
         else:
-            buffer_tokens = patch_tokens.new_zeros(
-                self.n_masked_patches_max, self.n_channels
-            )
-            torch.index_select(
-                patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+            masked_patch_tokens = torch.index_select(
+                patches.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
                 index=self.mask_indices_list,
-                out=buffer_tokens[: self.n_masked_patches],
-            )
+            )  # [M, C]
 
-            cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)
+            cls_tokens_after_dino = self.student_dino_head.forward(
+                cls_tokens
+            )  # [G*B, D]
             masked_patch_tokens_after_ibot = self.student_ibot_head.forward(
-                buffer_tokens
-            )[: self.n_masked_patches]
+                masked_patch_tokens
+            )  # [M, D]
 
         return cls_tokens_after_dino, masked_patch_tokens_after_ibot
 
@@ -600,14 +601,10 @@ class DINOv2(Method):
         tokens = self.student_embedding_model_wrapper.forward_features(
             x
         )  # input [L*B, C, ...]
-        patch_tokens = tokens["features"]  # [L*B, C, H, W]
         cls_tokens = tokens["cls_token"]  # [L*B, C]
 
-        # process the patch tokens
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [L*B, H*W, C]
-
         # forward through the teacher dino and ibot heads
-        cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)
+        cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)  # [L*B, D]
 
         return cls_tokens_after_dino
 
