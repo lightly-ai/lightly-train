@@ -80,8 +80,7 @@ And an example of using a single JSON structure would look as follows:
 lightly-train train \
     out="out/my_experiment" \
     data="my_data_dir" model="torchvision/resnet18" \
-    transform_args='{"image_size": [128, 128], "random_resize": {"min_scale": 0.1}, 
-    "color_jitter": null}'
+    transform_args='{"image_size": [128, 128], "random_resize": {"min_scale": 0.1}, "color_jitter": null}'
 ```
 ````
 
