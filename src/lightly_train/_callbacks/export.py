@@ -30,7 +30,7 @@ class ModelExport(Callback):
         out_dir: Path,
         every_n_epochs: int = 1,
     ):
-        self._model = wrapped_model
+        self._wrapped_model = wrapped_model
         self._out_dir = out_dir
         self._every_n_epochs = every_n_epochs
 
@@ -41,7 +41,7 @@ class ModelExport(Callback):
             export_path.unlink(missing_ok=True)
 
         common_helpers.export_model(
-            model=self._model,
+            model=self._wrapped_model,
             out=export_path,
             format=ModelFormat.PACKAGE_DEFAULT,
             log_example=False,
