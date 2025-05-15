@@ -42,7 +42,6 @@ class TestSegmentationModule:
         fe = SegmentationModuleFeatureExtractor(model)
         x = torch.rand(1, 3, 224, 224)
         out = fe.forward_pool({"features": x})["pooled_features"]
-        print(out.shape)
         assert out.shape == (1, 3, 1, 1)
 
     def test_get_model(self) -> None:
