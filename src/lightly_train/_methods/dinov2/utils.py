@@ -97,9 +97,9 @@ def create_collated_masks(
     mask_ratio_min: float,
     mask_ratio_max: float,
     n_masked_crops: int,
-    n_global_crops: int,
+    n_crops: int,
     mask_generator: MaskingGenerator,
-) -> dict:
+) -> dict[str, torch.Tensor]:
     n_patch_tokens = mask_generator.num_patches
     probs = torch.linspace(mask_ratio_min, mask_ratio_max, n_masked_crops + 1)
 
@@ -112,7 +112,7 @@ def create_collated_masks(
                 mask_generator(int(n_patch_tokens * random.uniform(prob_min, prob_max)))
             )
         )
-    for i in range(n_masked_crops, n_global_crops):
+    for i in range(n_masked_crops, n_crops):
         masks_list.append(torch.BoolTensor(mask_generator(0)))
 
     random.shuffle(masks_list)
