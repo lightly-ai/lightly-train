@@ -12,9 +12,13 @@ import torch
 
 
 def create_collated_masks(
-    mask_ratio_tuple, mask_probability, n_crops, n_tokens, mask_generator=None
+    mask_ratio_tuple,
+    mask_probability,
+    n_global_crops: int,
+    n_tokens: int,
+    mask_generator=None,
 ):
-    n_masked_crops = int(n_crops * mask_probability)
+    n_masked_crops = int(n_global_crops * mask_probability)
     probs = torch.linspace(*mask_ratio_tuple, n_masked_crops + 1)
 
     upperbound = 0
@@ -28,7 +32,7 @@ def create_collated_masks(
             )
         )
         upperbound += int(n_tokens * prob_max)
-    for i in range(n_masked_crops, n_crops):
+    for i in range(n_masked_crops, n_global_crops):
         masks_list.append(torch.BoolTensor(mask_generator(0)))
 
     random.shuffle(masks_list)

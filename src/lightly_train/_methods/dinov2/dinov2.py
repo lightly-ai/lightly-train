@@ -371,18 +371,44 @@ class DINOv2(Method):
             views[: self.n_global_crops]
         )  # G * [B, C, H, W] -> [G*B, C, H, W]
 
+        # Masking
+        self.n_global_crops = global_views.shape[0]  # G*B
+        self.n_channels = global_views.shape[1]  # C
+        n_tokens = global_views.shape[2] * global_views.shape[3]  # H*W
+
+        masks = create_collated_masks(
+            n_global_crops=self.n_global_crops,
+            n_tokens=n_tokens,
+        )
+
+        self.collated_masks = masks["collated_masks"].to(
+            device=self.device, non_blocking=True
+        )
+        self.mask_indices_list = masks["mask_indices_list"].to(
+            device=self.device, non_blocking=True
+        )
+        self.masks_weight = masks["masks_weight"].to(
+            device=self.device, non_blocking=True
+        )
+        self.upperbound = masks[
+            "upperbound"
+        ]  # TODO bounded by int(G * B * mask_probability) * int(H * W * max_mask_ratio)
+        self.n_masked_patches = self.mask_indices_list.shape[0]
+
         # Process global views through teacher and student networks
         teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
             self._forward_teacher(global_views)
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
-            self._forward_student(global_views)
+            self._forward_student_global(global_views)
         )
 
         # Process local views through student network if they exist
         if self.n_local_crops > 0:
-            local_views = torch.cat(views[self.n_global_crops :]) # L * [B, C, H, W] -> [L*B, C, H, W]
-            student_cls_tokens_local, _ = self._forward_student(local_views)
+            local_views = torch.cat(
+                views[self.n_global_crops :]
+            )  # L * [B, C, H, W] -> [L*B, C, H, W]
+            student_cls_tokens_local = self._forward_student_local(local_views)
 
         # Compute the DINO loss
         dino_global_loss = (
@@ -402,20 +428,12 @@ class DINOv2(Method):
             ) / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
 
         # Compute the iBOT loss
-        student_mask_flat = torch.randn()  # TODO
-        mask_indices_list = torch.arange(1)  # TODO
-        n_masked_patches = mask_indices_list.shape[0]  # TODO
-        masks_weight = (
-            (1 / student_mask_flat.sum(-1).clamp(min=1.0))
-            .unsqueeze(-1)
-            .expand_as(student_mask_flat)[student_mask_flat]
-        )  # TODO
         ibot_loss = self.ibot_loss.forward_masked(
             student_patch_tokens=student_masked_patch_tokens_global,
             teacher_patch_tokens=teacher_masked_patch_tokens_centered,
-            student_masks_flat=student_mask_flat,
-            n_masked_patches=n_masked_patches,
-            masks_weight=masks_weight,
+            student_masks_flat=self.collated_masks,
+            n_masked_patches=self.n_masked_patches,
+            masks_weight=self.masks_weight,
         )
 
         koleo_loss = sum(
@@ -446,49 +464,40 @@ class DINOv2(Method):
         # process the patch tokens
         patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
 
-        # Masking
-        n_crops = patch_tokens.shape[0]  # G*B
-        n_tokens = patch_tokens.shape[1]  # H*W
-        n_channels = patch_tokens.shape[-1]  # C
-        masks = create_collated_masks(
-            n_crops=n_crops,
-            n_tokens=n_tokens,
-        )
-        upperbound = masks[
-            "upperbound"
-        ]  # bounded by int(G * B * mask_probability) * int(H * W * max_mask_ratio)
-        mask_indices_list = masks["mask_indices_list"]
-        n_masked_patches = mask_indices_list.shape[0]
-
+        # forward through the teacher dino and ibot heads
         if not self.ibot_separate_head:
-            buffer_tokens = patch_tokens.new_zeros(n_crops + upperbound, n_channels)
-            buffer_tokens[:n_crops].copy_(cls_tokens)
+            buffer_tokens = patch_tokens.new_zeros(
+                self.n_global_crops + self.upperbound, self.n_channels
+            )
+            buffer_tokens[: self.n_global_crops].copy_(cls_tokens)
             torch.index_select(
                 patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
-                index=mask_indices_list,
-                out=buffer_tokens[n_crops : n_crops + n_masked_patches],
+                index=self.mask_indices_list,
+                out=buffer_tokens[
+                    self.n_global_crops : self.n_global_crops + self.n_masked_patches
+                ],
             )
 
             tokens_after_head = self.teacher_dino_head.forward(buffer_tokens)
 
-            cls_tokens_after_dino = tokens_after_head[:n_crops]
+            cls_tokens_after_dino = tokens_after_head[: self.n_global_crops]
             masked_patch_tokens_after_ibot = tokens_after_head[
-                n_crops : n_crops + n_masked_patches
+                self.n_global_crops : self.n_global_crops + self.n_masked_patches
             ]
         else:
-            buffer_tokens = patch_tokens.new_zeros(upperbound, n_channels)
+            buffer_tokens = patch_tokens.new_zeros(self.upperbound, self.n_channels)
             torch.index_select(
                 patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
-                index=mask_indices_list,
-                out=buffer_tokens[:n_masked_patches],
+                index=self.mask_indices_list,
+                out=buffer_tokens[: self.n_masked_patches],
             )
 
             cls_tokens_after_dino = self.teacher_dino_head.forward(cls_tokens)
             masked_patch_tokens_after_ibot = self.teacher_ibot_head.forward(
                 buffer_tokens
-            )[:n_masked_patches]
+            )[: self.n_masked_patches]
 
         # centering
         if self.centering == "softmax":
@@ -499,34 +508,79 @@ class DINOv2(Method):
 
             masked_patch_tokens_after_ibot = masked_patch_tokens_after_ibot.unsqueeze(0)
             masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
-                masked_patch_tokens_after_ibot[:, :n_masked_patches],
+                masked_patch_tokens_after_ibot[:, : self.n_masked_patches],
                 teacher_temp=self.teacher_temp,
             )
             masked_patch_tokens_centered = masked_patch_tokens_centered.squeeze(
                 0
             )  # TODO: squeeze and unsqueeze
             self.ibot_loss.update_center(
-                masked_patch_tokens_after_ibot[:n_masked_patches]
+                masked_patch_tokens_after_ibot[: self.n_masked_patches]
             )
         elif self.centering == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
                 cls_tokens_after_dino, teacher_temp=self.teacher_temp
             ).view(self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:])
-            # TODO: update center missing?
             masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=self.teacher_temp,
                 n_masked_patches_tensor=torch.tensor(
-                    [n_masked_patches], dtype=torch.long
+                    [self.n_masked_patches], dtype=torch.long
                 ),
             )
-            # TODO: update center missing?
         else:
             raise ValueError(f"Unknown centering method: {self.centering}")
 
         return cls_tokens_centered, masked_patch_tokens_centered
 
-    def _forward_student(self, x: Tensor) -> tuple[Tensor, Tensor]:
+    def _forward_student_global(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        tokens = self.student_embedding_model_wrapper.forward_features(
+            x
+        )  # input [G*B, C, ...]
+        patch_tokens = tokens["features"]  # [G*B, C, H, W]
+        cls_tokens = tokens["cls_token"]  # [G*B, C]
+
+        # process the patch tokens
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
+
+        # forward through the student dino and ibot heads
+        if not self.ibot_separate_head:
+            buffer_tokens = patch_tokens.new_zeros(
+                self.n_global_crops + self.upperbound, self.n_channels
+            )
+            buffer_tokens[: self.n_global_crops].copy_(cls_tokens)
+            torch.index_select(
+                patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+                dim=0,
+                index=self.mask_indices_list,
+                out=buffer_tokens[
+                    self.n_global_crops : self.n_global_crops + self.n_masked_patches
+                ],
+            )
+
+            tokens_after_head = self.student_dino_head.forward(buffer_tokens)
+
+            cls_tokens_after_dino = tokens_after_head[: self.n_global_crops]
+            masked_patch_tokens_after_ibot = tokens_after_head[
+                self.n_global_crops : self.n_global_crops + self.n_masked_patches
+            ]
+        else:
+            buffer_tokens = patch_tokens.new_zeros(self.upperbound, self.n_channels)
+            torch.index_select(
+                patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+                dim=0,
+                index=self.mask_indices_list,
+                out=buffer_tokens[: self.n_masked_patches],
+            )
+
+            cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)
+            masked_patch_tokens_after_ibot = self.student_ibot_head.forward(
+                buffer_tokens
+            )[: self.n_masked_patches]
+
+        return cls_tokens_after_dino, masked_patch_tokens_after_ibot
+
+    def _forward_student_local(self, x: Tensor) -> Tensor:
         tokens = self.student_embedding_model_wrapper.forward_features(
             x
         )  # input [L*B, C, ...]
@@ -534,55 +588,12 @@ class DINOv2(Method):
         cls_tokens = tokens["cls_token"]  # [L*B, C]
 
         # process the patch tokens
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [L*B, H*W, C]
 
-        # Masking
-        n_crops = patch_tokens.shape[0]  # L*B
-        n_tokens = patch_tokens.shape[1]  # H*W
-        n_channels = patch_tokens.shape[-1]  # C
-        masks = create_collated_masks(
-            n_crops=n_crops,
-            n_tokens=n_tokens,
-        )
-        upperbound = masks[
-            "upperbound"
-        ]  # bounded by int(L * B * mask_probability) * int(H * W * max_mask_ratio)
-        mask_indices_list = masks["mask_indices_list"]
-        n_masked_patches = mask_indices_list.shape[0]
-        
-        if not self.ibot_separate_head:
-            buffer_tokens = patch_tokens.new_zeros(
-                n_crops + upperbound, n_channels
-            )
-            buffer_tokens[:n_crops].copy_(cls_tokens)
-            torch.index_select(
-                patch_tokens.flatten(0, 1), # [L*B*H*W, C]
-                dim=0,
-                index=mask_indices_list,
-                out=buffer_tokens[n_crops : n_crops + n_masked_patches],
-            )
+        # forward through the teacher dino and ibot heads
+        cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)
 
-            tokens_after_head = self.student_dino_head.forward(buffer_tokens)
-
-            cls_tokens_after_dino = tokens_after_head[:n_crops]
-            masked_patch_tokens_after_ibot = tokens_after_head[
-                n_crops : n_crops + n_masked_patches
-            ]
-        else:
-            buffer_tokens = patch_tokens.new_zeros(upperbound, n_channels)
-            torch.index_select(
-                patch_tokens.flatten(0, 1),
-                dim=0,
-                index=mask_indices_list,
-                out=buffer_tokens[:n_masked_patches],
-            )
-
-            cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)
-            masked_patch_tokens_after_ibot = self.student_ibot_head.forward(
-                buffer_tokens
-            )[:n_masked_patches]
-
-        return cls_tokens_after_dino, masked_patch_tokens_after_ibot
+        return cls_tokens_after_dino
 
     def method_args_cls() -> type[DINOv2Args]:
         return DINOv2Args
