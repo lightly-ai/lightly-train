@@ -68,6 +68,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Set Up FFmpeg
+        if: ${{ matrix.runners == 'ubuntu-latest' }}
         uses: FedericoCarboni/setup-ffmpeg@v3
         with:
           ffmpeg-version: 4.3.1
