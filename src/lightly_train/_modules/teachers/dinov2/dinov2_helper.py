@@ -68,7 +68,8 @@ def load_weights(model: Module, checkpoint_dir: Path, url: str) -> Module:
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
     # Load the checkpoint.
-    ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    model.load_state_dict(ckpt, strict=True)
-    logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
+    if checkpoint_path.exists():
+        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        model.load_state_dict(ckpt, strict=True)
+        logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
     return model
