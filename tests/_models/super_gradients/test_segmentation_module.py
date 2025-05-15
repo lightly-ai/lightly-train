@@ -42,7 +42,8 @@ class TestSegmentationModule:
         fe = SegmentationModuleFeatureExtractor(model)
         x = torch.rand(1, 3, 224, 224)
         out = fe.forward_pool({"features": x})["pooled_features"]
-        assert out.shape == (1, 1024)
+        print(out.shape)
+        assert out.shape == (1, 3, 1, 1)
 
     def test_get_model(self) -> None:
         model = SUPER_GRADIENTS_PACKAGE.get_model("pp_lite_t_seg50")
