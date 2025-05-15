@@ -59,7 +59,7 @@ out/my_experiment
 The final model checkpoint is saved to `out/my_experiment/checkpoints/last.ckpt`. The
 file `out/my_experiment/exported_models/exported_last.pt` contains the final model,
 exported in the default format (`package_default`) of the used library (see
-[export format](export.md#format) for more details).
+{ref}`export format <export-format>` for more details).
 
 ```{tip}
 Create a new output directory for each experiment to keep training logs, model exports,

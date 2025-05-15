@@ -211,7 +211,7 @@ maxdepth: 2
 ---
 quick_start
 installation
-train
+train/index
 export
 embed
 models/index
