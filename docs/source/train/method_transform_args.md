@@ -59,7 +59,7 @@ means:
    single quotes).
  - Tuples do not exist, use bracketed notation (like a Python list).
  - JSON's correspondence to Python's `None` is `null`, which you will have to use in order 
-   to selectively turn off an augmentation.
+   to turn off an augmentation.
 ```
 
 An example of how you can use the bracketed notation, would be:
@@ -205,13 +205,11 @@ globally available ones, which were listed above.
 
 ### DINO
 
-DINO uses a multi-crop strategy with two full-resolution "global" views (which have slightly
+DINO uses a multi-crop strategy with two "global" views (which have slightly
 different augmentation parameters) and optional additional smaller resolution "local" views
-(default: 6 views).
+(default: 6 local views).
 
-Besides the default arguments, the following DINO-specific arguments are available. Note
-that `local_view` itself can be disabled by setting it to `None`. Additionally, some
-transforms within these structures can be disabled by setting them to `None`:
+Besides the default arguments, the following DINO-specific arguments are available:
 
 ```python skip_ruff
 "global_view_1": {                     # modifications for second global view (cannot be disabled)
@@ -239,3 +237,6 @@ transforms within these structures can be disabled by setting them to `None`:
     }
 }
 ```
+
+Note that `local_view` itself can be disabled by setting it to `None`. Additionally, some
+transforms within these structures can be disabled by setting them to `None`
