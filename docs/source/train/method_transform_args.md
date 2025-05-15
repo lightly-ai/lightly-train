@@ -1,8 +1,8 @@
 (method-transform-args)=
 
-# Configuring Image Augmentations
+# Configuring Image Transforms
 
-Pretraining relies strongly on image augmentations such as:
+Pretraining relies strongly on image transforms such as:
 
 - **Random Cropping and Resizing**: Crops random parts of images and resizes them to fixed
   resolutions.
@@ -17,16 +17,16 @@ Pretraining relies strongly on image augmentations such as:
 - **Normalization**: Scales pixel values using predefined mean and standard deviation.
 
 ```{warning}
-In 99% of cases, it is not necessary to modify the default image augmentations in
+In 99% of cases, it is not necessary to modify the default image transforms in
 LightlyTrain. The default settings are carefully tuned to work well for most use cases.
 However, for specific downstream tasks or unique image domains, you might want to
 override these defaults as shown below.
 ```
 
 ````{tab} Python
-For the Python API, use a dictionary structure to override any augmentations settings and 
+For the Python API, use a dictionary structure to override any transforms settings and 
 pass it to the `lightly_train.train` function through the `transform_args` argument. Many 
-augmentations can also be selectively turned off completely by setting them to `None`, as 
+transforms can also be selectively turned off completely by setting them to `None`, as 
 is demonstrated in this example with the `color_jitter` augmentation.
 ```python
 import lightly_train
@@ -48,7 +48,7 @@ if __name__ == "__main__":
 ````
 
 ````{tab} Command Line
-There are two options on how you can configure the augmentations on the command line:
+There are two options on how you can configure the transforms on the command line:
 1. Dotted Notation
 2. Pass all arguments as a single JSON structure
 
@@ -211,7 +211,7 @@ different augmentation parameters) and optional additional smaller resolution "l
 
 Besides the default arguments, the following DINO-specific arguments are available. Note
 that `local_view` itself can be disabled by setting it to `None`. Additionally, some
-augmentations within these structures can be disabled by setting them to `None`:
+transforms within these structures can be disabled by setting them to `None`:
 
 ```python skip_ruff
 "global_view_1": {                     # modifications for second global view (cannot be 
