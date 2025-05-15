@@ -94,16 +94,15 @@ class MaskingGenerator:
 
 
 def create_collated_masks(
-    mask_ratio_tuple,
-    mask_probability,
+    mask_ratio_min: float,
+    mask_ratio_max: float,
+    n_masked_crops: int,
     n_global_crops: int,
     mask_generator: MaskingGenerator,
-):
-    n_masked_crops = int(n_global_crops * mask_probability)
+) -> dict:
     n_patch_tokens = mask_generator.num_patches
-    probs = torch.linspace(*mask_ratio_tuple, n_masked_crops + 1)
+    probs = torch.linspace(mask_ratio_min, mask_ratio_max, n_masked_crops + 1)
 
-    upperbound = 0
     masks_list = []
     for i in range(0, n_masked_crops):
         prob_min = probs[i]
@@ -113,7 +112,6 @@ def create_collated_masks(
                 mask_generator(int(n_patch_tokens * random.uniform(prob_min, prob_max)))
             )
         )
-        upperbound += int(n_patch_tokens * prob_max)
     for i in range(n_masked_crops, n_global_crops):
         masks_list.append(torch.BoolTensor(mask_generator(0)))
 
@@ -131,5 +129,4 @@ def create_collated_masks(
         "collated_masks": collated_masks,
         "mask_indices_list": mask_indices_list,
         "masks_weight": masks_weight,
-        "upperbound": upperbound,
     }

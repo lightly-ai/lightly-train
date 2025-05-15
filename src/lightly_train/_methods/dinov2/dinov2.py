@@ -87,6 +87,11 @@ class DINOv2Args(MethodArgs):
     warmup_teacher_temp: float = 0.07
     warmup_teacher_temp_epochs: int = 30
 
+    # masking
+    mask_ratio_min: 0.1
+    mask_ratio_max: 0.5
+    mask_probability: 0.5
+
     # momentum
     momentum_start: float | Literal["auto"] = "auto"
     momentum_end: float = 1.0
@@ -381,7 +386,13 @@ class DINOv2(Method):
             input_size=(h, w),
             max_num_patches=0.5 * h * w,
         )
+        n_masked_crops = int(self.n_global_crops * self.method_args.mask_probability)
+        mask_ratio_min = self.method_args.mask_ratio_min
+        mask_ratio_max = self.method_args.mask_ratio_max
         masks = create_collated_masks(
+            mask_ratio_min=mask_ratio_min,
+            mask_ratio_max=mask_ratio_max,
+            n_masked_crops=n_masked_crops,
             n_global_crops=self.n_global_crops,
             mask_generator=mask_generator,
         )
@@ -395,10 +406,10 @@ class DINOv2(Method):
         self.masks_weight = masks["masks_weight"].to(
             device=self.device, non_blocking=True
         )
-        self.upperbound = masks[
-            "upperbound"
-        ]  # TODO bounded by int(G * B * mask_probability) * int(H * W * max_mask_ratio)
         self.n_masked_patches = self.mask_indices_list.shape[0]
+        self.n_masked_patches_max = int(
+            (n_masked_crops + 1) * h * w * (mask_ratio_min + mask_ratio_max) / 2.0
+        )
 
         # Process global views through teacher and student networks
         teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
@@ -472,7 +483,7 @@ class DINOv2(Method):
         # forward through the teacher dino and ibot heads
         if not self.ibot_separate_head:
             buffer_tokens = patch_tokens.new_zeros(
-                self.n_global_crops + self.upperbound, self.n_channels
+                self.n_global_crops + self.n_masked_patches_max, self.n_channels
             )
             buffer_tokens[: self.n_global_crops].copy_(cls_tokens)
             torch.index_select(
@@ -491,7 +502,9 @@ class DINOv2(Method):
                 self.n_global_crops : self.n_global_crops + self.n_masked_patches
             ]
         else:
-            buffer_tokens = patch_tokens.new_zeros(self.upperbound, self.n_channels)
+            buffer_tokens = patch_tokens.new_zeros(
+                self.n_masked_patches_max, self.n_channels
+            )
             torch.index_select(
                 patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
@@ -551,7 +564,7 @@ class DINOv2(Method):
         # forward through the student dino and ibot heads
         if not self.ibot_separate_head:
             buffer_tokens = patch_tokens.new_zeros(
-                self.n_global_crops + self.upperbound, self.n_channels
+                self.n_global_crops + self.n_masked_patches_max, self.n_channels
             )
             buffer_tokens[: self.n_global_crops].copy_(cls_tokens)
             torch.index_select(
@@ -570,7 +583,9 @@ class DINOv2(Method):
                 self.n_global_crops : self.n_global_crops + self.n_masked_patches
             ]
         else:
-            buffer_tokens = patch_tokens.new_zeros(self.upperbound, self.n_channels)
+            buffer_tokens = patch_tokens.new_zeros(
+                self.n_masked_patches_max, self.n_channels
+            )
             torch.index_select(
                 patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
