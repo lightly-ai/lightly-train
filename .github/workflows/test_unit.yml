@@ -71,10 +71,6 @@ jobs:
       - name: Set Up Environment
         run: |
           make install-pinned-${{ matrix.python }}              # Install the dependencies
-      - name: Install CPU-only on macOS
-        if: ${{ matrix.runners == 'macos-latest' }}
-        run: |
-          uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
       - name: Run Pytest
         run: |
           make test-ci

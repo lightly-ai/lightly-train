@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Literal
@@ -207,6 +208,11 @@ def test_embed_from_dictconfig__image_size(
     assert mock_embed.call_args.kwargs["config"].image_size == expected
 
 
+# TODO (Lionel, 2025/05): Remove when MPS is supported on CI.
+@pytest.mark.skipif(
+    not os.getenv("CI") and sys.platform == "darwin",
+    reason="CI does not support MPS pass-through.",
+)
 @pytest.mark.parametrize(
     "ckpt_dtype",
     [
