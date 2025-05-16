@@ -72,6 +72,11 @@ class DINOv2Args(MethodArgs):
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
     norm_last_layer: bool = False
+    
+    # masking
+    mask_ratio_min: 0.1
+    mask_ratio_max: 0.5
+    mask_probability: 0.5
 
     # loss
     dino_loss_weight: float = 1.0
@@ -86,11 +91,6 @@ class DINOv2Args(MethodArgs):
     teacher_temp: float = 0.04
     warmup_teacher_temp: float = 0.07
     warmup_teacher_temp_epochs: int = 30
-
-    # masking
-    mask_ratio_min: 0.1
-    mask_ratio_max: 0.5
-    mask_probability: 0.5
 
     # momentum
     momentum_start: float | Literal["auto"] = "auto"
@@ -413,10 +413,10 @@ class DINOv2(Method):
 
         # Process global views through teacher and student networks
         teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
-            self._forward_teacher(global_views)
+            self._forward_teacher(global_views) # [G, B, D], [M, D]
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
-            self._forward_student_global(global_views)
+            self._forward_student_global(global_views) # [G*B, D], [M, D]
         )
 
         # Process local views through student network if they exist
@@ -424,23 +424,23 @@ class DINOv2(Method):
             local_views = torch.cat(
                 views[self.n_global_crops :]
             )  # L * [B, C, H, W] -> [L*B, C, H, W]
-            student_cls_tokens_local = self._forward_student_local(local_views)
+            student_cls_tokens_local = self._forward_student_local(local_views) # [L*B, D]
 
         # Compute the DINO loss
         dino_global_loss = (
             self.dino_loss.forward(
-                student_output_list=[student_cls_tokens_global],
+                student_output_list=[student_cls_tokens_global], # [[G*B, D]]
                 teacher_out_softmaxed_centered_list=[
                     teacher_cls_tokens_centered.flatten(0, 1)
-                ],  # these were chunked and stacked in reverse so A is matched to B,
+                ],  # [[G*B, D]], these were chunked and stacked in reverse so A is matched to B,
             )
             * self.n_global_crops
             / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
         )
-        if self.n_local_crops > 0:  # TODO
+        if self.n_local_crops > 0:
             dino_local_loss = self.dino_loss.forward(
-                student_output_list=student_cls_tokens_local.chunk(self.n_local_crops),
-                teacher_out_softmaxed_centered_list=teacher_cls_tokens_centered,
+                student_output_list=student_cls_tokens_local.chunk(self.n_local_crops), # [L, B, D]
+                teacher_out_softmaxed_centered_list=teacher_cls_tokens_centered, # [G, B, D]
             ) / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
 
         # Compute the iBOT loss
@@ -455,7 +455,7 @@ class DINOv2(Method):
         koleo_loss = sum(
             self.koleo_loss(token)
             for token in student_cls_tokens_global.chunk(self.n_global_crops)
-        )  # only use global views
+        )  # [G, B, D], only use global views
 
         return TrainingStepResult(
             dino_global_loss=dino_global_loss,
@@ -520,31 +520,28 @@ class DINOv2(Method):
         if self.centering == "softmax":
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
                 cls_tokens_after_dino, teacher_temp=self.teacher_temp
-            ).view(self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:])
+            ).view(self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:]) # [G, B, D]
             self.dino_loss.update_center(cls_tokens_after_dino)
 
-            masked_patch_tokens_after_ibot = masked_patch_tokens_after_ibot.unsqueeze(0)
             masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
-                masked_patch_tokens_after_ibot[:, : self.n_masked_patches],
+                masked_patch_tokens_after_ibot[: self.n_masked_patches],
                 teacher_temp=self.teacher_temp,
-            )
-            masked_patch_tokens_centered = masked_patch_tokens_centered.squeeze(
-                0
-            )  # TODO: squeeze and unsqueeze
+            ) # [M, D]
             self.ibot_loss.update_center(
                 masked_patch_tokens_after_ibot[: self.n_masked_patches]
             )
         elif self.centering == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
                 cls_tokens_after_dino, teacher_temp=self.teacher_temp
-            ).view(self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:])
+            ).view(self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:]) # [G, B, D]
+            
             masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=self.teacher_temp,
                 n_masked_patches_tensor=torch.tensor(
                     [self.n_masked_patches], dtype=torch.long
                 ).to(device=self.device, non_blocking=True),
-            )
+            ) # [M, D]
         else:
             raise ValueError(f"Unknown centering method: {self.centering}")
 
