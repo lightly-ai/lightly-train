@@ -347,6 +347,7 @@ def export_model(
     model: Module | ModelWrapper | EmbeddingModel,
     format: ModelFormat,
     out: Path,
+    package: BasePackage | None = None,
     log_example: bool = True,
 ) -> None:
     if not is_global_rank_zero():
@@ -359,11 +360,14 @@ def export_model(
     elif format == ModelFormat.TORCH_STATE_DICT:
         torch.save(model.state_dict(), out)
     elif format == ModelFormat.PACKAGE_DEFAULT:
+        if package is None:
+            raise ValueError(
+                "Package must be provided when exporting in package default format."
+            )
         if isinstance(model, EmbeddingModel):
             model = model.wrapped_model.get_model()
         elif isinstance(model, ModelWrapper):
             model = model.get_model()
-        package = _get_package(model=model)
         package.export_model(model=model, out=out, log_example=log_example)
     else:
         raise ValueError(f"Invalid format: '{format.value}' is not supported ")

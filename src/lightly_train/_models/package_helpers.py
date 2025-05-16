@@ -71,38 +71,46 @@ def get_wrapped_model(
     """Returns a wrapped model instance given a model name or instance."""
     if isinstance(model, ModelWrapper):
         return model
+
+    package: Package
     if isinstance(model, str):
         package_name, model_name = _parse_model_name(model)
         package = get_package(package_name)
         model = package.get_model(model_name, model_args=model_args)
     else:
-        package = get_package_from_model(model, include_custom=False)
+        package = get_package_from_model(
+            model, include_custom=False, fallback_custom=False
+        )
     return package.get_model_wrapper(model)
 
 
 @overload
 def get_package_from_model(
-    model: Module, include_custom: Literal[False]
-) -> Package: ...
+    model: Module | ModelWrapper, include_custom: bool, fallback_custom: Literal[True]
+) -> BasePackage: ...
 
 
 @overload
 def get_package_from_model(
-    model: ModelWrapper, include_custom: Literal[True]
-) -> BasePackage: ...
+    model: Module | ModelWrapper, include_custom: bool, fallback_custom: Literal[False]
+) -> Package: ...
 
 
 def get_package_from_model(
-    model: Module | ModelWrapper, include_custom: bool = True
+    model: Module | ModelWrapper,
+    include_custom: bool,
+    fallback_custom: bool,
 ) -> BasePackage | Package:
-    """Returns the package of the model. If the model is not part of any package,
-    the custom package is returned."""
+    """Returns the package of the model."""
     packages = list_base_packages() if include_custom else list_packages()
     for package in packages:
         if package.is_supported_model(model):
             return package
 
-    raise UnknownModelError(f"Unknown model: '{model.__class__.__name__}'")
+    if not fallback_custom:
+        raise UnknownModelError(f"Unknown model: '{model.__class__.__name__}'")
+    else:
+        return CUSTOM_PACKAGE
 
 
 def _parse_model_name(model: str) -> tuple[str, str]:

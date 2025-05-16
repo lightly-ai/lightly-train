@@ -16,6 +16,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from lightly_train._commands import common_helpers
 from lightly_train._commands.common_helpers import ModelFormat
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
 
 
@@ -40,10 +41,14 @@ class ModelExport(Callback):
         if export_path.exists():
             export_path.unlink(missing_ok=True)
 
+        package = package_helpers.get_package_from_model(
+            self._wrapped_model, include_custom=True, fallback_custom=True
+        )
         common_helpers.export_model(
             model=self._wrapped_model,
             out=export_path,
             format=ModelFormat.PACKAGE_DEFAULT,
+            package=package,
             log_example=False,
         )
 

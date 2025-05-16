@@ -357,10 +357,14 @@ def train_from_config(config: TrainConfig) -> None:
         logger.info("No training epochs specified. Saving model and exiting.")
         trainer_instance.save_checkpoint(out_dir / "checkpoints" / "last.ckpt")
     logger.info("Training completed.")
+    package = package_helpers.get_package_from_model(
+        model=wrapped_model, include_custom=True, fallback_custom=True
+    )
     common_helpers.export_model(
         model=wrapped_model,
         out=out_dir / "exported_models" / "exported_last.pt",
         format=ModelFormat.PACKAGE_DEFAULT,
+        package=package,
     )
     logger.info("Model exported.")
 

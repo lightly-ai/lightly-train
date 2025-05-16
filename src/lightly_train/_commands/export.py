@@ -19,6 +19,7 @@ from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands.common_helpers import ModelFormat, ModelPart
 from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train.types import PathLike
@@ -93,7 +94,12 @@ def export_from_config(config: ExportConfig) -> None:
         checkpoint=ckpt, part=part
     )
     logger.info(f"Exporting model to '{out_path}'")
-    common_helpers.export_model(model=model, format=format, out=out_path)
+    package = package_helpers.get_package_from_model(
+        model=model, include_custom=True, fallback_custom=True
+    )
+    common_helpers.export_model(
+        model=model, format=format, out=out_path, package=package
+    )
 
 
 def export_from_dictconfig(config: DictConfig) -> None:
