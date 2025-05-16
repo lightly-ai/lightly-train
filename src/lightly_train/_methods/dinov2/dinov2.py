@@ -36,8 +36,8 @@ from lightly_train._methods.dinov2.dinov2_transform import (
 from lightly_train._methods.dinov2.utils import (
     MaskingGenerator,
     create_collated_masks,
-    linear_warmup_schedule, # TODO: import from LightlySSL after new release
     get_layer_scale_modules,
+    linear_warmup_schedule,  # TODO: import from LightlySSL after new release
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
@@ -640,16 +640,15 @@ class DINOv2(Method):
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 
     def trainable_modules(self) -> TrainableModules:
-        student_modules = [
-            self.student_embedding_model_wrapper._model,
-            self.student_dino_head,
-            self.student_ibot_head,
-        ]
         student_modules_layer_scale = get_layer_scale_modules(
-            modules=student_modules
+            modules=[self.student_embedding_model_wrapper._model]
         )
         return TrainableModules(
-            modules=student_modules,
+            modules=[
+                self.student_embedding_model_wrapper._model,
+                self.student_dino_head,
+                self.student_ibot_head,
+            ],
             modules_no_weight_decay=student_modules_layer_scale,
         )
 
@@ -668,18 +667,17 @@ class DINOv2(Method):
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
         self.student_dino_head.cancel_last_layer_gradients(self.current_epoch)
         self.student_ibot_head.cancel_last_layer_gradients(self.current_epoch)
-        
+
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
             start_value=self.method_args.weight_decay_start,
             end_value=self.method_args.weight_decay_end,
         )
-        updates = []
-        for group in optimizer.param_groups:
-            if group["weight_decay"] != 0.0:
-                updates.append({"name": group["name"], "weight_decay": weight_decay})
-        update_param_groups(optimizer, updates=updates)
+
+        update_param_groups(
+            optimizer, updates=[{"name": "params", "weight_decay": weight_decay}]
+        )
 
     @staticmethod
     def transform_cls(
