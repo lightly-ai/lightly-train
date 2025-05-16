@@ -16,7 +16,6 @@ from pytorch_lightning.callbacks import (
     EarlyStopping,
     LearningRateMonitor,
 )
-from torch.nn import Module
 
 from lightly_train._callbacks.callback_args import (
     CallbackArgs,
@@ -27,7 +26,7 @@ from lightly_train._callbacks.tqdm_progress_bar import DataWaitTQDMProgressBar
 from lightly_train._checkpoint import CheckpointLightlyTrainModels
 from lightly_train._configs import validate
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._models.model_wrapper import ModelGetter
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._transforms.transform import NormalizeArgs
 
 
@@ -44,7 +43,7 @@ def get_callbacks(
     callback_args: CallbackArgs,
     normalize_args: NormalizeArgs,
     out: Path,
-    model: Module,
+    wrapped_model: ModelWrapper,
     embedding_model: EmbeddingModel,
 ) -> list[Callback]:
     callbacks: list[Callback] = []
@@ -62,7 +61,7 @@ def get_callbacks(
     if callback_args.model_export is not None:
         callbacks.append(
             ModelExport(
-                model=model,
+                wrapped_model=wrapped_model,
                 out_dir=out / "exported_models",
                 **callback_args.model_export.model_dump(),
             )
@@ -71,7 +70,9 @@ def get_callbacks(
         callbacks.append(
             ModelCheckpoint(
                 models=CheckpointLightlyTrainModels(
-                    model=model, embedding_model=embedding_model
+                    model=wrapped_model.get_model(),
+                    wrapped_model=wrapped_model,
+                    embedding_model=embedding_model,
                 ),
                 dirpath=out / "checkpoints",
                 normalize_args=normalize_args,
@@ -79,11 +80,3 @@ def get_callbacks(
             )
         )
     return callbacks
-
-
-def get_checkpoint_model(model: Module) -> Module:
-    # If feature extractor provides .model() getter, store only the model.
-    if isinstance(model, ModelGetter):
-        model_: Module = model.get_model()
-        return model_
-    return model

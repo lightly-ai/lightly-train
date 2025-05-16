@@ -11,6 +11,7 @@ from torch import Tensor
 from torch.nn import Module
 
 from lightly_train._models.custom.custom_package import CustomPackage
+from lightly_train._models.model_wrapper import ModelWrapper
 
 
 class TestCustomPackage:
@@ -43,7 +44,7 @@ class TestCustomPackage:
                 return self
 
         model = DummyCustomModel()
-        assert not CustomPackage.is_supported_model(model)
+        assert not isinstance(model, ModelWrapper)
 
     def test_is_supported_model__no_forward_features(
         self, mocker: MockerFixture
@@ -59,7 +60,7 @@ class TestCustomPackage:
                 return self
 
         model = DummyCustomModel()
-        assert not CustomPackage.is_supported_model(model)
+        assert not isinstance(model, ModelWrapper)
 
     def test_is_custom_model__no_forward_pool(self, mocker: MockerFixture) -> None:
         class DummyCustomModel(Module):
@@ -73,7 +74,7 @@ class TestCustomPackage:
                 return self
 
         model = DummyCustomModel()
-        assert not CustomPackage.is_supported_model(model)
+        assert not isinstance(model, ModelWrapper)
 
     def test_is_custom_model__no_get_model(self, mocker: MockerFixture) -> None:
         class DummyCustomModel(Module):
@@ -87,4 +88,4 @@ class TestCustomPackage:
                 return torch.zeros(1)
 
         model = DummyCustomModel()
-        assert not CustomPackage.is_supported_model(model)
+        assert not isinstance(model, ModelWrapper)

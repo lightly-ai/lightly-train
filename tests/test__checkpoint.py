@@ -11,6 +11,7 @@ from lightly_train._checkpoint import (
     CheckpointLightlyTrain,
     CheckpointLightlyTrainModels,
 )
+from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._transforms.transform import NormalizeArgs
 
 from . import helpers
@@ -21,13 +22,14 @@ class TestCheckpointInfo:
         date = datetime(
             year=2024, month=1, day=2, minute=3, second=4, tzinfo=timezone.utc
         )
-        model = helpers.get_model()
-        embedding_model = helpers.get_embedding_model(model=model)
+        wrapped_model = helpers.DummyCustomModel()
+        embedding_model = EmbeddingModel(wrapped_model=wrapped_model)
         info = CheckpointLightlyTrain(
             version="abc",
             date=date,
             models=CheckpointLightlyTrainModels(
-                model=model,
+                model=wrapped_model.get_model(),
+                wrapped_model=wrapped_model,
                 embedding_model=embedding_model,
             ),
             normalize_args=NormalizeArgs(),
@@ -39,7 +41,8 @@ class TestCheckpointInfo:
             "version": "abc",
             "date": "2024-01-02T00:03:04+00:00",
             "models": {
-                "model": model,
+                "model": wrapped_model.get_model(),
+                "wrapped_model": wrapped_model,
                 "embedding_model": embedding_model,
             },
             "normalize_args": NormalizeArgs().to_dict(),

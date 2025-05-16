@@ -7,18 +7,16 @@
 #
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from typing import Protocol
 
 from torch.nn import Module
 
 from lightly_train._models.model_wrapper import ModelWrapper
 
 
-class SuperGradientsModelWrapper(ABC, ModelWrapper):
+class SuperGradientsModelWrapper(ModelWrapper, Protocol):
     @classmethod
-    @abstractmethod
     def is_supported_model_cls(cls, model_cls: type[Module]) -> bool: ...
 
     @classmethod
-    @abstractmethod
     def supported_model_classes(cls) -> tuple[type[Module], ...]: ...

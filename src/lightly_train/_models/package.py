@@ -16,25 +16,27 @@ from torch.nn import Module
 from lightly_train._models.model_wrapper import ModelWrapper
 
 
-class Package(ABC):
-    """Interface for a package that provides models and feature extractors that are
-    compatible with lightly_train.
-
-    Every package must implement this interface.
-    """
-
+class BasePackage(ABC):
     name: str  # The name of the package.
 
     @classmethod
     @abstractmethod
-    def list_model_names(cls) -> list[str]:
-        """List all supported models by this package."""
-        ...
+    def export_model(
+        cls, model: Module, out: Path, log_example: bool = True
+    ) -> None: ...
 
     @classmethod
     @abstractmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
         """Check if the model is supported by this package."""
+        ...
+
+
+class Package(BasePackage):
+    @classmethod
+    @abstractmethod
+    def list_model_names(cls) -> list[str]:
+        """List all supported models by this package."""
         ...
 
     @classmethod
@@ -56,7 +58,3 @@ class Package(ABC):
         Assumes that the model is supported by the package.
         """
         ...
-
-    @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
-        raise NotImplementedError(f"Exporting {cls.name} models is not supported.")

@@ -10,40 +10,41 @@ import torch
 from torch import nn
 
 from lightly_train._models.embedding_model import EmbeddingModel
-from tests import helpers
+
+from ..helpers import DummyCustomModel
 
 
 class TestEmbeddingModel:
     def test___init___with_embed_dim(self) -> None:
-        feature_extractor = helpers.get_model_wrapper()
+        wrapped_model = DummyCustomModel()
         embed_dim = 64
-        model = EmbeddingModel(model_wrapper=feature_extractor, embed_dim=embed_dim)
+        model = EmbeddingModel(wrapped_model=wrapped_model, embed_dim=embed_dim)
         assert isinstance(model.embed_head, nn.Conv2d)
         assert model.embed_dim == embed_dim
 
     def test___init___without_embed_dim(self) -> None:
-        feature_extractor = helpers.get_model_wrapper()
-        model = EmbeddingModel(model_wrapper=feature_extractor, embed_dim=None)
+        wrapped_model = DummyCustomModel()
+        model = EmbeddingModel(wrapped_model=wrapped_model, embed_dim=None)
         assert isinstance(model.embed_head, nn.Identity)
-        assert model.embed_dim == feature_extractor.feature_dim()
+        assert model.embed_dim == wrapped_model.feature_dim()
 
     def test_forward__with_pooling(self) -> None:
-        feature_extractor = helpers.get_model_wrapper()
-        model = EmbeddingModel(model_wrapper=feature_extractor, embed_dim=64)
+        wrapped_model = DummyCustomModel()
+        model = EmbeddingModel(wrapped_model=wrapped_model, embed_dim=64)
         x = torch.rand(2, 3, 32, 32)
         output = model(x, pool=True)
         assert output.shape == (2, 64, 1, 1)
 
     def test_forward__without_pooling(self) -> None:
-        feature_extractor = helpers.get_model_wrapper()
-        model = EmbeddingModel(model_wrapper=feature_extractor, embed_dim=64)
+        wrapped_model = DummyCustomModel()
+        model = EmbeddingModel(wrapped_model=wrapped_model, embed_dim=64)
         x = torch.rand(2, 3, 32, 32)
         output = model(x, pool=False)
         assert output.shape == (2, 64, 31, 31)
 
     def test_forward__identity_head(self) -> None:
-        feature_extractor = helpers.get_model_wrapper()
-        model = EmbeddingModel(model_wrapper=feature_extractor, embed_dim=None)
+        wrapped_model = DummyCustomModel()
+        model = EmbeddingModel(wrapped_model=wrapped_model, embed_dim=None)
         x = torch.rand(2, 3, 32, 32)
         output = model(x, pool=True)
         assert output.shape == (2, 2, 1, 1)

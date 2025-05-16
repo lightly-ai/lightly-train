@@ -28,7 +28,7 @@ class TestTIMMPackage:
 
     def test_is_model__false(self) -> None:
         model = DummyCustomModel()
-        assert not TIMMPackage.is_supported_model(model)
+        assert not TIMMPackage.is_supported_model(model.get_model())
 
     def test_export_model(self, tmp_path: Path) -> None:
         out = tmp_path / "model.pt"

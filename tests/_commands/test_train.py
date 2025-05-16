@@ -317,7 +317,7 @@ def test_train__checkpoint_gradients(tmp_path: Path) -> None:
     )
     ckpt_path = out / "checkpoints" / "last.ckpt"
     ckpt = Checkpoint.from_path(checkpoint=ckpt_path)
-    for param in ckpt.lightly_train.models.model.parameters():
+    for param in ckpt.lightly_train.models.wrapped_model.get_model().parameters():
         assert param.requires_grad
 
 

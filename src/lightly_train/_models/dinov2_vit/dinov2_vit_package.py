@@ -39,8 +39,11 @@ class DINOv2ViTPackage(Package):
         return [f"{cls.name}/{entry}" for entry in list(VIT_MODELS.keys())]
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
-        return isinstance(model, DinoVisionTransformer)
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
+        if isinstance(model, ModelWrapper):
+            return isinstance(model.get_model(), DinoVisionTransformer)
+        else:
+            return isinstance(model, DinoVisionTransformer)
 
     @classmethod
     def get_model(
