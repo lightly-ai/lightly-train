@@ -36,7 +36,8 @@ from lightly_train._methods.dinov2.dinov2_transform import (
 from lightly_train._methods.dinov2.utils import (
     MaskingGenerator,
     create_collated_masks,
-    linear_warmup_schedule,
+    linear_warmup_schedule, # TODO: import from LightlySSL after new release
+    get_layer_scale_modules,
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
@@ -639,12 +640,17 @@ class DINOv2(Method):
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 
     def trainable_modules(self) -> TrainableModules:
+        student_modules = [
+            self.student_embedding_model_wrapper._model,
+            self.student_dino_head,
+            self.student_ibot_head,
+        ]
+        student_modules_layer_scale = get_layer_scale_modules(
+            modules=student_modules
+        )
         return TrainableModules(
-            modules=[
-                self.student_embedding_model_wrapper._model,
-                self.student_dino_head,
-                self.student_ibot_head,
-            ]
+            modules=student_modules,
+            modules_no_weight_decay=student_modules_layer_scale,
         )
 
     def configure_gradient_clipping(
