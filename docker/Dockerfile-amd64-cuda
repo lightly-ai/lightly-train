@@ -1,4 +1,4 @@
-# Builds lightly/train:latest image on DockerHub. TODO: Add link
+# Image is released at https://hub.docker.com/r/lightly/train
 # Image is CUDA-optimized for single/multi-GPU training and inference
 
 # Start FROM PyTorch image https://hub.docker.com/r/pytorch/pytorch
