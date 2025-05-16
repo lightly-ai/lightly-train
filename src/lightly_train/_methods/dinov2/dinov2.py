@@ -17,7 +17,7 @@ from lightly.loss import (
 )  # we use LightlySSL's KoLeoLoss for better numerical stability
 from lightly.models.modules.heads import DINOProjectionHead
 from lightly.models.utils import update_momentum
-from lightly.utils import optim
+from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import cosine_schedule
 from torch import Tensor
 from torch.nn import Module
@@ -221,7 +221,6 @@ class DINOv2Args(MethodArgs):
 class DINOv2AdamWArgs(AdamWArgs):
     lr: float = 0.0005
     weight_decay: float = 0.04
-    weight_decay_end: float = 0.4
 
 
 class DINOv2(Method):
@@ -645,6 +644,7 @@ class DINOv2(Method):
             modules=[
                 self.student_embedding_model_wrapper._model,
                 self.student_dino_head,
+                self.student_ibot_head,
             ]
         )
 
@@ -659,18 +659,22 @@ class DINOv2(Method):
             gradient_clip_val=3.0,
             gradient_clip_algorithm="norm",
         )
-        self.student_dino_head.cancel_last_layer_gradients(self.current_epoch)
 
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
+        self.student_dino_head.cancel_last_layer_gradients(self.current_epoch)
+        self.student_ibot_head.cancel_last_layer_gradients(self.current_epoch)
+        
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
             start_value=self.method_args.weight_decay_start,
             end_value=self.method_args.weight_decay_end,
         )
-        optim.update_param_groups(
-            optimizer, updates=[{"name": "params", "weight_decay": weight_decay}]
-        )
+        updates = []
+        for group in optimizer.param_groups:
+            if group["weight_decay"] != 0.0:
+                updates.append({"name": group["name"], "weight_decay": weight_decay})
+        update_param_groups(optimizer, updates=updates)
 
     @staticmethod
     def transform_cls(
