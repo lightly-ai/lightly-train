@@ -6,16 +6,16 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-from typing import Iterable, List
-
 import math
 import random
+from typing import Iterable, List
 
 import numpy as np
 import torch
 from torch.nn import Module
 
 from lightly_train._modules.teachers.dinov2.layers.layer_scale import LayerScale
+
 
 class MaskingGenerator:
     def __init__(
@@ -141,7 +141,7 @@ def linear_warmup_schedule(
     warmup_steps: int,
     start_value: float,
     end_value: float,
-) -> float: # TODO: import from LightlySSL after new release
+) -> float:  # TODO: import from LightlySSL after new release
     if warmup_steps < 0:
         raise ValueError(f"Warmup steps {warmup_steps} can't be negative.")
     if step < 0:
@@ -164,7 +164,7 @@ def get_layer_scale_modules(
     modules: Iterable[Module],
 ) -> List[Module]:
     """Get the parameters of the layer scale gamma to cancel the weight decay.
-    
+
     Args:
         modules:
             List of modules to get the parameters from.
@@ -177,5 +177,5 @@ def get_layer_scale_modules(
         for name, modules in module.named_modules():
             if isinstance(modules, LayerScale):
                 layer_scale_gamma.append(modules)
-    
+
     return layer_scale_gamma
