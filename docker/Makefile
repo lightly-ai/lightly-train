@@ -1,5 +1,5 @@
 # Import variables
-include variables.mk
+include ./variables.mk
 
 .PHONY: print-version
 print-version:
