@@ -18,6 +18,7 @@ from lightly_train._methods.method import Method
 from lightly_train._methods.simclr.simclr import SimCLR
 
 from .. import helpers
+from ..helpers import DummyCustomModel
 
 
 @pytest.mark.parametrize(
@@ -26,10 +27,9 @@ from .. import helpers
         ("densecl", DenseCL),
         ("dino", DINO),
         ("simclr", SimCLR),
-        ("distillation", DistillationV2),
         ("distillationv1", Distillation),
         ("distillationv2", DistillationV2),
-        (helpers.get_method(), SimCLR),
+        (helpers.get_method(wrapped_model=DummyCustomModel()), SimCLR),
     ],
 )
 def test_get_method_cls(method: str, expected: type[Method]) -> None:

@@ -46,7 +46,7 @@ class TestRFDETRPackage:
 
     def test_is_supported_model__false(self) -> None:
         model = DummyCustomModel()
-        assert not RFDETRPackage.is_supported_model(model)
+        assert not RFDETRPackage.is_supported_model(model.get_model())
 
     @pytest.mark.parametrize(
         "model_name",

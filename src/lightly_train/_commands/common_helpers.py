@@ -36,6 +36,10 @@ from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._embedding.embedding_format import EmbeddingFormat
 from lightly_train._env import Env
 from lightly_train._models import package_helpers
+from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
+from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.package import BasePackage
 from lightly_train.types import DatasetItem, PathLike, Transform
 
 logger = logging.getLogger(__name__)
@@ -317,6 +321,7 @@ def _is_slurm() -> bool:
 
 class ModelPart(Enum):
     MODEL = "model"
+    WRAPPED_MODEL = "wrapped_model"
     EMBEDDING_MODEL = "embedding_model"
 
 
@@ -339,10 +344,15 @@ class ModelFormat(Enum):
 
 
 def export_model(
-    model: Module, format: ModelFormat, out: Path, log_example: bool = True
+    model: Module | ModelWrapper | EmbeddingModel,
+    format: ModelFormat,
+    out: Path,
+    package: BasePackage | None = None,
+    log_example: bool = True,
 ) -> None:
     if not is_global_rank_zero():
         return
+
     logger.debug(f"Exporting model to '{out}' in format '{format}'.")
     out.parent.mkdir(parents=True, exist_ok=True)
     if format == ModelFormat.TORCH_MODEL:
@@ -350,10 +360,27 @@ def export_model(
     elif format == ModelFormat.TORCH_STATE_DICT:
         torch.save(model.state_dict(), out)
     elif format == ModelFormat.PACKAGE_DEFAULT:
-        package = package_helpers.get_package_from_model(model=model)
+        if package is None:
+            raise ValueError(
+                "Package must be provided when exporting in package default format."
+            )
+        if isinstance(model, EmbeddingModel):
+            model = model.wrapped_model.get_model()
+        elif isinstance(model, ModelWrapper):
+            model = model.get_model()
         package.export_model(model=model, out=out, log_example=log_example)
     else:
         raise ValueError(f"Invalid format: '{format.value}' is not supported ")
+
+
+def _get_package(model: Module) -> BasePackage:
+    # Reimplementation of package_helpers.get_package_from_model, but with a fallback
+    # to the custom package if the model is not part of any package instead of raising
+    # an error.
+    for package in package_helpers.list_packages():
+        if package.is_supported_model(model):
+            return package
+    return CUSTOM_PACKAGE
 
 
 @contextlib.contextmanager
