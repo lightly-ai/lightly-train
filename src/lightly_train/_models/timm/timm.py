@@ -124,7 +124,7 @@ def _get_pool_layer(model: Module) -> Module:
     ):
         # Get global_pool stored on the head. For example for RegNet:
         # https://github.com/huggingface/pytorch-image-models/blob/e748805be31318da1a0e34b61294704666f50397/timm/models/regnet.py#L452
-        global_pool_head: Module = model.global_pool
+        global_pool_head: Module = model.head.global_pool
         return global_pool_head
     logger.warning(
         "Could not find pooling layer on the model, defaulting to AdaptiveAvgPool2d"
