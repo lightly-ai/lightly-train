@@ -45,7 +45,6 @@ from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
-from lightly_train._optim.sgd_args import SGDArgs
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train.types import Batch
@@ -208,7 +207,7 @@ class DINOv2Args(MethodArgs):
                 round_ndigits=3,
             )
 
-        if isinstance(optimizer_args, (AdamWArgs, SGDArgs)):
+        if isinstance(optimizer_args, (AdamWArgs)):
             weight_decay = optimizer_args.weight_decay
         else:
             raise ValueError(f"Unsupported optimizer_args type: {type(optimizer_args)}")
