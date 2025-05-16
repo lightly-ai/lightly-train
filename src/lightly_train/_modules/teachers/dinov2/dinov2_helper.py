@@ -77,6 +77,7 @@ def load_weights(
     # wait for the local zero ranks to finish downloading
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
+
     # Load the checkpoint.
     if checkpoint_path.exists():
         ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
