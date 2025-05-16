@@ -33,7 +33,11 @@ from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2ViTLGTransform,
     DINOv2ViTSBTransform,
 )
-from lightly_train._methods.dinov2.utils import MaskingGenerator, create_collated_masks, linear_warmup_schedule
+from lightly_train._methods.dinov2.utils import (
+    MaskingGenerator,
+    create_collated_masks,
+    linear_warmup_schedule,
+)
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
@@ -72,30 +76,30 @@ class DINOv2Args(MethodArgs):
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
     norm_last_layer: bool = False
-    
-    # masking
-    mask_ratio_min: 0.1
-    mask_ratio_max: 0.5
-    mask_probability: 0.5
-    
-    # scheduler
-    start_teacher_temp: float = 0.04
-    end_teacher_temp: float = 0.07
-    warmup_teacher_temp_epochs: int = 30
-    
+
     # loss
     dino_loss_weight: float = 1.0
     ibot_loss_weight: float = 1.0
     koleo_loss_weight: float = 0.1
 
     student_temp: float = 0.1
-    
+
     centering: Literal["softmax", "sinkhorn_knopp"] = "softmax"
     center_momentum: float = 0.9
 
-    # momentum
+    # teacher momentum
     momentum_start: float | Literal["auto"] = "auto"
     momentum_end: float = 1.0
+
+    # teacher temp scheduler
+    start_teacher_temp: float = 0.04
+    end_teacher_temp: float = 0.07
+    warmup_teacher_temp_epochs: int = 30
+
+    # masking
+    mask_ratio_min: 0.1
+    mask_ratio_max: 0.5
+    mask_probability: 0.5
 
     # weight decay
     weight_decay_start: float | Literal["auto"] = "auto"
@@ -150,11 +154,11 @@ class DINOv2Args(MethodArgs):
                 ],
             )
 
-        if self.teacher_temp == "auto":
+        if self.start_teacher_temp == "auto":
             # Default teacher temperature of 0.07 is too high for small datasets. Lower
             # temperature results in stronger sharpening which avoids collapse to uniform
             # distribution.
-            self.teacher_temp = _scaling.interpolate(
+            self.start_teacher_temp = _scaling.interpolate(
                 dataset_size,
                 input_start=20_000,
                 input_end=IMAGENET_SIZE,
@@ -163,8 +167,8 @@ class DINOv2Args(MethodArgs):
                 round_ndigits=2,
             )
 
-        if self.warmup_teacher_temp == "auto":
-            self.warmup_teacher_temp = min(
+        if self.end_teacher_temp == "auto":
+            self.end_teacher_temp = min(
                 self.teacher_temp,
                 _scaling.interpolate(
                     input=self.teacher_temp,
@@ -293,8 +297,7 @@ class DINOv2(Method):
         else:
             self.teacher_ibot_head = self.teacher_dino_head
             self.student_ibot_head = self.student_dino_head
-        
-        
+
         # Losses
         self.centering = self.method_args.centering
         self.dino_loss = DINOLoss(
@@ -312,7 +315,6 @@ class DINOv2(Method):
         self.dino_loss_weight = self.method_args.dino_loss_weight
         self.ibot_loss_weight = self.method_args.ibot_loss_weight
         self.koleo_loss_weight = self.method_args.koleo_loss_weight
-
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:
         training_step_log: DINOv2TrainingStepResult = self.training_step_impl(
@@ -355,7 +357,7 @@ class DINOv2(Method):
         return loss
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
-        # TODO: Momentum update teacher.
+        # Momentum update teacher.
         momentum = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
@@ -363,8 +365,8 @@ class DINOv2(Method):
             end_value=self.method_args.momentum_end,
         )
         update_momentum(
-            self.student_embedding_model_wrapper,
-            self.teacher_embedding_model_wrapper,
+            self.student_embedding_model_wrapper._model,
+            self.teacher_embedding_model_wrapper._model,
             m=momentum,
         )
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
@@ -373,7 +375,9 @@ class DINOv2(Method):
         self.teacher_temp = linear_warmup_schedule(
             step=self.trainer.global_step,
             warmup_steps=int(
-                self.method_args.warmup_teacher_temp_epochs / self.trainer.max_epochs * self.trainer.estimated_stepping_batches
+                self.method_args.warmup_teacher_temp_epochs
+                / self.trainer.max_epochs
+                * self.trainer.estimated_stepping_batches
             ),
             start_value=self.method_args.start_teacher_temp,
             end_value=self.method_args.end_teacher_temp,
@@ -421,10 +425,10 @@ class DINOv2(Method):
 
         # Process global views through teacher and student networks
         teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
-            self._forward_teacher(global_views) # [G, B, D], [M, D]
+            self._forward_teacher(global_views)  # [G, B, D], [M, D]
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
-            self._forward_student_global(global_views) # [G*B, D], [M, D]
+            self._forward_student_global(global_views)  # [G*B, D], [M, D]
         )
 
         # Process local views through student network if they exist
@@ -432,12 +436,14 @@ class DINOv2(Method):
             local_views = torch.cat(
                 views[self.n_global_crops :]
             )  # L * [B, C, H, W] -> [L*B, C, H, W]
-            student_cls_tokens_local = self._forward_student_local(local_views) # [L*B, D]
+            student_cls_tokens_local = self._forward_student_local(
+                local_views
+            )  # [L*B, D]
 
         # Compute the DINO loss
         dino_global_loss = (
             self.dino_loss.forward(
-                student_output_list=[student_cls_tokens_global], # [[G*B, D]]
+                student_output_list=[student_cls_tokens_global],  # [[G*B, D]]
                 teacher_out_softmaxed_centered_list=[
                     teacher_cls_tokens_centered.flatten(0, 1)
                 ],  # [[G*B, D]], these were chunked and stacked in reverse so A is matched to B,
@@ -446,10 +452,15 @@ class DINOv2(Method):
             / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
         )
         if self.n_local_crops > 0:
-            dino_local_loss = self.dino_loss.forward(
-                student_output_list=student_cls_tokens_local.chunk(self.n_local_crops), # [L, B, D]
-                teacher_out_softmaxed_centered_list=teacher_cls_tokens_centered, # [G, B, D]
-            ) / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
+            dino_local_loss = (
+                self.dino_loss.forward(
+                    student_output_list=student_cls_tokens_local.chunk(
+                        self.n_local_crops
+                    ),  # [L, B, D]
+                    teacher_out_softmaxed_centered_list=teacher_cls_tokens_centered,  # [G, B, D]
+                )
+                / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
+            )
 
         # Compute the iBOT loss
         ibot_loss = self.ibot_loss.forward_masked(
@@ -528,28 +539,32 @@ class DINOv2(Method):
         if self.centering == "softmax":
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
                 cls_tokens_after_dino, teacher_temp=self.teacher_temp
-            ).view(self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:]) # [G, B, D]
+            ).view(
+                self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:]
+            )  # [G, B, D]
             self.dino_loss.update_center(cls_tokens_after_dino)
 
             masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
                 masked_patch_tokens_after_ibot[: self.n_masked_patches],
                 teacher_temp=self.teacher_temp,
-            ) # [M, D]
+            )  # [M, D]
             self.ibot_loss.update_center(
                 masked_patch_tokens_after_ibot[: self.n_masked_patches]
             )
         elif self.centering == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
                 cls_tokens_after_dino, teacher_temp=self.teacher_temp
-            ).view(self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:]) # [G, B, D]
-            
+            ).view(
+                self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:]
+            )  # [G, B, D]
+
             masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=self.teacher_temp,
                 n_masked_patches_tensor=torch.tensor(
                     [self.n_masked_patches], dtype=torch.long
                 ).to(device=self.device, non_blocking=True),
-            ) # [M, D]
+            )  # [M, D]
         else:
             raise ValueError(f"Unknown centering method: {self.centering}")
 

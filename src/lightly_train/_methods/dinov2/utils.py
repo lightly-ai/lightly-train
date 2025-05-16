@@ -12,6 +12,7 @@ import random
 import numpy as np
 import torch
 
+
 class MaskingGenerator:
     def __init__(
         self,
@@ -117,19 +118,20 @@ def create_collated_masks(
     random.shuffle(masks_list)
 
     collated_masks = torch.stack(masks_list).flatten(1)  # [G*B, H*W]
-    mask_indices_list = collated_masks.flatten().nonzero().flatten() # [M,]
+    mask_indices_list = collated_masks.flatten().nonzero().flatten()  # [M,]
     masks_weight = (
         (1 / collated_masks.sum(-1).clamp(min=1.0))
         .unsqueeze(-1)
         .expand_as(collated_masks)[collated_masks]
-    ) # [M,]
+    )  # [M,]
 
     return {
         "collated_masks": collated_masks,
         "mask_indices_list": mask_indices_list,
         "masks_weight": masks_weight,
     }
-    
+
+
 def linear_warmup_schedule(
     step: int,
     warmup_steps: int,
