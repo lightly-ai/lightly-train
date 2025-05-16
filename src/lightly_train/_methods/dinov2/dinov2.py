@@ -33,7 +33,7 @@ from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2ViTLGTransform,
     DINOv2ViTSBTransform,
 )
-from lightly_train._methods.dinov2.utils import MaskingGenerator, create_collated_masks
+from lightly_train._methods.dinov2.utils import MaskingGenerator, create_collated_masks, linear_warmup_schedule
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
@@ -77,20 +77,21 @@ class DINOv2Args(MethodArgs):
     mask_ratio_min: 0.1
     mask_ratio_max: 0.5
     mask_probability: 0.5
-
+    
+    # scheduler
+    start_teacher_temp: float = 0.04
+    end_teacher_temp: float = 0.07
+    warmup_teacher_temp_epochs: int = 30
+    
     # loss
     dino_loss_weight: float = 1.0
     ibot_loss_weight: float = 1.0
     koleo_loss_weight: float = 0.1
 
     student_temp: float = 0.1
-    center_momentum: float = 0.9
-
-    # centering
+    
     centering: Literal["softmax", "sinkhorn_knopp"] = "softmax"
-    teacher_temp: float = 0.04
-    warmup_teacher_temp: float = 0.07
-    warmup_teacher_temp_epochs: int = 30
+    center_momentum: float = 0.9
 
     # momentum
     momentum_start: float | Literal["auto"] = "auto"
@@ -116,7 +117,7 @@ class DINOv2Args(MethodArgs):
             self.bottleneck_dim = 384
             self.bottleneck_dim_ibot = 256
             self.output_dim = 131072
-            # centering
+            # loss
             self.centering = "sinkhorn_knopp"
         elif depth == 24 and num_heads == 16 and self.embed_dim == 1024:  # large
             # projection head
@@ -124,7 +125,7 @@ class DINOv2Args(MethodArgs):
             self.bottleneck_dim = 384
             self.bottleneck_dim_ibot = 256
             self.output_dim = 131072
-            # centering
+            # loss
             self.centering = "sinkhorn_knopp"
         elif depth == 12 and num_heads == 12 and self.embed_dim == 768:  # base
             pass
@@ -292,8 +293,10 @@ class DINOv2(Method):
         else:
             self.teacher_ibot_head = self.teacher_dino_head
             self.student_ibot_head = self.student_dino_head
-
+        
+        
         # Losses
+        self.centering = self.method_args.centering
         self.dino_loss = DINOLoss(
             out_dim=self.method_args.output_dim,
             student_temp=self.method_args.student_temp,
@@ -310,9 +313,6 @@ class DINOv2(Method):
         self.ibot_loss_weight = self.method_args.ibot_loss_weight
         self.koleo_loss_weight = self.method_args.koleo_loss_weight
 
-        # Centering
-        self.centering = self.method_args.centering
-        self.teacher_temp = self.method_args.teacher_temp
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:
         training_step_log: DINOv2TrainingStepResult = self.training_step_impl(
@@ -369,7 +369,15 @@ class DINOv2(Method):
         )
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
 
-        # TODO: teacher temp scheduler
+        # Teacher temperature scheduling
+        self.teacher_temp = linear_warmup_schedule(
+            step=self.trainer.global_step,
+            warmup_steps=int(
+                self.method_args.warmup_teacher_temp_epochs / self.trainer.max_epochs * self.trainer.estimated_stepping_batches
+            ),
+            start_value=self.method_args.start_teacher_temp,
+            end_value=self.method_args.end_teacher_temp,
+        )
 
         views = batch["views"]
         global_views = torch.cat(
