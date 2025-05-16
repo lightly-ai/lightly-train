@@ -20,11 +20,12 @@ from lightly_train._methods.distillation.distillation import (
     DistillationArgs,
     DistillationLARSArgs,
 )
+from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import ScalingInfo
 
-from ... import helpers
+from ...helpers import DummyCustomModel
 
 
 class TestDistillationArgs:
@@ -197,7 +198,7 @@ class TestDistillation:
         distill = Distillation(
             method_args=DistillationArgs(queue_size=queue_size),
             optimizer_args=DistillationLARSArgs(),
-            embedding_model=helpers.get_embedding_model(),
+            embedding_model=EmbeddingModel(wrapped_model=DummyCustomModel()),
             global_batch_size=batch_size,
         )
         mock_get_teacher_model.assert_called_once()
@@ -248,7 +249,7 @@ class TestDistillation:
         distill = Distillation(
             method_args=DistillationArgs(queue_size=queue_size),
             optimizer_args=DistillationLARSArgs(),
-            embedding_model=helpers.get_embedding_model(),
+            embedding_model=EmbeddingModel(wrapped_model=DummyCustomModel()),
             global_batch_size=batch_size,
         )
         mock_get_teacher_model.assert_called_once()
