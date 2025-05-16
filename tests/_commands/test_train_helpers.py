@@ -16,6 +16,7 @@ import torch
 from pytest_mock import MockerFixture
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from torch import Tensor
+from torch.nn import Module
 from torch.testing import assert_close
 from torch.utils.data import Dataset
 from torchvision.datasets import FakeData
@@ -404,6 +405,7 @@ def test_get_method_args(
         method_args=args,
         scaling_info=scaling_info,
         optimizer_args=AdamWArgs(),
+        model=Module(),
     )
     assert resolved_args == expected
 

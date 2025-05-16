@@ -10,6 +10,7 @@ In the following, some tutorials using LightlyTrain can be found. The tutorials 
 resnet/index
 yolo/index
 depth_estimation/index
+embedding/index
 ```
 
 We've also prepared some Google Colab notebooks for some packages we support. You can find them in the following page:

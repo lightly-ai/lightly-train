@@ -17,7 +17,7 @@ from lightly.models.utils import update_momentum
 from lightly.utils import optim
 from lightly.utils.scheduler import cosine_schedule
 from torch import Tensor
-from torch.nn import Flatten
+from torch.nn import Flatten, Module
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
@@ -64,7 +64,7 @@ class DINOArgs(MethodArgs):
     weight_decay_end: float | Literal["auto"] = "auto"
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs
+        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
     ) -> None:
         dataset_size = scaling_info.dataset_size
 
