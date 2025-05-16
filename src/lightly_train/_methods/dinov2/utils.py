@@ -8,13 +8,17 @@
 
 import math
 import random
-from typing import Iterable, List
+from typing import Any, Iterable, List
 
 import numpy as np
 import torch
+from lightly.models.utils import get_weight_decay_parameters
 from torch.nn import Module
+from torch.optim.optimizer import Optimizer
 
 from lightly_train._modules.teachers.dinov2.layers.layer_scale import LayerScale
+from lightly_train._optim.optimizer_args import OptimizerArgs
+from lightly_train._optim.trainable_modules import TrainableModules
 
 
 class MaskingGenerator:
@@ -174,8 +178,112 @@ def get_layer_scale_modules(
     layer_scale_gamma = []
 
     for module in modules:
-        for name, modules in module.named_modules():
+        for modules in module.modules():
             if isinstance(modules, LayerScale):
                 layer_scale_gamma.append(modules)
 
     return layer_scale_gamma
+
+
+def get_vit_lr_decay_rate(
+    name,
+    lr_decay_rate=1.0,
+    num_layers=12,
+    force_is_backbone=False,
+    chunked_blocks=False,
+):
+    """
+    Calculate lr decay rate for different ViT blocks.
+    Args:
+        name (string): parameter name.
+        lr_decay_rate (float): base lr decay rate.
+        num_layers (int): number of ViT blocks.
+    Returns:
+        lr decay rate for the given parameter.
+    """
+    layer_id = num_layers + 1
+    if name.startswith("backbone") or force_is_backbone:
+        if (
+            ".pos_embed" in name
+            or ".patch_embed" in name
+            or ".mask_token" in name
+            or ".cls_token" in name
+            or ".register_tokens" in name
+        ):
+            layer_id = 0
+        elif force_is_backbone and (
+            "pos_embed" in name
+            or "patch_embed" in name
+            or "mask_token" in name
+            or "cls_token" in name
+            or "register_tokens" in name
+        ):
+            layer_id = 0
+        elif ".blocks." in name and ".residual." not in name:
+            layer_id = int(name[name.find(".blocks.") :].split(".")[2]) + 1
+        elif chunked_blocks and "blocks." in name and "residual." not in name:
+            layer_id = int(name[name.find("blocks.") :].split(".")[2]) + 1
+        elif "blocks." in name and "residual." not in name:
+            layer_id = int(name[name.find("blocks.") :].split(".")[1]) + 1
+
+    return lr_decay_rate ** (num_layers + 1 - layer_id)
+
+
+def get_params_groups_with_decay(
+    model, lr_decay_rate=1.0, patch_embed_lr_mult=1.0
+):  # TODO: fuse with LightlySSL's configure_optimizer
+    chunked_blocks = False
+    if hasattr(model, "n_blocks"):
+        n_blocks = model.n_blocks
+        chunked_blocks = model.chunked_blocks
+    elif hasattr(model, "blocks"):
+        n_blocks = len(model.blocks)
+    elif hasattr(model, "backbone"):
+        n_blocks = len(model.backbone.blocks)
+    else:
+        n_blocks = 0
+    all_param_groups = []
+
+    for name, param in model.named_parameters():
+        name = name.replace("_fsdp_wrapped_module.", "")
+        if not param.requires_grad:
+            continue
+        decay_rate = get_vit_lr_decay_rate(
+            name,
+            lr_decay_rate,
+            num_layers=n_blocks,
+            force_is_backbone=n_blocks > 0,
+            chunked_blocks=chunked_blocks,
+        )
+        d = {"name": name, "params": param, "lr_multiplier": decay_rate}
+
+        if "patch_embed" in name:
+            d.update({"lr_multiplier": d["lr_multiplier"] * patch_embed_lr_mult})
+
+        all_param_groups.append(d)
+
+    return all_param_groups
+
+
+def get_optimizer_with_layerwise_lr_decay(
+    optim_args: OptimizerArgs,
+    trainable_modules: TrainableModules,
+    lr_scale: float,
+) -> Optimizer:  # adapted from lightly_train._optim.optimizer_helpers
+    params_weight_decay, params_no_weight_decay = get_weight_decay_parameters(
+        modules=trainable_modules.modules
+    )
+    if trainable_modules.modules_no_weight_decay is not None:
+        for m in trainable_modules.modules_no_weight_decay:
+            params_no_weight_decay.extend(m.parameters())
+
+    params: list[dict[str, Any]] = [{"name": "params", "params": params_weight_decay}]
+    if params_no_weight_decay:
+        params.append(
+            {
+                "name": "params_no_weight_decay",
+                "params": params_no_weight_decay,
+                "weight_decay": 0.0,
+            }
+        )
+    return optim_args.get_optimizer(params=params, lr_scale=lr_scale)

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import math
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -18,7 +19,8 @@ from lightly.loss import (
 from lightly.models.modules.heads import DINOProjectionHead
 from lightly.models.utils import update_momentum
 from lightly.utils.optim import update_param_groups
-from lightly.utils.scheduler import cosine_schedule
+from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
+from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
 from torch.nn import Module
 from torch.optim.optimizer import Optimizer
@@ -37,6 +39,7 @@ from lightly_train._methods.dinov2.utils import (
     MaskingGenerator,
     create_collated_masks,
     get_layer_scale_modules,
+    get_optimizer_with_layerwise_lr_decay,
     linear_warmup_schedule,  # TODO: import from LightlySSL after new release
 )
 from lightly_train._methods.method import Method, TrainingStepResult
@@ -219,7 +222,7 @@ class DINOv2Args(MethodArgs):
 
 
 class DINOv2AdamWArgs(AdamWArgs):
-    lr: float = 0.0005
+    lr: float = 0.004
     weight_decay: float = 0.04
 
 
@@ -651,6 +654,34 @@ class DINOv2(Method):
             ],
             modules_no_weight_decay=student_modules_layer_scale,
         )
+
+    # Ignore the return type, because pytorch-lightning types it wrongly.
+    # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
+    def configure_optimizers(self) -> OptimizerLRScheduler:
+        optim = get_optimizer_with_layerwise_lr_decay(
+            optim_args=self.optimizer_args,
+            trainable_modules=self.trainable_modules(),
+            lr_scale=math.sqrt(self.global_batch_size / 1024),
+        )
+
+        if self.trainer.max_epochs is None:
+            raise RuntimeError("Max epochs is not set.")
+
+        max_epochs = max(1, self.trainer.max_epochs)
+
+        # Warmup for 10 epochs or 10% of the total number of epochs if max_epochs < 100
+        warmup_epochs = min(10, max_epochs / 10)
+        scheduler = {
+            "scheduler": CosineWarmupScheduler(
+                optimizer=optim,
+                warmup_epochs=int(
+                    self.trainer.estimated_stepping_batches / max_epochs * warmup_epochs
+                ),
+                max_epochs=int(self.trainer.estimated_stepping_batches),
+            ),
+            "interval": "step",
+        }
+        return [optim], [scheduler]  # type: ignore[return-value]
 
     def configure_gradient_clipping(
         self,
