@@ -1,18 +1,9 @@
-TAG ?= $(shell git rev-parse HEAD)
-IMAGE ?= train
-DOCKER_BUILDKIT := 1
-CONTAINER_REGISTRY := eu.gcr.io/boris-250909
+# Import variables
+include ./variables.mk
 
-VERSION := $(shell grep '__version__' ../src/lightly_train/__init__.py | sed -E 's/[^0-9.]//g')
-VERSION_X := $(shell echo $(VERSION) | cut -d. -f1)
-VERSION_XY := $(shell echo $(VERSION) | cut -d. -f1-2)
-
-# print all versions
-.PHONY: print-versions
-print-versions:
+.PHONY: print-version
+print-version:
 	@echo "Version: $(VERSION)"
-
-
 
 # Build the docker image using an amd64 and CUDA base image
 .PHONY: build-docker-cuda  # Export image as local docker image
@@ -23,31 +14,6 @@ build-docker-amd64-cuda:
 		--file Dockerfile-amd64-cuda \
 		--tag $(NAMESPACE)/$(IMAGE):$(TAG) \
 		--tag $(NAMESPACE)/$(IMAGE):latest \
-		--target=runtime \
-		--output=$(OUTPUT) \
-		..
-
-.PHONY: develop-deploy-amd64-cuda
-develop-deploy-amd64-cuda: OUTPUT="type=registry"  # Push to registry
-develop-deploy-amd64-cuda: NAMESPACE="lightly-develop"
-develop-deploy-amd64-cuda:
-	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker buildx build \
-		--file Dockerfile-amd64-cuda \
-		--tag $(CONTAINER_REGISTRY)/$(NAMESPACE)/$(IMAGE):latest \
-		--tag $(CONTAINER_REGISTRY)/$(NAMESPACE)/$(IMAGE):$(TAG) \
-		--target=runtime \
-		--output=$(OUTPUT) \
-		..
-
-.PHONY: main-deploy-amd64-cuda
-main-deploy-amd64-cuda: OUTPUT="type=registry"  # Push to registry
-main-deploy-amd64-cuda: NAMESPACE="lightly-main"
-main-deploy-amd64-cuda:
-	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker buildx build \
-		--file Dockerfile-amd64-cuda \
-		--tag $(CONTAINER_REGISTRY)/$(NAMESPACE)/$(IMAGE):latest \
-		--tag $(CONTAINER_REGISTRY)/$(NAMESPACE)/$(IMAGE):$(VERSION) \
-		--tag $(CONTAINER_REGISTRY)/$(NAMESPACE)/$(IMAGE):$(TAG) \
 		--target=runtime \
 		--output=$(OUTPUT) \
 		..
@@ -96,23 +62,3 @@ test-pillow-simd-installed-within-docker:
 	test `pip show pillow-simd | grep -c "Name: Pillow-SIMD"` -eq 1
 	@echo "Check that pillow is not installed"
 	test `pip show pillow 2>&1 | grep -c "WARNING: Package(s) not found: pillow"` -eq 1
-
-
-
-### Release
-
-# Takes the image from https://console.cloud.google.com/artifacts/docker/boris-250909/europe/eu.gcr.io/lightly-main%2Ftrain
-# Pushes the image to dockerhub at lightly/train:latest.
-# To check the published dockerhub images, go to https://hub.docker.com/repository/docker/lightly/train/general
-.PHONY: release
-release: SOURCE_IMAGE_NAMESPACE=lightly-main
-release: SOURCE_IMAGE=$(CONTAINER_REGISTRY)/$(SOURCE_IMAGE_NAMESPACE)/$(IMAGE):$(TAG)
-release: DOCKERHUB_NAMESPACE=lightly
-release:
-	docker buildx imagetools create --tag $(DOCKERHUB_NAMESPACE)/$(IMAGE):latest $(SOURCE_IMAGE)
-	docker buildx imagetools create --tag $(DOCKERHUB_NAMESPACE)/$(IMAGE):$(VERSION) $(SOURCE_IMAGE)
-	docker buildx imagetools create --tag $(DOCKERHUB_NAMESPACE)/$(IMAGE):$(VERSION_X) $(SOURCE_IMAGE)
-	docker buildx imagetools create --tag $(DOCKERHUB_NAMESPACE)/$(IMAGE):$(VERSION_XY) $(SOURCE_IMAGE)
-
-view-version:
-	@echo "$(VERSION)"
