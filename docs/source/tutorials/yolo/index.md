@@ -2,7 +2,7 @@
 
 # Object Detection with Ultralytics' YOLO
 
-This tutorial demonstrates how to pretrain a YOLO model using LightlyTrain and then fine-tune it for object detection using the `ultralytics` framework. We will perform both steps on the [PASCAL VOC dataset](http://host.robots.ox.ac.uk/pascal/VOC/).
+This tutorial demonstrates how to pretrain a YOLO model using LightlyTrain and then fine-tune it for object detection using the `ultralytics` framework. To this end, we will first pretrain on a [25k image subset](https://github.com/giddyyupp/coco-minitrain) of the [COCO dataset](https://cocodataset.org/#home) (only the images, no labels!), and subsequently finetune on the labeled [PASCAL VOC dataset](http://host.robots.ox.ac.uk/pascal/VOC/).
 
 ```{warning}
 Using Ultralytics models might require a commercial Ultralytics license. See the
@@ -20,8 +20,47 @@ Install the required packages:
 pip install "lightly-train[ultralytics]" "supervision==0.25.1"
 ```
 
-## Download the Dataset
+## Pretraining on COCO-minitrain
+We can download the COCO-minitrain dataset (25k images) directly from HuggingFace:
+```bash
+wget https://huggingface.co/datasets/bryanbocao/coco_minitrain/resolve/main/coco_minitrain_25k.zip
+```
+And unzip it:
+```bash
+unzip coco_minitrain_25k.zip
+```
+Since Lightly**Train** does not require any labels, we can can confidently delete all the labels:
+```bash
+rm -rf coco_minitrain_25k/labels
+```
+And start pretraining a YOLO11s model:
+````{tab} Python
+```python
+# pretrain_yolo.py
+import lightly_train
 
+if __name__ == "__main__":
+    # Pretrain with LightlyTrain.
+    lightly_train.train(
+        out="out/coco_minitrain_pretrain",  # Output directory.
+        model="ultralytics/yolo11s.yaml",   # Pass the YOLO model (use .yaml ending to start with random weights).
+        data="coco_minitrain_25k/images",   # Path to a directory with training images.
+        epochs=100,                         # Adjust epochs for shorter training.
+        batch_size=64,                      # Adjust batch size based on hardware.
+    )
+```
+````
+
+````{tab} Command Line
+```bash
+lightly-train --out=out/coco_minitrain_pretrain --model=ultralytics/yolo11s.yaml --data=coco_minitrain_25k/images --epochs=100 --batch-size=64
+```
+````
+And just like that you pretrained a YOLO11s backbone! 🥳 This backbone can't solve any task yet, so in the next step we will finetune it on the PASCAL VOC dataset.
+
+## Finetuning on PASCAL VOC
+
+### Download the PASCAL VOC Dataset
 We can download the dataset directly using Ultralytics' API with the `check_det_dataset` function:
 
 ```python
@@ -56,10 +95,6 @@ tree -d <DATASET-DIR>/VOC -I VOCdevkit
 >        ├── train2012
 >        ├── val2007
 >        └── val2012
-```
-
-```{note}
-Labels are not required for self-supervised pretraining. We will use the labels only for finetuning.
 ```
 
 ## Inspect a few Images
@@ -112,36 +147,9 @@ fig.show()
 
 ![VOC2012 Training Samples](samples_VOC_train2012.png)
 
-## Pretrain and Fine-tune
-
-We will use LightlyTrain to pretrain a YOLO11 model.
-
-The following scripts or CLI commands will:
-
-- Initialize a YOLO11s model with random weights.
-- Pretrain the YOLO11s model on the training images of PASCAL VOC using distillation pretraining.
-- Export the pretrained YOLO11s model.
-- Fine-tune the pretrained model on PASCAL VOC dataset using labels.
+## Finetuning the Pretrained Model
 
 ````{tab} Python
-```python
-# pretrain_yolo.py
-import lightly_train
-from ultralytics import settings
-
-data_path = f"{settings["datasets_dir"]}/VOC/images/train2012"
-
-if __name__ == "__main__":
-    # Pretrain with LightlyTrain.
-    lightly_train.train(
-        out="out/my_experiment",            # Output directory.
-        model="ultralytics/yolo11s.yaml",   # Pass the YOLO model.
-        data=data_path,                     # Path to a directory with training images.
-        epochs=100,                         # Adjust epochs for faster training.
-        batch_size=64,                      # Adjust batch size based on hardware.
-    )
-```
-
 ```python
 # finetune_yolo.py
 
@@ -149,7 +157,7 @@ from ultralytics import YOLO
 
 if __name__ == "__main__":
     # Load the exported model.
-    model = YOLO("out/my_experiment/exported_models/exported_last.pt")
+    model = YOLO("out/coco_minitrain_pretrain/exported_models/exported_last.pt")
 
     # Fine-tune with ultralytics.
     model.train(data="VOC.yaml", epochs=100)
@@ -158,15 +166,35 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="<DATASET-DIR>/VOC/images/train2012" model="ultralytics/yolo11s.yaml" epochs=100 batch_size=64
-```
-
-```bash
 yolo detect train model="out/my_experiment/exported_models/exported_last.pt" data="VOC.yaml" epochs=100
 ```
 ````
 
-Congratulations! You have successfully pretrained a model using LightlyTrain and fine-tuned it for object detection using Ultralytics.
+## Compare the Performance to a Randomly Initialized Model
+Let's see how our Lightly**Train** pretrained model stacks up against a randomly initialized model. We can do this by running the same training command as above, but with a randomly initialized model:
+
+````{tab} Python
+```python
+# finetune_yolo_random.py
+from ultralytics import YOLO
+
+if __name__ == "__main__":
+    # Load a randomly initialized model.
+    model = YOLO("yolo11s.yaml") # randomly initialized model
+
+    # Fine-tune with ultralytics.
+    model.train(data="VOC.yaml", epochs=100)
+```
+````
+
+````{tab} Command Line
+```bash
+yolo detect train model="yolo11s.yaml" data="VOC.yaml" epochs=100
+```
+````
+
+We can gather the validation results of both models from the logs:
+
 
 For more advanced options, explore the [LightlyTrain Python API](#lightly-train) and [Ultralytics documentation](https://docs.ultralytics.com).
 
