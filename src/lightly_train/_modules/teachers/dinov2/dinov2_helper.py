@@ -11,11 +11,8 @@ from pathlib import Path
 
 import torch
 
+from lightly_train import _distributed as distributed_helpers
 from lightly_train._data.download import download_from_url
-from lightly_train._distributed import (
-    get_node_rank,
-    is_local_rank_zero,
-)
 from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
     DinoVisionTransformer,
 )
@@ -31,7 +28,7 @@ def load_weights(
 
     # Cache the teacher checkpoint. concatenate the node rank to the checkpoint path
     # to avoid overwriting the checkpoint if multiple nodes are used.
-    node_rank = get_node_rank()
+    node_rank = distributed_helpers.get_node_rank()
     if node_rank is not None:
         file_name = f"{str(node_rank)}_{str(Path(url).name)}"
     else:
@@ -39,7 +36,7 @@ def load_weights(
     checkpoint_path = checkpoint_dir / Path(file_name)
 
     # Only the global rank zero downloads the checkpoint.
-    if is_local_rank_zero():
+    if distributed_helpers.is_local_rank_zero():
         if not checkpoint_path.exists():
             logger.info(
                 f"Downloading teacher weights from: '{url}' and saving them to: "

@@ -20,6 +20,7 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from torch.nn import Module
 from torchvision import models
 
+from lightly_train import _distributed
 from lightly_train._commands import common_helpers
 from tests._commands.test_train_helpers import MockDataset
 
@@ -108,7 +109,7 @@ def test_get_out_dir__nonempty(
     rank_zero: bool,
 ) -> None:
     (tmp_path / "some_file.txt").touch()
-    mocker.patch.object(common_helpers, "is_global_rank_zero", return_value=rank_zero)
+    mocker.patch.object(_distributed, "is_global_rank_zero", return_value=rank_zero)
     if resume or overwrite or (not rank_zero):
         assert (
             common_helpers.get_out_dir(out=tmp_path, resume=resume, overwrite=overwrite)
