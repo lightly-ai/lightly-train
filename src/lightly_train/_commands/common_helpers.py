@@ -28,7 +28,7 @@ from pytorch_lightning.strategies.strategy import Strategy
 from torch.nn import Module
 from torch.utils.data import Dataset
 
-from lightly_train._commands import _lightning_rank_zero
+from lightly_train import _distributed as distributed_helpers
 from lightly_train._data import image_dataset
 from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
@@ -89,49 +89,6 @@ def get_accelerator(
         return CPUAccelerator()
 
 
-get_global_rank = _lightning_rank_zero.get_global_rank
-
-
-def get_local_rank() -> int | None:
-    """Get the local rank of the current process."""
-    rank_keys = ("LOCAL_RANK", "SLURM_LOCALID", "JSM_NAMESPACE_LOCAL_RANK")
-    for key in rank_keys:
-        rank = os.environ.get(key)
-        if rank is not None:
-            return int(rank)
-    return None
-
-
-def get_node_rank() -> int | None:
-    """Get the node rank of the current process."""
-    rank_keys = ("NODE_RANK", "GROUP_RANK", "SLURM_NODEID")
-    for key in rank_keys:
-        rank = os.environ.get(key)
-        if rank is not None:
-            return int(rank)
-    return None
-
-
-def is_global_rank_zero() -> bool:
-    """Check if the current process is running on the global rank zero."""
-    global_rank = get_global_rank()
-    # Check node rank because process might be assigned to a node but not yet
-    # a global rank.
-    return global_rank == 0 or (global_rank is None and is_node_rank_zero())
-
-
-def is_local_rank_zero() -> bool:
-    """Check if the current process is running on the local rank zero."""
-    local_rank = get_local_rank()
-    return local_rank == 0 or local_rank is None
-
-
-def is_node_rank_zero() -> bool:
-    """Check if the current process is running on the node rank zero."""
-    node_rank = get_node_rank()
-    return node_rank == 0 or node_rank is None
-
-
 def get_out_dir(out: PathLike, resume: bool, overwrite: bool) -> Path:
     out_dir = Path(out).resolve()
     logger.debug(f"Checking if output directory '{out_dir}' exists.")
@@ -141,7 +98,11 @@ def get_out_dir(out: PathLike, resume: bool, overwrite: bool) -> Path:
 
         dir_not_empty = any(out_dir.iterdir())
 
-        if dir_not_empty and (not (resume or overwrite)) and is_global_rank_zero():
+        if (
+            dir_not_empty
+            and (not (resume or overwrite))
+            and distributed_helpers.is_global_rank_zero()
+        ):
             raise ValueError(
                 f"Output '{out_dir}' is not empty! Set overwrite=True to overwrite the "
                 "directory or resume=True to resume training."
@@ -186,11 +147,13 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
     out_dir = Path(out).resolve()
     # Add the node rank to the filename. This makes sure that each node verifies
     # its out directory separately, even if the nodes are using a shared filesystem.
-    out_tmp = get_verify_out_tmp_dir() / get_sha256(f"{out_dir}-{get_node_rank() or 0}")
+    out_tmp = get_verify_out_tmp_dir() / get_sha256(
+        f"{out_dir}-{distributed_helpers.get_node_rank() or 0}"
+    )
     logger.debug(f"Creating temporary file '{out_tmp}' to verify out path.")
 
     try:
-        if is_local_rank_zero():
+        if distributed_helpers.is_local_rank_zero():
             _unlink_and_ignore(out_tmp)
             out_tmp.parent.mkdir(parents=True, exist_ok=True)
             out_tmp.touch()
@@ -204,7 +167,7 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
             while not out_tmp.exists():
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
                     raise RuntimeError(
-                        f"Rank {get_global_rank()}: Timeout after {timeout_sec} seconds "
+                        f"Rank {distributed_helpers.get_global_rank()}: Timeout after {timeout_sec} seconds "
                         "while verifying that all ranks (processes) have the same 'out' path. "
                         "This means that the 'out' path is not set to the same path on all ranks. "
                         "If the path to your 'out' path contains any timestamps make sure that "
@@ -350,7 +313,7 @@ def export_model(
     package: BasePackage | None = None,
     log_example: bool = True,
 ) -> None:
-    if not is_global_rank_zero():
+    if not distributed_helpers.is_global_rank_zero():
         return
 
     logger.debug(f"Exporting model to '{out}' in format '{format}'.")
@@ -402,17 +365,17 @@ def get_dataset_temp_mmap_path(out: Path) -> Generator[Path, Any, Any]:
     The filename is different on each node. This is necessary to avoid multiple
     processes writing to the same file in case the nodes use a shared filesystem.
     """
-    out_hash = get_sha256(f"{out}-{get_node_rank() or 0}")
+    out_hash = get_sha256(f"{out}-{distributed_helpers.get_node_rank() or 0}")
     mmap_filepath = (get_data_tmp_dir() / out_hash).with_suffix(".mmap")
     mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
     try:
         # Delete the file if it already exists from a previous run.
-        if is_local_rank_zero():
+        if distributed_helpers.is_local_rank_zero():
             _unlink_and_ignore(mmap_filepath)
 
         yield mmap_filepath
     finally:
-        if is_local_rank_zero():
+        if distributed_helpers.is_local_rank_zero():
             _unlink_and_ignore(mmap_filepath)
 
 
@@ -426,7 +389,7 @@ def get_dataset_mmap_filenames(
     """
     tmp_path = mmap_filepath.with_suffix(".temp")
     try:
-        if is_local_rank_zero():
+        if distributed_helpers.is_local_rank_zero():
             # Save filenames to temporary file. Create the final file only once rank zero has
             # finished writing all the filenames.
             memory_mapped_sequence.write_filenames_to_file(
@@ -447,7 +410,7 @@ def get_dataset_mmap_filenames(
 
                 if timeout_sec >= 0 and time.time() - start_time_sec > timeout_sec:
                     raise RuntimeError(
-                        f"Rank {get_global_rank()}: Timeout after {timeout_sec} seconds "
+                        f"Rank {distributed_helpers.get_global_rank()}: Timeout after {timeout_sec} seconds "
                         f"while waiting for the memory-mapped file '{mmap_filepath}' to be created. "
                         "Please contact Lightly support if this happens. This is most likely a bug. "
                         f"You can increase the timeout with the {Env.LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC.name} "
