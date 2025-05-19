@@ -47,6 +47,7 @@ def get_teacher(teacher_name: str) -> Module:
     teacher_embedding_model.eval()
     return teacher_embedding_model
 
+
 class DistillationArgs(MethodArgs):
     """Args for Distillation method for dataset."""
 

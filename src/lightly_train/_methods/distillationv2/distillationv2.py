@@ -13,7 +13,7 @@ from typing import Any, Literal
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Linear, init, Module
+from torch.nn import Linear, Module, init
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._methods.distillationv2.distillationv2_loss import DistillationV2Loss
@@ -43,6 +43,7 @@ def get_teacher(teacher_name: str) -> Module:
     teacher_embedding_model = wrapped_model.get_model()
     teacher_embedding_model.eval()
     return teacher_embedding_model
+
 
 class DistillationV2Args(MethodArgs):
     """Args for DistillationV2 method for dataset."""
