@@ -5,9 +5,11 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 import os
 
-from src.lightly_train import _lightning_rank_zero
+from lightly_train import _lightning_rank_zero
 
 get_global_rank = _lightning_rank_zero.get_global_rank
 
