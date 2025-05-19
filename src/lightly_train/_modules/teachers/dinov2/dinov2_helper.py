@@ -7,43 +7,20 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 import torch
 
 from lightly_train._data.download import download_from_url
+from lightly_train._distributed import (
+    get_node_rank,
+    is_local_rank_zero,
+)
 from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
     DinoVisionTransformer,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def get_local_rank() -> int | None:
-    """Get the local rank of the current process."""
-    rank_keys = ("LOCAL_RANK", "SLURM_LOCALID", "JSM_NAMESPACE_LOCAL_RANK")
-    for key in rank_keys:
-        rank = os.environ.get(key)
-        if rank is not None:
-            return int(rank)
-    return None
-
-
-def get_node_rank() -> int | None:
-    """Get the node rank of the current process."""
-    rank_keys = ("NODE_RANK", "GROUP_RANK", "SLURM_NODEID")
-    for key in rank_keys:
-        rank = os.environ.get(key)
-        if rank is not None:
-            return int(rank)
-    return None
-
-
-def is_local_rank_zero() -> bool:
-    """Check if the current process is running on the local rank zero."""
-    local_rank = get_local_rank()
-    return local_rank == 0 or local_rank is None
 
 
 def load_weights(
