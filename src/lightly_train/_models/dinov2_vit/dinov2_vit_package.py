@@ -12,23 +12,58 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from omegaconf import DictConfig
 from torch.nn import Module
 
+from lightly_train._data.cache import get_cache_dir
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
-from lightly_train._modules.teachers.dinov2.configs import TRAIN_MODELS as VIT_MODELS
+from lightly_train._modules.teachers.dinov2.configs import (
+    MODELS as VIT_PRETRAIN_MODELS,
+)
+from lightly_train._modules.teachers.dinov2.configs import (
+    TRAIN_MODELS as VIT_MODELS,
+)
 from lightly_train._modules.teachers.dinov2.configs import (
     get_config_path,
     load_and_merge_config,
 )
+from lightly_train._modules.teachers.dinov2.dinov2_helper import load_weights
 from lightly_train._modules.teachers.dinov2.models import vision_transformer as vits
 from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
     DinoVisionTransformer,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def updated_cfg_to_match_pretrained(
+    cfg: DictConfig, cfg_pretrained: DictConfig | None
+) -> DictConfig:
+    """
+    The train config is not compatible with the pretrained config. Hence, we need to
+    update the train config to match the pretrained config.
+    """
+    if cfg_pretrained is None:
+        return cfg
+    cfg.student.ffn_layer = cfg_pretrained.student.ffn_layer
+    cfg.student.block_chunks = cfg_pretrained.student.block_chunks
+    return cfg
+
+
+def get_pretrained_cfg_and_url(model_name: str) -> tuple[DictConfig | None, str]:
+    if model_name not in VIT_PRETRAIN_MODELS:
+        logger.warning(
+            f"Model {model_name} does not have a pretrained version."
+            "The non pretrained version will be used."
+        )
+        return None, ""
+    model_pretrained_info = VIT_PRETRAIN_MODELS[model_name]
+    config_path_pretrained = get_config_path(model_pretrained_info["config"])
+    cfg_pretrained = load_and_merge_config(str(config_path_pretrained))
+    return cfg_pretrained, model_pretrained_info["url"]
 
 
 class DINOv2ViTPackage(Package):
@@ -49,16 +84,27 @@ class DINOv2ViTPackage(Package):
     def get_model(
         cls, model_name: str, model_args: dict[str, Any] | None = None
     ) -> DinoVisionTransformer:
+        """
+        Get a DINOv2 ViT model by name. Here the student version is build.
+        """
         if model_name not in VIT_MODELS:
-            raise ValueError(f"Unknown model: {model_name}")
+            raise ValueError(
+                f"Unknown model: {model_name} available models are: {cls.list_model_names()}"
+            )
 
-        model_info = VIT_MODELS[model_name]
-        config_name = model_info["config"]
+        load_pretrained = False
+        if model_args is not None and "pretrained" in model_args:
+            load_pretrained = model_args.pop("pretrained")
 
-        # Load config.
-        config_path = get_config_path(config_name)
+        # Get the model cfg and update if required.
+        config_path = get_config_path(VIT_MODELS[model_name]["config"])
         cfg = load_and_merge_config(str(config_path))
 
+        if load_pretrained:
+            cfg_pretrained, url = get_pretrained_cfg_and_url(model_name)
+            updated_cfg_to_match_pretrained(cfg, cfg_pretrained)
+
+        # Build the model using the cfg
         model_builders = {
             "vit_small": vits.vit_small,
             "vit_base": vits.vit_base,
@@ -81,13 +127,19 @@ class DINOv2ViTPackage(Package):
             num_register_tokens=cfg.student.num_register_tokens,
             interpolate_offset=cfg.student.interpolate_offset,
             interpolate_antialias=cfg.student.interpolate_antialias,
-            # Student only--------------------------------------------------------------
             drop_path_rate=cfg.student.drop_path_rate,
             drop_path_uniform=cfg.student.drop_path_uniform,
         )
         kwargs.update(model_args or {})
 
         model = model_builder(**kwargs)
+
+        # Load the pretrained model if required
+        if load_pretrained:
+            cache_dir = get_cache_dir()
+            checkpoint_dir = cache_dir / "weights"
+            model = load_weights(model=model, checkpoint_dir=checkpoint_dir, url=url)
+
         return model
 
     @classmethod
