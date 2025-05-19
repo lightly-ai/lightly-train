@@ -13,7 +13,7 @@ from typing import Any, Literal
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Linear, init
+from torch.nn import Linear, init, Module
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._methods.distillationv2.distillationv2_loss import DistillationV2Loss
@@ -22,8 +22,8 @@ from lightly_train._methods.distillationv2.distillationv2_transform import (
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
+from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._modules.teachers.build_teacher import get_teacher
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -36,6 +36,14 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
+def get_teacher(teacher_name: str) -> Module:
+    wrapped_model = package_helpers.get_wrapped_model(
+        model=teacher_name, model_args={"pretrained": True}
+    )
+    teacher_embedding_model = wrapped_model.get_model()
+    teacher_embedding_model.eval()
+    return teacher_embedding_model
+
 class DistillationV2Args(MethodArgs):
     """Args for DistillationV2 method for dataset."""
 
@@ -43,7 +51,7 @@ class DistillationV2Args(MethodArgs):
     n_teacher_blocks: int = 2
 
     # Default teacher
-    teacher: str = "dinov2_vit/vitb14"
+    teacher: str = "dinov2_vit/vitb14_pretrain"
 
 
 class DistillationV2LARSArgs(LARSArgs):
@@ -71,7 +79,7 @@ class DistillationV2(Method):
             global_batch_size=global_batch_size,
         )
         # Get the teacher model.
-        self.teacher_embedding_model = get_teacher(teacher_name=method_args.teacher)
+        self.teacher_embedding_model = get_teacher(method_args.teacher)
         self.teacher_embedding_dim = (
             method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim
         )

@@ -24,8 +24,8 @@ from lightly_train._methods.distillation.distillation_transform import (
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
+from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._modules.teachers.build_teacher import get_teacher
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -39,6 +39,14 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
+def get_teacher(teacher_name: str) -> Module:
+    wrapped_model = package_helpers.get_wrapped_model(
+        model=teacher_name, model_args={"pretrained": True}
+    )
+    teacher_embedding_model = wrapped_model.get_model()
+    teacher_embedding_model.eval()
+    return teacher_embedding_model
+
 class DistillationArgs(MethodArgs):
     """Args for Distillation method for dataset."""
 
@@ -49,7 +57,7 @@ class DistillationArgs(MethodArgs):
     temperature: float = 0.07
 
     # Default teacher
-    teacher: str = "dinov2_vit/vitb14"
+    teacher: str = "dinov2_vit/vitb14_pretrain"
 
     def resolve_auto(
         self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
@@ -106,7 +114,7 @@ class Distillation(Method):
             global_batch_size=global_batch_size,
         )
         # Get the teacher model.
-        self.teacher_embedding_model = get_teacher(teacher_name=method_args.teacher)
+        self.teacher_embedding_model = get_teacher(method_args.teacher)
 
         # Store the student model.
         self.student_embedding_model = embedding_model

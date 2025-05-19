@@ -18,23 +18,22 @@ from torch.nn import Module
 from lightly_train._data.cache import get_cache_dir
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
-from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
-from lightly_train._modules.teachers.dinov2.configs import (
-    MODELS as VIT_PRETRAIN_MODELS,
+from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
+    MODELS as VIT_MODELS,
 )
-from lightly_train._modules.teachers.dinov2.configs import (
-    TRAIN_MODELS as VIT_MODELS,
-)
-from lightly_train._modules.teachers.dinov2.configs import (
+from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
     get_config_path,
     load_and_merge_config,
 )
-from lightly_train._modules.teachers.dinov2.dinov2_helper import load_weights
-from lightly_train._modules.teachers.dinov2.models import vision_transformer as vits
-from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
+from lightly_train._models.dinov2_vit.dinov2_vit_src.dinov2_helper import load_weights
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models import (
+    vision_transformer as vits,
+)
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.package import Package
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +53,17 @@ def updated_cfg_to_match_pretrained(
 
 
 def get_pretrained_cfg_and_url(model_name: str) -> tuple[DictConfig | None, str]:
-    if model_name not in VIT_PRETRAIN_MODELS:
+    # check if model_name has _pretrain suffix
+    if not model_name.endswith("_pretrain"):
+        model_name_pretrained = model_name + "_pretrain"
+
+    if model_name_pretrained not in VIT_MODELS:
         logger.warning(
-            f"Model {model_name} does not have a pretrained version."
+            f"Model {model_name_pretrained} does not have a pretrained version."
             "The non pretrained version will be used."
         )
         return None, ""
-    model_pretrained_info = VIT_PRETRAIN_MODELS[model_name]
+    model_pretrained_info = VIT_MODELS[model_name_pretrained]
     config_path_pretrained = get_config_path(model_pretrained_info["config"])
     cfg_pretrained = load_and_merge_config(str(config_path_pretrained))
     return cfg_pretrained, model_pretrained_info["url"]
@@ -99,8 +102,11 @@ class DINOv2ViTPackage(Package):
         # Get the model cfg and update if required.
         config_path = get_config_path(VIT_MODELS[model_name]["config"])
         cfg = load_and_merge_config(str(config_path))
+        url = VIT_MODELS[model_name]["url"]
 
-        if load_pretrained:
+        if load_pretrained and not model_name.endswith("_pretrain"):
+            # In this situation, the train config is partially overwritten by the pretrained config
+            # to ensure that the model is compatible with the pretrained weights.
             cfg_pretrained, url = get_pretrained_cfg_and_url(model_name)
             updated_cfg_to_match_pretrained(cfg, cfg_pretrained)
 
