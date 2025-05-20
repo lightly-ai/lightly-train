@@ -126,7 +126,7 @@ def test_get_tmp_dir() -> None:
 
 def test_get_tmp_dir__custom(tmp_path: Path, mocker: MockerFixture) -> None:
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_path)})
-    assert common_helpers.get_tmp_dir() == tmp_path / "lightly-train"
+    assert common_helpers.get_tmp_dir() == tmp_path
 
 
 def test_verify_out_dir_equal_on_all_local_ranks(

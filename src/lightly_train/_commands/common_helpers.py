@@ -115,8 +115,8 @@ def get_tmp_dir() -> Path:
     """Get the temporary directory for Lightly Train."""
     tmp_dir = Env.LIGHTLY_TRAIN_TMP_DIR.value
     if tmp_dir is None:
-        tmp_dir = Path(tempfile.gettempdir())
-    return tmp_dir / "lightly-train"
+        tmp_dir = Path(tempfile.gettempdir()) / "lightly-train"
+    return tmp_dir
 
 
 def get_data_tmp_dir() -> Path:
