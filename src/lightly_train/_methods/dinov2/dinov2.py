@@ -177,7 +177,7 @@ class DINOv2(Method):
     def __init__(
         self,
         method_args: DINOv2Args,
-        optimizer_args: OptimizerArgs,
+        optimizer_args: DINOv2AdamWViTSBArgs | DINOv2AdamWViTLGArgs,
         embedding_model: EmbeddingModel,
         global_batch_size: int,
     ):
@@ -190,6 +190,7 @@ class DINOv2(Method):
 
         # Load configs based on the model architecture
         self.method_args = method_args
+        self.optimizer_args = optimizer_args
 
         # Calculate the number of crops
         self.n_global_crops = self.method_args.n_global_crops
@@ -482,7 +483,6 @@ class DINOv2(Method):
                 patches.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
                 index=self.mask_indices_list,
-                out=buffer_tokens[: self.n_masked_patches],
             )  # [M, C]
 
             cls_tokens_after_dino = self.teacher_dino_head.forward(
@@ -581,7 +581,9 @@ class DINOv2(Method):
         cls_tokens = tokens["cls_token"]  # [L*B, C]
 
         # forward through the teacher dino and ibot heads
-        cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)  # [L*B, D]
+        cls_tokens_after_dino: Tensor = self.student_dino_head.forward(
+            cls_tokens
+        )  # [L*B, D]
 
         return cls_tokens_after_dino
 

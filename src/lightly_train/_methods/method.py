@@ -54,7 +54,7 @@ class Method(LightningModule):
     ):
         super().__init__()
         self.global_batch_size = global_batch_size
-        self.optimizer_args: OptimizerArgs = optimizer_args
+        self.optimizer_args = optimizer_args
         self.batch_start_end_time = BatchStartEndTime()
 
     @staticmethod
