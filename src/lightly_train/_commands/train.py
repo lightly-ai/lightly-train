@@ -62,6 +62,7 @@ def train(
     accelerator: str | Accelerator = "auto",
     strategy: str | Strategy = "auto",
     precision: _PRECISION_INPUT = "32-true",  # Default precision in PyTorch Lightning
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
     seed: int = 0,
     loggers: dict[str, dict[str, Any] | None] | None = None,
     callbacks: dict[str, dict[str, Any] | None] | None = None,
@@ -135,6 +136,10 @@ def train(
         precision:
             Training precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
             for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication. Can be one of ['auto',
+            'highest', 'high', 'medium']. See https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
+            for more information.
         seed:
             Random seed for reproducibility.
         loggers:
@@ -299,6 +304,11 @@ def train_from_config(config: TrainConfig) -> None:
         config.accelerator = trainer_instance.accelerator
         config.strategy = trainer_instance.strategy
         config.devices = trainer_instance.num_devices
+        config.float32_matmul_precision = common_helpers.get_float32_matmul_precision(
+            float32_matmul_precision=config.float32_matmul_precision,
+            accelerator=config.accelerator,
+            device_ids=trainer_instance.device_ids,
+        )
 
         total_num_devices = train_helpers.get_total_num_devices(
             num_nodes=trainer_instance.num_nodes,
@@ -349,11 +359,14 @@ def train_from_config(config: TrainConfig) -> None:
             method=method_instance,
         )
         log_resolved_config(config=config, loggers=logger_instances)
-        trainer_instance.fit(
-            model=method_instance,
-            train_dataloaders=dataloader,
-            ckpt_path="last" if config.resume else None,
-        )
+        with common_helpers.float32_matmul_precision(
+            float32_matmul_precision=config.float32_matmul_precision
+        ):
+            trainer_instance.fit(
+                model=method_instance,
+                train_dataloaders=dataloader,
+                ckpt_path="last" if config.resume else None,
+            )
     if config.epochs == 0:
         logger.info("No training epochs specified. Saving model and exiting.")
         trainer_instance.save_checkpoint(out_dir / "checkpoints" / "last.ckpt")
@@ -395,6 +408,7 @@ class TrainConfig(PydanticConfig):
     accelerator: str | Accelerator = "auto"
     strategy: str | Strategy = "auto"
     precision: _PRECISION_INPUT = "32-true"
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
     seed: int = 0
     loggers: dict[str, dict[str, Any] | None] | LoggerArgs | None = None
     callbacks: dict[str, dict[str, Any] | None] | CallbackArgs | None = None

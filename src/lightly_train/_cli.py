@@ -120,6 +120,11 @@ _TRAIN_HELP_MSG = f"""
             Training precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
             for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
             Default: {_train_cfg.precision}
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication. Can be one of ['auto',
+            'highest', 'high', 'medium']. See https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
+            for more information.
+            Default: {_train_cfg.float32_matmul_precision}
         seed (int):
             Random seed for reproducibility. Default: {_train_cfg.seed}
         loggers (dict):
