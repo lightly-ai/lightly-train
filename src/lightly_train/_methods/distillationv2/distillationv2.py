@@ -37,9 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_teacher(teacher_name: str) -> Module:
-    wrapped_model = package_helpers.get_wrapped_model(
-        model=teacher_name, model_args={"pretrained": True}
-    )
+    wrapped_model = package_helpers.get_wrapped_model(model=teacher_name)
     teacher_embedding_model = wrapped_model.get_model()
     teacher_embedding_model.eval()
     return teacher_embedding_model
