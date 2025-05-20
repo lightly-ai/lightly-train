@@ -223,3 +223,22 @@ class DistillationV2(Method):
                 for k, v in self.teacher_embedding_model.state_dict().items()
             }
         )
+
+    def load_state_dict(self, state_dict: dict[str, Any]) -> None:
+        """Ensure only teacher-related keys are missing from the statedict."""
+        # Load with strict=False to capture missing/unexpected keys.
+        missing_keys, unexpected_keys = super().load_state_dict(
+            state_dict, strict=False
+        )
+
+        # Filter out teacher-related keys from the list of missing keys.
+        missing_keys = [
+            k for k in missing_keys if not k.startswith("teacher_embedding_model.")
+        ]
+
+        # No key should be missing besides the ones related to the teacher model.
+        if missing_keys or unexpected_keys:
+            raise RuntimeError(
+                f"Unexpected keys in state_dict: {unexpected_keys}\n"
+                f"Missing keys in state_dict: {missing_keys}"
+            )
