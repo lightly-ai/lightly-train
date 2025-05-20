@@ -31,6 +31,10 @@ from lightly_train._methods.dinov2.dinov2_loss import (
     DINOLoss,
     IBOTPatchLoss,
 )  # we use the original DINOLoss and IBOTPatchLoss
+from lightly_train._methods.dinov2.dinov2_optim import (
+    DINOv2AdamWArgs,
+    get_optimizer_with_decay,
+)
 from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2ViTLGTransform,
     DINOv2ViTSBTransform,
@@ -38,15 +42,12 @@ from lightly_train._methods.dinov2.dinov2_transform import (
 from lightly_train._methods.dinov2.utils import (
     MaskingGenerator,
     create_collated_masks,
-    get_layer_scale_modules,
-    get_optimizer_with_layerwise_lr_decay,
     linear_warmup_schedule,  # TODO: import from LightlySSL after new release
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
@@ -211,7 +212,7 @@ class DINOv2Args(MethodArgs):
                 round_ndigits=3,
             )
 
-        if isinstance(optimizer_args, (AdamWArgs)):
+        if isinstance(optimizer_args, (DINOv2AdamWArgs)):
             weight_decay = optimizer_args.weight_decay
         else:
             raise ValueError(f"Unsupported optimizer_args type: {type(optimizer_args)}")
@@ -219,11 +220,6 @@ class DINOv2Args(MethodArgs):
             self.weight_decay_start = weight_decay
         if self.weight_decay_end == "auto":
             self.weight_decay_end = weight_decay
-
-
-class DINOv2AdamWArgs(AdamWArgs):
-    lr: float = 0.004
-    weight_decay: float = 0.04
 
 
 class DINOv2(Method):
@@ -643,26 +639,22 @@ class DINOv2(Method):
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 
     def trainable_modules(self) -> TrainableModules:
-        student_modules_layer_scale = get_layer_scale_modules(
-            modules=[self.student_embedding_model_wrapper._model]
-        )
         return TrainableModules(
             modules=[
                 self.student_embedding_model_wrapper._model,
                 self.student_dino_head,
                 self.student_ibot_head,
-            ],
-            modules_no_weight_decay=student_modules_layer_scale,
+            ],  # decay is realized in get_optimizer_with_decay
         )
 
     # Ignore the return type, because pytorch-lightning types it wrongly.
     # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        optim = get_optimizer_with_layerwise_lr_decay(
+        optim = get_optimizer_with_decay(
             optim_args=self.optimizer_args,
             trainable_modules=self.trainable_modules(),
             lr_scale=math.sqrt(self.global_batch_size / 1024),
-        )
+        )  # square root scaling
 
         if self.trainer.max_epochs is None:
             raise RuntimeError("Max epochs is not set.")
@@ -699,6 +691,7 @@ class DINOv2(Method):
         self.student_dino_head.cancel_last_layer_gradients(self.current_epoch)
         self.student_ibot_head.cancel_last_layer_gradients(self.current_epoch)
 
+        # Apply weight decay schedule
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
@@ -706,9 +699,12 @@ class DINOv2(Method):
             end_value=self.method_args.weight_decay_end,
         )
 
-        update_param_groups(
-            optimizer, updates=[{"name": "params", "weight_decay": weight_decay}]
-        )
+        updates = []
+        for group in optimizer.param_groups:
+            if group["weight_decay"] != 0.0:
+                updates.append({"name": group["name"], "weight_decay": weight_decay})
+
+        update_param_groups(optimizer, updates=updates)
 
     @staticmethod
     def transform_cls(
