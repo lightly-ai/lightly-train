@@ -83,7 +83,7 @@ add-header:
 
 	# Apply the Apache 2.0 license header to DINOv2-derived files
 	licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
-		-d src/lightly_train/_modules/teachers/dinov2 \
+		-d src/lightly_train/_models/dinov2_vit/dinov2_vit_src \
 		-E py
 
 	# Apply the Apache 2.0 license header to PyTorch Lighting derived files
