@@ -113,7 +113,10 @@ def get_out_dir(out: PathLike, resume: bool, overwrite: bool) -> Path:
 
 def get_tmp_dir() -> Path:
     """Get the temporary directory for Lightly Train."""
-    return Path(tempfile.gettempdir()) / "lightly-train"
+    tmp_dir = Env.LIGHTLY_TRAIN_TMP_DIR.value
+    if tmp_dir is None:
+        tmp_dir = Path(tempfile.gettempdir())
+    return tmp_dir / "lightly-train"
 
 
 def get_data_tmp_dir() -> Path:
