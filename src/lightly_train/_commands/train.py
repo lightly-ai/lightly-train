@@ -220,6 +220,7 @@ def train_from_config(config: TrainConfig) -> None:
     _warnings.filter_train_warnings()
     _logging.set_up_console_logging()
     _logging.set_up_file_logging(out_dir / "train.log")
+    _logging.set_up_filters()
     logger.info(
         f"Args: {common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}"
     )

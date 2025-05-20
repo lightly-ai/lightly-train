@@ -10,6 +10,8 @@ from __future__ import annotations
 import copy
 import logging
 import os
+import re
+from logging import Filter, Logger, LogRecord
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TextIO
@@ -171,3 +173,36 @@ def _get_file_handler(log_file_path: Path) -> LightlyTrainRotatingFileHandler:
     )
     fh.setFormatter(FileFormatter())
     return fh
+
+
+class RegexFilter(Filter):
+    """Filter to exclude messages based on a regex pattern."""
+
+    def __init__(self, pattern: str, name: str = "") -> None:
+        super().__init__(name)
+        self.regex = re.compile(pattern)
+
+    def filter(self, record: LogRecord) -> bool:
+        return not self.regex.search(record.getMessage())
+
+
+def set_up_filters() -> None:
+    """Sets up filters to exclude specific log messages."""
+    lightning_logger = logging.getLogger("pytorch_lightning")
+    _remove_filters(lightning_logger)
+
+    # Ignore torch.set_float32_matmul_precision logs as we handle this in our code.
+    lightning_logger.addFilter(
+        RegexFilter(
+            r"To properly utilize them, you should set "
+            r"`torch.set_float32_matmul_precision\('medium' \| 'high'\)` which will "
+            r"trade-off precision for performance"
+        )
+    )
+
+
+def _remove_filters(logger: Logger) -> None:
+    """Removes all filters from the logger."""
+    for filter in logger.filters:
+        if isinstance(filter, RegexFilter):
+            logger.removeFilter(filter)
