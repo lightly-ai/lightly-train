@@ -13,15 +13,19 @@ from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.trainable_modules import TrainableModules
 
 
-class DINOv2AdamWArgs(AdamWArgs):
+class DINOv2AdamWViTSBArgs(AdamWArgs):
     lr: float = 0.004
     weight_decay: float = 0.04
-    patch_embed_lr_multiplier: 0.2
+
+
+class DINOv2AdamWViTLGArgs(AdamWArgs):
+    lr: float = 2e-4
+    weight_decay: float = 0.04
 
 
 def get_vit_lr_decay_rate(
     name: str,
-    lr_decay_rate: float = 1.0,
+    lr_decay_rate: float,
     num_layers: int = 12,
     force_is_backbone: bool = False,
     chunked_blocks: bool = False,
@@ -67,9 +71,11 @@ def get_vit_lr_decay_rate(
 
 
 def get_optimizer_with_decay(
-    optim_args: DINOv2AdamWArgs,
+    optim_args: DINOv2AdamWViTSBArgs | DINOv2AdamWViTLGArgs,
     trainable_modules: TrainableModules,
     lr_scale: float,
+    layerwise_decay: float,
+    patch_embed_lr_multiplier: float,
 ) -> Optimizer:
     """
     Create an optimizer with layerwise learning rate decay and weight decay for different ViT blocks.
@@ -78,6 +84,8 @@ def get_optimizer_with_decay(
         optim_args (DINOv2AdamWArgs): optimizer arguments.
         trainable_modules (TrainableModules): trainable modules.
         lr_scale (float): learning rate scale.
+        layerwise_decay (float): base lr decay rate.
+        patch_embed_lr_multiplier (float): multiplier for patch embedding layer.
     Returns:
         Optimizer: optimizer with decay.
     """
@@ -101,6 +109,7 @@ def get_optimizer_with_decay(
                 continue
             decay_rate = get_vit_lr_decay_rate(
                 name=name,
+                lr_decay_rate=layerwise_decay,
                 num_layers=n_blocks,
                 force_is_backbone=n_blocks > 0,
                 chunked_blocks=chunked_blocks,
@@ -119,7 +128,7 @@ def get_optimizer_with_decay(
                 d.update({"weight_decay": 0.0})
 
             if "patch_embed" in name:  # multiplier for patch embedding layer
-                d.update({"lr": d["lr"] * optim_args.patch_embed_lr_multiplier})
+                d.update({"lr": d["lr"] * patch_embed_lr_multiplier})
 
             all_param_groups.append(d)
 

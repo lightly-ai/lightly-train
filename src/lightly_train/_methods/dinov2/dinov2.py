@@ -25,14 +25,14 @@ from torch import Tensor
 from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
-from lightly_train import _scaling
 from lightly_train._configs.validate import no_auto
 from lightly_train._methods.dinov2.dinov2_loss import (
     DINOLoss,
     IBOTPatchLoss,
 )  # we use the original DINOLoss and IBOTPatchLoss
 from lightly_train._methods.dinov2.dinov2_optim import (
-    DINOv2AdamWArgs,
+    DINOv2AdamWViTLGArgs,
+    DINOv2AdamWViTSBArgs,
     get_optimizer_with_decay,
 )
 from lightly_train._methods.dinov2.dinov2_transform import (
@@ -51,7 +51,7 @@ from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
-from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
+from lightly_train._scaling import ScalingInfo
 from lightly_train.types import Batch
 
 
@@ -80,6 +80,7 @@ class DINOv2Args(MethodArgs):
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
     norm_last_layer: bool = False
+    # NOTE: head_n_layers is 3 for all heads so we use LightlySSL's DINO head
 
     # loss
     dino_loss_weight: float = 1.0
@@ -92,7 +93,7 @@ class DINOv2Args(MethodArgs):
     center_momentum: float = 0.9
 
     # teacher momentum
-    momentum_start: float | Literal["auto"] = "auto"
+    momentum_start: float = 0.992
     momentum_end: float = 1.0
 
     # teacher temp scheduler
@@ -105,9 +106,19 @@ class DINOv2Args(MethodArgs):
     mask_ratio_max: 0.5
     mask_probability: 0.5
 
-    # weight decay
-    weight_decay_start: float | Literal["auto"] = "auto"
-    weight_decay_end: float | Literal["auto"] = "auto"
+    # lr scheduler
+    min_lr: float = 1.0e-06
+    warmup_epochs: int = 10
+
+    # lr decay
+    layerwise_decay: float = 0.9
+    patch_embed_lr_multiplier: float = 0.2
+
+    # weight decay scheduler
+    weight_decay_end: 0.4
+
+    # gradient clipping
+    gradient_clip_val: float = 3.0
 
     def resolve_auto(
         self,
@@ -127,6 +138,15 @@ class DINOv2Args(MethodArgs):
             self.output_dim = 131072
             # loss
             self.centering = "sinkhorn_knopp"
+            # teacher momentum
+            self.momentum_start = 0.994
+            # lr scheduler
+            self.warmup_epochs = 80
+            # lr decay
+            self.layerwise_decay = 1.0
+            # weight decay scheduler
+            self.weight_decay_end = 0.2
+
         elif depth == 24 and num_heads == 16 and self.embed_dim == 1024:  # large
             # projection head
             self.ibot_separate_head = True
@@ -135,6 +155,15 @@ class DINOv2Args(MethodArgs):
             self.output_dim = 131072
             # loss
             self.centering = "sinkhorn_knopp"
+            # teacher momentum
+            self.momentum_start = 0.994
+            # lr scheduler
+            self.warmup_epochs = 80
+            # lr decay
+            self.layerwise_decay = 1.0
+            # weight decay scheduler
+            self.weight_decay_end = 0.2
+
         elif depth == 12 and num_heads == 12 and self.embed_dim == 768:  # base
             pass
         elif depth == 12 and num_heads == 6 and self.embed_dim == 384:  # small
@@ -142,84 +171,7 @@ class DINOv2Args(MethodArgs):
         else:
             raise ValueError("Unsupported model configs.")
 
-        # Scale the args based on the dataset size
-        dataset_size = scaling_info.dataset_size
-        if self.output_dim == "auto":
-            # Default output dim of 65536 is too large for small datasets.
-            self.output_dim = _scaling.get_bucket_value(
-                input=dataset_size,
-                buckets=[
-                    (20_000, 1024),
-                    (50_000, 2048),
-                    (100_000, 4096),
-                    (200_000, 16384),
-                    (500_000, 32768),
-                    (float("inf"), 65536),
-                ],
-            )
-
-        if self.start_teacher_temp == "auto":
-            # Default teacher temperature of 0.07 is too high for small datasets. Lower
-            # temperature results in stronger sharpening which avoids collapse to uniform
-            # distribution.
-            self.start_teacher_temp = _scaling.interpolate(
-                dataset_size,
-                input_start=20_000,
-                input_end=IMAGENET_SIZE,
-                value_start=0.02,
-                value_end=0.07,
-                round_ndigits=2,
-            )
-
-        if self.end_teacher_temp == "auto":
-            self.end_teacher_temp = min(
-                self.teacher_temp,
-                _scaling.interpolate(
-                    input=self.teacher_temp,
-                    input_start=0.02,
-                    input_end=0.07,
-                    value_start=0.02,
-                    value_end=0.04,
-                    round_ndigits=2,
-                ),
-            )
-
-        if self.warmup_teacher_temp_epochs == "auto":
-            # Default warmup teacher temperature epochs of 30 is too high when training
-            # for only a few total epochs. Have the warmup period be 30% of all epochs,
-            # but with a maximum of 30 epochs.
-            self.warmup_teacher_temp_epochs = int(
-                _scaling.interpolate(
-                    scaling_info.epochs,
-                    input_start=0,
-                    input_end=100,
-                    value_start=0,
-                    value_end=30,
-                )
-            )
-
-        if self.momentum_start == "auto":
-            # Default momentum start of 0.996 is too high for small datasets. Lower momentum
-            # results in slower updates of the teacher model. This is important because with
-            # high momentum (fast changing teacher) and a small dataset, the initial
-            # training epochs become unstable.
-            self.momentum_start = _scaling.interpolate(
-                dataset_size,
-                input_start=20_000,
-                input_end=IMAGENET_SIZE,
-                value_start=0.99,
-                value_end=0.996,
-                round_ndigits=3,
-            )
-
-        if isinstance(optimizer_args, (DINOv2AdamWArgs)):
-            weight_decay = optimizer_args.weight_decay
-        else:
-            raise ValueError(f"Unsupported optimizer_args type: {type(optimizer_args)}")
-        if self.weight_decay_start == "auto":
-            self.weight_decay_start = weight_decay
-        if self.weight_decay_end == "auto":
-            self.weight_decay_end = weight_decay
+        # TODO: scale some params based on the scaling info
 
 
 class DINOv2(Method):
@@ -632,10 +584,11 @@ class DINOv2(Method):
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
-    ) -> type[OptimizerArgs]:
+    ) -> type[DINOv2AdamWViTSBArgs | DINOv2AdamWViTLGArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
-            OptimizerType.ADAMW: DINOv2AdamWArgs,
+            OptimizerType.ADAMW: DINOv2AdamWViTSBArgs,
         }
+
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 
     def trainable_modules(self) -> TrainableModules:
@@ -653,23 +606,27 @@ class DINOv2(Method):
         optim = get_optimizer_with_decay(
             optim_args=self.optimizer_args,
             trainable_modules=self.trainable_modules(),
-            lr_scale=math.sqrt(self.global_batch_size / 1024),
-        )  # square root scaling
+            lr_scale=math.sqrt(self.global_batch_size / 1024),  # square root scaling
+            layerwise_decay=self.method_args.layerwise_decay,
+            patch_embed_lr_multiplier=self.method_args.patch_embed_lr_multiplier,
+        )
 
         if self.trainer.max_epochs is None:
             raise RuntimeError("Max epochs is not set.")
 
         max_epochs = max(1, self.trainer.max_epochs)
 
-        # Warmup for 10 epochs or 10% of the total number of epochs if max_epochs < 100
-        warmup_epochs = min(10, max_epochs / 10)
         scheduler = {
             "scheduler": CosineWarmupScheduler(
                 optimizer=optim,
                 warmup_epochs=int(
-                    self.trainer.estimated_stepping_batches / max_epochs * warmup_epochs
+                    self.trainer.estimated_stepping_batches
+                    / max_epochs
+                    * self.method_args.warmup_epochs
                 ),
                 max_epochs=int(self.trainer.estimated_stepping_batches),
+                start_value=self.optimizer_args.lr,
+                end_value=self.method_args.min_lr,
             ),
             "interval": "step",
         }
@@ -683,7 +640,7 @@ class DINOv2(Method):
     ) -> None:
         self.clip_gradients(
             optimizer=optimizer,
-            gradient_clip_val=3.0,
+            gradient_clip_val=gradient_clip_val,
             gradient_clip_algorithm="norm",
         )
 
@@ -695,7 +652,7 @@ class DINOv2(Method):
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
-            start_value=self.method_args.weight_decay_start,
+            start_value=self.optimizer_args.weight_decay,
             end_value=self.method_args.weight_decay_end,
         )
 
@@ -708,7 +665,9 @@ class DINOv2(Method):
 
     @staticmethod
     def transform_cls(
-        depth, num_heads, embed_dim
+        depth: int,
+        num_heads: int,
+        embed_dim: int,
     ) -> type[DINOv2ViTSBTransform | DINOv2ViTLGTransform]:
         if depth == 40 and num_heads == 24 and embed_dim == 1536:
             transforms = DINOv2ViTLGTransform  # giant
