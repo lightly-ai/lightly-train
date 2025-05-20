@@ -67,8 +67,8 @@ class DINOv2Args(MethodArgs):
     """Args for DINOv2 method for ImageNet dataset."""
 
     # crops
-    n_global_crops = 2
-    n_local_crops = (
+    n_global_crops: int = 2
+    n_local_crops: int = (
         8  # transform_cls().transform_args_cls().transform_args.local_view.num_views
     )
 
@@ -102,9 +102,9 @@ class DINOv2Args(MethodArgs):
     warmup_teacher_temp_epochs: int = 30
 
     # masking
-    mask_ratio_min: 0.1
-    mask_ratio_max: 0.5
-    mask_probability: 0.5
+    mask_ratio_min: float = 0.1
+    mask_ratio_max: float = 0.5
+    mask_probability: float = 0.5
 
     # lr scheduler
     min_lr: float = 1.0e-06
@@ -115,7 +115,7 @@ class DINOv2Args(MethodArgs):
     patch_embed_lr_multiplier: float = 0.2
 
     # weight decay scheduler
-    weight_decay_end: 0.4
+    weight_decay_end: float = 0.4
 
     # gradient clipping
     gradient_clip_val: float = 3.0
