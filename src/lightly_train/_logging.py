@@ -186,9 +186,10 @@ class RegexFilter(Filter):
         return not self.regex.search(record.getMessage())
 
 
+@rank_zero_only
 def set_up_filters() -> None:
     """Sets up filters to exclude specific log messages."""
-    lightning_logger = logging.getLogger("pytorch_lightning")
+    lightning_logger = logging.getLogger("pytorch_lightning.utilities.rank_zero")
     _remove_filters(lightning_logger)
 
     # Ignore torch.set_float32_matmul_precision logs as we handle this in our code.
