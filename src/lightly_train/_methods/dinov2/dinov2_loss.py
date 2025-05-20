@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import os
-from typing import List
+from typing import List, Tuple
 
 import torch
 import torch.distributed as dist
@@ -113,7 +113,7 @@ class DINOLoss(nn.Module):
 
     def forward(
         self,
-        student_output_list: Tensor | List[Tensor],
+        student_output_list: Tuple[Tensor, ...] | List[Tensor],
         teacher_out_softmaxed_centered_list: Tensor | List[Tensor],
     ) -> Tensor:
         """

@@ -36,7 +36,6 @@ from lightly_train._methods.dinov2.dinov2_optim import (
     get_optimizer_with_decay,
 )
 from lightly_train._methods.dinov2.dinov2_transform import (
-    DINOv2ViTLGTransform,
     DINOv2ViTSBTransform,
 )
 from lightly_train._methods.dinov2.utils import (
@@ -56,7 +55,7 @@ from lightly_train.types import Batch
 
 
 @dataclass
-class DINOv2TrainingStepResult:
+class DINOv2TrainingStepResult(TrainingStepResult):
     dino_global_loss: Tensor
     dino_local_loss: Tensor | None
     ibot_loss: Tensor
@@ -271,6 +270,7 @@ class DINOv2(Method):
             batch, batch_idx
         )
 
+        loss = training_step_log.loss
         dino_global_loss = training_step_log.dino_global_loss
         dino_local_loss = training_step_log.dino_local_loss
         ibot_loss = training_step_log.ibot_loss
@@ -297,16 +297,11 @@ class DINOv2(Method):
             # Show example views of the images in the first batch only.
             self._log_example_views(train_batch=batch)
 
-        loss = (
-            self.dino_loss_weight * dino_global_loss
-            + self.dino_loss_weight * dino_local_loss
-            + self.ibot_loss_weight * ibot_loss
-            + self.koleo_loss_weight * koleo_loss
-        )
-
         return loss
 
-    def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
+    def training_step_impl(
+        self, batch: Batch, batch_idx: int
+    ) -> DINOv2TrainingStepResult:
         # Momentum update teacher.
         momentum = cosine_schedule(
             step=self.trainer.global_step,
@@ -325,7 +320,7 @@ class DINOv2(Method):
         self.teacher_temp = linear_warmup_schedule(
             step=self.trainer.global_step,
             warmup_steps=int(
-                self.method_args.warmup_teacher_temp_epochs
+                self.method_args.warmup_teacher_temp_epochs  # type: ignore[operator]
                 / self.trainer.max_epochs
                 * self.trainer.estimated_stepping_batches
             ),
@@ -346,7 +341,7 @@ class DINOv2(Method):
 
         mask_generator = MaskingGenerator(
             input_size=(h, w),
-            max_num_patches=0.5 * h * w,
+            max_num_patches=int(0.5 * h * w),
         )
         n_masked_crops = int(self.n_crops * self.method_args.mask_probability)
         mask_ratio_min = self.method_args.mask_ratio_min
@@ -414,8 +409,8 @@ class DINOv2(Method):
 
         # Compute the iBOT loss
         ibot_loss = self.ibot_loss.forward_masked(
-            student_patch_tokens=student_masked_patch_tokens_global,
-            teacher_patch_tokens=teacher_masked_patch_tokens_centered,
+            student_patch_tokens_masked=student_masked_patch_tokens_global,
+            teacher_patch_tokens_masked=teacher_masked_patch_tokens_centered,
             student_masks_flat=self.collated_masks,
             n_masked_patches=self.n_masked_patches,
             masks_weight=self.masks_weight,
@@ -426,7 +421,17 @@ class DINOv2(Method):
             for token in student_cls_tokens_global.chunk(self.n_global_crops)
         )  # [G, B, D], only use global views
 
-        return TrainingStepResult(
+        loss = (
+            self.dino_loss_weight * dino_global_loss
+            + self.dino_loss_weight * dino_local_loss
+            if dino_local_loss is not None
+            else 0.0
+            + self.ibot_loss_weight * ibot_loss
+            + self.koleo_loss_weight * koleo_loss
+        )
+
+        return DINOv2TrainingStepResult(
+            loss=loss,
             dino_global_loss=dino_global_loss,
             dino_local_loss=dino_local_loss if self.n_local_crops > 0 else None,
             ibot_loss=ibot_loss,
@@ -442,9 +447,11 @@ class DINOv2(Method):
         cls_tokens = tokens["cls_token"]  # [G*B, C]
 
         # process the cls tokens
-        cls_tokens = cls_tokens.chunk(self.n_global_crops)  # [G, B, C]
+        cls_tokens_chunked = cls_tokens.chunk(self.n_global_crops)  # [G, B, C]
         # watch out: these are chunked and cat'd in reverse so A is matched to B in the global crops dino loss
-        cls_tokens = torch.cat((cls_tokens[1], cls_tokens[0]))  # [G*B, C]
+        cls_tokens = torch.cat(
+            (cls_tokens_chunked[1], cls_tokens_chunked[0])
+        )  # [G*B, C]
 
         # process the patch tokens
         patches = patches.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
@@ -578,6 +585,7 @@ class DINOv2(Method):
 
         return cls_tokens_after_dino
 
+    @staticmethod
     def method_args_cls() -> type[DINOv2Args]:
         return DINOv2Args
 
@@ -664,20 +672,5 @@ class DINOv2(Method):
         update_param_groups(optimizer, updates=updates)
 
     @staticmethod
-    def transform_cls(
-        depth: int,
-        num_heads: int,
-        embed_dim: int,
-    ) -> type[DINOv2ViTSBTransform | DINOv2ViTLGTransform]:
-        if depth == 40 and num_heads == 24 and embed_dim == 1536:
-            transforms = DINOv2ViTLGTransform  # giant
-        elif depth == 24 and num_heads == 16 and embed_dim == 1024:
-            transforms = DINOv2ViTLGTransform  # large
-        elif depth == 12 and num_heads == 12 and embed_dim == 768:
-            transforms = DINOv2ViTSBTransform  # base
-        elif depth == 12 and num_heads == 6 and embed_dim == 384:
-            transforms = DINOv2ViTSBTransform  # small
-        else:
-            raise ValueError("Unsupported model configs.")
-
-        return transforms
+    def transform_cls() -> type[DINOv2ViTSBTransform]:
+        return DINOv2ViTSBTransform
