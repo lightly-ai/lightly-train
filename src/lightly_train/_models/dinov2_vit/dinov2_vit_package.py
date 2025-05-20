@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from omegaconf import DictConfig
 from torch.nn import Module
 
 from lightly_train._data.cache import get_cache_dir
@@ -36,37 +35,6 @@ from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 
 logger = logging.getLogger(__name__)
-
-
-def updated_cfg_to_match_pretrained(
-    cfg: DictConfig, cfg_pretrained: DictConfig | None
-) -> DictConfig:
-    """
-    The train config is not compatible with the pretrained config. Hence, we need to
-    update the train config to match the pretrained config.
-    """
-    if cfg_pretrained is None:
-        return cfg
-    cfg.student.ffn_layer = cfg_pretrained.student.ffn_layer
-    cfg.student.block_chunks = cfg_pretrained.student.block_chunks
-    return cfg
-
-
-def get_pretrained_cfg_and_url(model_name: str) -> tuple[DictConfig | None, str]:
-    # check if model_name has _pretrain suffix
-    if not model_name.endswith("_pretrain"):
-        model_name_pretrained = model_name + "_pretrain"
-
-    if model_name_pretrained not in VIT_MODELS:
-        logger.warning(
-            f"Model {model_name_pretrained} does not have a pretrained version."
-            "The non pretrained version will be used."
-        )
-        return None, ""
-    model_pretrained_info = VIT_MODELS[model_name_pretrained]
-    config_path_pretrained = get_config_path(model_pretrained_info["config"])
-    cfg_pretrained = load_and_merge_config(str(config_path_pretrained))
-    return cfg_pretrained, model_pretrained_info["url"]
 
 
 class DINOv2ViTPackage(Package):
@@ -95,20 +63,9 @@ class DINOv2ViTPackage(Package):
                 f"Unknown model: {model_name} available models are: {cls.list_model_names()}"
             )
 
-        load_pretrained = False
-        if model_args is not None and "pretrained" in model_args:
-            load_pretrained = model_args.pop("pretrained")
-
-        # Get the model cfg and update if required.
+        # Get the model cfg
         config_path = get_config_path(VIT_MODELS[model_name]["config"])
         cfg = load_and_merge_config(str(config_path))
-        url = VIT_MODELS[model_name]["url"]
-
-        if load_pretrained and not model_name.endswith("_pretrain"):
-            # In this situation, the train config is partially overwritten by the pretrained config
-            # to ensure that the model is compatible with the pretrained weights.
-            cfg_pretrained, url = get_pretrained_cfg_and_url(model_name)
-            updated_cfg_to_match_pretrained(cfg, cfg_pretrained)
 
         # Build the model using the cfg
         model_builders = {
@@ -141,10 +98,14 @@ class DINOv2ViTPackage(Package):
         model = model_builder(**kwargs)
 
         # Load the pretrained model if required
-        if load_pretrained:
+        if model_name.endswith("_pretrain"):
             cache_dir = get_cache_dir()
             checkpoint_dir = cache_dir / "weights"
-            model = load_weights(model=model, checkpoint_dir=checkpoint_dir, url=url)
+            model = load_weights(
+                model=model,
+                checkpoint_dir=checkpoint_dir,
+                url=VIT_MODELS[model_name]["url"],
+            )
 
         return model
 
