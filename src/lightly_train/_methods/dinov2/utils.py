@@ -5,9 +5,11 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
 
 import math
 import random
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -16,44 +18,39 @@ import torch
 class MaskingGenerator:
     def __init__(
         self,
-        input_size,
-        num_masking_patches=None,
-        min_num_patches=4,
-        max_num_patches=None,
-        min_aspect=0.3,
-        max_aspect=None,
-    ):
+        input_size: int | tuple[int, int],
+        max_num_patches: int,
+        min_num_patches: int = 4,
+        min_aspect: float = 0.3,
+        max_aspect: float | None = None,
+    ) -> None:
         if not isinstance(input_size, tuple):
             input_size = (input_size,) * 2
         self.height, self.width = input_size
 
         self.num_patches = self.height * self.width
-        self.num_masking_patches = num_masking_patches
 
         self.min_num_patches = min_num_patches
-        self.max_num_patches = (
-            num_masking_patches if max_num_patches is None else max_num_patches
-        )
+        self.max_num_patches = max_num_patches
 
         max_aspect = max_aspect or 1 / min_aspect
         self.log_aspect_ratio = (math.log(min_aspect), math.log(max_aspect))
 
-    def __repr__(self):
-        repr_str = "Generator(%d, %d -> [%d ~ %d], max = %d, %.3f ~ %.3f)" % (
+    def __repr__(self) -> str:
+        repr_str = "Generator(%d, %d -> [%d ~ %d], max = %.3f ~ %.3f)" % (
             self.height,
             self.width,
             self.min_num_patches,
             self.max_num_patches,
-            self.num_masking_patches,
             self.log_aspect_ratio[0],
             self.log_aspect_ratio[1],
         )
         return repr_str
 
-    def get_shape(self):
+    def get_shape(self) -> tuple[int, int]:
         return self.height, self.width
 
-    def _mask(self, mask, max_mask_patches):
+    def _mask(self, mask: np.ndarray, max_mask_patches: int) -> int:  # type: ignore[type-arg]
         delta = 0
         for _ in range(10):
             target_area = random.uniform(self.min_num_patches, max_mask_patches)
@@ -77,7 +74,7 @@ class MaskingGenerator:
                     break
         return delta
 
-    def __call__(self, num_masking_patches=0):
+    def __call__(self, num_masking_patches: int = 0) -> np.ndarray:  # type: ignore[type-arg]
         mask = np.zeros(shape=self.get_shape(), dtype=bool)
         mask_count = 0
         while mask_count < num_masking_patches:
@@ -99,11 +96,11 @@ def create_collated_masks(
     n_masked_crops: int,
     n_crops: int,
     mask_generator: MaskingGenerator,
-) -> dict[str, torch.Tensor]:
+) -> Dict[str, torch.Tensor]:
     n_patch_tokens = mask_generator.num_patches
-    probs = torch.linspace(mask_ratio_min, mask_ratio_max, n_masked_crops + 1)
+    probs = np.linspace(mask_ratio_min, mask_ratio_max, n_masked_crops + 1)
 
-    masks_list = []
+    masks_list: List[torch.Tensor] = []
     for i in range(0, n_masked_crops):
         prob_min = probs[i]
         prob_max = probs[i + 1]

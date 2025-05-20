@@ -131,7 +131,7 @@ def get_optimizer_with_decay(
                 d.update({"weight_decay": 0.0})
 
             if "patch_embed" in name:  # multiplier for patch embedding layer
-                d.update({"lr": d["lr"] * patch_embed_lr_multiplier})
+                d.update({"lr": d["lr"] * patch_embed_lr_multiplier})  # type: ignore[operator]
 
             all_param_groups.append(d)
 
