@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, Mapping
 
 import torch
 import torch.nn.functional as F
@@ -224,7 +224,9 @@ class DistillationV2(Method):
             }
         )
 
-    def load_state_dict(self, state_dict: dict[str, Any]) -> None:
+    def load_state_dict(
+        self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False
+    ) -> None:
         """Ensure only teacher-related keys are missing from the statedict."""
         # Load with strict=False to capture missing/unexpected keys.
         missing_keys, unexpected_keys = super().load_state_dict(
