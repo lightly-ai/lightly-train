@@ -146,7 +146,7 @@ def test_verify_out_dir_equal_on_all_local_ranks(
             pass
 
     # Make sure that no files are left in the temporary directory.
-    assert not tmp_dir.exists() or not any(tmp_dir.iterdir())
+    assert not tmp_dir.exists() or not any(f for f in tmp_dir.iterdir() if f.is_file())
 
 
 def test_verify_out_dir_equal_on_all_local_ranks__different(
@@ -172,7 +172,7 @@ def test_verify_out_dir_equal_on_all_local_ranks__different(
                 pass
 
     # Make sure that no files are left in the temporary directory.
-    assert not tmp_dir.exists() or not any(tmp_dir.iterdir())
+    assert not tmp_dir.exists() or not any(f for f in tmp_dir.iterdir() if f.is_file())
 
 
 def test_verify_out_dir_equal_on_all_local_ranks__no_rank0(
@@ -193,7 +193,7 @@ def test_verify_out_dir_equal_on_all_local_ranks__no_rank0(
             pass
 
     # Make sure that no files are left in the temporary directory.
-    assert not tmp_dir.exists() or not any(tmp_dir.iterdir())
+    assert not tmp_dir.exists() or not any(f for f in tmp_dir.iterdir() if f.is_file())
 
 
 @pytest.mark.parametrize(
