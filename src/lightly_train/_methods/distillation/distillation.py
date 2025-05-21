@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, Mapping, cast
 
 import torch
 import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Flatten, Linear, Module, init
+from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
@@ -274,3 +275,27 @@ class Distillation(Method):
                 for k, v in self.teacher_embedding_model.state_dict().items()
             }
         )
+
+    def load_state_dict(
+        self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False
+    ) -> _IncompatibleKeys:
+        """Ensure only teacher-related keys are missing from the statedict."""
+        # Load with strict=False to capture missing/unexpected keys.
+        incompatible_keys = cast(
+            _IncompatibleKeys, super().load_state_dict(state_dict, strict=False)
+        )
+
+        # Filter out teacher-related keys from the list of missing keys.
+        missing_keys = [
+            k
+            for k in incompatible_keys.missing_keys
+            if not k.startswith("teacher_embedding_model.")
+        ]
+
+        # No key should be missing besides the ones related to the teacher model.
+        if strict and (missing_keys or incompatible_keys.unexpected_keys):
+            raise RuntimeError(
+                f"Unexpected keys in state_dict: {incompatible_keys.unexpected_keys}\n"
+                f"Missing keys in state_dict: {missing_keys}"
+            )
+        return incompatible_keys
