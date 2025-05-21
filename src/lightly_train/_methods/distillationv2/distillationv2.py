@@ -13,7 +13,7 @@ from typing import Any, Literal, Mapping, cast
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Linear, Module, init
+from torch.nn import GELU, LayerNorm, Linear, Module, Sequential, init
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim.optimizer import Optimizer
 
@@ -53,6 +53,12 @@ class DistillationV2Args(MethodArgs):
     # Default teacher
     teacher: str = "dinov2_vit/vitb14_pretrain"
 
+    # Number of projection layers in the projection head.
+    n_projection_layers: int = 1
+
+    # Hidden dimension of the projection head.
+    projection_hidden_dim: int = 2048
+
 
 class DistillationV2LARSArgs(LARSArgs):
     lr: float = 1.5
@@ -62,6 +68,45 @@ class DistillationV2LARSArgs(LARSArgs):
     nesterov: bool = False
     trust_coefficient: float = 0.001
     eps: float = 1e-8
+
+
+class DistillationV2Head(Module):
+    def __init__(
+        self,
+        in_dim: int,
+        out_dim: int,
+        n_layers: int,
+        hidden_dim: int,
+    ) -> None:
+        super().__init__()
+        n_layers = max(n_layers, 1)
+
+        if n_layers == 1:
+            self.mlp: Module = Linear(in_dim, out_dim)
+        else:
+            layers: list[Module] = [Linear(in_dim, hidden_dim)]
+            layers.append(LayerNorm(hidden_dim))
+            layers.append(GELU())
+            for _ in range(n_layers - 2):
+                layers.append(Linear(hidden_dim, hidden_dim))
+                layers.append(LayerNorm(hidden_dim))
+                layers.append(GELU())
+            layers.append(Linear(hidden_dim, out_dim))
+            self.mlp = Sequential(*layers)
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m: Module) -> None:
+        if isinstance(m, Linear):
+            init.trunc_normal_(m.weight, std=0.02)
+            if m.bias is not None:
+                init.constant_(m.bias, 0)
+
+    def forward(self, x: Tensor) -> Tensor:
+        # Convert to channel last format.
+        x = x.permute(0, 2, 3, 1)
+        x = self.mlp(x)
+        return x
 
 
 class DistillationV2(Method):
@@ -87,15 +132,14 @@ class DistillationV2(Method):
         # Store the student model.
         self.student_embedding_model = embedding_model
 
-        # Instantiate a linear projection head that performs the mapping
+        # Instantiate a projection head that performs the mapping
         # from the student embedding space to the teacher embedding space.
-        self.student_projection_head = Linear(
-            embedding_model.embed_dim, self.teacher_embedding_dim
+        self.student_projection_head = DistillationV2Head(
+            in_dim=embedding_model.embed_dim,
+            out_dim=self.teacher_embedding_dim,
+            n_layers=method_args.n_projection_layers,
+            hidden_dim=method_args.projection_hidden_dim,
         )
-
-        # Initialize the weights of the linear projection head with a
-        # truncated normal.
-        init.trunc_normal_(self.student_projection_head.weight, std=0.02)
 
         # Instantiate the criterion.
         self.criterion = DistillationV2Loss()
@@ -142,11 +186,8 @@ class DistillationV2(Method):
         # Forward the images through the student model.
         x = self.student_embedding_model(x, pool=False)
 
-        # The projection head expects tensors with channel last format.
-        x = x.permute(0, 2, 3, 1)
-
         # Forward the student features through the projection head to
-        # match the dimension of the teacher: (B, H, W, C) -> (B, H, W, D).
+        # match the dimension of the teacher: (B, C, H, W) -> (B, H, W, D).
         x = self.student_projection_head(x)
 
         # Resize the student spatial features to have the same resolution
