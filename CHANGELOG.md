@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Faster dataset initialization with SLURM and Windows.
 - Model is exported after every n-th epoch instead of only at the end. Default n=1
 - A tutorial on how to [train embedding models with LightlyTrain](https://docs.lightly.ai/train/stable/tutorials/embedding/index.html).
+- Option to set `float32_matmul_precision` in the `train` command.
 
 ### Changed
 
