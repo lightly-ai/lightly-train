@@ -286,7 +286,7 @@ class Distillation(Method):
         ]
 
         # No key should be missing besides the ones related to the teacher model.
-        if missing_keys or incompatible_keys.unexpected_keys:
+        if strict and (missing_keys or incompatible_keys.unexpected_keys):
             raise RuntimeError(
                 f"Unexpected keys in state_dict: {incompatible_keys.unexpected_keys}\n"
                 f"Missing keys in state_dict: {missing_keys}"
