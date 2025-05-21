@@ -23,7 +23,7 @@ from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type
 )
 from torch.nn import Module
 
-from lightly_train import _logging, _system
+from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._callbacks import callback_helpers
 from lightly_train._callbacks.callback_args import CallbackArgs
 from lightly_train._commands import _warnings, common_helpers, train_helpers
@@ -242,13 +242,22 @@ def train_from_config(config: TrainConfig) -> None:
     transform_instance = train_helpers.get_transform(
         method=config.method, transform_args_resolved=config.transform_args
     )
+    config.float32_matmul_precision = (
+        _float32_matmul_precision.get_float32_matmul_precision(
+            float32_matmul_precision=config.float32_matmul_precision,
+        )
+    )
     # Create a temporary file to use as a memory map for dataset items. The
     # file has to exist while the dataset is used.
     # TODO(Philipp, 10/24): For training it could make sense to store the
     # file in the output directory and recover it on resume.
-    with common_helpers.verify_out_dir_equal_on_all_local_ranks(
-        out=out_dir
-    ), common_helpers.get_dataset_temp_mmap_path(out=out_dir) as mmap_filepath:
+    with (
+        common_helpers.verify_out_dir_equal_on_all_local_ranks(out=out_dir),
+        common_helpers.get_dataset_temp_mmap_path(out=out_dir) as mmap_filepath,
+        _float32_matmul_precision.float32_matmul_precision(
+            float32_matmul_precision=config.float32_matmul_precision
+        ),
+    ):
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform_instance,
@@ -304,11 +313,6 @@ def train_from_config(config: TrainConfig) -> None:
         config.accelerator = trainer_instance.accelerator
         config.strategy = trainer_instance.strategy
         config.devices = trainer_instance.num_devices
-        config.float32_matmul_precision = common_helpers.get_float32_matmul_precision(
-            float32_matmul_precision=config.float32_matmul_precision,
-            accelerator=config.accelerator,
-            device_ids=trainer_instance.device_ids,
-        )
 
         total_num_devices = train_helpers.get_total_num_devices(
             num_nodes=trainer_instance.num_nodes,
@@ -359,14 +363,11 @@ def train_from_config(config: TrainConfig) -> None:
             method=method_instance,
         )
         log_resolved_config(config=config, loggers=logger_instances)
-        with common_helpers.float32_matmul_precision(
-            float32_matmul_precision=config.float32_matmul_precision
-        ):
-            trainer_instance.fit(
-                model=method_instance,
-                train_dataloaders=dataloader,
-                ckpt_path="last" if config.resume else None,
-            )
+        trainer_instance.fit(
+            model=method_instance,
+            train_dataloaders=dataloader,
+            ckpt_path="last" if config.resume else None,
+        )
     if config.epochs == 0:
         logger.info("No training epochs specified. Saving model and exiting.")
         trainer_instance.save_checkpoint(out_dir / "checkpoints" / "last.ckpt")
