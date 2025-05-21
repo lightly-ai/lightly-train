@@ -13,8 +13,8 @@ from typing import Any, Literal, Mapping, cast
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn.modules.module import _IncompatibleKeys
 from torch.nn import Linear, Module, init
+from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._methods.distillationv2.distillationv2_loss import DistillationV2Loss
