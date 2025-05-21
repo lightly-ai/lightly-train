@@ -10,12 +10,12 @@ from __future__ import annotations
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Identity, Module
 
+from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.block import Block
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
 )
-from lightly_train._modules.teachers.dinov2.layers.block import Block
 
 
 class DINOv2ViTModelWrapper(Module, ModelWrapper):

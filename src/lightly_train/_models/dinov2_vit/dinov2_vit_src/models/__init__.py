@@ -10,7 +10,9 @@ from typing import Tuple, Union
 
 from torch.nn import Module
 
-from lightly_train._modules.teachers.dinov2.models import vision_transformer as vits
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models import (
+    vision_transformer as vits,
+)
 
 
 def build_model(

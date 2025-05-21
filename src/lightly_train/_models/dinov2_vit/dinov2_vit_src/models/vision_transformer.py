@@ -23,13 +23,13 @@ import torch.nn as nn
 from lightning_utilities.core.imports import RequirementCache
 from torch.nn.init import trunc_normal_
 
-from lightly_train._modules.teachers.dinov2.layers import (
+from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
     MemEffAttention,
     Mlp,
     PatchEmbed,
     SwiGLUFFNFused,
 )
-from lightly_train._modules.teachers.dinov2.layers import (
+from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
     NestedTensorBlock as Block,
 )
 
