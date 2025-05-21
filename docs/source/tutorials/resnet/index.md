@@ -2,7 +2,7 @@
 
 # Classification with Torchvision's ResNet
 
-This tutorial demonstrates how to pretrain a ResNet model from [Torchvision](https://pytorch.org/vision/stable/) using LightlyTrain and then fine-tune it for classification using [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/). We will perform both steps on two different human detection datasets from Kaggle. Such datasets can be used for training models to detect humans in images, a basic task in industries like security and autonomous driving.
+This tutorial demonstrates how to pretrain a ResNet model from [Torchvision](https://pytorch.org/vision/stable/) using LightlyTrain and then fine-tune it for classification using [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/). We will perform pretraining and fine-tuning on two distinct datasets from Kaggle for human detection. Such datasets can be used for training models to detect humans in images, a basic task in industries like security and autonomous driving. Note that for pretraining **no labels are needed**.
 
 ## Install LightlyTrain
 
@@ -16,7 +16,7 @@ pip install lightly-train
 
 ### Download the Pretraining Dataset
 
-Here we use [a dataset for human detection on Kaggle](https://www.kaggle.com/datasets/killa92/human-detection-dataset) for pretraining. It contains 170 PNG images (of which 146 for training and 24 for validation) of various sizes containing humans.
+Here we use [a dataset for human detection on Kaggle](https://www.kaggle.com/datasets/killa92/human-detection-dataset) for pretraining. It contains 170 PNG images of various sizes containing humans. We only use such a small dataset for demonstration purposes. In practice, you would want to use a much larger dataset for pretraining.
 
 You can download the dataset directly from Kaggle using the following commands (suppose you want the dataset to locate in `datasets`):
 
@@ -25,14 +25,14 @@ curl -L -o datasets/human-detection-dataset-pretraining.zip \
 https://www.kaggle.com/api/v1/datasets/download/killa92/human-detection-dataset
 ```
 
-extract the zip file and rename the directory to `human-detection-dataset-pretraining`.
+Extract the zip file. The extracted directory `PennFudanPed` contains four subdirectories: `train_images`, `train_masks`, `valid_images`, and `valid_masks`. For pretraining, we will only use the `train_images` directory. **No masks or labels are required.**
+
+We will rename the `PennFudanPed/train_images` directory to `human-detection-dataset-pretraining`
 
 ```bash
 unzip datasets/human-detection-dataset-pretraining.zip -d datasets/ && \
-mv datasets/PennFudanPed datasets/human-detection-dataset-pretraining/
+mv datasets/PennFudanPed/train_images datasets/human-detection-dataset-pretraining/
 ```
-
-The resulting dataset directory contains four subdirectories: `train_images`, `train_masks`, `valid_images`, and `valid_masks`.
 
 ```bash
 tree -L 1 datasets/human-detection-dataset-pretraining
@@ -40,13 +40,9 @@ tree -L 1 datasets/human-detection-dataset-pretraining
 
 ```bash
 > datasets/human-detection-dataset-pretraining
-> ├── train_images
-> └── train_masks
-> └── valid_images
-> └── valid_masks
+> ├── FudanPed00002.png
+> ├── ...
 ```
-
-For pretraining, we will only use the `train_images` directory. **No masks or labels are required.**
 
 ### Inspect Images for Pretraining
 
@@ -146,7 +142,7 @@ curl -L -o datasets/human-detection-dataset-fine-tuning.zip \
 https://www.kaggle.com/api/v1/datasets/download/constantinwerner/human-detection-dataset
 ```
 
-extract the zip file and rename the directory to `human-detection-dataset-fine-tuning`.
+Extract the zip file and rename the directory to `human-detection-dataset-fine-tuning`.
 
 ```bash
 unzip datasets/human-detection-dataset-fine-tuning.zip -d datasets/ && \
