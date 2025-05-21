@@ -81,6 +81,7 @@ def export_from_config(config: ExportConfig) -> None:
     # Set up logging.
     _warnings.filter_export_warnings()
     _logging.set_up_console_logging()
+    _logging.set_up_filters()
     logger.info(f"Args: {common_helpers.pretty_format_args(args=config.model_dump())}")
 
     part = _get_model_part(part=config.part)
