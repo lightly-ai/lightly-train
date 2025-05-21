@@ -12,7 +12,11 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from torch.nn import Module
+
+try:
+    from rfdetr.detr import RFDETR
+except ImportError:
+    pass
 
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -38,24 +42,18 @@ class RFDETRPackage(Package):
         ]
 
     @classmethod
-    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
-        try:
-            from rfdetr.models.lwdetr import LWDETR
-        except ImportError:
-            return False
+    def is_supported_model(cls, model: RFDETR | ModelWrapper | Any) -> bool:
         if isinstance(model, ModelWrapper):
-            return isinstance(model.get_model(), LWDETR)
-        return isinstance(model, LWDETR)
+            return isinstance(model.get_model(), RFDETR)
+        return isinstance(model, RFDETR)
 
     @classmethod
     def get_model(
         cls, model_name: str, model_args: dict[str, Any] | None = None
-    ) -> Module:
+    ) -> RFDETR:
         try:
             from rfdetr import RFDETRBase, RFDETRLarge
-            from rfdetr.detr import RFDETR
             from rfdetr.main import HOSTED_MODELS
-            from rfdetr.models.lwdetr import LWDETR
         except ImportError:
             raise ValueError(
                 f"Cannot create model '{model_name}' because rfdetr is not installed."
@@ -72,40 +70,64 @@ class RFDETRPackage(Package):
                 f"Model name '{model_name}' is not supported. "
                 f"Supported model names are: {model_names}"
             )
+        model_rfdetr: RFDETR
         if "base" in model_name:
             # Type ignore as typing **args correctly is too complex
-            model_rfdetr: RFDETR = RFDETRBase(**args)  # type: ignore[arg-type, no-untyped-call]
+            model_rfdetr = RFDETRBase(**args)  # type: ignore[no-untyped-call]
         elif "large" in model_name:
             # Type ignore as typing **args correctly is too complex
-            model_rfdetr = RFDETRLarge(**args)  # type: ignore[arg-type, no-untyped-call]
+            model_rfdetr = RFDETRLarge(**args)  # type: ignore[no-untyped-call]
         else:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. "
                 f"Supported model names are: {cls.list_model_names()}"
             )
 
-        model_full = model_rfdetr.model.model  # The actual LWDETR model, which is a submodule of nn.Module, is stored in RFDETR().model.model
-        if isinstance(model_full, LWDETR):
-            return model_full  # type: ignore
-        else:
-            raise ValueError(f"Model must be of type 'LWDETR', got {type(model_full)}")
+        return model_rfdetr
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: RFDETR) -> ModelWrapper:
         return RFDETRModelWrapper(model)
 
     @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
+    def export_model(
+        cls,
+        model: RFDETR | RFDETRModelWrapper | Any,
+        out: Path,
+        log_example: bool = True,
+    ) -> None:
         try:
+            from rfdetr.models.backbone.dinov2 import (
+                DinoV2,
+                WindowedDinov2WithRegistersBackbone,
+            )
             from rfdetr.models.lwdetr import LWDETR
         except ImportError:
             raise ValueError(
                 f"Cannot create model because '{cls.name}' is not installed."
             )
-        if not isinstance(model, LWDETR):
-            raise ValueError(f"Model must be of type 'LWDETR', got {type(model)}")
 
-        torch.save({"model": model.state_dict()}, out)
+        if isinstance(model, RFDETRModelWrapper):
+            rfdetr_model = model.get_model()
+        elif isinstance(model, RFDETR):
+            rfdetr_model = model
+        else:
+            raise ValueError(
+                f"Model must be of type 'RFDETR' or 'RFDETRModelWrapper', got {type(model)}"
+            )
+
+        lwdetr_model = rfdetr_model.model.model
+        assert isinstance(lwdetr_model, LWDETR)
+
+        # Set encoder state to eval mode
+        assert isinstance(
+            lwdetr_model.backbone[0].encoder.encoder,
+            WindowedDinov2WithRegistersBackbone,
+        ), type(lwdetr_model.backbone[0].encoder)
+        assert isinstance(lwdetr_model.backbone[0].encoder, DinoV2)
+        lwdetr_model.backbone[0].encoder.eval()
+
+        torch.save({"model": lwdetr_model.state_dict()}, out)
         if log_example:
             log_message_code = [
                 "from rfdetr import RFDETRBase, RFDETRLarge # based on the model you used",

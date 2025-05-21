@@ -41,7 +41,7 @@ class TestRFDETRPackage:
         assert (model_name in model_names) is supported
 
     def test_is_supported_model__true(self) -> None:
-        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
         assert RFDETRPackage.is_supported_model(model)
 
     def test_is_supported_model__false(self) -> None:
@@ -54,24 +54,29 @@ class TestRFDETRPackage:
     )
     def test_get_model(self, model_name: str) -> None:
         model = RFDETRPackage.get_model(model_name=model_name)
-        assert isinstance(model, LWDETR)
+        assert isinstance(model, RFDETR)
 
     def test_get_model_wrapper(self) -> None:
-        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
         fe = RFDETRPackage.get_model_wrapper(model=model)
         assert isinstance(fe, RFDETRModelWrapper)
 
     def test_export_model(self, tmp_path: Path) -> None:
         out = tmp_path / "model.pt"
-        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
 
         RFDETRPackage.export_model(model=model, out=out)
-        model_exported = RFDETRBase(pretrain_weights=out.as_posix()).model.model  # type: ignore[no-untyped-call]
+        model_exported = RFDETRBase(pretrain_weights=out.as_posix())  # type: ignore[no-untyped-call]
+
+        lwdetr_model = model.model.model
+        lwdetr_model_exported = model_exported.model.model
 
         # Check that parameters are the same.
-        assert len(list(model.parameters())) == len(list(model_exported.parameters()))
+        assert len(list(lwdetr_model.parameters())) == len(
+            list(lwdetr_model_exported.parameters())
+        )
         for (name, param), (name_exp, param_exp) in zip(
-            model.named_parameters(), model_exported.named_parameters()
+            lwdetr_model.named_parameters(), lwdetr_model_exported.named_parameters()
         ):
             assert name == name_exp
             assert param.dtype == param_exp.dtype
@@ -81,7 +86,7 @@ class TestRFDETRPackage:
         # Check module states. The pretrained DINOv2 backbone is frozen while other modules are in training mode.
         visited = set()
         for (name, module), (name_exp, module_exp) in zip(
-            model.named_modules(), model_exported.named_modules()
+            lwdetr_model.named_modules(), lwdetr_model_exported.named_modules()
         ):
             if name in visited:
                 continue

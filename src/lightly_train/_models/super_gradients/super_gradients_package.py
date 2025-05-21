@@ -90,7 +90,18 @@ class SuperGradientsPackage(Package):
         raise UnknownModelError(f"Unknown {cls.name} model: '{type(model)}'")
 
     @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
+    def export_model(
+        cls, model: Module | ModelWrapper | Any, out: Path, log_example: bool = True
+    ) -> None:
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
+        elif isinstance(model, Module):
+            model = model
+        else:
+            raise ValueError(
+                f"SuperGradientsPackage only supports exporting models of type 'Module' "
+                f"or ModelWrapper, but got '{type(model)}'."
+            )
         torch.save(model.state_dict(), out)
         if log_example:
             model_name = getattr(model, "_sg_model_name", None)

@@ -20,7 +20,7 @@ from rfdetr.detr import RFDETRBase
 
 class TestRFDETRFeatureExtractor:
     def test_init(self) -> None:
-        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
         feature_extractor = RFDETRModelWrapper(model=model)
 
         for name, param in feature_extractor.named_parameters():
@@ -30,18 +30,21 @@ class TestRFDETRFeatureExtractor:
             assert module.training, name
 
     def test_feature_dim(self) -> None:
-        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
 
         feature_extractor = RFDETRModelWrapper(model=model)
 
         assert feature_extractor.feature_dim() == 384
 
+    # TODO (Lionel, 05/25): remove this test when MPS is supported
+    @pytest.mark.skipif(
+        torch.backends.mps.is_available(), reason="MPS does not support this test"
+    )
     def test_forward_features(
         self,
     ) -> None:
-        model_instance = RFDETRBase()  # type: ignore[no-untyped-call]
-        model = model_instance.model.model
-        device = model_instance.model.device
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
+        device = model.model.device
 
         feature_extractor = RFDETRModelWrapper(model=model)
 
@@ -58,9 +61,8 @@ class TestRFDETRFeatureExtractor:
         )
 
     def test_forward_pool(self) -> None:
-        model_instance = RFDETRBase()  # type: ignore[no-untyped-call]
-        model = model_instance.model.model
-        device = model_instance.model.device
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
+        device = model.model.device
 
         feature_extractor = RFDETRModelWrapper(model=model)
 
@@ -71,8 +73,7 @@ class TestRFDETRFeatureExtractor:
         assert pool.shape == (1, expected_dim, 1, 1)
 
     def test_get_model(self) -> None:
-        model_instance = RFDETRBase()  # type: ignore[no-untyped-call]
-        model = model_instance.model.model
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
         feature_extractor = RFDETRModelWrapper(model=model)
-        model = feature_extractor.get_model()
-        assert model is model_instance.model.model
+        model_ = feature_extractor.get_model()
+        assert model_ is model

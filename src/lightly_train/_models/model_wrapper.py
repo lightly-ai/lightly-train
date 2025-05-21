@@ -18,8 +18,12 @@ from typing import (
 )
 
 from torch import Tensor
-from torch.nn import Module, Parameter
+from torch.nn import Parameter
 from typing_extensions import NotRequired, Required, TypedDict, TypeVar
+
+# The package's underlying models. See lightly_train._models.BasePackage for more
+# details.
+PackageModel = Any
 
 
 class ForwardFeaturesOutput(TypedDict, total=False):
@@ -78,7 +82,7 @@ class FeatureDim(Protocol):
 
 @runtime_checkable
 class ModelGetter(Protocol):
-    def get_model(self) -> Module:
+    def get_model(self) -> PackageModel:
         """Returns the model to store in the checkpoint."""
         ...
 

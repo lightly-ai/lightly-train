@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import torch
 from torch.nn import Module
@@ -24,12 +25,22 @@ class CustomPackage(BasePackage):
     name = "custom"
 
     @classmethod
-    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
-        """Check if the model is supported by this package."""
+    def is_supported_model(cls, model: Module | ModelWrapper | Any) -> bool:
         return isinstance(model, ModelWrapper)
 
     @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
+    def export_model(
+        cls, model: Module | ModelWrapper | Any, out: Path, log_example: bool = True
+    ) -> None:
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
+        elif isinstance(model, Module):
+            model = model
+        else:
+            raise ValueError(
+                f"Custom package cannot export model of type {type(model)}. "
+                "The model must be a ModelWrapper or a torch.nn.Module."
+            )
         torch.save(model.state_dict(), out)
         if log_example:
             model_name = model.__class__.__name__

@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 def train(
     out: PathLike,
     data: PathLike | Sequence[PathLike],
-    model: str | Module | ModelWrapper,
+    model: str | Module | ModelWrapper | Any,
     method: str = "distillation",
     method_args: dict[str, Any] | None = None,
     embed_dim: int | None = None,
@@ -379,7 +379,7 @@ def train_from_dictconfig(config: DictConfig) -> None:
 class TrainConfig(PydanticConfig):
     out: PathLike
     data: PathLike | Sequence[PathLike]
-    model: str | Module | ModelWrapper
+    model: str | Module | ModelWrapper | Any
     method: str = "distillation"
     method_args: dict[str, Any] | MethodArgs | None = None
     embed_dim: int | None = None
