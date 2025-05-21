@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Make all public interface only allow keyword arguments.
 - New, improved distillationv2 method that achieves higher accuracy and trains up to 3x faster than distillationv1.
   The new method is selected as default by LightlyTrain with `method="distillation"`. The old distillation method
   can still be used with `method="distillationv1"` for backwards compatibility.
@@ -20,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Make all public interface only allow keyword arguments.
 - Distillation uses the official DINOv2 implementation for the teacher model.
 - The RT-DETR example uses RT-DETRv2, which is backward compatible while imposing fewer constraints on package versions.
 - The original distillation method is now selected with `method="distillationv1"`.
