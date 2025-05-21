@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Make all public interface only allow keyword arguments.
+- All functions require keyword arguments as input.
 - Distillation uses the official DINOv2 implementation for the teacher model.
 - The RT-DETR example uses RT-DETRv2, which is backward compatible while imposing fewer constraints on package versions.
 - The original distillation method is now selected with `method="distillationv1"`.
