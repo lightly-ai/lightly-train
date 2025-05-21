@@ -63,20 +63,15 @@ class TestRFDETRPackage:
 
     def test_export_model(self, tmp_path: Path) -> None:
         out = tmp_path / "model.pt"
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
+        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
 
         RFDETRPackage.export_model(model=model, out=out)
-        model_exported = RFDETRBase(pretrain_weights=out.as_posix())  # type: ignore[no-untyped-call]
-
-        lwdetr_model = model.model.model
-        lwdetr_model_exported = model_exported.model.model
+        model_exported = RFDETRBase(pretrain_weights=out.as_posix()).model.model  # type: ignore[no-untyped-call]
 
         # Check that parameters are the same.
-        assert len(list(lwdetr_model.parameters())) == len(
-            list(lwdetr_model_exported.parameters())
-        )
+        assert len(list(model.parameters())) == len(list(model_exported.parameters()))
         for (name, param), (name_exp, param_exp) in zip(
-            lwdetr_model.named_parameters(), lwdetr_model_exported.named_parameters()
+            model.named_parameters(), model_exported.named_parameters()
         ):
             assert name == name_exp
             assert param.dtype == param_exp.dtype
@@ -86,11 +81,24 @@ class TestRFDETRPackage:
         # Check module states. The pretrained DINOv2 backbone is frozen while other modules are in training mode.
         visited = set()
         for (name, module), (name_exp, module_exp) in zip(
-            lwdetr_model.named_modules(), lwdetr_model_exported.named_modules()
+            model.named_modules(), model_exported.named_modules()
         ):
             if name in visited:
                 continue
 
             assert name == name_exp
-            assert module.training
-            assert module_exp.training
+            if isinstance(
+                module, WindowedDinov2WithRegistersBackbone
+            ):  # Check the state for all modules in DINOv2 backbone
+                for (child_name, child_module), (
+                    child_name_exp,
+                    child_module_exp,
+                ) in zip(module.named_modules(), module_exp.named_modules()):
+                    assert child_name == child_name_exp
+                    assert not child_module.training
+                    assert not child_module_exp.training
+
+                    visited.add(f"{name}.{child_name}")
+            else:
+                assert module.training
+                assert module_exp.training
