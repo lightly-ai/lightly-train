@@ -23,6 +23,11 @@ import torchvision
 
 torchvision.disable_beta_transforms_warning()
 
+# Disable albumentations update check.
+import os
+
+os.environ["NO_ALBUMENTATIONS_UPDATE_CHECK"] = "1"
+
 from lightly_train._commands.common_helpers import ModelFormat, ModelPart
 from lightly_train._commands.embed import embed
 from lightly_train._commands.export import export
