@@ -92,18 +92,5 @@ class TestRFDETRPackage:
                 continue
 
             assert name == name_exp
-            if isinstance(
-                module, WindowedDinov2WithRegistersBackbone
-            ):  # Check the state for all modules in DINOv2 backbone
-                for (child_name, child_module), (
-                    child_name_exp,
-                    child_module_exp,
-                ) in zip(module.named_modules(), module_exp.named_modules()):
-                    assert child_name == child_name_exp
-                    assert not child_module.training
-                    assert not child_module_exp.training
-
-                    visited.add(f"{name}.{child_name}")
-            else:
-                assert module.training
-                assert module_exp.training
+            assert module.training
+            assert module_exp.training

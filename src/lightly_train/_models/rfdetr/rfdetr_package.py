@@ -125,8 +125,7 @@ class RFDETRPackage(Package):
             WindowedDinov2WithRegistersBackbone,
         ), type(lwdetr_model.backbone[0].encoder)
         assert isinstance(lwdetr_model.backbone[0].encoder, DinoV2)
-        lwdetr_model.backbone[0].encoder.eval()
-
+        
         torch.save({"model": lwdetr_model.state_dict()}, out)
         if log_example:
             log_message_code = [
