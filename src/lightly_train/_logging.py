@@ -186,7 +186,7 @@ class RegexFilter(Filter):
         return not self.regex.search(record.getMessage())
 
 
-@rank_zero_only
+@rank_zero_only  # type: ignore[misc]
 def set_up_filters() -> None:
     """Sets up filters to exclude specific log messages."""
     lightning_logger = logging.getLogger("pytorch_lightning.utilities.rank_zero")
