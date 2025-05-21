@@ -19,9 +19,8 @@ from ...helpers import DummyCustomModel
 if importlib_util.find_spec("rfdetr") is None:
     pytest.skip("rfdetr is not installed", allow_module_level=True)
 
-from rfdetr.detr import RFDETRBase, RFDETR
+from rfdetr.detr import RFDETR, RFDETRBase
 from rfdetr.models.backbone.dinov2 import WindowedDinov2WithRegistersBackbone
-from rfdetr.models.lwdetr import LWDETR
 
 
 class TestRFDETRPackage:
@@ -72,7 +71,9 @@ class TestRFDETRPackage:
         lwdetr_model_exported = model_exported.model.model
 
         # Check that parameters are the same.
-        assert len(list(lwdetr_model.parameters())) == len(list(lwdetr_model_exported.parameters()))
+        assert len(list(lwdetr_model.parameters())) == len(
+            list(lwdetr_model_exported.parameters())
+        )
         for (name, param), (name_exp, param_exp) in zip(
             lwdetr_model.named_parameters(), lwdetr_model_exported.named_parameters()
         ):

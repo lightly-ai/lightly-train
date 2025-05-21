@@ -109,7 +109,7 @@ class DINOv2ViTPackage(Package):
         else:
             raise ValueError(
                 f"DINOv2ViTPackage cannot export model of type {type(model)}. "
-                "The model must be a ModelWrapper or a torch.nn.Module."
+                "The model must be a ModelWrapper or a DinoVisionTransformer."
             )
         torch.save(model.state_dict(), out)
 

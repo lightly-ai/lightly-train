@@ -16,7 +16,10 @@ import torch
 try:
     from rfdetr.detr import RFDETR
 except ImportError:
-    pass
+
+    class RFDETR:  # type: ignore[no-redef]
+        pass
+
 
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -125,7 +128,7 @@ class RFDETRPackage(Package):
             WindowedDinov2WithRegistersBackbone,
         ), type(lwdetr_model.backbone[0].encoder)
         assert isinstance(lwdetr_model.backbone[0].encoder, DinoV2)
-        
+
         torch.save({"model": lwdetr_model.state_dict()}, out)
         if log_example:
             log_message_code = [
