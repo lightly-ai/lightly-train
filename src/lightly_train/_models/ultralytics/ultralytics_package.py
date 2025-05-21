@@ -70,11 +70,13 @@ class UltralyticsPackage(Package):
         return sorted(model_names)
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
         try:
             from ultralytics import YOLO
         except ImportError:
             return False
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
         return isinstance(model, YOLO)
 
     @classmethod

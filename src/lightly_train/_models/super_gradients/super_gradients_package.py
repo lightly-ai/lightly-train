@@ -15,7 +15,9 @@ import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
-from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.model_wrapper import (
+    ModelWrapper,
+)
 from lightly_train._models.package import Package
 from lightly_train._models.super_gradients.customizable_detector import (
     CustomizableDetectorFeatureExtractor,
@@ -52,7 +54,9 @@ class SuperGradientsPackage(Package):
         return sorted(model_names)
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
+        if isinstance(model, ModelWrapper):
+            return cls.is_supported_model_cls(model_cls=type(model.get_model()))
         return cls.is_supported_model_cls(model_cls=type(model))
 
     @classmethod

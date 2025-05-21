@@ -20,11 +20,12 @@ from lightly_train._methods.distillation.distillation import (
     DistillationArgs,
     DistillationLARSArgs,
 )
+from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import ScalingInfo
 
-from ... import helpers
+from ...helpers import DummyCustomModel
 
 
 class TestDistillationArgs:
@@ -197,7 +198,7 @@ class TestDistillation:
         distill = Distillation(
             method_args=DistillationArgs(queue_size=queue_size),
             optimizer_args=DistillationLARSArgs(),
-            embedding_model=helpers.get_embedding_model(),
+            embedding_model=EmbeddingModel(wrapped_model=DummyCustomModel()),
             global_batch_size=batch_size,
         )
         mock_get_teacher_model.assert_called_once()
@@ -248,7 +249,7 @@ class TestDistillation:
         distill = Distillation(
             method_args=DistillationArgs(queue_size=queue_size),
             optimizer_args=DistillationLARSArgs(),
-            embedding_model=helpers.get_embedding_model(),
+            embedding_model=EmbeddingModel(wrapped_model=DummyCustomModel()),
             global_batch_size=batch_size,
         )
         mock_get_teacher_model.assert_called_once()
@@ -272,3 +273,106 @@ class TestDistillation:
         assert torch.allclose(
             distill.teacher_queue, x_teacher[:queue_size], atol=1e-6
         ), "Queue shoud contain the first element from the batch."
+
+    def test_load_state_dict_ignores_missing_teacher_keys(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Test that missing teacher keys in the state dict do not raise an error."""
+
+        # Setup constants
+        batch_size = 2
+        student_embed_dim = 32
+        teacher_embed_dim = 48
+        queue_size = 10
+
+        # Dummy student model with real params.
+        student_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(student_embed_dim)
+        )
+
+        # Dummy teacher model with real params.
+        teacher_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(teacher_embed_dim)
+        )
+
+        # Patch get_teacher.
+        mock_get_teacher = mocker.patch(
+            "lightly_train._methods.distillation.distillation.get_teacher"
+        )
+        mock_get_teacher.return_value = teacher_model
+
+        # Instantiate the distillation method.
+        distill = Distillation(
+            method_args=DistillationArgs(queue_size=queue_size),
+            optimizer_args=DistillationLARSArgs(),
+            embedding_model=student_model,
+            global_batch_size=batch_size,
+        )
+        mock_get_teacher.assert_called_once()
+
+        # Check that teacher keys are present in the statedict.
+        full_state_dict = distill.state_dict()
+        assert any(k.startswith("teacher_embedding_model.") for k in full_state_dict)
+
+        # Simulate a checkpoint with teacher keys removed.
+        filtered_state_dict = {
+            k: v
+            for k, v in full_state_dict.items()
+            if not k.startswith("teacher_embedding_model.")
+        }
+
+        # Try loading the statedict without teacher keys.
+        distill.load_state_dict(filtered_state_dict, strict=True)
+
+    def test_load_state_dict_raises_on_non_teacher_missing_key(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Test that load_state_dict raises an error if non-teacher keys are missing."""
+
+        # Setup constants.
+        batch_size = 2
+        student_embed_dim = 32
+        teacher_embed_dim = 48
+        queue_size = 10
+
+        # Dummy student model with real params.
+        student_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(student_embed_dim)
+        )
+
+        # Dummy teacher model with real params.
+        teacher_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(teacher_embed_dim)
+        )
+
+        # Patch get_teacher.
+        mock_get_teacher = mocker.patch(
+            "lightly_train._methods.distillation.distillation.get_teacher"
+        )
+        mock_get_teacher.return_value = teacher_model
+
+        # Create distillation instance
+        distill = Distillation(
+            method_args=DistillationArgs(queue_size=queue_size),
+            optimizer_args=DistillationLARSArgs(),
+            embedding_model=student_model,
+            global_batch_size=batch_size,
+        )
+        mock_get_teacher.assert_called_once()
+
+        # Obtain the full statedict.
+        state_dict = distill.state_dict()
+
+        # Ensure non-teacher keys are present.
+        non_teacher_keys = [
+            k for k in state_dict if not k.startswith("teacher_embedding_model.")
+        ]
+        assert non_teacher_keys, "No non-teacher keys found in state dict for testing."
+
+        # Remove a non-teacher key
+        key_to_remove = non_teacher_keys[0]
+        state_dict.pop(key_to_remove)
+
+        # Assert that a RuntimeError is raised due to unexpected missing keys
+        with pytest.raises(RuntimeError, match="Missing keys in state_dict"):
+            distill.load_state_dict(state_dict, strict=True)

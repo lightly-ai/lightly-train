@@ -19,9 +19,9 @@ from lightly_train._methods.detcon.detcon import (
     DetConSArgs,
     DetConSSGDArgs,
 )
+from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train.types import Batch
 
-from ... import helpers
 from ...helpers import DummyCustomModel
 
 
@@ -116,7 +116,7 @@ def test__subsample_pooled_features() -> None:
 
 class TestDetConS:
     def test_training_step_impl(self) -> None:
-        emb_model = helpers.get_embedding_model()
+        emb_model = EmbeddingModel(wrapped_model=DummyCustomModel())
         b = 16
 
         view0 = torch.rand(b, 3, 8, 8)
@@ -144,7 +144,7 @@ class TestDetConS:
 
 class TestDetConB:
     def test_training_step_impl(self) -> None:
-        emb_model = helpers.get_embedding_model(DummyCustomModel())
+        emb_model = EmbeddingModel(wrapped_model=DummyCustomModel())
         b = 16
 
         view0 = torch.rand(b, 3, 8, 8)

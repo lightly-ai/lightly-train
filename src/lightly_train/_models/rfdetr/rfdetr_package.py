@@ -38,11 +38,13 @@ class RFDETRPackage(Package):
         ]
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
         try:
             from rfdetr.models.lwdetr import LWDETR
         except ImportError:
             return False
+        if isinstance(model, ModelWrapper):
+            return isinstance(model.get_model(), LWDETR)
         return isinstance(model, LWDETR)
 
     @classmethod

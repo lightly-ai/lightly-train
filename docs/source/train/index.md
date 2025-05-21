@@ -290,17 +290,70 @@ resolution of 224x224 pixels is used. A custom resolution can be set like this:
 
 ````{tab} Python
 ```python
-transform_args = {"image_size": (448, 448)} # (height, width)
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train(
+        out="out/my_experiment",            # Output directory
+        data="my_data_dir",                 # Directory with images
+        model="torchvision/resnet18",       # Model to train
+        transform_args={"image_size": (448, 448)}, # (height, width)
+    )
+```
 ````
 
 ````{tab} Command Line
 ```bash
-transform_args.image_size="\[448,448\]"  # (height, width)
+lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" transform_args.image_size="[448,448]"
+```
 ````
 
 ```{warning}
 Not all models support all image sizes.
 ```
+
+### Image Transforms
+
+See {ref}`method-transform-args` on how to configure image transformations.
+
+(method-args)=
+
+### Method Arguments
+
+```{warning}
+In 99% of cases, it is not necessary to modify the default method arguments in
+LightlyTrain. The default settings are carefully tuned to work well for most use cases.
+```
+
+The method arguments can be set with the `method_args` argument:
+
+````{tab} Python
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train(
+        out="out/my_experiment",            # Output directory
+        data="my_data_dir",                 # Directory with images
+        model="torchvision/resnet18",       # Model to train
+        method="distillation",              # Pretraining method
+        method_args={                       # Override the default teacher model
+            "teacher": "dinov2_vit/vitl14_pretrain",
+        },
+    )
+```
+````
+
+````{tab} Command Line
+```bash
+lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" method="distillation" method_args.teacher="dinov2_vit/vitl14_pretrain"
+```
+````
+
+Each pretraining method has its own set of arguments that can be configured. LightlyTrain
+provides sensible defaults that are adjusted depending on the dataset and model used.
+The defaults for each method are listed in the respective {ref}`methods` documentation
+pages.
 
 ### Performance Optimizations
 

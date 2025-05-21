@@ -12,7 +12,7 @@ import torch
 
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOv2ViTPackage
-from lightly_train._modules.teachers.dinov2.models.vision_transformer import (
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
     vit_small,
 )

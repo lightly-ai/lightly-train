@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, Mapping, cast
 
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Linear, init
+from torch.nn import Linear, Module, init
+from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._methods.distillationv2.distillationv2_loss import DistillationV2Loss
@@ -22,8 +23,8 @@ from lightly_train._methods.distillationv2.distillationv2_transform import (
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
+from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._modules.teachers.build_teacher import get_teacher
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -36,6 +37,13 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
+def get_teacher(teacher_name: str) -> Module:
+    wrapped_model = package_helpers.get_wrapped_model(model=teacher_name)
+    teacher_embedding_model = wrapped_model.get_model()
+    teacher_embedding_model.eval()
+    return teacher_embedding_model
+
+
 class DistillationV2Args(MethodArgs):
     """Args for DistillationV2 method for dataset."""
 
@@ -43,7 +51,7 @@ class DistillationV2Args(MethodArgs):
     n_teacher_blocks: int = 2
 
     # Default teacher
-    teacher: str = "dinov2_vitb14"
+    teacher: str = "dinov2_vit/vitb14_pretrain"
 
 
 class DistillationV2LARSArgs(LARSArgs):
@@ -71,7 +79,7 @@ class DistillationV2(Method):
             global_batch_size=global_batch_size,
         )
         # Get the teacher model.
-        self.teacher_embedding_model = get_teacher(teacher_name=method_args.teacher)
+        self.teacher_embedding_model = get_teacher(method_args.teacher)
         self.teacher_embedding_dim = (
             method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim
         )
@@ -224,17 +232,26 @@ class DistillationV2(Method):
             }
         )
 
-    @torch.no_grad()
-    def _broadcast_teacher_weights(self) -> None:
-        """Broadcast the teacher weights from rank 0 to all ranks.
-        This is necessary to ensure that all ranks have the same teacher weights.
-        Only global rank 0 downloads the teacher weights.
-        """
-        for param in self.teacher_embedding_model.state_dict().values():
-            if isinstance(param, torch.Tensor):
-                torch.distributed.broadcast(param, src=0)
+    def load_state_dict(
+        self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False
+    ) -> _IncompatibleKeys:
+        """Ensure only teacher-related keys are missing from the statedict."""
+        # Load with strict=False to capture missing/unexpected keys.
+        incompatible_keys = cast(
+            _IncompatibleKeys, super().load_state_dict(state_dict, strict=False)
+        )
 
-    def on_fit_start(self) -> None:
-        if torch.distributed.is_available() and torch.distributed.is_initialized():
-            logger.info("Broadcasting teacher weights from rank 0 to all ranks.")
-            self._broadcast_teacher_weights()
+        # Filter out teacher-related keys from the list of missing keys.
+        missing_keys = [
+            k
+            for k in incompatible_keys.missing_keys
+            if not k.startswith("teacher_embedding_model.")
+        ]
+
+        # No key should be missing besides the ones related to the teacher model.
+        if strict and (missing_keys or incompatible_keys.unexpected_keys):
+            raise RuntimeError(
+                f"Unexpected keys in state_dict: {incompatible_keys.unexpected_keys}\n"
+                f"Missing keys in state_dict: {missing_keys}"
+            )
+        return incompatible_keys

@@ -10,49 +10,33 @@ import logging
 from pathlib import Path
 
 import torch
-from torch.nn import Module
 
-from lightly_train._commands.common_helpers import is_global_rank_zero
+from lightly_train import _distributed as distributed_helpers
 from lightly_train._data.download import download_from_url
-from lightly_train._modules.teachers.dinov2.configs import MODELS as TEACHER_MODELS
-from lightly_train._modules.teachers.dinov2.configs import (
-    get_config_path,
-    load_and_merge_config,
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer,
 )
-from lightly_train._modules.teachers.dinov2.models import build_model_from_cfg
 
 logger = logging.getLogger(__name__)
 
 
-def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
-    """Loads a DINOv2 teacher model and its pre-trained weights from a name.
-
-    Returns the model in eval mode along with its embedding dimension.
-    Raises a ValueError if the teacher name is unknown.
-    """
-    if teacher_name not in TEACHER_MODELS:
-        raise ValueError(f"Unknown teacher: {teacher_name}")
-
-    teacher_info = TEACHER_MODELS[teacher_name]
-    url = teacher_info["url"]
-    config_name = teacher_info["config"]
-
-    # Load config.
-    config_path = get_config_path(config_name)
-    cfg = load_and_merge_config(str(config_path))
-
-    # Build model.
-    model, _, _ = build_model_from_cfg(cfg)
-    model.eval()
-
+def load_weights(
+    model: DinoVisionTransformer, checkpoint_dir: Path, url: str
+) -> DinoVisionTransformer:
     # Create the directory if it doesn't exist.
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    # Cache the teacher checkpoint.
-    checkpoint_path = checkpoint_dir / Path(url).name
+    # Cache the teacher checkpoint. concatenate the node rank to the checkpoint path
+    # to avoid overwriting the checkpoint if multiple nodes are used.
+    node_rank = distributed_helpers.get_node_rank()
+    if node_rank is not None:
+        file_name = f"{str(node_rank)}_{str(Path(url).name)}"
+    else:
+        file_name = str(Path(url).name)
+    checkpoint_path = checkpoint_dir / Path(file_name)
 
     # Only the global rank zero downloads the checkpoint.
-    if is_global_rank_zero():
+    if distributed_helpers.is_local_rank_zero():
         if not checkpoint_path.exists():
             logger.info(
                 f"Downloading teacher weights from: '{url}' and saving them to: "
@@ -64,9 +48,13 @@ def get_dinov2_teacher(teacher_name: str, checkpoint_dir: Path) -> Module:
         else:
             logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
 
-        # Load the checkpoint.
+    # wait for the local zero ranks to finish downloading
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
+    # Load the checkpoint.
+    if checkpoint_path.exists():
         ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
         model.load_state_dict(ckpt, strict=True)
         logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
-
     return model

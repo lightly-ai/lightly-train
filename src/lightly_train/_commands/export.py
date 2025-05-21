@@ -19,16 +19,20 @@ from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands.common_helpers import ModelFormat, ModelPart
 from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._models import package_helpers
+from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
 
 def export(
+    *,
     out: PathLike,
     checkpoint: PathLike,
-    part: ModelPart | str = "model",
-    format: ModelFormat | str = "package_default",
+    part: str | ModelPart = "model",
+    format: str | ModelFormat = "package_default",
     overwrite: bool = False,
 ) -> None:
     """Export a model from a checkpoint.
@@ -87,9 +91,16 @@ def export_from_config(config: ExportConfig) -> None:
     ckpt_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
     logger.info(f"Loading checkpoint from '{ckpt_path}'")
     ckpt = Checkpoint.from_path(checkpoint=ckpt_path)
-    model = _get_model(checkpoint=ckpt, part=part)
+    model: Module | ModelWrapper | EmbeddingModel = _get_model(
+        checkpoint=ckpt, part=part
+    )
     logger.info(f"Exporting model to '{out_path}'")
-    common_helpers.export_model(model=model, format=format, out=out_path)
+    package = package_helpers.get_package_from_model(
+        model=model, include_custom=True, fallback_custom=True
+    )
+    common_helpers.export_model(
+        model=model, format=format, out=out_path, package=package
+    )
 
 
 def export_from_dictconfig(config: DictConfig) -> None:
@@ -145,10 +156,14 @@ def _validate_model_part_and_format(part: ModelPart, format: ModelFormat) -> Non
         )
 
 
-def _get_model(checkpoint: Checkpoint, part: ModelPart) -> Module:
+def _get_model(
+    checkpoint: Checkpoint, part: ModelPart
+) -> Module | EmbeddingModel | ModelWrapper:
     logger.debug(f"Getting model part: '{part}' from checkpoint.")
     if part == ModelPart.MODEL:
         return checkpoint.lightly_train.models.model
+    elif part == ModelPart.WRAPPED_MODEL:
+        return checkpoint.lightly_train.models.wrapped_model
     elif part == ModelPart.EMBEDDING_MODEL:
         return checkpoint.lightly_train.models.embedding_model
     else:
