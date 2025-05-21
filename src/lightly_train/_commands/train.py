@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 def train(
+    *,
     out: PathLike,
     data: PathLike | Sequence[PathLike],
     model: str | Module | ModelWrapper,

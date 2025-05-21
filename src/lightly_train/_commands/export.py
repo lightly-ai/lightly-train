@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def export(
+    *,
     out: PathLike,
     checkpoint: PathLike,
     part: str | ModelPart = "model",

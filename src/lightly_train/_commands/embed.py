@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 def embed(
+    *,
     out: PathLike,
     data: PathLike | Sequence[PathLike],
     checkpoint: PathLike,
