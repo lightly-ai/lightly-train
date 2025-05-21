@@ -66,7 +66,6 @@ class DINOv2Args(MethodArgs):
     """Args for DINOv2 method for ImageNet dataset."""
 
     # crops
-    n_global_crops: int = 2
     n_local_crops: int = (
         8  # transform_cls().transform_args_cls().transform_args.local_view.num_views
     )
@@ -129,7 +128,9 @@ class DINOv2Args(MethodArgs):
         depth: int = model.n_blocks
         num_heads: int = model.num_heads
         self.embed_dim: int = model._embed_dim
-        if depth == 40 and num_heads == 24 and self.embed_dim == 1536:  # giant
+        if (depth == 40 and num_heads == 24 and self.embed_dim == 1536) or (
+            depth == 24 and num_heads == 16 and self.embed_dim == 1024
+        ):  # giant / large
             # projection head
             self.ibot_separate_head = True
             self.bottleneck_dim = 384
@@ -145,30 +146,15 @@ class DINOv2Args(MethodArgs):
             self.layerwise_decay = 1.0
             # weight decay scheduler
             self.weight_decay_end = 0.2
-
-        elif depth == 24 and num_heads == 16 and self.embed_dim == 1024:  # large
-            # projection head
-            self.ibot_separate_head = True
-            self.bottleneck_dim = 384
-            self.bottleneck_dim_ibot = 256
-            self.output_dim = 131072
-            # loss
-            self.centering = "sinkhorn_knopp"
-            # teacher momentum
-            self.momentum_start = 0.994
-            # lr scheduler
-            self.warmup_epochs = 80
-            # lr decay
-            self.layerwise_decay = 1.0
-            # weight decay scheduler
-            self.weight_decay_end = 0.2
-
-        elif depth == 12 and num_heads == 12 and self.embed_dim == 768:  # base
-            pass
-        elif depth == 12 and num_heads == 6 and self.embed_dim == 384:  # small
+        elif (depth == 12 and num_heads == 12 and self.embed_dim == 768) or (
+            depth == 12 and num_heads == 6 and self.embed_dim == 384
+        ):  # base / small
             pass
         else:
-            raise ValueError("Unsupported model configs.")
+            raise UserWarning(
+                f"Model architecture: depth={depth}, num_heads={num_heads}, embed_dim={self.embed_dim} does not match any known DINOv2 model."
+                "Using default parameters for small/base models, but performance may be suboptimal."
+            )
 
         # TODO: scale some params based on the scaling info
 
@@ -188,15 +174,8 @@ class DINOv2(Method):
             global_batch_size=global_batch_size,
         )
 
-        # Load configs based on the model architecture
+        # Load method args
         self.method_args = method_args
-        self.optimizer_args = optimizer_args
-
-        # Calculate the number of crops
-        self.n_global_crops = self.method_args.n_global_crops
-        self.n_local_crops = self.method_args.n_local_crops
-        self.n_global_crops_loss_terms = (self.n_global_crops - 1) * self.n_global_crops
-        self.n_local_crops_loss_terms = max(self.n_local_crops * self.n_global_crops, 1)
 
         # Create teacher and student embedding models
         model_wrapper: DINOv2ViTModelWrapper = embedding_model.model_wrapper
@@ -329,10 +308,14 @@ class DINOv2(Method):
             end_value=self.method_args.end_teacher_temp,
         )
 
+        # Get the views
+        # Calculate the number of crops
+        n_local_crops = self.method_args.n_local_crops
+        n_global_crops_loss_terms = (2 - 1) * 2  # 2 = global crops
+        n_local_crops_loss_terms = max(n_local_crops * 2, 1)
+
         views = batch["views"]
-        global_views = torch.cat(
-            views[: self.n_global_crops]
-        )  # G * [B, C, H, W] -> [G*B, C, H, W]
+        global_views = torch.cat(views[:2])  # G * [B, C, H, W] -> [G*B, C, H, W]
 
         # Masking
         self.n_crops = global_views.shape[0]  # G*B
@@ -345,46 +328,41 @@ class DINOv2(Method):
             max_num_patches=int(0.5 * h * w),
         )
         n_masked_crops = int(self.n_crops * self.method_args.mask_probability)
-        mask_ratio_min = self.method_args.mask_ratio_min
-        mask_ratio_max = self.method_args.mask_ratio_max
         masks = create_collated_masks(
-            mask_ratio_min=mask_ratio_min,
-            mask_ratio_max=mask_ratio_max,
+            mask_ratio_min=self.method_args.mask_ratio_min,
+            mask_ratio_max=self.method_args.mask_ratio_max,
             n_masked_crops=n_masked_crops,
             n_crops=self.n_crops,
             mask_generator=mask_generator,
         )
 
-        self.collated_masks = masks["collated_masks"].to(
+        collated_masks = masks["collated_masks"].to(
             device=self.device, non_blocking=True
         )
-        self.mask_indices_list = masks["mask_indices_list"].to(
+        mask_indices_list = masks["mask_indices_list"].to(
             device=self.device, non_blocking=True
         )
-        self.masks_weight = masks["masks_weight"].to(
-            device=self.device, non_blocking=True
-        )
-        self.n_masked_patches = self.mask_indices_list.shape[0]
-        self.n_masked_patches_max = int(
-            (n_masked_crops + 1) * h * w * (mask_ratio_min + mask_ratio_max) / 2.0
+        masks_weight = masks["masks_weight"].to(device=self.device, non_blocking=True)
+        n_masked_patches = mask_indices_list.shape[0]
+        n_masked_patches_max = int(
+            (n_masked_crops + 1)
+            * h
+            * w
+            * (self.method_args.mask_ratio_min + self.method_args.mask_ratio_max)
+            / 2.0
         )
 
         # Process global views through teacher and student networks
         teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
-            self._forward_teacher(global_views)  # [G, B, D], [M, D]
+            self._forward_teacher(
+                global_views, mask_indices_list, n_masked_patches, n_masked_patches_max
+            )  # [G, B, D], [M, D]
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
-            self._forward_student_global(global_views)  # [G*B, D], [M, D]
+            self._forward_student_global(
+                global_views, mask_indices_list, n_masked_patches, n_masked_patches_max
+            )  # [G*B, D], [M, D]
         )
-
-        # Process local views through student network if they exist
-        if self.n_local_crops > 0:
-            local_views = torch.cat(
-                views[self.n_global_crops :]
-            )  # L * [B, C, H, W] -> [L*B, C, H, W]
-            student_cls_tokens_local = self._forward_student_local(
-                local_views
-            )  # [L*B, D]
 
         # Compute the DINO loss
         dino_global_loss = (
@@ -394,32 +372,38 @@ class DINOv2(Method):
                     teacher_cls_tokens_centered.flatten(0, 1)
                 ],  # [[G*B, D]], these were chunked and stacked in reverse so A is matched to B,
             )
-            * self.n_global_crops
-            / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
+            * 2
+            / (n_global_crops_loss_terms + n_local_crops_loss_terms)
         )
-        if self.n_local_crops > 0:
+
+        # Process local views through student network if they exist
+        if n_local_crops > 0:
+            local_views = torch.cat(views[2:])  # L * [B, C, H, W] -> [L*B, C, H, W]
+            student_cls_tokens_local = self._forward_student_local(
+                local_views
+            )  # [L*B, D]
+
             dino_local_loss = (
                 self.dino_loss.forward(
                     student_output_list=student_cls_tokens_local.chunk(
-                        self.n_local_crops
+                        n_local_crops
                     ),  # [L, B, D]
                     teacher_out_softmaxed_centered_list=teacher_cls_tokens_centered,  # [G, B, D]
                 )
-                / (self.n_global_crops_loss_terms + self.n_local_crops_loss_terms)
+                / (n_global_crops_loss_terms + n_local_crops_loss_terms)
             )
 
         # Compute the iBOT loss
         ibot_loss = self.ibot_loss.forward_masked(
             student_patch_tokens_masked=student_masked_patch_tokens_global,
             teacher_patch_tokens_masked=teacher_masked_patch_tokens_centered,
-            student_masks_flat=self.collated_masks,
-            n_masked_patches=self.n_masked_patches,
-            masks_weight=self.masks_weight,
+            student_masks_flat=collated_masks,
+            n_masked_patches=n_masked_patches,
+            masks_weight=masks_weight,
         )
 
         koleo_loss = sum(
-            self.koleo_loss(token)
-            for token in student_cls_tokens_global.chunk(self.n_global_crops)
+            self.koleo_loss(token) for token in student_cls_tokens_global.chunk(2)
         )  # [G, B, D], only use global views
 
         loss = (
@@ -434,25 +418,28 @@ class DINOv2(Method):
         return DINOv2TrainingStepResult(
             loss=loss,
             dino_global_loss=dino_global_loss,
-            dino_local_loss=dino_local_loss if self.n_local_crops > 0 else None,
+            dino_local_loss=dino_local_loss if n_local_crops > 0 else None,
             ibot_loss=ibot_loss,
             koleo_loss=koleo_loss,
         )
 
     @torch.no_grad()
-    def _forward_teacher(self, x: Tensor) -> tuple[Tensor, Tensor]:
+    def _forward_teacher(
+        self,
+        x: Tensor,
+        mask_indices_list: Tensor,
+        n_masked_patches: int,
+        n_masked_patches_max: int,
+    ) -> tuple[Tensor, Tensor]:
         tokens = self.teacher_embedding_model_wrapper.forward_features(
             x
         )  # input [G*B, C, ...]
         patches = tokens["features"]  # [G*B, C, H, W]
         cls_tokens = tokens["cls_token"]  # [G*B, C]
 
-        # process the cls tokens
-        cls_tokens_chunked = cls_tokens.chunk(self.n_global_crops)  # [G, B, C]
         # watch out: these are chunked and cat'd in reverse so A is matched to B in the global crops dino loss
-        cls_tokens = torch.cat(
-            (cls_tokens_chunked[1], cls_tokens_chunked[0])
-        )  # [G*B, C]
+        B = self.n_crops // 2
+        cls_tokens = torch.cat((cls_tokens[B:], cls_tokens[:B]))  # [G*B, C]
 
         # process the patch tokens
         patches = patches.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
@@ -460,14 +447,14 @@ class DINOv2(Method):
         # forward through the teacher dino and ibot heads
         if not self.ibot_separate_head:
             buffer_tokens = patches.new_zeros(
-                self.n_crops + self.n_masked_patches_max, self.n_channels
+                self.n_crops + n_masked_patches_max, self.n_channels
             )  # [G*B+M_max, C]
             buffer_tokens[: self.n_crops].copy_(cls_tokens)
             torch.index_select(
                 patches.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
-                index=self.mask_indices_list,
-                out=buffer_tokens[self.n_crops : self.n_crops + self.n_masked_patches],
+                index=mask_indices_list,
+                out=buffer_tokens[self.n_crops : self.n_crops + n_masked_patches],
             )  # [M, C]
 
             tokens_after_head = self.teacher_dino_head.forward(
@@ -476,13 +463,13 @@ class DINOv2(Method):
 
             cls_tokens_after_dino = tokens_after_head[: self.n_crops]  # [G*B, D]
             masked_patch_tokens_after_ibot = tokens_after_head[
-                self.n_crops : self.n_crops + self.n_masked_patches
+                self.n_crops : self.n_crops + n_masked_patches
             ]  # [M, D]
         else:
             masked_patch_tokens = torch.index_select(
                 patches.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
-                index=self.mask_indices_list,
+                index=mask_indices_list,
             )  # [M, C]
 
             cls_tokens_after_dino = self.teacher_dino_head.forward(
@@ -496,30 +483,24 @@ class DINOv2(Method):
         if self.centering == "softmax":
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
                 cls_tokens_after_dino, teacher_temp=self.teacher_temp
-            ).view(
-                self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:]
-            )  # [G, B, D]
+            ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
             self.dino_loss.update_center(cls_tokens_after_dino)
 
             masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
-                masked_patch_tokens_after_ibot[: self.n_masked_patches],
+                masked_patch_tokens_after_ibot,
                 teacher_temp=self.teacher_temp,
             )  # [M, D]
-            self.ibot_loss.update_center(
-                masked_patch_tokens_after_ibot[: self.n_masked_patches]
-            )
+            self.ibot_loss.update_center(masked_patch_tokens_after_ibot)
         elif self.centering == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
                 cls_tokens_after_dino, teacher_temp=self.teacher_temp
-            ).view(
-                self.n_global_crops, -1, *cls_tokens_after_dino.shape[1:]
-            )  # [G, B, D]
+            ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
 
             masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=self.teacher_temp,
                 n_masked_patches_tensor=torch.tensor(
-                    [self.n_masked_patches], dtype=torch.long
+                    [n_masked_patches], dtype=torch.long
                 ).to(device=self.device, non_blocking=True),
             )  # [M, D]
         else:
@@ -527,7 +508,13 @@ class DINOv2(Method):
 
         return cls_tokens_centered, masked_patch_tokens_centered
 
-    def _forward_student_global(self, x: Tensor) -> tuple[Tensor, Tensor]:
+    def _forward_student_global(
+        self,
+        x: Tensor,
+        mask_indices_list: Tensor,
+        n_masked_patches: int,
+        n_masked_patches_max: int,
+    ) -> tuple[Tensor, Tensor]:
         tokens = self.student_embedding_model_wrapper.forward_features(
             x
         )  # input [G*B, C, ...]
@@ -540,14 +527,14 @@ class DINOv2(Method):
         # forward through the student dino and ibot heads
         if not self.ibot_separate_head:
             buffer_tokens = patches.new_zeros(
-                self.n_crops + self.n_masked_patches_max, self.n_channels
+                self.n_crops + n_masked_patches_max, self.n_channels
             )  # [G*B+M_max, C]
             buffer_tokens[: self.n_crops].copy_(cls_tokens)
             torch.index_select(
                 patches.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
-                index=self.mask_indices_list,
-                out=buffer_tokens[self.n_crops : self.n_crops + self.n_masked_patches],
+                index=mask_indices_list,
+                out=buffer_tokens[self.n_crops : self.n_crops + n_masked_patches],
             )  # [M, C]
 
             tokens_after_head = self.student_dino_head.forward(
@@ -556,13 +543,13 @@ class DINOv2(Method):
 
             cls_tokens_after_dino = tokens_after_head[: self.n_crops]  # [G*B, D]
             masked_patch_tokens_after_ibot = tokens_after_head[
-                self.n_crops : self.n_crops + self.n_masked_patches
+                self.n_crops : self.n_crops + n_masked_patches
             ]  # [M, D]
         else:
             masked_patch_tokens = torch.index_select(
                 patches.flatten(0, 1),  # [G*B*H*W, C]
                 dim=0,
-                index=self.mask_indices_list,
+                index=mask_indices_list,
             )  # [M, C]
 
             cls_tokens_after_dino = self.student_dino_head.forward(
@@ -580,7 +567,7 @@ class DINOv2(Method):
         )  # input [L*B, C, ...]
         cls_tokens = tokens["cls_token"]  # [L*B, C]
 
-        # forward through the teacher dino and ibot heads
+        # forward through the student dino heads
         cls_tokens_after_dino: Tensor = self.student_dino_head.forward(
             cls_tokens
         )  # [L*B, D]
@@ -597,6 +584,7 @@ class DINOv2(Method):
     ) -> type[DINOv2AdamWViTSBArgs | DINOv2AdamWViTLGArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
             OptimizerType.ADAMW: DINOv2AdamWViTSBArgs,
+            "auto": DINOv2AdamWViTSBArgs,
         }
 
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
@@ -650,7 +638,7 @@ class DINOv2(Method):
     ) -> None:
         self.clip_gradients(
             optimizer=optimizer,
-            gradient_clip_val=gradient_clip_val,
+            gradient_clip_val=self.method_args.gradient_clip_val,
             gradient_clip_algorithm="norm",
         )
 
