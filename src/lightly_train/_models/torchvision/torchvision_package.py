@@ -84,13 +84,13 @@ class TorchvisionPackage(Package):
     ) -> None:
         if isinstance(model, ModelWrapper):
             model = model.get_model()
-        elif isinstance(model, Module):
-            model = model
-        else:
+
+        if not cls.is_supported_model(model):
             raise TypeError(
-                f"TorchvisionPackage only supports exporting models of type 'Module' "
-                f"and 'ModelWrapper', but received '{type(model)}'."
+                f"TorchvisionPackage only supports exporting models from torchvision "
+                f"but received '{type(model)}'."
             )
+
         torch.save(model.state_dict(), out)
         if log_example:
             model_name = "<model_name>"

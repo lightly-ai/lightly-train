@@ -116,10 +116,10 @@ class TestRFDETRPackage:
 
     def test_export_model__wrapped_model(self, tmp_path: Path) -> None:
         out = tmp_path / "model.pt"
-        model = RFDETRBase() # type: ignore[no-untyped-call]
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
         wrapped_model = RFDETRModelWrapper(model=model)
         RFDETRPackage.export_model(model=wrapped_model, out=out)
-        RFDETRBase(pretrain_weights=out.as_posix()) # type: ignore[no-untyped-call]
+        RFDETRBase(pretrain_weights=out.as_posix())  # type: ignore[no-untyped-call]
 
     def test_export_model__unsupported_model(self, tmp_path: Path) -> None:
         out = tmp_path / "model.pt"
