@@ -20,7 +20,7 @@ from lightly_train.types import NDArrayImage, TransformInput
 
 
 @pytest.mark.parametrize(
-    "transform_cls,small_view_size",
+    "transform_cls,local_view_size",
     [(DINOv2ViTSBTransform, 96), (DINOv2ViTLGTransform, 98)],
 )
 def test_dinov2_transform_shapes(transform_cls, local_view_size) -> None:
