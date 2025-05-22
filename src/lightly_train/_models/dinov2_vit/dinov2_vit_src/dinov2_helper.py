@@ -13,6 +13,7 @@ import torch
 
 from lightly_train import _distributed as distributed_helpers
 from lightly_train._data.download import download_from_url
+from lightly_train._env import Env
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
@@ -43,7 +44,8 @@ def load_weights(
                 f"'{checkpoint_path}'. The cache directory location can be configured "
                 "with the LIGHTLY_TRAIN_CACHE_DIR environment variable."
             )
-            download_from_url(url, checkpoint_path, timeout=180.0)
+            timeout_sec = Env.LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC.value
+            download_from_url(url, checkpoint_path, timeout=timeout_sec)
 
         else:
             logger.info(f"Using cached teacher weights from: '{checkpoint_path}'")
