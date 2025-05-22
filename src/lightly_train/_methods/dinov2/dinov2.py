@@ -74,6 +74,7 @@ class DINOv2Args(MethodArgs):
     ibot_separate_head: bool = False
     hidden_dim: int = 2048
     bottleneck_dim: int = 256
+    bottleneck_dim_ibot: int = 256
     output_dim: int = 65536
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
