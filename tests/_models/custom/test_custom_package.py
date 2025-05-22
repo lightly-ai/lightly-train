@@ -103,7 +103,7 @@ class TestCustomPackage:
     def test_export_model__unwrapped_model(self, tmp_path: Path) -> None:
         model = DummyCustomModel()
         out = tmp_path / "model.pth"
-        CustomPackage.export_model(model.get_model(), out)
+        CustomPackage.export_model(model=model.get_model(), out=out)
         assert out.exists()
 
         model.get_model().load_state_dict(torch.load(out), strict=True)
