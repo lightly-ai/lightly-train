@@ -101,6 +101,11 @@ class Env:
         default=30,
         type_=float,
     )
+    LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC: EnvVar[int] = EnvVar(
+        name="LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC",
+        default=180,
+        type_=float,
+    )
     SLURM_CPUS_PER_TASK: EnvVar[int | None] = EnvVar(
         name="SLURM_CPUS_PER_TASK",
         default=None,
