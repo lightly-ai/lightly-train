@@ -101,7 +101,7 @@ class Env:
         default=30,
         type_=float,
     )
-    LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC: EnvVar[int] = EnvVar(
+    LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC: EnvVar[float] = EnvVar(
         name="LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC",
         default=180,
         type_=float,
