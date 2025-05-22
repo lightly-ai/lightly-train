@@ -16,15 +16,18 @@ from pytorch_lightning.callbacks import (
     EarlyStopping,
     LearningRateMonitor,
 )
+from pytorch_lightning.loggers import Logger
 
 from lightly_train._callbacks.callback_args import (
     CallbackArgs,
 )
 from lightly_train._callbacks.checkpoint import ModelCheckpoint
 from lightly_train._callbacks.export import ModelExport
+from lightly_train._callbacks.mlflow_logging import MLFlowLogging
 from lightly_train._callbacks.tqdm_progress_bar import DataWaitTQDMProgressBar
 from lightly_train._checkpoint import CheckpointLightlyTrainModels
 from lightly_train._configs import validate
+from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._transforms.transform import NormalizeArgs
@@ -45,9 +48,12 @@ def get_callbacks(
     out: Path,
     wrapped_model: ModelWrapper,
     embedding_model: EmbeddingModel,
+    loggers: list[Logger],
 ) -> list[Callback]:
     callbacks: list[Callback] = []
     callbacks.append(DataWaitTQDMProgressBar())
+    if any(isinstance(c, MLFlowLogger) for c in loggers):
+        callbacks.append(MLFlowLogging())
     if callback_args.learning_rate_monitor is not None:
         callbacks.append(
             LearningRateMonitor(**callback_args.learning_rate_monitor.model_dump())

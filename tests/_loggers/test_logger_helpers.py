@@ -15,6 +15,7 @@ import pytest
 from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.jsonl import JSONLLogger, JSONLLoggerArgs
 from lightly_train._loggers.logger_args import LoggerArgs
+from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger, TensorBoardLoggerArgs
 from lightly_train._loggers.wandb import WandbLogger, WandbLoggerArgs
 from lightly_train.errors import ConfigValidationError
@@ -23,6 +24,11 @@ try:
     import wandb
 except ImportError:
     wandb = None  # type: ignore[assignment]
+
+try:
+    import mlflow
+except ImportError:
+    mlflow = None  # type: ignore[assignment]
 
 
 @pytest.mark.parametrize(
@@ -69,12 +75,14 @@ def test_get_loggers__default(tmp_path: Path) -> None:
     assert any(isinstance(logger, JSONLLogger) for logger in loggers)
     assert any(isinstance(logger, TensorBoardLogger) for logger in loggers)
     assert not any(isinstance(logger, WandbLogger) for logger in loggers)
+    assert not any(isinstance(logger, MLFlowLogger) for logger in loggers)
 
 
 def test_get_loggers__disable(tmp_path: Path) -> None:
     loggers = logger_helpers.get_loggers(
         logger_args=LoggerArgs(
             jsonl=None,
+            mlflow=None,
             tensorboard=None,
             wandb=None,
         ),
@@ -87,6 +95,7 @@ def test_get_callbacks__jsonl_user_config(tmp_path: Path) -> None:
     loggers = logger_helpers.get_loggers(
         logger_args=LoggerArgs(
             jsonl=JSONLLoggerArgs(flush_logs_every_n_steps=5),
+            mlflow=None,
             tensorboard=None,
             wandb=None,
         ),
@@ -102,6 +111,7 @@ def test_get_callbacks__tensorboard_user_config(tmp_path: Path) -> None:
     loggers = logger_helpers.get_loggers(
         logger_args=LoggerArgs(
             jsonl=None,
+            mlflow=None,
             tensorboard=TensorBoardLoggerArgs(name="abc"),
             wandb=None,
         ),
@@ -119,6 +129,7 @@ def test_get_callbacks__wandb_user_config(tmp_path: Path) -> None:
     loggers = logger_helpers.get_loggers(
         logger_args=LoggerArgs(
             jsonl=None,
+            mlflow=None,
             tensorboard=None,
             wandb=WandbLoggerArgs(project="abc"),
         ),
@@ -127,5 +138,26 @@ def test_get_callbacks__wandb_user_config(tmp_path: Path) -> None:
     logger = loggers[0]
     assert isinstance(logger, WandbLogger)
     assert logger.name == "abc"  # WandbLogger uses the project as the name.
+    assert logger.save_dir is not None
+    assert Path(logger.save_dir) == tmp_path  # Cannot check for log_dir as it is None.
+
+
+@pytest.mark.skipif(mlflow is None, reason="Mlflow not available")
+def test_get_callbacks__mlflow_user_config(tmp_path: Path) -> None:
+    loggers = logger_helpers.get_loggers(
+        logger_args=LoggerArgs(
+            jsonl=None,
+            mlflow=MLFlowLoggerArgs(experiment_name="abc"),
+            tensorboard=None,
+            wandb=None,
+        ),
+        out=tmp_path,
+    )
+    logger = loggers[0]
+    temp_experiment = logger.experiment.get_experiment(logger.name)
+    assert isinstance(logger, MLFlowLogger)
+    assert (
+        temp_experiment.name == "abc"
+    )  # MLFlowLogger uses the experiment id (will be 1).
     assert logger.save_dir is not None
     assert Path(logger.save_dir) == tmp_path  # Cannot check for log_dir as it is None.

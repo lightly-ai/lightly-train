@@ -21,6 +21,8 @@ from lightly_train._callbacks.callback_args import (
     CallbackArgs,
 )
 from lightly_train._callbacks.checkpoint import ModelCheckpoint, ModelCheckpointArgs
+from lightly_train._callbacks.mlflow_logging import MLFlowLogging
+from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._transforms.transform import NormalizeArgs
 from lightly_train.errors import ConfigValidationError
@@ -63,20 +65,23 @@ def test_get_callbacks__default(tmp_path: Path) -> None:
     model = DummyCustomModel()
     embedding_model = EmbeddingModel(wrapped_model=model)
     callback_args = CallbackArgs()
+    loggers = [MLFlowLogger()]
     callbacks = callback_helpers.get_callbacks(
         callback_args=callback_args,
         out=tmp_path,
         wrapped_model=model,
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
+        loggers=loggers,
     )
-    assert len(callbacks) == 6
+    assert len(callbacks) == 7
     early_stopping = next(c for c in callbacks if isinstance(c, EarlyStopping))
     model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert early_stopping.monitor == "train_loss"
     assert early_stopping.patience == int(1e12)
     assert model_checkpoint.save_last
     assert str(model_checkpoint.dirpath) == str(tmp_path / "checkpoints")
+    assert any(isinstance(c, MLFlowLogging) for c in callbacks)
 
 
 def test_get_callbacks__disable(tmp_path: Path) -> None:
@@ -92,10 +97,12 @@ def test_get_callbacks__disable(tmp_path: Path) -> None:
         wrapped_model=model,
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
+        loggers=[],
     )
     assert len(callbacks) == 4
     assert any(isinstance(c, DeviceStatsMonitor) for c in callbacks)
     assert any(isinstance(c, ModelCheckpoint) for c in callbacks)
+    assert not any(isinstance(c, MLFlowLogging) for c in callbacks)
 
 
 def test_get_callbacks__user_config(tmp_path: Path) -> None:
@@ -110,7 +117,9 @@ def test_get_callbacks__user_config(tmp_path: Path) -> None:
         wrapped_model=model,
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
+        loggers=[],
     )
     model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert str(model_checkpoint.dirpath) == str(tmp_path / "checkpoints")
     assert model_checkpoint.every_n_epochs == 5
+    assert not any(isinstance(c, MLFlowLogging) for c in callbacks)

@@ -51,7 +51,9 @@ def get_loggers(logger_args: LoggerArgs, out: Path) -> list[Logger]:
         loggers.append(JSONLLogger(save_dir=out, **logger_args.jsonl.model_dump()))
     if logger_args.mlflow is not None:
         logger.debug(f"Using mlflow logger with args {logger_args.mlflow}")
-        loggers.append(MLFlowLogger(**logger_args.mlflow.model_dump()))
+        loggers.append(
+            MLFlowLogger(save_dir=out, **logger_args.mlflow.model_dump())
+        )
     if logger_args.tensorboard is not None:
         logger.debug(f"Using tensorboard logger with args {logger_args.tensorboard}")
         loggers.append(

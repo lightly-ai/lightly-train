@@ -18,7 +18,7 @@ from lightly_train._loggers.wandb import WandbLoggerArgs
 
 class LoggerArgs(PydanticConfig):
     jsonl: JSONLLoggerArgs | None = Field(default_factory=JSONLLoggerArgs)
-    mlflow: MLFlowLoggerArgs | None = Field(default_factory=MLFlowLoggerArgs)
+    mlflow: MLFlowLoggerArgs | None = None
     tensorboard: TensorBoardLoggerArgs | None = Field(
         default_factory=TensorBoardLoggerArgs
     )

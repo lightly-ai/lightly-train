@@ -13,6 +13,7 @@ from typing import Any, Literal, Mapping
 
 from lightly.utils.scheduler import CosineWarmupScheduler
 from pytorch_lightning import LightningModule
+from pytorch_lightning.loggers import MLFlowLogger
 from pytorch_lightning.loggers import WandbLogger as LightningWandbLogger
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
@@ -161,7 +162,9 @@ class Method(LightningModule):
                     img_tensor=example_aug_tensor,
                     global_step=self.global_step,
                 )
-            elif isinstance(logger, LightningWandbLogger):
+            elif isinstance(logger, LightningWandbLogger) or isinstance(
+                logger, MLFlowLogger
+            ):
                 logger.log_image(
                     key="augmentations",
                     images=[example_aug_pil],
