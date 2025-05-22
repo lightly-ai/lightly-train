@@ -18,6 +18,7 @@ from pydantic import ConfigDict
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.loggers import Logger
 from pytorch_lightning.strategies.strategy import Strategy
+from pytorch_lightning import Trainer
 from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type: ignore[attr-defined]
     _PRECISION_INPUT,
 )
@@ -217,6 +218,22 @@ def train_from_config(config: TrainConfig) -> None:
     # Convert the config to a TrainConfig instance.
     config = validate.pydantic_model_validate(TrainConfig, dict(config))
 
+    config.accelerator = common_helpers.get_accelerator(
+        accelerator=config.accelerator
+    )
+    config.strategy = train_helpers.get_strategy(
+        accelerator=config.accelerator,
+        strategy=config.strategy,
+        devices=config.devices,
+    )
+    # Dummy init a Trainer to get the strategy.
+    _trainer = Trainer(
+        accelerator=config.accelerator,
+        strategy=config.strategy,
+        devices=config.devices,
+    )
+    _trainer.strategy.setup_environment()
+
     # Set up output directory.
     out_dir = common_helpers.get_out_dir(
         out=config.out, resume=config.resume, overwrite=config.overwrite
@@ -289,14 +306,6 @@ def train_from_config(config: TrainConfig) -> None:
             wrapped_model=wrapped_model,
             embedding_model=embedding_model,
             normalize_args=transform_instance.transform_args.normalize,
-        )
-        config.accelerator = common_helpers.get_accelerator(
-            accelerator=config.accelerator
-        )
-        config.strategy = train_helpers.get_strategy(
-            accelerator=config.accelerator,
-            strategy=config.strategy,
-            devices=config.devices,
         )
         trainer_instance = train_helpers.get_trainer(
             out=out_dir,
