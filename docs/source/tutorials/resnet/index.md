@@ -61,9 +61,6 @@ from PIL import Image
 # Suppose you have the dataset in the datasets/ directory
 dataset_path = Path("datasets") / "human-detection-dataset-pretraining"
 
-# Define paths to the training image directories
-train_data_path = dataset_path / "train_images"
-
 # Function to get two random images from a directory
 def get_two_random_images(directory: Path) -> List[str]:
     image_files = list(directory.glob('*.png'))
@@ -77,7 +74,7 @@ def get_two_random_images(directory: Path) -> List[str]:
     return images
 
 # Get random images
-train_images = get_two_random_images(train_data_path)
+train_images = get_two_random_images(dataset_path)
 # Set up the figure for display
 fig, axs = plt.subplots(1, 2, figsize=(10, 10))
 
