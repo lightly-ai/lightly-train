@@ -3,24 +3,32 @@
 #
 # This source code is licensed under the Apache License, Version 2.0
 # found in the LICENSE file in the root directory of this source tree.
-# 
+#
 # Adapted from:
 #   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/data/masking.py
 #   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/data/collate.py
+#   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/utils/param_groups.py
 #
 # Modifications Copyright 2025 Lightly AG:
-# - added type hints and slightly modified the input type for some arguments
-# - rename some variables
-
+# - all: added type hints and slightly modified the inputs and their types for some arguments according to the changes
+# - all: rename some variables
+# - collate: remove collated_global_crops, collated_local_crops, upperbound, and n_masked_patches
+# - param_groups: adjusted the parameter structure
+# - param_groups: feed the parameter groups directly to the optimizer
+#
 
 from __future__ import annotations
 
 import math
 import random
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import numpy as np
 import torch
+from torch.optim.optimizer import Optimizer
+
+from lightly_train._optim.adamw_args import AdamWArgs
+from lightly_train._optim.trainable_modules import TrainableModules
 
 
 class MaskingGenerator:
@@ -137,25 +145,113 @@ def create_collated_masks(
     }
 
 
-def linear_warmup_schedule(
-    step: int,
-    warmup_steps: int,
-    start_value: float,
-    end_value: float,
-) -> float:  # TODO: import from LightlySSL after new release
-    if warmup_steps < 0:
-        raise ValueError(f"Warmup steps {warmup_steps} can't be negative.")
-    if step < 0:
-        raise ValueError(f"Current step number {step} can't be negative.")
-    if start_value < 0:
-        raise ValueError(f"Start value {start_value} can't be negative.")
-    if end_value <= 0:
-        raise ValueError(f"End value {end_value} can't be non-positive.")
-    if start_value > end_value:
-        raise ValueError(
-            f"Start value {start_value} must be less than or equal to end value {end_value}."
-        )
-    if step < warmup_steps:
-        return start_value + step / warmup_steps * (end_value - start_value)
-    else:
-        return end_value
+def get_vit_lr_decay_rate(
+    name: str,
+    lr_decay_rate: float,
+    num_layers: int = 12,
+    force_is_backbone: bool = False,
+    chunked_blocks: bool = False,
+) -> float:
+    """
+    Calculate lr decay rate for different ViT blocks.
+    Args:
+        name (string): parameter name.
+        lr_decay_rate (float): base lr decay rate.
+        num_layers (int): number of ViT blocks.
+        force_is_backbone (bool): force to use backbone.
+        chunked_blocks (bool): if the blocks are chunked.
+    Returns:
+        float: lr decay rate for the given parameter.
+    """
+
+    layer_id = num_layers + 1
+    if name.startswith("backbone") or force_is_backbone:
+        if (
+            ".pos_embed" in name
+            or ".patch_embed" in name
+            or ".mask_token" in name
+            or ".cls_token" in name
+            or ".register_tokens" in name
+        ):
+            layer_id = 0
+        elif force_is_backbone and (
+            "pos_embed" in name
+            or "patch_embed" in name
+            or "mask_token" in name
+            or "cls_token" in name
+            or "register_tokens" in name
+        ):
+            layer_id = 0
+        elif ".blocks." in name and ".residual." not in name:
+            layer_id = int(name[name.find(".blocks.") :].split(".")[2]) + 1
+        elif chunked_blocks and "blocks." in name and "residual." not in name:
+            layer_id = int(name[name.find("blocks.") :].split(".")[2]) + 1
+        elif "blocks." in name and "residual." not in name:
+            layer_id = int(name[name.find("blocks.") :].split(".")[1]) + 1
+
+    return lr_decay_rate ** (num_layers + 1 - layer_id)
+
+
+def get_optimizer_with_decay(
+    optim_args: AdamWArgs,
+    trainable_modules: TrainableModules,
+    lr_scale: float,
+    layerwise_decay: float,
+    patch_embed_lr_multiplier: float,
+) -> Optimizer:
+    """
+    Create an optimizer with layerwise learning rate decay and weight decay for different ViT blocks.
+
+    Args:
+        optim_args (AdamWArgs): optimizer arguments.
+        trainable_modules (TrainableModules): trainable modules.
+        lr_scale (float): learning rate scale.
+        layerwise_decay (float): base lr decay rate.
+        patch_embed_lr_multiplier (float): multiplier for patch embedding layer.
+    Returns:
+        Optimizer: optimizer with decay.
+    """
+
+    all_param_groups: List[Dict[str, Any]] = []
+    for module in trainable_modules.modules:  # TODO: FSDP sharding
+        chunked_blocks = False
+        if hasattr(module, "n_blocks"):  # chunked fsdp
+            n_blocks = module.n_blocks
+            chunked_blocks = module.chunked_blocks
+        elif hasattr(module, "blocks"):  # first code branch
+            n_blocks = len(module.blocks)
+        elif hasattr(module, "backbone"):  # second code branch
+            n_blocks = len(module.backbone.blocks)
+        else:
+            n_blocks = 0  # else code branch
+
+        for name, param in module.named_parameters():
+            name = name.replace("_fsdp_wrapped_module.", "")
+            if not param.requires_grad:
+                continue
+            decay_rate = get_vit_lr_decay_rate(
+                name=name,
+                lr_decay_rate=layerwise_decay,
+                num_layers=n_blocks,
+                force_is_backbone=n_blocks > 0,
+                chunked_blocks=chunked_blocks,
+            )
+            d = {
+                "name": name,
+                "params": param,
+                "lr": optim_args.lr * decay_rate,
+                "weight_decay": optim_args.weight_decay,
+                "foreach": True,
+            }
+
+            if (
+                name.endswith(".bias") or "norm" in name or "gamma" in name
+            ):  # disable weight decay for bias and norm layers and layerscale gamma
+                d.update({"weight_decay": 0.0})
+
+            if "patch_embed" in name:  # multiplier for patch embedding layer
+                d.update({"lr": d["lr"] * patch_embed_lr_multiplier})  # type: ignore[operator]
+
+            all_param_groups.append(d)
+
+    return optim_args.get_optimizer(params=all_param_groups, lr_scale=lr_scale)

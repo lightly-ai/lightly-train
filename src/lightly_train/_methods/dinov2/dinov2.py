@@ -5,6 +5,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+
 from __future__ import annotations
 
 import copy
@@ -31,16 +32,16 @@ from lightly_train._methods.dinov2.dinov2_loss import (
     DINOLoss,
     IBOTPatchLoss,
 )  # we use the original DINOLoss and IBOTPatchLoss
-from lightly_train._methods.dinov2.dinov2_optim import (
-    get_optimizer_with_decay,
-)
 from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2ViTSBTransform,
+)
+from lightly_train._methods.dinov2.scheduler import (
+    linear_warmup_schedule,  # TODO: import from LightlySSL after new release
 )
 from lightly_train._methods.dinov2.utils import (
     MaskingGenerator,
     create_collated_masks,
-    linear_warmup_schedule,  # TODO: import from LightlySSL after new release
+    get_optimizer_with_decay,
 )
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
