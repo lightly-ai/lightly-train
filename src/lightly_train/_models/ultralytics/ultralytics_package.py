@@ -109,20 +109,19 @@ class UltralyticsPackage(Package):
     ) -> None:
         try:
             import ultralytics
-            from ultralytics import YOLO
         except ImportError:
             raise ValueError(
                 f"Cannot export model because '{cls.name}' is not installed."
             )
         if isinstance(model, ModelWrapper):
             model = model.get_model()
-        elif isinstance(model, YOLO):
-            model = model
-        else:
+
+        if not cls.is_supported_model(model):
             raise TypeError(
                 f"UltralyticsPackage supports exporting models of type 'YOLO' and "
                 f"'ModelWrapper', but received '{type(model)}'."
             )
+
         export_model = copy.deepcopy(model)
         if export_model.ckpt is None:
             export_model.ckpt = {}
