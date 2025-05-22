@@ -290,25 +290,9 @@ class DINOv2(Method):
     def training_step_impl(
         self, batch: Batch, batch_idx: int
     ) -> DINOv2TrainingStepResult:
-        # Momentum update teacher.
-        if (global_step := self.trainer.global_step) > 0:
-            momentum = cosine_schedule(
-                step=global_step,
-                max_steps=self.trainer.estimated_stepping_batches,
-                start_value=no_auto(self.method_args.momentum_start),
-                end_value=self.method_args.momentum_end,
-            )
-            update_momentum(
-                self.student_embedding_model_wrapper._model,
-                self.teacher_embedding_model_wrapper._model,
-                m=momentum,
-            )
-            update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
-            update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
-
         # Teacher temperature scheduling
         self.teacher_temp = linear_warmup_schedule(
-            step=global_step,
+            step=self.trainer.global_step,
             warmup_steps=int(
                 self.method_args.warmup_teacher_temp_epochs  # type: ignore[operator]
                 / self.trainer.max_epochs
@@ -335,7 +319,7 @@ class DINOv2(Method):
 
         mask_generator = MaskingGenerator(
             input_size=(h, w),
-            max_num_patches=int(0.5 * h * w),
+            max_num_patches=int(0.5 * h * w), # NOTE: max patch ratio 0.5 is carried over from the original DINOv2 code, can be tuned
         )
         n_masked_crops = int(self.n_crops * self.method_args.mask_probability)
         masks = create_collated_masks(
@@ -415,6 +399,22 @@ class DINOv2(Method):
         koleo_loss = sum(
             self.koleo_loss(token) for token in student_cls_tokens_global.chunk(2)
         )  # [G, B, D], only use global views
+        
+        # Momentum update teacher.
+        momentum = cosine_schedule(
+            step=self.trainer.global_step,
+            max_steps=self.trainer.estimated_stepping_batches,
+            start_value=no_auto(self.method_args.momentum_start),
+            end_value=self.method_args.momentum_end,
+        )
+        update_momentum(
+            self.student_embedding_model_wrapper._model,
+            self.teacher_embedding_model_wrapper._model,
+            m=momentum,
+        )
+        update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
+        if self.ibot_separate_head:
+            update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
 
         return DINOv2TrainingStepResult(
             dino_global_loss=dino_global_loss,
