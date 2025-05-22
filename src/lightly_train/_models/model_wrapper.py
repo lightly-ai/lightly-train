@@ -114,13 +114,13 @@ class ModelWrapper(
 
 
 def missing_model_wrapper_attrs(
-    obj: Any, exclude_module_attrs: bool = False
+    model_wrapper: Any, exclude_module_attrs: bool = False
 ) -> list[str]:
     """Returns a list of attributes that are missing in the model wrapper.
 
     Args:
-        obj:
-            The object to check for missing attributes.
+        model_wrapper:
+            The model wrapper to check for missing attributes.
         exclude_module_attrs:
             If True, do not check attributes that are also in torch.nn.Module.
     """
@@ -128,6 +128,6 @@ def missing_model_wrapper_attrs(
     for attr in typing_extensions.get_protocol_members(ModelWrapper):
         if exclude_module_attrs and hasattr(Module, attr):
             continue
-        if not hasattr(obj, attr):
+        if not hasattr(model_wrapper, attr):
             missing_attrs.append(attr)
     return sorted(missing_attrs)
