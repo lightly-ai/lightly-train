@@ -1,10 +1,16 @@
 #
-# Copyright (c) Lightly AG and affiliates.
-# All rights reserved.
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# This source code is licensed under the Apache License, Version 2.0
+# found in the LICENSE file in the root directory of this source tree.
+# 
+# Adapted from:
+#   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/utils/param_groups.py
 #
+# Modifications Copyright 2025 Lightly AG:
+# - added type hints and slightly modified the input type for some arguments
+# - adjusted the parameter structure
+# - feed the parameter groups directly to the optimizer
 
 from __future__ import annotations
 
@@ -14,7 +20,6 @@ from torch.optim.optimizer import Optimizer
 
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.trainable_modules import TrainableModules
-
 
 def get_vit_lr_decay_rate(
     name: str,

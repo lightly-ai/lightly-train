@@ -1,10 +1,16 @@
 #
-# Copyright (c) Lightly AG and affiliates.
-# All rights reserved.
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# This source code is licensed under the Apache License, Version 2.0
+# found in the LICENSE file in the root directory of this source tree.
+# 
+# Adapted from:
+#   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/data/masking.py
+#   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/data/collate.py
 #
+# Modifications Copyright 2025 Lightly AG:
+# - added type hints and slightly modified the input type for some arguments
+# - rename some variables
 
 
 from __future__ import annotations

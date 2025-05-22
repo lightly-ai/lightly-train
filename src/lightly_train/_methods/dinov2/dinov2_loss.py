@@ -1,10 +1,20 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# Copyright (c) Lightly AG and affiliates.
-# All rights reserved.
+# This source code is licensed under the Apache License, Version 2.0
+# found in the LICENSE file in the root directory of this source tree.
 #
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# Adapted from:
+#   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/loss/dino_clstoken_loss.py
+#   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/loss/ibot_patch_loss.py
 #
+# Modifications Copyright (c) Lightly AG and affiliates:
+#   - Import xFormers' cross entropy only if XFORMERS_ENABLED is True
+#   - Use dist.is_initialized() to control the all_reduce operation of B in distributed setting
+#     in the IBOTPatchLoss' sinkhorn_knopp_teacher
+#   - Rename iBOTPatchLoss to IBOTPatchLoss
+#   - Add type hints to the functions
+#   - Remove dead code
+#   - Add TODO for investigating the casting of self.center in IBOTPatchLoss
 
 
 from __future__ import annotations
