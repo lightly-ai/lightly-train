@@ -95,13 +95,13 @@ class SuperGradientsPackage(Package):
     ) -> None:
         if isinstance(model, ModelWrapper):
             model = model.get_model()
-        elif isinstance(model, Module):
-            model = model
-        else:
+
+        if not cls.is_supported_model(model):
             raise ValueError(
                 f"SuperGradientsPackage only supports exporting models of type 'Module' "
                 f"or ModelWrapper, but got '{type(model)}'."
             )
+
         torch.save(model.state_dict(), out)
         if log_example:
             model_name = getattr(model, "_sg_model_name", None)

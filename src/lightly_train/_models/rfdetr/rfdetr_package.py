@@ -112,9 +112,8 @@ class RFDETRPackage(Package):
 
         if isinstance(model, RFDETRModelWrapper):
             rfdetr_model = model.get_model()
-        elif isinstance(model, RFDETR):
-            rfdetr_model = model
-        else:
+
+        if not cls.is_supported_model(model):
             raise ValueError(
                 f"Model must be of type 'RFDETR' or 'RFDETRModelWrapper', got {type(model)}"
             )

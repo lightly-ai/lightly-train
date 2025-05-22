@@ -133,7 +133,7 @@ endif
 
 # RFDETR is not compatible with Python<3.9. Therefore we exclude it from the
 # default extras.
-EXTRAS_PY38 := [dev,notebook,supergradients,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY38 := [dev,notebook,super-gradients,tensorboard,timm,ultralytics,wandb]
 
 # SuperGradients is not compatible with Python>=3.10. It is also not easy to install
 # on MacOS. Therefore we exclude it from the default extras.

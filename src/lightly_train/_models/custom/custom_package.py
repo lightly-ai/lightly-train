@@ -34,13 +34,13 @@ class CustomPackage(BasePackage):
     ) -> None:
         if isinstance(model, ModelWrapper):
             model = model.get_model()
-        elif isinstance(model, Module):
-            model = model
-        else:
+
+        if not cls.is_supported_model(model):
             raise ValueError(
                 f"Custom package cannot export model of type {type(model)}. "
                 "The model must be a ModelWrapper or a torch.nn.Module."
             )
+
         torch.save(model.state_dict(), out)
         if log_example:
             model_name = model.__class__.__name__

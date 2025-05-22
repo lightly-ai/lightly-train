@@ -78,13 +78,13 @@ class TIMMPackage(Package):
     ) -> None:
         if isinstance(model, ModelWrapper):
             model = model.get_model()
-        elif isinstance(model, Module):
-            model = model
-        else:
+
+        if not cls.is_supported_model(model):
             raise ValueError(
                 f"TIMMPackage only supports exporting models of type 'Module' and "
                 f"'ModelWrapper', but received '{type(model)}'."
             )
+
         torch.save(model.state_dict(), out)
 
         if log_example:

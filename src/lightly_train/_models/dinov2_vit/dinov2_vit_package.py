@@ -123,13 +123,13 @@ class DINOv2ViTPackage(Package):
     ) -> None:
         if isinstance(model, ModelWrapper):
             model = model.get_model()
-        elif isinstance(model, DinoVisionTransformer):
-            model = model
-        else:
+
+        if not cls.is_supported_model(model):
             raise ValueError(
                 f"DINOv2ViTPackage cannot export model of type {type(model)}. "
                 "The model must be a ModelWrapper or a DinoVisionTransformer."
             )
+
         torch.save(model.state_dict(), out)
 
         if log_example:
