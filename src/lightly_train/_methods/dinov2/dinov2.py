@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import math
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Literal
 
 import torch
@@ -41,7 +42,7 @@ from lightly_train._methods.dinov2.utils import (
     create_collated_masks,
     linear_warmup_schedule,  # TODO: import from LightlySSL after new release
 )
-from lightly_train._methods.method import Method
+from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
@@ -54,7 +55,7 @@ from lightly_train.types import Batch
 
 
 @dataclass
-class DINOv2TrainingStepResult:
+class DINOv2TrainingStepResult(TrainingStepResult):
     dino_global_loss: Tensor
     dino_local_loss: Tensor
     ibot_loss: Tensor
@@ -196,7 +197,8 @@ class DINOv2(Method):
         self.teacher_embedding_model_wrapper.make_teacher()
 
         # Create teacher and student dino heads
-        self.teacher_dino_head = DINOProjectionHead(
+        dino_head = partial(
+            DINOProjectionHead,
             input_dim=self.method_args.embed_dim,
             hidden_dim=self.method_args.hidden_dim,
             bottleneck_dim=self.method_args.bottleneck_dim,
@@ -204,20 +206,16 @@ class DINOv2(Method):
             batch_norm=self.method_args.batch_norm,
             norm_last_layer=self.method_args.norm_last_layer,
         )
-        self.student_dino_head = DINOProjectionHead(
-            input_dim=self.method_args.embed_dim,
-            hidden_dim=self.method_args.hidden_dim,
-            bottleneck_dim=self.method_args.bottleneck_dim,
-            output_dim=self.method_args.output_dim,
-            batch_norm=self.method_args.batch_norm,
-            freeze_last_layer=self.method_args.student_freeze_last_layer_epochs,
-            norm_last_layer=self.method_args.norm_last_layer,
+        self.teacher_dino_head = dino_head()
+        self.student_dino_head = dino_head(
+            freeze_last_layer=self.method_args.student_freeze_last_layer_epochs
         )
 
         # Create teacher and student iBOT head
         self.ibot_separate_head: bool = self.method_args.ibot_separate_head
         if self.ibot_separate_head:
-            self.teacher_ibot_head = DINOProjectionHead(
+            ibot_head = partial(
+                DINOProjectionHead,
                 input_dim=self.method_args.embed_dim,
                 hidden_dim=self.method_args.hidden_dim,
                 bottleneck_dim=self.method_args.bottleneck_dim_ibot,
@@ -225,14 +223,9 @@ class DINOv2(Method):
                 batch_norm=self.method_args.batch_norm,
                 norm_last_layer=self.method_args.norm_last_layer,
             )
-            self.student_ibot_head = DINOProjectionHead(
-                input_dim=self.method_args.embed_dim,
-                hidden_dim=self.method_args.hidden_dim,
-                bottleneck_dim=self.method_args.bottleneck_dim_ibot,
-                output_dim=self.method_args.output_dim,
-                batch_norm=self.method_args.batch_norm,
-                freeze_last_layer=self.method_args.student_freeze_last_layer_epochs,
-                norm_last_layer=self.method_args.norm_last_layer,
+            self.teacher_dino_head = ibot_head()
+            self.student_dino_head = ibot_head(
+                freeze_last_layer=self.method_args.student_freeze_last_layer_epochs
             )
         else:
             self.teacher_ibot_head = self.teacher_dino_head
@@ -261,6 +254,7 @@ class DINOv2(Method):
             batch, batch_idx
         )
 
+        loss = training_step_log.loss
         dino_global_loss = training_step_log.dino_global_loss
         dino_local_loss = training_step_log.dino_local_loss
         ibot_loss = training_step_log.ibot_loss
@@ -284,15 +278,6 @@ class DINOv2(Method):
         if self.global_step == 0:
             # Show example views of the images in the first batch only.
             self._log_example_views(train_batch=batch)
-
-        loss = (
-            self.dino_loss_weight * dino_global_loss
-            + self.dino_loss_weight * dino_local_loss
-            if dino_local_loss is not None
-            else 0.0
-            + self.ibot_loss_weight * ibot_loss
-            + self.koleo_loss_weight * koleo_loss
-        )
 
         return loss
 
@@ -349,23 +334,16 @@ class DINOv2(Method):
         )
         masks_weight = masks["masks_weight"].to(device=self.device, non_blocking=True)
         n_masked_patches = mask_indices_list.shape[0]
-        n_masked_patches_max = int(
-            (n_masked_crops + 1)
-            * h
-            * w
-            * (self.method_args.mask_ratio_min + self.method_args.mask_ratio_max)
-            / 2.0
-        )
 
         # Process global views through teacher and student networks
         teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
             self._forward_teacher(
-                global_views, mask_indices_list, n_masked_patches, n_masked_patches_max
+                global_views, mask_indices_list, n_masked_patches
             )  # [G, B, D], [M, D]
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
             self._forward_student_global(
-                global_views, mask_indices_list, n_masked_patches, n_masked_patches_max
+                global_views, mask_indices_list
             )  # [G*B, D], [M, D]
         )
 
@@ -411,6 +389,15 @@ class DINOv2(Method):
             self.koleo_loss(token) for token in student_cls_tokens_global.chunk(2)
         )  # [G, B, D], only use global views
 
+        loss = (
+            self.dino_loss_weight * dino_global_loss
+            + self.dino_loss_weight * dino_local_loss
+            if dino_local_loss is not None
+            else 0.0
+            + self.ibot_loss_weight * ibot_loss
+            + self.koleo_loss_weight * koleo_loss
+        )
+
         # Momentum update teacher.
         momentum = cosine_schedule(
             step=self.trainer.global_step,
@@ -428,6 +415,7 @@ class DINOv2(Method):
             update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
 
         return DINOv2TrainingStepResult(
+            loss=loss,
             dino_global_loss=dino_global_loss,
             dino_local_loss=dino_local_loss if n_local_crops > 0 else torch.tensor(0.0),
             ibot_loss=ibot_loss,
@@ -440,55 +428,29 @@ class DINOv2(Method):
         x: Tensor,
         mask_indices_list: Tensor,
         n_masked_patches: int,
-        n_masked_patches_max: int,
     ) -> tuple[Tensor, Tensor]:
         tokens = self.teacher_embedding_model_wrapper.forward_features(
             x
         )  # input [G*B, C, ...]
-        patches = tokens["features"]  # [G*B, C, H, W]
-        cls_tokens = tokens["cls_token"]  # [G*B, C]
 
+        # process the cls tokens
         # watch out: these are chunked and cat'd in reverse so A is matched to B in the global crops dino loss
+        cls_tokens = tokens["cls_token"]  # [G*B, C]
         B = self.n_crops // 2
         cls_tokens = torch.cat((cls_tokens[B:], cls_tokens[:B]))  # [G*B, C]
+        cls_tokens_after_dino = self.teacher_dino_head.forward(cls_tokens)  # [G*B, D]
 
-        # process the patch tokens
-        patches = patches.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
-
-        # forward through the teacher dino and ibot heads
-        if not self.ibot_separate_head:
-            buffer_tokens = patches.new_zeros(
-                self.n_crops + n_masked_patches_max, self.n_channels
-            )  # [G*B+M_max, C]
-            buffer_tokens[: self.n_crops].copy_(cls_tokens)
-            torch.index_select(
-                patches.flatten(0, 1),  # [G*B*H*W, C]
-                dim=0,
-                index=mask_indices_list,
-                out=buffer_tokens[self.n_crops : self.n_crops + n_masked_patches],
-            )  # [M, C]
-
-            tokens_after_head = self.teacher_dino_head.forward(
-                buffer_tokens
-            )  # [G*B+M_max, D]
-
-            cls_tokens_after_dino = tokens_after_head[: self.n_crops]  # [G*B, D]
-            masked_patch_tokens_after_ibot = tokens_after_head[
-                self.n_crops : self.n_crops + n_masked_patches
-            ]  # [M, D]
-        else:
-            masked_patch_tokens = torch.index_select(
-                patches.flatten(0, 1),  # [G*B*H*W, C]
-                dim=0,
-                index=mask_indices_list,
-            )  # [M, C]
-
-            cls_tokens_after_dino = self.teacher_dino_head.forward(
-                cls_tokens
-            )  # [G*B, D]
-            masked_patch_tokens_after_ibot = self.teacher_ibot_head.forward(
-                masked_patch_tokens
-            )  # [M, D]
+        # process the masked patch tokens
+        patch_tokens = tokens["features"]  # [G*B, C, H, W]
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
+        masked_patch_tokens = torch.index_select(
+            patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+            dim=0,
+            index=mask_indices_list,
+        )  # [M, C]
+        masked_patch_tokens_after_ibot = self.teacher_ibot_head.forward(
+            masked_patch_tokens
+        )  # [M, D]
 
         # centering
         if self.centering == "softmax":
@@ -523,52 +485,27 @@ class DINOv2(Method):
         self,
         x: Tensor,
         mask_indices_list: Tensor,
-        n_masked_patches: int,
-        n_masked_patches_max: int,
     ) -> tuple[Tensor, Tensor]:
         tokens = self.student_embedding_model_wrapper.forward_features(
             x
         )  # input [G*B, C, ...]
-        patches = tokens["features"]  # [G*B, C, H, W]
+
+        # process the cls tokens
         cls_tokens = tokens["cls_token"]  # [G*B, C]
+        cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)  # [G*B, D]
 
         # process the patch tokens
-        patches = patches.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
+        patch_tokens = tokens["features"]  # [G*B, C, H, W]
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
 
-        # forward through the student dino and ibot heads
-        if not self.ibot_separate_head:
-            buffer_tokens = patches.new_zeros(
-                self.n_crops + n_masked_patches_max, self.n_channels
-            )  # [G*B+M_max, C]
-            buffer_tokens[: self.n_crops].copy_(cls_tokens)
-            torch.index_select(
-                patches.flatten(0, 1),  # [G*B*H*W, C]
-                dim=0,
-                index=mask_indices_list,
-                out=buffer_tokens[self.n_crops : self.n_crops + n_masked_patches],
-            )  # [M, C]
-
-            tokens_after_head = self.student_dino_head.forward(
-                buffer_tokens
-            )  # [G*B+M_max, D]
-
-            cls_tokens_after_dino = tokens_after_head[: self.n_crops]  # [G*B, D]
-            masked_patch_tokens_after_ibot = tokens_after_head[
-                self.n_crops : self.n_crops + n_masked_patches
-            ]  # [M, D]
-        else:
-            masked_patch_tokens = torch.index_select(
-                patches.flatten(0, 1),  # [G*B*H*W, C]
-                dim=0,
-                index=mask_indices_list,
-            )  # [M, C]
-
-            cls_tokens_after_dino = self.student_dino_head.forward(
-                cls_tokens
-            )  # [G*B, D]
-            masked_patch_tokens_after_ibot = self.student_ibot_head.forward(
-                masked_patch_tokens
-            )  # [M, D]
+        masked_patch_tokens = torch.index_select(
+            patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+            dim=0,
+            index=mask_indices_list,
+        )  # [M, C]
+        masked_patch_tokens_after_ibot = self.student_ibot_head.forward(
+            masked_patch_tokens
+        )  # [M, D]
 
         return cls_tokens_after_dino, masked_patch_tokens_after_ibot
 
@@ -576,9 +513,9 @@ class DINOv2(Method):
         tokens = self.student_embedding_model_wrapper.forward_features(
             x
         )  # input [L*B, C, ...]
-        cls_tokens = tokens["cls_token"]  # [L*B, C]
 
-        # forward through the student dino heads
+        # process the cls tokens
+        cls_tokens = tokens["cls_token"]  # [L*B, C]
         cls_tokens_after_dino: Tensor = self.student_dino_head.forward(
             cls_tokens
         )  # [L*B, D]

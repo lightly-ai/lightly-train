@@ -23,7 +23,10 @@ from lightly_train.types import NDArrayImage, TransformInput
     "transform_cls,local_view_size",
     [(DINOv2ViTSBTransform, 96), (DINOv2ViTLGTransform, 98)],
 )
-def test_dinov2_transform_shapes(transform_cls, local_view_size) -> None:
+def test_dinov2_transform_shapes(
+    transform_cls: type[DINOv2ViTSBTransform] | type[DINOv2ViTLGTransform],
+    local_view_size: int,
+) -> None:
     img_np: NDArrayImage = np.random.uniform(0, 255, size=(1234, 1234, 3)).astype(
         np.uint8
     )
