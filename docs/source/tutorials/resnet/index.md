@@ -21,7 +21,7 @@ Here we use [a dataset for human detection on Kaggle](https://www.kaggle.com/dat
 You can download the dataset directly from Kaggle using the following commands (suppose you want the dataset to locate in `datasets`):
 
 ```bash
-curl -L -o datasets/human-detection-dataset-pretraining.zip \
+curl -L --create-dirs -o datasets/human-detection-dataset-pretraining.zip \
 https://www.kaggle.com/api/v1/datasets/download/killa92/human-detection-dataset
 ```
 
@@ -115,7 +115,7 @@ dataset_path = Path("datasets") / "human-detection-dataset-pretraining"
 if __name__ == "__main__":
     lightly_train.train(
         out="out/my_experiment",                # Output directory.
-        data=dataset_path / "train_images",     # Directory with images.
+        data=dataset_path,                      # Directory with images.
         model="torchvision/resnet18",           # Pass the Torchvision model.
         epochs=100,                             # Adjust epochs for faster training.
         batch_size=64,                          # Adjust batch size based on hardware.
@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data=datasets/"human-detection-dataset-pretraining"/train model="torchvision/resnet18"
+lightly-train train out="out/my_experiment" data="datasets/human-detection-dataset-pretraining" model="torchvision/resnet18"
 ````
 
 ## Fine-tune ResNet with PyTorch Lightning
@@ -138,7 +138,7 @@ Here we use [another dataset for human detection on Kaggle](https://www.kaggle.c
 You can download the dataset directly from Kaggle using the following commands (suppose you want the dataset to locate in `datasets`):
 
 ```bash
-curl -L -o datasets/human-detection-dataset-fine-tuning.zip \
+curl -L --create-dirs -o datasets/human-detection-dataset-fine-tuning.zip \
 https://www.kaggle.com/api/v1/datasets/download/constantinwerner/human-detection-dataset
 ```
 
@@ -341,12 +341,25 @@ class ResNet18Classifier(pl.LightningModule):
         logits = self(x)
         loss = self.criterion(logits, y)
 
+        preds = torch.argmax(logits, dim=1)
+        acc = (preds == y).float().mean()
+        
+        self.log('train_loss', loss, prog_bar=True)
+        self.log('train_acc', acc, prog_bar=True)
+
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         logits = self(x)
         loss = self.criterion(logits, y)
+
+        preds = torch.argmax(logits, dim=1)
+        acc = (preds == y).float().mean()
+        
+        self.log('val_loss', loss, prog_bar=True)
+        self.log('val_acc', acc, prog_bar=True)
+
 
         return loss
 
@@ -418,6 +431,8 @@ if __name__ == "__main__":
 
     # Fine-tune the model
     trainer.fit(model, data_module)
+    # Validate the model performance
+    trainer.validate(model, data_module)
 ```
 
 Congratulations! You have successfully pretrained a model using LightlyTrain and fine-tuned it for classification using PyTorch Lightning.
