@@ -530,10 +530,10 @@ class DINOv2(Method):
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
-    ) -> type[DINOv2AdamWViTSBArgs | DINOv2AdamWViTLGArgs]:
+    ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
-            OptimizerType.ADAMW: DINOv2AdamWViTSBArgs,
             "auto": DINOv2AdamWViTSBArgs,
+            OptimizerType.ADAMW: DINOv2AdamWViTSBArgs,
         }
 
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
@@ -572,9 +572,9 @@ class DINOv2(Method):
                     * self.method_args.warmup_epochs
                 ),
                 max_epochs=int(self.trainer.estimated_stepping_batches),
-                start_value=self.optimizer_args.lr,
+                start_value=self.optimizer_args.lr,  # type: ignore[attr-defined]
                 end_value=self.method_args.min_lr,
-            ),
+            ),  # TODO: ignore to be removed after improving optimizer args
             "interval": "step",
         }
         return [optim], [scheduler]  # type: ignore[return-value]
@@ -599,9 +599,9 @@ class DINOv2(Method):
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
-            start_value=self.optimizer_args.weight_decay,
+            start_value=self.optimizer_args.weight_decay,  # type: ignore[attr-defined]
             end_value=self.method_args.weight_decay_end,
-        )
+        )  # TODO: ignore to be removed after improving optimizer args
 
         updates = []
         for group in optimizer.param_groups:

@@ -27,7 +27,7 @@ import numpy as np
 import torch
 from torch.optim.optimizer import Optimizer
 
-from lightly_train._optim.adamw_args import AdamWArgs
+from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.trainable_modules import TrainableModules
 
 
@@ -193,7 +193,7 @@ def get_vit_lr_decay_rate(
 
 
 def get_optimizer_with_decay(
-    optim_args: AdamWArgs,
+    optim_args: OptimizerArgs,
     trainable_modules: TrainableModules,
     lr_scale: float,
     layerwise_decay: float,
@@ -203,7 +203,7 @@ def get_optimizer_with_decay(
     Create an optimizer with layerwise learning rate decay and weight decay for different ViT blocks.
 
     Args:
-        optim_args (AdamWArgs): optimizer arguments.
+        optim_args (OptimizerArgs): optimizer arguments.
         trainable_modules (TrainableModules): trainable modules.
         lr_scale (float): learning rate scale.
         layerwise_decay (float): base lr decay rate.
@@ -239,10 +239,10 @@ def get_optimizer_with_decay(
             d = {
                 "name": name,
                 "params": param,
-                "lr": optim_args.lr * decay_rate,
-                "weight_decay": optim_args.weight_decay,
+                "lr": optim_args.lr * decay_rate,  # type: ignore[attr-defined]
+                "weight_decay": optim_args.weight_decay,  # type: ignore[attr-defined]
                 "foreach": True,
-            }
+            }  # TODO: ignore to be removed after improving optimizer args
 
             if (
                 name.endswith(".bias") or "norm" in name or "gamma" in name
