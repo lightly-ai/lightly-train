@@ -239,7 +239,7 @@ def get_optimizer_with_decay(
             d = {
                 "name": name,
                 "params": param,
-                "lr": optim_args.lr * decay_rate,
+                "lr": optim_args.lr * decay_rate,  # type: ignore[attr-defined]
                 "weight_decay": optim_args.weight_decay,  # type: ignore[attr-defined]
                 "foreach": True,
             }  # TODO: ignore to be removed after improving optimizer args

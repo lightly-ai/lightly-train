@@ -177,19 +177,6 @@ class DINOv2Args(MethodArgs):
                 ],
             )
 
-        if self.start_teacher_temp == "auto":
-            self.start_teacher_temp = min(
-                self.end_teacher_temp,
-                _scaling.interpolate(
-                    input=self.end_teacher_temp,
-                    input_start=0.02,
-                    input_end=0.07,
-                    value_start=0.02,
-                    value_end=0.04,
-                    round_ndigits=2,
-                ),
-            )
-
         if self.end_teacher_temp == "auto":
             # Default teacher temperature of 0.07 is too high for small datasets. Lower
             # temperature results in stronger sharpening which avoids collapse to uniform
@@ -201,6 +188,19 @@ class DINOv2Args(MethodArgs):
                 value_start=0.02,
                 value_end=0.07,
                 round_ndigits=2,
+            )
+
+        if self.start_teacher_temp == "auto":
+            self.start_teacher_temp = min(
+                self.end_teacher_temp,
+                _scaling.interpolate(
+                    input=self.end_teacher_temp,
+                    input_start=0.02,
+                    input_end=0.07,
+                    value_start=0.02,
+                    value_end=0.04,
+                    round_ndigits=2,
+                ),
             )
 
         if self.warmup_teacher_temp_epochs == "auto":
@@ -280,55 +280,51 @@ class DINOv2(Method):
         # Create teacher and student dino heads
         dino_head = partial(
             DINOProjectionHead,
-            input_dim=self.method_args.embed_dim,
-            hidden_dim=self.method_args.hidden_dim,
-            bottleneck_dim=self.method_args.bottleneck_dim,
-            output_dim=self.method_args.output_dim,
-            batch_norm=self.method_args.batch_norm,
-            norm_last_layer=self.method_args.norm_last_layer,
+            input_dim=method_args.embed_dim,
+            hidden_dim=method_args.hidden_dim,
+            bottleneck_dim=method_args.bottleneck_dim,
+            output_dim=no_auto(method_args.output_dim),
+            batch_norm=method_args.batch_norm,
+            norm_last_layer=method_args.norm_last_layer,
         )
         self.teacher_dino_head = dino_head()
         self.student_dino_head = dino_head(
-            freeze_last_layer=self.method_args.student_freeze_last_layer_epochs
+            freeze_last_layer=method_args.student_freeze_last_layer_epochs
         )
 
         # Create teacher and student iBOT head
-        self.ibot_separate_head: bool = self.method_args.ibot_separate_head
+        self.ibot_separate_head: bool = method_args.ibot_separate_head
         if self.ibot_separate_head:
             ibot_head = partial(
                 DINOProjectionHead,
-                input_dim=self.method_args.embed_dim,
-                hidden_dim=self.method_args.hidden_dim,
-                bottleneck_dim=self.method_args.bottleneck_dim_ibot,
-                output_dim=self.method_args.output_dim,
-                batch_norm=self.method_args.batch_norm,
-                norm_last_layer=self.method_args.norm_last_layer,
+                input_dim=method_args.embed_dim,
+                hidden_dim=method_args.hidden_dim,
+                bottleneck_dim=method_args.bottleneck_dim_ibot,
+                output_dim=no_auto(method_args.output_dim),
+                batch_norm=method_args.batch_norm,
+                norm_last_layer=method_args.norm_last_layer,
             )
             self.teacher_dino_head = ibot_head()
             self.student_dino_head = ibot_head(
-                freeze_last_layer=self.method_args.student_freeze_last_layer_epochs
+                freeze_last_layer=method_args.student_freeze_last_layer_epochs
             )
         else:
             self.teacher_ibot_head = self.teacher_dino_head
             self.student_ibot_head = self.student_dino_head
 
         # Losses
-        self.centering = self.method_args.centering
+        self.centering = method_args.centering
         self.dino_loss = DINOLoss(
-            out_dim=self.method_args.output_dim,
-            student_temp=self.method_args.student_temp,
-            center_momentum=self.method_args.center_momentum,
+            out_dim=no_auto(method_args.output_dim),
+            student_temp=method_args.student_temp,
+            center_momentum=method_args.center_momentum,
         )
         self.ibot_loss = IBOTPatchLoss(
-            patch_out_dim=self.method_args.output_dim,
-            student_temp=self.method_args.student_temp,
-            center_momentum=self.method_args.center_momentum,
+            patch_out_dim=no_auto(method_args.output_dim),
+            student_temp=method_args.student_temp,
+            center_momentum=method_args.center_momentum,
         )
         self.koleo_loss = KoLeoLoss()
-
-        self.dino_loss_weight = self.method_args.dino_loss_weight
-        self.ibot_loss_weight = self.method_args.ibot_loss_weight
-        self.koleo_loss_weight = self.method_args.koleo_loss_weight
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:
         training_step_log: DINOv2TrainingStepResult = self.training_step_impl(
@@ -369,12 +365,12 @@ class DINOv2(Method):
         self.teacher_temp = linear_warmup_schedule(
             step=self.trainer.global_step,
             warmup_steps=int(
-                self.method_args.warmup_teacher_temp_epochs  # type: ignore[operator]
+                no_auto(self.method_args.warmup_teacher_temp_epochs)  # type: ignore[operator]
                 / self.trainer.max_epochs
                 * self.trainer.estimated_stepping_batches
             ),
-            start_value=self.method_args.start_teacher_temp,
-            end_value=self.method_args.end_teacher_temp,
+            start_value=no_auto(self.method_args.start_teacher_temp),
+            end_value=no_auto(self.method_args.end_teacher_temp),
         )
 
         # Get the views
@@ -471,12 +467,12 @@ class DINOv2(Method):
         )  # [G, B, D], only use global views
 
         loss = (
-            self.dino_loss_weight * dino_global_loss
-            + self.dino_loss_weight * dino_local_loss
+            self.method_args.dino_loss_weight * dino_global_loss
+            + self.method_args.dino_loss_weight * dino_local_loss
             if dino_local_loss is not None
             else 0.0
-            + self.ibot_loss_weight * ibot_loss
-            + self.koleo_loss_weight * koleo_loss
+            + self.method_args.ibot_loss_weight * ibot_loss
+            + self.method_args.koleo_loss_weight * koleo_loss
         )
 
         # Momentum update teacher.
@@ -635,7 +631,6 @@ class DINOv2(Method):
             trainable_modules=self.trainable_modules(),
             lr_scale=math.sqrt(self.global_batch_size / 1024),  # square root scaling
             layerwise_decay=self.method_args.layerwise_decay,
-            weight_decay=self.method_args.weight_decay_start,
             patch_embed_lr_multiplier=self.method_args.patch_embed_lr_multiplier,
         )
 
