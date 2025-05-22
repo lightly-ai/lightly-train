@@ -95,7 +95,7 @@ class RFDETRPackage(Package):
     @classmethod
     def export_model(
         cls,
-        model: RFDETR | RFDETRModelWrapper | Any,
+        model: RFDETR | ModelWrapper | Any,
         out: Path,
         log_example: bool = True,
     ) -> None:
@@ -110,15 +110,15 @@ class RFDETRPackage(Package):
                 f"Cannot create model because '{cls.name}' is not installed."
             )
 
-        if isinstance(model, RFDETRModelWrapper):
-            rfdetr_model = model.get_model()
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
 
         if not cls.is_supported_model(model):
             raise ValueError(
                 f"Model must be of type 'RFDETR' or 'RFDETRModelWrapper', got {type(model)}"
             )
 
-        lwdetr_model = rfdetr_model.model.model
+        lwdetr_model = model.model.model
         assert isinstance(lwdetr_model, LWDETR)
 
         # Set encoder state to eval mode
