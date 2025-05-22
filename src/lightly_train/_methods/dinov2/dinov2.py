@@ -43,7 +43,7 @@ from lightly_train._methods.dinov2.utils import (
     create_collated_masks,
     linear_warmup_schedule,  # TODO: import from LightlySSL after new release
 )
-from lightly_train._methods.method import Method, TrainingStepResult
+from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
@@ -55,9 +55,9 @@ from lightly_train.types import Batch
 
 
 @dataclass
-class DINOv2TrainingStepResult(TrainingStepResult):
+class DINOv2TrainingStepResult:
     dino_global_loss: Tensor
-    dino_local_loss: Tensor | None
+    dino_local_loss: Tensor
     ibot_loss: Tensor
     koleo_loss: Tensor
 
@@ -183,6 +183,7 @@ class DINOv2(Method):
         self.student_embedding_model_wrapper = copy.deepcopy(
             self.teacher_embedding_model_wrapper
         )
+        self.teacher_embedding_model_wrapper.make_teacher()
 
         # Create teacher and student dino heads
         self.teacher_dino_head = DINOProjectionHead(
@@ -250,7 +251,6 @@ class DINOv2(Method):
             batch, batch_idx
         )
 
-        loss = training_step_log.loss
         dino_global_loss = training_step_log.dino_global_loss
         dino_local_loss = training_step_log.dino_local_loss
         ibot_loss = training_step_log.ibot_loss
@@ -258,12 +258,10 @@ class DINOv2(Method):
 
         log_dict = {
             "dino_global_loss": dino_global_loss,
+            "dino_local_loss": dino_local_loss,
             "ibot_loss": ibot_loss,
             "koleo_loss": koleo_loss,
         }
-
-        if dino_local_loss is not None:
-            log_dict["dino_local_loss"] = dino_local_loss
 
         views = batch["views"]
         self.log_dict(
@@ -277,28 +275,39 @@ class DINOv2(Method):
             # Show example views of the images in the first batch only.
             self._log_example_views(train_batch=batch)
 
+        loss = (
+            self.dino_loss_weight * dino_global_loss
+            + self.dino_loss_weight * dino_local_loss
+            if dino_local_loss is not None
+            else 0.0
+            + self.ibot_loss_weight * ibot_loss
+            + self.koleo_loss_weight * koleo_loss
+        )
+
         return loss
 
     def training_step_impl(
         self, batch: Batch, batch_idx: int
     ) -> DINOv2TrainingStepResult:
         # Momentum update teacher.
-        momentum = cosine_schedule(
-            step=self.trainer.global_step,
-            max_steps=self.trainer.estimated_stepping_batches,
-            start_value=no_auto(self.method_args.momentum_start),
-            end_value=self.method_args.momentum_end,
-        )
-        update_momentum(
-            self.student_embedding_model_wrapper._model,
-            self.teacher_embedding_model_wrapper._model,
-            m=momentum,
-        )
-        update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
+        if (global_step := self.trainer.global_step) > 0:
+            momentum = cosine_schedule(
+                step=global_step,
+                max_steps=self.trainer.estimated_stepping_batches,
+                start_value=no_auto(self.method_args.momentum_start),
+                end_value=self.method_args.momentum_end,
+            )
+            update_momentum(
+                self.student_embedding_model_wrapper._model,
+                self.teacher_embedding_model_wrapper._model,
+                m=momentum,
+            )
+            update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
+            update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
 
         # Teacher temperature scheduling
         self.teacher_temp = linear_warmup_schedule(
-            step=self.trainer.global_step,
+            step=global_step,
             warmup_steps=int(
                 self.method_args.warmup_teacher_temp_epochs  # type: ignore[operator]
                 / self.trainer.max_epochs
@@ -406,19 +415,9 @@ class DINOv2(Method):
             self.koleo_loss(token) for token in student_cls_tokens_global.chunk(2)
         )  # [G, B, D], only use global views
 
-        loss = (
-            self.dino_loss_weight * dino_global_loss
-            + self.dino_loss_weight * dino_local_loss
-            if dino_local_loss is not None
-            else 0.0
-            + self.ibot_loss_weight * ibot_loss
-            + self.koleo_loss_weight * koleo_loss
-        )
-
         return DINOv2TrainingStepResult(
-            loss=loss,
             dino_global_loss=dino_global_loss,
-            dino_local_loss=dino_local_loss if n_local_crops > 0 else None,
+            dino_local_loss=dino_local_loss if n_local_crops > 0 else torch.tensor(0.0),
             ibot_loss=ibot_loss,
             koleo_loss=koleo_loss,
         )
