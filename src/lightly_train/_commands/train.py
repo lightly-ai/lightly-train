@@ -23,7 +23,7 @@ from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type
 )
 from torch.nn import Module
 
-from lightly_train import _logging, _system
+from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._callbacks import callback_helpers
 from lightly_train._callbacks.callback_args import CallbackArgs
 from lightly_train._commands import _warnings, common_helpers, train_helpers
@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 def train(
+    *,
     out: PathLike,
     data: PathLike | Sequence[PathLike],
     model: str | Module | ModelWrapper | Any,
@@ -62,6 +63,7 @@ def train(
     accelerator: str | Accelerator = "auto",
     strategy: str | Strategy = "auto",
     precision: _PRECISION_INPUT = "32-true",  # Default precision in PyTorch Lightning
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
     seed: int = 0,
     loggers: dict[str, dict[str, Any] | None] | None = None,
     callbacks: dict[str, dict[str, Any] | None] | None = None,
@@ -135,6 +137,10 @@ def train(
         precision:
             Training precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
             for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication. Can be one of ['auto',
+            'highest', 'high', 'medium']. See https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
+            for more information.
         seed:
             Random seed for reproducibility.
         loggers:
@@ -220,6 +226,7 @@ def train_from_config(config: TrainConfig) -> None:
     _warnings.filter_train_warnings()
     _logging.set_up_console_logging()
     _logging.set_up_file_logging(out_dir / "train.log")
+    _logging.set_up_filters()
     logger.info(
         f"Args: {common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}"
     )
@@ -236,13 +243,22 @@ def train_from_config(config: TrainConfig) -> None:
     transform_instance = train_helpers.get_transform(
         method=config.method, transform_args_resolved=config.transform_args
     )
+    config.float32_matmul_precision = (
+        _float32_matmul_precision.get_float32_matmul_precision(
+            float32_matmul_precision=config.float32_matmul_precision,
+        )
+    )
     # Create a temporary file to use as a memory map for dataset items. The
     # file has to exist while the dataset is used.
     # TODO(Philipp, 10/24): For training it could make sense to store the
     # file in the output directory and recover it on resume.
     with common_helpers.verify_out_dir_equal_on_all_local_ranks(
         out=out_dir
-    ), common_helpers.get_dataset_temp_mmap_path(out=out_dir) as mmap_filepath:
+    ), common_helpers.get_dataset_temp_mmap_path(
+        out=out_dir
+    ) as mmap_filepath, _float32_matmul_precision.float32_matmul_precision(
+        float32_matmul_precision=config.float32_matmul_precision
+    ):
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform_instance,
@@ -394,6 +410,7 @@ class TrainConfig(PydanticConfig):
     accelerator: str | Accelerator = "auto"
     strategy: str | Strategy = "auto"
     precision: _PRECISION_INPUT = "32-true"
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
     seed: int = 0
     loggers: dict[str, dict[str, Any] | None] | LoggerArgs | None = None
     callbacks: dict[str, dict[str, Any] | None] | CallbackArgs | None = None

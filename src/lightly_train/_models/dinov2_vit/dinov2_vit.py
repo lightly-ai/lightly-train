@@ -10,12 +10,12 @@ from __future__ import annotations
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Identity, Module
 
+from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.block import Block
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
 )
-from lightly_train._modules.teachers.dinov2.layers.block import Block
 
 
 class DINOv2ViTModelWrapper(Module, ModelWrapper):
@@ -31,12 +31,11 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
         rt = self._model(x, is_training=True)  # forcing to return all patches
         if rt["x_norm_patchtokens"].dim() == 3:
-            patches_resolution = self._model.patch_embed.patches_resolution
             features_reshaped = rt["x_norm_patchtokens"].reshape(
                 rt["x_norm_patchtokens"].shape[0],
                 rt["x_norm_patchtokens"].shape[2],
-                patches_resolution[0],
-                patches_resolution[1],
+                x.shape[2] // self._model.patch_size,
+                x.shape[3] // self._model.patch_size,
             )
         elif rt["x_norm_patchtokens"].dim() == 4:
             features_reshaped = rt["x_norm_patchtokens"]

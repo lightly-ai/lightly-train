@@ -20,6 +20,7 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from torch.nn import Module
 from torchvision import models
 
+from lightly_train import _distributed
 from lightly_train._commands import common_helpers
 from tests._commands.test_train_helpers import MockDataset
 
@@ -108,7 +109,7 @@ def test_get_out_dir__nonempty(
     rank_zero: bool,
 ) -> None:
     (tmp_path / "some_file.txt").touch()
-    mocker.patch.object(common_helpers, "is_global_rank_zero", return_value=rank_zero)
+    mocker.patch.object(_distributed, "is_global_rank_zero", return_value=rank_zero)
     if resume or overwrite or (not rank_zero):
         assert (
             common_helpers.get_out_dir(out=tmp_path, resume=resume, overwrite=overwrite)
@@ -119,9 +120,22 @@ def test_get_out_dir__nonempty(
             common_helpers.get_out_dir(out=tmp_path, resume=resume, overwrite=overwrite)
 
 
+def test_get_tmp_dir() -> None:
+    assert common_helpers.get_tmp_dir()
+
+
+def test_get_tmp_dir__custom(tmp_path: Path, mocker: MockerFixture) -> None:
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_path)})
+    assert common_helpers.get_tmp_dir() == tmp_path
+
+
 def test_verify_out_dir_equal_on_all_local_ranks(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
+    # Use clean temporary directory for the test.
+    tmp_dir = tmp_path / "tmp"
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_dir)})
+
     out_dir = tmp_path / "out"
     # Simulate calling the function from rank 0
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
@@ -132,12 +146,16 @@ def test_verify_out_dir_equal_on_all_local_ranks(
             pass
 
     # Make sure that no files are left in the temporary directory.
-    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+    assert not tmp_dir.exists() or not any(f for f in tmp_dir.iterdir() if f.is_file())
 
 
 def test_verify_out_dir_equal_on_all_local_ranks__different(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
+    # Use clean temporary directory for the test.
+    tmp_dir = tmp_path / "tmp"
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_dir)})
+
     out_dir_rank0 = tmp_path / "rank0"
     out_dir_rank1 = tmp_path / "rank1"
 
@@ -154,12 +172,16 @@ def test_verify_out_dir_equal_on_all_local_ranks__different(
                 pass
 
     # Make sure that no files are left in the temporary directory.
-    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+    assert not tmp_dir.exists() or not any(f for f in tmp_dir.iterdir() if f.is_file())
 
 
 def test_verify_out_dir_equal_on_all_local_ranks__no_rank0(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
+    # Use clean temporary directory for the test.
+    tmp_dir = tmp_path / "tmp"
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_dir)})
+
     out_dir = tmp_path / "rank1"
 
     mocker.patch.dict(
@@ -171,7 +193,7 @@ def test_verify_out_dir_equal_on_all_local_ranks__no_rank0(
             pass
 
     # Make sure that no files are left in the temporary directory.
-    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+    assert not tmp_dir.exists() or not any(f for f in tmp_dir.iterdir() if f.is_file())
 
 
 @pytest.mark.parametrize(

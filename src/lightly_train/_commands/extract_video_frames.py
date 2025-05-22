@@ -82,6 +82,7 @@ def extract_video_frames(
 def extract_video_frames_from_config(config: ExtractVideoFramesConfig) -> None:
     # Set up logging.
     _logging.set_up_console_logging()
+    _logging.set_up_filters()
     logger.info(f"Args: {common_helpers.pretty_format_args(args=config.model_dump())}")
     logger.info(f"Extracting frames from videos in '{config.data}'.")
 

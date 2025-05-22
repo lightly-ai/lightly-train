@@ -58,6 +58,13 @@ class Env:
         default=Path.home() / ".cache" / "lightly-train",
         type_=Path,
     )
+    # Path to directory where temporary files are stored. By default, the temporary
+    # directory from the system is used.
+    LIGHTLY_TRAIN_TMP_DIR: EnvVar[Path | None] = EnvVar(
+        name="LIGHTLY_TRAIN_TMP_DIR",
+        default=None,
+        type_=Path,
+    )
     # Timeout in seconds for the dataloader to collect a batch from the workers. This is
     # used to prevent the dataloader from hanging indefinitely. Set to 0 to disable the
     # timeout.
