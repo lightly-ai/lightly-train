@@ -45,10 +45,10 @@ def test_missing_model_wrapper_attrs__missing(
     exclude_module_attrs: bool, expected: list[str]
 ) -> None:
     class InvalidCustomModelWrapper:
-        def get_model(self):
+        def get_model(self) -> None:
             pass
 
-        def forward_features(self, x):
+        def forward_features(self) -> None:
             pass
 
     assert (

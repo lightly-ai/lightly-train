@@ -97,7 +97,7 @@ def test_get_model_wrapper__timm() -> None:
 
 def test_get_package_from_model__custom() -> None:
     assert (
-        package_helpers.get_package_from_model(
+        package_helpers.get_package_from_model(  # type: ignore[comparison-overlap]
             model=DummyCustomModel(), include_custom=True, fallback_custom=False
         )
         == CUSTOM_PACKAGE
@@ -106,10 +106,10 @@ def test_get_package_from_model__custom() -> None:
 
 def test_get_package_from_model__custom_invalid() -> None:
     class InvalidCustomModelWrapper:
-        def get_model(self):
+        def get_model(self) -> None:
             pass
 
-        def forward_features(self, x):
+        def forward_features(self) -> None:
             pass
 
     with pytest.raises(
@@ -122,7 +122,7 @@ def test_get_package_from_model__custom_invalid() -> None:
             r" - Missing methods: \['feature_dim', 'forward_pool'\]"
         ),
     ):
-        package_helpers.get_package_from_model(
+        package_helpers.get_package_from_model(  # type: ignore[call-overload]
             model=InvalidCustomModelWrapper(),
             include_custom=True,
             fallback_custom=False,
