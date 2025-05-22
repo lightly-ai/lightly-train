@@ -16,16 +16,6 @@ from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.trainable_modules import TrainableModules
 
 
-class DINOv2AdamWViTSBArgs(AdamWArgs):
-    lr: float = 0.004
-    weight_decay: float = 0.04
-
-
-class DINOv2AdamWViTLGArgs(AdamWArgs):
-    lr: float = 2e-4
-    weight_decay: float = 0.04
-
-
 def get_vit_lr_decay_rate(
     name: str,
     lr_decay_rate: float,
@@ -74,7 +64,7 @@ def get_vit_lr_decay_rate(
 
 
 def get_optimizer_with_decay(
-    optim_args: DINOv2AdamWViTSBArgs | DINOv2AdamWViTLGArgs,
+    optim_args: AdamWArgs,
     trainable_modules: TrainableModules,
     lr_scale: float,
     layerwise_decay: float,
@@ -84,7 +74,7 @@ def get_optimizer_with_decay(
     Create an optimizer with layerwise learning rate decay and weight decay for different ViT blocks.
 
     Args:
-        optim_args (DINOv2AdamWArgs): optimizer arguments.
+        optim_args (AdamWArgs): optimizer arguments.
         trainable_modules (TrainableModules): trainable modules.
         lr_scale (float): learning rate scale.
         layerwise_decay (float): base lr decay rate.

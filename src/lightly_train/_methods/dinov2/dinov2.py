@@ -31,8 +31,6 @@ from lightly_train._methods.dinov2.dinov2_loss import (
     IBOTPatchLoss,
 )  # we use the original DINOLoss and IBOTPatchLoss
 from lightly_train._methods.dinov2.dinov2_optim import (
-    DINOv2AdamWViTLGArgs,
-    DINOv2AdamWViTSBArgs,
     get_optimizer_with_decay,
 )
 from lightly_train._methods.dinov2.dinov2_transform import (
@@ -47,6 +45,7 @@ from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
@@ -158,6 +157,16 @@ class DINOv2Args(MethodArgs):
             )
 
         # TODO: scale some params based on the scaling info
+
+
+class DINOv2AdamWViTSBArgs(AdamWArgs):
+    lr: float = 0.004
+    weight_decay: float = 0.04
+
+
+class DINOv2AdamWViTLGArgs(AdamWArgs):
+    lr: float = 2e-4
+    weight_decay: float = 0.04
 
 
 class DINOv2(Method):
@@ -319,7 +328,9 @@ class DINOv2(Method):
 
         mask_generator = MaskingGenerator(
             input_size=(h, w),
-            max_num_patches=int(0.5 * h * w), # NOTE: max patch ratio 0.5 is carried over from the original DINOv2 code, can be tuned
+            max_num_patches=int(
+                0.5 * h * w
+            ),  # NOTE: max patch ratio 0.5 is carried over from the original DINOv2 code, can be tuned
         )
         n_masked_crops = int(self.n_crops * self.method_args.mask_probability)
         masks = create_collated_masks(
@@ -399,7 +410,7 @@ class DINOv2(Method):
         koleo_loss = sum(
             self.koleo_loss(token) for token in student_cls_tokens_global.chunk(2)
         )  # [G, B, D], only use global views
-        
+
         # Momentum update teacher.
         momentum = cosine_schedule(
             step=self.trainer.global_step,

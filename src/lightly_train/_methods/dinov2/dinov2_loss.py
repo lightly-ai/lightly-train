@@ -6,14 +6,6 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-# Modifications Copyright 2025 Lightly AG:
-# - Import xFormers' cross entropy only if XFORMERS_ENABLED is True
-# - Use dist.is_initialized() to control the all_reduce operation of B in distributed setting in the iBOTPatchLoss' sinkhorn_knopp_teacher
-# - Rename iBOTPatchLoss to IBOTPatchLoss
-# - Add type hints to the functions
-# - Remove dead code
-# - Add TODO for investigating the casting of self.center in IBOTPatchLoss
-
 
 from __future__ import annotations
 
