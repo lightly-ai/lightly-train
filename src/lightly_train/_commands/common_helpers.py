@@ -98,11 +98,7 @@ def get_out_dir(out: PathLike, resume: bool, overwrite: bool) -> Path:
 
         dir_not_empty = any(out_dir.iterdir())
 
-        if (
-            dir_not_empty
-            and (not (resume or overwrite))
-            and distributed_helpers.is_global_rank_zero()
-        ):
+        if dir_not_empty and (not (resume or overwrite)):
             raise ValueError(
                 f"Output '{out_dir}' is not empty! Set overwrite=True to overwrite the "
                 "directory or resume=True to resume training."
