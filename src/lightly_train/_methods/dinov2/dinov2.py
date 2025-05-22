@@ -5,7 +5,6 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-
 from __future__ import annotations
 
 import copy
@@ -27,6 +26,7 @@ from torch import Tensor
 from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
+from lightly_train import _scaling
 from lightly_train._configs.validate import no_auto
 from lightly_train._methods.dinov2.dinov2_loss import (
     DINOLoss,
@@ -51,7 +51,7 @@ from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
-from lightly_train._scaling import ScalingInfo
+from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train.types import Batch
 
 
@@ -76,7 +76,9 @@ class DINOv2Args(MethodArgs):
     hidden_dim: int = 2048
     bottleneck_dim: int = 256
     bottleneck_dim_ibot: int = 256
-    output_dim: int = 65536
+    output_dim: int | Literal["auto"] = (
+        "auto"  # 65536 for ViT-S/B, 131072 for ViT-L/G in the original DINOv2
+    )
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
     norm_last_layer: bool = False
@@ -93,13 +95,17 @@ class DINOv2Args(MethodArgs):
     center_momentum: float = 0.9
 
     # teacher momentum
-    momentum_start: float = 0.992
+    momentum_start: float | Literal["auto"] = (
+        "auto"  # 0.992 for ViT-S/B, 0.994 for ViT-L/G in the original DINOv2
+    )
     momentum_end: float = 1.0
 
     # teacher temp scheduler
-    start_teacher_temp: float = 0.04
-    end_teacher_temp: float = 0.07
-    warmup_teacher_temp_epochs: int = 30
+    start_teacher_temp: float | Literal["auto"] = "auto"  # 0.04 in the original DINOv2
+    end_teacher_temp: float | Literal["auto"] = "auto"  # 0.07 in the original DINOv2
+    warmup_teacher_temp_epochs: int | Literal["auto"] = (
+        "auto"  # 30 for ViT-S/B, 80 for ViT-L/G in the original DINOv2
+    )
 
     # masking
     mask_ratio_min: float = 0.1
@@ -115,7 +121,12 @@ class DINOv2Args(MethodArgs):
     patch_embed_lr_multiplier: float = 0.2
 
     # weight decay scheduler
-    weight_decay_end: float = 0.4
+    weight_decay_start: float | Literal["auto"] = (
+        "auto"  # 0.04 for ViT-S/B in the original DINOv2
+    )
+    weight_decay_end: float | Literal["auto"] = (
+        "auto"  # 0.4 for ViT-S/B, 0.2 for ViT-L/G in the original DINOv2
+    )
 
     # gradient clipping
     gradient_clip_val: float = 3.0
@@ -137,17 +148,10 @@ class DINOv2Args(MethodArgs):
             self.ibot_separate_head = True
             self.bottleneck_dim = 384
             self.bottleneck_dim_ibot = 256
-            self.output_dim = 131072
             # loss
             self.centering = "sinkhorn_knopp"
-            # teacher momentum
-            self.momentum_start = 0.994
-            # lr scheduler
-            self.warmup_epochs = 80
             # lr decay
             self.layerwise_decay = 1.0
-            # weight decay scheduler
-            self.weight_decay_end = 0.2
         elif (depth == 12 and num_heads == 12 and self.embed_dim == 768) or (
             depth == 12 and num_heads == 6 and self.embed_dim == 384
         ):  # base / small
@@ -158,7 +162,83 @@ class DINOv2Args(MethodArgs):
                 "Using default parameters for small/base models, but performance may be suboptimal."
             )
 
-        # TODO: scale some params based on the scaling info
+        dataset_size = scaling_info.dataset_size
+        if self.output_dim == "auto":
+            # Default output dim of 65536 is too large for small datasets.
+            self.output_dim = _scaling.get_bucket_value(
+                input=dataset_size,
+                buckets=[
+                    (20_000, 1024),
+                    (50_000, 2048),
+                    (100_000, 4096),
+                    (200_000, 16384),
+                    (500_000, 32768),
+                    (float("inf"), 65536),
+                ],
+            )
+
+        if self.start_teacher_temp == "auto":
+            self.start_teacher_temp = min(
+                self.end_teacher_temp,
+                _scaling.interpolate(
+                    input=self.end_teacher_temp,
+                    input_start=0.02,
+                    input_end=0.07,
+                    value_start=0.02,
+                    value_end=0.04,
+                    round_ndigits=2,
+                ),
+            )
+
+        if self.end_teacher_temp == "auto":
+            # Default teacher temperature of 0.07 is too high for small datasets. Lower
+            # temperature results in stronger sharpening which avoids collapse to uniform
+            # distribution.
+            self.end_teacher_temp = _scaling.interpolate(
+                dataset_size,
+                input_start=20_000,
+                input_end=IMAGENET_SIZE,
+                value_start=0.02,
+                value_end=0.07,
+                round_ndigits=2,
+            )
+
+        if self.warmup_teacher_temp_epochs == "auto":
+            # Default warmup teacher temperature epochs of 30 is too high when training
+            # for only a few total epochs. Have the warmup period be 30% of all epochs,
+            # but with a maximum of 30 epochs.
+            self.warmup_teacher_temp_epochs = int(
+                _scaling.interpolate(
+                    scaling_info.epochs,
+                    input_start=0,
+                    input_end=100,
+                    value_start=0,
+                    value_end=30,
+                )
+            )
+
+        if self.momentum_start == "auto":
+            # Default momentum start of 0.996 is too high for small datasets. Lower momentum
+            # results in slower updates of the teacher model. This is important because with
+            # high momentum (fast changing teacher) and a small dataset, the initial
+            # training epochs become unstable.
+            self.momentum_start = _scaling.interpolate(
+                dataset_size,
+                input_start=20_000,
+                input_end=IMAGENET_SIZE,
+                value_start=0.99,
+                value_end=0.996,
+                round_ndigits=3,
+            )
+
+        if isinstance(optimizer_args, AdamWArgs):
+            weight_decay = optimizer_args.weight_decay
+        else:
+            raise ValueError(f"Unsupported optimizer_args type: {type(optimizer_args)}")
+        if self.weight_decay_start == "auto":
+            self.weight_decay_start = weight_decay
+        if self.weight_decay_end == "auto":
+            self.weight_decay_end = weight_decay
 
 
 class DINOv2AdamWViTSBArgs(AdamWArgs):
@@ -555,6 +635,7 @@ class DINOv2(Method):
             trainable_modules=self.trainable_modules(),
             lr_scale=math.sqrt(self.global_batch_size / 1024),  # square root scaling
             layerwise_decay=self.method_args.layerwise_decay,
+            weight_decay=self.method_args.weight_decay_start,
             patch_embed_lr_multiplier=self.method_args.patch_embed_lr_multiplier,
         )
 
@@ -599,9 +680,9 @@ class DINOv2(Method):
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
-            start_value=self.optimizer_args.weight_decay,  # type: ignore[attr-defined]
+            start_value=self.method_args.weight_decay_start,
             end_value=self.method_args.weight_decay_end,
-        )  # TODO: ignore to be removed after improving optimizer args
+        )
 
         updates = []
         for group in optimizer.param_groups:
