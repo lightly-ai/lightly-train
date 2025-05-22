@@ -279,12 +279,20 @@ def test_train__method(tmp_path: Path, method: str, devices: int) -> None:
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
+    # Use smaller model for unit tests.
+    method_args = {
+        "distillation": {"teacher": "dinov2_vit/vits14"},
+        "distillationv1": {"teacher": "dinov2_vit/vits14"},
+        "distillationv2": {"teacher": "dinov2_vit/vits14"},
+    }.get(method, {})
+
     train.train(
         out=out,
         data=data,
         model="torchvision/resnet18",
         devices=devices,
         method=method,
+        method_args=method_args,
         batch_size=4,
         num_workers=2,
         epochs=1,
