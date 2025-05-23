@@ -16,6 +16,9 @@ from numpy.typing import NDArray
 from torch import Tensor
 from typing_extensions import NotRequired
 
+# Underlying model type of the packages. Most of the time this is a torch.nn.Module
+# however, for in some instances they can be custom classes with nn.Modules only in the
+# attributes.
 PackageModel = Any
 
 # Types for the new transforms.
