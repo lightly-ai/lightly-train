@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from pytorch_lightning import Callback
 from pytorch_lightning.callbacks import (
@@ -27,11 +27,15 @@ from lightly_train._callbacks.mlflow_logging import MLFlowLogging
 from lightly_train._callbacks.tqdm_progress_bar import DataWaitTQDMProgressBar
 from lightly_train._checkpoint import CheckpointLightlyTrainModels
 from lightly_train._configs import validate
+from lightly_train._loggers.jsonl import JSONLLogger
 from lightly_train._loggers.mlflow import MLFlowLogger
+from lightly_train._loggers.tensorboard import TensorBoardLogger
+from lightly_train._loggers.wandb import WandbLogger
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._transforms.transform import NormalizeArgs
 
+AnyLoggerType = TypeVar("AnyLoggerType", Logger, JSONLLogger, MLFlowLogger,TensorBoardLogger, WandbLogger)
 
 def get_callback_args(
     callback_args: dict[str, Any] | CallbackArgs | None,
@@ -48,7 +52,7 @@ def get_callbacks(
     out: Path,
     wrapped_model: ModelWrapper,
     embedding_model: EmbeddingModel,
-    loggers: list[Logger],
+    loggers: list[AnyLoggerType],
 ) -> list[Callback]:
     callbacks: list[Callback] = []
     callbacks.append(DataWaitTQDMProgressBar())

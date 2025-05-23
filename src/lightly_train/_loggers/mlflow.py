@@ -11,9 +11,9 @@ import os
 from pathlib import Path
 from typing import Any, Literal
 
+from PIL.Image import Image
 from pytorch_lightning.loggers import MLFlowLogger as LightningMLFlowLogger
 from pytorch_lightning.utilities import rank_zero_only
-from torch import Tensor
 
 from lightly_train._configs.config import PydanticConfig
 
@@ -36,7 +36,7 @@ class MLFlowLogger(LightningMLFlowLogger):
         run_name: str | None = None,
         tracking_uri: str | None = os.getenv("MLFLOW_TRACKING_URI"),
         tags: dict[str, Any] | None = None,
-        save_dir: Path | None = "./mlruns",
+        save_dir: Path | None = Path("./mlruns"),
         log_model: Literal[True, False, "all"] = False,
         checkpoint_path_prefix: str = "",
         prefix: str = "",
@@ -62,7 +62,7 @@ class MLFlowLogger(LightningMLFlowLogger):
 
     @rank_zero_only  # type: ignore[misc]
     def log_image(
-        self, key: str, images: list[Tensor], step: int | None = None
+        self, key: str, images: list[Image], step: int | None = None
     ) -> None:
         for image in images:
             self.experiment.log_image(

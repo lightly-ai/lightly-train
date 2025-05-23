@@ -23,10 +23,10 @@ class MLFlowLogging(Callback):
         self.system_monitor = None
         for logger in trainer.loggers:
             if isinstance(logger, MLFlowLogger):
-                self.system_monitor = SystemMetricsMonitor(
+                self.system_monitor = SystemMetricsMonitor( # type: ignore[no-untyped-call]
                     run_id=logger.run_id,
                 )
-                self.system_monitor.start()
+                self.system_monitor.start() # type: ignore[no-untyped-call]
                 logger.experiment.log_artifact(
                     run_id=logger.run_id,
                     local_path=trainer.default_root_dir + "/train.log",
@@ -36,7 +36,7 @@ class MLFlowLogging(Callback):
 
     def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         if self.system_monitor is not None:
-            self.system_monitor.finish()
+            self.system_monitor.finish() # type: ignore[no-untyped-call]
         for logger in trainer.loggers:
             if isinstance(logger, MLFlowLogger):
                 logger.experiment.log_artifact(

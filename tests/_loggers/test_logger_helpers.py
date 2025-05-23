@@ -154,8 +154,8 @@ def test_get_callbacks__mlflow_user_config(tmp_path: Path) -> None:
         out=tmp_path,
     )
     logger = loggers[0]
-    temp_experiment = logger.experiment.get_experiment(logger.name)
     assert isinstance(logger, MLFlowLogger)
+    temp_experiment = logger.experiment.get_experiment(logger.name)
     assert (
         temp_experiment.name == "abc"
     )  # MLFlowLogger uses the experiment id (will be 1).

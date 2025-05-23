@@ -13,13 +13,13 @@ from typing import Any, Literal, Mapping
 
 from lightly.utils.scheduler import CosineWarmupScheduler
 from pytorch_lightning import LightningModule
-from pytorch_lightning.loggers import MLFlowLogger
 from pytorch_lightning.loggers import WandbLogger as LightningWandbLogger
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
 import lightly_train._plot as methods_helpers
+from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
