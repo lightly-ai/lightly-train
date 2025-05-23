@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import copy
 import logging
-import os
 import re
 from logging import Filter, Logger, LogRecord
 from logging.handlers import RotatingFileHandler
@@ -18,6 +17,8 @@ from typing import TextIO
 
 from pytorch_lightning.utilities import rank_zero_only
 
+from lightly_train._env import Env
+
 # Capture and send warnings to the `py.warnings`.
 # Keep this import at the top to ensure that warnings are captured from the beginning.
 # Users can disable this behavior by setting `capture=False` when calling `logging.captureWarnings`.
@@ -25,8 +26,6 @@ logging.captureWarnings(capture=True)
 
 # Set up the logger for the lightly_train package.
 lightly_logger = logging.getLogger("lightly_train")
-
-LIGHTLY_TRAIN_LOG_LEVEL_ENV_VAR = "LIGHTLY_TRAIN_LOG_LEVEL"
 
 
 class ConsoleFormatter(logging.Formatter):
@@ -70,7 +69,7 @@ class ConsoleFormatter(logging.Formatter):
 @rank_zero_only  # type: ignore[misc]
 def set_up_console_logging() -> None:
     """Sets up console logging and ensures a single handler per console logger."""
-    level = int(os.environ.get(LIGHTLY_TRAIN_LOG_LEVEL_ENV_VAR, logging.INFO))
+    level = Env.LIGHTLY_TRAIN_LOG_LEVEL.value
     ch = logging.StreamHandler()
     ch.setLevel(level)
     ch.setFormatter(ConsoleFormatter())

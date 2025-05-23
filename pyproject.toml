@@ -62,6 +62,9 @@ dev = [
     "sphinxcontrib-googleanalytics>=0.4",
     "sphinx>=7.1",              # Allow old sphinx version for Python 3.8 compatibility
 ]
+mlflow = [
+    "mlflow>=2.0.0", # contain fixes for numpy>=2.0 support
+]
 notebook = [
     "notebook>=7.2.3",
 ]

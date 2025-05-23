@@ -19,6 +19,7 @@ from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
 import lightly_train._plot as methods_helpers
+from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
@@ -161,7 +162,9 @@ class Method(LightningModule):
                     img_tensor=example_aug_tensor,
                     global_step=self.global_step,
                 )
-            elif isinstance(logger, LightningWandbLogger):
+            elif isinstance(logger, LightningWandbLogger) or isinstance(
+                logger, MLFlowLogger
+            ):
                 logger.log_image(
                     key="augmentations",
                     images=[example_aug_pil],

@@ -53,6 +53,7 @@ Lightly**Train** has optional dependencies that are not installed by default. Th
 
 ### Logging
 
+- `mlflow`: For logging to [MLflow](#mlflow)
 - `wandb`: For logging to [Weights & Biases](#wandb)
 
 ### Model Support
