@@ -111,3 +111,8 @@ class Env:
         default=None,
         type_=int,
     )
+    SLURM_JOB_ID: EnvVar[str | None] = EnvVar(
+        name="SLURM_JOB_ID",
+        default=None,
+        type_=str,
+    )

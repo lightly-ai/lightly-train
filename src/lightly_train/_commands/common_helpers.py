@@ -282,7 +282,7 @@ def _get_num_cpus_per_device(num_devices_per_node: int) -> int | None:
 
 
 def _is_slurm() -> bool:
-    return "SLURM_JOB_ID" in os.environ
+    return Env.SLURM_JOB_ID.value is not None
 
 
 class ModelPart(Enum):
