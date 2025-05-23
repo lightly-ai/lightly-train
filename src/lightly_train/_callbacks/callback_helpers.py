@@ -35,7 +35,10 @@ from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._transforms.transform import NormalizeArgs
 
-AnyLoggerType = TypeVar("AnyLoggerType", Logger, JSONLLogger, MLFlowLogger,TensorBoardLogger, WandbLogger)
+AnyLoggerType = TypeVar(
+    "AnyLoggerType", Logger, JSONLLogger, MLFlowLogger, TensorBoardLogger, WandbLogger
+)
+
 
 def get_callback_args(
     callback_args: dict[str, Any] | CallbackArgs | None,

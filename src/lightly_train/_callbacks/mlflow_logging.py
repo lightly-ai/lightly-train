@@ -5,8 +5,10 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-
-from mlflow.system_metrics.system_metrics_monitor import SystemMetricsMonitor
+try:
+    from mlflow.system_metrics.system_metrics_monitor import SystemMetricsMonitor
+except ImportError:
+    SystemMetricsMonitor = None  # type: ignore[misc, assignment]
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import Callback
 
@@ -22,11 +24,11 @@ class MLFlowLogging(Callback):
     def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         self.system_monitor = None
         for logger in trainer.loggers:
-            if isinstance(logger, MLFlowLogger):
-                self.system_monitor = SystemMetricsMonitor( # type: ignore[no-untyped-call]
+            if isinstance(logger, MLFlowLogger) and SystemMetricsMonitor is not None:
+                self.system_monitor = SystemMetricsMonitor(  # type: ignore[no-untyped-call]
                     run_id=logger.run_id,
                 )
-                self.system_monitor.start() # type: ignore[no-untyped-call]
+                self.system_monitor.start()  # type: ignore[no-untyped-call]
                 logger.experiment.log_artifact(
                     run_id=logger.run_id,
                     local_path=trainer.default_root_dir + "/train.log",
@@ -36,7 +38,7 @@ class MLFlowLogging(Callback):
 
     def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         if self.system_monitor is not None:
-            self.system_monitor.finish() # type: ignore[no-untyped-call]
+            self.system_monitor.finish()  # type: ignore[no-untyped-call]
         for logger in trainer.loggers:
             if isinstance(logger, MLFlowLogger):
                 logger.experiment.log_artifact(

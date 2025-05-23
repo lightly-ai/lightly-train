@@ -57,9 +57,7 @@ class MLFlowLogger(LightningMLFlowLogger):
         self.save_temp_dir = str(save_dir)
 
     @rank_zero_only  # type: ignore[misc]
-    def log_image(
-        self, key: str, images: list[Image], step: int | None = None
-    ) -> None:
+    def log_image(self, key: str, images: list[Image], step: int | None = None) -> None:
         for image in images:
             self.experiment.log_image(
                 run_id=self.run_id,
