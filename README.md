@@ -201,6 +201,9 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
 - **Commercial License**: Ideal for businesses and organizations that need proprietary development freedom.
   Enjoy all the benefits of LightlyTrain while keeping your code and models private.
 
+- **Free Community License**: Available for students, researchers, startups in early stages, or anyone exploring or experimenting with LightlyTrain.
+  Empower the next generation of innovators with full access to the world of pretraining.
+
 We're committed to supporting both open-source and commercial users.
 [Contact us](https://www.lightly.ai/contact) to discuss the best licensing option for your project!
 
