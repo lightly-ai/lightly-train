@@ -1,24 +1,27 @@
 #
-# Copyright (c) Lightly AG and affiliates.
-# All rights reserved.
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# This source code is licensed under the Apache License, Version 2.0
+# found in the LICENSE file in the root directory of this source tree.
 #
 
-# Modifications Copyright 2025 Lightly AG:
-# - Import xFormers' cross entropy only if XFORMERS_ENABLED is True
-# - Use dist.is_initialized() to control the all_reduce operation of B in distributed setting in the iBOTPatchLoss' sinkhorn_knopp_teacher
-# - Rename iBOTPatchLoss to IBOTPatchLoss
-# - Add type hints to the functions
-# - Remove dead code
-# - Add TODO for investigating the casting of self.center in IBOTPatchLoss
-
+# References:
+#   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/loss/dino_clstoken_loss.py
+#   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/loss/ibot_patch_loss.py
+#
+# Modifications Copyright (c) Lightly AG and affiliates:
+#   - Import xFormers' cross entropy only if XFORMERS_ENABLED is True
+#   - Use dist.is_initialized() to control the all_reduce operation of B in distributed setting
+#     in the IBOTPatchLoss' sinkhorn_knopp_teacher
+#   - Rename iBOTPatchLoss to IBOTPatchLoss
+#   - Add type hints to the functions
+#   - Remove dead code
+#   - Add TODO for investigating the casting of self.center in IBOTPatchLoss
 
 from __future__ import annotations
 
 import os
-from typing import List
+from typing import List, Tuple
 
 import torch
 import torch.distributed as dist
@@ -113,8 +116,8 @@ class DINOLoss(nn.Module):
 
     def forward(
         self,
-        student_output_list: List[Tensor],
-        teacher_out_softmaxed_centered_list: List[Tensor],
+        student_output_list: Tuple[Tensor, ...] | List[Tensor],
+        teacher_out_softmaxed_centered_list: Tensor | List[Tensor],
     ) -> Tensor:
         """
         Cross-entropy between softmax outputs of the teacher and student networks.
