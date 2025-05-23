@@ -111,7 +111,7 @@ class DINOv2ViTPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: Module) -> DINOv2ViTModelWrapper:
         return DINOv2ViTModelWrapper(model=model)
 
     @classmethod

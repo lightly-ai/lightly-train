@@ -89,7 +89,7 @@ class RFDETRPackage(Package):
         return model_rfdetr
 
     @classmethod
-    def get_model_wrapper(cls, model: RFDETR) -> ModelWrapper:
+    def get_model_wrapper(cls, model: RFDETR) -> RFDETRModelWrapper:
         return RFDETRModelWrapper(model)
 
     @classmethod
@@ -121,7 +121,6 @@ class RFDETRPackage(Package):
         lwdetr_model = model.model.model
         assert isinstance(lwdetr_model, LWDETR)
 
-        # Set encoder state to eval mode
         assert isinstance(
             lwdetr_model.backbone[0].encoder.encoder,
             WindowedDinov2WithRegistersBackbone,

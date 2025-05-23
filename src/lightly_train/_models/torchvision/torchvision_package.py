@@ -62,7 +62,7 @@ class TorchvisionPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: Module) -> TorchvisionModelWrapper:
         feature_extractor_cls = cls._model_cls_to_extractor_cls().get(type(model))
         if feature_extractor_cls is not None:
             return feature_extractor_cls(model)

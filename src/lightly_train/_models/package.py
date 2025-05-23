@@ -12,11 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from lightly_train._models.model_wrapper import ModelWrapper
-
-# PackageModels should be either a ModelWrapper or the package's underlying models, such
-# as a ResNet (torchvision.models.resnet.ResNet) or an RFDETR (rfdetr.detr.RFDETR).
-# Most of these will be torch.nn.Module, but e.g. RFDETR is a custom class.
-PackageModel = Any
+from lightly_train.types import PackageModel
 
 
 class BasePackage(ABC):

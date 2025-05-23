@@ -69,7 +69,7 @@ class TIMMPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: Module) -> TIMMModelWrapper:
         return TIMMModelWrapper(model)
 
     @classmethod

@@ -25,6 +25,9 @@ from lightly_train._models.super_gradients.customizable_detector import (
 from lightly_train._models.super_gradients.segmentation_module import (
     SegmentationModuleFeatureExtractor,
 )
+from lightly_train._models.super_gradients.super_gradients import (
+    SuperGradientsModelWrapper,
+)
 from lightly_train.errors import UnknownModelError
 
 logger = logging.getLogger(__name__)
@@ -83,7 +86,7 @@ class SuperGradientsPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: Module) -> SuperGradientsModelWrapper:
         for fe in cls._FEATURE_EXTRACTORS:
             if fe.is_supported_model_cls(model_cls=type(model)):
                 return fe(model)

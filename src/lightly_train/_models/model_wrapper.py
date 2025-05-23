@@ -21,9 +21,7 @@ from torch import Tensor
 from torch.nn import Parameter
 from typing_extensions import NotRequired, Required, TypedDict, TypeVar
 
-# The package's underlying models. See lightly_train._models.BasePackage for more
-# details.
-PackageModel = Any
+from lightly_train.types import PackageModel
 
 
 class ForwardFeaturesOutput(TypedDict, total=False):

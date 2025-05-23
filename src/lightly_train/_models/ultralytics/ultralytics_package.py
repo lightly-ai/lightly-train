@@ -10,15 +10,13 @@ from __future__ import annotations
 import copy
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 from torch.nn import Module
 
-try:
+if TYPE_CHECKING:
     from ultralytics import YOLO
-except ImportError:
-    pass
 
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -100,7 +98,7 @@ class UltralyticsPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: Module) -> UltralyticsModelWrapper:
         return UltralyticsModelWrapper(model=model)
 
     @classmethod

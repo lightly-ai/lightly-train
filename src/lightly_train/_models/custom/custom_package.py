@@ -38,7 +38,7 @@ class CustomPackage(BasePackage):
             model = model
         else:
             raise ValueError(
-                f"CustomPackage only supports exportint ModelWrapper or torch.nn.Module, "
+                f"CustomPackage only supports exporting ModelWrapper or torch.nn.Module, "
                 f"but got {type(model)}"
             )
 

@@ -16,6 +16,8 @@ from numpy.typing import NDArray
 from torch import Tensor
 from typing_extensions import NotRequired
 
+PackageModel = Any
+
 # Types for the new transforms.
 NDArrayImage = NDArray[np.uint8]
 
