@@ -29,6 +29,11 @@ from lightly_train.errors import ConfigValidationError
 
 from ..helpers import DummyCustomModel
 
+try:
+    import mlflow
+except ImportError:
+    mlflow = None # type: ignore[assignment]
+
 
 @pytest.mark.parametrize(
     "callback_args, expected_result",
@@ -62,6 +67,28 @@ def test_get_callback_args__failure() -> None:
 
 
 def test_get_callbacks__default(tmp_path: Path) -> None:
+    model = DummyCustomModel()
+    embedding_model = EmbeddingModel(wrapped_model=model)
+    callback_args = CallbackArgs()
+    callbacks = callback_helpers.get_callbacks(
+        callback_args=callback_args,
+        out=tmp_path,
+        wrapped_model=model,
+        embedding_model=embedding_model,
+        normalize_args=NormalizeArgs(),
+        loggers=[],
+    )
+    assert len(callbacks) == 6
+    early_stopping = next(c for c in callbacks if isinstance(c, EarlyStopping))
+    model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
+    assert early_stopping.monitor == "train_loss"
+    assert early_stopping.patience == int(1e12)
+    assert model_checkpoint.save_last
+    assert str(model_checkpoint.dirpath) == str(tmp_path / "checkpoints")
+
+
+@pytest.mark.skipif(mlflow is None, reason="MLFlow is not installed")
+def test_get_callbacks__mlflow(tmp_path: Path) -> None:
     model = DummyCustomModel()
     embedding_model = EmbeddingModel(wrapped_model=model)
     callback_args = CallbackArgs()

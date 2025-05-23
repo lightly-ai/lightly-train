@@ -36,7 +36,7 @@ from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._transforms.transform import NormalizeArgs
 
 AnyLoggerType = TypeVar(
-    "AnyLoggerType", Logger, JSONLLogger, MLFlowLogger, TensorBoardLogger, WandbLogger
+    "AnyLoggerType", Logger, JSONLLogger, MLFlowLogger, TensorBoardLogger, WandbLogger, None
 )
 
 
