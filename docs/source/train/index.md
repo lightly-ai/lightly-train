@@ -158,6 +158,8 @@ Logging is configured with the `loggers` argument. The following loggers are
 supported:
 
 - [`jsonl`](#jsonl): Logs training metrics to a .jsonl file (enabled by default)
+- [`mlflow`](#mlflow): Logs training metrics to MLflow (disabled by
+  default, requires MLflow to be installed)
 - [`tensorboard`](#tensorboard): Logs training metrics to TensorBoard (enabled by
   default, requires TensorBoard to be installed)
 - [`wandb`](#wandb): Logs training metrics to Weights & Biases (disabled by
@@ -180,6 +182,42 @@ loggers={"jsonl": None}
 ````{tab} Command Line
 ```bash
 loggers.jsonl=null
+````
+
+(mlflow)=
+
+### MLflow
+
+```{important}
+MLflow must be installed with `pip install "lightly-train[mlflow]"`.
+```
+
+The mlflow logger can be configured with the following arguments:
+
+````{tab} Python
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train(
+        out="out/my_experiment",
+        data="my_data_dir",
+        model="torchvision/resnet50",
+        loggers={
+            "mlflow": {
+                "experiment_name": "my_experiment",
+                "run_name": "my_run",
+                "tracking_uri": "tracking_uri",
+                # "run_id": "my_run_id",  # Use if resuming a training with resume=True
+                # "log_model": True,      # Currently not supported
+            },
+        },
+    )
+````
+
+````{tab} Command Line
+```bash
+lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.mlflow.experiment_name="my_experiment" loggers.mlflow.run_name="my_run" loggers.mlflow.tracking_uri=tracking_uri
 ````
 
 (tensorboard)=
