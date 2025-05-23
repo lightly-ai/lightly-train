@@ -22,7 +22,7 @@ from lightly_train._commands.embed import CLIEmbedConfig
 from lightly_train._commands.export import CLIExportConfig
 from lightly_train._commands.extract_video_frames import CLIExtractVideoFramesConfig
 from lightly_train._commands.train import CLITrainConfig
-from lightly_train._logging import LIGHTLY_TRAIN_LOG_LEVEL_ENV_VAR
+from lightly_train._env import Env
 from lightly_train._models import package_helpers
 from lightly_train.errors import ConfigError
 
@@ -364,7 +364,9 @@ def cli(config: DictConfig) -> None:
     # Check if the user wants to run the command in verbose mode.
     # Any of the following will enable verbose mode: -v, --verbose
     if any(flag in keys for flag in _VERBOSE_FLAGS):
-        os.environ[LIGHTLY_TRAIN_LOG_LEVEL_ENV_VAR] = str(logging.DEBUG)
+        os.environ[Env.LIGHTLY_TRAIN_LOG_LEVEL.name] = logging.getLevelName(
+            logging.DEBUG
+        )
         config = OmegaConf.create(
             {k: v for k, v in config.items() if k not in _VERBOSE_FLAGS}
         )

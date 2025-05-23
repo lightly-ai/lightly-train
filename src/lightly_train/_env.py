@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,6 +54,11 @@ class EnvVar(Generic[T]):
 
 
 class Env:
+    LIGHTLY_TRAIN_LOG_LEVEL: EnvVar[str] = EnvVar(
+        name="LIGHTLY_TRAIN_LOG_LEVEL",
+        default=logging.getLevelName(logging.INFO),
+        type_=str,
+    )
     LIGHTLY_TRAIN_CACHE_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_CACHE_DIR",
         default=Path.home() / ".cache" / "lightly-train",
