@@ -38,11 +38,9 @@ class MLFlowLogger(LightningMLFlowLogger):
         tags: dict[str, Any] | None = None,
         save_dir: Path | None = Path("./mlruns"),
         log_model: Literal[True, False, "all"] = False,
-        checkpoint_path_prefix: str = "",
         prefix: str = "",
         artifact_location: str | None = None,
         run_id: str | None = None,
-        synchronous: bool | None = False,
     ) -> None:
         os.environ["MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING"] = "true"
         super().__init__(
@@ -52,11 +50,9 @@ class MLFlowLogger(LightningMLFlowLogger):
             tags=tags,
             save_dir=str(save_dir),
             log_model=log_model,
-            checkpoint_path_prefix=checkpoint_path_prefix,
             prefix=prefix,
             artifact_location=artifact_location,
             run_id=run_id,
-            synchronous=synchronous,
         )
         self.save_temp_dir = str(save_dir)
 
