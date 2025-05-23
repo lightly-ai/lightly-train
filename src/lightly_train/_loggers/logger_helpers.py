@@ -16,6 +16,7 @@ from pytorch_lightning.loggers import Logger
 from lightly_train._configs import validate
 from lightly_train._loggers.jsonl import JSONLLogger
 from lightly_train._loggers.logger_args import LoggerArgs
+from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._loggers.wandb import WandbLogger
 
@@ -48,6 +49,9 @@ def get_loggers(logger_args: LoggerArgs, out: Path) -> list[Logger]:
     if logger_args.jsonl is not None:
         logger.debug(f"Using jsonl logger with args {logger_args.jsonl}")
         loggers.append(JSONLLogger(save_dir=out, **logger_args.jsonl.model_dump()))
+    if logger_args.mlflow is not None:
+        logger.debug(f"Using mlflow logger with args {logger_args.mlflow}")
+        loggers.append(MLFlowLogger(save_dir=out, **logger_args.mlflow.model_dump()))
     if logger_args.tensorboard is not None:
         logger.debug(f"Using tensorboard logger with args {logger_args.tensorboard}")
         loggers.append(
