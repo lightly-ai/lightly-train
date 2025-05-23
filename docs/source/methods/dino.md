@@ -34,9 +34,21 @@ DINO trains a student network to match the output of a momentum-averaged teacher
 - **Batch Size**: We recommend somewhere between 256 and 1024 for DINO as the original paper suggested.
 - **Number of Epochs**: We recommend somewhere between 100 to 300 epochs. However, DINO benefits from longer schedules and may still improve after training for more than 300 epochs.
 
-## Default Augmentation Settings
+## Default Method Arguments
 
-The following are the default augmentation settings for DINO. To learn how you can override these settings, see {ref}`method-transform-args`.
+The following are the default method arguments for DINO. To learn how you can
+override these settings, see {ref}`method-args`.
 
+````{dropdown} Default Method Arguments
+```{include} _auto/dino_method_args.md
+```
+````
+
+## Default Image Transforms Settings
+
+The following are the default transforms settings for DINO. To learn how you can override these settings, see {ref}`method-transform-args`.
+
+````{dropdown} Default Image Transforms
 ```{include} _auto/dino_transform_args.md
 ```
+````

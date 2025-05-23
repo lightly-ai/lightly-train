@@ -35,9 +35,11 @@ class TIMMPackage(Package):
         return [f"{cls.name}/{model_name}" for model_name in timm.list_models()]
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
         # Get the class hierarchy (MRO: Method Resolution Order) and check if
         # any of the (super)classes are from the timm package.
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
         class_hierarchy = inspect.getmro(model.__class__)
         return any(_cls.__module__.startswith(cls.name) for _cls in class_hierarchy)
 

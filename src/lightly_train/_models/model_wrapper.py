@@ -7,11 +7,19 @@
 #
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    Iterator,
+    Mapping,
+    Protocol,
+    overload,
+    runtime_checkable,
+)
 
 from torch import Tensor
-from torch.nn import Module
-from typing_extensions import NotRequired, Required, TypedDict
+from torch.nn import Module, Parameter
+from typing_extensions import NotRequired, Required, TypedDict, TypeVar
 
 
 class ForwardFeaturesOutput(TypedDict, total=False):
@@ -76,4 +84,29 @@ class ModelGetter(Protocol):
 
 
 @runtime_checkable
-class ModelWrapper(ForwardFeatures, ForwardPool, FeatureDim, ModelGetter, Protocol): ...
+class NNModule(Protocol):
+    """Method definitions for nn.Module, directly copied from torch.nn.Module."""
+
+    T_destination = TypeVar("T_destination", bound=Dict[str, Any])
+
+    @overload
+    def state_dict(
+        self, *, destination: T_destination, prefix: str = ..., keep_vars: bool = ...
+    ) -> T_destination: ...
+
+    @overload
+    def state_dict(
+        self, *, prefix: str = ..., keep_vars: bool = ...
+    ) -> dict[str, Any]: ...
+
+    def parameters(self, recurse: bool = True) -> Iterator[Parameter]: ...
+
+    def load_state_dict(
+        self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False
+    ) -> None: ...
+
+
+@runtime_checkable
+class ModelWrapper(
+    ForwardFeatures, ForwardPool, FeatureDim, ModelGetter, NNModule, Protocol
+): ...

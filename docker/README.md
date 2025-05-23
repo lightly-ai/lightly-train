@@ -1,8 +1,8 @@
-# LightlyTrain Docker container
+# LightlyTrain Docker Image
 
-TODO
+Documentation on how to use the docker images: https://docs.lightly.ai/train/stable/docker.html
 
-## Available images
+## Available Images
 
 List of currently available Docker base images:
 
@@ -17,34 +17,17 @@ once we have multiple base images. Alternatives are e.g.:
    a separate subdirectory.
 1. Have docker multi-platform builds.
 
-## Install
-
-TODO
-
-## Usage
-
-First, start the docker container in interactive mode by using the -it flag. Furthermore,
-you must mount the directories you want to use.
-
-```
-docker run -it --gpus=all --user $(id -u):$(id -g) -v /my_data_dir:/data -v /my_output_dir:/out lightly/train:latest
-```
-
-Then all the usual CLI commands are fully available. E.g. run
-
-```
-lightly-train train data="/data" out="/out" model="torchvision/convnext_small" method=dino
-```
-
 ## Development
 
-Note that there are different Dockerfiles and requirements file for each base image.
+### Building Images
 
-### Building images
+Images are built by calling the corresponding [Makefile](./Makefile) command:
 
-Images can be built by calling the corresponding Makefile commands:
+- `make build-docker-IMAGE_TYPE` builds the image specified by the file `Dockerfile-IMAGE_TYPE`
 
-`make build-docker-IMAGE_TYPE` builds the image specified by the file `Dockerfile-IMAGE_TYPE`
-and using the file `requirements-docker-IMAGE_TYPE.txt`
+### Testing Images
 
-`make main-deploy-IMAGE_TYPE` builds the image and publishes it on Docker Hub.
+Run tests with `make test`. The docker image must already be built.
+
+Attention! This requires that a Python environment is activated. It will also create
+some images locally (outside of the docker container) for testing.

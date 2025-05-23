@@ -23,7 +23,7 @@ from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type
 )
 from torch.nn import Module
 
-from lightly_train import _logging, _system
+from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._callbacks import callback_helpers
 from lightly_train._callbacks.callback_args import CallbackArgs
 from lightly_train._commands import _warnings, common_helpers, train_helpers
@@ -35,6 +35,7 @@ from lightly_train._loggers.logger_args import LoggerArgs
 from lightly_train._methods import method_helpers
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._transforms.transform import MethodTransformArgs
@@ -44,9 +45,10 @@ logger = logging.getLogger(__name__)
 
 
 def train(
+    *,
     out: PathLike,
     data: PathLike | Sequence[PathLike],
-    model: str | Module,
+    model: str | Module | ModelWrapper,
     method: str = "distillation",
     method_args: dict[str, Any] | None = None,
     embed_dim: int | None = None,
@@ -61,6 +63,7 @@ def train(
     accelerator: str | Accelerator = "auto",
     strategy: str | Strategy = "auto",
     precision: _PRECISION_INPUT = "32-true",  # Default precision in PyTorch Lightning
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
     seed: int = 0,
     loggers: dict[str, dict[str, Any] | None] | None = None,
     callbacks: dict[str, dict[str, Any] | None] | None = None,
@@ -134,6 +137,10 @@ def train(
         precision:
             Training precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
             for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication. Can be one of ['auto',
+            'highest', 'high', 'medium']. See https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
+            for more information.
         seed:
             Random seed for reproducibility.
         loggers:
@@ -219,6 +226,7 @@ def train_from_config(config: TrainConfig) -> None:
     _warnings.filter_train_warnings()
     _logging.set_up_console_logging()
     _logging.set_up_file_logging(out_dir / "train.log")
+    _logging.set_up_filters()
     logger.info(
         f"Args: {common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}"
     )
@@ -235,13 +243,22 @@ def train_from_config(config: TrainConfig) -> None:
     transform_instance = train_helpers.get_transform(
         method=config.method, transform_args_resolved=config.transform_args
     )
+    config.float32_matmul_precision = (
+        _float32_matmul_precision.get_float32_matmul_precision(
+            float32_matmul_precision=config.float32_matmul_precision,
+        )
+    )
     # Create a temporary file to use as a memory map for dataset items. The
     # file has to exist while the dataset is used.
     # TODO(Philipp, 10/24): For training it could make sense to store the
     # file in the output directory and recover it on resume.
     with common_helpers.verify_out_dir_equal_on_all_local_ranks(
         out=out_dir
-    ), common_helpers.get_dataset_temp_mmap_path(out=out_dir) as mmap_filepath:
+    ), common_helpers.get_dataset_temp_mmap_path(
+        out=out_dir
+    ) as mmap_filepath, _float32_matmul_precision.float32_matmul_precision(
+        float32_matmul_precision=config.float32_matmul_precision
+    ):
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform_instance,
@@ -250,11 +267,11 @@ def train_from_config(config: TrainConfig) -> None:
         scaling_info = train_helpers.get_scaling_info(
             dataset=dataset, epochs=config.epochs
         )
-        model_instance = package_helpers.get_model(
+        wrapped_model = package_helpers.get_wrapped_model(
             model=config.model, model_args=config.model_args
         )
         embedding_model = train_helpers.get_embedding_model(
-            model=model_instance, embed_dim=config.embed_dim
+            wrapped_model=wrapped_model, embed_dim=config.embed_dim
         )
         log_every_n_steps = train_helpers.get_lightning_logging_interval(
             dataset_size=scaling_info.dataset_size, batch_size=config.batch_size
@@ -269,7 +286,7 @@ def train_from_config(config: TrainConfig) -> None:
         callback_instances = callback_helpers.get_callbacks(
             callback_args=config.callbacks,
             out=out_dir,
-            model=callback_helpers.get_checkpoint_model(model=model_instance),
+            wrapped_model=wrapped_model,
             embedding_model=embedding_model,
             normalize_args=transform_instance.transform_args.normalize,
         )
@@ -330,7 +347,7 @@ def train_from_config(config: TrainConfig) -> None:
             method_args=config.method_args,
             scaling_info=scaling_info,
             optimizer_args=config.optim_args,
-            model=model_instance,
+            model=wrapped_model.get_model(),
         )
         method_instance = train_helpers.get_method(
             method_cls=method_cls,
@@ -342,7 +359,7 @@ def train_from_config(config: TrainConfig) -> None:
         train_helpers.load_checkpoint(
             checkpoint=config.checkpoint,
             resume=config.resume,
-            model=model_instance,
+            wrapped_model=wrapped_model,
             embedding_model=embedding_model,
             method=method_instance,
         )
@@ -356,10 +373,14 @@ def train_from_config(config: TrainConfig) -> None:
         logger.info("No training epochs specified. Saving model and exiting.")
         trainer_instance.save_checkpoint(out_dir / "checkpoints" / "last.ckpt")
     logger.info("Training completed.")
+    package = package_helpers.get_package_from_model(
+        model=wrapped_model, include_custom=True, fallback_custom=True
+    )
     common_helpers.export_model(
-        model=model_instance,
+        model=wrapped_model,
         out=out_dir / "exported_models" / "exported_last.pt",
         format=ModelFormat.PACKAGE_DEFAULT,
+        package=package,
     )
     logger.info("Model exported.")
 
@@ -374,7 +395,7 @@ def train_from_dictconfig(config: DictConfig) -> None:
 class TrainConfig(PydanticConfig):
     out: PathLike
     data: PathLike | Sequence[PathLike]
-    model: str | Module
+    model: str | Module | ModelWrapper
     method: str = "distillation"
     method_args: dict[str, Any] | MethodArgs | None = None
     embed_dim: int | None = None
@@ -389,6 +410,7 @@ class TrainConfig(PydanticConfig):
     accelerator: str | Accelerator = "auto"
     strategy: str | Strategy = "auto"
     precision: _PRECISION_INPUT = "32-true"
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
     seed: int = 0
     loggers: dict[str, dict[str, Any] | None] | LoggerArgs | None = None
     callbacks: dict[str, dict[str, Any] | None] | CallbackArgs | None = None
