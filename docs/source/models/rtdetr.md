@@ -59,6 +59,9 @@ class RTDETRModelWrapper(Module):
         self._model = model
         self._pool = AdaptiveAvgPool2d((1, 1))
 
+    def get_model(self) -> Module:
+        return self._model
+
     def forward_features(self, x: Tensor) -> Dict[str, Tensor]:
         features = self._model.backbone(x)[-1]
         return {"features": features}
