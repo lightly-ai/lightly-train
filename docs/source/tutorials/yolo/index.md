@@ -21,19 +21,33 @@ pip install "lightly-train[ultralytics]" "supervision==0.25.1"
 ```
 
 ## Pretraining on COCO-minitrain
-We can download the COCO-minitrain dataset (25k images) directly from HuggingFace:
+
+We can download the COCO-minitrain dataset (25k images) directly from HuggingFace...
+
 ```bash
 wget https://huggingface.co/datasets/bryanbocao/coco_minitrain/resolve/main/coco_minitrain_25k.zip
 ```
-And unzip it:
+
+... unzip it...
+
 ```bash
 unzip coco_minitrain_25k.zip
 ```
-Since Lightly**Train** does not require any labels, we can can confidently delete all the labels:
+
+... and since Lightly**Train** does not require any labels, we can can confidently delete all the labels:
+
 ```bash
 rm -rf coco_minitrain_25k/labels
 ```
-And start pretraining a YOLO11s model:
+
+With the dataset ready, we can now start the pretraining. Pretraining with Lightly**Train** could not be easier, you just pass the following parameters:
+
+- `out`: you simply state where you want your logs and exported model to go to
+- `model`: the model that you want to train, e.g. `yolo11s` from Ultralytics
+- `data`: the path to a folder with images
+
+Your data is simply assumed to be an arbitrarily nested folder; LightlyTrain with find all images on its own and since there are no labels required there is no danger of ever using false labels! 🕵️‍♂️
+
 ````{tab} Python
 ```python
 # pretrain_yolo.py
@@ -46,21 +60,33 @@ if __name__ == "__main__":
         model="ultralytics/yolo11s.yaml",   # Pass the YOLO model (use .yaml ending to start with random weights).
         data="coco_minitrain_25k/images",   # Path to a directory with training images.
         epochs=100,                         # Adjust epochs for shorter training.
-        batch_size=64,                      # Adjust batch size based on hardware.
+        batch_size=128,                     # Adjust batch size based on hardware.
     )
 ```
 ````
 
 ````{tab} Command Line
 ```bash
-lightly-train --out=out/coco_minitrain_pretrain --model=ultralytics/yolo11s.yaml --data=coco_minitrain_25k/images --epochs=100 --batch-size=64
+lightly-train --out=out/coco_minitrain_pretrain --model=ultralytics/yolo11s.yaml --data=coco_minitrain_25k/images --epochs=100 --batch-size=128
 ```
 ````
+
 And just like that you pretrained a YOLO11s backbone! 🥳 This backbone can't solve any task yet, so in the next step we will finetune it on the PASCAL VOC dataset.
 
 ## Finetuning on PASCAL VOC
 
 ### Download the PASCAL VOC Dataset
+
+And just like that you pretrained a YOLO11s backbone! 🥳 This backbone can't solve any task yet, so in the next step we will finetune it for object detection on the PASCAL VOC dataset.
+
+## Finetuning on PASCAL VOC
+
+Now that the pretrained model has been exported, we will further fine-tune the model on the task of object detection. The exported model already has exactly the format that Ultralytics' YOLO expects, so after getting the dataset ready, we can get started with only a few lines! ⚡️ In addition to fine-tuning the pretrained model we will also train a model that we initialize with random weights. This will let us compare the performance between the two, and show the great benefits of pretraining.
+
+Expect again a run-time of around 1h each for fine-tuning from the pretrained model as well as fine-tuning from randomly initialized weights.
+
+### Download the PASCAL VOC Dataset
+
 We can download the dataset directly using Ultralytics' API with the `check_det_dataset` function:
 
 ```python
@@ -97,7 +123,7 @@ tree -d <DATASET-DIR>/VOC -I VOCdevkit
 >        └── val2012
 ```
 
-## Inspect a few Images
+### Inspect a few Images
 
 Let's use `supervision` and look at a few of the annotated samples to get a feeling of what the data looks like:
 
@@ -147,7 +173,7 @@ fig.show()
 
 ![VOC2012 Training Samples](samples_VOC_train2012.png)
 
-## Finetuning the Pretrained Model
+### Finetuning the Pretrained Model
 
 ````{tab} Python
 ```python
@@ -160,41 +186,63 @@ if __name__ == "__main__":
     model = YOLO("out/coco_minitrain_pretrain/exported_models/exported_last.pt")
 
     # Fine-tune with ultralytics.
-    model.train(data="VOC.yaml", epochs=100)
+    model.train(data="VOC.yaml", epochs=30, project="logs/voc_yolo11s", name="from_pretrained")
 ```
 ````
 
 ````{tab} Command Line
 ```bash
-yolo detect train model="out/my_experiment/exported_models/exported_last.pt" data="VOC.yaml" epochs=100
+yolo detect train model="out/my_experiment/exported_models/exported_last.pt" data="VOC.yaml" epochs=30 project="logs/voc_yolo11s" name="from_pretrained"
 ```
 ````
 
-## Compare the Performance to a Randomly Initialized Model
-Let's see how our Lightly**Train** pretrained model stacks up against a randomly initialized model. We can do this by running the same training command as above, but with a randomly initialized model:
+### Finetuning the Randomly Initialized Model
 
 ````{tab} Python
 ```python
-# finetune_yolo_random.py
+# finetune_scratch_yolo.py
+
 from ultralytics import YOLO
 
 if __name__ == "__main__":
-    # Load a randomly initialized model.
+    # Load the exported model.
     model = YOLO("yolo11s.yaml") # randomly initialized model
 
     # Fine-tune with ultralytics.
-    model.train(data="VOC.yaml", epochs=100)
+    model.train(data="VOC.yaml", epochs=30, project="logs/voc_yolo11s", name="from_scratch")
 ```
 ````
 
 ````{tab} Command Line
 ```bash
-yolo detect train model="yolo11s.yaml" data="VOC.yaml" epochs=100
+yolo detect train model="yolo11s.yaml" data="VOC.yaml" epochs=30 project="logs/voc_yolo11s" name="from_scratch"
 ```
 ````
 
 We can gather the validation results of both models from the logs:
 
+```python
+import matplotlib.pyplot as plt
+import pandas as pd
+
+res_scratch = pd.read_csv("logs/voc_yolo11s/from_scratch/results.csv")
+res_finetune = pd.read_csv("logs/voc_yolo11s/from_pretrained/results.csv")
+
+fig, ax = plt.subplots()
+ax.plot(res_scratch["epoch"], res_scratch["metrics/mAP50-95(B)"], label="scratch")
+ax.plot(res_finetune["epoch"], res_finetune["metrics/mAP50-95(B)"], label="finetune")
+ax.set_xlabel("Epoch")
+ax.set_ylabel("mAP50-95")
+max_pretrained = res_finetune["metrics/mAP50-95(B)"].max()
+max_scratch = res_scratch["metrics/mAP50-95(B)"].max()
+ax.set_title(
+    f"Pretraining is {(max_pretrained - max_scratch) / max_scratch * 100:.2f}% better than scratch"
+)
+ax.legend()
+plt.show()
+```
+
+![Pretraining vs Scratch](results_VOC.png)
 
 For more advanced options, explore the [LightlyTrain Python API](#lightly-train) and [Ultralytics documentation](https://docs.ultralytics.com).
 
