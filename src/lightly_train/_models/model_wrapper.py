@@ -19,7 +19,7 @@ from typing import (
 
 import typing_extensions
 from torch import Tensor
-from torch.nn import Parameter
+from torch.nn import Module, Parameter
 from typing_extensions import NotRequired, Required, TypedDict, TypeVar
 
 from lightly_train.types import PackageModel

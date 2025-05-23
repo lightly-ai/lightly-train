@@ -32,7 +32,7 @@ from ..helpers import DummyCustomModel
 try:
     import mlflow
 except ImportError:
-    mlflow = None # type: ignore[assignment]
+    mlflow = None  # type: ignore[assignment]
 
 
 @pytest.mark.parametrize(
