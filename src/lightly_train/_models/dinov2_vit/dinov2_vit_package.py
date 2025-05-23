@@ -45,11 +45,12 @@ class DINOv2ViTPackage(Package):
         return [f"{cls.name}/{entry}" for entry in list(VIT_MODELS.keys())]
 
     @classmethod
-    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
+    def is_supported_model(
+        cls, model: DinoVisionTransformer | ModelWrapper | Any
+    ) -> bool:
         if isinstance(model, ModelWrapper):
             return isinstance(model.get_model(), DinoVisionTransformer)
-        else:
-            return isinstance(model, DinoVisionTransformer)
+        return isinstance(model, DinoVisionTransformer)
 
     @classmethod
     def get_model(
@@ -110,11 +111,25 @@ class DINOv2ViTPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: Module) -> DINOv2ViTModelWrapper:
         return DINOv2ViTModelWrapper(model=model)
 
     @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
+    def export_model(
+        cls,
+        model: DinoVisionTransformer | ModelWrapper | Any,
+        out: Path,
+        log_example: bool = True,
+    ) -> None:
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
+
+        if not cls.is_supported_model(model):
+            raise ValueError(
+                f"DINOv2ViTPackage cannot export model of type {type(model)}. "
+                "The model must be a ModelWrapper or a DinoVisionTransformer."
+            )
+
         torch.save(model.state_dict(), out)
 
         if log_example:

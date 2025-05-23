@@ -47,10 +47,10 @@ def test_list_model_names(package_name: str, model_name: str) -> None:
 
 def test_get_model__rfdetr() -> None:
     pytest.importorskip("rfdetr")
-    from rfdetr.models.lwdetr import LWDETR
+    from rfdetr.detr import RFDETR
 
     model = package_helpers.get_wrapped_model("rfdetr/rf-detr-base")
-    assert isinstance(model.get_model(), LWDETR)
+    assert isinstance(model.get_model(), RFDETR)
 
 
 def test_get_model__torchvision() -> None:

@@ -22,6 +22,8 @@ from torch import Tensor
 from torch.nn import Module, Parameter
 from typing_extensions import NotRequired, Required, TypedDict, TypeVar
 
+from lightly_train.types import PackageModel
+
 
 class ForwardFeaturesOutput(TypedDict, total=False):
     """Output of the forward_features method."""
@@ -79,7 +81,7 @@ class FeatureDim(Protocol):
 
 @runtime_checkable
 class ModelGetter(Protocol):
-    def get_model(self) -> Module:
+    def get_model(self) -> PackageModel:
         """Returns the model to store in the checkpoint."""
         ...
 
