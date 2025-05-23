@@ -289,6 +289,7 @@ def train_from_config(config: TrainConfig) -> None:
             wrapped_model=wrapped_model,
             embedding_model=embedding_model,
             normalize_args=transform_instance.transform_args.normalize,
+            loggers=logger_instances,
         )
         config.accelerator = common_helpers.get_accelerator(
             accelerator=config.accelerator

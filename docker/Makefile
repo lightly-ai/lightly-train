@@ -35,6 +35,7 @@ test:
 		-v $(LIGHTLY_TRAIN_OUT):/out \
 		-v $(LIGHTLY_TRAIN_DATA):/data \
 		-v ./Makefile:/home/lightly_train/docker/Makefile \
+		-v ./variables.mk:/home/lightly_train/docker/variables.mk \
 		--gpus all \
 		lightly/$(IMAGE):$(TAG) \
 		make test-from-with-docker -C docker
