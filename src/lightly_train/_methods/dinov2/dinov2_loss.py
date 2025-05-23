@@ -4,7 +4,8 @@
 # This source code is licensed under the Apache License, Version 2.0
 # found in the LICENSE file in the root directory of this source tree.
 #
-# Adapted from:
+
+# References:
 #   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/loss/dino_clstoken_loss.py
 #   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/loss/ibot_patch_loss.py
 #
@@ -16,7 +17,6 @@
 #   - Add type hints to the functions
 #   - Remove dead code
 #   - Add TODO for investigating the casting of self.center in IBOTPatchLoss
-#
 
 from __future__ import annotations
 

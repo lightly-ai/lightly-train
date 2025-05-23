@@ -4,7 +4,8 @@
 # This source code is licensed under the Apache License, Version 2.0
 # found in the LICENSE file in the root directory of this source tree.
 #
-# Adapted from:
+
+# References:
 #   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/data/masking.py
 #   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/data/collate.py
 #   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/utils/param_groups.py
@@ -15,7 +16,6 @@
 # - collate: remove collated_global_crops, collated_local_crops, upperbound, and n_masked_patches
 # - param_groups: adjusted the parameter structure
 # - param_groups: feed the parameter groups directly to the optimizer
-#
 
 from __future__ import annotations
 
