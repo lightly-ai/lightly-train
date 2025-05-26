@@ -22,7 +22,7 @@ pip install "lightly-train[ultralytics]" "supervision==0.25.1"
 
 ## Pretraining on COCO-minitrain
 
-We can download the COCO-minitrain dataset (25k images) directly from HuggingFace...
+Time for some magic! We'll first grab the COCO-minitrain dataset (25k images) directly from HuggingFace...
 
 ```bash
 wget https://huggingface.co/datasets/bryanbocao/coco_minitrain/resolve/main/coco_minitrain_25k.zip
@@ -75,15 +75,9 @@ And just like that you pretrained a YOLO11s backbone! 🥳 This backbone can't s
 
 ## Finetuning on PASCAL VOC
 
-### Download the PASCAL VOC Dataset
+Now that the pretrained model has been exported, we will further fine-tune the model on the task of object detection. The exported model already has exactly the format that Ultralytics' YOLO expects, so after getting the dataset ready, we can get started with only a few lines! ⚡️
 
-And just like that you pretrained a YOLO11s backbone! 🥳 This backbone can't solve any task yet, so in the next step we will finetune it for object detection on the PASCAL VOC dataset.
-
-## Finetuning on PASCAL VOC
-
-Now that the pretrained model has been exported, we will further fine-tune the model on the task of object detection. The exported model already has exactly the format that Ultralytics' YOLO expects, so after getting the dataset ready, we can get started with only a few lines! ⚡️ In addition to fine-tuning the pretrained model we will also train a model that we initialize with random weights. This will let us compare the performance between the two, and show the great benefits of pretraining.
-
-Expect again a run-time of around 1h each for fine-tuning from the pretrained model as well as fine-tuning from randomly initialized weights.
+In addition to fine-tuning the pretrained model we will also train a model that we initialize with random weights. This will let us compare the performance between the two, and show the great benefits of pretraining.
 
 ### Download the PASCAL VOC Dataset
 
@@ -175,6 +169,8 @@ fig.show()
 
 ### Finetuning the Pretrained Model
 
+All we have to do is to pass the path to the pretrained model to the `YOLO` class and the rest is the same as always with Ultralytics.
+
 ````{tab} Python
 ```python
 # finetune_yolo.py
@@ -198,6 +194,8 @@ yolo detect train model="out/my_experiment/exported_models/exported_last.pt" dat
 
 ### Finetuning the Randomly Initialized Model
 
+In order to quantify the influence of our pretraining, we also train a model from random weights, in Ultralytics this follows the `.yaml` name convention.
+
 ````{tab} Python
 ```python
 # finetune_scratch_yolo.py
@@ -219,7 +217,9 @@ yolo detect train model="yolo11s.yaml" data="VOC.yaml" epochs=30 project="logs/v
 ```
 ````
 
-We can gather the validation results of both models from the logs:
+## Evaluating the Model Performance
+
+Congratulations, you made it almost to the end! 🎉 The last thing we'll do is to analyze the performance between the two. A very common metric to measure the performance of object detectors is the `mAP50-95` which we plot in the next cell, for both the pretrained model and the model that we trained from scratch.
 
 ```python
 import matplotlib.pyplot as plt
@@ -244,10 +244,14 @@ plt.show()
 
 ![Pretraining vs Scratch](results_VOC.png)
 
-For more advanced options, explore the [LightlyTrain Python API](#lightly-train) and [Ultralytics documentation](https://docs.ultralytics.com).
+As clearly visible in the plot, the pretrained models converges much faster and achieves a significantly higher mAP50-95 than the model trained from scratch!
 
 ## Next Steps
 
-- Go beyond the default distillation pretraining and experiment other pretraining learning methods in LightlyTrain. Check [Methods](#methods) for more information.
-- Try various YOLO models (`YOLOv5`, `YOLOv6`, `YOLOv8`).
-- Use the pretrained model for other tasks, like {ref}`image embeddings <embed>`.
+Congratulations, you've mastered the basics! 🎉 Ready to take it further? Here are some exciting next steps:
+
+- Go beyond distillation and explore other pretraining methods in LightlyTrain. Check [Methods](#methods) for more exciting possibilities!
+- Try your hand at different YOLO flavors (`YOLOv5`, `YOLOv6`, `YOLOv8`).
+- Take your pretrained model for a spin with {ref}`image embeddings <embed>` and similarity search.
+
+Happy experimenting! 🚀
