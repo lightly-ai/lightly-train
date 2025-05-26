@@ -38,7 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Custom models](https://docs.lightly.ai/train/stable/models/custom_models.html) now require the `get_model` method to be implemented.
 - Distillation methods now use the teacher model from the [official DINOv2 implementation](https://github.com/facebookresearch/dinov2).
 - The RT-DETR example uses RT-DETRv2, imposing fewer constraints on package versions.
-- 
 
 ### Deprecated
 
