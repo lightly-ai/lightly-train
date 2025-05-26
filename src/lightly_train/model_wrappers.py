@@ -1,0 +1,1 @@
+from lightly_train._models.rtdetr.rtdetr import RTDETRModelWrapper
