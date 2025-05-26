@@ -9,23 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- New, improved distillationv2 method that achieves higher accuracy and trains up to 3x faster than distillationv1.
-  The new method is selected as default by LightlyTrain with `method="distillation"`. The old distillation method
-  can still be used with `method="distillationv1"` for backwards compatibility.
-- MLflow logger to enable system and model metric logging to mlflow backend.
-- Support lists of files and folders as input to the `embed` and `train` commands.
-- Faster dataset initialization with SLURM and Windows.
-- Model is exported after every n-th epoch instead of only at the end. Default n=1
-- A tutorial on how to [train embedding models with LightlyTrain](https://docs.lightly.ai/train/stable/tutorials/embedding/index.html).
-- Option to set `float32_matmul_precision` in the `train` command.
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.7.0] - 2025-05-26
+
+### Added
+
+- Add **Distillation v2** method that achieves higher accuracy and trains up to 3x faster than Distillation v1. The new method is selected as default by LightlyTrain with `method="distillation"`.
+- Add MLflow logger to enable system and model metric logging.
+- Add support for lists of files and folders as input to the `embed` and `train` commands.
+- Add faster dataset initialization (SLURM and Windows).
+- Add configurable periodic model export.
+- Add training precision option `float32_matmul_precision`.
+- Add tutorial: [Train embedding models with LightlyTrain](https://docs.lightly.ai/train/stable/tutorials/embedding/index.html).
 
 ### Changed
 
-- All functions require keyword arguments as input.
+- Distillation v1 is now selected with `method="distillationv1"`.
+- All commands ( `embed`, `export`, and `train`) now require keyword arguments as input.
 - [Custom models](https://docs.lightly.ai/train/stable/models/custom_models.html) now require the `get_model` method to be implemented.
-- Distillation uses the official DINOv2 implementation for the teacher model.
-- The RT-DETR example uses RT-DETRv2, which is backward compatible while imposing fewer constraints on package versions.
-- The original distillation method is now selected with `method="distillationv1"`.
+- Distillation methods now use the teacher model from the [official DINOv2 implementation](https://github.com/facebookresearch/dinov2).
+- The RT-DETR example uses RT-DETRv2, imposing fewer constraints on package versions.
+- 
 
 ### Deprecated
 
