@@ -34,6 +34,9 @@ class ModelExport(Callback):
         self._wrapped_model = wrapped_model
         self._out_dir = out_dir
         self._every_n_epochs = every_n_epochs
+        self._package = package_helpers.get_package_from_model(
+            self._wrapped_model, include_custom=True, fallback_custom=True
+        )
 
     @rank_zero_only  # type: ignore[misc]
     def _safe_export_model(self, export_path: Path) -> None:
@@ -41,14 +44,11 @@ class ModelExport(Callback):
         if export_path.exists():
             export_path.unlink(missing_ok=True)
 
-        package = package_helpers.get_package_from_model(
-            self._wrapped_model, include_custom=True, fallback_custom=True
-        )
         common_helpers.export_model(
             model=self._wrapped_model,
             out=export_path,
             format=ModelFormat.PACKAGE_DEFAULT,
-            package=package,
+            package=self._package,
             log_example=False,
         )
 
