@@ -100,7 +100,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 - Built for [high performance](https://docs.lightly.ai/train/stable/performance/index.html) including [multi-GPU](https://docs.lightly.ai/train/stable/performance/multi_gpu.html) and [multi-node](https://docs.lightly.ai/train/stable/performance/multi_node.html) support
 - [Export models](https://docs.lightly.ai/train/stable/export.html) for fine-tuning or inference
 - Generate and export [image embeddings](https://docs.lightly.ai/train/stable/embed.html)
-- [Monitor training progress](https://docs.lightly.ai/train/stable/train.html#loggers) with TensorBoard, Weights & Biases, and more
+- [Monitor training progress](https://docs.lightly.ai/train/stable/train.html#loggers) with MLflow, TensorBoard, Weights & Biases, and more
 - Runs fully on-premises with no API authentication and no telemetry
 
 ### Supported Models
