@@ -29,6 +29,8 @@ from lightly_train._models.super_gradients.super_gradients_package import (
     SuperGradientsPackage,
 )
 
+from ...helpers import DummyCustomModel
+
 
 class TestSuperGradientsPackage:
     def test_list_model_names(self) -> None:
@@ -47,9 +49,30 @@ class TestSuperGradientsPackage:
             ("ddrnet_23", False),
         ],
     )
-    def test_is_supported_model(self, model_name: str, is_supported: bool) -> None:
+    def test_is_supported_model__model(
+        self, model_name: str, is_supported: bool
+    ) -> None:
         model = models.get(model_name, num_classes=2)
         assert SuperGradientsPackage.is_supported_model(model) is is_supported
+
+    @pytest.mark.parametrize(
+        "model_name, is_supported",
+        [
+            ("yolo_nas_s", True),
+            ("pp_lite_t_seg50", True),
+        ],
+    )
+    def test_is_supported_model__wrapped_model(
+        self, model_name: str, is_supported: bool
+    ) -> None:
+        model = models.get(model_name, num_classes=2)
+        wrapped_model = SuperGradientsPackage.get_model_wrapper(model=model)
+        assert SuperGradientsPackage.is_supported_model(wrapped_model)
+
+    def test_is_supported_model__unsupported_model(self) -> None:
+        model = DummyCustomModel()
+        assert not SuperGradientsPackage.is_supported_model(model)
+        assert not SuperGradientsPackage.is_supported_model(model.get_model())
 
     @pytest.mark.parametrize(
         "model_name, expected_cls",

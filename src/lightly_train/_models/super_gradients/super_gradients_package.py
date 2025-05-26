@@ -25,6 +25,9 @@ from lightly_train._models.super_gradients.customizable_detector import (
 from lightly_train._models.super_gradients.segmentation_module import (
     SegmentationModuleFeatureExtractor,
 )
+from lightly_train._models.super_gradients.super_gradients import (
+    SuperGradientsModelWrapper,
+)
 from lightly_train.errors import UnknownModelError
 
 logger = logging.getLogger(__name__)
@@ -83,14 +86,25 @@ class SuperGradientsPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: Module) -> SuperGradientsModelWrapper:
         for fe in cls._FEATURE_EXTRACTORS:
             if fe.is_supported_model_cls(model_cls=type(model)):
                 return fe(model)
         raise UnknownModelError(f"Unknown {cls.name} model: '{type(model)}'")
 
     @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
+    def export_model(
+        cls, model: Module | ModelWrapper | Any, out: Path, log_example: bool = True
+    ) -> None:
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
+
+        if not cls.is_supported_model(model):
+            raise ValueError(
+                f"SuperGradientsPackage only supports exporting models of type 'Module' "
+                f"or ModelWrapper, but got '{type(model)}'."
+            )
+
         torch.save(model.state_dict(), out)
         if log_example:
             model_name = getattr(model, "_sg_model_name", None)

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New, improved distillationv2 method that achieves higher accuracy and trains up to 3x faster than distillationv1.
   The new method is selected as default by LightlyTrain with `method="distillation"`. The old distillation method
   can still be used with `method="distillationv1"` for backwards compatibility.
+- MLflow logger to enable system and model metric logging to mlflow backend.
 - Support lists of files and folders as input to the `embed` and `train` commands.
 - Faster dataset initialization with SLURM and Windows.
 - Model is exported after every n-th epoch instead of only at the end. Default n=1
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - All functions require keyword arguments as input.
+- [Custom models](https://docs.lightly.ai/train/stable/models/custom_models.html) now require the `get_model` method to be implemented.
 - Distillation uses the official DINOv2 implementation for the teacher model.
 - The RT-DETR example uses RT-DETRv2, which is backward compatible while imposing fewer constraints on package versions.
 - The original distillation method is now selected with `method="distillationv1"`.

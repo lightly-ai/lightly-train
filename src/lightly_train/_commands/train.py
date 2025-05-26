@@ -48,7 +48,7 @@ def train(
     *,
     out: PathLike,
     data: PathLike | Sequence[PathLike],
-    model: str | Module | ModelWrapper,
+    model: str | Module | ModelWrapper | Any,
     method: str = "distillation",
     method_args: dict[str, Any] | None = None,
     embed_dim: int | None = None,
@@ -289,6 +289,7 @@ def train_from_config(config: TrainConfig) -> None:
             wrapped_model=wrapped_model,
             embedding_model=embedding_model,
             normalize_args=transform_instance.transform_args.normalize,
+            loggers=logger_instances,
         )
         config.accelerator = common_helpers.get_accelerator(
             accelerator=config.accelerator
@@ -395,7 +396,7 @@ def train_from_dictconfig(config: DictConfig) -> None:
 class TrainConfig(PydanticConfig):
     out: PathLike
     data: PathLike | Sequence[PathLike]
-    model: str | Module | ModelWrapper
+    model: str | Module | ModelWrapper | Any
     method: str = "distillation"
     method_args: dict[str, Any] | MethodArgs | None = None
     embed_dim: int | None = None

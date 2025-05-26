@@ -42,11 +42,6 @@ XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
 def check_xformers():
     if XFORMERS_INSTALLED and XFORMERS_ENABLED:
         logger.debug("xFormers is available.")
-    else:
-        logger.warning(
-            "xFormers is not available. This may slow down attention computation and overall training. "
-            "For faster performance, install it via `pip install xformers`."
-        )
 
 
 def named_apply(

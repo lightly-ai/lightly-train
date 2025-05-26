@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 from pytest import LogCaptureFixture
+from pytest_mock import MockerFixture
 from pytorch_lightning.utilities import rank_zero_info
 
 from lightly_train import _logging
@@ -26,15 +27,15 @@ def test_set_up_console_logging() -> None:
     logger = logging.getLogger("lightly_train")
     assert len(logger.handlers) == 1
     assert isinstance(logger.handlers[0], logging.StreamHandler)
+    assert logger.handlers[0].level == logging.INFO
 
 
-def test_set_up_console_logging__custom_log_level() -> None:
-    os.environ[_logging.LIGHTLY_TRAIN_LOG_LEVEL_ENV_VAR] = str(logging.WARNING)
+def test_set_up_console_logging__custom_log_level(mocker: MockerFixture) -> None:
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_LOG_LEVEL": "WARNING"})
     _logging.set_up_console_logging()
     logger = logging.getLogger("lightly_train")
     assert len(logger.handlers) == 1
     assert logger.handlers[0].level == logging.WARNING
-    os.environ.pop(_logging.LIGHTLY_TRAIN_LOG_LEVEL_ENV_VAR)
 
 
 def test__set_console_handler() -> None:

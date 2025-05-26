@@ -19,9 +19,8 @@ from ...helpers import DummyCustomModel
 if importlib_util.find_spec("rfdetr") is None:
     pytest.skip("rfdetr is not installed", allow_module_level=True)
 
-from rfdetr.detr import RFDETRBase
+from rfdetr.detr import RFDETR, RFDETRBase
 from rfdetr.models.backbone.dinov2 import WindowedDinov2WithRegistersBackbone
-from rfdetr.models.lwdetr import LWDETR
 
 
 class TestRFDETRPackage:
@@ -40,13 +39,20 @@ class TestRFDETRPackage:
         model_names = RFDETRPackage.list_model_names()
         assert (model_name in model_names) is supported
 
-    def test_is_supported_model__true(self) -> None:
-        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
-        assert RFDETRPackage.is_supported_model(model)
+    def test_is_supported_model__model_true(self) -> None:
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
+        assert RFDETRPackage.is_supported_model(model=model)
 
-    def test_is_supported_model__false(self) -> None:
+        wrapped_model = RFDETRModelWrapper(model=model)
+        assert RFDETRPackage.is_supported_model(model=wrapped_model)
+
+    def test_is_supported_model__wrapped_model_false(self) -> None:
         model = DummyCustomModel()
-        assert not RFDETRPackage.is_supported_model(model.get_model())
+        assert not RFDETRPackage.is_supported_model(model=model)
+
+    def test_is_supported_model__model_false(self) -> None:
+        model = DummyCustomModel().get_model()
+        assert not RFDETRPackage.is_supported_model(model=model)
 
     @pytest.mark.parametrize(
         "model_name",
@@ -54,24 +60,29 @@ class TestRFDETRPackage:
     )
     def test_get_model(self, model_name: str) -> None:
         model = RFDETRPackage.get_model(model_name=model_name)
-        assert isinstance(model, LWDETR)
+        assert isinstance(model, RFDETR)
 
     def test_get_model_wrapper(self) -> None:
-        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
         fe = RFDETRPackage.get_model_wrapper(model=model)
         assert isinstance(fe, RFDETRModelWrapper)
 
-    def test_export_model(self, tmp_path: Path) -> None:
+    def test_export_model__model(self, tmp_path: Path) -> None:
         out = tmp_path / "model.pt"
-        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
 
         RFDETRPackage.export_model(model=model, out=out)
-        model_exported = RFDETRBase(pretrain_weights=out.as_posix()).model.model  # type: ignore[no-untyped-call]
+        model_exported = RFDETRBase(pretrain_weights=out.as_posix())  # type: ignore[no-untyped-call]
+
+        lwdetr_model = model.model.model
+        lwdetr_model_exported = model_exported.model.model
 
         # Check that parameters are the same.
-        assert len(list(model.parameters())) == len(list(model_exported.parameters()))
+        assert len(list(lwdetr_model.parameters())) == len(
+            list(lwdetr_model_exported.parameters())
+        )
         for (name, param), (name_exp, param_exp) in zip(
-            model.named_parameters(), model_exported.named_parameters()
+            lwdetr_model.named_parameters(), lwdetr_model_exported.named_parameters()
         ):
             assert name == name_exp
             assert param.dtype == param_exp.dtype
@@ -81,7 +92,7 @@ class TestRFDETRPackage:
         # Check module states. The pretrained DINOv2 backbone is frozen while other modules are in training mode.
         visited = set()
         for (name, module), (name_exp, module_exp) in zip(
-            model.named_modules(), model_exported.named_modules()
+            lwdetr_model.named_modules(), lwdetr_model_exported.named_modules()
         ):
             if name in visited:
                 continue
@@ -102,3 +113,18 @@ class TestRFDETRPackage:
             else:
                 assert module.training
                 assert module_exp.training
+
+    def test_export_model__wrapped_model(self, tmp_path: Path) -> None:
+        out = tmp_path / "model.pt"
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
+        wrapped_model = RFDETRModelWrapper(model=model)
+        RFDETRPackage.export_model(model=wrapped_model, out=out)
+        RFDETRBase(pretrain_weights=out.as_posix())  # type: ignore[no-untyped-call]
+
+    def test_export_model__unsupported_model(self, tmp_path: Path) -> None:
+        out = tmp_path / "model.pt"
+        model = DummyCustomModel()
+        with pytest.raises(
+            ValueError, match="Model must be of type 'RFDETR' or 'RFDETRModelWrapper'"
+        ):
+            RFDETRPackage.export_model(model=model, out=out)
