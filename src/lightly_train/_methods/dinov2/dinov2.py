@@ -362,7 +362,7 @@ class DINOv2(Method):
         self, batch: Batch, batch_idx: int
     ) -> DINOv2TrainingStepResult:
         # Teacher temperature scheduling
-        self.teacher_temp = linear_warmup_schedule(
+        teacher_temp = linear_warmup_schedule(
             step=self.trainer.global_step,
             warmup_steps=int(
                 no_auto(self.method_args.warmup_teacher_temp_epochs)  # type: ignore[operator]
@@ -375,16 +375,17 @@ class DINOv2(Method):
 
         # Get the views
         # Calculate the number of crops
+        n_global_crops = 2
         n_local_crops = self.method_args.n_local_crops
-        n_global_crops_loss_terms = (2 - 1) * 2  # 2 = global crops
-        n_local_crops_loss_terms = max(n_local_crops * 2, 1)
+        n_global_crops_loss_terms = (n_global_crops - 1) * n_global_crops
+        n_local_crops_loss_terms = max(n_local_crops * n_global_crops, 1)
 
         views = batch["views"]
         global_views = torch.cat(views[:2])  # G * [B, C, H, W] -> [G*B, C, H, W]
 
         # Masking
-        self.n_crops = global_views.shape[0]  # G*B
-        self.n_channels = global_views.shape[1]  # C
+        n_crops = global_views.shape[0]  # G*B
+        batch_size = n_crops // n_global_crops
         h = global_views.shape[2]
         w = global_views.shape[3]
 
@@ -394,12 +395,12 @@ class DINOv2(Method):
                 0.5 * h * w
             ),  # NOTE: max patch ratio 0.5 is carried over from the original DINOv2 code, can be tuned
         )
-        n_masked_crops = int(self.n_crops * self.method_args.mask_probability)
+        n_masked_crops = int(n_crops * self.method_args.mask_probability)
         masks = create_collated_masks(
             mask_ratio_min=self.method_args.mask_ratio_min,
             mask_ratio_max=self.method_args.mask_ratio_max,
             n_masked_crops=n_masked_crops,
-            n_crops=self.n_crops,
+            n_crops=n_crops,
             mask_generator=mask_generator,
         )
 
@@ -415,7 +416,11 @@ class DINOv2(Method):
         # Process global views through teacher and student networks
         teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
             self._forward_teacher(
-                global_views, mask_indices_list, n_masked_patches
+                global_views,
+                batch_size,
+                mask_indices_list,
+                n_masked_patches,
+                teacher_temp,
             )  # [G, B, D], [M, D]
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
@@ -437,6 +442,7 @@ class DINOv2(Method):
         )
 
         # Process local views through student network if they exist
+        dino_local_loss = torch.tensor(0.0)
         if n_local_crops > 0:
             local_views = torch.cat(views[2:])  # L * [B, C, H, W] -> [L*B, C, H, W]
             student_cls_tokens_local = self._forward_student_local(
@@ -469,8 +475,6 @@ class DINOv2(Method):
         loss = (
             self.method_args.dino_loss_weight * dino_global_loss
             + self.method_args.dino_loss_weight * dino_local_loss
-            if dino_local_loss is not None
-            else 0.0
             + self.method_args.ibot_loss_weight * ibot_loss
             + self.method_args.koleo_loss_weight * koleo_loss
         )
@@ -494,7 +498,7 @@ class DINOv2(Method):
         return DINOv2TrainingStepResult(
             loss=loss,
             dino_global_loss=dino_global_loss,
-            dino_local_loss=dino_local_loss if n_local_crops > 0 else torch.tensor(0.0),
+            dino_local_loss=dino_local_loss,
             ibot_loss=ibot_loss,
             koleo_loss=koleo_loss,
         )
@@ -503,8 +507,10 @@ class DINOv2(Method):
     def _forward_teacher(
         self,
         x: Tensor,
+        batch_size: int,
         mask_indices_list: Tensor,
         n_masked_patches: int,
+        teacher_temp: float,
     ) -> tuple[Tensor, Tensor]:
         tokens = self.teacher_embedding_model_wrapper.forward_features(
             x
@@ -513,8 +519,9 @@ class DINOv2(Method):
         # process the cls tokens
         # watch out: these are chunked and cat'd in reverse so A is matched to B in the global crops dino loss
         cls_tokens = tokens["cls_token"]  # [G*B, C]
-        B = self.n_crops // 2
-        cls_tokens = torch.cat((cls_tokens[B:], cls_tokens[:B]))  # [G*B, C]
+        cls_tokens = torch.cat(
+            (cls_tokens[batch_size:], cls_tokens[:batch_size])
+        )  # [G*B, C]
         cls_tokens_after_dino = self.teacher_dino_head.forward(cls_tokens)  # [G*B, D]
 
         # process the masked patch tokens
@@ -532,23 +539,23 @@ class DINOv2(Method):
         # centering
         if self.centering == "softmax":
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
-                cls_tokens_after_dino, teacher_temp=self.teacher_temp
+                cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
             self.dino_loss.update_center(cls_tokens_after_dino)
 
             masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
                 masked_patch_tokens_after_ibot,
-                teacher_temp=self.teacher_temp,
+                teacher_temp=teacher_temp,
             )  # [M, D]
             self.ibot_loss.update_center(masked_patch_tokens_after_ibot)
         elif self.centering == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
-                cls_tokens_after_dino, teacher_temp=self.teacher_temp
+                cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
 
             masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
                 masked_patch_tokens_after_ibot,
-                teacher_temp=self.teacher_temp,
+                teacher_temp=teacher_temp,
                 n_masked_patches_tensor=torch.tensor(
                     [n_masked_patches], dtype=torch.long
                 ).to(device=self.device, non_blocking=True),
