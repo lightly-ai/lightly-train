@@ -376,3 +376,63 @@ class TestDistillation:
         # Assert that a RuntimeError is raised due to unexpected missing keys
         with pytest.raises(RuntimeError, match="Missing keys in state_dict"):
             distill.load_state_dict(state_dict, strict=True)
+
+    def test_teacher_not_saved_in_checkpoint(self, mocker: MockerFixture) -> None:
+        """Test that the teacher model is not saved in the checkpoint."""
+
+        # Setup constants.
+        batch_size = 2
+        student_embed_dim = 32
+        teacher_embed_dim = 48
+        queue_size = 10
+
+        # Dummy student model with real params.
+        student_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(student_embed_dim)
+        )
+
+        # Dummy teacher model with real params.
+        teacher_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(teacher_embed_dim)
+        )
+
+        # Patch get_teacher.
+        mock_get_teacher = mocker.patch(
+            "lightly_train._methods.distillation.distillation.get_teacher"
+        )
+        mock_get_teacher.return_value = teacher_model
+
+        # Create distillation instance
+        distill = Distillation(
+            method_args=DistillationArgs(queue_size=queue_size),
+            optimizer_args=DistillationLARSArgs(),
+            embedding_model=student_model,
+            global_batch_size=batch_size,
+        )
+        mock_get_teacher.assert_called_once()
+
+        # Simulate saving the checkpoint
+        checkpoint = {"state_dict": distill.state_dict()}
+
+        # Check that teacher keys are initially present in the checkpoint.
+        teacher_keys = [
+            k
+            for k in checkpoint["state_dict"]
+            if k.startswith("teacher_embedding_model.")
+        ]
+        assert len(teacher_keys) > 0, (
+            "Teacher weights should not be saved in the checkpoint."
+        )
+
+        # Strip teacher keys from the checkpoint.
+        distill.on_save_checkpoint(checkpoint)
+
+        # Assert that no teacher weights are in the checkpoint
+        teacher_keys = [
+            k
+            for k in checkpoint["state_dict"]
+            if k.startswith("teacher_embedding_model.")
+        ]
+        assert len(teacher_keys) == 0, (
+            "Teacher weights should not be saved in the checkpoint."
+        )
