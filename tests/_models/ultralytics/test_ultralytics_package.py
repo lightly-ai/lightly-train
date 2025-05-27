@@ -42,6 +42,9 @@ class TestUltralyticsPackage:
         model = YOLO("yolov8s.yaml")
         assert UltralyticsPackage.is_supported_model(model)
 
+        wrapped_model = UltralyticsPackage.get_model_wrapper(model=model)
+        assert UltralyticsPackage.is_supported_model(wrapped_model)
+
     def test_is_supported_model__false(self) -> None:
         model = RTDETR("rtdetr-l.yaml")
         assert not UltralyticsPackage.is_supported_model(model)

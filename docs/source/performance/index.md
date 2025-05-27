@@ -73,7 +73,7 @@ from the dataloading workers. As the dataloading workers run in parallel and alr
 prepare the next batch while the current batch is processed, the `data_time` should
 be close to zero.
 
-Both the `batch_time` and the `data_time` are visible in the TensorBoard and Weights & Biases logs.
+Both the `batch_time` and the `data_time` are visible in the MLflow, TensorBoard, and Weights & Biases logs.
 
 ### Model Bottleneck
 

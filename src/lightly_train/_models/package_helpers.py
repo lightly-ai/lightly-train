@@ -13,6 +13,7 @@ from typing import Any, Literal, overload
 
 from torch.nn import Module
 
+from lightly_train._models import model_wrapper
 from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -110,7 +111,18 @@ def get_package_from_model(
             return package
 
     if not fallback_custom:
-        raise UnknownModelError(f"Unknown model: '{model.__class__.__name__}'")
+        is_torch_module = isinstance(model, Module)
+        missing_attrs = model_wrapper.missing_model_wrapper_attrs(
+            model, exclude_module_attrs=True
+        )
+        raise UnknownModelError(
+            f"Unknown model: '{model.__class__.__name__}'. If you are implementing a "
+            "custom model wrapper, please make sure the wrapper class inherits from "
+            "torch.nn.Module and implements all required methods.\n"
+            f" - Inherits from torch.nn.Module: {is_torch_module}\n"
+            f" - Missing methods: {missing_attrs}\n"
+            "For more information, please refer to the documentation: https://docs.lightly.ai/train/stable/models/custom_models.html"
+        )
     else:
         return CUSTOM_PACKAGE
 

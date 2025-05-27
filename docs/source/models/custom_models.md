@@ -10,6 +10,10 @@ Lightly**Train** supports training custom models. This requires writing a small 
 around your model to implement the necessary methods. The wrapper must be a subclass
 of `torch.nn.Module` and implement the following methods:
 
+- `get_model(self) -> Module`
+
+  Returns the unwrapped model. This method is used for exporting the model.
+
 - `forward_features(self, x: Tensor) -> Dict[str, Any]`
 
   Forward pass of the model that extracts features without pooling them.
@@ -39,6 +43,10 @@ class MyModelWrapper(Module):
     def __init__(self, model: Module):
         super().__init__()
         self._model = model     # Pass your model here
+
+    def get_model(self) -> Module:
+        """Returns the unwrapped model."""
+        return self._model
 
     def forward_features(self, x: Tensor) -> Dict[str, Any]:
         """Forward pass to extract features from images.
@@ -135,6 +143,9 @@ class MyModelWrapper(Module):
         super().__init__()
         self._model = model     # Pass your model here
 
+    def get_model(self) -> Module:
+        return self._model
+
     def forward_features(self, x: Tensor) -> Dict[str, Any]:
         # Torchvision ResNet has no method for only extracting features. We have to
         # call the intermediate layers of the model individually.
@@ -170,4 +181,14 @@ if __name__ == "__main__":
         data="my_data_dir",
         model=wrapped_model,
     )
+```
+
+After pretraining completes, you can load the model as follows:
+
+```python
+import torch
+from torchvision.models import resnet18
+
+model = resnet18()
+model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_last.pt"), weights_only=True)
 ```

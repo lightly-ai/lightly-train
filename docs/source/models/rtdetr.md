@@ -29,6 +29,13 @@ cd RT-DETR/rtdetrv2_pytorch
 Next, create a Python environment using your preferred tool and install the required dependencies.
 Some dependencies are fixed to specific versions to ensure compatibility with RT-DETR:
 
+```{note}
+Due to recent changes in the RT-DETR repository, RT-DETR's dependencies are compatible
+with Python >=3.8 and <=3.10. However, if you don't need TensorRT support, you can 
+simply comment out the `tensorrt` dependency in the `requirements.txt` file and you 
+should be able to use Python 3.11 or 3.12 as well.
+```
+
 ```bash
 pip install lightly-train -r requirements.txt
 ```
@@ -43,32 +50,11 @@ be executed from inside the `RT-DETR/rtdetrv2_pytorch` directory or the
 
 ```python
 # pretrain_rtdetr.py
-from typing import Dict
 
-import torch
-from torch import Tensor
-from torch.nn import AdaptiveAvgPool2d, Module
 
 import lightly_train
+from lightly_train.model_wrappers import RTDETRModelWrapper
 from src.core import YAMLConfig
-
-
-class RTDETRModelWrapper(Module):
-    def __init__(self, model: Module):
-        super().__init__()
-        self._model = model
-        self._pool = AdaptiveAvgPool2d((1, 1))
-
-    def forward_features(self, x: Tensor) -> Dict[str, Tensor]:
-        features = self._model.backbone(x)[-1]
-        return {"features": features}
-
-    def forward_pool(self, x: Dict[str, Tensor]) -> Dict[str, Tensor]:
-        return {"pooled_features": self._pool(x["features"])}
-
-    def feature_dim(self) -> int:
-        return self._model.backbone.out_channels[-1]
-
 
 if __name__ == "__main__":
     # Load the RT-DETR model
@@ -82,11 +68,8 @@ if __name__ == "__main__":
     lightly_train.train(
         out="out/my_experiment",
         model=wrapped_model,
-        data="./dataset/coco/train2017", # Replace with your dataset path.
+        data="my_data_dir", # Replace with your dataset path.
     )
-
-    # Save the pretrained model for fine-tuning
-    torch.save(model.state_dict(), "out/my_experiment/pretrained_model.pt")
 ```
 
 ### Fine-Tune
@@ -97,7 +80,7 @@ RT-DETR training script by providing the path to the pretrained model:
 ```bash
 # Training on single-gpu
 export CUDA_VISIBLE_DEVICES=0
-python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml --resume out/my_experiment/pretrained_model.pt
+python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml --resume out/my_experiment/exported_models/exported_last.pt
 ```
 
 See the [RT-DETR repository](https://github.com/lyuwenyu/RT-DETR/tree/main/rtdetrv2_pytorch)

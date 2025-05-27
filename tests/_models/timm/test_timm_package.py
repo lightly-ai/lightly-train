@@ -22,15 +22,19 @@ from ...helpers import DummyCustomModel
 
 
 class TestTIMMPackage:
-    def test_is_model(self) -> None:
+    def test_is_supported_model__true(self) -> None:
         model = timm.create_model("resnet18")
         assert TIMMPackage.is_supported_model(model)
+        assert TIMMPackage.is_supported_model(
+            TIMMPackage.get_model_wrapper(model=model)
+        )
 
-    def test_is_model__false(self) -> None:
+    def test_is_supported_model__false(self) -> None:
         model = DummyCustomModel()
-        assert not TIMMPackage.is_supported_model(model.get_model())
+        assert not TIMMPackage.is_supported_model(model=model)
+        assert not TIMMPackage.is_supported_model(model=model.get_model())
 
-    def test_export_model(self, tmp_path: Path) -> None:
+    def test_export_model__model_detailed(self, tmp_path: Path) -> None:
         out = tmp_path / "model.pt"
         model = timm.create_model("resnet18", pretrained=False)
 
@@ -57,3 +61,21 @@ class TestTIMMPackage:
             assert name == name_exp
             assert module.training
             assert module_exp.training
+
+    def test_export_model__wrapped_model_basic(self, tmp_path: Path) -> None:
+        out = tmp_path / "model.pt"
+        model = timm.create_model("resnet18", pretrained=False)
+        wrapped_model = TIMMPackage.get_model_wrapper(model=model)
+
+        TIMMPackage.export_model(model=wrapped_model, out=out)
+        timm.create_model("resnet18", pretrained=False, checkpoint_path=str(out))
+
+    def test_export_model__unsupported_model(self, tmp_path: Path) -> None:
+        out = tmp_path / "model.pt"
+        model = DummyCustomModel()
+
+        with pytest.raises(ValueError, match="TIMMPackage only supports"):
+            TIMMPackage.export_model(model=model, out=out)
+
+        with pytest.raises(ValueError, match="TIMMPackage only supports"):
+            TIMMPackage.export_model(model=model.get_model(), out=out)

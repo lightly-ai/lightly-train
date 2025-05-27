@@ -11,9 +11,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-from torch.nn import Module
-
 from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train.types import PackageModel
 
 
 class BasePackage(ABC):
@@ -22,13 +21,22 @@ class BasePackage(ABC):
     @classmethod
     @abstractmethod
     def export_model(
-        cls, model: Module, out: Path, log_example: bool = True
-    ) -> None: ...
+        cls,
+        model: PackageModel | ModelWrapper | Any,
+        out: Path,
+        log_example: bool = True,
+    ) -> None:
+        """Export the model in the package's format. The model can be either a
+        ModelWrapper or one of the package's underlying models.
+        """
+        ...
 
     @classmethod
     @abstractmethod
-    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
-        """Check if the model is supported by this package."""
+    def is_supported_model(cls, model: PackageModel | ModelWrapper | Any) -> bool:
+        """Check if the model is either a ModelWrapper or one of the package's
+        underlying models.
+        """
         ...
 
 
@@ -43,18 +51,12 @@ class Package(BasePackage):
     @abstractmethod
     def get_model(
         cls, model_name: str, model_args: dict[str, Any] | None = None
-    ) -> Module:
-        """Get the model by name.
-
-        Assumes that the model is supported by the package.
-        """
+    ) -> PackageModel:
+        """Get the underlying model of the package by its name."""
         ...
 
     @classmethod
     @abstractmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
-        """Get the feature extractor class for the model from this package.
-
-        Assumes that the model is supported by the package.
-        """
+    def get_model_wrapper(cls, model: PackageModel) -> ModelWrapper:
+        """Wrap the underlying model with the ModelWrapper."""
         ...
