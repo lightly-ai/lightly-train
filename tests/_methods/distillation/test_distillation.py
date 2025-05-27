@@ -421,7 +421,7 @@ class TestDistillation:
             if k.startswith("teacher_embedding_model.")
         ]
         assert len(teacher_keys) > 0, (
-            "Teacher weights should not be saved in the checkpoint."
+            "Teacher weights should initially be in the checkpoint."
         )
 
         # Strip teacher keys from the checkpoint.
@@ -434,5 +434,5 @@ class TestDistillation:
             if k.startswith("teacher_embedding_model.")
         ]
         assert len(teacher_keys) == 0, (
-            "Teacher weights should not be saved in the checkpoint."
+            "Teacher weights should not be saved in the final checkpoint."
         )
