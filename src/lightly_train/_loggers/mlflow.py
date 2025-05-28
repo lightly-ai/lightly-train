@@ -7,15 +7,20 @@
 #
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, Literal
 
+import pytorch_lightning
 from PIL.Image import Image
+from pydantic import validator
 from pytorch_lightning.loggers import MLFlowLogger as LightningMLFlowLogger
 from pytorch_lightning.utilities import rank_zero_only
 
 from lightly_train._configs.config import PydanticConfig
+
+logger = logging.getLogger(__name__)
 
 
 class MLFlowLoggerArgs(PydanticConfig):
@@ -27,6 +32,18 @@ class MLFlowLoggerArgs(PydanticConfig):
     prefix: str = ""
     artifact_location: str | None = None
     run_id: str | None = None
+
+    @validator("log_model") # type: ignore[untyped]
+    def validate_log_model(cls, v: Literal[True, False, "all"]) -> Literal[True, False, "all"]:
+        if v not in [True, False, "all"]:
+            raise ValueError("log_model must be one of True, False or 'all'")
+        if v is not False:
+            if pytorch_lightning.__version__ == "2.5.1": # type: ignore[attr-defined]
+                logger.warning(
+                    "Due to a bug in pytorch_lightning 2.5.1, logging models with MLFlowLogger is not possible.")
+                return False
+            return v        
+        return v
 
 
 class MLFlowLogger(LightningMLFlowLogger):
@@ -42,7 +59,6 @@ class MLFlowLogger(LightningMLFlowLogger):
         artifact_location: str | None = None,
         run_id: str | None = None,
     ) -> None:
-        os.environ["MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING"] = "true"
         super().__init__(
             experiment_name=experiment_name,
             run_name=run_name,
