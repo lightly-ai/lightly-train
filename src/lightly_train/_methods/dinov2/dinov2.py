@@ -33,7 +33,7 @@ from lightly_train._methods.dinov2.dinov2_loss import (
     IBOTPatchLoss,
 )  # we use the original DINOLoss and IBOTPatchLoss
 from lightly_train._methods.dinov2.dinov2_transform import (
-    DINOv2ViTSBTransform,
+    DINOv2ViTTransform,
 )
 from lightly_train._methods.dinov2.scheduler import (
     linear_warmup_schedule,  # TODO: import from LightlySSL after new release
@@ -714,5 +714,5 @@ class DINOv2(Method):
         update_param_groups(optimizer, updates=updates)
 
     @staticmethod
-    def transform_cls() -> type[DINOv2ViTSBTransform]:
-        return DINOv2ViTSBTransform
+    def transform_cls() -> type[DINOv2ViTTransform]:
+        return DINOv2ViTTransform

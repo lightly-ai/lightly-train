@@ -10,34 +10,25 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from lightly_train._methods.dinov2.dinov2_transform import (
-    DINOv2ViTLGTransform,
-    DINOv2ViTSBTransform,
+    DINOv2ViTTransform,
 )
 from lightly_train.types import NDArrayImage, TransformInput
 
 
-@pytest.mark.parametrize(
-    "transform_cls,local_view_size",
-    [(DINOv2ViTSBTransform, 96), (DINOv2ViTLGTransform, 98)],
-)
-def test_dinov2_transform_shapes(
-    transform_cls: type[DINOv2ViTSBTransform] | type[DINOv2ViTLGTransform],
-    local_view_size: int,
-) -> None:
+def test_dinov2_transform_shapes() -> None:
     img_np: NDArrayImage = np.random.uniform(0, 255, size=(1234, 1234, 3)).astype(
         np.uint8
     )
     input: TransformInput = {"image": img_np}
 
-    transform_args = transform_cls.transform_args_cls()()
-    transform = transform_cls(transform_args)
+    transform_args = DINOv2ViTTransform.transform_args_cls()()
+    transform = DINOv2ViTTransform(transform_args)
 
     views = transform(input)
     assert len(views) == 2 + 8
     for view in views[:2]:
         assert view["image"].shape == (3, 224, 224)
     for view in views[2:]:
-        assert view["image"].shape == (3, local_view_size, local_view_size)
+        assert view["image"].shape == (3, 98, 98)
