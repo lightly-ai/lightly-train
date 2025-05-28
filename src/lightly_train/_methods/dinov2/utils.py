@@ -130,7 +130,7 @@ def create_collated_masks(
 
     random.shuffle(masks_list)
 
-    collated_masks = torch.stack(masks_list).flatten(1)  # [G*B, H*W]
+    collated_masks = torch.stack(masks_list).flatten(1)  # [G*B, H/p*W/p]
     mask_indices_list = collated_masks.flatten().nonzero().flatten()  # [M,]
     masks_weight = (
         (1 / collated_masks.sum(-1).clamp(min=1.0))

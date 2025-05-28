@@ -29,6 +29,9 @@ class DINOv2LocalViewRandomResizeArgs(DINOLocalViewRandomResizeArgs):
 
 class DINOv2ViTSBLocalViewTransformArgs(DINOLocalViewTransformArgs):
     num_views: int = 8
+    # Strict is set to False because OmegaConf does not support parsing tuples from the
+    # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
+    view_size: tuple[int, int] = Field(default=(98, 98), strict=False)
     random_resize: DINOv2LocalViewRandomResizeArgs | None = Field(
         default_factory=DINOv2LocalViewRandomResizeArgs
     )
