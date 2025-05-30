@@ -112,6 +112,11 @@ class Env:
         default=180,
         type_=float,
     )
+    MLFLOW_TRACKING_URI: EnvVar[str | None] = EnvVar(
+        name="MLFLOW_TRACKING_URI",
+        default=None,
+        type_=str,
+    )
     SLURM_CPUS_PER_TASK: EnvVar[int | None] = EnvVar(
         name="SLURM_CPUS_PER_TASK",
         default=None,
