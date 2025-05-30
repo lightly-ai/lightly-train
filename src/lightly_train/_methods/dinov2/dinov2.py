@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import math
 from dataclasses import dataclass
 from functools import partial
@@ -53,6 +54,8 @@ from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train.types import Batch
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -162,7 +165,7 @@ class DINOv2Args(MethodArgs):
         ):  # base / small
             pass
         else:
-            raise UserWarning(
+            logger.warning(
                 f"Model architecture: depth={depth}, num_heads={num_heads}, embed_dim={self.embed_dim} does not match any known DINOv2 model."
                 "Using default parameters for small/base models, but performance may be suboptimal."
             )
