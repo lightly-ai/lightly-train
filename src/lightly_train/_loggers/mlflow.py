@@ -23,10 +23,7 @@ from lightly_train._env import Env
 logger = logging.getLogger(__name__)
 
 PYTORCH_LIGHTNING_BUG_VERSION = "2.5.1"
-PL_BUG_VERSION_INSTALLED = RequirementCache(
-    f"pytorch-lightning=={PYTORCH_LIGHTNING_BUG_VERSION}"
-)
-
+PL_BUG_VERSION_INSTALLED = RequirementCache(f"pytorch-lightning=={PYTORCH_LIGHTNING_BUG_VERSION}")
 
 class MLFlowLoggerArgs(PydanticConfig):
     experiment_name: str = ""
@@ -38,23 +35,20 @@ class MLFlowLoggerArgs(PydanticConfig):
     artifact_location: str | None = None
     run_id: str | None = None
 
-    @validator("log_model")  # type: ignore[untyped]
-    def validate_log_model(
-        cls, v: Literal[True, False, "all"]
-    ) -> Literal[True, False, "all"]:
+    @validator("log_model") # type: ignore[untyped]
+    def validate_log_model(cls, v: Literal[True, False, "all"]) -> Literal[True, False, "all"]:
         if v not in [True, False, "all"]:
             raise ValueError("log_model must be one of True, False or 'all'")
         if v in [True, "all"]:
             if PL_BUG_VERSION_INSTALLED:
                 logger.warning(
-                    f"Due to a bug in pytorch_lightning {PYTORCH_LIGHTNING_BUG_VERSION} "
-                    "(see https://github.com/Lightning-AI/pytorch-lightning/issues/20822), "
-                    "logging models with MLFlowLogger is not possible. If you want to log "
-                    "models, please install pytorch-lightning as: pip install "
-                    f'"pytorch_lightning>=2.1,!={PYTORCH_LIGHTNING_BUG_VERSION}".'
-                )
+                    f'Due to a bug in pytorch_lightning {PYTORCH_LIGHTNING_BUG_VERSION} '
+                    '(see https://github.com/Lightning-AI/pytorch-lightning/issues/20822), '
+                    'logging models with MLFlowLogger is not possible. If you want to log '
+                    'models, please install pytorch-lightning as: pip install '
+                    f'"pytorch_lightning>=2.1,!={PYTORCH_LIGHTNING_BUG_VERSION}".')
                 return False
-            return v
+            return v        
         return v
 
 
