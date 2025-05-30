@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -19,6 +18,7 @@ from pytorch_lightning.loggers import MLFlowLogger as LightningMLFlowLogger
 from pytorch_lightning.utilities import rank_zero_only
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._env import Env
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ PL_BUG_VERSION_INSTALLED = RequirementCache(f"pytorch-lightning=={PYTORCH_LIGHTN
 class MLFlowLoggerArgs(PydanticConfig):
     experiment_name: str = ""
     run_name: str | None = None
-    tracking_uri: str | None = os.getenv("MLFLOW_TRACKING_URI")
+    tracking_uri: str | None = Env.MLFLOW_TRACKING_URI.value
     tags: dict[str, Any] | None = None
     log_model: Literal[True, False, "all"] = False
     prefix: str = ""
@@ -57,7 +57,7 @@ class MLFlowLogger(LightningMLFlowLogger):
         self,
         experiment_name: str = "lightly_train_logs",
         run_name: str | None = None,
-        tracking_uri: str | None = os.getenv("MLFLOW_TRACKING_URI"),
+        tracking_uri: str | None = Env.MLFLOW_TRACKING_URI.value,
         tags: dict[str, Any] | None = None,
         save_dir: Path | None = Path("./mlruns"),
         log_model: Literal[True, False, "all"] = False,
