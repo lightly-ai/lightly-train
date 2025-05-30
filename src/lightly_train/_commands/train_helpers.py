@@ -45,7 +45,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_transform_args(
-    method: str | Method, transform_args: dict[str, Any] | MethodTransformArgs | None
+    method: str | Method,
+    wrapped_model: ModelWrapper,
+    dataset_size: int,
+    transform_args: dict[str, Any] | MethodTransformArgs | None,
 ) -> MethodTransformArgs:
     logger.debug(f"Getting transform args for method '{method}'.")
     logger.debug(f"Using additional transform arguments {transform_args}.")
@@ -325,11 +328,17 @@ def get_optimizer_args(
     optim_type: OptimizerType | Literal["auto"],
     optim_args: dict[str, Any] | OptimizerArgs | None,
     method_cls: type[Method],
+    wrapped_model: ModelWrapper,
+    dataset_size: int,
 ) -> OptimizerArgs:
     if isinstance(optim_args, OptimizerArgs):
         return optim_args
     optim_args = {} if optim_args is None else optim_args
-    optim_args_cls = method_cls.optimizer_args_cls(optim_type=optim_type)
+    optim_args_cls = method_cls.optimizer_args_cls(
+        optim_type=optim_type,
+        wrapped_model=wrapped_model,
+        dataset_size=dataset_size,
+    )
     logger.debug(f"Using optimizer '{optim_args_cls.type()}'.")
     return validate.pydantic_model_validate(optim_args_cls, optim_args)
 
@@ -352,7 +361,7 @@ def get_method_args(
     method_args: dict[str, Any] | MethodArgs | None,
     scaling_info: ScalingInfo,
     optimizer_args: OptimizerArgs,
-    model: Module,
+    wrapped_model: ModelWrapper,
 ) -> MethodArgs:
     logger.debug(f"Getting method args for '{method_cls.__name__}'")
     if isinstance(method_args, MethodArgs):
@@ -361,7 +370,9 @@ def get_method_args(
     method_args_cls = method_cls.method_args_cls()
     args = validate.pydantic_model_validate(method_args_cls, method_args)
     args.resolve_auto(
-        scaling_info=scaling_info, optimizer_args=optimizer_args, model=model
+        scaling_info=scaling_info,
+        optimizer_args=optimizer_args,
+        model=wrapped_model.get_model(),
     )
     return args
 

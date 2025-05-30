@@ -25,6 +25,7 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -227,12 +228,21 @@ class DistillationV2(Method):
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
+        wrapped_model: ModelWrapper,
+        dataset_size: int,
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
             "auto": DistillationV2LARSArgs,
             OptimizerType.LARS: DistillationV2LARSArgs,
         }
-        return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
+        return classes.get(
+            optim_type,
+            Method.optimizer_args_cls(
+                optim_type=optim_type,
+                wrapped_model=wrapped_model,
+                dataset_size=dataset_size,
+            ),
+        )
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(

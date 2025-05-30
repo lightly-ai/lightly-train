@@ -27,6 +27,7 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -35,7 +36,7 @@ from lightly_train._scaling import ScalingInfo
 from lightly_train._transforms.transform import (
     MethodTransform,
 )
-from lightly_train.types import Batch
+from lightly_train.types import Batch, PackageModel
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,10 @@ class DistillationArgs(MethodArgs):
     teacher: str = "dinov2_vit/vitb14_pretrain"
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
+        self,
+        scaling_info: ScalingInfo,
+        optimizer_args: OptimizerArgs,
+        model: PackageModel,
     ) -> None:
         if self.queue_size == "auto":
             # Reduce the queue size for smaller datasets.
@@ -230,12 +234,21 @@ class Distillation(Method):
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
+        wrapped_model: ModelWrapper,
+        dataset_size: int,
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
             "auto": DistillationLARSArgs,
             OptimizerType.LARS: DistillationLARSArgs,
         }
-        return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
+        return classes.get(
+            optim_type,
+            Method.optimizer_args_cls(
+                optim_type=optim_type,
+                wrapped_model=wrapped_model,
+                dataset_size=dataset_size,
+            ),
+        )
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(

@@ -23,7 +23,6 @@ from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
-from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
@@ -46,13 +45,17 @@ from lightly_train._methods.dinov2.utils import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
-from lightly_train.types import Batch
+from lightly_train.types import Batch, PackageModel
 
 
 @dataclass
@@ -135,8 +138,12 @@ class DINOv2Args(MethodArgs):
         self,
         scaling_info: ScalingInfo,
         optimizer_args: OptimizerArgs,
-        model: Module,
+        model: PackageModel,
     ) -> None:
+        if not isinstance(model, DinoVisionTransformer):
+            raise ValueError(
+                f"Model must be a DinoVisionTransformer, but got {type(model)}."
+            )
         # Determine the args based on the model architecture
         depth: int = model.n_blocks
         num_heads: int = model.num_heads
@@ -613,13 +620,22 @@ class DINOv2(Method):
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
+        wrapped_model: ModelWrapper,
+        dataset_size: int,
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
             "auto": DINOv2AdamWViTSBArgs,
             OptimizerType.ADAMW: DINOv2AdamWViTSBArgs,
         }
 
-        return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
+        return classes.get(
+            optim_type,
+            Method.optimizer_args_cls(
+                optim_type=optim_type,
+                wrapped_model=wrapped_model,
+                dataset_size=dataset_size,
+            ),
+        )
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(

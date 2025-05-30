@@ -10,7 +10,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import (
     Type,
-    TypeVar,
 )
 
 import pydantic
@@ -129,9 +128,6 @@ class MethodTransformArgs(PydanticConfig):
     normalize: NormalizeArgs
     gaussian_blur: GaussianBlurArgs | None
     solarize: SolarizeArgs | None
-
-
-_T = TypeVar("_T", covariant=True)
 
 
 class MethodTransform:

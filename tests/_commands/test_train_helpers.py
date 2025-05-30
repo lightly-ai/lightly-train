@@ -406,7 +406,7 @@ def test_get_method_args(
         method_args=args,
         scaling_info=scaling_info,
         optimizer_args=AdamWArgs(),
-        model=Module(),
+        wrapped_model=Module(),
     )
     assert resolved_args == expected
 

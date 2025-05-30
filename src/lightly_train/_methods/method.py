@@ -23,6 +23,7 @@ from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim import optimizer_helpers
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
@@ -69,13 +70,19 @@ class Method(LightningModule):
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
+        wrapped_model: ModelWrapper,
+        dataset_size: int,
     ) -> type[OptimizerArgs]:
         """Return the optimizer args class.
 
         Overwrite this method to change the optimizer args class.
         """
         optim_type = AdamWArgs.type() if optim_type == "auto" else optim_type
-        return optimizer_helpers.get_optimizer_args_cls(optim_type=optim_type)
+        return optimizer_helpers.get_optimizer_args_cls(
+            optim_type=optim_type,
+            wrapped_model=wrapped_model,
+            dataset_size=dataset_size,
+        )
 
     def trainable_modules(self) -> TrainableModules:
         """Return the modules that should be optimized."""

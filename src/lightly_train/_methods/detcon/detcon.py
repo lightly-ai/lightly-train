@@ -32,6 +32,7 @@ from lightly_train._methods.detcon.detcon_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.sgd_args import SGDArgs
@@ -246,12 +247,21 @@ class DetConS(Method):
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
+        wrapped_model: ModelWrapper,
+        dataset_size: int,
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
             "auto": DetConSSGDArgs,
             OptimizerType.SGD: DetConSSGDArgs,
         }
-        return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
+        return classes.get(
+            optim_type,
+            Method.optimizer_args_cls(
+                optim_type=optim_type,
+                wrapped_model=wrapped_model,
+                dataset_size=dataset_size,
+            ),
+        )
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(modules=[self.embedding_model, self.projection_head])
@@ -425,12 +435,21 @@ class DetConB(Method):
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
+        wrapped_model: ModelWrapper,
+        dataset_size: int,
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
             "auto": DetConBSGDArgs,
             OptimizerType.SGD: DetConBSGDArgs,
         }
-        return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
+        return classes.get(
+            optim_type,
+            Method.optimizer_args_cls(
+                optim_type=optim_type,
+                wrapped_model=wrapped_model,
+                dataset_size=dataset_size,
+            ),
+        )
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(

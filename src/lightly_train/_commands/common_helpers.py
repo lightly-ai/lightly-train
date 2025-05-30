@@ -26,7 +26,6 @@ from pytorch_lightning.accelerators.cuda import CUDAAccelerator
 from pytorch_lightning.accelerators.mps import MPSAccelerator
 from pytorch_lightning.strategies.strategy import Strategy
 from torch.nn import Module
-from torch.utils.data import Dataset
 
 from lightly_train import _distributed as distributed_helpers
 from lightly_train._data import image_dataset
@@ -40,7 +39,7 @@ from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import BasePackage
-from lightly_train.types import DatasetItem, PathLike, Transform
+from lightly_train.types import PathLike, Transform
 
 logger = logging.getLogger(__name__)
 
@@ -430,14 +429,10 @@ def get_dataset_mmap_filenames(
 
 
 def get_dataset(
-    data: PathLike | Sequence[PathLike] | Dataset[DatasetItem],
-    transform: Transform,
+    data: PathLike | Sequence[PathLike],
+    transform: Transform | None,
     mmap_filepath: Path | None,
-) -> Dataset[DatasetItem]:
-    if isinstance(data, Dataset):
-        logger.debug("Using provided dataset.")
-        return data
-
+) -> ImageDataset:
     if mmap_filepath is None:
         raise ValueError("Memory-mapped file path must be provided.")
 

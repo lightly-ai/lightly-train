@@ -237,12 +237,6 @@ def train_from_config(config: TrainConfig) -> None:
     _system.log_system_information(system_information=system_information)
 
     pytorch_lightning.seed_everything(seed=config.seed, workers=True)
-    config.transform_args = train_helpers.get_transform_args(
-        method=config.method, transform_args=config.transform_args
-    )
-    transform_instance = train_helpers.get_transform(
-        method=config.method, transform_args_resolved=config.transform_args
-    )
     config.float32_matmul_precision = (
         _float32_matmul_precision.get_float32_matmul_precision(
             float32_matmul_precision=config.float32_matmul_precision,
@@ -259,16 +253,26 @@ def train_from_config(config: TrainConfig) -> None:
     ) as mmap_filepath, _float32_matmul_precision.float32_matmul_precision(
         float32_matmul_precision=config.float32_matmul_precision
     ):
-        dataset = common_helpers.get_dataset(
-            data=config.data,
-            transform=transform_instance,
-            mmap_filepath=mmap_filepath,
-        )
-        scaling_info = train_helpers.get_scaling_info(
-            dataset=dataset, epochs=config.epochs
-        )
         wrapped_model = package_helpers.get_wrapped_model(
             model=config.model, model_args=config.model_args
+        )
+        dataset = common_helpers.get_dataset(
+            data=config.data,
+            transform=None,
+            mmap_filepath=mmap_filepath,
+        )
+        config.transform_args = train_helpers.get_transform_args(
+            method=config.method,
+            wrapped_model=wrapped_model,
+            dataset_size=len(dataset),
+            transform_args=config.transform_args,
+        )
+        transform_instance = train_helpers.get_transform(
+            method=config.method, transform_args_resolved=config.transform_args
+        )
+        dataset.set_transform(transform_instance)
+        scaling_info = train_helpers.get_scaling_info(
+            dataset=dataset, epochs=config.epochs
         )
         embedding_model = train_helpers.get_embedding_model(
             wrapped_model=wrapped_model, embed_dim=config.embed_dim
@@ -341,6 +345,8 @@ def train_from_config(config: TrainConfig) -> None:
             optim_type=train_helpers.get_optimizer_type(optim_type=config.optim),
             optim_args=config.optim_args,
             method_cls=method_cls,
+            wrapped_model=wrapped_model,
+            dataset_size=len(dataset),
         )
         config.optim = config.optim_args.type().value
         config.method_args = train_helpers.get_method_args(
@@ -348,7 +354,7 @@ def train_from_config(config: TrainConfig) -> None:
             method_args=config.method_args,
             scaling_info=scaling_info,
             optimizer_args=config.optim_args,
-            model=wrapped_model.get_model(),
+            wrapped_model=wrapped_model.get_model(),
         )
         method_instance = train_helpers.get_method(
             method_cls=method_cls,
