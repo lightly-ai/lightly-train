@@ -33,7 +33,7 @@ from lightly_train._methods.dinov2.dinov2_loss import (
     IBOTPatchLoss,
 )  # we use the original DINOLoss and IBOTPatchLoss
 from lightly_train._methods.dinov2.dinov2_transform import (
-    DINOv2ViTSBTransform,
+    DINOv2ViTTransform,
 )
 from lightly_train._methods.dinov2.scheduler import (
     linear_warmup_schedule,  # TODO: import from LightlySSL after new release
@@ -70,6 +70,10 @@ class DINOv2Args(MethodArgs):
     n_local_crops: int = (
         8  # transform_cls().transform_args_cls().transform_args.local_view.num_views
     )
+
+    # vit
+    embed_dim: int = 384  # default embed_dim for ViT-S, can be overridden by the model
+    patch_size: int = 14  # default patch_size for ViT-S, can be overridden by the model
 
     # projection head
     ibot_separate_head: bool = False
@@ -140,7 +144,8 @@ class DINOv2Args(MethodArgs):
         # Determine the args based on the model architecture
         depth: int = model.n_blocks
         num_heads: int = model.num_heads
-        self.embed_dim: int = model._embed_dim
+        self.embed_dim: int = model.embed_dim
+        self.patch_size: int = model.patch_size
         if (depth == 40 and num_heads == 24 and self.embed_dim == 1536) or (
             depth == 24 and num_heads == 16 and self.embed_dim == 1024
         ):  # giant / large
@@ -270,7 +275,7 @@ class DINOv2(Method):
         self.method_args = method_args
 
         # Create teacher and student embedding models
-        model_wrapper: DINOv2ViTModelWrapper = embedding_model.model_wrapper
+        model_wrapper: DINOv2ViTModelWrapper = embedding_model.wrapped_model  # type: ignore[assignment]
         self.teacher_embedding_model_wrapper = model_wrapper
         self.student_embedding_model_wrapper = copy.deepcopy(
             self.teacher_embedding_model_wrapper
@@ -331,17 +336,21 @@ class DINOv2(Method):
             batch, batch_idx
         )
 
-        loss = training_step_log.loss
+        train_loss = training_step_log.loss
         dino_global_loss = training_step_log.dino_global_loss
         dino_local_loss = training_step_log.dino_local_loss
         ibot_loss = training_step_log.ibot_loss
         koleo_loss = training_step_log.koleo_loss
 
         log_dict = {
+            "train_loss": train_loss,
             "dino_global_loss": dino_global_loss,
             "dino_local_loss": dino_local_loss,
             "ibot_loss": ibot_loss,
             "koleo_loss": koleo_loss,
+            "weight_decay": no_auto(self.method_args.weight_decay_start)
+            if not hasattr(self, "weight_decay")
+            else self.weight_decay,
         }
 
         views = batch["views"]
@@ -356,7 +365,7 @@ class DINOv2(Method):
             # Show example views of the images in the first batch only.
             self._log_example_views(train_batch=batch)
 
-        return loss
+        return train_loss
 
     def training_step_impl(
         self, batch: Batch, batch_idx: int
@@ -386,8 +395,8 @@ class DINOv2(Method):
         # Masking
         n_crops = global_views.shape[0]  # G*B
         batch_size = n_crops // n_global_crops
-        h = global_views.shape[2]
-        w = global_views.shape[3]
+        h = global_views.shape[2] // self.method_args.patch_size
+        w = global_views.shape[3] // self.method_args.patch_size
 
         mask_generator = MaskingGenerator(
             input_size=(h, w),
@@ -525,10 +534,11 @@ class DINOv2(Method):
         cls_tokens_after_dino = self.teacher_dino_head.forward(cls_tokens)  # [G*B, D]
 
         # process the masked patch tokens
-        patch_tokens = tokens["features"]  # [G*B, C, H, W]
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
+        patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
+
         masked_patch_tokens = torch.index_select(
-            patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+            patch_tokens.flatten(0, 1),  # [G*B*H/p*W/p, C]
             dim=0,
             index=mask_indices_list,
         )  # [M, C]
@@ -579,11 +589,11 @@ class DINOv2(Method):
         cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)  # [G*B, D]
 
         # process the patch tokens
-        patch_tokens = tokens["features"]  # [G*B, C, H, W]
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
+        patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
         masked_patch_tokens = torch.index_select(
-            patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+            patch_tokens.flatten(0, 1),  # [G*B*H/p*W/p, C]
             dim=0,
             index=mask_indices_list,
         )  # [M, C]
@@ -622,13 +632,22 @@ class DINOv2(Method):
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 
     def trainable_modules(self) -> TrainableModules:
-        return TrainableModules(
-            modules=[
-                self.student_embedding_model_wrapper._model,
-                self.student_dino_head,
-                self.student_ibot_head,
-            ],  # decay is realized in get_optimizer_with_decay
-        )
+        # decay is realized in get_optimizer_with_decay
+        if self.ibot_separate_head:
+            return TrainableModules(
+                modules=[
+                    self.student_embedding_model_wrapper._model,
+                    self.student_dino_head,
+                    self.student_ibot_head,
+                ],
+            )
+        else:
+            return TrainableModules(
+                modules=[
+                    self.student_embedding_model_wrapper._model,
+                    self.student_dino_head,
+                ],
+            )
 
     # Ignore the return type, because pytorch-lightning types it wrongly.
     # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
@@ -679,7 +698,7 @@ class DINOv2(Method):
         self.student_ibot_head.cancel_last_layer_gradients(self.current_epoch)
 
         # Apply weight decay schedule
-        weight_decay = cosine_schedule(
+        self.weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
             start_value=self.method_args.weight_decay_start,
@@ -689,10 +708,12 @@ class DINOv2(Method):
         updates = []
         for group in optimizer.param_groups:
             if group["weight_decay"] != 0.0:
-                updates.append({"name": group["name"], "weight_decay": weight_decay})
+                updates.append(
+                    {"name": group["name"], "weight_decay": self.weight_decay}
+                )
 
         update_param_groups(optimizer, updates=updates)
 
     @staticmethod
-    def transform_cls() -> type[DINOv2ViTSBTransform]:
-        return DINOv2ViTSBTransform
+    def transform_cls() -> type[DINOv2ViTTransform]:
+        return DINOv2ViTTransform
