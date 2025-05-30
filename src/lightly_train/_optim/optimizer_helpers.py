@@ -12,6 +12,7 @@ from typing import Any
 from lightly.models.utils import get_weight_decay_parameters
 from torch.optim.optimizer import Optimizer
 
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
@@ -38,7 +39,12 @@ def get_optimizer_type(
         )
 
 
-def get_optimizer_args_cls(optim_type: OptimizerType) -> type[OptimizerArgs]:
+def get_optimizer_args_cls(
+    optim_type: OptimizerType,
+    wrapped_model: ModelWrapper,
+    dataset_size: int,
+) -> type[OptimizerArgs]:
+    # TODO: Lionel (05/25): Dispatch for model and dataset size.
     try:
         return _OPTIM_TYPE_TO_ARGS[optim_type]
     except KeyError:

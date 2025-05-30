@@ -46,7 +46,7 @@ from lightly_train._scaling import ScalingInfo
 from lightly_train._transforms.transform import (
     MethodTransform,
 )
-from lightly_train.types import Batch
+from lightly_train.types import Batch, PackageModel
 
 
 class DenseCLSGDArgs(SGDArgs):
@@ -73,7 +73,10 @@ class DenseCLArgs(MethodArgs):
     momentum_end: float = 0.999
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
+        self,
+        scaling_info: ScalingInfo,
+        optimizer_args: OptimizerArgs,
+        model: PackageModel,
     ) -> None:
         if self.memory_bank_size == "auto":
             # Reduce memory bank size for smaller datasets, otherwise training is
@@ -246,12 +249,21 @@ class DenseCL(Method):
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
+        wrapped_model: PackageModel,
+        dataset_size: int,
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
             "auto": DenseCLSGDArgs,
             OptimizerType.SGD: DenseCLSGDArgs,
         }
-        return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
+        return classes.get(
+            optim_type,
+            Method.optimizer_args_cls(
+                optim_type=optim_type,
+                wrapped_model=wrapped_model,
+                dataset_size=dataset_size,
+            ),
+        )
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(modules=[self.query_encoder])

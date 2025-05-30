@@ -17,7 +17,7 @@ from lightly.models.utils import update_momentum
 from lightly.utils import optim
 from lightly.utils.scheduler import cosine_schedule
 from torch import Tensor
-from torch.nn import Flatten, Module
+from torch.nn import Flatten
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
@@ -28,6 +28,7 @@ from lightly_train._methods.dino.dino_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -37,7 +38,7 @@ from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train._transforms.transform import (
     MethodTransform,
 )
-from lightly_train.types import Batch
+from lightly_train.types import Batch, PackageModel
 
 
 class DINOArgs(MethodArgs):
@@ -64,7 +65,10 @@ class DINOArgs(MethodArgs):
     weight_decay_end: float | Literal["auto"] = "auto"
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
+        self,
+        scaling_info: ScalingInfo,
+        optimizer_args: OptimizerArgs,
+        model: PackageModel,
     ) -> None:
         dataset_size = scaling_info.dataset_size
 
@@ -262,13 +266,22 @@ class DINO(Method):
     @staticmethod
     def optimizer_args_cls(
         optim_type: OptimizerType | Literal["auto"],
+        wrapped_model: ModelWrapper,
+        dataset_size: int,
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
             "auto": DINOSGDArgs,
             OptimizerType.ADAMW: DINOAdamWArgs,
             OptimizerType.SGD: DINOSGDArgs,
         }
-        return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
+        return classes.get(
+            optim_type,
+            Method.optimizer_args_cls(
+                optim_type=optim_type,
+                wrapped_model=wrapped_model,
+                dataset_size=dataset_size,
+            ),
+        )
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(

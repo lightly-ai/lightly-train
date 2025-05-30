@@ -34,12 +34,15 @@ class ImageDataset(Dataset[DatasetItem]):
         self,
         image_dir: Path | None,
         image_filenames: Sequence[ImageFilename],
-        transform: Transform,
+        transform: Transform | None,
         mask_dir: Path | None = None,
     ):
         self.image_dir = image_dir
         self.image_filenames = image_filenames
         self.mask_dir = mask_dir
+        self.transform = transform
+
+    def set_transform(self, transform: Transform) -> None:
         self.transform = transform
 
     def __getitem__(self, idx: int) -> DatasetItem:
@@ -56,6 +59,8 @@ class ImageDataset(Dataset[DatasetItem]):
             mask = _open_image(self.mask_dir / maskname, mode="L")
             input["mask"] = mask
 
+        if self.transform is None:
+            raise ValueError("Transform for the dataset is not set.")
         transformed = self.transform(input)
 
         dataset_item: DatasetItem = {
