@@ -42,6 +42,7 @@ from lightly_train._transforms.transform import (
     NormalizeArgs,
 )
 from lightly_train.types import TransformInput, TransformOutput
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import vit_tiny__testing
 
 
 class DummyCustomModel(Module, ModelWrapper):
@@ -65,6 +66,33 @@ class DummyCustomModel(Module, ModelWrapper):
 
     def get_model(self) -> Module:
         return self.conv
+
+
+class DummyVitModel(Module, ModelWrapper):
+    def __init__(self, feature_dim: int = 2):
+        super().__init__()
+        self._feature_dim = feature_dim
+        self.model = vit_tiny__testing(patch_size=128)
+        self.global_pool = AdaptiveAvgPool2d(output_size=(1, 1))
+
+    def feature_dim(self) -> int:
+        return self._feature_dim
+
+    # Not typed as ForwardFeaturesOutput to have same interface as users.
+    def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
+        return {"features": self.model(x)}
+
+    # Not typed as ForwardFeaturesOutput -> ForwardPoolOutput to have same interface
+    # as users.
+    def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
+        return {"pooled_features": self.global_pool(x["features"])}
+
+    def get_model(self) -> Module:
+        return self.model
+    
+    def make_teacher(self) -> None:
+        """Dummy method to satisfy the VIT interface."""
+        pass
 
 
 class DummyMethodTransform(MethodTransform):

@@ -456,3 +456,16 @@ def vit_giant2(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTran
         **kwargs,
     )
     return model
+
+def vit_tiny__testing(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTransformer:
+    model = DinoVisionTransformer(
+        patch_size=patch_size,
+        embed_dim=8,
+        depth=2,
+        num_heads=2,
+        mlp_ratio=1,
+        block_fn=partial(Block, attn_class=MemEffAttention),
+        num_register_tokens=num_register_tokens,
+        **kwargs,
+    )
+    return model
