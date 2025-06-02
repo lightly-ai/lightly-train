@@ -23,7 +23,7 @@ from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
-from torch.nn import Module
+from torch.nn import Module, ModuleDict
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
@@ -646,18 +646,18 @@ class DINOv2(Method):
         # decay is realized in get_optimizer_with_decay
         if self.ibot_separate_head:
             return TrainableModules(
-                modules=[
-                    self.student_embedding_model_wrapper._model,
-                    self.student_dino_head,
-                    self.student_ibot_head,
-                ],
+                modules=[ModuleDict({
+                    "student_embedding_model_wrapper._model": self.student_embedding_model_wrapper._model,
+                    "student_dino_head": self.student_dino_head,
+                    "student_ibot_head": self.student_ibot_head,
+                })],
             )
         else:
             return TrainableModules(
-                modules=[
-                    self.student_embedding_model_wrapper._model,
-                    self.student_dino_head,
-                ],
+                modules=[ModuleDict({
+                    "student_embedding_model_wrapper._model": self.student_embedding_model_wrapper._model,
+                    "student_dino_head": self.student_dino_head,
+                })]
             )
 
     # Ignore the return type, because pytorch-lightning types it wrongly.
