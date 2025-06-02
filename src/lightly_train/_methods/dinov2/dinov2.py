@@ -53,6 +53,7 @@ from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train.types import Batch
+from torch.nn import ModuleDict
 
 
 @dataclass
@@ -299,6 +300,7 @@ class DINOv2(Method):
         self.student_dino_head = dino_head(
             freeze_last_layer=method_args.student_freeze_last_layer_epochs
         )
+        self.student_dino_head_ = ModuleDict({"dino_head": self.student_dino_head})
 
         # Create teacher and student iBOT head
         self.ibot_separate_head: bool = method_args.ibot_separate_head
@@ -319,6 +321,9 @@ class DINOv2(Method):
         else:
             self.teacher_ibot_head = self.teacher_dino_head
             self.student_ibot_head = self.student_dino_head
+        
+        self.student_ibot_head_ = ModuleDict({"ibot_head": self.student_ibot_head})
+        
         # Set the teacher heads in evaluation mode.
         for p in self.teacher_dino_head.parameters():
             p.requires_grad = False
@@ -647,15 +652,15 @@ class DINOv2(Method):
             return TrainableModules(
                 modules=[
                     self.student_embedding_model_wrapper._model,
-                    self.student_dino_head,
-                    self.student_ibot_head,
+                    self.student_dino_head_,
+                    self.student_ibot_head_,
                 ],
             )
         else:
             return TrainableModules(
                 modules=[
                     self.student_embedding_model_wrapper._model,
-                    self.student_dino_head,
+                    self.student_dino_head_,
                 ],
             )
 
