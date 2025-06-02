@@ -23,7 +23,7 @@ from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
-from torch.nn import Module, ModuleDict
+from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
@@ -61,6 +61,25 @@ def freeze_eval_module(module: Module) -> None:
         param.requires_grad = False
     module.eval()
 
+class DINOHead(Module):
+    """A wrapper for the DINO projection head."""
+
+    def __init__(self, dino_head: Module) -> None:
+        super().__init__()
+        self.dino_head = dino_head
+
+    def forward(self, x: Tensor) -> Any:
+        return self.dino_head(x)
+
+class IBOTHead(Module):
+    """A wrapper for the IBOT projection head."""
+
+    def __init__(self, ibot_head: Module) -> None:
+        super().__init__()
+        self.ibot_head = ibot_head
+
+    def forward(self, x: Tensor) -> Any:
+        return self.ibot_head(x)
 
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
@@ -300,13 +319,15 @@ class DINOv2(Method):
             batch_norm=method_args.batch_norm,
             norm_last_layer=method_args.norm_last_layer,
         )
-        self.teacher_dino_head = dino_head()
-        self.student_dino_head = dino_head(
+        self.teacher_dino_head = DINOHead(dino_head())
+        self.student_dino_head = DINOHead(dino_head(
             freeze_last_layer=method_args.student_freeze_last_layer_epochs
-        )
+        ))
 
         # Create teacher and student iBOT head
         self.ibot_separate_head: bool = method_args.ibot_separate_head
+        self.teacher_ibot_head : DINOHead | IBOTHead
+        self.student_ibot_head : DINOHead | IBOTHead
         if self.ibot_separate_head:
             ibot_head = partial(
                 DINOProjectionHead,
@@ -317,13 +338,13 @@ class DINOv2(Method):
                 batch_norm=method_args.batch_norm,
                 norm_last_layer=method_args.norm_last_layer,
             )
-            self.teacher_ibot_head = ibot_head()
-            self.student_ibot_head = ibot_head(
+            self.teacher_ibot_head = IBOTHead(ibot_head())
+            self.student_ibot_head = IBOTHead(ibot_head(
                 freeze_last_layer=method_args.student_freeze_last_layer_epochs
-            )
+            ))
         else:
-            self.teacher_ibot_head = self.teacher_dino_head
-            self.student_ibot_head = self.student_dino_head
+            self.teacher_ibot_head = self.teacher_dino_head 
+            self.student_ibot_head = self.student_dino_head 
         
         freeze_eval_module(self.teacher_dino_head)
         freeze_eval_module(self.teacher_ibot_head)
@@ -646,18 +667,18 @@ class DINOv2(Method):
         # decay is realized in get_optimizer_with_decay
         if self.ibot_separate_head:
             return TrainableModules(
-                modules=[ModuleDict({
-                    "student_embedding_model_wrapper._model": self.student_embedding_model_wrapper._model,
-                    "student_dino_head": self.student_dino_head,
-                    "student_ibot_head": self.student_ibot_head,
-                })],
+                modules=[
+                    self.student_embedding_model_wrapper._model,
+                    self.student_dino_head,
+                    self.student_ibot_head,
+                ],
             )
         else:
             return TrainableModules(
-                modules=[ModuleDict({
-                    "student_embedding_model_wrapper._model": self.student_embedding_model_wrapper._model,
-                    "student_dino_head": self.student_dino_head,
-                })]
+                modules=[
+                    self.student_embedding_model_wrapper._model,
+                    self.student_dino_head,
+                ]
             )
 
     # Ignore the return type, because pytorch-lightning types it wrongly.
