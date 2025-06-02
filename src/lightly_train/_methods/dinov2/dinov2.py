@@ -55,6 +55,13 @@ from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train.types import Batch
 
 
+def freeze_eval_module(module: Module) -> None:
+    """Freeze the parameters of a module."""
+    for param in module.parameters():
+        param.requires_grad = False
+    module.eval()
+
+
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
     dino_global_loss: Tensor
@@ -281,6 +288,7 @@ class DINOv2(Method):
             self.teacher_embedding_model_wrapper
         )
         self.teacher_embedding_model_wrapper.make_teacher()
+        freeze_eval_module(self.teacher_embedding_model_wrapper)
 
         # Create teacher and student dino heads
         dino_head = partial(
@@ -316,6 +324,9 @@ class DINOv2(Method):
         else:
             self.teacher_ibot_head = self.teacher_dino_head
             self.student_ibot_head = self.student_dino_head
+        
+        freeze_eval_module(self.teacher_dino_head)
+        freeze_eval_module(self.teacher_ibot_head)
 
         # Losses
         self.centering = method_args.centering
