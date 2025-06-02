@@ -62,6 +62,7 @@ class DINOv2TrainingStepResult(TrainingStepResult):
     dino_local_loss: Tensor
     ibot_loss: Tensor
     koleo_loss: Tensor
+    momentum: Tensor
 
 
 class DINOv2Args(MethodArgs):
@@ -356,16 +357,19 @@ class DINOv2(Method):
         dino_local_loss = training_step_log.dino_local_loss
         ibot_loss = training_step_log.ibot_loss
         koleo_loss = training_step_log.koleo_loss
+        momentum = training_step_log.momentum
 
         log_dict = {
             "train_loss": train_loss,
-            "dino_global_loss": dino_global_loss,
-            "dino_local_loss": dino_local_loss,
-            "ibot_loss": ibot_loss,
-            "koleo_loss": koleo_loss,
+            "dino_global_loss": self.method_args.dino_loss_weight * dino_global_loss,
+            "dino_local_loss": self.method_args.dino_loss_weight * dino_local_loss,
+            "ibot_loss": self.method_args.ibot_loss_weight * ibot_loss,
+            "koleo_loss": self.method_args.koleo_loss_weight * koleo_loss,
             "weight_decay": no_auto(self.method_args.weight_decay_start)
             if not hasattr(self, "weight_decay")
             else self.weight_decay,
+            "lr": self.optimizers().param_groups[-1]["lr"],
+            "momentum": momentum,
         }
 
         views = batch["views"]
@@ -525,6 +529,7 @@ class DINOv2(Method):
             dino_local_loss=dino_local_loss,
             ibot_loss=ibot_loss,
             koleo_loss=koleo_loss,
+            momentum=momentum
         )
 
     @torch.no_grad()
