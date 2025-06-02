@@ -1,0 +1,3 @@
+student:
+  arch: vit_small
+  patch_size: 16
