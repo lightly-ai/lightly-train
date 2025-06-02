@@ -30,9 +30,6 @@ from lightly_train._commands import extract_video_frames
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._methods.method import Method
 from lightly_train._methods.simclr.simclr import SimCLR, SimCLRArgs
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    vit_tiny__testing,
-)
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
@@ -68,44 +65,6 @@ class DummyCustomModel(Module, ModelWrapper):
 
     def get_model(self) -> Module:
         return self.conv
-
-
-class DummyVitModel(Module, ModelWrapper):
-    def __init__(self, feature_dim: int = 2):
-        super().__init__()
-        self._feature_dim = feature_dim
-        self._model = vit_tiny__testing(patch_size=2)
-        self.global_pool = AdaptiveAvgPool2d(output_size=(1, 1))
-    
-    def feature_dim(self) -> int:
-        return self._feature_dim
-
-    def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
-        rt = self._model(x, is_training=True)  # forcing to return all patches
-        if rt["x_norm_patchtokens"].dim() == 3:
-            features_reshaped = rt["x_norm_patchtokens"].reshape(
-                rt["x_norm_patchtokens"].shape[0],
-                rt["x_norm_patchtokens"].shape[2],
-                x.shape[2] // self._model.patch_size,
-                x.shape[3] // self._model.patch_size,
-            )
-        elif rt["x_norm_patchtokens"].dim() == 4:
-            features_reshaped = rt["x_norm_patchtokens"]
-        else:
-            raise ValueError(
-                f"Unexpected shape for x_norm_patchtokens: {rt['x_norm_patchtokens'].shape}"
-            )
-        return {"features": features_reshaped, "cls_token": rt["x_norm_clstoken"]}
-
-    def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
-        return {"pooled_features": self._pool(x["features"])}
-
-    def get_model(self) -> Module:
-        return self._model
-    
-    def make_teacher(self) -> None:
-        """Dummy method to satisfy the VIT interface."""
-        return
 
 
 class DummyMethodTransform(MethodTransform):

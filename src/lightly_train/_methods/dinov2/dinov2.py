@@ -47,6 +47,9 @@ from lightly_train._methods.dinov2.utils import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
@@ -145,6 +148,10 @@ class DINOv2Args(MethodArgs):
         model: Module,
     ) -> None:
         # Determine the args based on the model architecture
+        if not isinstance(model, DinoVisionTransformer):
+            raise ValueError(
+                f"Expected model to be of type DinoVisionTransformer, but got {type(model)}."
+            )
         depth: int = model.n_blocks
         num_heads: int = model.num_heads
         self.embed_dim: int = model.embed_dim
