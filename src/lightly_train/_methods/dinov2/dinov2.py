@@ -56,6 +56,13 @@ from lightly_train.types import Batch
 from torch.nn import ModuleDict
 
 
+def freeze_eval_module(module: Module) -> None:
+    """Freeze the parameters of a module."""
+    for param in module.parameters():
+        param.requires_grad = False
+    module.eval()
+
+
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
     dino_global_loss: Tensor
@@ -283,9 +290,7 @@ class DINOv2(Method):
             self.teacher_embedding_model_wrapper
         )
         self.teacher_embedding_model_wrapper.make_teacher()
-        for p in self.teacher_embedding_model_wrapper.parameters():
-            p.requires_grad = False
-        self.teacher_embedding_model_wrapper.eval()
+        freeze_eval_module(self.teacher_embedding_model_wrapper)
 
         # Create teacher and student dino heads
         dino_head = partial(
@@ -323,15 +328,8 @@ class DINOv2(Method):
             self.teacher_ibot_head = self.teacher_dino_head
             self.student_ibot_head = self.student_dino_head
         
-        self.student_ibot_head_ = ModuleDict({"ibot_head": self.student_ibot_head})
-        
-        # Set the teacher heads in evaluation mode.
-        for p in self.teacher_dino_head.parameters():
-            p.requires_grad = False
-        for p in self.teacher_ibot_head.parameters():
-            p.requires_grad = False
-        self.teacher_dino_head.eval()
-        self.teacher_ibot_head.eval()
+        freeze_eval_module(self.teacher_dino_head)
+        freeze_eval_module(self.teacher_ibot_head)
 
         # Losses
         self.centering = method_args.centering
