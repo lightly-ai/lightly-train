@@ -312,8 +312,8 @@ class DINOv2(Method):
                 batch_norm=method_args.batch_norm,
                 norm_last_layer=method_args.norm_last_layer,
             )
-            self.teacher_dino_head = ibot_head()
-            self.student_dino_head = ibot_head(
+            self.teacher_ibot_head = ibot_head()
+            self.student_ibot_head = ibot_head(
                 freeze_last_layer=method_args.student_freeze_last_layer_epochs
             )
         else:
