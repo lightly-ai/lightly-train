@@ -281,6 +281,9 @@ class DINOv2(Method):
             self.teacher_embedding_model_wrapper
         )
         self.teacher_embedding_model_wrapper.make_teacher()
+        for p in self.teacher_embedding_model_wrapper.parameters():
+            p.requires_grad = False
+        self.teacher_embedding_model_wrapper.eval()
 
         # Create teacher and student dino heads
         dino_head = partial(
@@ -316,6 +319,13 @@ class DINOv2(Method):
         else:
             self.teacher_ibot_head = self.teacher_dino_head
             self.student_ibot_head = self.student_dino_head
+        # Set the teacher heads in evaluation mode.
+        for p in self.teacher_dino_head.parameters():
+            p.requires_grad = False
+        for p in self.teacher_ibot_head.parameters():
+            p.requires_grad = False
+        self.teacher_dino_head.eval()
+        self.teacher_ibot_head.eval()
 
         # Losses
         self.centering = method_args.centering
