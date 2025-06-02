@@ -490,12 +490,12 @@ class DINOv2(Method):
             student_masks_flat=collated_masks,
             n_masked_patches=n_masked_patches,
             masks_weight=masks_weight,
-        )
+        ) / n_global_crops
 
         koleo_loss = sum(
             self.koleo_loss(token) for token in student_cls_tokens_global.chunk(2)
-        )  # [G, B, D], only use global views
-
+        ) / n_global_crops  # [G, B, D], only use global views
+        
         loss = (
             self.method_args.dino_loss_weight * dino_global_loss
             + self.method_args.dino_loss_weight * dino_local_loss
