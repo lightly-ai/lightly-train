@@ -11,7 +11,7 @@ import copy
 import math
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Literal
+from typing import Any, Literal, Mapping
 
 import torch
 from lightly.loss import (
@@ -531,22 +531,6 @@ class DINOv2(Method):
             + self.method_args.koleo_loss_weight * koleo_loss
         )
 
-        # Momentum update teacher.
-        momentum = cosine_schedule(
-            step=self.trainer.global_step,
-            max_steps=self.trainer.estimated_stepping_batches,
-            start_value=no_auto(self.method_args.momentum_start),
-            end_value=self.method_args.momentum_end,
-        )
-        update_momentum(
-            self.student_embedding_model_wrapper._model,
-            self.teacher_embedding_model_wrapper._model,
-            m=momentum,
-        )
-        update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
-        if self.ibot_separate_head:
-            update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
-
         return DINOv2TrainingStepResult(
             loss=loss,
             dino_global_loss=dino_global_loss,
@@ -757,6 +741,30 @@ class DINOv2(Method):
                 )
 
         update_param_groups(optimizer, updates=updates)
+    
+    def on_train_batch_end(
+            self,
+            outputs: Tensor | Mapping[str, Any] | None,
+            batch: Batch,
+            batch_idx: int,
+        ) -> None:
+        # Momentum update teacher.
+        momentum = cosine_schedule(
+            step=self.trainer.global_step,
+            max_steps=self.trainer.estimated_stepping_batches,
+            start_value=no_auto(self.method_args.momentum_start),
+            end_value=self.method_args.momentum_end,
+        )
+        update_momentum(
+            self.student_embedding_model_wrapper._model,
+            self.teacher_embedding_model_wrapper._model,
+            m=momentum,
+        )
+        update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
+        if self.ibot_separate_head:
+            update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
+        self._log_time_batch_end()
+
 
     @staticmethod
     def transform_cls() -> type[DINOv2ViTTransform]:
