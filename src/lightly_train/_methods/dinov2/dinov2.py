@@ -487,7 +487,7 @@ class DINOv2(Method):
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
             self._forward_student_global(
-                global_views, mask_indices_list
+                global_views, collated_masks, mask_indices_list
             )  # [G*B, D], [M, D]
         )
 
@@ -631,10 +631,11 @@ class DINOv2(Method):
     def _forward_student_global(
         self,
         x: Tensor,
+        masks: Tensor,
         mask_indices_list: Tensor,
     ) -> tuple[Tensor, Tensor]:
         tokens = self.student_embedding_model_wrapper.forward_features(
-            x
+            x, masks
         )  # input [G*B, C, ...]
 
         # process the cls tokens
