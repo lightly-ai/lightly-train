@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import math
 from dataclasses import dataclass
 from functools import partial
@@ -46,6 +47,9 @@ from lightly_train._methods.dinov2.utils import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
@@ -53,6 +57,8 @@ from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train.types import Batch
+
+logger = logging.getLogger(__name__)
 
 
 def freeze_eval_module(module: Module) -> None:
@@ -177,6 +183,10 @@ class DINOv2Args(MethodArgs):
         model: Module,
     ) -> None:
         # Determine the args based on the model architecture
+        if not isinstance(model, DinoVisionTransformer):
+            raise ValueError(
+                f"Expected model to be of type DinoVisionTransformer, but got {type(model)}."
+            )
         depth: int = model.n_blocks
         num_heads: int = model.num_heads
         self.embed_dim: int = model.embed_dim
@@ -197,7 +207,7 @@ class DINOv2Args(MethodArgs):
         ):  # base / small
             pass
         else:
-            raise UserWarning(
+            logger.warning(
                 f"Model architecture: depth={depth}, num_heads={num_heads}, embed_dim={self.embed_dim} does not match any known DINOv2 model."
                 "Using default parameters for small/base models, but performance may be suboptimal."
             )
@@ -680,14 +690,13 @@ class DINOv2(Method):
     # Ignore the return type, because pytorch-lightning types it wrongly.
     # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
     def configure_optimizers(self) -> OptimizerLRScheduler:
+        self.optimizer_args.lr *= math.sqrt(self.global_batch_size / 1024)  # type: ignore[attr-defined]
         optim = get_optimizer_with_decay(
             optim_args=self.optimizer_args,
             trainable_modules=self.trainable_modules(),
-            lr_scale=math.sqrt(self.global_batch_size / 1024),  # square root scaling
             layerwise_decay=self.method_args.layerwise_decay,
             patch_embed_lr_multiplier=self.method_args.patch_embed_lr_multiplier,
         )
-
         if self.trainer.max_epochs is None:
             raise RuntimeError("Max epochs is not set.")
 
@@ -702,8 +711,7 @@ class DINOv2(Method):
                     * self.method_args.warmup_epochs
                 ),
                 max_epochs=int(self.trainer.estimated_stepping_batches),
-                start_value=self.optimizer_args.lr,  # type: ignore[attr-defined]
-                end_value=self.method_args.min_lr,
+                end_value=self.method_args.min_lr / self.optimizer_args.lr,  # type: ignore[attr-defined]
             ),  # TODO: ignore to be removed after improving optimizer args
             "interval": "step",
         }
