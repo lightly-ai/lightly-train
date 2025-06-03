@@ -5,6 +5,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass
 from functools import partial
@@ -252,8 +254,8 @@ class TestDINOv2:
                 else:
                     assert (
                         param_group["weight_decay"]
-                        == dinov2.optimizer_args.weight_decay
-                    )  # type: ignore[attr-defined]
+                        == dinov2.optimizer_args.weight_decay # type: ignore[attr-defined]
+                    )  
 
         # First batch
         target_lr = lr_neutral / (
