@@ -76,18 +76,9 @@ class DINOHead(Module):
     def forward(self, x: Tensor) -> Any:
         return self._dino_head(x)
     
-    def __getattr__(self, name: str) -> Any:
-        # Delegate all attributes/methods except _dino_head itself
-        if name == "_dino_head":
-            return super().__getattribute__(name)
-        return getattr(self._dino_head, name)
+    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
+        self._dino_head.cancel_last_layer_gradients(current_epoch)
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        # Ensure internal modules are properly registered with nn.Module
-        if name == "_dino_head":
-            super().__setattr__(name, value)
-        else:
-            setattr(self._dino_head, name, value)
 
 class IBOTHead(Module):
     """A wrapper for the IBOT projection head."""
@@ -98,18 +89,9 @@ class IBOTHead(Module):
     def forward(self, x: Tensor) -> Any:
         return self._ibot_head(x)
     
-    def __getattr__(self, name: str) -> Any:
-        # Delegate all attributes/methods except _dino_head itself
-        if name == "_ibot_head":
-            return super().__getattribute__(name)
-        return getattr(self._ibot_head, name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        # Ensure internal modules are properly registered with nn.Module
-        if name == "_ibot_head":
-            super().__setattr__(name, value)
-        else:
-            setattr(self._ibot_head, name, value)
+    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
+        self._ibot_head.cancel_last_layer_gradients(current_epoch)
+        
 
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
@@ -718,14 +700,13 @@ class DINOv2(Method):
     # Ignore the return type, because pytorch-lightning types it wrongly.
     # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
     def configure_optimizers(self) -> OptimizerLRScheduler:
+        self.optimizer_args.lr *= math.sqrt(self.global_batch_size / 1024)  # scale learning rate by global batch size
         optim = get_optimizer_with_decay(
             optim_args=self.optimizer_args,
             trainable_modules=self.trainable_modules(),
-            lr_scale=math.sqrt(self.global_batch_size / 1024),  # square root scaling
             layerwise_decay=self.method_args.layerwise_decay,
             patch_embed_lr_multiplier=self.method_args.patch_embed_lr_multiplier,
         )
-
         if self.trainer.max_epochs is None:
             raise RuntimeError("Max epochs is not set.")
 
@@ -740,8 +721,7 @@ class DINOv2(Method):
                     * self.method_args.warmup_epochs
                 ),
                 max_epochs=int(self.trainer.estimated_stepping_batches),
-                start_value=self.optimizer_args.lr,  # type: ignore[attr-defined]
-                end_value=self.method_args.min_lr,
+                end_value=self.method_args.min_lr/self.optimizer_args.lr,
             ),  # TODO: ignore to be removed after improving optimizer args
             "interval": "step",
         }

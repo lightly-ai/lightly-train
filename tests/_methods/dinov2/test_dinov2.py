@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from functools import partial
+import math
 from typing import Literal
 
 import pytest
@@ -165,16 +166,76 @@ class TestDINOv2:
         emb_model = EmbeddingModel(wrapped_model=dummy_vit_model())
         b = 16
 
-        dinov2_args = DINOv2Args()
+        dinov2_args = DINOv2Args(warmup_epochs=1)
         dinov2_args.layerwise_decay = 0.9
-        dinov2_args.patch_embed_lr_multiplier = 1.0
+
+        trainer_mock = mocker.Mock()
+        trainer_mock.global_step = 0
+        trainer_mock.max_epochs = 2
+        trainer_mock.estimated_stepping_batches = 4
 
         dinov2 = setup_dinov2_helper(dinov2_args, mocker, emb_model, b)
+        dinov2.trainer = trainer_mock
 
-        optim = dinov2.configure_optimizers()[0]
-        assert len(optim.param_groups) == 3
-    
 
+        target_lr_before_scaling = dinov2.optimizer_args.lr
+        optim_scheduler = dinov2.configure_optimizers()
+        optim = optim_scheduler[0][0]
+
+        scheduler = optim_scheduler[1][0]["scheduler"]
+
+
+        num_layers = emb_model.wrapped_model.get_model().n_blocks
+        lr_decay_rate = dinov2_args.layerwise_decay
+
+        target_lr = dinov2.optimizer_args.lr
+        assert target_lr_before_scaling * math.sqrt(b/1024)== target_lr
+
+        target_lr_neutral = target_lr
+
+        def check_param_groups() -> None:
+            for param_group in optim.param_groups:
+                if not "_ibot_head." in param_group["name"] and not "_dino_head." in param_group["name"]:
+                    name = param_group["name"]
+                    layer_id = num_layers + 1
+                    if  (
+                        "pos_embed" in name
+                        or "patch_embed" in name
+                        or "mask_token" in name
+                        or "cls_token" in name
+                        or "register_tokens" in name
+                    ):
+                        layer_id = 0
+                    elif "blocks." in name and "residual." not in name:
+                        layer_id = int(name[name.find("blocks.") :].split(".")[2]) + 1
+                    temp_target_lr = target_lr*(lr_decay_rate ** (num_layers + 1 - layer_id))
+                    if "patch_embed" in name:
+                        temp_target_lr *= dinov2_args.patch_embed_lr_multiplier
+                    # assert that the lr is close to the target lr
+                    # due to numerical errors, the lr might not be exactly equal
+                    assert math.isclose(param_group["lr"], temp_target_lr, rel_tol=1e-10, abs_tol=1e-10)
+
+                else:
+                    assert math.isclose(param_group["lr"], target_lr, rel_tol=1e-10, abs_tol=1e-10)
+
+        # First batch
+        target_lr /= ( trainer_mock.estimated_stepping_batches/trainer_mock.max_epochs)
+        check_param_groups()
+        scheduler.step()
+
+        # Second batch
+        target_lr = target_lr_neutral
+        check_param_groups()
+
+
+        scheduler.step()
+        scheduler.step()
+
+        # Last Batch
+        target_lr = dinov2_args.min_lr
+        check_param_groups()
+
+        
 class TestDINOv2Args:
     @pytest.mark.parametrize(
         "scaling, scaling_result",
