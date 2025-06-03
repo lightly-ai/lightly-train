@@ -700,7 +700,7 @@ class DINOv2(Method):
     # Ignore the return type, because pytorch-lightning types it wrongly.
     # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        self.optimizer_args.lr *= math.sqrt(self.global_batch_size / 1024)  # scale learning rate by global batch size
+        self.optimizer_args.lr *= math.sqrt(self.global_batch_size / 1024)  # type: ignore[attr-defined]
         optim = get_optimizer_with_decay(
             optim_args=self.optimizer_args,
             trainable_modules=self.trainable_modules(),
@@ -721,7 +721,7 @@ class DINOv2(Method):
                     * self.method_args.warmup_epochs
                 ),
                 max_epochs=int(self.trainer.estimated_stepping_batches),
-                end_value=self.method_args.min_lr/self.optimizer_args.lr,
+                end_value=self.method_args.min_lr/self.optimizer_args.lr, # type: ignore[attr-defined]
             ),  # TODO: ignore to be removed after improving optimizer args
             "interval": "step",
         }

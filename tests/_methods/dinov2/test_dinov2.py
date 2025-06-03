@@ -1,6 +1,6 @@
+import math
 from dataclasses import dataclass
 from functools import partial
-import math
 from typing import Literal
 
 import pytest
@@ -18,10 +18,11 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
     vit_tiny__testing,
 )
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
-from lightly_train.types import Batch
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
+from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
+from lightly_train.types import Batch
+
 
 @dataclass
 class ModelVariantParams():
@@ -177,26 +178,24 @@ class TestDINOv2:
         dinov2 = setup_dinov2_helper(dinov2_args, mocker, emb_model, b)
         dinov2.trainer = trainer_mock
 
-
-        target_lr_before_scaling = dinov2.optimizer_args.lr
+        target_lr_before_scaling = dinov2.optimizer_args.lr # type: ignore[attr-defined]
         optim_scheduler = dinov2.configure_optimizers()
-        optim = optim_scheduler[0][0]
+        optim = optim_scheduler[0][0] # type: ignore[index, literal-required]
 
-        scheduler = optim_scheduler[1][0]["scheduler"]
-
+        scheduler = optim_scheduler[1][0]["scheduler"] # type: ignore[index, literal-required]
 
         num_layers = emb_model.wrapped_model.get_model().n_blocks
         lr_decay_rate = dinov2_args.layerwise_decay
 
-        target_lr = dinov2.optimizer_args.lr
-        assert target_lr_before_scaling * math.sqrt(b/1024)== target_lr
-
-        target_lr_neutral = target_lr
+        # Verify that the target lr is correctly scaled
+        lr_neutral = dinov2.optimizer_args.lr # type: ignore[attr-defined]
+        assert target_lr_before_scaling * math.sqrt(b/1024) == lr_neutral
 
         def check_param_groups() -> None:
             for param_group in optim.param_groups:
-                if not "_ibot_head." in param_group["name"] and not "_dino_head." in param_group["name"]:
-                    name = param_group["name"]
+                name = param_group["name"]
+                if "_ibot_head." not in name and "_dino_head." not in name:
+                    # This is a ViT block --> decay through the layers
                     layer_id = num_layers + 1
                     if  (
                         "pos_embed" in name
@@ -212,21 +211,27 @@ class TestDINOv2:
                     if "patch_embed" in name:
                         temp_target_lr *= dinov2_args.patch_embed_lr_multiplier
                     # assert that the lr is close to the target lr
-                    # due to numerical errors, the lr might not be exactly equal
                     assert math.isclose(param_group["lr"], temp_target_lr, rel_tol=1e-10, abs_tol=1e-10)
 
                 else:
+                    # This is a head block --> no decay
                     assert math.isclose(param_group["lr"], target_lr, rel_tol=1e-10, abs_tol=1e-10)
-
+                if (
+                    name.endswith(".bias") or "norm" in name or "gamma" in name
+                ):
+                    assert param_group["weight_decay"] == 0.0
+                else:
+                    assert param_group["weight_decay"] == dinov2.optimizer_args.weight_decay # type: ignore[attr-defined]
+                    
         # First batch
-        target_lr /= ( trainer_mock.estimated_stepping_batches/trainer_mock.max_epochs)
+        target_lr = lr_neutral / ( trainer_mock.estimated_stepping_batches/trainer_mock.max_epochs) 
         check_param_groups()
+        
         scheduler.step()
 
         # Second batch
-        target_lr = target_lr_neutral
+        target_lr = lr_neutral
         check_param_groups()
-
 
         scheduler.step()
         scheduler.step()
