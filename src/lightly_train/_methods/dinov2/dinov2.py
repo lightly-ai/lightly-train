@@ -70,18 +70,8 @@ class DINOHead(Module):
     def forward(self, x: Tensor) -> Any:
         return self._dino_head(x)
     
-    def __getattr__(self, name: str) -> Any:
-        # Delegate all attributes/methods except _dino_head itself
-        if name == "_dino_head":
-            return super().__getattribute__(name)
-        return getattr(self._dino_head, name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        # Ensure internal modules are properly registered with nn.Module
-        if name == "_dino_head":
-            super().__setattr__(name, value)
-        else:
-            setattr(self._dino_head, name, value)
+    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
+        self._dino_head.cancel_last_layer_gradients(current_epoch)
 
 class IBOTHead(Module):
     """A wrapper for the IBOT projection head."""
@@ -92,18 +82,8 @@ class IBOTHead(Module):
     def forward(self, x: Tensor) -> Any:
         return self._ibot_head(x)
     
-    def __getattr__(self, name: str) -> Any:
-        # Delegate all attributes/methods except _dino_head itself
-        if name == "_ibot_head":
-            return super().__getattribute__(name)
-        return getattr(self._ibot_head, name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        # Ensure internal modules are properly registered with nn.Module
-        if name == "_ibot_head":
-            super().__setattr__(name, value)
-        else:
-            setattr(self._ibot_head, name, value)
+    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
+        self._ibot_head.cancel_last_layer_gradients(current_epoch)
 
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
