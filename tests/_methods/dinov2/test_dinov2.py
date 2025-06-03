@@ -249,8 +249,8 @@ class TestDINOv2:
                 else:
                     assert (
                         param_group["weight_decay"]
-                        == dinov2.optimizer_args.weight_decay # type: ignore[attr-defined]
-                    )  
+                        == dinov2.optimizer_args.weight_decay  # type: ignore[attr-defined]
+                    )
 
         # First batch
         target_lr = lr_neutral / (
