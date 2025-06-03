@@ -63,23 +63,27 @@ def freeze_eval_module(module: Module) -> None:
 
 class DINOHead(Module):
     """A wrapper for the DINO projection head."""
-
     def __init__(self, dino_head: Module) -> None:
         super().__init__()
         self.dino_head = dino_head
 
     def forward(self, x: Tensor) -> Any:
         return self.dino_head(x)
+    
+    def cancel_last_layer_gradients(self) -> None:
+        self.dino_head.cancel_last_layer_gradients()
 
 class IBOTHead(Module):
     """A wrapper for the IBOT projection head."""
-
     def __init__(self, ibot_head: Module) -> None:
         super().__init__()
         self.ibot_head = ibot_head
 
     def forward(self, x: Tensor) -> Any:
         return self.ibot_head(x)
+    
+    def cancel_last_layer_gradients(self) -> None:
+        self.ibot_head.cancel_last_layer_gradients()
 
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
