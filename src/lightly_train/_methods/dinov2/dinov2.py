@@ -65,25 +65,45 @@ class DINOHead(Module):
     """A wrapper for the DINO projection head."""
     def __init__(self, dino_head: Module) -> None:
         super().__init__()
-        self.dino_head = dino_head
+        self._dino_head = dino_head
 
     def forward(self, x: Tensor) -> Any:
-        return self.dino_head(x)
+        return self._dino_head(x)
     
-    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
-        self.dino_head.cancel_last_layer_gradients(current_epoch)
+    def __getattr__(self, name: str) -> Any:
+        # Delegate all attributes/methods except _dino_head itself
+        if name == "_dino_head":
+            return super().__getattribute__(name)
+        return getattr(self._dino_head, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Ensure internal modules are properly registered with nn.Module
+        if name == "_dino_head":
+            super().__setattr__(name, value)
+        else:
+            setattr(self._dino_head, name, value)
 
 class IBOTHead(Module):
     """A wrapper for the IBOT projection head."""
     def __init__(self, ibot_head: Module) -> None:
         super().__init__()
-        self.ibot_head = ibot_head
+        self._ibot_head = ibot_head
 
     def forward(self, x: Tensor) -> Any:
-        return self.ibot_head(x)
+        return self._ibot_head(x)
     
-    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
-        self.ibot_head.cancel_last_layer_gradients(current_epoch)
+    def __getattr__(self, name: str) -> Any:
+        # Delegate all attributes/methods except _dino_head itself
+        if name == "_ibot_head":
+            return super().__getattribute__(name)
+        return getattr(self._ibot_head, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Ensure internal modules are properly registered with nn.Module
+        if name == "_ibot_head":
+            super().__setattr__(name, value)
+        else:
+            setattr(self._ibot_head, name, value)
 
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
