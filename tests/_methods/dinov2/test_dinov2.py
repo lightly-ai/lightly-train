@@ -80,11 +80,6 @@ class ScalingResult:
     momemntum_start: float
 
 
-# TODO:
-# Test layerwise decay optimizer
-# Test masking
-
-
 dummy_vit_model = partial(DINOv2ViTModelWrapper, vit_tiny__testing(patch_size=2))
 
 
@@ -166,7 +161,7 @@ class TestDINOv2:
 
         out = dinov2.training_step_impl(batch, 0)
 
-        # check thatthe ibot and dino heads are the same
+        # check that the ibot and dino heads are the same
         if ibot_separate_head:
             assert dinov2.student_dino_head != dinov2.student_ibot_head
         else:
