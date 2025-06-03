@@ -166,7 +166,7 @@ def get_vit_lr_decay_rate(
     """
 
     layer_id = num_layers + 1
-    if  (
+    if (
         "pos_embed" in name
         or "patch_embed" in name
         or "mask_token" in name
@@ -215,10 +215,10 @@ def get_optimizer_with_decay(
             decay_rate = 1.0
             if is_backbone:
                 decay_rate = get_vit_lr_decay_rate(
-                    name = name,
-                    lr_decay_rate = layerwise_decay,
-                    num_layers = module.n_blocks,
-                    chunked_blocks = module.chunked_blocks,
+                    name=name,
+                    lr_decay_rate=layerwise_decay,
+                    num_layers=module.n_blocks,
+                    chunked_blocks=module.chunked_blocks,
                 )
             d = {
                 "name": name,
