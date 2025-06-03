@@ -771,7 +771,9 @@ class DINOv2(Method):
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
         if self.ibot_separate_head:
             update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
-        self._log_time_batch_end()
+        super().on_train_batch_end(
+            outputs=outputs, batch=batch, batch_idx=batch_idx
+        )
 
     @staticmethod
     def transform_cls() -> type[DINOv2ViTTransform]:
