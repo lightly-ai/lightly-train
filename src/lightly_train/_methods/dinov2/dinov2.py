@@ -61,6 +61,56 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
+def freeze_eval_module(module: Module) -> None:
+    """Freeze the parameters of a module."""
+    for param in module.parameters():
+        param.requires_grad = False
+    module.eval()
+
+class DINOHead(Module):
+    """A wrapper for the DINO projection head."""
+    def __init__(self, dino_head: Module) -> None:
+        super().__init__()
+        self._dino_head = dino_head
+
+    def forward(self, x: Tensor) -> Any:
+        return self._dino_head(x)
+    
+    def __getattr__(self, name: str) -> Any:
+        # Delegate all attributes/methods except _dino_head itself
+        if name == "_dino_head":
+            return super().__getattribute__(name)
+        return getattr(self._dino_head, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Ensure internal modules are properly registered with nn.Module
+        if name == "_dino_head":
+            super().__setattr__(name, value)
+        else:
+            setattr(self._dino_head, name, value)
+
+class IBOTHead(Module):
+    """A wrapper for the IBOT projection head."""
+    def __init__(self, ibot_head: Module) -> None:
+        super().__init__()
+        self._ibot_head = ibot_head
+
+    def forward(self, x: Tensor) -> Any:
+        return self._ibot_head(x)
+    
+    def __getattr__(self, name: str) -> Any:
+        # Delegate all attributes/methods except _dino_head itself
+        if name == "_ibot_head":
+            return super().__getattribute__(name)
+        return getattr(self._ibot_head, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Ensure internal modules are properly registered with nn.Module
+        if name == "_ibot_head":
+            super().__setattr__(name, value)
+        else:
+            setattr(self._ibot_head, name, value)
+
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
     dino_global_loss: Tensor
@@ -291,6 +341,7 @@ class DINOv2(Method):
             self.teacher_embedding_model_wrapper
         )
         self.teacher_embedding_model_wrapper.make_teacher()
+        freeze_eval_module(self.teacher_embedding_model_wrapper)
 
         # Create teacher and student dino heads
         dino_head = partial(
@@ -302,13 +353,15 @@ class DINOv2(Method):
             batch_norm=method_args.batch_norm,
             norm_last_layer=method_args.norm_last_layer,
         )
-        self.teacher_dino_head = dino_head()
-        self.student_dino_head = dino_head(
+        self.teacher_dino_head = DINOHead(dino_head())
+        self.student_dino_head = DINOHead(dino_head(
             freeze_last_layer=method_args.student_freeze_last_layer_epochs
-        )
+        ))
 
         # Create teacher and student iBOT head
         self.ibot_separate_head: bool = method_args.ibot_separate_head
+        self.teacher_ibot_head : DINOHead | IBOTHead
+        self.student_ibot_head : DINOHead | IBOTHead
         if self.ibot_separate_head:
             ibot_head = partial(
                 DINOProjectionHead,
@@ -319,13 +372,16 @@ class DINOv2(Method):
                 batch_norm=method_args.batch_norm,
                 norm_last_layer=method_args.norm_last_layer,
             )
-            self.teacher_dino_head = ibot_head()
-            self.student_dino_head = ibot_head(
+            self.teacher_ibot_head = IBOTHead(ibot_head())
+            self.student_ibot_head = IBOTHead(ibot_head(
                 freeze_last_layer=method_args.student_freeze_last_layer_epochs
-            )
+            ))
         else:
-            self.teacher_ibot_head = self.teacher_dino_head
-            self.student_ibot_head = self.student_dino_head
+            self.teacher_ibot_head = self.teacher_dino_head 
+            self.student_ibot_head = self.student_dino_head 
+        
+        freeze_eval_module(self.teacher_dino_head)
+        freeze_eval_module(self.teacher_ibot_head)
 
         # Losses
         self.centering = method_args.centering
@@ -656,7 +712,7 @@ class DINOv2(Method):
                 modules=[
                     self.student_embedding_model_wrapper._model,
                     self.student_dino_head,
-                ],
+                ]
             )
 
     # Ignore the return type, because pytorch-lightning types it wrongly.
