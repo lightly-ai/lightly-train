@@ -344,6 +344,7 @@ class DINOv2(Method):
             self.student_ibot_head = IBOTHead(ibot_head(
                 freeze_last_layer=method_args.student_freeze_last_layer_epochs
             ))
+            self.student_ibot_head_ = ModuleDict({"ibot_head": self.student_ibot_head})
         else:
             self.teacher_ibot_head = self.teacher_dino_head 
             self.student_ibot_head = self.student_dino_head 
@@ -712,8 +713,8 @@ class DINOv2(Method):
                     * self.method_args.warmup_epochs
                 ),
                 max_epochs=int(self.trainer.estimated_stepping_batches),
-                start_value=self.optimizer_args.lr,  # type: ignore[attr-defined]
-                end_value=self.method_args.min_lr,
+                # start_value=self.optimizer_args.lr,  # type: ignore[attr-defined]
+                # end_value=self.method_args.min_lr,
             ),  # TODO: ignore to be removed after improving optimizer args
             "interval": "step",
         }
