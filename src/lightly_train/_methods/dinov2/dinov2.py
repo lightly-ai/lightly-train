@@ -741,13 +741,13 @@ class DINOv2(Method):
                 )
 
         update_param_groups(optimizer, updates=updates)
-    
+
     def on_train_batch_end(
-            self,
-            outputs: Tensor | Mapping[str, Any] | None,
-            batch: Batch,
-            batch_idx: int,
-        ) -> None:
+        self,
+        outputs: Tensor | Mapping[str, Any] | None,
+        batch: Batch,
+        batch_idx: int,
+    ) -> None:
         # Momentum update teacher.
         momentum = cosine_schedule(
             step=self.trainer.global_step,
@@ -764,7 +764,6 @@ class DINOv2(Method):
         if self.ibot_separate_head:
             update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
         self._log_time_batch_end()
-
 
     @staticmethod
     def transform_cls() -> type[DINOv2ViTTransform]:
