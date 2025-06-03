@@ -61,29 +61,34 @@ def freeze_eval_module(module: Module) -> None:
         param.requires_grad = False
     module.eval()
 
+
 class DINOHead(Module):
     """A wrapper for the DINO projection head."""
+
     def __init__(self, dino_head: Module) -> None:
         super().__init__()
         self._dino_head = dino_head
 
     def forward(self, x: Tensor) -> Any:
         return self._dino_head(x)
-    
+
     def cancel_last_layer_gradients(self, current_epoch: int) -> None:
         self._dino_head.cancel_last_layer_gradients(current_epoch)
 
+
 class IBOTHead(Module):
     """A wrapper for the IBOT projection head."""
+
     def __init__(self, ibot_head: Module) -> None:
         super().__init__()
         self._ibot_head = ibot_head
 
     def forward(self, x: Tensor) -> Any:
         return self._ibot_head(x)
-    
+
     def cancel_last_layer_gradients(self, current_epoch: int) -> None:
         self._ibot_head.cancel_last_layer_gradients(current_epoch)
+
 
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
@@ -324,14 +329,14 @@ class DINOv2(Method):
             norm_last_layer=method_args.norm_last_layer,
         )
         self.teacher_dino_head = DINOHead(dino_head())
-        self.student_dino_head = DINOHead(dino_head(
-            freeze_last_layer=method_args.student_freeze_last_layer_epochs
-        ))
+        self.student_dino_head = DINOHead(
+            dino_head(freeze_last_layer=method_args.student_freeze_last_layer_epochs)
+        )
 
         # Create teacher and student iBOT head
         self.ibot_separate_head: bool = method_args.ibot_separate_head
-        self.teacher_ibot_head : DINOHead | IBOTHead
-        self.student_ibot_head : DINOHead | IBOTHead
+        self.teacher_ibot_head: DINOHead | IBOTHead
+        self.student_ibot_head: DINOHead | IBOTHead
         if self.ibot_separate_head:
             ibot_head = partial(
                 DINOProjectionHead,
@@ -343,13 +348,15 @@ class DINOv2(Method):
                 norm_last_layer=method_args.norm_last_layer,
             )
             self.teacher_ibot_head = IBOTHead(ibot_head())
-            self.student_ibot_head = IBOTHead(ibot_head(
-                freeze_last_layer=method_args.student_freeze_last_layer_epochs
-            ))
+            self.student_ibot_head = IBOTHead(
+                ibot_head(
+                    freeze_last_layer=method_args.student_freeze_last_layer_epochs
+                )
+            )
         else:
-            self.teacher_ibot_head = self.teacher_dino_head 
-            self.student_ibot_head = self.student_dino_head 
-        
+            self.teacher_ibot_head = self.teacher_dino_head
+            self.student_ibot_head = self.student_dino_head
+
         freeze_eval_module(self.teacher_dino_head)
         freeze_eval_module(self.teacher_ibot_head)
 
@@ -470,7 +477,7 @@ class DINOv2(Method):
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
             self._forward_student_global(
-                global_views, mask_indices_list
+                global_views, collated_masks, mask_indices_list
             )  # [G*B, D], [M, D]
         )
 
@@ -614,10 +621,11 @@ class DINOv2(Method):
     def _forward_student_global(
         self,
         x: Tensor,
+        masks: Tensor,
         mask_indices_list: Tensor,
     ) -> tuple[Tensor, Tensor]:
         tokens = self.student_embedding_model_wrapper.forward_features(
-            x
+            x, masks
         )  # input [G*B, C, ...]
 
         # process the cls tokens
