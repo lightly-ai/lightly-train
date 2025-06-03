@@ -70,8 +70,8 @@ class DINOHead(Module):
     def forward(self, x: Tensor) -> Any:
         return self.dino_head(x)
     
-    def cancel_last_layer_gradients(self) -> None:
-        self.dino_head.cancel_last_layer_gradients()
+    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
+        self.dino_head.cancel_last_layer_gradients(current_epoch)
 
 class IBOTHead(Module):
     """A wrapper for the IBOT projection head."""
@@ -82,8 +82,8 @@ class IBOTHead(Module):
     def forward(self, x: Tensor) -> Any:
         return self.ibot_head(x)
     
-    def cancel_last_layer_gradients(self) -> None:
-        self.ibot_head.cancel_last_layer_gradients()
+    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
+        self.ibot_head.cancel_last_layer_gradients(current_epoch)
 
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
