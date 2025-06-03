@@ -78,10 +78,6 @@ class DINOHead(Module):
     
     def cancel_last_layer_gradients(self, current_epoch: int) -> None:
         self._dino_head.cancel_last_layer_gradients(current_epoch)
-<<<<<<< HEAD
-
-=======
->>>>>>> b041c75854ced5423fe9658ed30ff0032b5a7efb
 
 class IBOTHead(Module):
     """A wrapper for the IBOT projection head."""
@@ -94,10 +90,6 @@ class IBOTHead(Module):
     
     def cancel_last_layer_gradients(self, current_epoch: int) -> None:
         self._ibot_head.cancel_last_layer_gradients(current_epoch)
-<<<<<<< HEAD
-        
-=======
->>>>>>> b041c75854ced5423fe9658ed30ff0032b5a7efb
 
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
