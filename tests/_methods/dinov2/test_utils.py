@@ -6,9 +6,69 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import re
+
 import pytest
 
 from lightly_train._methods.dinov2.utils import MaskingGenerator, create_collated_masks
+
+
+class TestMaskingGenerator:
+    # def setup_method(self) -> None:
+    #     self.grid_size = 16
+    #     self.max_num_patches=int(0.5 * self.grid_size**2)
+
+    @pytest.mark.parametrize("grid_size", [14, 16])
+    def test_get_shape_and_repr(self, grid_size: int) -> None:
+        masking_generator = MaskingGenerator(
+            input_size=(grid_size, grid_size), max_num_patches=int(0.5 * grid_size**2)
+        )
+
+        assert masking_generator.get_shape() == (grid_size, grid_size)
+
+        repr_str = repr(masking_generator)
+        # (the log‐aspect‐ratio values depend on min_aspect/max_aspect; we just check overall pattern)
+        assert re.match(
+            rf"Generator\({grid_size},\s*{grid_size}\s*->\s*\[\d+\s*~\s*\d+\],\s*max\s*=\s*[-\d\.]+\s*~\s*[-\d\.]+\)",
+            repr_str,
+        )
+
+    @pytest.mark.parametrize(
+        [
+            "grid_size",
+            "n_masked_patch_tokens_min",
+            "n_masked_patch_tokens_max",
+            "masking_ratio",
+        ],
+        [
+            (16, 0, 0, 0.0),
+            (16, 0, 128, 0.0),
+            (16, 4, 4, 1.0),
+            (16, 4, 128, 0.125),
+            (16, 4, 128, 0.25),
+            (16, 4, 128, 0.5),
+            (16, 4, 128, 1.0),
+        ],
+    )
+    def test_masking_generator_call(
+        self,
+        grid_size: int,
+        n_masked_patch_tokens_min: int,
+        n_masked_patch_tokens_max: int,
+        masking_ratio: float,
+    ) -> None:
+        n_masked_patch_tokens = int(masking_ratio * grid_size**2)
+
+        masking_generator = MaskingGenerator(
+            input_size=(grid_size, grid_size),
+            min_num_patches=n_masked_patch_tokens_min,
+            max_num_patches=n_masked_patch_tokens_max,
+        )
+
+        mask = masking_generator(n_masked_patch_tokens)
+
+        assert mask.shape == (grid_size, grid_size)
+        assert n_masked_patch_tokens_min <= mask.sum() <= n_masked_patch_tokens
 
 
 class TestCreateCollatedMasks:
