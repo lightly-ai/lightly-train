@@ -402,9 +402,6 @@ class DINOv2(Method):
             "dino_local_loss": dino_local_loss,
             "ibot_loss": ibot_loss,
             "koleo_loss": koleo_loss,
-            "weight_decay": no_auto(self.method_args.weight_decay_start)
-            if not hasattr(self, "weight_decay")
-            else self.weight_decay,
         }
 
         views = batch["views"]
@@ -738,7 +735,7 @@ class DINOv2(Method):
         self.student_ibot_head.cancel_last_layer_gradients(self.current_epoch)
 
         # Apply weight decay schedule
-        self.weight_decay = cosine_schedule(
+        weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
             start_value=self.method_args.weight_decay_start,
@@ -749,7 +746,7 @@ class DINOv2(Method):
         for group in optimizer.param_groups:
             if group["weight_decay"] != 0.0:
                 updates.append(
-                    {"name": group["name"], "weight_decay": self.weight_decay}
+                    {"name": group["name"], "weight_decay": weight_decay}
                 )
 
         update_param_groups(optimizer, updates=updates)
