@@ -28,6 +28,21 @@ if __name__ == "__main__":
     )
 
 ```
+
+Or alternatively, pass directly a SuperGradients model instance:
+
+```python
+from super_gradients.training import models
+
+import lightly_train
+
+if __name__ == "__main__":
+    model = models.get(model_name="yolo_nas_s", num_classes=3)  # Load the model.
+    lightly_train.train(
+        out="out/my_experiment",                # Output directory.
+        data="my_data_dir",                     # Directory with images.
+        model=model,                            # Pass the SuperGradients model.
+    )
 ````
 
 ````{tab} Command Line
@@ -35,7 +50,9 @@ if __name__ == "__main__":
 lightly-train train out="out/my_experiment" data="my_data_dir" model="super_gradients/yolo_nas_s"
 ````
 
-You can reload the exported model by `super_gradients` directly:
+## Fine-tune
+
+After pretraining, you can load the exported model for fine-tuning with SuperGradients:
 
 ```python
 from super_gradients.training import models
