@@ -67,6 +67,7 @@ def freeze_eval_module(module: Module) -> None:
         param.requires_grad = False
     module.eval()
 
+
 # Wrappers to ensure the param groups are named differently for the DINO and iBOT heads
 class DINOHead(Module):
     """A wrapper for the DINO projection head."""
@@ -487,7 +488,9 @@ class DINOv2(Method):
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
             self._forward_student_global(
-                x=global_views, masks=collated_masks, mask_indices_list=mask_indices_list
+                x=global_views,
+                masks=collated_masks,
+                mask_indices_list=mask_indices_list,
             )  # [G*B, D], [M, D]
         )
 
@@ -771,9 +774,7 @@ class DINOv2(Method):
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
         if self.ibot_separate_head:
             update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
-        super().on_train_batch_end(
-            outputs=outputs, batch=batch, batch_idx=batch_idx
-        )
+        super().on_train_batch_end(outputs=outputs, batch=batch, batch_idx=batch_idx)
 
     @staticmethod
     def transform_cls() -> type[DINOv2ViTTransform]:

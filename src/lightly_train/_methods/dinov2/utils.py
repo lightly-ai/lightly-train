@@ -16,8 +16,8 @@
 # - collate: remove collated_global_crops, collated_local_crops, upperbound, and n_masked_patches
 # - param_groups: adjusted the parameter structure
 # - param_groups: feed the parameter groups directly to the optimizer
-# - get_optimizer_with_decay, get_vit_lr_decay_rate: removed the different options 
-#       as in this codebase only one version is supported also check if model is 
+# - get_optimizer_with_decay, get_vit_lr_decay_rate: removed the different options
+#       as in this codebase only one version is supported also check if model is
 #       DinoVisionTransformer to validate it is the "backbone"
 
 from __future__ import annotations

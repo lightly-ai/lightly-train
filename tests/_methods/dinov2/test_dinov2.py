@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from functools import partial
 from typing import Literal
 
 import pytest
@@ -80,9 +79,9 @@ class ScalingResult:
     momentum_start: float
 
 
-
 def dummy_vit_model() -> DINOv2ViTModelWrapper:
     return DINOv2ViTModelWrapper(model=vit_tiny__testing(patch_size=2))
+
 
 def setup_dinov2_helper(
     dinov2_args: DINOv2Args,

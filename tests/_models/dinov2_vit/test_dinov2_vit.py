@@ -47,8 +47,12 @@ class TestDINOv2ViTModelWrapper:
         assert feats_cls["cls_token"].shape == (1, 384)
 
         feats_cls_masked = feature_extractor.forward_features(x, masks=collated_masks)
-        assert not torch.allclose(feats_cls["features"], feats_cls_masked["features"], atol=1e-6)
-        assert not torch.allclose(feats_cls["cls_token"], feats_cls_masked["cls_token"], atol=1e-6)
+        assert not torch.allclose(
+            feats_cls["features"], feats_cls_masked["features"], atol=1e-6
+        )
+        assert not torch.allclose(
+            feats_cls["cls_token"], feats_cls_masked["cls_token"], atol=1e-6
+        )
 
     def test_forward_pool(self) -> None:
         model = vit_small()
