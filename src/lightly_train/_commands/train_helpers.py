@@ -384,15 +384,18 @@ def get_method(
 
 def load_checkpoint(
     checkpoint: PathLike | None,
-    resume: bool,
+    resume_interrupted: bool,
     wrapped_model: ModelWrapper,
     embedding_model: EmbeddingModel,
     method: Method,
 ) -> None:
     if checkpoint is not None:
-        if resume:
+        if resume_interrupted:
             raise ValueError(
-                "Cannot specify both 'checkpoint' and 'resume' at the same time."
+                f"resume_interrupted={resume_interrupted} and checkpoint='{checkpoint}' "
+                "cannot be set at the same time! Please set only one of them. "
+                "See https://docs.lightly.ai/train/stable/train/index.html#resume-training "
+                "for more information on which option to use."
             )
         logger.info(f"Loading model weights from '{checkpoint}'.")
         load_state_dict(

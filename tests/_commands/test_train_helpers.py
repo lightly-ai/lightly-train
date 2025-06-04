@@ -487,7 +487,7 @@ def test_load_checkpoint(tmp_path: Path, mocker: MockerFixture) -> None:
 
     train_helpers.load_checkpoint(
         checkpoint=checkpoint_path,
-        resume=False,
+        resume_interrupted=False,
         wrapped_model=wrapped_model,
         embedding_model=embedding_model,
         method=method,
@@ -505,7 +505,7 @@ def test_load_checkpoint__no_checkpoint(mocker: MockerFixture) -> None:
     spy_load_state_dict = mocker.spy(train_helpers, "load_state_dict")
     train_helpers.load_checkpoint(
         checkpoint=None,
-        resume=False,
+        resume_interrupted=False,
         wrapped_model=mocker.MagicMock(),
         embedding_model=mocker.MagicMock(),
         method=mocker.MagicMock(),
@@ -518,11 +518,11 @@ def test_load_checkpoint__checkpoint_and_resume(
 ) -> None:
     with pytest.raises(
         ValueError,
-        match="Cannot specify both 'checkpoint' and 'resume' at the same time.",
+        match=r"resume_interrupted=True and checkpoint='.*' cannot be set at the same time!",
     ):
         train_helpers.load_checkpoint(
             checkpoint=tmp_path / "checkpoint.pth",
-            resume=True,
+            resume_interrupted=True,
             wrapped_model=mocker.MagicMock(),
             embedding_model=mocker.MagicMock(),
             method=mocker.MagicMock(),
