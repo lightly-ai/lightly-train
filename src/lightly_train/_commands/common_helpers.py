@@ -54,7 +54,7 @@ def get_resume_interrupted(resume_interrupted: bool, resume: bool | None) -> boo
         # before the logging is set up.
         logger.warning(
             f"\033[93mresume_interrupted={resume_interrupted} and resume={resume} are "
-            "both set. Please only set 'resume_interrupted' as 'resume' is deprecated"
+            "both set. Please only set 'resume_interrupted' as 'resume' is deprecated "
             "and will be removed in a future version.\x1b[0m"
         )
         return resume_interrupted
