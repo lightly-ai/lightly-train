@@ -96,6 +96,8 @@ LightlyTrain offers several advantages over other self-supervised learning (SSL)
 - **DINOv2 distillation**: Lightly has developed a unique distillation method that allows
   you to train smaller models with the knowledge of larger DINOv2 models without the need for
   large compute resources.
+- **DINOv2 pretraining**: LightlyTrain supports DINOv2 pretraining out of the box,
+  allowing you to train state-of-the-art vision foundation models on your own datasets.
 ```
 
 ## Capabilities & Use Cases
@@ -351,6 +353,7 @@ appropriate for your downstream task.
 ```{dropdown} <h6>Which pretraining methods are supported?<a class="headerlink" id="which-pretraining-methods-are-supported" href="#which-pretraining-methods-are-supported" title="Link to this heading">¶</a></h6>
 LightlyTrain supports different methods such as:
 - DINOv2 distillation
+- DINOv2
 - DINO
 - SimCLR
 

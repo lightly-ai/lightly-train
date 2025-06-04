@@ -1,6 +1,6 @@
 (methods-distillation)=
 
-# Distillation (recommended 🚀)
+# DINOv2 Distillation (recommended 🚀)
 
 Knowledge distillation involves transferring knowledge from a large, compute-intensive teacher model to a smaller, efficient student model by encouraging similarity between the student and teacher representations. It addresses the challenge of bridging the gap between state-of-the-art large-scale vision models and smaller, more computationally efficient models suitable for practical applications.
 

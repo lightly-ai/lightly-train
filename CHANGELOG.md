@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **DINOv2 pretraining is now available** with the `method="dinov2"` argument.
+  See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html)
+  for more information.
 - RT-DETR has now an integrated model wrapper.
 
 ### Changed
