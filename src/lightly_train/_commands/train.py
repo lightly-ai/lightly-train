@@ -73,7 +73,7 @@ def train(
     loader_args: dict[str, Any] | None = None,
     trainer_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
-    resume: bool | None = None,  # Deprecated, use `resume_interrupted` instead.
+    resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
 ) -> None:
     """Train a self-supervised model.
 
@@ -142,7 +142,7 @@ def train(
             - This is intended for continuing the same run without modification.
 
             If you want to further pretrain a model or change the training parameters,
-            use the ``checkpoint``parameter instead.
+            use the ``checkpoint`` parameter instead.
             See https://docs.lightly.ai/train/stable/train/index.html#resume-training
             for more information.
         overwrite:
