@@ -745,9 +745,7 @@ class DINOv2(Method):
         updates = []
         for group in optimizer.param_groups:
             if group["weight_decay"] != 0.0:
-                updates.append(
-                    {"name": group["name"], "weight_decay": weight_decay}
-                )
+                updates.append({"name": group["name"], "weight_decay": weight_decay})
 
         update_param_groups(optimizer, updates=updates)
 
