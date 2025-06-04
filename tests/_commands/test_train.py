@@ -101,7 +101,7 @@ def test_train(
             num_workers=2,
             epochs=2,
             devices=1,
-            resume=True,
+            resume_interrupted=True,
         )
     assert (
         f"Restoring states from the checkpoint path at {last_ckpt_path}" in caplog.text

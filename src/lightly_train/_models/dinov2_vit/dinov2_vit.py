@@ -33,12 +33,13 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
     ) -> ForwardFeaturesOutput:
         rt = self._model(x, masks, is_training=True)  # forcing to return all patches
         if rt["x_norm_patchtokens"].dim() == 3:
-            features_reshaped = rt["x_norm_patchtokens"].reshape(
-                rt["x_norm_patchtokens"].shape[0],
-                rt["x_norm_patchtokens"].shape[2],
-                x.shape[2] // self._model.patch_size,
-                x.shape[3] // self._model.patch_size,
-            )
+            x_norm_patchtokens = rt["x_norm_patchtokens"]
+            b = x_norm_patchtokens.shape[0]
+            d = x_norm_patchtokens.shape[2]
+            h = x.shape[2] // self._model.patch_size
+            w = x.shape[3] // self._model.patch_size
+
+            features_reshaped = x_norm_patchtokens.permute(0, 2, 1).reshape(b, d, h, w)
         elif rt["x_norm_patchtokens"].dim() == 4:
             features_reshaped = rt["x_norm_patchtokens"]
         else:
