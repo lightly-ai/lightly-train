@@ -8,15 +8,16 @@
 
 import re
 
+import numpy as np
 import pytest
+import torch
 
 from lightly_train._methods.dinov2.utils import MaskingGenerator, create_collated_masks
 
 
 class TestMaskingGenerator:
-    # def setup_method(self) -> None:
-    #     self.grid_size = 16
-    #     self.max_num_patches=int(0.5 * self.grid_size**2)
+    def setup_method(self) -> None:
+        self.grid_size = 16
 
     @pytest.mark.parametrize("grid_size", [14, 16])
     def test_get_shape_and_repr(self, grid_size: int) -> None:
@@ -35,40 +36,80 @@ class TestMaskingGenerator:
 
     @pytest.mark.parametrize(
         [
-            "grid_size",
             "n_masked_patch_tokens_min",
             "n_masked_patch_tokens_max",
             "masking_ratio",
         ],
         [
-            (16, 0, 0, 0.0),
-            (16, 0, 128, 0.0),
-            (16, 4, 4, 1.0),
-            (16, 4, 128, 0.125),
-            (16, 4, 128, 0.25),
-            (16, 4, 128, 0.5),
-            (16, 4, 128, 1.0),
+            (0, 0, 0.0),
+            (0, 128, 0.0),
+            (4, 4, 1.0),
+            (4, 128, 0.125),
+            (4, 128, 0.25),
+            (4, 128, 0.5),
+            (4, 128, 1.0),
         ],
     )
     def test_masking_generator_call(
         self,
-        grid_size: int,
         n_masked_patch_tokens_min: int,
         n_masked_patch_tokens_max: int,
         masking_ratio: float,
     ) -> None:
-        n_masked_patch_tokens = int(masking_ratio * grid_size**2)
+        n_masked_patch_tokens = int(masking_ratio * self.grid_size**2)
 
         masking_generator = MaskingGenerator(
-            input_size=(grid_size, grid_size),
+            input_size=(self.grid_size, self.grid_size),
             min_num_patches=n_masked_patch_tokens_min,
             max_num_patches=n_masked_patch_tokens_max,
         )
 
         mask = masking_generator(n_masked_patch_tokens)
 
-        assert mask.shape == (grid_size, grid_size)
+        assert mask.dtype == np.bool_
+        assert mask.shape == (self.grid_size, self.grid_size)
         assert n_masked_patch_tokens_min <= mask.sum() <= n_masked_patch_tokens
+
+    # Type ignore because untyped decorator makes function untyped.
+    @pytest.mark.parametrize(
+        "min_aspect_ratio,max_aspect_ratio",
+        [
+            (0.1, None),
+            (0.1, 0.3),
+            (0.1, 3.0),
+            (0.3, 0.3),
+        ],
+    )
+    def test_masking_generator__aspect_ratio(
+        self, min_aspect_ratio: float, max_aspect_ratio: float | None
+    ) -> None:
+        n_masked_patch_tokens = int(0.5 * self.grid_size**2)
+
+        masking_generator = MaskingGenerator(
+            input_size=(self.grid_size, self.grid_size),
+            max_num_patches=n_masked_patch_tokens,
+            min_aspect=min_aspect_ratio,
+            max_aspect=max_aspect_ratio,
+        )
+
+        mask = masking_generator(n_masked_patch_tokens)
+        assert mask.sum() > 0
+
+    @pytest.mark.parametrize("square_size", [2, 3, 4])
+    def test_masking_generator__aspect_ratio_one(self, square_size: int) -> None:
+        """With aspect ratio 1.0 and num_mask=min_num_masks_per_block we expect a single, square masked block."""
+
+        masking_generator = MaskingGenerator(
+            input_size=(self.grid_size, self.grid_size),
+            max_num_patches=square_size**2,
+            min_num_patches=square_size**2,
+            min_aspect=1.0,
+            max_aspect=1.0,
+        )
+
+        mask = masking_generator(square_size**2)
+        assert mask.sum(axis=0).max() == square_size
+        assert mask.sum(axis=1).max() == square_size
 
 
 class TestCreateCollatedMasks:
@@ -80,7 +121,9 @@ class TestCreateCollatedMasks:
         )
 
     @pytest.mark.parametrize("expected_n_crops", [1, 2, 4, 8])
-    def test_create_collated_masks__output_size(self, expected_n_crops: int) -> None:
+    def test_create_collated_masks__dtype_output_size(
+        self, expected_n_crops: int
+    ) -> None:
         masks = create_collated_masks(
             mask_ratio_min=0.1,
             mask_ratio_max=0.5,
@@ -90,6 +133,7 @@ class TestCreateCollatedMasks:
         )
 
         collated_masks = masks["collated_masks"]
+        assert collated_masks.dtype == torch.bool
 
         mask_shape = collated_masks.shape
         assert mask_shape == (expected_n_crops, self.grid_size**2)
