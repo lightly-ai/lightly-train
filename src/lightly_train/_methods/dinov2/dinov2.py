@@ -51,6 +51,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
     DinoVisionTransformer,
 )
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -181,9 +182,10 @@ class DINOv2Args(MethodArgs):
         self,
         scaling_info: ScalingInfo,
         optimizer_args: OptimizerArgs,
-        model: Module,
+        wrapped_model: ModelWrapper,
     ) -> None:
         # Determine the args based on the model architecture
+        model = wrapped_model.get_model()
         if not isinstance(model, DinoVisionTransformer):
             raise ValueError(
                 f"Expected model to be of type DinoVisionTransformer, but got {type(model)}."
@@ -675,7 +677,7 @@ class DINOv2(Method):
         if self.ibot_separate_head:
             return TrainableModules(
                 modules=[
-                    self.student_embedding_model_wrapper._model,
+                    self.student_embedding_model_wrapper.get_model(),
                     self.student_dino_head,
                     self.student_ibot_head,
                 ],
@@ -683,7 +685,7 @@ class DINOv2(Method):
         else:
             return TrainableModules(
                 modules=[
-                    self.student_embedding_model_wrapper._model,
+                    self.student_embedding_model_wrapper.get_model(),
                     self.student_dino_head,
                 ]
             )
@@ -763,8 +765,8 @@ class DINOv2(Method):
             end_value=self.method_args.momentum_end,
         )
         update_momentum(
-            self.student_embedding_model_wrapper._model,
-            self.teacher_embedding_model_wrapper._model,
+            self.student_embedding_model_wrapper.get_model(),
+            self.teacher_embedding_model_wrapper.get_model(),
             m=momentum,
         )
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)

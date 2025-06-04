@@ -94,7 +94,7 @@ def setup_dinov2_helper(
     dinov2_args.resolve_auto(
         scaling_info=scaling_info,
         optimizer_args=optimizer_args,
-        model=emb_model.wrapped_model.get_model(),
+        wrapped_model=emb_model.wrapped_model,
     )
 
     dinov2 = DINOv2(
@@ -328,15 +328,15 @@ class TestDINOv2Args:
         model_scaling_result: ModelVariantScalingResult,
     ) -> None:
         dummy_vit_model_variant = dummy_vit_model()
-        dummy_vit_model_variant._model.n_blocks = model_params.n_blocks  # type: ignore[assignment]
-        dummy_vit_model_variant._model.embed_dim = model_params.embed_dim  # type: ignore[assignment]
-        dummy_vit_model_variant._model.num_heads = model_params.num_heads  # type: ignore[assignment]
+        dummy_vit_model_variant.get_model().n_blocks = model_params.n_blocks  # type: ignore[assignment]
+        dummy_vit_model_variant.get_model().embed_dim = model_params.embed_dim  # type: ignore[assignment]
+        dummy_vit_model_variant.get_model().num_heads = model_params.num_heads  # type: ignore[assignment]
 
         args = DINOv2Args()
         args.resolve_auto(
             scaling_info=scaling,
             optimizer_args=DINOv2AdamWViTSBArgs(),
-            model=dummy_vit_model_variant.get_model(),
+            wrapped_model=dummy_vit_model_variant,
         )
         assert args.ibot_separate_head == model_scaling_result.ibot_separate_head
         assert args.bottleneck_dim == model_scaling_result.bottleneck_dim
