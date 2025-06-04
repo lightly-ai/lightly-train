@@ -77,11 +77,12 @@ class ScalingResult:
     start_teacher_temp: float
     end_teacher_temp: float
     warmup_teacher_temp_epochs: int
-    momemntum_start: float
+    momentum_start: float
 
 
-dummy_vit_model = partial(DINOv2ViTModelWrapper, vit_tiny__testing(patch_size=2))
 
+def dummy_vit_model() -> DINOv2ViTModelWrapper:
+    return DINOv2ViTModelWrapper(model=vit_tiny__testing(patch_size=2))
 
 def setup_dinov2_helper(
     dinov2_args: DINOv2Args,
@@ -151,10 +152,7 @@ class TestDINOv2:
 
         # run DistillationV2
         dinov2_args = DINOv2Args()
-        if ibot_separate_head:
-            dinov2_args.ibot_separate_head = True
-            # To make sure the heads are different
-            dinov2_args.bottleneck_dim_ibot = dinov2_args.bottleneck_dim // 2
+        dinov2_args.ibot_separate_head = ibot_separate_head
         dinov2_args.n_local_crops = n_local_crops
 
         dinov2 = setup_dinov2_helper(dinov2_args, mocker, emb_model, b)
@@ -283,7 +281,7 @@ class TestDINOv2Args:
                     start_teacher_temp=0.04,
                     end_teacher_temp=0.07,
                     warmup_teacher_temp_epochs=30,
-                    momemntum_start=0.996,
+                    momentum_start=0.996,
                 ),
             ),
             (
@@ -293,7 +291,7 @@ class TestDINOv2Args:
                     start_teacher_temp=0.02,
                     end_teacher_temp=0.02,
                     warmup_teacher_temp_epochs=30,
-                    momemntum_start=0.99,
+                    momentum_start=0.99,
                 ),
             ),
             (
@@ -303,7 +301,7 @@ class TestDINOv2Args:
                     start_teacher_temp=0.04,
                     end_teacher_temp=0.07,
                     warmup_teacher_temp_epochs=3,
-                    momemntum_start=0.996,
+                    momentum_start=0.996,
                 ),
             ),
         ],
@@ -346,5 +344,5 @@ class TestDINOv2Args:
         assert (
             args.warmup_teacher_temp_epochs == scaling_result.warmup_teacher_temp_epochs
         )
-        assert args.momentum_start == scaling_result.momemntum_start
+        assert args.momentum_start == scaling_result.momentum_start
         assert not args.has_auto()

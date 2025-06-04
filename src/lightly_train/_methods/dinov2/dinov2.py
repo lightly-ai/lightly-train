@@ -67,7 +67,7 @@ def freeze_eval_module(module: Module) -> None:
         param.requires_grad = False
     module.eval()
 
-
+# Wrappers to ensure the param groups are named differently for the DINO and iBOT heads
 class DINOHead(Module):
     """A wrapper for the DINO projection head."""
 
@@ -487,7 +487,7 @@ class DINOv2(Method):
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
             self._forward_student_global(
-                global_views, collated_masks, mask_indices_list
+                x=global_views, masks=collated_masks, mask_indices_list=mask_indices_list
             )  # [G*B, D], [M, D]
         )
 
