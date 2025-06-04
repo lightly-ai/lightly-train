@@ -352,7 +352,7 @@ def get_method_args(
     method_args: dict[str, Any] | MethodArgs | None,
     scaling_info: ScalingInfo,
     optimizer_args: OptimizerArgs,
-    model: Module,
+    wrapped_model: ModelWrapper,
 ) -> MethodArgs:
     logger.debug(f"Getting method args for '{method_cls.__name__}'")
     if isinstance(method_args, MethodArgs):
@@ -361,7 +361,9 @@ def get_method_args(
     method_args_cls = method_cls.method_args_cls()
     args = validate.pydantic_model_validate(method_args_cls, method_args)
     args.resolve_auto(
-        scaling_info=scaling_info, optimizer_args=optimizer_args, model=model
+        scaling_info=scaling_info,
+        optimizer_args=optimizer_args,
+        wrapped_model=wrapped_model,
     )
     return args
 
