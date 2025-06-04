@@ -8,10 +8,11 @@
 from __future__ import annotations
 
 import copy
+import logging
 import math
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Literal
+from typing import Any, Literal, Mapping
 
 import torch
 from lightly.loss import (
@@ -33,7 +34,7 @@ from lightly_train._methods.dinov2.dinov2_loss import (
     IBOTPatchLoss,
 )  # we use the original DINOLoss and IBOTPatchLoss
 from lightly_train._methods.dinov2.dinov2_transform import (
-    DINOv2ViTSBTransform,
+    DINOv2ViTTransform,
 )
 from lightly_train._methods.dinov2.scheduler import (
     linear_warmup_schedule,  # TODO: import from LightlySSL after new release
@@ -46,6 +47,9 @@ from lightly_train._methods.dinov2.utils import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
@@ -53,6 +57,44 @@ from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train.types import Batch
+
+logger = logging.getLogger(__name__)
+
+
+def freeze_eval_module(module: Module) -> None:
+    """Freeze the parameters of a module."""
+    for param in module.parameters():
+        param.requires_grad = False
+    module.eval()
+
+
+# Wrappers to ensure the param groups are named differently for the DINO and iBOT heads
+class DINOHead(Module):
+    """A wrapper for the DINO projection head."""
+
+    def __init__(self, dino_head: Module) -> None:
+        super().__init__()
+        self._dino_head = dino_head
+
+    def forward(self, x: Tensor) -> Any:
+        return self._dino_head(x)
+
+    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
+        self._dino_head.cancel_last_layer_gradients(current_epoch)
+
+
+class IBOTHead(Module):
+    """A wrapper for the IBOT projection head."""
+
+    def __init__(self, ibot_head: Module) -> None:
+        super().__init__()
+        self._ibot_head = ibot_head
+
+    def forward(self, x: Tensor) -> Any:
+        return self._ibot_head(x)
+
+    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
+        self._ibot_head.cancel_last_layer_gradients(current_epoch)
 
 
 @dataclass
@@ -70,6 +112,10 @@ class DINOv2Args(MethodArgs):
     n_local_crops: int = (
         8  # transform_cls().transform_args_cls().transform_args.local_view.num_views
     )
+
+    # vit
+    embed_dim: int = 384  # default embed_dim for ViT-S, can be overridden by the model
+    patch_size: int = 14  # default patch_size for ViT-S, can be overridden by the model
 
     # projection head
     ibot_separate_head: bool = False
@@ -138,9 +184,14 @@ class DINOv2Args(MethodArgs):
         model: Module,
     ) -> None:
         # Determine the args based on the model architecture
+        if not isinstance(model, DinoVisionTransformer):
+            raise ValueError(
+                f"Expected model to be of type DinoVisionTransformer, but got {type(model)}."
+            )
         depth: int = model.n_blocks
         num_heads: int = model.num_heads
-        self.embed_dim: int = model._embed_dim
+        self.embed_dim: int = model.embed_dim
+        self.patch_size: int = model.patch_size
         if (depth == 40 and num_heads == 24 and self.embed_dim == 1536) or (
             depth == 24 and num_heads == 16 and self.embed_dim == 1024
         ):  # giant / large
@@ -157,7 +208,7 @@ class DINOv2Args(MethodArgs):
         ):  # base / small
             pass
         else:
-            raise UserWarning(
+            logger.warning(
                 f"Model architecture: depth={depth}, num_heads={num_heads}, embed_dim={self.embed_dim} does not match any known DINOv2 model."
                 "Using default parameters for small/base models, but performance may be suboptimal."
             )
@@ -270,12 +321,13 @@ class DINOv2(Method):
         self.method_args = method_args
 
         # Create teacher and student embedding models
-        model_wrapper: DINOv2ViTModelWrapper = embedding_model.model_wrapper
+        model_wrapper: DINOv2ViTModelWrapper = embedding_model.wrapped_model  # type: ignore[assignment]
         self.teacher_embedding_model_wrapper = model_wrapper
         self.student_embedding_model_wrapper = copy.deepcopy(
             self.teacher_embedding_model_wrapper
         )
         self.teacher_embedding_model_wrapper.make_teacher()
+        freeze_eval_module(self.teacher_embedding_model_wrapper)
 
         # Create teacher and student dino heads
         dino_head = partial(
@@ -287,13 +339,15 @@ class DINOv2(Method):
             batch_norm=method_args.batch_norm,
             norm_last_layer=method_args.norm_last_layer,
         )
-        self.teacher_dino_head = dino_head()
-        self.student_dino_head = dino_head(
-            freeze_last_layer=method_args.student_freeze_last_layer_epochs
+        self.teacher_dino_head = DINOHead(dino_head())
+        self.student_dino_head = DINOHead(
+            dino_head(freeze_last_layer=method_args.student_freeze_last_layer_epochs)
         )
 
         # Create teacher and student iBOT head
         self.ibot_separate_head: bool = method_args.ibot_separate_head
+        self.teacher_ibot_head: DINOHead | IBOTHead
+        self.student_ibot_head: DINOHead | IBOTHead
         if self.ibot_separate_head:
             ibot_head = partial(
                 DINOProjectionHead,
@@ -304,13 +358,18 @@ class DINOv2(Method):
                 batch_norm=method_args.batch_norm,
                 norm_last_layer=method_args.norm_last_layer,
             )
-            self.teacher_dino_head = ibot_head()
-            self.student_dino_head = ibot_head(
-                freeze_last_layer=method_args.student_freeze_last_layer_epochs
+            self.teacher_ibot_head = IBOTHead(ibot_head())
+            self.student_ibot_head = IBOTHead(
+                ibot_head(
+                    freeze_last_layer=method_args.student_freeze_last_layer_epochs
+                )
             )
         else:
             self.teacher_ibot_head = self.teacher_dino_head
             self.student_ibot_head = self.student_dino_head
+
+        freeze_eval_module(self.teacher_dino_head)
+        freeze_eval_module(self.teacher_ibot_head)
 
         # Losses
         self.centering = method_args.centering
@@ -331,13 +390,14 @@ class DINOv2(Method):
             batch, batch_idx
         )
 
-        loss = training_step_log.loss
+        train_loss = training_step_log.loss
         dino_global_loss = training_step_log.dino_global_loss
         dino_local_loss = training_step_log.dino_local_loss
         ibot_loss = training_step_log.ibot_loss
         koleo_loss = training_step_log.koleo_loss
 
         log_dict = {
+            "train_loss": train_loss,
             "dino_global_loss": dino_global_loss,
             "dino_local_loss": dino_local_loss,
             "ibot_loss": ibot_loss,
@@ -356,7 +416,7 @@ class DINOv2(Method):
             # Show example views of the images in the first batch only.
             self._log_example_views(train_batch=batch)
 
-        return loss
+        return train_loss
 
     def training_step_impl(
         self, batch: Batch, batch_idx: int
@@ -386,8 +446,8 @@ class DINOv2(Method):
         # Masking
         n_crops = global_views.shape[0]  # G*B
         batch_size = n_crops // n_global_crops
-        h = global_views.shape[2]
-        w = global_views.shape[3]
+        h = global_views.shape[2] // self.method_args.patch_size
+        w = global_views.shape[3] // self.method_args.patch_size
 
         mask_generator = MaskingGenerator(
             input_size=(h, w),
@@ -425,7 +485,9 @@ class DINOv2(Method):
         )
         student_cls_tokens_global, student_masked_patch_tokens_global = (
             self._forward_student_global(
-                global_views, mask_indices_list
+                x=global_views,
+                masks=collated_masks,
+                mask_indices_list=mask_indices_list,
             )  # [G*B, D], [M, D]
         )
 
@@ -479,22 +541,6 @@ class DINOv2(Method):
             + self.method_args.koleo_loss_weight * koleo_loss
         )
 
-        # Momentum update teacher.
-        momentum = cosine_schedule(
-            step=self.trainer.global_step,
-            max_steps=self.trainer.estimated_stepping_batches,
-            start_value=no_auto(self.method_args.momentum_start),
-            end_value=self.method_args.momentum_end,
-        )
-        update_momentum(
-            self.student_embedding_model_wrapper._model,
-            self.teacher_embedding_model_wrapper._model,
-            m=momentum,
-        )
-        update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
-        if self.ibot_separate_head:
-            update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
-
         return DINOv2TrainingStepResult(
             loss=loss,
             dino_global_loss=dino_global_loss,
@@ -525,10 +571,11 @@ class DINOv2(Method):
         cls_tokens_after_dino = self.teacher_dino_head.forward(cls_tokens)  # [G*B, D]
 
         # process the masked patch tokens
-        patch_tokens = tokens["features"]  # [G*B, C, H, W]
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
+        patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
+
         masked_patch_tokens = torch.index_select(
-            patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+            patch_tokens.flatten(0, 1),  # [G*B*H/p*W/p, C]
             dim=0,
             index=mask_indices_list,
         )  # [M, C]
@@ -543,6 +590,7 @@ class DINOv2(Method):
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
             self.dino_loss.update_center(cls_tokens_after_dino)
 
+            masked_patch_tokens_after_ibot = masked_patch_tokens_after_ibot.unsqueeze(0)
             masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=teacher_temp,
@@ -568,10 +616,11 @@ class DINOv2(Method):
     def _forward_student_global(
         self,
         x: Tensor,
+        masks: Tensor,
         mask_indices_list: Tensor,
     ) -> tuple[Tensor, Tensor]:
         tokens = self.student_embedding_model_wrapper.forward_features(
-            x
+            x, masks
         )  # input [G*B, C, ...]
 
         # process the cls tokens
@@ -579,11 +628,11 @@ class DINOv2(Method):
         cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)  # [G*B, D]
 
         # process the patch tokens
-        patch_tokens = tokens["features"]  # [G*B, C, H, W]
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H*W, C]
+        patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
         masked_patch_tokens = torch.index_select(
-            patch_tokens.flatten(0, 1),  # [G*B*H*W, C]
+            patch_tokens.flatten(0, 1),  # [G*B*H/p*W/p, C]
             dim=0,
             index=mask_indices_list,
         )  # [M, C]
@@ -622,25 +671,33 @@ class DINOv2(Method):
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 
     def trainable_modules(self) -> TrainableModules:
-        return TrainableModules(
-            modules=[
-                self.student_embedding_model_wrapper._model,
-                self.student_dino_head,
-                self.student_ibot_head,
-            ],  # decay is realized in get_optimizer_with_decay
-        )
+        # decay is realized in get_optimizer_with_decay
+        if self.ibot_separate_head:
+            return TrainableModules(
+                modules=[
+                    self.student_embedding_model_wrapper._model,
+                    self.student_dino_head,
+                    self.student_ibot_head,
+                ],
+            )
+        else:
+            return TrainableModules(
+                modules=[
+                    self.student_embedding_model_wrapper._model,
+                    self.student_dino_head,
+                ]
+            )
 
     # Ignore the return type, because pytorch-lightning types it wrongly.
     # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
     def configure_optimizers(self) -> OptimizerLRScheduler:
+        self.optimizer_args.lr *= math.sqrt(self.global_batch_size / 1024)  # type: ignore[attr-defined]
         optim = get_optimizer_with_decay(
             optim_args=self.optimizer_args,
             trainable_modules=self.trainable_modules(),
-            lr_scale=math.sqrt(self.global_batch_size / 1024),  # square root scaling
             layerwise_decay=self.method_args.layerwise_decay,
             patch_embed_lr_multiplier=self.method_args.patch_embed_lr_multiplier,
         )
-
         if self.trainer.max_epochs is None:
             raise RuntimeError("Max epochs is not set.")
 
@@ -655,8 +712,7 @@ class DINOv2(Method):
                     * self.method_args.warmup_epochs
                 ),
                 max_epochs=int(self.trainer.estimated_stepping_batches),
-                start_value=self.optimizer_args.lr,  # type: ignore[attr-defined]
-                end_value=self.method_args.min_lr,
+                end_value=self.method_args.min_lr / self.optimizer_args.lr,  # type: ignore[attr-defined]
             ),  # TODO: ignore to be removed after improving optimizer args
             "interval": "step",
         }
@@ -693,6 +749,29 @@ class DINOv2(Method):
 
         update_param_groups(optimizer, updates=updates)
 
+    def on_train_batch_end(
+        self,
+        outputs: Tensor | Mapping[str, Any] | None,
+        batch: Batch,
+        batch_idx: int,
+    ) -> None:
+        # Momentum update teacher.
+        momentum = cosine_schedule(
+            step=self.trainer.global_step,
+            max_steps=self.trainer.estimated_stepping_batches,
+            start_value=no_auto(self.method_args.momentum_start),
+            end_value=self.method_args.momentum_end,
+        )
+        update_momentum(
+            self.student_embedding_model_wrapper._model,
+            self.teacher_embedding_model_wrapper._model,
+            m=momentum,
+        )
+        update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
+        if self.ibot_separate_head:
+            update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
+        super().on_train_batch_end(outputs=outputs, batch=batch, batch_idx=batch_idx)
+
     @staticmethod
-    def transform_cls() -> type[DINOv2ViTSBTransform]:
-        return DINOv2ViTSBTransform
+    def transform_cls() -> type[DINOv2ViTTransform]:
+        return DINOv2ViTTransform

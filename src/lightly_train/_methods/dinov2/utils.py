@@ -16,6 +16,9 @@
 # - collate: remove collated_global_crops, collated_local_crops, upperbound, and n_masked_patches
 # - param_groups: adjusted the parameter structure
 # - param_groups: feed the parameter groups directly to the optimizer
+# - get_optimizer_with_decay, get_vit_lr_decay_rate: removed the different options
+#       as in this codebase only one version is supported also check if model is
+#       DinoVisionTransformer to validate it is the "backbone"
 
 from __future__ import annotations
 
@@ -27,6 +30,9 @@ import numpy as np
 import torch
 from torch.optim.optimizer import Optimizer
 
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.trainable_modules import TrainableModules
 
@@ -130,7 +136,7 @@ def create_collated_masks(
 
     random.shuffle(masks_list)
 
-    collated_masks = torch.stack(masks_list).flatten(1)  # [G*B, H*W]
+    collated_masks = torch.stack(masks_list).flatten(1)  # [G*B, H/p*W/p]
     mask_indices_list = collated_masks.flatten().nonzero().flatten()  # [M,]
     masks_weight = (
         (1 / collated_masks.sum(-1).clamp(min=1.0))
@@ -149,7 +155,6 @@ def get_vit_lr_decay_rate(
     name: str,
     lr_decay_rate: float,
     num_layers: int = 12,
-    force_is_backbone: bool = False,
     chunked_blocks: bool = False,
 ) -> float:
     """
@@ -158,36 +163,26 @@ def get_vit_lr_decay_rate(
         name (string): parameter name.
         lr_decay_rate (float): base lr decay rate.
         num_layers (int): number of ViT blocks.
-        force_is_backbone (bool): force to use backbone.
         chunked_blocks (bool): if the blocks are chunked.
     Returns:
         float: lr decay rate for the given parameter.
     """
 
     layer_id = num_layers + 1
-    if name.startswith("backbone") or force_is_backbone:
-        if (
-            ".pos_embed" in name
-            or ".patch_embed" in name
-            or ".mask_token" in name
-            or ".cls_token" in name
-            or ".register_tokens" in name
-        ):
-            layer_id = 0
-        elif force_is_backbone and (
-            "pos_embed" in name
-            or "patch_embed" in name
-            or "mask_token" in name
-            or "cls_token" in name
-            or "register_tokens" in name
-        ):
-            layer_id = 0
-        elif ".blocks." in name and ".residual." not in name:
-            layer_id = int(name[name.find(".blocks.") :].split(".")[2]) + 1
-        elif chunked_blocks and "blocks." in name and "residual." not in name:
-            layer_id = int(name[name.find("blocks.") :].split(".")[2]) + 1
-        elif "blocks." in name and "residual." not in name:
-            layer_id = int(name[name.find("blocks.") :].split(".")[1]) + 1
+    if (
+        "pos_embed" in name
+        or "patch_embed" in name
+        or "mask_token" in name
+        or "cls_token" in name
+        or "register_tokens" in name
+    ):
+        layer_id = 0
+    elif ".blocks." in name and ".residual." not in name:
+        layer_id = int(name[name.find(".blocks.") :].split(".")[2]) + 1
+    elif chunked_blocks and "blocks." in name and "residual." not in name:
+        layer_id = int(name[name.find("blocks.") :].split(".")[2]) + 1
+    elif "blocks." in name and "residual." not in name:
+        layer_id = int(name[name.find("blocks.") :].split(".")[1]) + 1
 
     return lr_decay_rate ** (num_layers + 1 - layer_id)
 
@@ -195,7 +190,6 @@ def get_vit_lr_decay_rate(
 def get_optimizer_with_decay(
     optim_args: OptimizerArgs,
     trainable_modules: TrainableModules,
-    lr_scale: float,
     layerwise_decay: float,
     patch_embed_lr_multiplier: float,
 ) -> Optimizer:
@@ -205,7 +199,6 @@ def get_optimizer_with_decay(
     Args:
         optim_args (OptimizerArgs): optimizer arguments.
         trainable_modules (TrainableModules): trainable modules.
-        lr_scale (float): learning rate scale.
         layerwise_decay (float): base lr decay rate.
         patch_embed_lr_multiplier (float): multiplier for patch embedding layer.
     Returns:
@@ -213,29 +206,23 @@ def get_optimizer_with_decay(
     """
 
     all_param_groups: List[Dict[str, Any]] = []
-    for module in trainable_modules.modules:  # TODO: FSDP sharding
-        chunked_blocks = False
-        if hasattr(module, "n_blocks"):  # chunked fsdp
-            n_blocks = module.n_blocks
-            chunked_blocks = module.chunked_blocks
-        elif hasattr(module, "blocks"):  # first code branch
-            n_blocks = len(module.blocks)
-        elif hasattr(module, "backbone"):  # second code branch
-            n_blocks = len(module.backbone.blocks)
-        else:
-            n_blocks = 0  # else code branch
+    for module in trainable_modules.modules:
+        is_backbone = False
+        if isinstance(module, DinoVisionTransformer):
+            is_backbone = True
 
         for name, param in module.named_parameters():
-            name = name.replace("_fsdp_wrapped_module.", "")
             if not param.requires_grad:
                 continue
-            decay_rate = get_vit_lr_decay_rate(
-                name=name,
-                lr_decay_rate=layerwise_decay,
-                num_layers=n_blocks,
-                force_is_backbone=n_blocks > 0,
-                chunked_blocks=chunked_blocks,
-            )
+
+            decay_rate = 1.0
+            if is_backbone:
+                decay_rate = get_vit_lr_decay_rate(
+                    name=name,
+                    lr_decay_rate=layerwise_decay,
+                    num_layers=module.n_blocks,
+                    chunked_blocks=module.chunked_blocks,
+                )
             d = {
                 "name": name,
                 "params": param,
@@ -254,4 +241,4 @@ def get_optimizer_with_decay(
 
             all_param_groups.append(d)
 
-    return optim_args.get_optimizer(params=all_param_groups, lr_scale=lr_scale)
+    return optim_args.get_optimizer(params=all_param_groups, lr_scale=1.0)
