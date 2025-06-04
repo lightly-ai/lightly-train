@@ -54,9 +54,10 @@ Pretraining or fine-tuning a YOLOv12 model is the same as doing so with any supp
 Ultralytics model. The only difference is that the config file is named `yolov12.yaml`
 instead of `yolo12.yaml` in the official Ultralytics releases.
 
-Below we will provide the minimum scripts for pretraining and fine-tuning:
-
 ### Pretrain
+
+Below we provide the minimum scripts for pretraining using `ultralytics/yolov12s` as
+an example:
 
 ````{tab} Python
 ```python
@@ -94,6 +95,8 @@ lightly-train train out="out/my_experiment" data="my_data_dir" model="ultralytic
 ````
 
 ### Fine-tune
+
+After pretraining, you can load the exported model for fine-tuning with Ultralytics:
 
 ````{tab} Python
 ```python
