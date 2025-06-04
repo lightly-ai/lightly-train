@@ -63,7 +63,7 @@ lightly-train train out="out/my_experiment" data="my_data_dir" model="ultralytic
 
 ### Fine-tune
 
-You can fine-tune the exported model with Ultralytics directly.
+After pretraining, you can load the exported model for fine-tuning with Ultralytics:
 
 ````{tab} Python
 ```python
@@ -72,18 +72,14 @@ from pathlib import Path
 from ultralytics import YOLO
 
 if __name__ == "__main__":
-    # Load the exported model.
     model = YOLO("out/my_experiment/exported_models/exported_last.pt")
-
-    # Fine-tune with ultralytics.
-    data = Path("my_data_dir/config.yaml").absolute()
-    model.train(data=data)
+    model.train(data="coco8.yaml")
 ```
 ````
 
 ````{tab} Command Line
 ```bash
-yolo detect train model=out/my_experiment/exported_models/exported_last.pt data="my_data_dir"
+yolo detect train model=out/my_experiment/exported_models/exported_last.pt data="coco8.yaml"
 ````
 
 ## Supported Models

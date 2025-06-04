@@ -9,9 +9,12 @@ This page describes how to use TIMM models with LightlyTrain.
 `pip install "lightly-train[timm]"`.
 ```
 
-## Pretrain a TIMM Model
+## Pretrain and Fine-tune a TIMM Model
 
-Pretraining TIMM models with LightlyTrain is straightforward. Below we will provide the minimum scripts for pretraining using `timm/resnet18` as an example:
+### Pretrain
+
+Pretraining TIMM models with LightlyTrain is straightforward. Below we will provide the
+minimum scripts for pretraining using `timm/resnet18` as an example:
 
 ````{tab} Python
 ```python
@@ -25,6 +28,21 @@ if __name__ == "__main__":
     )
 
 ```
+
+Or alternatively, pass directly a TIMM model instance:
+
+```python
+import timm
+
+import lightly_train
+
+if __name__ == "__main__":
+    model = timm.create_model("resnet18")       # Load the model.
+    lightly_train.train(
+        out="out/my_experiment",                # Output directory.
+        data="my_data_dir",                     # Directory with images.
+        model=model,                            # Pass the TIMM model.
+    )
 ````
 
 ````{tab} Command Line
@@ -32,7 +50,9 @@ if __name__ == "__main__":
 lightly-train train out="out/my_experiment" data="my_data_dir" model="timm/resnet18"
 ````
 
-You can reload the exported model by timm directly:
+### Fine-tune
+
+After pretraining, you can load the exported model for fine-tuning with TIMM:
 
 ```python
 import timm

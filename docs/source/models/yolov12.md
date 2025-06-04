@@ -68,6 +68,22 @@ if __name__ == "__main__":
     )
 
 ```
+
+Or alternatively, pass directly a YOLOv12 model instance:
+
+```python
+from ultralytics import YOLO
+
+import lightly_train
+
+if __name__ == "__main__":
+    model = YOLO("yolov12s.yaml")               # Load the YOLOv12 model.
+    lightly_train.train(
+        out="out/my_experiment",                # Output directory.
+        data="my_data_dir",                     # Directory with images.
+        model=model,                            # Pass the YOLOv12 model.
+    )
+```
 ````
 
 ````{tab} Command Line

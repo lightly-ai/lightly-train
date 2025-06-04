@@ -4,9 +4,12 @@
 
 This page describes how to use Torchvision models with LightlyTrain.
 
-## Pretrain a Torchvision Model
+## Pretrain and Fine-tune a Torchvision Model
 
-Pretraining Torchvision models with LightlyTrain is straightforward. Below we will provide the minimum scripts for pretraining using `torchvision/resnet18` as an example:
+### Pretrain
+
+Pretraining Torchvision models with LightlyTrain is straightforward. Below we will
+provide the minimum scripts for pretraining using `torchvision/resnet18` as an example:
 
 ````{tab} Python
 ```python
@@ -20,6 +23,21 @@ if __name__ == "__main__":
     )
 
 ```
+
+Or alternatively, pass directly a Torchvision model instance:
+
+```python
+from torchvision.models import resnet18
+
+import lightly_train
+
+if __name__ == "__main__":
+    model = resnet18()                        # Load the Torchvision model.
+    lightly_train.train(
+        out="out/my_experiment",              # Output directory.
+        data="my_data_dir",                   # Directory with images.
+        model=model,                          # Pass the Torchvision model.
+    )
 ````
 
 ````{tab} Command Line
@@ -27,7 +45,9 @@ if __name__ == "__main__":
 lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18"
 ````
 
-You can reload the exported model by:
+### Fine-tune
+
+After pretraining, you can load the exported model for fine-tuning with Torchvision:
 
 ```python
 import torch
@@ -35,7 +55,7 @@ from torchvision.models import resnet18
 
 model = resnet18()
 state_dict = torch.load("out/my_experiment/exported_models/exported_last.pt")
-model.load_state_dict(state_dict)
+model.load_state_dict(state_dict, weights_only=True)
 ```
 
 ## Supported Models

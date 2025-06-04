@@ -55,7 +55,10 @@ lightly-train train out="out/my_experiment" data="my_data_dir" model="rfdetr/rf-
 
 ### Fine-tune
 
-You can fine-tune the exported model with `rfdetr` directly. For now, `rfdetr` only supports datasets in COCO JSON format. Below we will provide the minimum scripts for fine-tuning using the [Coconuts dataset from Roboflow](https://universe.roboflow.com/traindataset/coconuts-plj8h/dataset/1/download/coco) in COCO JSON format:
+After pretraining, you can load the exported model for fine-tuning with RF-DETR.
+For now, RF-DETR only supports datasets in COCO JSON format. Below we will provide
+the minimum scripts for fine-tuning using the [Coconuts dataset from Roboflow](https://universe.roboflow.com/traindataset/coconuts-plj8h/dataset/1/download/coco)
+in COCO JSON format:
 
 ```python
 # fine_tune.py
@@ -73,7 +76,7 @@ if __name__ == "__main__":
     model.train(dataset_dir=dataset.location)
 ```
 
-which can be run with `rfdetr`'s DDP training:
+which can be run with RF-DETR's DDP training:
 
 ```bash
 python -m torch.distributed.launch --nproc_per_node=8 --use_env fine_tune.py

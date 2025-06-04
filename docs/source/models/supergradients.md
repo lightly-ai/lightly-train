@@ -12,7 +12,9 @@ SuperGradients support is still experimental. There might be unexpected warnings
 the logs.
 ```
 
-## Pretrain a SuperGradients Model
+## Pretrain and Fine-tune a SuperGradients Model
+
+### Pretrain
 
 Pretraining a SuperGradients models with LightlyTrain is straightforward. Below we will provide the minimum scripts for pretraining using `super_gradients/yolo_nas_s` as an example:
 
@@ -50,7 +52,7 @@ if __name__ == "__main__":
 lightly-train train out="out/my_experiment" data="my_data_dir" model="super_gradients/yolo_nas_s"
 ````
 
-## Fine-tune
+### Fine-tune
 
 After pretraining, you can load the exported model for fine-tuning with SuperGradients:
 
