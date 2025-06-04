@@ -50,7 +50,9 @@ See [this GitHub issue](https://github.com/sunsmarterjie/yolov12/issues/66) for 
 
 ## Pretrain and Fine-tune a YOLOv12 Model
 
-Pretraining or fine-tuning a YOLOv12 model is the same as doing so with any supported Ultralytics model. The only difference is that the config file is named `yolov12.yaml` instead of `yolo12.yaml` in the official Ultralytics releases.
+Pretraining or fine-tuning a YOLOv12 model is the same as doing so with any supported
+Ultralytics model. The only difference is that the config file is named `yolov12.yaml`
+instead of `yolo12.yaml` in the official Ultralytics releases.
 
 Below we will provide the minimum scripts for pretraining and fine-tuning:
 

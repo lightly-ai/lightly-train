@@ -49,9 +49,6 @@ be executed from inside the `RT-DETR/rtdetrv2_pytorch` directory or the
 `RT-DETR/rtdetrv2_pytorch` directory must be added to the Python path.
 
 ```python
-# pretrain_rtdetr.py
-
-
 import lightly_train
 from lightly_train.model_wrappers import RTDETRModelWrapper
 from src.core import YAMLConfig
@@ -67,8 +64,8 @@ if __name__ == "__main__":
     wrapped_model = RTDETRModelWrapper(model)
     lightly_train.train(
         out="out/my_experiment",
-        model=wrapped_model,
         data="my_data_dir", # Replace with your dataset path.
+        model=wrapped_model,
     )
 ```
 

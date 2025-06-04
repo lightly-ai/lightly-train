@@ -16,7 +16,9 @@ pip install "lightly-train[rfdetr]"
 
 ## Pretrain and Fine-tune an RF-DETR Model
 
-Pretraining RF-DETR models with LightlyTrain is straightforward. Below we will provide the minimum scripts for pretraining and fine-tuning using `rfdetr/rf-detr-base` as an example:
+Pretraining RF-DETR models with LightlyTrain is straightforward. Below we will provide
+the minimum scripts for pretraining and fine-tuning using `rfdetr/rf-detr-base` as an
+example:
 
 ### Pretrain
 
@@ -62,6 +64,7 @@ in COCO JSON format:
 
 ```python
 # fine_tune.py
+
 from rfdetr import RFDETRBase
 from roboflow import Roboflow
 
