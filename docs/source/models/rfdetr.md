@@ -30,8 +30,22 @@ if __name__ == "__main__":
         data="my_data_dir",                     # Directory with images.
         model="rfdetr/rf-detr-base",            # Pass the RF-DETR model.
     )
-
 ```
+
+Or alternatively, pass directly an RF-DETR model instance:
+
+```python
+from rfdetr import RFDETRBase
+
+import lightly_train
+
+if __name__ == "__main__":
+    model = RFDETRBase()                        # Load the RF-DETR model.
+    lightly_train.train(
+        out="out/my_experiment",                # Output directory.
+        data="my_data_dir",                     # Directory with images.
+        model=model,                            # Pass the RF-DETR model.
+    )
 ````
 
 ````{tab} Command Line
