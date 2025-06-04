@@ -223,7 +223,7 @@ def remove_excessive_args(
 
 def sanitize_config_dict(args: dict[str, Any]) -> dict[str, Any]:
     """Replace classes with their names in the train config dictionary."""
-    if isinstance(args.get("model"), Module):
+    if not isinstance(args.get("model"), str):
         args["model"] = args["model"].__class__.__name__
     if isinstance(args.get("accelerator"), Accelerator):
         args["accelerator"] = args["accelerator"].__class__.__name__
