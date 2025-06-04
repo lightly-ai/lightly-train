@@ -40,10 +40,19 @@ class TestDINOv2ViTModelWrapper:
         feature_extractor = DINOv2ViTModelWrapper(model=model)
 
         x = torch.rand(1, 3, 224, 224)
-        features = feature_extractor.forward_features(x)["features"]
-        cls_token = feature_extractor.forward_features(x)["cls_token"]
-        assert features.shape == (1, 384, 14, 14)
-        assert cls_token.shape == (1, 384)
+        collated_masks = torch.rand(1, 14 * 14) > 0.5
+
+        feats_cls = feature_extractor.forward_features(x)
+        assert feats_cls["features"].shape == (1, 384, 14, 14)
+        assert feats_cls["cls_token"].shape == (1, 384)
+
+        feats_cls_masked = feature_extractor.forward_features(x, masks=collated_masks)
+        assert not torch.allclose(
+            feats_cls["features"], feats_cls_masked["features"], atol=1e-6
+        )
+        assert not torch.allclose(
+            feats_cls["cls_token"], feats_cls_masked["cls_token"], atol=1e-6
+        )
 
     def test_forward_pool(self) -> None:
         model = vit_small()

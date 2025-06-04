@@ -28,8 +28,10 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
     def feature_dim(self) -> int:
         return self._feature_dim
 
-    def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
-        rt = self._model(x, is_training=True)  # forcing to return all patches
+    def forward_features(
+        self, x: Tensor, masks: Tensor | None = None
+    ) -> ForwardFeaturesOutput:
+        rt = self._model(x, masks, is_training=True)  # forcing to return all patches
         if rt["x_norm_patchtokens"].dim() == 3:
             x_norm_patchtokens = rt["x_norm_patchtokens"]
             b = x_norm_patchtokens.shape[0]
