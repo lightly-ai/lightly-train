@@ -208,7 +208,7 @@ if __name__ == "__main__":
                 "experiment_name": "my_experiment",
                 "run_name": "my_run",
                 "tracking_uri": "tracking_uri",
-                # "run_id": "my_run_id",  # Use if resuming a training with resume=True
+                # "run_id": "my_run_id",  # Use if resuming a training with resume_interrupted=True
                 # "log_model": True,      # Currently not supported
             },
         },
@@ -299,15 +299,21 @@ There are two distinct ways to continue training, depending on your intention.
 
 ### Resume Interrupted Training
 
-Use `resume=True` to **resume a previously interrupted or crashed training run**. This will pick up exactly where the training left off.
+Use `resume_interrupted=True` to **resume a previously interrupted or crashed training run**.
+This will pick up exactly where the training left off.
 
-- You **must use the same `output_dir`** as the original run.
+- You **must use the same `out` directory** as the original run.
 - You **must not change any training parameters** (e.g., learning rate, batch size, data, etc.).
 - This is intended for continuing the *same* run without modification.
 
 ### Load Weights for a New Run
 
-Use `checkpoint="path/to/checkpoint.ckpt"` to load model weights from a checkpoint, but start a new training run.
+Use `checkpoint` to further pretrain a model from a previous run. The checkpoint must
+be a path to a checkpoint file created by a previous training run, for example
+`checkpoint="out/my_experiment/checkpoints/last.ckpt"`. This will only load the model
+weights from the previous run. All other training state (e.g. optimizer state, epochs)
+from the previous run are not loaded. Instead, a new run is started with the model
+weights from the checkpoint.
 
 - You are free to **change training parameters**.
 - This is useful for continuing training with a different setup.
@@ -315,8 +321,10 @@ Use `checkpoint="path/to/checkpoint.ckpt"` to load model weights from a checkpoi
 ### General Notes
 
 ```{important}
-- `resume=True` and `checkpoint=...` are mutually exclusive and cannot be used together.
-- If `overwrite=True` is set, training will start fresh, overwriting existing outputs or checkpoints in the specified output directory.
+- `resume_interrupted=True` and `checkpoint=...` are mutually exclusive and cannot be
+  used together.
+- If `overwrite=True` is set, training will start fresh, overwriting existing outputs or
+  checkpoints in the specified output directory.
 ```
 
 ## Advanced Options

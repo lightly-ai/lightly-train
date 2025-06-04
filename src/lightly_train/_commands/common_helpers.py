@@ -45,6 +45,27 @@ from lightly_train.types import DatasetItem, PathLike, Transform
 logger = logging.getLogger(__name__)
 
 
+def get_resume_interrupted(resume_interrupted: bool, resume: bool | None) -> bool:
+    """Function to handle the deprecated 'resume' argument."""
+    if resume is None:
+        return resume_interrupted
+    elif resume_interrupted == resume:
+        # Color code for warning is manually added here because this function is called
+        # before the logging is set up.
+        logger.warning(
+            f"\033[93mresume_interrupted={resume_interrupted} and resume={resume} "
+            "should not be set at the same time. Please only set 'resume_interrupted' "
+            "as 'resume' is deprecated and will be removed in a future version.\x1b[0m"
+        )
+        return resume_interrupted
+    else:
+        raise ValueError(
+            f"resume_interrupted={resume_interrupted} and resume={resume} cannot be "
+            f"set at the same time! Please only set 'resume_interrupted' as 'resume' "
+            "is deprecated and will be removed in a future version."
+        )
+
+
 def get_checkpoint_path(checkpoint: PathLike) -> Path:
     checkpoint_path = Path(checkpoint).resolve()
     logger.debug(f"Making sure checkpoint '{checkpoint_path}' exists.")
@@ -89,7 +110,7 @@ def get_accelerator(
         return CPUAccelerator()
 
 
-def get_out_dir(out: PathLike, resume: bool, overwrite: bool) -> Path:
+def get_out_dir(out: PathLike, resume_interrupted: bool, overwrite: bool) -> Path:
     out_dir = Path(out).resolve()
     logger.debug(f"Checking if output directory '{out_dir}' exists.")
     if out_dir.exists():
@@ -100,12 +121,15 @@ def get_out_dir(out: PathLike, resume: bool, overwrite: bool) -> Path:
 
         if (
             dir_not_empty
-            and (not (resume or overwrite))
+            and (not (resume_interrupted or overwrite))
             and distributed_helpers.is_global_rank_zero()
         ):
             raise ValueError(
                 f"Output '{out_dir}' is not empty! Set overwrite=True to overwrite the "
-                "directory or resume=True to resume training."
+                "directory or resume_interrupted=True to resume training from an "
+                "interrupted or crashed run. "
+                "See https://docs.lightly.ai/lightly-train/usage/cli.html#resume-training "
+                "for more information on how to resume training."
             )
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
@@ -223,8 +247,9 @@ def remove_excessive_args(
 
 def sanitize_config_dict(args: dict[str, Any]) -> dict[str, Any]:
     """Replace classes with their names in the train config dictionary."""
-    if isinstance(args.get("model"), Module):
-        args["model"] = args["model"].__class__.__name__
+    model = args.get("model")
+    if model is not None and not isinstance(model, str):
+        args["model"] = model.__class__.__name__
     if isinstance(args.get("accelerator"), Accelerator):
         args["accelerator"] = args["accelerator"].__class__.__name__
     if isinstance(args.get("strategy"), Strategy):

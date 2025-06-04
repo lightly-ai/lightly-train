@@ -23,9 +23,10 @@ Models ending with `.pt` load pretrained weights by Ultralytics. Models ending w
 
 ## Pretrain and Fine-tune an Ultralytics Model
 
-Pretraining Ultralytics models with LightlyTrain is straightforward. Below we will provide the minimum scripts for pretraining and fine-tuning using `ultralytics/yolov8s` as an example:
-
 ### Pretrain
+
+Pretraining Ultralytics models with LightlyTrain is straightforward. Below we provide
+the minimum scripts for pretraining using `ultralytics/yolov8s` as an example:
 
 ````{tab} Python
 ```python
@@ -39,6 +40,21 @@ if __name__ == "__main__":
     )
 
 ```
+
+Or alternatively, pass directly a YOLO model instance:
+```python
+from ultralytics import YOLO
+
+import lightly_train
+
+if __name__ == "__main__":
+    model = YOLO("yolov8s.yaml")                # Load the YOLO model.
+    lightly_train.train(
+        out="out/my_experiment",                # Output directory.
+        data="my_data_dir",                     # Directory with images.
+        model=model,                            # Pass the YOLO model.
+    )
+```
 ````
 
 ````{tab} Command Line
@@ -48,7 +64,7 @@ lightly-train train out="out/my_experiment" data="my_data_dir" model="ultralytic
 
 ### Fine-tune
 
-You can fine-tune the exported model with Ultralytics directly.
+After pretraining, you can load the exported model for fine-tuning with Ultralytics:
 
 ````{tab} Python
 ```python
@@ -57,18 +73,14 @@ from pathlib import Path
 from ultralytics import YOLO
 
 if __name__ == "__main__":
-    # Load the exported model.
     model = YOLO("out/my_experiment/exported_models/exported_last.pt")
-
-    # Fine-tune with ultralytics.
-    data = Path("my_data_dir/config.yaml").absolute()
-    model.train(data=data)
+    model.train(data="coco8.yaml")
 ```
 ````
 
 ````{tab} Command Line
 ```bash
-yolo detect train model=out/my_experiment/exported_models/exported_last.pt data="my_data_dir"
+yolo detect train model=out/my_experiment/exported_models/exported_last.pt data="coco8.yaml"
 ````
 
 ## Supported Models

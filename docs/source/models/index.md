@@ -33,12 +33,11 @@ import lightly_train
 from torchvision.models import resnet50
 
 if __name__ == "__main__":
-    model = resnet50()
-
+    model = resnet50()                  # Load the model.
     lightly_train.train(
         out="out/my_experiment",
         data="my_data_dir",
-        model=model,
+        model=model,                    # Pass the model.
     )
 ````
 

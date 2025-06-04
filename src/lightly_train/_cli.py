@@ -100,12 +100,33 @@ _TRAIN_HELP_MSG = f"""
         num_nodes (int):
             Number of nodes for distributed training. Default: {_train_cfg.num_nodes}
         checkpoint (str):
-            Checkpoint to load the model weights from. The checkpoint must be a file
-            created by a previous training run. Apart from the weights, all other
-            training state components (e.g. optimizer, epochs) are not loaded.
+            Use this parameter to further pretrain a model from a previous run.
+            The checkpoint must be a path to a checkpoint file created by a previous
+            training run, for example "out/my_experiment/checkpoints/last.ckpt".
+            This will only load the model weights from the previous run. All other
+            training state (e.g. optimizer state, epochs) from the previous run are not
+            loaded. Instead, a new run is started with the model weights from the
+            checkpoint.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
+            See https://docs.lightly.ai/train/stable/train/index.html#resume-training
+            for more information.
             Default: {_train_cfg.checkpoint}
-        resume (bool):
-            Resume training from the last checkpoint. Default: {_train_cfg.resume}
+        resume_interrupted (bool):
+            Set this to True if you want to resume training from an **interrupted or
+            crashed** training run. This will pick up exactly where the training left
+            off, including the optimizer state and the current epoch.
+
+            - You must use the same ``out`` directory as the interrupted run.
+            - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
+            - This is intended for continuing the same run without modification.
+
+            If you want to further pretrain a model or change the training parameters,
+            use the ``checkpoint``parameter instead.
+            See https://docs.lightly.ai/train/stable/train/index.html#resume-training
+            for more information.
+            Default: {_train_cfg.resume_interrupted}
         overwrite (bool):
             Overwrite the output directory if it exists. Warning, this might overwrite
             existing files in the directory! Default: {_train_cfg.overwrite}
@@ -176,6 +197,9 @@ _TRAIN_HELP_MSG = f"""
             parameter. For example, if `model='torchvision/<model_name>'`, the
             arguments are passed to
             `torchvision.models.get_model(model_name, **model_args)`.
+        resume (bool):
+            Deprecated. Use `resume_interrupted` instead.
+            Default: null
 
     Optional arguments:
         -v, --verbose  Run the command in verbose mode for detailed output.
