@@ -5,8 +5,10 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
 
 import re
+from typing import Union
 
 import numpy as np
 import pytest
@@ -81,7 +83,7 @@ class TestMaskingGenerator:
         ],
     )
     def test_masking_generator__aspect_ratio(
-        self, min_aspect_ratio: float, max_aspect_ratio: float | None
+        self, min_aspect_ratio: float, max_aspect_ratio: Union[float, None]
     ) -> None:
         n_masked_patch_tokens = int(0.5 * self.grid_size**2)
 
