@@ -57,7 +57,7 @@ def train(
     num_workers: int | Literal["auto"] = "auto",
     devices: int | str | list[int] = "auto",
     num_nodes: int = 1,
-    resume: bool = False,
+    resume_interrupted: bool = False,
     checkpoint: PathLike | None = None,
     overwrite: bool = False,
     accelerator: str | Accelerator = "auto",
@@ -73,6 +73,7 @@ def train(
     loader_args: dict[str, Any] | None = None,
     trainer_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
+    resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
 ) -> None:
     """Train a self-supervised model.
 
@@ -119,11 +120,31 @@ def train(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Checkpoint to load the model weights from. The checkpoint must be a file
-            created by a previous training run. Apart from the weights, all other
-            training state components (e.g. optimizer, epochs) are not loaded.
-        resume:
-            Resume training from the last checkpoint.
+            Use this parameter to further pretrain a model from a previous run.
+            The checkpoint must be a path to a checkpoint file created by a previous
+            training run, for example "out/my_experiment/checkpoints/last.ckpt".
+            This will only load the model weights from the previous run. All other
+            training state (e.g. optimizer state, epochs) from the previous run are not
+            loaded. Instead, a new run is started with the model weights from the
+            checkpoint.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
+            See https://docs.lightly.ai/train/stable/train/index.html#resume-training
+            for more information.
+        resume_interrupted:
+            Set this to True if you want to resume training from an **interrupted or
+            crashed** training run. This will pick up exactly where the training left
+            off, including the optimizer state and the current epoch.
+
+            - You must use the same ``out`` directory as the interrupted run.
+            - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
+            - This is intended for continuing the same run without modification.
+
+            If you want to further pretrain a model or change the training parameters,
+            use the ``checkpoint`` parameter instead.
+            See https://docs.lightly.ai/train/stable/train/index.html#resume-training
+            for more information.
         overwrite:
             Overwrite the output directory if it already exists. Warning, this might
             overwrite existing files in the directory!
@@ -208,6 +229,8 @@ def train(
             parameter. For example, if ``model='torchvision/<model_name>'``, the
             arguments are passed to
             ``torchvision.models.get_model(model_name, **model_args)``.
+        resume:
+            Deprecated. Use ``resume_interrupted`` instead.
     """
     config = validate.pydantic_model_validate(TrainConfig, locals())
     train_from_config(config=config)
@@ -217,9 +240,17 @@ def train_from_config(config: TrainConfig) -> None:
     # Convert the config to a TrainConfig instance.
     config = validate.pydantic_model_validate(TrainConfig, dict(config))
 
+    # Handle deprecated `resume` argument.
+    config.resume_interrupted = common_helpers.get_resume_interrupted(
+        resume_interrupted=config.resume_interrupted,
+        resume=config.resume,
+    )
+
     # Set up output directory.
     out_dir = common_helpers.get_out_dir(
-        out=config.out, resume=config.resume, overwrite=config.overwrite
+        out=config.out,
+        resume_interrupted=config.resume_interrupted,
+        overwrite=config.overwrite,
     )
 
     # Set up logging.
@@ -359,7 +390,7 @@ def train_from_config(config: TrainConfig) -> None:
         )
         train_helpers.load_checkpoint(
             checkpoint=config.checkpoint,
-            resume=config.resume,
+            resume_interrupted=config.resume_interrupted,
             wrapped_model=wrapped_model,
             embedding_model=embedding_model,
             method=method_instance,
@@ -368,7 +399,7 @@ def train_from_config(config: TrainConfig) -> None:
         trainer_instance.fit(
             model=method_instance,
             train_dataloaders=dataloader,
-            ckpt_path="last" if config.resume else None,
+            ckpt_path="last" if config.resume_interrupted else None,
         )
     if config.epochs == 0:
         logger.info("No training epochs specified. Saving model and exiting.")
@@ -405,7 +436,7 @@ class TrainConfig(PydanticConfig):
     num_workers: int | Literal["auto"] = "auto"
     devices: int | str | list[int] = "auto"
     num_nodes: int = 1
-    resume: bool = False
+    resume_interrupted: bool = False
     checkpoint: PathLike | None = None
     overwrite: bool = False
     accelerator: str | Accelerator = "auto"
@@ -421,6 +452,7 @@ class TrainConfig(PydanticConfig):
     loader_args: dict[str, Any] | None = None
     trainer_args: dict[str, Any] | None = None
     model_args: dict[str, Any] | None = None
+    resume: bool | None = None  # Deprecated, use `resume_interrupted` instead.
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)
