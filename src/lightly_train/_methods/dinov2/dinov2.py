@@ -586,6 +586,9 @@ class DINOv2(Method):
             masked_patch_tokens
         )  # [M, D]
 
+        # In order to be compliant with the original DINOv2 code, we need to unsqueeze
+        masked_patch_tokens_after_ibot = masked_patch_tokens_after_ibot.unsqueeze(0)
+
         # centering
         if self.centering == "softmax":
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
