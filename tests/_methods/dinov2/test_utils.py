@@ -152,8 +152,8 @@ class TestCreateCollatedMasks:
 
         collated_masks = masks["collated_masks"]
 
-        num_crops_masked = sum(m.sum() > 0 for m in collated_masks)
-        assert num_crops_masked == expected_n_masked_crops
+        n_masked_crops = sum(m.sum() > 0 for m in collated_masks)
+        assert n_masked_crops == expected_n_masked_crops
 
     @pytest.mark.parametrize(
         "mask_ratio_min, mask_ratio_max",
@@ -172,9 +172,9 @@ class TestCreateCollatedMasks:
 
         collated_masks = masks["collated_masks"]
         for mask in collated_masks:
-            num_patches = mask.numel()
-            num_masked_patches = mask.sum().item()
-            if num_masked_patches == 0:
+            n_patch_tokens = mask.numel()
+            n_masked_patch_tokens = mask.sum().item()
+            if n_masked_patch_tokens == 0:
                 continue
 
             # Check if the number of masked patches is within the specified range
@@ -182,7 +182,7 @@ class TestCreateCollatedMasks:
             # min_image_mask_ratio * num_patches can be masked. This is because there is a
             # limited number of attempts to find a valid mask that satisfies all constraints.
             assert (
-                mask_ratio_min * num_patches / 4
-                <= num_masked_patches
-                <= mask_ratio_max * num_patches
+                mask_ratio_min * n_patch_tokens / 4
+                <= n_masked_patch_tokens
+                <= mask_ratio_max * n_patch_tokens
             )
