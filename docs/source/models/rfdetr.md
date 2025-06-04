@@ -18,7 +18,7 @@ pip install "lightly-train[rfdetr]"
 
 ### Pretrain
 
-Pretraining RF-DETR models with LightlyTrain is straightforward. Below we will provide
+Pretraining RF-DETR models with LightlyTrain is straightforward. Below we provide
 the minimum scripts for pretraining using `rfdetr/rf-detr-base` as an example:
 
 ````{tab} Python
@@ -57,7 +57,7 @@ lightly-train train out="out/my_experiment" data="my_data_dir" model="rfdetr/rf-
 ### Fine-tune
 
 After pretraining, you can load the exported model for fine-tuning with RF-DETR.
-For now, RF-DETR only supports datasets in COCO JSON format. Below we will provide
+For now, RF-DETR only supports datasets in COCO JSON format. Below we provide
 the minimum scripts for fine-tuning using the [Coconuts dataset from Roboflow](https://universe.roboflow.com/traindataset/coconuts-plj8h/dataset/1/download/coco)
 in COCO JSON format:
 

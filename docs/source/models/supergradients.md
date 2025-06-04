@@ -16,7 +16,7 @@ the logs.
 
 ### Pretrain
 
-Pretraining a SuperGradients models with LightlyTrain is straightforward. Below we will
+Pretraining a SuperGradients models with LightlyTrain is straightforward. Below we
 provide the minimum scripts for pretraining using `super_gradients/yolo_nas_s` as an
 example:
 

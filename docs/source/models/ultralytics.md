@@ -25,8 +25,8 @@ Models ending with `.pt` load pretrained weights by Ultralytics. Models ending w
 
 ### Pretrain
 
-Pretraining Ultralytics models with LightlyTrain is straightforward. Below we will
-provide the minimum scripts for pretraining using `ultralytics/yolov8s` as an example:
+Pretraining Ultralytics models with LightlyTrain is straightforward. Below we provide
+the minimum scripts for pretraining using `ultralytics/yolov8s` as an example:
 
 ````{tab} Python
 ```python

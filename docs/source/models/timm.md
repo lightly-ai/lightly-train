@@ -13,7 +13,7 @@ This page describes how to use TIMM models with LightlyTrain.
 
 ### Pretrain
 
-Pretraining TIMM models with LightlyTrain is straightforward. Below we will provide the
+Pretraining TIMM models with LightlyTrain is straightforward. Below we provide the
 minimum scripts for pretraining using `timm/resnet18` as an example:
 
 ````{tab} Python

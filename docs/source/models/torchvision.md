@@ -8,8 +8,8 @@ This page describes how to use Torchvision models with LightlyTrain.
 
 ### Pretrain
 
-Pretraining Torchvision models with LightlyTrain is straightforward. Below we will
-provide the minimum scripts for pretraining using `torchvision/resnet18` as an example:
+Pretraining Torchvision models with LightlyTrain is straightforward. Below we provide
+the minimum scripts for pretraining using `torchvision/resnet18` as an example:
 
 ````{tab} Python
 ```python
