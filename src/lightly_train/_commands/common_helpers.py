@@ -53,9 +53,9 @@ def get_resume_interrupted(resume_interrupted: bool, resume: bool | None) -> boo
         # Color code for warning is manually added here because this function is called
         # before the logging is set up.
         logger.warning(
-            f"\033[93mresume_interrupted={resume_interrupted} and resume={resume} are "
-            "both set. Please only set 'resume_interrupted' as 'resume' is deprecated "
-            "and will be removed in a future version.\x1b[0m"
+            f"\033[93mresume_interrupted={resume_interrupted} and resume={resume} "
+            "should not be set at the same time. Please only set 'resume_interrupted' "
+            "as 'resume' is deprecated and will be removed in a future version.\x1b[0m"
         )
         return resume_interrupted
     else:
