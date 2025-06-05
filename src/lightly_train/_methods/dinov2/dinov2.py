@@ -112,11 +112,6 @@ class DINOv2Args(MethodArgs):
     # transform_cls().transform_args_cls().transform_args.local_view.num_views
     n_local_crops: int = 8
 
-    # TODO(Guarin, 06/25): Infer this from the model architecture instead of having it
-    # as an additional arg.
-    embed_dim: int | Literal["auto"] = "auto"  # Is set based on ViT configuration
-    patch_size: int | Literal["auto"] = "auto"  # Is set based on ViT configuration
-
     # projection head
     ibot_separate_head: bool | Literal["auto"] = "auto"
     hidden_dim: int = 2048
@@ -178,27 +173,26 @@ class DINOv2Args(MethodArgs):
             raise ValueError(
                 f"Expected model to be of type DinoVisionTransformer, but got {type(model)}."
             )
-        depth: int = model.n_blocks
-        num_heads: int = model.num_heads
-        self.embed_dim = model.embed_dim
-        self.patch_size = model.patch_size
+        depth = model.n_blocks
+        num_heads = model.num_heads
+        embed_dim = model.embed_dim
 
         # Settings correspond to either the fast or long setup from here: https://github.com/facebookresearch/dinov2/tree/main?tab=readme-ov-file#training
         is_small_or_base = True
-        if (depth == 40 and num_heads == 24 and self.embed_dim == 1536) or (
-            depth == 24 and num_heads == 16 and self.embed_dim == 1024
+        if (depth == 40 and num_heads == 24 and embed_dim == 1536) or (
+            depth == 24 and num_heads == 16 and embed_dim == 1024
         ):
             # ViT-L/G in original DINOv2
             is_small_or_base = False
-        elif (depth == 12 and num_heads == 12 and self.embed_dim == 768) or (
-            depth == 12 and num_heads == 6 and self.embed_dim == 384
+        elif (depth == 12 and num_heads == 12 and embed_dim == 768) or (
+            depth == 12 and num_heads == 6 and embed_dim == 384
         ):
             # ViT-S/B in original DINOv2
             pass
         else:
             logger.warning(
                 f"Model architecture: depth={depth}, num_heads={num_heads}, "
-                f"embed_dim={self.embed_dim} does not match any known DINOv2 model. "
+                f"embed_dim={embed_dim} does not match any known DINOv2 model. "
                 "Using default parameters for small/base models, but performance may "
                 "be suboptimal."
             )
@@ -286,10 +280,13 @@ class DINOv2(Method):
         self.teacher_embedding_model_wrapper.make_teacher()
         freeze_eval_module(self.teacher_embedding_model_wrapper)
 
+        model = model_wrapper.get_model()
+        self._patch_size = model.patch_size
+
         # Create teacher and student dino heads
         dino_head = partial(
             DINOProjectionHead,
-            input_dim=no_auto(method_args.embed_dim),
+            input_dim=model.embed_dim,
             hidden_dim=method_args.hidden_dim,
             bottleneck_dim=no_auto(method_args.dino_bottleneck_dim),
             output_dim=no_auto(method_args.output_dim),
@@ -307,7 +304,7 @@ class DINOv2(Method):
         if no_auto(self.method_args.ibot_separate_head):
             ibot_head = partial(
                 DINOProjectionHead,
-                input_dim=no_auto(method_args.embed_dim),
+                input_dim=model.embed_dim,
                 hidden_dim=method_args.hidden_dim,
                 bottleneck_dim=method_args.ibot_bottleneck_dim,
                 output_dim=no_auto(method_args.output_dim),
@@ -402,8 +399,8 @@ class DINOv2(Method):
         # Masking
         n_crops = global_views.shape[0]  # G*B
         batch_size = n_crops // n_global_crops
-        h = global_views.shape[2] // no_auto(self.method_args.patch_size)
-        w = global_views.shape[3] // no_auto(self.method_args.patch_size)
+        h = global_views.shape[2] // self._patch_size
+        w = global_views.shape[3] // self._patch_size
 
         mask_generator = MaskingGenerator(
             input_size=(h, w),
