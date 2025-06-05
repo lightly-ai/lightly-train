@@ -100,6 +100,8 @@ def test_set_up_file_logging() -> None:
         assert "error message" in logs
         assert "critical message" in logs
     finally:
+        # Restore original logger state
+        logger.setLevel(original_level)
         if temp_path.exists():
             temp_path.unlink()
 
