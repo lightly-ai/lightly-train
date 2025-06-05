@@ -18,7 +18,7 @@ from lightly_train._methods.dino.dino_transform import (
     DINOTransformArgs,
 )
 
-
+# TODO(Thomas, 06/25): are the transforms really identical to DINOv1?
 class DINOv2RandomResizeArgs(DINORandomResizeArgs):
     min_scale: float = 0.32
 
