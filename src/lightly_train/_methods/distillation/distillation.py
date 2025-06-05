@@ -27,6 +27,7 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -61,7 +62,10 @@ class DistillationArgs(MethodArgs):
     teacher: str = "dinov2_vit/vitb14_pretrain"
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
+        self,
+        scaling_info: ScalingInfo,
+        optimizer_args: OptimizerArgs,
+        wrapped_model: ModelWrapper,
     ) -> None:
         if self.queue_size == "auto":
             # Reduce the queue size for smaller datasets.

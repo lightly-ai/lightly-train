@@ -18,7 +18,6 @@ from omegaconf import OmegaConf
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
-from torch.nn import Module
 
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._commands import train
@@ -33,6 +32,7 @@ from lightly_train._methods.dino.dino import DINOAdamWArgs, DINOArgs
 from lightly_train._scaling import ScalingInfo
 
 from .. import helpers
+from ..helpers import DummyCustomModel
 
 
 def test_train__cpu(tmp_path: Path) -> None:
@@ -341,7 +341,7 @@ def test_train__TrainConfig__model_dump(tmp_path: Path) -> None:
     method_args.resolve_auto(
         scaling_info=ScalingInfo(dataset_size=20_000, epochs=100),
         optimizer_args=optim_args,
-        model=Module(),
+        wrapped_model=DummyCustomModel(),
     )
     config = TrainConfig(
         out=out,

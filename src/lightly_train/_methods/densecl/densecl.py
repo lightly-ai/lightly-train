@@ -38,6 +38,7 @@ from lightly_train._methods.densecl.densecl_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.sgd_args import SGDArgs
@@ -73,7 +74,10 @@ class DenseCLArgs(MethodArgs):
     momentum_end: float = 0.999
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
+        self,
+        scaling_info: ScalingInfo,
+        optimizer_args: OptimizerArgs,
+        wrapped_model: ModelWrapper,
     ) -> None:
         if self.memory_bank_size == "auto":
             # Reduce memory bank size for smaller datasets, otherwise training is
