@@ -75,6 +75,11 @@ jobs:
       - name: Set Up Environment
         run: |
           make install-pinned-${{ matrix.python }}              # Install the dependencies
-      - name: Run Pytest
+      - name: Run Pytest on Ubuntu
+        if: ${{ matrix.runners == 'ubuntu-latest' }}
         run: |
           make test-ci
+      - name: Run Pytest on macOS
+        if: ${{ matrix.runners == 'macos-latest' }}
+        run: |
+          PYTORCH_ENABLE_MPS_FALLBACK=1 make test-ci
