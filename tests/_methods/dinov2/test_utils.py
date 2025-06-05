@@ -170,7 +170,7 @@ class TestCreateCollatedMasks:
 
     @pytest.mark.parametrize(
         "mask_ratio_min, mask_ratio_max",
-        [(0.0, 0.0), (0.1, 0.5), (1.0, 1.0)],
+        [(0.1, 0.5), (0.5, 0.8), (1.0, 1.0)],
     )
     def test_create_collated_masks__mask_ratio_min_max(
         self, mask_ratio_min: float, mask_ratio_max: float
@@ -199,3 +199,18 @@ class TestCreateCollatedMasks:
                 <= n_masked_patch_tokens
                 <= mask_ratio_max * n_patch_tokens
             )
+
+    def test_create_collated_masks__mask_ratio_zero(
+        self,
+    ) -> None:
+        masks = create_collated_masks(
+            mask_ratio_min=0.0,
+            mask_ratio_max=0.0,
+            n_masked_crops=4,
+            n_crops=4,
+            mask_generator=self.masking_generator,
+        )
+
+        collated_masks = masks["collated_masks"]
+        for mask in collated_masks:
+            assert not mask.any()
