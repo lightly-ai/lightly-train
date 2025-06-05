@@ -177,8 +177,6 @@ ifdef CI
 		PINNED_TORCHVISION_VERSION_PY312 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
 		MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 		MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-	else
-		PINNED_RFDETR_VERSION := "rfdetr@https://github.com/roboflow/rf-detr.git"
 	endif
 else
 	PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
@@ -187,8 +185,6 @@ else
 	PINNED_TORCHVISION_VERSION_PY312 := "torchvision==0.19.0"
 	MINIMAL_TORCH_VERSION_PY38 := "torch==2.1.0"
 	MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision==0.16.0"
-
-	PINNED_RFDETR_VERSION := "rfdetr==1.1.0"
 endif
 
 
@@ -258,7 +254,7 @@ install-pinned-3.8:
 .PHONY: install-pinned-3.12
 install-pinned-3.12:
 	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY312}" --requirement pyproject.toml \
-		${PINNED_TORCH_VERSION_PY312} ${PINNED_TORCHVISION_VERSION_PY312} ${PINNED_RFDETR_VERSION}
+		${PINNED_TORCH_VERSION_PY312} ${PINNED_TORCHVISION_VERSION_PY312}
 
 # Install package with the latest dependencies for Python 3.8.
 .PHONY: install-latest-3.8
