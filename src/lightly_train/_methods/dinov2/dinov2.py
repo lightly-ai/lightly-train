@@ -432,6 +432,8 @@ class DINOv2(Method):
             start_value=no_auto(self.method_args.start_teacher_temp),
             end_value=no_auto(self.method_args.end_teacher_temp),
         )
+        # TODO(Thomas, 06/25): check that the temperature schedule is correct in
+        # particular the number of warmup epochs was longer than the total number of epochs
 
         # Get the views
         # Calculate the number of crops
@@ -483,6 +485,7 @@ class DINOv2(Method):
                 teacher_temp,
             )  # [G, B, D], [M, D]
         )
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
         student_cls_tokens_global, student_masked_patch_tokens_global = (
             self._forward_student_global(
                 x=global_views,
@@ -490,6 +493,7 @@ class DINOv2(Method):
                 mask_indices_list=mask_indices_list,
             )  # [G*B, D], [M, D]
         )
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
 
         # Compute the DINO loss
         dino_global_loss = (
@@ -558,9 +562,11 @@ class DINOv2(Method):
         n_masked_patches: int,
         teacher_temp: float,
     ) -> tuple[Tensor, Tensor]:
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
         tokens = self.teacher_embedding_model_wrapper.forward_features(
             x
         )  # input [G*B, C, ...]
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
 
         # process the cls tokens
         # watch out: these are chunked and cat'd in reverse so A is matched to B in the global crops dino loss
@@ -585,16 +591,20 @@ class DINOv2(Method):
 
         # centering
         if self.centering == "softmax":
+            # TODO(Thomas, 06/25): breakpoint to check shape and norms
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
+            # TODO(Thomas, 06/25): breakpoint to check shape and norms
             self.dino_loss.update_center(cls_tokens_after_dino)
+            # TODO(Thomas, 06/25): breakpoint to check shape and norms
 
             masked_patch_tokens_after_ibot = masked_patch_tokens_after_ibot.unsqueeze(0)
             masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=teacher_temp,
             )  # [M, D]
+            # TODO(Thomas, 06/25): breakpoint to check shape and norms
             self.ibot_loss.update_center(masked_patch_tokens_after_ibot)
         elif self.centering == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
@@ -619,19 +629,23 @@ class DINOv2(Method):
         masks: Tensor,
         mask_indices_list: Tensor,
     ) -> tuple[Tensor, Tensor]:
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
         tokens = self.student_embedding_model_wrapper.forward_features(
             x, masks
         )  # input [G*B, C, ...]
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
 
         # process the cls tokens
         cls_tokens = tokens["cls_token"]  # [G*B, C]
         cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)  # [G*B, D]
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
 
         # process the patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
         patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
-        masked_patch_tokens = torch.index_select(
+        # TODO(Thomas, 06/25): breakpoint to check the shapes etc.
+        masked_patch_tokens = torch.index_select( 
             patch_tokens.flatten(0, 1),  # [G*B*H/p*W/p, C]
             dim=0,
             index=mask_indices_list,
@@ -639,13 +653,17 @@ class DINOv2(Method):
         masked_patch_tokens_after_ibot = self.student_ibot_head.forward(
             masked_patch_tokens
         )  # [M, D]
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
 
         return cls_tokens_after_dino, masked_patch_tokens_after_ibot
 
     def _forward_student_local(self, x: Tensor) -> Tensor:
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
         tokens = self.student_embedding_model_wrapper.forward_features(
             x
         )  # input [L*B, C, ...]
+
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
 
         # process the cls tokens
         cls_tokens = tokens["cls_token"]  # [L*B, C]
@@ -653,6 +671,7 @@ class DINOv2(Method):
             cls_tokens
         )  # [L*B, D]
 
+        # TODO(Thomas, 06/25): breakpoint to check shape and norms
         return cls_tokens_after_dino
 
     @staticmethod
@@ -684,7 +703,7 @@ class DINOv2(Method):
             return TrainableModules(
                 modules=[
                     self.student_embedding_model_wrapper._model,
-                    self.student_dino_head,
+                    self.student_dino_head, # TODO(Thomas, 06/25): check that ibot head parameters are updated
                 ]
             )
 
@@ -724,6 +743,7 @@ class DINOv2(Method):
         gradient_clip_val: int | float | None = None,
         gradient_clip_algorithm: str | None = None,
     ) -> None:
+        # TODO(Thomas, 06/25): check the clipping value
         self.clip_gradients(
             optimizer=optimizer,
             gradient_clip_val=self.method_args.gradient_clip_val,
@@ -733,6 +753,7 @@ class DINOv2(Method):
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
         self.student_dino_head.cancel_last_layer_gradients(self.current_epoch)
         self.student_ibot_head.cancel_last_layer_gradients(self.current_epoch)
+        # TODO(Thomas, 06/25): Check that the gradients are indeed set to None (done)
 
         # Apply weight decay schedule
         weight_decay = cosine_schedule(
@@ -745,6 +766,7 @@ class DINOv2(Method):
         updates = []
         for group in optimizer.param_groups:
             if group["weight_decay"] != 0.0:
+                # TODO (Thomas, 06/25): check which param groups are updated
                 updates.append({"name": group["name"], "weight_decay": weight_decay})
 
         update_param_groups(optimizer, updates=updates)
@@ -762,6 +784,7 @@ class DINOv2(Method):
             start_value=no_auto(self.method_args.momentum_start),
             end_value=self.method_args.momentum_end,
         )
+        # TODO(Thomas, 06/25): Check that the zipping will capture all parameters
         update_momentum(
             self.student_embedding_model_wrapper._model,
             self.teacher_embedding_model_wrapper._model,
