@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 from typing import Any, Literal
 
 import pytest
@@ -18,7 +17,7 @@ from torch import Size
 
 from lightly_train._methods.dinov2.dinov2 import (
     DINOv2,
-    DINOv2AdamWViTSBArgs,
+    DINOv2AdamWViTArgs,
     DINOv2Args,
 )
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
@@ -32,55 +31,6 @@ from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train.types import Batch
 
 
-@dataclass
-class ModelVariantParams:
-    n_blocks: int
-    embed_dim: int
-    num_heads: int
-
-
-giant_params = ModelVariantParams(n_blocks=40, embed_dim=1536, num_heads=24)
-large_params = ModelVariantParams(n_blocks=24, embed_dim=1024, num_heads=16)
-base_params = ModelVariantParams(n_blocks=12, embed_dim=768, num_heads=12)
-small_params = ModelVariantParams(n_blocks=12, embed_dim=384, num_heads=6)
-
-
-large_giant_method_args = DINOv2Args(
-    ibot_separate_head=True,
-    dino_bottleneck_dim=384,
-    ibot_bottleneck_dim=256,
-    output_dim=131072,
-    center_method="sinkhorn_knopp",
-    momentum_start=0.994,
-    teacher_temp_warmup_epochs=80,
-    layerwise_decay=1.0,
-    weight_decay_start=0.04,
-    weight_decay_end=0.2,
-)
-
-small_base_method_args = DINOv2Args(
-    ibot_separate_head=False,
-    dino_bottleneck_dim=256,
-    ibot_bottleneck_dim=256,
-    output_dim=65536,
-    center_method="softmax",
-    momentum_start=0.992,
-    teacher_temp_warmup_epochs=30,
-    layerwise_decay=0.9,
-    weight_decay_start=0.04,
-    weight_decay_end=0.4,
-)
-
-
-@dataclass
-class ScalingResult:
-    output_dim: int
-    start_teacher_temp: float
-    end_teacher_temp: float
-    teacher_temp_warmup_epochs: int
-    momentum_start: float
-
-
 def dummy_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv2ViTModelWrapper:
     return DINOv2ViTModelWrapper(model=vit_tiny__testing(patch_size, **kwargs))
 
@@ -91,7 +41,7 @@ def setup_dinov2_helper(
     emb_model: EmbeddingModel,
     batch_size: int,
 ) -> DINOv2:
-    optimizer_args = DINOv2AdamWViTSBArgs()
+    optimizer_args = DINOv2AdamWViTArgs()
     scaling_info = ScalingInfo(dataset_size=1000, epochs=100)
     dinov2_args.resolve_auto(
         scaling_info=scaling_info,
@@ -120,8 +70,8 @@ class TestDINOv2:
     @pytest.mark.parametrize(
         "optim_type, expected",
         [
-            ("auto", DINOv2AdamWViTSBArgs),
-            (OptimizerType.ADAMW, DINOv2AdamWViTSBArgs),
+            ("auto", DINOv2AdamWViTArgs),
+            (OptimizerType.ADAMW, DINOv2AdamWViTArgs),
         ],
     )
     def test_optimizer_args_cls(
@@ -276,32 +226,11 @@ class TestDINOv2:
 
 
 class TestDINOv2Args:
-    @pytest.mark.parametrize(
-        "model_params, expected_method_args",
-        [
-            (giant_params, large_giant_method_args),
-            (large_params, large_giant_method_args),
-            (base_params, small_base_method_args),
-            (small_params, small_base_method_args),
-        ],
-    )
-    def test_resolve_auto__scaling_info(
-        self,
-        model_params: ModelVariantParams,
-        expected_method_args: DINOv2Args,
-    ) -> None:
-        model = vit_tiny__testing(patch_size=14)
-        # Overwrite attributes instead of passing them to the model constructor to
-        # avoid actually creating such a large model.
-        model.n_blocks = model_params.n_blocks
-        model.embed_dim = model_params.embed_dim
-        model.num_heads = model_params.num_heads
-
+    def test_resolve_auto(self) -> None:
         args = DINOv2Args()
         args.resolve_auto(
             scaling_info=ScalingInfo(dataset_size=IMAGENET_SIZE, epochs=100),
-            optimizer_args=DINOv2AdamWViTSBArgs(),
-            model=model,
+            optimizer_args=DINOv2AdamWViTArgs(),
+            model=vit_tiny__testing(),
         )
         assert not args.has_auto()
-        assert args == expected_method_args

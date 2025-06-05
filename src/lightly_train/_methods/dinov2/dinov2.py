@@ -22,6 +22,7 @@ from lightly.models.modules.heads import DINOProjectionHead
 from lightly.models.utils import update_momentum
 from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
+from pydantic import Field
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
 from torch.nn import Module
@@ -35,9 +36,10 @@ from lightly_train._methods.dinov2.dinov2_loss import (
 from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2ViTTransform,
 )
-from lightly_train._methods.dinov2.scheduler import (
-    linear_warmup_schedule,  # TODO: import from LightlySSL after new release
-)
+
+# TODO(Guarin, 06/25): import linear_warmup_schedule from LightlySSL once we no longer
+# support LightlySSL <= 1.5.20
+from lightly_train._methods.dinov2.scheduler import linear_warmup_schedule
 from lightly_train._methods.dinov2.utils import (
     MaskingGenerator,
     create_collated_masks,
@@ -46,9 +48,6 @@ from lightly_train._methods.dinov2.utils import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    DinoVisionTransformer,
-)
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
@@ -105,14 +104,18 @@ class DINOv2TrainingStepResult(TrainingStepResult):
 
 
 class DINOv2Args(MethodArgs):
-    """Args for DINOv2 method for ImageNet dataset."""
+    """Args for DINOv2 method following the fast setup from the original DINOv2 paper.
+
+    See: https://github.com/facebookresearch/dinov2/tree/main?tab=readme-ov-file#training
+    """
 
     # projection head
-    ibot_separate_head: bool | Literal["auto"] = "auto"
+    # False/True for fast/long setup in original DINOv2
+    ibot_separate_head: bool = False
     hidden_dim: int = 2048
-    dino_bottleneck_dim: int | Literal["auto"] = "auto"
+    dino_bottleneck_dim: int = 256  # 256/384 for fast/long setup in original DINOv2
     ibot_bottleneck_dim: int = 256
-    output_dim: int | Literal["auto"] = "auto"
+    output_dim: int = 65536  # 65536/131072 for fast/long setup in original DINOv2
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
     norm_last_layer: bool = False
@@ -123,11 +126,13 @@ class DINOv2Args(MethodArgs):
     ibot_loss_weight: float = 1.0
     koleo_loss_weight: float = 0.1
 
-    center_method: Literal["softmax", "sinkhorn_knopp", "auto"] = "auto"
+    # softmax/sinkhorn_knopp for fast/long setup in original DINOv2
+    center_method: Literal["softmax", "sinkhorn_knopp"] = "softmax"
     center_momentum: float = 0.9
 
     # teacher momentum
-    momentum_start: float | Literal["auto"] = "auto"
+    # TODO(Guarin, 06/25): Figure out good momentum start value for smaller datasets.
+    momentum_start: float = 0.992  # 0.992/0.994 for fast/long setup in original DINOv2
     momentum_end: float = 1.0
 
     student_temp: float = 0.1
@@ -135,7 +140,9 @@ class DINOv2Args(MethodArgs):
     # datasets.
     teacher_temp_start: float = 0.04
     teacher_temp_end: float = 0.07
-    teacher_temp_warmup_epochs: int | Literal["auto"] = "auto"
+    # TODO(Guarin, 06/25): Figure out if we want to reduce warmup epochs for <100 epoch
+    # runs.
+    teacher_temp_warmup_epochs: int = 30  # 30/80 for fast/long setup in original DINOv2
 
     # masking
     mask_ratio_min: float = 0.1
@@ -147,12 +154,14 @@ class DINOv2Args(MethodArgs):
     warmup_epochs: int = 10
 
     # lr decay
-    layerwise_decay: float | Literal["auto"] = "auto"
+    layerwise_decay: float = 0.9  # 0.9/1.0 for fast/long setup in original DINOv2
     patch_embed_lr_multiplier: float = 0.2
 
     # weight decay scheduler
     weight_decay_start: float | Literal["auto"] = "auto"
-    weight_decay_end: float | Literal["auto"] = "auto"
+    # TODO(Guarin, 06/25): Should we adjust weight decay depending on model
+    # architecture?
+    weight_decay_end: float = 0.4  # 0.4/0.2 for fast/long setup in original DINOv2
 
     # gradient clipping
     gradient_clip_val: float = 3.0
@@ -163,71 +172,6 @@ class DINOv2Args(MethodArgs):
         optimizer_args: OptimizerArgs,
         model: Module,
     ) -> None:
-        # Determine the args based on the model architecture
-        if not isinstance(model, DinoVisionTransformer):
-            raise ValueError(
-                f"Expected model to be of type DinoVisionTransformer, but got {type(model)}."
-            )
-        depth = model.n_blocks
-        num_heads = model.num_heads
-        embed_dim = model.embed_dim
-
-        # Settings correspond to either the fast or long setup from here: https://github.com/facebookresearch/dinov2/tree/main?tab=readme-ov-file#training
-        is_small_or_base = True
-        if (depth == 40 and num_heads == 24 and embed_dim == 1536) or (
-            depth == 24 and num_heads == 16 and embed_dim == 1024
-        ):
-            # ViT-L/G in original DINOv2
-            is_small_or_base = False
-        elif (depth == 12 and num_heads == 12 and embed_dim == 768) or (
-            depth == 12 and num_heads == 6 and embed_dim == 384
-        ):
-            # ViT-S/B in original DINOv2
-            pass
-        else:
-            logger.warning(
-                f"Model architecture: depth={depth}, num_heads={num_heads}, "
-                f"embed_dim={embed_dim} does not match any known DINOv2 model. "
-                "Using default parameters for small/base models, but performance may "
-                "be suboptimal."
-            )
-
-        if self.ibot_separate_head == "auto":
-            # False for ViT-S/B and True for ViT-L/G in original DINOv2
-            self.ibot_separate_head = False if is_small_or_base else True
-
-        if self.dino_bottleneck_dim == "auto":
-            # 256 for ViT-S/B and 384 for ViT-L/G in original DINOv2
-            self.dino_bottleneck_dim = 256 if is_small_or_base else 384
-
-        if self.output_dim == "auto":
-            # 65536 for ViT-S/B and 131072 for ViT-L/G in original DINOv2
-            self.output_dim = 65536 if is_small_or_base else 131072
-
-        if self.center_method == "auto":
-            # "softmax" for ViT-S/B and "sinkhorn_knopp" for ViT-L/G in original DINOv2
-            self.center_method = "softmax" if is_small_or_base else "sinkhorn_knopp"
-
-        if self.momentum_start == "auto":
-            # 0.992 for ViT-S/B and 0.994 for ViT-L/G in original DINOv2
-            # TODO(Guarin, 06/25): Figure out if we want to reduce momentum for smaller
-            # datasets.
-            self.momentum_start = 0.992 if is_small_or_base else 0.994
-
-        if self.teacher_temp_warmup_epochs == "auto":
-            # 30 for ViT-S/B and 80 for ViT-L/G in original DINOv2
-            # TODO(Guarin, 06/25): Figure out if we want to reduce warmup epochs for
-            # <100 epoch runs.
-            self.teacher_temp_warmup_epochs = 30 if is_small_or_base else 80
-
-        if self.layerwise_decay == "auto":
-            # 0.9 for ViT-S/B and 1.0 for ViT-L/G in original DINOv2
-            self.layerwise_decay = 0.9 if is_small_or_base else 1.0
-
-        if self.weight_decay_end == "auto":
-            # 0.4 for ViT-S/B and 0.2 for ViT-L/G in original DINOv2
-            self.weight_decay_end = 0.4 if is_small_or_base else 0.2
-
         if isinstance(optimizer_args, AdamWArgs):
             weight_decay = optimizer_args.weight_decay
         else:
@@ -236,13 +180,14 @@ class DINOv2Args(MethodArgs):
             self.weight_decay_start = weight_decay
 
 
-class DINOv2AdamWViTSBArgs(AdamWArgs):
+class DINOv2AdamWViTArgs(AdamWArgs):
+    # 0.004/0.0002 for fast/long setup in original DINOv2
+    # 0.002 works well with ViT-S/14 for ImageNet1k
     lr: float = 0.004
-    weight_decay: float = 0.04
-
-
-class DINOv2AdamWViTLGArgs(AdamWArgs):
-    lr: float = 2e-4
+    # Strict is set to False because OmegaConf does not support parsing tuples from the
+    # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
+    betas: tuple[float, float] = Field(default=(0.9, 0.999), strict=False)
+    eps: float = 1e-8
     weight_decay: float = 0.04
 
 
@@ -250,7 +195,7 @@ class DINOv2(Method):
     def __init__(
         self,
         method_args: DINOv2Args,
-        optimizer_args: DINOv2AdamWViTSBArgs | DINOv2AdamWViTLGArgs,
+        optimizer_args: DINOv2AdamWViTArgs,
         embedding_model: EmbeddingModel,
         global_batch_size: int,
     ):
@@ -283,8 +228,8 @@ class DINOv2(Method):
             DINOProjectionHead,
             input_dim=model.embed_dim,
             hidden_dim=method_args.hidden_dim,
-            bottleneck_dim=no_auto(method_args.dino_bottleneck_dim),
-            output_dim=no_auto(method_args.output_dim),
+            bottleneck_dim=method_args.dino_bottleneck_dim,
+            output_dim=method_args.output_dim,
             batch_norm=method_args.batch_norm,
             norm_last_layer=method_args.norm_last_layer,
         )
@@ -296,13 +241,13 @@ class DINOv2(Method):
         # Create teacher and student iBOT head
         self.teacher_ibot_head: DINOHead | IBOTHead
         self.student_ibot_head: DINOHead | IBOTHead
-        if no_auto(self.method_args.ibot_separate_head):
+        if self.method_args.ibot_separate_head:
             ibot_head = partial(
                 DINOProjectionHead,
                 input_dim=model.embed_dim,
                 hidden_dim=method_args.hidden_dim,
                 bottleneck_dim=method_args.ibot_bottleneck_dim,
-                output_dim=no_auto(method_args.output_dim),
+                output_dim=method_args.output_dim,
                 batch_norm=method_args.batch_norm,
                 norm_last_layer=method_args.norm_last_layer,
             )
@@ -322,12 +267,12 @@ class DINOv2(Method):
         # Losses
         self.centering = method_args.center_method
         self.dino_loss = DINOLoss(
-            out_dim=no_auto(method_args.output_dim),
+            out_dim=method_args.output_dim,
             student_temp=method_args.student_temp,
             center_momentum=method_args.center_momentum,
         )
         self.ibot_loss = IBOTPatchLoss(
-            patch_out_dim=no_auto(method_args.output_dim),
+            patch_out_dim=method_args.output_dim,
             student_temp=method_args.student_temp,
             center_momentum=method_args.center_momentum,
         )
@@ -373,7 +318,7 @@ class DINOv2(Method):
         teacher_temp = linear_warmup_schedule(
             step=self.trainer.global_step,
             warmup_steps=int(
-                no_auto(self.method_args.teacher_temp_warmup_epochs)  # type: ignore[operator]
+                self.method_args.teacher_temp_warmup_epochs  # type: ignore[operator]
                 / self.trainer.max_epochs
                 * self.trainer.estimated_stepping_batches
             ),
@@ -616,15 +561,15 @@ class DINOv2(Method):
         optim_type: OptimizerType | Literal["auto"],
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
-            "auto": DINOv2AdamWViTSBArgs,
-            OptimizerType.ADAMW: DINOv2AdamWViTSBArgs,
+            "auto": DINOv2AdamWViTArgs,
+            OptimizerType.ADAMW: DINOv2AdamWViTArgs,
         }
 
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 
     def trainable_modules(self) -> TrainableModules:
         # decay is realized in get_optimizer_with_decay
-        if no_auto(self.method_args.ibot_separate_head):
+        if self.method_args.ibot_separate_head:
             return TrainableModules(
                 modules=[
                     self.student_embedding_model_wrapper._model,
@@ -647,7 +592,7 @@ class DINOv2(Method):
         optim = get_optimizer_with_decay(
             optim_args=self.optimizer_args,
             trainable_modules=self.trainable_modules(),
-            layerwise_decay=no_auto(self.method_args.layerwise_decay),
+            layerwise_decay=self.method_args.layerwise_decay,
             patch_embed_lr_multiplier=self.method_args.patch_embed_lr_multiplier,
         )
         if self.trainer.max_epochs is None:
@@ -691,7 +636,7 @@ class DINOv2(Method):
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
             start_value=no_auto(self.method_args.weight_decay_start),
-            end_value=no_auto(self.method_args.weight_decay_end),
+            end_value=self.method_args.weight_decay_end,
         )
 
         updates = []
@@ -711,7 +656,7 @@ class DINOv2(Method):
         momentum = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
-            start_value=no_auto(self.method_args.momentum_start),
+            start_value=self.method_args.momentum_start,
             end_value=self.method_args.momentum_end,
         )
         update_momentum(
@@ -720,7 +665,7 @@ class DINOv2(Method):
             m=momentum,
         )
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
-        if no_auto(self.method_args.ibot_separate_head):
+        if self.method_args.ibot_separate_head:
             update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
         super().on_train_batch_end(outputs=outputs, batch=batch, batch_idx=batch_idx)
 
