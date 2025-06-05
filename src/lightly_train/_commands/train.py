@@ -307,7 +307,7 @@ def train_from_config(config: TrainConfig) -> None:
             devices=config.devices,
             num_nodes=config.num_nodes,
             precision=config.precision,
-            log_every_n_steps=log_every_n_steps,
+            log_every_n_steps=1,
             loggers=logger_instances,
             callbacks=callback_instances,
             trainer_args=config.trainer_args,

@@ -559,6 +559,7 @@ class DINOv2(Method):
         teacher_temp: float,
     ) -> tuple[Tensor, Tensor]:
         tokens = self.teacher_embedding_model_wrapper.forward_features(
+             
             x
         )  # input [G*B, C, ...]
 
