@@ -72,33 +72,41 @@ class TestMaskingGenerator:
         assert mask.shape == (self.grid_size, self.grid_size)
         assert n_masked_patch_tokens_min <= mask.sum() <= n_masked_patch_tokens
 
-    # Type ignore because untyped decorator makes function untyped.
     @pytest.mark.parametrize(
-        "min_aspect_ratio,max_aspect_ratio",
+        "aspect_ratio, factor, is_masked",
         [
-            (0.1, None),
-            (0.1, 0.3),
-            (0.1, 3.0),
-            (0.3, 0.3),
+            (0.1, 0.1, False),
+            (0.1, 0.5, True),
+            (0.1, 1.5, False),
+            (2.0, 0.001, False),
+            (2.0, 0.1, True),
+            (2.0, 0.5, False),
         ],
     )
-    def test_masking_generator__aspect_ratio(
-        self, min_aspect_ratio: float, max_aspect_ratio: Union[float, None]
+    def test_masking_generator__aspect_ratio_validity(
+        self, aspect_ratio: float, factor: Union[float, int], is_masked: bool
     ) -> None:
-        n_masked_patch_tokens = int(0.5 * self.grid_size**2)
+        # We use a factor to reparameterize the number of masked patches allowed, in this case, let A be the aspect ratio and G the grid size.:
+        # 1. the minimum factor allowed should be 0.5**2 / G**2 to ensure that the width to be at least 1
+        # 2. the minimum factor allowed should also be 0.5**2 / (A**2 * G**2) to ensure that the height to be at least 1
+        # 3. the maximum factor allowed should be (G+0.5)**2 / G**2 to ensure that the width does not exceed the grid_size
+        # 4. the maximum factor allowed should also be (G+0.5)**2 / (A**2 * G**2) to ensure that the height does not exceed the grid_size
+        # the exact factor can be slightly different due to int()
+        n_masked_patch_tokens = int(factor * aspect_ratio * self.grid_size**2)
 
         masking_generator = MaskingGenerator(
             input_size=(self.grid_size, self.grid_size),
+            min_num_patches=n_masked_patch_tokens,
             max_num_patches=n_masked_patch_tokens,
-            min_aspect=min_aspect_ratio,
-            max_aspect=max_aspect_ratio,
+            min_aspect=aspect_ratio,
+            max_aspect=aspect_ratio,
         )
 
         mask = masking_generator(n_masked_patch_tokens)
-        assert mask.sum() > 0
+        assert mask.any() == is_masked
 
     @pytest.mark.parametrize("square_size", [2, 3, 4])
-    def test_masking_generator__aspect_ratio_one(self, square_size: int) -> None:
+    def test_masking_generator__aspect_ratio_square(self, square_size: int) -> None:
         """With aspect ratio 1.0 and num_mask=min_num_masks_per_block we expect a single, square masked block."""
 
         masking_generator = MaskingGenerator(
