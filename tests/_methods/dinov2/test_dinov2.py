@@ -81,8 +81,8 @@ class ScalingResult:
     momentum_start: float
 
 
-def dummy_vit_model() -> DINOv2ViTModelWrapper:
-    return DINOv2ViTModelWrapper(model=vit_tiny__testing(patch_size=2))
+def dummy_vit_model(patch_size=2, **kwargs) -> DINOv2ViTModelWrapper:
+    return DINOv2ViTModelWrapper(model=vit_tiny__testing(patch_size, **kwargs))
 
 
 def setup_dinov2_helper(
@@ -292,10 +292,12 @@ class TestDINOv2Args:
         model_params: ModelVariantParams,
         expected_method_args: DINOv2Args,
     ) -> None:
-        model = dummy_vit_model().get_model()
-        model.n_blocks = model_params.n_blocks  # type: ignore[assignment]
-        model.embed_dim = model_params.embed_dim  # type: ignore[assignment]
-        model.num_heads = model_params.num_heads  # type: ignore[assignment]
+        model = vit_tiny__testing(patch_size=14)
+        # Overwrite attributes instead of passing them to the model constructor to
+        # avoid actually creating such a large model.
+        model.n_blocks = model_params.n_blocks
+        model.embed_dim = model_params.embed_dim
+        model.num_heads = model_params.num_heads
 
         args = DINOv2Args()
         args.resolve_auto(
