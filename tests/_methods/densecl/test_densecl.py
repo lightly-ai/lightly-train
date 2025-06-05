@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Literal
 
 import pytest
-from torch.nn import Module
 
 from lightly_train._methods.densecl.densecl import DenseCL, DenseCLArgs, DenseCLSGDArgs
 from lightly_train._optim.adamw_args import AdamWArgs
@@ -18,13 +17,17 @@ from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import ScalingInfo
 
+from ...helpers import DummyCustomModel
+
 
 class TestDenseCLArgs:
     def test_resolve_auto(self) -> None:
         args = DenseCLArgs()
         scaling_info = ScalingInfo(dataset_size=20_000, epochs=100)
         args.resolve_auto(
-            scaling_info=scaling_info, optimizer_args=AdamWArgs(), model=Module()
+            scaling_info=scaling_info,
+            optimizer_args=AdamWArgs(),
+            wrapped_model=DummyCustomModel(),
         )
         assert args.memory_bank_size == 8192
         assert not args.has_auto()
