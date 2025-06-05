@@ -2,4 +2,3 @@ student:
   arch: vit_small
   patch_size: 14
   drop_path_rate: 0.1
-  ffn_layer: swiglufused

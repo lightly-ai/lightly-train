@@ -16,38 +16,32 @@ from torch.nn import Module
 
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import BasePackage
 
 logger = logging.getLogger(__name__)
 
 
-class CustomPackage(Package):
+class CustomPackage(BasePackage):
     name = "custom"
 
     @classmethod
-    def list_model_names(cls) -> list[str]:
-        return []
-
-    @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper | Any) -> bool:
         return isinstance(model, ModelWrapper)
 
     @classmethod
-    def get_model(
-        cls, model_name: str, model_args: dict[str, Any] | None = None
-    ) -> Module:
-        raise NotImplementedError()
-
-    @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
-        if not isinstance(model, ModelWrapper):
-            raise TypeError(
-                "Unsupported model type: Model does not implement FeatureExtractor interface."
+    def export_model(
+        cls, model: Module | ModelWrapper | Any, out: Path, log_example: bool = True
+    ) -> None:
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
+        elif isinstance(model, Module):
+            model = model
+        else:
+            raise ValueError(
+                f"CustomPackage only supports exporting ModelWrapper or torch.nn.Module, "
+                f"but got {type(model)}"
             )
-        return model
 
-    @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
         torch.save(model.state_dict(), out)
         if log_example:
             model_name = model.__class__.__name__

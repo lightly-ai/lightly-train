@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,9 +54,21 @@ class EnvVar(Generic[T]):
 
 
 class Env:
+    LIGHTLY_TRAIN_LOG_LEVEL: EnvVar[str] = EnvVar(
+        name="LIGHTLY_TRAIN_LOG_LEVEL",
+        default=logging.getLevelName(logging.INFO),
+        type_=str,
+    )
     LIGHTLY_TRAIN_CACHE_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_CACHE_DIR",
         default=Path.home() / ".cache" / "lightly-train",
+        type_=Path,
+    )
+    # Path to directory where temporary files are stored. By default, the temporary
+    # directory from the system is used.
+    LIGHTLY_TRAIN_TMP_DIR: EnvVar[Path | None] = EnvVar(
+        name="LIGHTLY_TRAIN_TMP_DIR",
+        default=None,
         type_=Path,
     )
     # Timeout in seconds for the dataloader to collect a batch from the workers. This is
@@ -94,8 +107,23 @@ class Env:
         default=30,
         type_=float,
     )
+    LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC: EnvVar[float] = EnvVar(
+        name="LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC",
+        default=180,
+        type_=float,
+    )
+    MLFLOW_TRACKING_URI: EnvVar[str | None] = EnvVar(
+        name="MLFLOW_TRACKING_URI",
+        default=None,
+        type_=str,
+    )
     SLURM_CPUS_PER_TASK: EnvVar[int | None] = EnvVar(
         name="SLURM_CPUS_PER_TASK",
         default=None,
         type_=int,
+    )
+    SLURM_JOB_ID: EnvVar[str | None] = EnvVar(
+        name="SLURM_JOB_ID",
+        default=None,
+        type_=str,
     )

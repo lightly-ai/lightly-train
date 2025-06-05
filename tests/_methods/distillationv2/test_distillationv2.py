@@ -18,11 +18,14 @@ from lightly_train._methods.distillationv2.distillationv2 import (
     DistillationV2Args,
     DistillationV2LARSArgs,
 )
+from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 
+from ...helpers import DummyCustomModel
 
-class TestDistillation:
+
+class TestDistillationV2:
     @pytest.mark.parametrize(
         "optim_type, expected",
         [
@@ -109,7 +112,7 @@ class TestDistillation:
         # Create dummy images.
         x = torch.randn(batch_size, channels, height, width)
 
-        # Patch the teacher model
+        # Patch the teacher model.
         mock_teacher_model = mocker.Mock()
         mock_teacher_model.embed_dim = teacher_embed_dim
         mock_teacher_model.patch_size = patch_size
@@ -147,3 +150,163 @@ class TestDistillation:
 
         # Expected shape: (batch_size, n_tokens, teacher_embedding_dim).
         assert out.shape == (batch_size, n_tokens, distill.teacher_embedding_dim)
+
+    def test_load_state_dict_ignores_missing_teacher_keys(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Test that missing teacher keys in the state dict do not raise an error."""
+
+        # Setup constants
+        batch_size = 2
+        student_embed_dim = 32
+        teacher_embed_dim = 48
+
+        # Dummy student model with real params.
+        student_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(student_embed_dim)
+        )
+
+        # Dummy teacher model with real params.
+        teacher_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(teacher_embed_dim)
+        )
+
+        # Patch get_teacher.
+        mock_get_teacher = mocker.patch(
+            "lightly_train._methods.distillationv2.distillationv2.get_teacher"
+        )
+        mock_get_teacher.return_value = teacher_model
+
+        # Instantiate the distillation method.
+        distill = DistillationV2(
+            method_args=DistillationV2Args(),
+            optimizer_args=DistillationV2LARSArgs(),
+            embedding_model=student_model,
+            global_batch_size=batch_size,
+        )
+        mock_get_teacher.assert_called_once()
+
+        # Check that teacher keys are present in the statedict.
+        full_state_dict = distill.state_dict()
+        assert any(k.startswith("teacher_embedding_model.") for k in full_state_dict)
+
+        # Simulate a checkpoint with teacher keys removed.
+        filtered_state_dict = {
+            k: v
+            for k, v in full_state_dict.items()
+            if not k.startswith("teacher_embedding_model.")
+        }
+
+        # Try loading the statedict without teacher keys.
+        distill.load_state_dict(filtered_state_dict, strict=True)
+
+    def test_load_state_dict_raises_on_non_teacher_missing_key(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Test that load_state_dict raises an error if non-teacher keys are missing."""
+
+        # Setup constants.
+        batch_size = 2
+        student_embed_dim = 32
+        teacher_embed_dim = 48
+
+        # Dummy student model with real params.
+        student_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(student_embed_dim)
+        )
+
+        # Dummy teacher model with real params.
+        teacher_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(teacher_embed_dim)
+        )
+
+        # Patch get_teacher.
+        mock_get_teacher = mocker.patch(
+            "lightly_train._methods.distillationv2.distillationv2.get_teacher"
+        )
+        mock_get_teacher.return_value = teacher_model
+
+        # Create distillation instance
+        distill = DistillationV2(
+            method_args=DistillationV2Args(),
+            optimizer_args=DistillationV2LARSArgs(),
+            embedding_model=student_model,
+            global_batch_size=batch_size,
+        )
+        mock_get_teacher.assert_called_once()
+
+        # Obtain the full statedict.
+        state_dict = distill.state_dict()
+
+        # Ensure non-teacher keys are present.
+        non_teacher_keys = [
+            k for k in state_dict if not k.startswith("teacher_embedding_model.")
+        ]
+        assert non_teacher_keys, "No non-teacher keys found in state dict for testing."
+
+        # Remove a non-teacher key
+        key_to_remove = non_teacher_keys[0]
+        state_dict.pop(key_to_remove)
+
+        # Assert that a RuntimeError is raised due to unexpected missing keys
+        with pytest.raises(RuntimeError, match="Missing keys in state_dict"):
+            distill.load_state_dict(state_dict, strict=True)
+
+    def test_teacher_not_saved_in_checkpoint(self, mocker: MockerFixture) -> None:
+        """Test that the teacher model is not saved in the checkpoint."""
+
+        # Setup constants.
+        batch_size = 2
+        student_embed_dim = 32
+        teacher_embed_dim = 48
+
+        # Dummy student model with real params.
+        student_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(student_embed_dim)
+        )
+
+        # Dummy teacher model with real params.
+        teacher_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(teacher_embed_dim)
+        )
+
+        # Patch get_teacher.
+        mock_get_teacher = mocker.patch(
+            "lightly_train._methods.distillationv2.distillationv2.get_teacher"
+        )
+        mock_get_teacher.return_value = teacher_model
+
+        # Create distillation instance
+        distill = DistillationV2(
+            method_args=DistillationV2Args(),
+            optimizer_args=DistillationV2LARSArgs(),
+            embedding_model=student_model,
+            global_batch_size=batch_size,
+        )
+        mock_get_teacher.assert_called_once()
+
+        # Simulate saving the checkpoint
+        checkpoint = {"state_dict": distill.state_dict()}
+
+        # Check that teacher keys are initially present in the checkpoint.
+        teacher_keys = [
+            k
+            for k in checkpoint["state_dict"]
+            if k.startswith("teacher_embedding_model.")
+        ]
+        assert len(teacher_keys) > 0, (
+            "Teacher weights should initially be in the checkpoint."
+        )
+
+        # Strip teacher keys from the checkpoint.
+        distill.on_save_checkpoint(checkpoint)
+
+        # Assert that no teacher weights are in the checkpoint
+        teacher_keys = [
+            k
+            for k in checkpoint["state_dict"]
+            if k.startswith("teacher_embedding_model.")
+        ]
+        assert len(teacher_keys) == 0, (
+            "Teacher weights should not be saved in the final checkpoint."
+        )

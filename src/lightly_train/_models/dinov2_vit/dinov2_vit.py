@@ -10,12 +10,12 @@ from __future__ import annotations
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Identity, Module
 
+from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.block import Block
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
 )
-from lightly_train._modules.teachers.dinov2.layers.block import Block
 
 
 class DINOv2ViTModelWrapper(Module, ModelWrapper):
@@ -28,16 +28,18 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
     def feature_dim(self) -> int:
         return self._feature_dim
 
-    def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
-        rt = self._model(x, is_training=True)  # forcing to return all patches
+    def forward_features(
+        self, x: Tensor, masks: Tensor | None = None
+    ) -> ForwardFeaturesOutput:
+        rt = self._model(x, masks, is_training=True)  # forcing to return all patches
         if rt["x_norm_patchtokens"].dim() == 3:
-            patches_resolution = self._model.patch_embed.patches_resolution
-            features_reshaped = rt["x_norm_patchtokens"].reshape(
-                rt["x_norm_patchtokens"].shape[0],
-                rt["x_norm_patchtokens"].shape[2],
-                patches_resolution[0],
-                patches_resolution[1],
-            )
+            x_norm_patchtokens = rt["x_norm_patchtokens"]
+            b = x_norm_patchtokens.shape[0]
+            d = x_norm_patchtokens.shape[2]
+            h = x.shape[2] // self._model.patch_size
+            w = x.shape[3] // self._model.patch_size
+
+            features_reshaped = x_norm_patchtokens.permute(0, 2, 1).reshape(b, d, h, w)
         elif rt["x_norm_patchtokens"].dim() == 4:
             features_reshaped = rt["x_norm_patchtokens"]
         else:

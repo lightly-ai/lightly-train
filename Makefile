@@ -76,19 +76,26 @@ type-check:
 .PHONY: add-header
 add-header:
 	licenseheaders -t dev_tools/licenseheader.tmpl -d src \
+		-x src/lightly_train/_methods/dinov2/dinov2_loss.py \
+		-x src/lightly_train/_methods/dinov2/utils.py \
 		-x src/lightly_train/_modules/teachers/dinov2 \
-		-x src/lightly_train/_commands/_lightning_rank_zero.py \
+		-x src/lightly_train/_lightning_rank_zero.py \
 		-E py
 	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
 	# Apply the Apache 2.0 license header to DINOv2-derived files
 	licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
-		-d src/lightly_train/_modules/teachers/dinov2 \
+		-d src/lightly_train/_models/dinov2_vit/dinov2_vit_src \
+		-E py
+	
+	licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
+		-f src/lightly_train/_methods/dinov2/dinov2_loss.py \
+		src/lightly_train/_methods/dinov2/utils.py \
 		-E py
 
 	# Apply the Apache 2.0 license header to PyTorch Lighting derived files
 	licenseheaders -t dev_tools/pytorch_lightning_licenseheader.tmpl \
-		-f src/lightly_train/_commands/_lightning_rank_zero.py
+		-f src/lightly_train/_lightning_rank_zero.py
 
 
 ### Testing
@@ -133,20 +140,20 @@ endif
 
 # RFDETR is not compatible with Python<3.9. Therefore we exclude it from the
 # default extras.
-EXTRAS_PY38 := [dev,notebook,supergradients,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY38 := [dev,mlflow,notebook,super-gradients,tensorboard,timm,ultralytics,wandb]
 
 # SuperGradients is not compatible with Python>=3.10. It is also not easy to install
 # on MacOS. Therefore we exclude it from the default extras.
-EXTRAS_PY312 := [dev,notebook,rfdetr,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY312 := [dev,mlflow,notebook,rfdetr,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies. And SuperGradients is not compatible with
 # Python>=3.10, therefore we also remove it from the default development dependencies.
-EXTRAS_DEV := [dev,notebook,tensorboard,timm,ultralytics,wandb]
+EXTRAS_DEV := [dev,mlflow,notebook,tensorboard,timm,ultralytics,wandb]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.
-DOCKER_EXTRAS := --extra tensorboard --extra timm --extra wandb --extra rfdetr
+DOCKER_EXTRAS := --extra mlflow --extra tensorboard --extra timm --extra wandb --extra rfdetr
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.

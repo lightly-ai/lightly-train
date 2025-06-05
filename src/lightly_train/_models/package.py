@@ -11,20 +11,36 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-from torch.nn import Module
-
 from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train.types import PackageModel
 
 
-class Package(ABC):
-    """Interface for a package that provides models and feature extractors that are
-    compatible with lightly_train.
-
-    Every package must implement this interface.
-    """
-
+class BasePackage(ABC):
     name: str  # The name of the package.
 
+    @classmethod
+    @abstractmethod
+    def export_model(
+        cls,
+        model: PackageModel | ModelWrapper | Any,
+        out: Path,
+        log_example: bool = True,
+    ) -> None:
+        """Export the model in the package's format. The model can be either a
+        ModelWrapper or one of the package's underlying models.
+        """
+        ...
+
+    @classmethod
+    @abstractmethod
+    def is_supported_model(cls, model: PackageModel | ModelWrapper | Any) -> bool:
+        """Check if the model is either a ModelWrapper or one of the package's
+        underlying models.
+        """
+        ...
+
+
+class Package(BasePackage):
     @classmethod
     @abstractmethod
     def list_model_names(cls) -> list[str]:
@@ -33,30 +49,14 @@ class Package(ABC):
 
     @classmethod
     @abstractmethod
-    def is_supported_model(cls, model: Module) -> bool:
-        """Check if the model is supported by this package."""
-        ...
-
-    @classmethod
-    @abstractmethod
     def get_model(
         cls, model_name: str, model_args: dict[str, Any] | None = None
-    ) -> Module:
-        """Get the model by name.
-
-        Assumes that the model is supported by the package.
-        """
+    ) -> PackageModel:
+        """Get the underlying model of the package by its name."""
         ...
 
     @classmethod
     @abstractmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
-        """Get the feature extractor class for the model from this package.
-
-        Assumes that the model is supported by the package.
-        """
+    def get_model_wrapper(cls, model: PackageModel) -> ModelWrapper:
+        """Wrap the underlying model with the ModelWrapper."""
         ...
-
-    @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
-        raise NotImplementedError(f"Exporting {cls.name} models is not supported.")

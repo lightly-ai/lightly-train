@@ -12,11 +12,12 @@ from pathlib import Path
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities import rank_zero_only
-from torch.nn import Module
 
 from lightly_train._commands import common_helpers
 from lightly_train._commands.common_helpers import ModelFormat
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._models import package_helpers
+from lightly_train._models.model_wrapper import ModelWrapper
 
 
 class ModelExportArgs(PydanticConfig):
@@ -26,13 +27,16 @@ class ModelExportArgs(PydanticConfig):
 class ModelExport(Callback):
     def __init__(
         self,
-        model: Module,
+        wrapped_model: ModelWrapper,
         out_dir: Path,
         every_n_epochs: int = 1,
     ):
-        self._model = model
+        self._wrapped_model = wrapped_model
         self._out_dir = out_dir
         self._every_n_epochs = every_n_epochs
+        self._package = package_helpers.get_package_from_model(
+            self._wrapped_model, include_custom=True, fallback_custom=True
+        )
 
     @rank_zero_only  # type: ignore[misc]
     def _safe_export_model(self, export_path: Path) -> None:
@@ -41,9 +45,10 @@ class ModelExport(Callback):
             export_path.unlink(missing_ok=True)
 
         common_helpers.export_model(
-            model=self._model,
+            model=self._wrapped_model,
             out=export_path,
             format=ModelFormat.PACKAGE_DEFAULT,
+            package=self._package,
             log_example=False,
         )
 

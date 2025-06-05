@@ -46,7 +46,9 @@ class TorchvisionPackage(Package):
         return sorted(model_names)
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper | Any) -> bool:
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
         return type(model) in cls._model_cls_to_extractor_cls()
 
     @classmethod
@@ -60,7 +62,7 @@ class TorchvisionPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: Module) -> TorchvisionModelWrapper:
         feature_extractor_cls = cls._model_cls_to_extractor_cls().get(type(model))
         if feature_extractor_cls is not None:
             return feature_extractor_cls(model)
@@ -77,7 +79,18 @@ class TorchvisionPackage(Package):
         return module_to_cls
 
     @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
+    def export_model(
+        cls, model: Module | ModelWrapper | Any, out: Path, log_example: bool = True
+    ) -> None:
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
+
+        if not cls.is_supported_model(model):
+            raise TypeError(
+                f"TorchvisionPackage only supports exporting models from torchvision "
+                f"but received '{type(model)}'."
+            )
+
         torch.save(model.state_dict(), out)
         if log_example:
             model_name = "<model_name>"

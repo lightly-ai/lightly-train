@@ -20,8 +20,48 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from torch.nn import Module
 from torchvision import models
 
+from lightly_train import _distributed
 from lightly_train._commands import common_helpers
 from tests._commands.test_train_helpers import MockDataset
+
+
+@pytest.mark.parametrize(
+    "resume_interrupted, resume, expected",
+    [
+        (True, None, True),
+        (False, None, False),
+        (True, True, True),
+        (False, False, False),
+    ],
+)
+def test_get_resume_interrupted(
+    resume_interrupted: bool, resume: bool | None, expected: bool
+) -> None:
+    assert (
+        common_helpers.get_resume_interrupted(
+            resume_interrupted=resume_interrupted,
+            resume=resume,
+        )
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "resume_interrupted, resume",
+    [
+        (True, False),
+        (False, True),
+    ],
+)
+def test_get_resume_interrupted__error(resume_interrupted: bool, resume: bool) -> None:
+    with pytest.raises(
+        ValueError,
+        match="resume_interrupted=.* and resume=.* cannot be set at the same time!",
+    ):
+        common_helpers.get_resume_interrupted(
+            resume_interrupted=resume_interrupted,
+            resume=resume,
+        )
 
 
 def test_get_checkpoint_path(tmp_path: Path) -> None:
@@ -77,7 +117,9 @@ def test_get_accelerator__set() -> None:
 
 def test_get_out_dir(tmp_path: Path) -> None:
     assert (
-        common_helpers.get_out_dir(out=tmp_path, resume=False, overwrite=False)
+        common_helpers.get_out_dir(
+            out=tmp_path, resume_interrupted=False, overwrite=False
+        )
         == tmp_path
     )
 
@@ -85,7 +127,9 @@ def test_get_out_dir(tmp_path: Path) -> None:
 def test_get_out_dir_nonexisting(tmp_path: Path) -> None:
     out_dir = tmp_path / "nonexisting"
     assert (
-        common_helpers.get_out_dir(out=out_dir, resume=False, overwrite=False)
+        common_helpers.get_out_dir(
+            out=out_dir, resume_interrupted=False, overwrite=False
+        )
         == out_dir
     )
 
@@ -94,34 +138,53 @@ def test_get_out_dir__nondir(tmp_path: Path) -> None:
     out_dir = tmp_path / "file.txt"
     out_dir.touch()
     with pytest.raises(ValueError):
-        common_helpers.get_out_dir(out=out_dir, resume=False, overwrite=False)
+        common_helpers.get_out_dir(
+            out=out_dir, resume_interrupted=False, overwrite=False
+        )
 
 
-@pytest.mark.parametrize("resume", [True, False])
+@pytest.mark.parametrize("resume_interrupted", [True, False])
 @pytest.mark.parametrize("overwrite", [True, False])
 @pytest.mark.parametrize("rank_zero", [True, False])
 def test_get_out_dir__nonempty(
     mocker: MockerFixture,
     tmp_path: Path,
-    resume: bool,
+    resume_interrupted: bool,
     overwrite: bool,
     rank_zero: bool,
 ) -> None:
     (tmp_path / "some_file.txt").touch()
-    mocker.patch.object(common_helpers, "is_global_rank_zero", return_value=rank_zero)
-    if resume or overwrite or (not rank_zero):
+    mocker.patch.object(_distributed, "is_global_rank_zero", return_value=rank_zero)
+    if resume_interrupted or overwrite or (not rank_zero):
         assert (
-            common_helpers.get_out_dir(out=tmp_path, resume=resume, overwrite=overwrite)
+            common_helpers.get_out_dir(
+                out=tmp_path, resume_interrupted=resume_interrupted, overwrite=overwrite
+            )
             == tmp_path
         )
     else:
         with pytest.raises(ValueError):
-            common_helpers.get_out_dir(out=tmp_path, resume=resume, overwrite=overwrite)
+            common_helpers.get_out_dir(
+                out=tmp_path, resume_interrupted=resume_interrupted, overwrite=overwrite
+            )
+
+
+def test_get_tmp_dir() -> None:
+    assert common_helpers.get_tmp_dir()
+
+
+def test_get_tmp_dir__custom(tmp_path: Path, mocker: MockerFixture) -> None:
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_path)})
+    assert common_helpers.get_tmp_dir() == tmp_path
 
 
 def test_verify_out_dir_equal_on_all_local_ranks(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
+    # Use clean temporary directory for the test.
+    tmp_dir = tmp_path / "tmp"
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_dir)})
+
     out_dir = tmp_path / "out"
     # Simulate calling the function from rank 0
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
@@ -132,12 +195,16 @@ def test_verify_out_dir_equal_on_all_local_ranks(
             pass
 
     # Make sure that no files are left in the temporary directory.
-    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+    assert not tmp_dir.exists() or not any(f for f in tmp_dir.iterdir() if f.is_file())
 
 
 def test_verify_out_dir_equal_on_all_local_ranks__different(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
+    # Use clean temporary directory for the test.
+    tmp_dir = tmp_path / "tmp"
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_dir)})
+
     out_dir_rank0 = tmp_path / "rank0"
     out_dir_rank1 = tmp_path / "rank1"
 
@@ -154,12 +221,16 @@ def test_verify_out_dir_equal_on_all_local_ranks__different(
                 pass
 
     # Make sure that no files are left in the temporary directory.
-    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+    assert not tmp_dir.exists() or not any(f for f in tmp_dir.iterdir() if f.is_file())
 
 
 def test_verify_out_dir_equal_on_all_local_ranks__no_rank0(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
+    # Use clean temporary directory for the test.
+    tmp_dir = tmp_path / "tmp"
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_dir)})
+
     out_dir = tmp_path / "rank1"
 
     mocker.patch.dict(
@@ -171,7 +242,7 @@ def test_verify_out_dir_equal_on_all_local_ranks__no_rank0(
             pass
 
     # Make sure that no files are left in the temporary directory.
-    assert not any(common_helpers.get_verify_out_tmp_dir().iterdir())
+    assert not tmp_dir.exists() or not any(f for f in tmp_dir.iterdir() if f.is_file())
 
 
 @pytest.mark.parametrize(
@@ -214,7 +285,7 @@ def test_pretty_format_args() -> None:
         "out": "my_output_dir",
         "overwrite": False,
         "precision": "16-mixed",
-        "resume": False,
+        "resume_interrupted": False,
         "seed": 0,
         "strategy": "auto",
         "trainer_args": None,
@@ -230,6 +301,7 @@ def test_pretty_format_args() -> None:
         "method": "simclr",
         "method_args": {"temperature": 0.1},
         "model": "torchvision/resnet18",
+        "resume": None,
     }
     # Assert that the args are ordered alphabetically.
     expected_str = (
@@ -256,7 +328,8 @@ def test_pretty_format_args() -> None:
         '    "out": "my_output_dir",\n'
         '    "overwrite": false,\n'
         '    "precision": "16-mixed",\n'
-        '    "resume": false,\n'
+        '    "resume": null,\n'
+        '    "resume_interrupted": false,\n'
         '    "seed": 0,\n'
         '    "strategy": "auto",\n'
         '    "trainer_args": null,\n'

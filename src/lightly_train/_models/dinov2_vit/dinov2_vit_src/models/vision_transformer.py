@@ -23,13 +23,13 @@ import torch.nn as nn
 from lightning_utilities.core.imports import RequirementCache
 from torch.nn.init import trunc_normal_
 
-from lightly_train._modules.teachers.dinov2.layers import (
+from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
     MemEffAttention,
     Mlp,
     PatchEmbed,
     SwiGLUFFNFused,
 )
-from lightly_train._modules.teachers.dinov2.layers import (
+from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
     NestedTensorBlock as Block,
 )
 
@@ -42,11 +42,6 @@ XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
 def check_xformers():
     if XFORMERS_INSTALLED and XFORMERS_ENABLED:
         logger.debug("xFormers is available.")
-    else:
-        logger.warning(
-            "xFormers is not available. This may slow down attention computation and overall training. "
-            "For faster performance, install it via `pip install xformers`."
-        )
 
 
 def named_apply(
@@ -456,6 +451,22 @@ def vit_giant2(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTran
         depth=40,
         num_heads=24,
         mlp_ratio=4,
+        block_fn=partial(Block, attn_class=MemEffAttention),
+        num_register_tokens=num_register_tokens,
+        **kwargs,
+    )
+    return model
+
+
+def vit_tiny__testing(
+    patch_size=16, num_register_tokens=0, **kwargs
+) -> DinoVisionTransformer:
+    model = DinoVisionTransformer(
+        patch_size=patch_size,
+        embed_dim=8,
+        depth=2,
+        num_heads=2,
+        mlp_ratio=1,
         block_fn=partial(Block, attn_class=MemEffAttention),
         num_register_tokens=num_register_tokens,
         **kwargs,

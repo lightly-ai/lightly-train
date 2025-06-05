@@ -16,9 +16,10 @@ pip install "lightly-train[rfdetr]"
 
 ## Pretrain and Fine-tune an RF-DETR Model
 
-Pretraining RF-DETR models with LightlyTrain is straightforward. Below we will provide the minimum scripts for pretraining and fine-tuning using `rfdetr/rf-detr-base` as an example:
-
 ### Pretrain
+
+Pretraining RF-DETR models with LightlyTrain is straightforward. Below we provide
+the minimum scripts for pretraining using `rfdetr/rf-detr-base` as an example:
 
 ````{tab} Python
 ```python
@@ -30,8 +31,22 @@ if __name__ == "__main__":
         data="my_data_dir",                     # Directory with images.
         model="rfdetr/rf-detr-base",            # Pass the RF-DETR model.
     )
-
 ```
+
+Or alternatively, pass directly an RF-DETR model instance:
+
+```python
+from rfdetr import RFDETRBase
+
+import lightly_train
+
+if __name__ == "__main__":
+    model = RFDETRBase()                        # Load the RF-DETR model.
+    lightly_train.train(
+        out="out/my_experiment",                # Output directory.
+        data="my_data_dir",                     # Directory with images.
+        model=model,                            # Pass the RF-DETR model.
+    )
 ````
 
 ````{tab} Command Line
@@ -41,10 +56,14 @@ lightly-train train out="out/my_experiment" data="my_data_dir" model="rfdetr/rf-
 
 ### Fine-tune
 
-You can fine-tune the exported model with `rfdetr` directly. For now, `rfdetr` only supports datasets in COCO JSON format. Below we will provide the minimum scripts for fine-tuning using the [Coconuts dataset from Roboflow](https://universe.roboflow.com/traindataset/coconuts-plj8h/dataset/1/download/coco) in COCO JSON format:
+After pretraining, you can load the exported model for fine-tuning with RF-DETR.
+For now, RF-DETR only supports datasets in COCO JSON format. Below we provide
+the minimum scripts for fine-tuning using the [Coconuts dataset from Roboflow](https://universe.roboflow.com/traindataset/coconuts-plj8h/dataset/1/download/coco)
+in COCO JSON format:
 
 ```python
 # fine_tune.py
+
 from rfdetr import RFDETRBase
 from roboflow import Roboflow
 
@@ -59,7 +78,7 @@ if __name__ == "__main__":
     model.train(dataset_dir=dataset.location)
 ```
 
-which can be run with `rfdetr`'s DDP training:
+which can be run with RF-DETR's DDP training:
 
 ```bash
 python -m torch.distributed.launch --nproc_per_node=8 --use_env fine_tune.py

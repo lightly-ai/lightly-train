@@ -100,7 +100,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 - Built for [high performance](https://docs.lightly.ai/train/stable/performance/index.html) including [multi-GPU](https://docs.lightly.ai/train/stable/performance/multi_gpu.html) and [multi-node](https://docs.lightly.ai/train/stable/performance/multi_node.html) support
 - [Export models](https://docs.lightly.ai/train/stable/export.html) for fine-tuning or inference
 - Generate and export [image embeddings](https://docs.lightly.ai/train/stable/embed.html)
-- [Monitor training progress](https://docs.lightly.ai/train/stable/train.html#loggers) with TensorBoard, Weights & Biases, and more
+- [Monitor training progress](https://docs.lightly.ai/train/stable/train.html#loggers) with MLflow, TensorBoard, Weights & Biases, and more
 - Runs fully on-premises with no API authentication and no telemetry
 
 ### Supported Models
@@ -200,6 +200,9 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
 
 - **Commercial License**: Ideal for businesses and organizations that need proprietary development freedom.
   Enjoy all the benefits of LightlyTrain while keeping your code and models private.
+
+- **Free Community License**: Available for students, researchers, startups in early stages, or anyone exploring or experimenting with LightlyTrain.
+  Empower the next generation of innovators with full access to the world of pretraining.
 
 We're committed to supporting both open-source and commercial users.
 [Contact us](https://www.lightly.ai/contact) to discuss the best licensing option for your project!

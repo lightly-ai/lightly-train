@@ -10,10 +10,13 @@ from __future__ import annotations
 import copy
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 from torch.nn import Module
+
+if TYPE_CHECKING:
+    from ultralytics import YOLO
 
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -70,11 +73,13 @@ class UltralyticsPackage(Package):
         return sorted(model_names)
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
         try:
             from ultralytics import YOLO
         except ImportError:
             return False
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
         return isinstance(model, YOLO)
 
     @classmethod
@@ -93,20 +98,28 @@ class UltralyticsPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: Module) -> UltralyticsModelWrapper:
         return UltralyticsModelWrapper(model=model)
 
     @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
+    def export_model(
+        cls, model: YOLO | ModelWrapper | Any, out: Path, log_example: bool = True
+    ) -> None:
         try:
             import ultralytics
-            from ultralytics import YOLO
         except ImportError:
             raise ValueError(
                 f"Cannot export model because '{cls.name}' is not installed."
             )
-        if not isinstance(model, YOLO):
-            raise ValueError(f"Model must be of type 'YOLO', but is '{type(model)}'.")
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
+
+        if not cls.is_supported_model(model):
+            raise TypeError(
+                f"UltralyticsPackage supports exporting models of type 'YOLO' and "
+                f"'ModelWrapper', but received '{type(model)}'."
+            )
+
         export_model = copy.deepcopy(model)
         if export_model.ckpt is None:
             export_model.ckpt = {}

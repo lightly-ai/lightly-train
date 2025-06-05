@@ -101,7 +101,7 @@ def test_train(
             num_workers=2,
             epochs=2,
             devices=1,
-            resume=True,
+            resume_interrupted=True,
         )
     assert (
         f"Restoring states from the checkpoint path at {last_ckpt_path}" in caplog.text
@@ -279,12 +279,20 @@ def test_train__method(tmp_path: Path, method: str, devices: int) -> None:
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
+    # Use smaller model for unit tests.
+    method_args = {
+        "distillation": {"teacher": "dinov2_vit/vits14"},
+        "distillationv1": {"teacher": "dinov2_vit/vits14"},
+        "distillationv2": {"teacher": "dinov2_vit/vits14"},
+    }.get(method, {})
+
     train.train(
         out=out,
         data=data,
         model="torchvision/resnet18",
         devices=devices,
         method=method,
+        method_args=method_args,
         batch_size=4,
         num_workers=2,
         epochs=1,
@@ -317,7 +325,7 @@ def test_train__checkpoint_gradients(tmp_path: Path) -> None:
     )
     ckpt_path = out / "checkpoints" / "last.ckpt"
     ckpt = Checkpoint.from_path(checkpoint=ckpt_path)
-    for param in ckpt.lightly_train.models.model.parameters():
+    for param in ckpt.lightly_train.models.wrapped_model.get_model().parameters():
         assert param.requires_grad
 
 

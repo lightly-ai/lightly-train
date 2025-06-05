@@ -29,8 +29,8 @@ from lightly_train._env import Env
 from lightly_train._methods import method_helpers
 from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
-from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim import optimizer_helpers
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -188,10 +188,11 @@ def get_dataloader(
     return DataLoader(**dataloader_kwargs)
 
 
-def get_embedding_model(model: Module, embed_dim: int | None = None) -> EmbeddingModel:
+def get_embedding_model(
+    wrapped_model: ModelWrapper, embed_dim: int | None = None
+) -> EmbeddingModel:
     logger.debug(f"Getting embedding model with embedding dimension {embed_dim}.")
-    feature_extractor = package_helpers.get_model_wrapper(model=model)
-    return EmbeddingModel(model_wrapper=feature_extractor, embed_dim=embed_dim)
+    return EmbeddingModel(wrapped_model=wrapped_model, embed_dim=embed_dim)
 
 
 def get_trainer(
@@ -383,19 +384,22 @@ def get_method(
 
 def load_checkpoint(
     checkpoint: PathLike | None,
-    resume: bool,
-    model: Module,
+    resume_interrupted: bool,
+    wrapped_model: ModelWrapper,
     embedding_model: EmbeddingModel,
     method: Method,
 ) -> None:
     if checkpoint is not None:
-        if resume:
+        if resume_interrupted:
             raise ValueError(
-                "Cannot specify both 'checkpoint' and 'resume' at the same time."
+                f"resume_interrupted={resume_interrupted} and checkpoint='{checkpoint}' "
+                "cannot be set at the same time! Please set only one of them. "
+                "See https://docs.lightly.ai/train/stable/train/index.html#resume-training "
+                "for more information on which option to use."
             )
         logger.info(f"Loading model weights from '{checkpoint}'.")
         load_state_dict(
-            model=model,
+            wrapped_model=wrapped_model,
             embedding_model=embedding_model,
             method=method,
             checkpoint=checkpoint,
@@ -403,10 +407,16 @@ def load_checkpoint(
 
 
 def load_state_dict(
-    model: Module, embedding_model: EmbeddingModel, method: Method, checkpoint: PathLike
+    wrapped_model: ModelWrapper,
+    embedding_model: EmbeddingModel,
+    method: Method,
+    checkpoint: PathLike,
 ) -> None:
     ckpt = Checkpoint.from_path(Path(checkpoint))
-    model.load_state_dict(ckpt.lightly_train.models.model.state_dict())
+    wrapped_model.load_state_dict(ckpt.lightly_train.models.wrapped_model.state_dict())
+    model = wrapped_model.get_model()
+    if isinstance(model, Module):
+        model.load_state_dict(ckpt.lightly_train.models.model.state_dict())
     embedding_model.load_state_dict(
         ckpt.lightly_train.models.embedding_model.state_dict()
     )

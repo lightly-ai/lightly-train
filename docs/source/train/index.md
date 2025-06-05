@@ -59,7 +59,7 @@ out/my_experiment
 The final model checkpoint is saved to `out/my_experiment/checkpoints/last.ckpt`. The
 file `out/my_experiment/exported_models/exported_last.pt` contains the final model,
 exported in the default format (`package_default`) of the used library (see
-[export format](export.md#format) for more details).
+{ref}`export format <export-format>` for more details).
 
 ```{tip}
 Create a new output directory for each experiment to keep training logs, model exports,
@@ -158,6 +158,8 @@ Logging is configured with the `loggers` argument. The following loggers are
 supported:
 
 - [`jsonl`](#jsonl): Logs training metrics to a .jsonl file (enabled by default)
+- [`mlflow`](#mlflow): Logs training metrics to MLflow (disabled by
+  default, requires MLflow to be installed)
 - [`tensorboard`](#tensorboard): Logs training metrics to TensorBoard (enabled by
   default, requires TensorBoard to be installed)
 - [`wandb`](#wandb): Logs training metrics to Weights & Biases (disabled by
@@ -180,6 +182,42 @@ loggers={"jsonl": None}
 ````{tab} Command Line
 ```bash
 loggers.jsonl=null
+````
+
+(mlflow)=
+
+### MLflow
+
+```{important}
+MLflow must be installed with `pip install "lightly-train[mlflow]"`.
+```
+
+The mlflow logger can be configured with the following arguments:
+
+````{tab} Python
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train(
+        out="out/my_experiment",
+        data="my_data_dir",
+        model="torchvision/resnet50",
+        loggers={
+            "mlflow": {
+                "experiment_name": "my_experiment",
+                "run_name": "my_run",
+                "tracking_uri": "tracking_uri",
+                # "run_id": "my_run_id",  # Use if resuming a training with resume_interrupted=True
+                # "log_model": True,      # Currently not supported
+            },
+        },
+    )
+````
+
+````{tab} Command Line
+```bash
+lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.mlflow.experiment_name="my_experiment" loggers.mlflow.run_name="my_run" loggers.mlflow.tracking_uri=tracking_uri
 ````
 
 (tensorboard)=
@@ -261,15 +299,21 @@ There are two distinct ways to continue training, depending on your intention.
 
 ### Resume Interrupted Training
 
-Use `resume=True` to **resume a previously interrupted or crashed training run**. This will pick up exactly where the training left off.
+Use `resume_interrupted=True` to **resume a previously interrupted or crashed training run**.
+This will pick up exactly where the training left off.
 
-- You **must use the same `output_dir`** as the original run.
+- You **must use the same `out` directory** as the original run.
 - You **must not change any training parameters** (e.g., learning rate, batch size, data, etc.).
 - This is intended for continuing the *same* run without modification.
 
 ### Load Weights for a New Run
 
-Use `checkpoint="path/to/checkpoint.ckpt"` to load model weights from a checkpoint, but start a new training run.
+Use `checkpoint` to further pretrain a model from a previous run. The checkpoint must
+be a path to a checkpoint file created by a previous training run, for example
+`checkpoint="out/my_experiment/checkpoints/last.ckpt"`. This will only load the model
+weights from the previous run. All other training state (e.g. optimizer state, epochs)
+from the previous run are not loaded. Instead, a new run is started with the model
+weights from the checkpoint.
 
 - You are free to **change training parameters**.
 - This is useful for continuing training with a different setup.
@@ -277,8 +321,10 @@ Use `checkpoint="path/to/checkpoint.ckpt"` to load model weights from a checkpoi
 ### General Notes
 
 ```{important}
-- `resume=True` and `checkpoint=...` are mutually exclusive and cannot be used together.
-- If `overwrite=True` is set, training will start fresh, overwriting existing outputs or checkpoints in the specified output directory.
+- `resume_interrupted=True` and `checkpoint=...` are mutually exclusive and cannot be
+  used together.
+- If `overwrite=True` is set, training will start fresh, overwriting existing outputs or
+  checkpoints in the specified output directory.
 ```
 
 ## Advanced Options
@@ -290,18 +336,79 @@ resolution of 224x224 pixels is used. A custom resolution can be set like this:
 
 ````{tab} Python
 ```python
-transform_args = {"image_size": (448, 448)} # (height, width)
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train(
+        out="out/my_experiment",            # Output directory
+        data="my_data_dir",                 # Directory with images
+        model="torchvision/resnet18",       # Model to train
+        transform_args={"image_size": (448, 448)}, # (height, width)
+    )
+```
 ````
 
 ````{tab} Command Line
 ```bash
-transform_args.image_size="\[448,448\]"  # (height, width)
+lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" transform_args.image_size="[448,448]"
+```
 ````
 
 ```{warning}
 Not all models support all image sizes.
 ```
 
+### Image Transforms
+
+See {ref}`method-transform-args` on how to configure image transformations.
+
+(method-args)=
+
+### Method Arguments
+
+```{warning}
+In 99% of cases, it is not necessary to modify the default method arguments in
+LightlyTrain. The default settings are carefully tuned to work well for most use cases.
+```
+
+The method arguments can be set with the `method_args` argument:
+
+````{tab} Python
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train(
+        out="out/my_experiment",            # Output directory
+        data="my_data_dir",                 # Directory with images
+        model="torchvision/resnet18",       # Model to train
+        method="distillation",              # Pretraining method
+        method_args={                       # Override the default teacher model
+            "teacher": "dinov2_vit/vitl14_pretrain",
+        },
+    )
+```
+````
+
+````{tab} Command Line
+```bash
+lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" method="distillation" method_args.teacher="dinov2_vit/vitl14_pretrain"
+```
+````
+
+Each pretraining method has its own set of arguments that can be configured. LightlyTrain
+provides sensible defaults that are adjusted depending on the dataset and model used.
+The defaults for each method are listed in the respective {ref}`methods` documentation
+pages.
+
 ### Performance Optimizations
 
 For performance optimizations, e.g. using accelerators, multi-GPU, multi-node, and half precision training, see the [performance](#performance) page.
+
+```{toctree}
+---
+hidden:
+maxdepth: 1
+---
+method_transform_args
+```

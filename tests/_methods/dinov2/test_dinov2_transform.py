@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from lightly_train._methods.dinov2.dinov2_transform import DINOv2Transform
+from lightly_train._methods.dinov2.dinov2_transform import (
+    DINOv2ViTTransform,
+)
 from lightly_train.types import NDArrayImage, TransformInput
 
 
@@ -21,12 +23,12 @@ def test_dinov2_transform_shapes() -> None:
     )
     input: TransformInput = {"image": img_np}
 
-    transform_args = DINOv2Transform.transform_args_cls()()
-    transform = DINOv2Transform(transform_args)
+    transform_args = DINOv2ViTTransform.transform_args_cls()()
+    transform = DINOv2ViTTransform(transform_args)
 
     views = transform(input)
     assert len(views) == 2 + 8
     for view in views[:2]:
         assert view["image"].shape == (3, 224, 224)
     for view in views[2:]:
-        assert view["image"].shape == (3, 96, 96)
+        assert view["image"].shape == (3, 98, 98)

@@ -18,37 +18,40 @@ if importlib_util.find_spec("rfdetr") is None:
 from rfdetr.detr import RFDETRBase
 
 
-class TestRFDETRFeatureExtractor:
+class TestRFDETRModelWrapper:
     def test_init(self) -> None:
-        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
-        feature_extractor = RFDETRModelWrapper(model=model)
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
+        wrapped_model = RFDETRModelWrapper(model=model)
 
-        for name, param in feature_extractor.named_parameters():
+        for name, param in wrapped_model.named_parameters():
             assert param.requires_grad, name
 
-        for name, module in feature_extractor.named_modules():
+        for name, module in wrapped_model.named_modules():
             assert module.training, name
 
     def test_feature_dim(self) -> None:
-        model = RFDETRBase().model.model  # type: ignore[no-untyped-call]
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
 
-        feature_extractor = RFDETRModelWrapper(model=model)
+        wrapped_model = RFDETRModelWrapper(model=model)
 
-        assert feature_extractor.feature_dim() == 384
+        assert wrapped_model.feature_dim() == 384
 
+    # TODO (Lionel, 05/25): remove this test when MPS is supported
+    @pytest.mark.skipif(
+        torch.backends.mps.is_available(), reason="MPS does not support this test"
+    )
     def test_forward_features(
         self,
     ) -> None:
-        model_instance = RFDETRBase()  # type: ignore[no-untyped-call]
-        model = model_instance.model.model
-        device = model_instance.model.device
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
+        device = model.model.device
 
-        feature_extractor = RFDETRModelWrapper(model=model)
+        wrapped_model = RFDETRModelWrapper(model=model)
 
         image_size = 224
-        expected_dim = feature_extractor.feature_dim()
+        expected_dim = wrapped_model.feature_dim()
         x = torch.rand(1, 3, image_size, image_size).to(device=device)
-        features = feature_extractor.forward_features(x)["features"]
+        features = wrapped_model.forward_features(x)["features"]
 
         assert features.shape == (
             1,
@@ -58,21 +61,19 @@ class TestRFDETRFeatureExtractor:
         )
 
     def test_forward_pool(self) -> None:
-        model_instance = RFDETRBase()  # type: ignore[no-untyped-call]
-        model = model_instance.model.model
-        device = model_instance.model.device
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
+        device = model.model.device
 
-        feature_extractor = RFDETRModelWrapper(model=model)
+        wrapped_model = RFDETRModelWrapper(model=model)
 
-        expected_dim = feature_extractor.feature_dim()
+        expected_dim = wrapped_model.feature_dim()
         x = torch.rand(1, expected_dim, 7, 7).to(device=device)
-        pool = feature_extractor.forward_pool({"features": x})["pooled_features"]
+        pool = wrapped_model.forward_pool({"features": x})["pooled_features"]
 
         assert pool.shape == (1, expected_dim, 1, 1)
 
     def test_get_model(self) -> None:
-        model_instance = RFDETRBase()  # type: ignore[no-untyped-call]
-        model = model_instance.model.model
-        feature_extractor = RFDETRModelWrapper(model=model)
-        model = feature_extractor.get_model()
-        assert model is model_instance.model.model
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
+        wrapped_model = RFDETRModelWrapper(model=model)
+        model_ = wrapped_model.get_model()
+        assert model_ is model

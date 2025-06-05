@@ -40,9 +40,22 @@ Our distillation method directly applies a mean squared error (MSE) loss between
 - **Batch Size**: We recommend somewhere between 128 and 2048 for knowledge distillation.
 - **Number of Epochs**: We recommend somewhere between 100 and 3000. However, distillation benefits from longer schedules and models still improve after training for more than 3000 epochs. For small datasets (\<100k images) it can also be beneficial to train up to 10000 epochs.
 
-## Default Augmentation Settings
+## Default Method Arguments
 
-The following are the default augmentation settings for Distillation. To learn how you can override these settings, see {ref}`method-transform-args`.
+The following are the default method arguments for distillation. To learn how you can
+override these settings, see {ref}`method-args`.
 
+````{dropdown} Default Method Arguments
+```{include} _auto/distillation_method_args.md
+```
+````
+
+## Default Image Transforms Settings
+
+The following are the default transforms settings for distillation. To learn how you can
+override these settings, see {ref}`method-transform-args`.
+
+````{dropdown} Default Image Transforms
 ```{include} _auto/distillation_transform_args.md
 ```
+````

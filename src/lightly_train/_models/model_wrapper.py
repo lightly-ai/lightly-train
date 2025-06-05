@@ -7,11 +7,22 @@
 #
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    Iterator,
+    Mapping,
+    Protocol,
+    overload,
+    runtime_checkable,
+)
 
+import typing_extensions
 from torch import Tensor
-from torch.nn import Module
-from typing_extensions import NotRequired, Required, TypedDict
+from torch.nn import Module, Parameter
+from typing_extensions import NotRequired, Required, TypedDict, TypeVar
+
+from lightly_train.types import PackageModel
 
 
 class ForwardFeaturesOutput(TypedDict, total=False):
@@ -70,10 +81,55 @@ class FeatureDim(Protocol):
 
 @runtime_checkable
 class ModelGetter(Protocol):
-    def get_model(self) -> Module:
+    def get_model(self) -> PackageModel:
         """Returns the model to store in the checkpoint."""
         ...
 
 
 @runtime_checkable
-class ModelWrapper(ForwardFeatures, ForwardPool, FeatureDim, ModelGetter, Protocol): ...
+class NNModule(Protocol):
+    """Method definitions for nn.Module, directly copied from torch.nn.Module."""
+
+    T_destination = TypeVar("T_destination", bound=Dict[str, Any])
+
+    @overload
+    def state_dict(
+        self, *, destination: T_destination, prefix: str = ..., keep_vars: bool = ...
+    ) -> T_destination: ...
+
+    @overload
+    def state_dict(
+        self, *, prefix: str = ..., keep_vars: bool = ...
+    ) -> dict[str, Any]: ...
+
+    def parameters(self, recurse: bool = True) -> Iterator[Parameter]: ...
+
+    def load_state_dict(
+        self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False
+    ) -> None: ...
+
+
+@runtime_checkable
+class ModelWrapper(
+    ForwardFeatures, ForwardPool, FeatureDim, ModelGetter, NNModule, Protocol
+): ...
+
+
+def missing_model_wrapper_attrs(
+    model_wrapper: Any, exclude_module_attrs: bool = False
+) -> list[str]:
+    """Returns a list of attributes that are missing in the model wrapper.
+
+    Args:
+        model_wrapper:
+            The model wrapper to check for missing attributes.
+        exclude_module_attrs:
+            If True, do not check attributes that are also in torch.nn.Module.
+    """
+    missing_attrs = []
+    for attr in typing_extensions.get_protocol_members(ModelWrapper):
+        if exclude_module_attrs and hasattr(Module, attr):
+            continue
+        if not hasattr(model_wrapper, attr):
+            missing_attrs.append(attr)
+    return sorted(missing_attrs)

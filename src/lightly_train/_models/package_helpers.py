@@ -9,13 +9,15 @@ from __future__ import annotations
 
 from itertools import chain
 from os import linesep
-from typing import Any
+from typing import Any, Literal, overload
 
 from torch.nn import Module
 
+from lightly_train._models import model_wrapper
 from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import BasePackage, Package
 from lightly_train._models.rfdetr.rfdetr_package import RFDETR_PACKAGE
 from lightly_train._models.super_gradients.super_gradients_package import (
     SUPER_GRADIENTS_PACKAGE,
@@ -26,7 +28,7 @@ from lightly_train._models.ultralytics.ultralytics_package import ULTRALYTICS_PA
 from lightly_train.errors import UnknownModelError
 
 
-def list_packages() -> list[Package]:
+def list_base_packages() -> list[BasePackage]:
     """Lists all supported packages."""
     return [
         RFDETR_PACKAGE,
@@ -34,15 +36,20 @@ def list_packages() -> list[Package]:
         TIMM_PACKAGE,
         TORCHVISION_PACKAGE,
         ULTRALYTICS_PACKAGE,
+        DINOV2_VIT_PACKAGE,
         # Custom package must be at end of list because we first want to check if a
         # model is part of one of the other packages. Custom is the last resort.
         CUSTOM_PACKAGE,
     ]
 
 
+def list_packages() -> list[Package]:
+    """Lists all supported framework packages."""
+    return [package for package in list_base_packages() if isinstance(package, Package)]
+
+
 def get_package(package_name: str) -> Package:
     """Get a package by name."""
-    # Don't include custom package. It should never be fetched by name.
     packages = {p.name: p for p in list_packages()}
     try:
         return packages[package_name]
@@ -61,33 +68,63 @@ def list_model_names() -> list[str]:
     return sorted(chain.from_iterable(p.list_model_names() for p in list_packages()))
 
 
-def get_model(model: str | Module, model_args: dict[str, Any] | None = None) -> Module:
-    """Returns a model instance given a model name or instance."""
-    if isinstance(model, Module):
+def get_wrapped_model(
+    model: str | Module | ModelWrapper, model_args: dict[str, Any] | None = None
+) -> ModelWrapper:
+    """Returns a wrapped model instance given a model name or instance."""
+    if isinstance(model, ModelWrapper):
         return model
 
-    package_name, model_name = _parse_model_name(model=model)
-    package = get_package(package_name=package_name)
-    return package.get_model(model_name, model_args)
+    package: Package
+    if isinstance(model, str):
+        package_name, model_name = _parse_model_name(model)
+        package = get_package(package_name)
+        model = package.get_model(model_name, model_args=model_args)
+    else:
+        package = get_package_from_model(
+            model, include_custom=False, fallback_custom=False
+        )
+    return package.get_model_wrapper(model)
 
 
-def get_model_wrapper(model: Module) -> ModelWrapper:
-    """Returns a model wrapper class for the given model."""
-    for package in list_packages():
-        if package.is_supported_model(model):
-            return package.get_model_wrapper(model)
-
-    raise UnknownModelError(f"Unknown model: '{model.__class__.__name__}'")
+@overload
+def get_package_from_model(
+    model: Module | ModelWrapper, include_custom: bool, fallback_custom: Literal[True]
+) -> BasePackage: ...
 
 
-def get_package_from_model(model: Module) -> Package:
-    """Returns the package of the model. If the model is not part of any package,
-    the custom package is returned."""
-    for package in list_packages():
+@overload
+def get_package_from_model(
+    model: Module | ModelWrapper, include_custom: bool, fallback_custom: Literal[False]
+) -> Package: ...
+
+
+def get_package_from_model(
+    model: Module | ModelWrapper,
+    include_custom: bool,
+    fallback_custom: bool,
+) -> BasePackage | Package:
+    """Returns the package of the model."""
+    packages = list_base_packages() if include_custom else list_packages()
+    for package in packages:
         if package.is_supported_model(model):
             return package
 
-    raise UnknownModelError(f"Unknown model: '{model.__class__.__name__}'")
+    if not fallback_custom:
+        is_torch_module = isinstance(model, Module)
+        missing_attrs = model_wrapper.missing_model_wrapper_attrs(
+            model, exclude_module_attrs=True
+        )
+        raise UnknownModelError(
+            f"Unknown model: '{model.__class__.__name__}'. If you are implementing a "
+            "custom model wrapper, please make sure the wrapper class inherits from "
+            "torch.nn.Module and implements all required methods.\n"
+            f" - Inherits from torch.nn.Module: {is_torch_module}\n"
+            f" - Missing methods: {missing_attrs}\n"
+            "For more information, please refer to the documentation: https://docs.lightly.ai/train/stable/models/custom_models.html"
+        )
+    else:
+        return CUSTOM_PACKAGE
 
 
 def _parse_model_name(model: str) -> tuple[str, str]:

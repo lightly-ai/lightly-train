@@ -11,7 +11,12 @@ import pathlib
 import tempfile
 from pathlib import Path
 
+from pytest import LogCaptureFixture
+from pytest_mock import MockerFixture
+from pytorch_lightning.utilities import rank_zero_info
+
 from lightly_train import _logging
+from lightly_train._logging import RegexFilter
 
 
 def test_set_up_console_logging() -> None:
@@ -22,15 +27,15 @@ def test_set_up_console_logging() -> None:
     logger = logging.getLogger("lightly_train")
     assert len(logger.handlers) == 1
     assert isinstance(logger.handlers[0], logging.StreamHandler)
+    assert logger.handlers[0].level == logging.INFO
 
 
-def test_set_up_console_logging__custom_log_level() -> None:
-    os.environ[_logging.LIGHTLY_TRAIN_LOG_LEVEL_ENV_VAR] = str(logging.WARNING)
+def test_set_up_console_logging__custom_log_level(mocker: MockerFixture) -> None:
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_LOG_LEVEL": "WARNING"})
     _logging.set_up_console_logging()
     logger = logging.getLogger("lightly_train")
     assert len(logger.handlers) == 1
     assert logger.handlers[0].level == logging.WARNING
-    os.environ.pop(_logging.LIGHTLY_TRAIN_LOG_LEVEL_ENV_VAR)
 
 
 def test__set_console_handler() -> None:
@@ -86,3 +91,26 @@ def test_set_up_file_logging() -> None:
         assert "warning message" in logs
         assert "error message" in logs
         assert "critical message" in logs
+
+
+class TestRegexFilter:
+    def test(self, caplog: LogCaptureFixture) -> None:
+        logger = logging.getLogger("test_regex_filter")
+        logger.addFilter(RegexFilter("my test message"))
+        with caplog.at_level(logging.DEBUG):
+            logger.debug("abc my test message abc")
+            logger.debug("other message")
+        assert "my test message" not in caplog.text
+        assert "other message" in caplog.text
+
+
+def test_set_up_filters(caplog: LogCaptureFixture) -> None:
+    _logging.set_up_filters()
+    with caplog.at_level(logging.DEBUG):
+        rank_zero_info(
+            "You are using a CUDA device ('NVIDIA GeForce RTX 4090') that has Tensor "
+            "Cores. To properly utilize them, you should set "
+            "`torch.set_float32_matmul_precision('medium' | 'high')` which will trade-off "
+            "precision for performance. For more details, read https://pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision"
+        )
+    assert "You are using a CUDA device" not in caplog.text

@@ -11,12 +11,14 @@ from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._loggers.jsonl import JSONLLoggerArgs
+from lightly_train._loggers.mlflow import MLFlowLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLoggerArgs
 from lightly_train._loggers.wandb import WandbLoggerArgs
 
 
 class LoggerArgs(PydanticConfig):
     jsonl: JSONLLoggerArgs | None = Field(default_factory=JSONLLoggerArgs)
+    mlflow: MLFlowLoggerArgs | None = None
     tensorboard: TensorBoardLoggerArgs | None = Field(
         default_factory=TensorBoardLoggerArgs
     )

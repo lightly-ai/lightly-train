@@ -50,11 +50,14 @@ See [this GitHub issue](https://github.com/sunsmarterjie/yolov12/issues/66) for 
 
 ## Pretrain and Fine-tune a YOLOv12 Model
 
-Pretraining or fine-tuning a YOLOv12 model is the same as doing so with any supported Ultralytics model. The only difference is that the config file is named `yolov12.yaml` instead of `yolo12.yaml` in the official Ultralytics releases.
-
-Below we will provide the minimum scripts for pretraining and fine-tuning:
+Pretraining or fine-tuning a YOLOv12 model is the same as doing so with any supported
+Ultralytics model. The only difference is that the config file is named `yolov12.yaml`
+instead of `yolo12.yaml` in the official Ultralytics releases.
 
 ### Pretrain
+
+Below we provide the minimum scripts for pretraining using `ultralytics/yolov12s` as
+an example:
 
 ````{tab} Python
 ```python
@@ -68,6 +71,22 @@ if __name__ == "__main__":
     )
 
 ```
+
+Or alternatively, pass directly a YOLOv12 model instance:
+
+```python
+from ultralytics import YOLO
+
+import lightly_train
+
+if __name__ == "__main__":
+    model = YOLO("yolov12s.yaml")               # Load the YOLOv12 model.
+    lightly_train.train(
+        out="out/my_experiment",                # Output directory.
+        data="my_data_dir",                     # Directory with images.
+        model=model,                            # Pass the YOLOv12 model.
+    )
+```
 ````
 
 ````{tab} Command Line
@@ -76,6 +95,8 @@ lightly-train train out="out/my_experiment" data="my_data_dir" model="ultralytic
 ````
 
 ### Fine-tune
+
+After pretraining, you can load the exported model for fine-tuning with Ultralytics:
 
 ````{tab} Python
 ```python

@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 def embed(
+    *,
     out: PathLike,
     data: PathLike | Sequence[PathLike],
     checkpoint: PathLike,
@@ -99,6 +100,7 @@ def embed_from_config(config: EmbedConfig) -> None:
     # Set up logging.
     _warnings.filter_embed_warnings()
     _logging.set_up_console_logging()
+    _logging.set_up_filters()
     logger.info(common_helpers.pretty_format_args(args=config.model_dump()))
 
     logger.info(

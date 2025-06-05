@@ -15,13 +15,18 @@ import torch
 from torch.nn import Module
 
 from lightly_train._models import package_helpers
-from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.model_wrapper import (
+    ModelWrapper,
+)
 from lightly_train._models.package import Package
 from lightly_train._models.super_gradients.customizable_detector import (
     CustomizableDetectorFeatureExtractor,
 )
 from lightly_train._models.super_gradients.segmentation_module import (
     SegmentationModuleFeatureExtractor,
+)
+from lightly_train._models.super_gradients.super_gradients import (
+    SuperGradientsModelWrapper,
 )
 from lightly_train.errors import UnknownModelError
 
@@ -52,7 +57,9 @@ class SuperGradientsPackage(Package):
         return sorted(model_names)
 
     @classmethod
-    def is_supported_model(cls, model: Module) -> bool:
+    def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
+        if isinstance(model, ModelWrapper):
+            return cls.is_supported_model_cls(model_cls=type(model.get_model()))
         return cls.is_supported_model_cls(model_cls=type(model))
 
     @classmethod
@@ -79,14 +86,25 @@ class SuperGradientsPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> ModelWrapper:
+    def get_model_wrapper(cls, model: Module) -> SuperGradientsModelWrapper:
         for fe in cls._FEATURE_EXTRACTORS:
             if fe.is_supported_model_cls(model_cls=type(model)):
                 return fe(model)
         raise UnknownModelError(f"Unknown {cls.name} model: '{type(model)}'")
 
     @classmethod
-    def export_model(cls, model: Module, out: Path, log_example: bool = True) -> None:
+    def export_model(
+        cls, model: Module | ModelWrapper | Any, out: Path, log_example: bool = True
+    ) -> None:
+        if isinstance(model, ModelWrapper):
+            model = model.get_model()
+
+        if not cls.is_supported_model(model):
+            raise ValueError(
+                f"SuperGradientsPackage only supports exporting models of type 'Module' "
+                f"or ModelWrapper, but got '{type(model)}'."
+            )
+
         torch.save(model.state_dict(), out)
         if log_example:
             model_name = getattr(model, "_sg_model_name", None)

@@ -82,6 +82,7 @@ def extract_video_frames(
 def extract_video_frames_from_config(config: ExtractVideoFramesConfig) -> None:
     # Set up logging.
     _logging.set_up_console_logging()
+    _logging.set_up_filters()
     logger.info(f"Args: {common_helpers.pretty_format_args(args=config.model_dump())}")
     logger.info(f"Extracting frames from videos in '{config.data}'.")
 
@@ -92,7 +93,7 @@ def extract_video_frames_from_config(config: ExtractVideoFramesConfig) -> None:
     )
     logger.debug(f"Using {num_workers} workers to extract frames.")
     out_dir = common_helpers.get_out_dir(
-        out=config.out, resume=False, overwrite=config.overwrite
+        out=config.out, resume_interrupted=False, overwrite=config.overwrite
     )
     logger.info(f"Saving extracted frames to '{out_dir}'.")
 
