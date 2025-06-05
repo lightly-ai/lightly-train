@@ -27,7 +27,6 @@ from torch import Tensor
 from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
-from lightly_train import _scaling
 from lightly_train._configs.validate import no_auto
 from lightly_train._methods.dinov2.dinov2_loss import (
     DINOLoss,
@@ -55,7 +54,7 @@ from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
-from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
+from lightly_train._scaling import ScalingInfo
 from lightly_train.types import Batch
 
 logger = logging.getLogger(__name__)
@@ -108,23 +107,22 @@ class DINOv2TrainingStepResult(TrainingStepResult):
 class DINOv2Args(MethodArgs):
     """Args for DINOv2 method for ImageNet dataset."""
 
-    # crops
-    n_local_crops: int = (
-        8  # transform_cls().transform_args_cls().transform_args.local_view.num_views
-    )
+    # TODO(Guarin, 06/25): Infer this from the transform instead of having it as an
+    # additional arg.
+    # transform_cls().transform_args_cls().transform_args.local_view.num_views
+    n_local_crops: int = 8
 
-    # vit
-    embed_dim: int = 384  # default embed_dim for ViT-S, can be overridden by the model
-    patch_size: int = 14  # default patch_size for ViT-S, can be overridden by the model
+    # TODO(Guarin, 06/25): Infer this from the model architecture instead of having it
+    # as an additional arg.
+    embed_dim: int | Literal["auto"] = "auto"  # Is set based on ViT configuration
+    patch_size: int | Literal["auto"] = "auto"  # Is set based on ViT configuration
 
     # projection head
-    ibot_separate_head: bool = False
+    ibot_separate_head: bool | Literal["auto"] = "auto"
     hidden_dim: int = 2048
-    bottleneck_dim: int = 256
-    bottleneck_dim_ibot: int = 256
-    output_dim: int | Literal["auto"] = (
-        "auto"  # 65536 for ViT-S/B, 131072 for ViT-L/G in the original DINOv2
-    )
+    dino_bottleneck_dim: int | Literal["auto"] = "auto"
+    ibot_bottleneck_dim: int = 256
+    output_dim: int | Literal["auto"] = "auto"
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
     norm_last_layer: bool = False
@@ -135,23 +133,19 @@ class DINOv2Args(MethodArgs):
     ibot_loss_weight: float = 1.0
     koleo_loss_weight: float = 0.1
 
-    student_temp: float = 0.1
-
-    centering: Literal["softmax", "sinkhorn_knopp"] = "softmax"
+    center_method: Literal["softmax", "sinkhorn_knopp", "auto"] = "auto"
     center_momentum: float = 0.9
 
     # teacher momentum
-    momentum_start: float | Literal["auto"] = (
-        "auto"  # 0.992 for ViT-S/B, 0.994 for ViT-L/G in the original DINOv2
-    )
+    momentum_start: float | Literal["auto"] = "auto"
     momentum_end: float = 1.0
 
-    # teacher temp scheduler
-    start_teacher_temp: float | Literal["auto"] = "auto"  # 0.04 in the original DINOv2
-    end_teacher_temp: float | Literal["auto"] = "auto"  # 0.07 in the original DINOv2
-    warmup_teacher_temp_epochs: int | Literal["auto"] = (
-        "auto"  # 30 for ViT-S/B, 80 for ViT-L/G in the original DINOv2
-    )
+    student_temp: float = 0.1
+    # TODO(Guarin, 06/25): Figure out good teacher temp start/end values for smaller
+    # datasets.
+    teacher_temp_start: float = 0.04
+    teacher_temp_end: float = 0.07
+    teacher_temp_warmup_epochs: int | Literal["auto"] = "auto"
 
     # masking
     mask_ratio_min: float = 0.1
@@ -163,16 +157,12 @@ class DINOv2Args(MethodArgs):
     warmup_epochs: int = 10
 
     # lr decay
-    layerwise_decay: float = 0.9
+    layerwise_decay: float | Literal["auto"] = "auto"
     patch_embed_lr_multiplier: float = 0.2
 
     # weight decay scheduler
-    weight_decay_start: float | Literal["auto"] = (
-        "auto"  # 0.04 for ViT-S/B in the original DINOv2
-    )
-    weight_decay_end: float | Literal["auto"] = (
-        "auto"  # 0.4 for ViT-S/B, 0.2 for ViT-L/G in the original DINOv2
-    )
+    weight_decay_start: float | Literal["auto"] = "auto"
+    weight_decay_end: float | Literal["auto"] = "auto"
 
     # gradient clipping
     gradient_clip_val: float = 3.0
@@ -190,97 +180,64 @@ class DINOv2Args(MethodArgs):
             )
         depth: int = model.n_blocks
         num_heads: int = model.num_heads
-        self.embed_dim: int = model.embed_dim
-        self.patch_size: int = model.patch_size
+        self.embed_dim = model.embed_dim
+        self.patch_size = model.patch_size
+
+        # Settings correspond to either the fast or long setup from here: https://github.com/facebookresearch/dinov2/tree/main?tab=readme-ov-file#training
+        is_small_or_base = True
         if (depth == 40 and num_heads == 24 and self.embed_dim == 1536) or (
             depth == 24 and num_heads == 16 and self.embed_dim == 1024
-        ):  # giant / large
-            # projection head
-            self.ibot_separate_head = True
-            self.bottleneck_dim = 384
-            self.bottleneck_dim_ibot = 256
-            # loss
-            self.centering = "sinkhorn_knopp"
-            # lr decay
-            self.layerwise_decay = 1.0
+        ):
+            # ViT-L/G in original DINOv2
+            is_small_or_base = False
         elif (depth == 12 and num_heads == 12 and self.embed_dim == 768) or (
             depth == 12 and num_heads == 6 and self.embed_dim == 384
-        ):  # base / small
+        ):
+            # ViT-S/B in original DINOv2
             pass
         else:
             logger.warning(
-                f"Model architecture: depth={depth}, num_heads={num_heads}, embed_dim={self.embed_dim} does not match any known DINOv2 model."
-                "Using default parameters for small/base models, but performance may be suboptimal."
+                f"Model architecture: depth={depth}, num_heads={num_heads}, "
+                f"embed_dim={self.embed_dim} does not match any known DINOv2 model. "
+                "Using default parameters for small/base models, but performance may "
+                "be suboptimal."
             )
 
-        dataset_size = scaling_info.dataset_size
+        if self.ibot_separate_head == "auto":
+            # False for ViT-S/B and True for ViT-L/G in original DINOv2
+            self.ibot_separate_head = False if is_small_or_base else True
+
+        if self.dino_bottleneck_dim == "auto":
+            # 256 for ViT-S/B and 384 for ViT-L/G in original DINOv2
+            self.dino_bottleneck_dim = 256 if is_small_or_base else 384
+
         if self.output_dim == "auto":
-            # Default output dim of 65536 is too large for small datasets.
-            self.output_dim = _scaling.get_bucket_value(
-                input=dataset_size,
-                buckets=[
-                    (20_000, 1024),
-                    (50_000, 2048),
-                    (100_000, 4096),
-                    (200_000, 16384),
-                    (500_000, 32768),
-                    (float("inf"), 65536),
-                ],
-            )
+            # 65536 for ViT-S/B and 131072 for ViT-L/G in original DINOv2
+            self.output_dim = 65536 if is_small_or_base else 131072
 
-        if self.end_teacher_temp == "auto":
-            # Default teacher temperature of 0.07 is too high for small datasets. Lower
-            # temperature results in stronger sharpening which avoids collapse to uniform
-            # distribution.
-            self.end_teacher_temp = _scaling.interpolate(
-                dataset_size,
-                input_start=20_000,
-                input_end=IMAGENET_SIZE,
-                value_start=0.02,
-                value_end=0.07,
-                round_ndigits=2,
-            )
-
-        if self.start_teacher_temp == "auto":
-            self.start_teacher_temp = min(
-                self.end_teacher_temp,
-                _scaling.interpolate(
-                    input=self.end_teacher_temp,
-                    input_start=0.02,
-                    input_end=0.07,
-                    value_start=0.02,
-                    value_end=0.04,
-                    round_ndigits=2,
-                ),
-            )
-
-        if self.warmup_teacher_temp_epochs == "auto":
-            # Default warmup teacher temperature epochs of 30 is too high when training
-            # for only a few total epochs. Have the warmup period be 30% of all epochs,
-            # but with a maximum of 30 epochs.
-            self.warmup_teacher_temp_epochs = int(
-                _scaling.interpolate(
-                    scaling_info.epochs,
-                    input_start=0,
-                    input_end=100,
-                    value_start=0,
-                    value_end=30,
-                )
-            )
+        if self.center_method == "auto":
+            # "softmax" for ViT-S/B and "sinkhorn_knopp" for ViT-L/G in original DINOv2
+            self.center_method = "softmax" if is_small_or_base else "sinkhorn_knopp"
 
         if self.momentum_start == "auto":
-            # Default momentum start of 0.996 is too high for small datasets. Lower momentum
-            # results in slower updates of the teacher model. This is important because with
-            # high momentum (fast changing teacher) and a small dataset, the initial
-            # training epochs become unstable.
-            self.momentum_start = _scaling.interpolate(
-                dataset_size,
-                input_start=20_000,
-                input_end=IMAGENET_SIZE,
-                value_start=0.99,
-                value_end=0.996,
-                round_ndigits=3,
-            )
+            # 0.992 for ViT-S/B and 0.994 for ViT-L/G in original DINOv2
+            # TODO(Guarin, 06/25): Figure out if we want to reduce momentum for smaller
+            # datasets.
+            self.momentum_start = 0.992 if is_small_or_base else 0.994
+
+        if self.teacher_temp_warmup_epochs == "auto":
+            # 30 for ViT-S/B and 80 for ViT-L/G in original DINOv2
+            # TODO(Guarin, 06/25): Figure out if we want to reduce warmup epochs for
+            # <100 epoch runs.
+            self.teacher_temp_warmup_epochs = 30 if is_small_or_base else 80
+
+        if self.layerwise_decay == "auto":
+            # 0.9 for ViT-S/B and 1.0 for ViT-L/G in original DINOv2
+            self.layerwise_decay = 0.9 if is_small_or_base else 1.0
+
+        if self.weight_decay_end == "auto":
+            # 0.4 for ViT-S/B and 0.2 for ViT-L/G in original DINOv2
+            self.weight_decay_end = 0.4 if is_small_or_base else 0.2
 
         if isinstance(optimizer_args, AdamWArgs):
             weight_decay = optimizer_args.weight_decay
@@ -288,8 +245,6 @@ class DINOv2Args(MethodArgs):
             raise ValueError(f"Unsupported optimizer_args type: {type(optimizer_args)}")
         if self.weight_decay_start == "auto":
             self.weight_decay_start = weight_decay
-        if self.weight_decay_end == "auto":
-            self.weight_decay_end = weight_decay
 
 
 class DINOv2AdamWViTSBArgs(AdamWArgs):
@@ -332,9 +287,9 @@ class DINOv2(Method):
         # Create teacher and student dino heads
         dino_head = partial(
             DINOProjectionHead,
-            input_dim=method_args.embed_dim,
+            input_dim=no_auto(method_args.embed_dim),
             hidden_dim=method_args.hidden_dim,
-            bottleneck_dim=method_args.bottleneck_dim,
+            bottleneck_dim=no_auto(method_args.dino_bottleneck_dim),
             output_dim=no_auto(method_args.output_dim),
             batch_norm=method_args.batch_norm,
             norm_last_layer=method_args.norm_last_layer,
@@ -345,15 +300,14 @@ class DINOv2(Method):
         )
 
         # Create teacher and student iBOT head
-        self.ibot_separate_head: bool = method_args.ibot_separate_head
         self.teacher_ibot_head: DINOHead | IBOTHead
         self.student_ibot_head: DINOHead | IBOTHead
-        if self.ibot_separate_head:
+        if no_auto(self.method_args.ibot_separate_head):
             ibot_head = partial(
                 DINOProjectionHead,
-                input_dim=method_args.embed_dim,
+                input_dim=no_auto(method_args.embed_dim),
                 hidden_dim=method_args.hidden_dim,
-                bottleneck_dim=method_args.bottleneck_dim_ibot,
+                bottleneck_dim=method_args.ibot_bottleneck_dim,
                 output_dim=no_auto(method_args.output_dim),
                 batch_norm=method_args.batch_norm,
                 norm_last_layer=method_args.norm_last_layer,
@@ -372,7 +326,7 @@ class DINOv2(Method):
         freeze_eval_module(self.teacher_ibot_head)
 
         # Losses
-        self.centering = method_args.centering
+        self.centering = method_args.center_method
         self.dino_loss = DINOLoss(
             out_dim=no_auto(method_args.output_dim),
             student_temp=method_args.student_temp,
@@ -425,12 +379,12 @@ class DINOv2(Method):
         teacher_temp = linear_warmup_schedule(
             step=self.trainer.global_step,
             warmup_steps=int(
-                no_auto(self.method_args.warmup_teacher_temp_epochs)  # type: ignore[operator]
+                no_auto(self.method_args.teacher_temp_warmup_epochs)  # type: ignore[operator]
                 / self.trainer.max_epochs
                 * self.trainer.estimated_stepping_batches
             ),
-            start_value=no_auto(self.method_args.start_teacher_temp),
-            end_value=no_auto(self.method_args.end_teacher_temp),
+            start_value=self.method_args.teacher_temp_start,
+            end_value=self.method_args.teacher_temp_end,
         )
 
         # Get the views
@@ -446,8 +400,8 @@ class DINOv2(Method):
         # Masking
         n_crops = global_views.shape[0]  # G*B
         batch_size = n_crops // n_global_crops
-        h = global_views.shape[2] // self.method_args.patch_size
-        w = global_views.shape[3] // self.method_args.patch_size
+        h = global_views.shape[2] // no_auto(self.method_args.patch_size)
+        w = global_views.shape[3] // no_auto(self.method_args.patch_size)
 
         mask_generator = MaskingGenerator(
             input_size=(h, w),
@@ -672,7 +626,7 @@ class DINOv2(Method):
 
     def trainable_modules(self) -> TrainableModules:
         # decay is realized in get_optimizer_with_decay
-        if self.ibot_separate_head:
+        if no_auto(self.method_args.ibot_separate_head):
             return TrainableModules(
                 modules=[
                     self.student_embedding_model_wrapper._model,
@@ -695,7 +649,7 @@ class DINOv2(Method):
         optim = get_optimizer_with_decay(
             optim_args=self.optimizer_args,
             trainable_modules=self.trainable_modules(),
-            layerwise_decay=self.method_args.layerwise_decay,
+            layerwise_decay=no_auto(self.method_args.layerwise_decay),
             patch_embed_lr_multiplier=self.method_args.patch_embed_lr_multiplier,
         )
         if self.trainer.max_epochs is None:
@@ -738,8 +692,8 @@ class DINOv2(Method):
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
-            start_value=self.method_args.weight_decay_start,
-            end_value=self.method_args.weight_decay_end,
+            start_value=no_auto(self.method_args.weight_decay_start),
+            end_value=no_auto(self.method_args.weight_decay_end),
         )
 
         updates = []
@@ -768,7 +722,7 @@ class DINOv2(Method):
             m=momentum,
         )
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
-        if self.ibot_separate_head:
+        if no_auto(self.method_args.ibot_separate_head):
             update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
         super().on_train_batch_end(outputs=outputs, batch=batch, batch_idx=batch_idx)
 

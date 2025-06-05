@@ -37,36 +37,80 @@ class ModelVariantParams:
     n_blocks: int
     embed_dim: int
     num_heads: int
+    patch_size: int
 
 
-giant_params = ModelVariantParams(n_blocks=40, embed_dim=1536, num_heads=24)
-large_params = ModelVariantParams(n_blocks=24, embed_dim=1024, num_heads=16)
-base_params = ModelVariantParams(n_blocks=12, embed_dim=768, num_heads=12)
-small_params = ModelVariantParams(n_blocks=12, embed_dim=384, num_heads=6)
-
-
-@dataclass
-class ModelVariantScalingResult:
-    ibot_separate_head: bool
-    bottleneck_dim: int
-    bottleneck_dim_ibot: int
-    centering: Literal["sinkhorn_knopp", "softmax"]
-    layerwise_decay: float
-
-
-giant_large_scaling_result = ModelVariantScalingResult(
-    ibot_separate_head=True,
-    bottleneck_dim=384,
-    bottleneck_dim_ibot=256,
-    centering="sinkhorn_knopp",
-    layerwise_decay=1.0,
+giant_params = ModelVariantParams(
+    n_blocks=40, embed_dim=1536, num_heads=24, patch_size=14
 )
-base_small_scaling_result = ModelVariantScalingResult(
+large_params = ModelVariantParams(
+    n_blocks=24, embed_dim=1024, num_heads=16, patch_size=14
+)
+base_params = ModelVariantParams(
+    n_blocks=12, embed_dim=768, num_heads=12, patch_size=14
+)
+small_params = ModelVariantParams(
+    n_blocks=12, embed_dim=384, num_heads=6, patch_size=14
+)
+
+giant_method_args = DINOv2Args(
+    embed_dim=1536,
+    patch_size=14,
+    ibot_separate_head=True,
+    dino_bottleneck_dim=384,
+    ibot_bottleneck_dim=256,
+    output_dim=131072,
+    center_method="sinkhorn_knopp",
+    momentum_start=0.994,
+    teacher_temp_warmup_epochs=80,
+    layerwise_decay=1.0,
+    weight_decay_start=0.04,
+    weight_decay_end=0.2,
+)
+
+large_method_args = DINOv2Args(
+    embed_dim=1024,
+    patch_size=14,
+    ibot_separate_head=True,
+    dino_bottleneck_dim=384,
+    ibot_bottleneck_dim=256,
+    output_dim=131072,
+    center_method="sinkhorn_knopp",
+    momentum_start=0.994,
+    teacher_temp_warmup_epochs=80,
+    layerwise_decay=1.0,
+    weight_decay_start=0.04,
+    weight_decay_end=0.2,
+)
+
+base_method_args = DINOv2Args(
+    embed_dim=768,
+    patch_size=14,
     ibot_separate_head=False,
-    bottleneck_dim=256,
-    bottleneck_dim_ibot=256,
-    centering="softmax",
+    dino_bottleneck_dim=256,
+    ibot_bottleneck_dim=256,
+    output_dim=65536,
+    center_method="softmax",
+    momentum_start=0.992,
+    teacher_temp_warmup_epochs=30,
     layerwise_decay=0.9,
+    weight_decay_start=0.04,
+    weight_decay_end=0.4,
+)
+
+small_method_args = DINOv2Args(
+    embed_dim=384,
+    patch_size=14,
+    ibot_separate_head=False,
+    dino_bottleneck_dim=256,
+    ibot_bottleneck_dim=256,
+    output_dim=65536,
+    center_method="softmax",
+    momentum_start=0.992,
+    teacher_temp_warmup_epochs=30,
+    layerwise_decay=0.9,
+    weight_decay_start=0.04,
+    weight_decay_end=0.4,
 )
 
 
@@ -75,7 +119,7 @@ class ScalingResult:
     output_dim: int
     start_teacher_temp: float
     end_teacher_temp: float
-    warmup_teacher_temp_epochs: int
+    teacher_temp_warmup_epochs: int
     momentum_start: float
 
 
@@ -158,7 +202,7 @@ class TestDINOv2:
         dinov2_args = DINOv2Args()
         dinov2_args.ibot_separate_head = ibot_separate_head
         dinov2_args.n_local_crops = n_local_crops
-        dinov2_args.centering = centering
+        dinov2_args.center_method = centering
 
         dinov2 = setup_dinov2_helper(dinov2_args, mocker, emb_model, b)
 
@@ -277,77 +321,30 @@ class TestDINOv2:
 
 class TestDINOv2Args:
     @pytest.mark.parametrize(
-        "scaling, scaling_result",
+        "model_params, expected_method_args",
         [
-            (
-                ScalingInfo(dataset_size=IMAGENET_SIZE, epochs=100),
-                ScalingResult(
-                    output_dim=65536,
-                    start_teacher_temp=0.04,
-                    end_teacher_temp=0.07,
-                    warmup_teacher_temp_epochs=30,
-                    momentum_start=0.996,
-                ),
-            ),
-            (
-                ScalingInfo(dataset_size=20_000, epochs=100),
-                ScalingResult(
-                    output_dim=2048,
-                    start_teacher_temp=0.02,
-                    end_teacher_temp=0.02,
-                    warmup_teacher_temp_epochs=30,
-                    momentum_start=0.99,
-                ),
-            ),
-            (
-                ScalingInfo(dataset_size=IMAGENET_SIZE, epochs=10),
-                ScalingResult(
-                    output_dim=65536,
-                    start_teacher_temp=0.04,
-                    end_teacher_temp=0.07,
-                    warmup_teacher_temp_epochs=3,
-                    momentum_start=0.996,
-                ),
-            ),
-        ],
-    )
-    @pytest.mark.parametrize(
-        "model_params, model_scaling_result",
-        [
-            (giant_params, giant_large_scaling_result),
-            (large_params, giant_large_scaling_result),
-            (base_params, base_small_scaling_result),
-            (small_params, base_small_scaling_result),
+            (giant_params, giant_method_args),
+            (large_params, large_method_args),
+            (base_params, base_method_args),
+            (small_params, small_method_args),
         ],
     )
     def test_resolve_auto__scaling_info(
         self,
-        scaling: ScalingInfo,
-        scaling_result: ScalingResult,
         model_params: ModelVariantParams,
-        model_scaling_result: ModelVariantScalingResult,
+        expected_method_args: DINOv2Args,
     ) -> None:
         dummy_vit_model_variant = dummy_vit_model()
         dummy_vit_model_variant._model.n_blocks = model_params.n_blocks  # type: ignore[assignment]
         dummy_vit_model_variant._model.embed_dim = model_params.embed_dim  # type: ignore[assignment]
         dummy_vit_model_variant._model.num_heads = model_params.num_heads  # type: ignore[assignment]
+        dummy_vit_model_variant._model.patch_size = model_params.patch_size  # type: ignore[assignment]
 
         args = DINOv2Args()
         args.resolve_auto(
-            scaling_info=scaling,
+            scaling_info=ScalingInfo(dataset_size=IMAGENET_SIZE, epochs=100),
             optimizer_args=DINOv2AdamWViTSBArgs(),
             model=dummy_vit_model_variant.get_model(),
         )
-        assert args.ibot_separate_head == model_scaling_result.ibot_separate_head
-        assert args.bottleneck_dim == model_scaling_result.bottleneck_dim
-        assert args.bottleneck_dim_ibot == model_scaling_result.bottleneck_dim_ibot
-        assert args.centering == model_scaling_result.centering
-        assert args.layerwise_decay == model_scaling_result.layerwise_decay
-        assert args.output_dim == scaling_result.output_dim
-        assert args.start_teacher_temp == scaling_result.start_teacher_temp
-        assert args.end_teacher_temp == scaling_result.end_teacher_temp
-        assert (
-            args.warmup_teacher_temp_epochs == scaling_result.warmup_teacher_temp_epochs
-        )
-        assert args.momentum_start == scaling_result.momentum_start
         assert not args.has_auto()
+        assert args == expected_method_args
