@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 import torch
@@ -81,7 +81,7 @@ class ScalingResult:
     momentum_start: float
 
 
-def dummy_vit_model(patch_size=2, **kwargs) -> DINOv2ViTModelWrapper:
+def dummy_vit_model(patch_size=2, **kwargs: Any) -> DINOv2ViTModelWrapper:
     return DINOv2ViTModelWrapper(model=vit_tiny__testing(patch_size, **kwargs))
 
 
