@@ -46,7 +46,7 @@ def setup_dinov2_helper(
     dinov2_args.resolve_auto(
         scaling_info=scaling_info,
         optimizer_args=optimizer_args,
-        model=emb_model.wrapped_model.get_model(),
+        wrapped_model=emb_model.wrapped_model,
     )
 
     dinov2 = DINOv2(
@@ -231,6 +231,6 @@ class TestDINOv2Args:
         args.resolve_auto(
             scaling_info=ScalingInfo(dataset_size=IMAGENET_SIZE, epochs=100),
             optimizer_args=DINOv2AdamWViTArgs(),
-            model=vit_tiny__testing(),
+            wrapped_model=dummy_vit_model(),
         )
         assert not args.has_auto()

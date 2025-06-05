@@ -49,6 +49,7 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -170,7 +171,7 @@ class DINOv2Args(MethodArgs):
         self,
         scaling_info: ScalingInfo,
         optimizer_args: OptimizerArgs,
-        model: Module,
+        wrapped_model: ModelWrapper,
     ) -> None:
         if isinstance(optimizer_args, AdamWArgs):
             weight_decay = optimizer_args.weight_decay
@@ -572,7 +573,7 @@ class DINOv2(Method):
         if self.method_args.ibot_separate_head:
             return TrainableModules(
                 modules=[
-                    self.student_embedding_model_wrapper._model,
+                    self.student_embedding_model_wrapper.get_model(),
                     self.student_dino_head,
                     self.student_ibot_head,
                 ],
@@ -580,7 +581,7 @@ class DINOv2(Method):
         else:
             return TrainableModules(
                 modules=[
-                    self.student_embedding_model_wrapper._model,
+                    self.student_embedding_model_wrapper.get_model(),
                     self.student_dino_head,
                 ]
             )
