@@ -77,12 +77,12 @@ def test__remove_handlers_by_type() -> None:
 
 
 def test_set_up_file_logging() -> None:
-    with tempfile.NamedTemporaryFile(delete=False) as file:
-        temp_path = Path(file.name)
+    temp_path = Path(tempfile.mktemp())
     try:
         # Store original logger state
         logger = logging.getLogger("lightly_train")
         original_level = logger.level
+        original_handlers = logger.handlers.copy()
 
         # Reset logger to ensure clean state
         logger.setLevel(logging.DEBUG)
@@ -93,6 +93,12 @@ def test_set_up_file_logging() -> None:
         logger.warning("warning message")
         logger.error("error message")
         logger.critical("critical message")
+
+        # Ensure logs are flushed before reading
+        for handler in logger.handlers:
+            if hasattr(handler, 'flush'):
+                handler.flush()
+
         logs = temp_path.read_text()
         assert "debug message" in logs
         assert "info message" in logs
@@ -100,10 +106,26 @@ def test_set_up_file_logging() -> None:
         assert "error message" in logs
         assert "critical message" in logs
     finally:
+        # Clean up handlers that might still have the file open
+        for handler in logger.handlers[:]:  # Copy list to avoid modification during iteration
+            if isinstance(handler, logging.FileHandler) and str(temp_path) in str(handler.baseFilename):
+                handler.close()
+                logger.removeHandler(handler)
+        
         # Restore original logger state
         logger.setLevel(original_level)
+        logger.handlers.clear()
+        logger.handlers.extend(original_handlers)
+
+        # Clean up the file
         if temp_path.exists():
-            temp_path.unlink()
+            try:
+                temp_path.unlink()
+            except PermissionError:
+                # On Windows, sometimes we need a brief delay
+                import time
+                time.sleep(0.1)
+                temp_path.unlink()
 
 
 class TestRegexFilter:
