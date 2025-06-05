@@ -38,10 +38,11 @@ jobs:
     name: Test Unit
     needs: detect-code-changes
     if: needs.detect-code-changes.outputs.run-tests == 'true'
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         python: ["3.8", "3.12"]
+        runners: ["ubuntu-latest", "macos-latest"]
+    runs-on: ${{ matrix.runners }}
     steps:
       - name: Setup cmake
         # TODO(04/25, Guarin): Check if this is still needed on GitHub hosted runners.
@@ -67,6 +68,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Set Up FFmpeg
+        if: ${{ matrix.runners == 'ubuntu-latest' }}
         uses: FedericoCarboni/setup-ffmpeg@v3
         with:
           ffmpeg-version: 4.3.1
