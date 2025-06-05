@@ -72,6 +72,7 @@ class DINOLoss(nn.Module):
         self.center: torch.Tensor  # Type hint for self.center
         self.updated = True
         self.reduce_handle = None
+        # TODO(Thomas, 06/25): Breakpoint to check student_temp and center_momentum
 
     @torch.no_grad()
     def softmax_center_teacher(
@@ -79,6 +80,7 @@ class DINOLoss(nn.Module):
     ) -> Tensor:
         self.apply_center_update()
         # teacher centering and sharpening
+        # TODO(Thomas, 06/25): Breakpoint to check shapes and norms
         return F.softmax((teacher_output - self.center) / teacher_temp, dim=-1)
 
     @torch.no_grad()
@@ -122,7 +124,7 @@ class DINOLoss(nn.Module):
         """
         Cross-entropy between softmax outputs of the teacher and student networks.
         """
-
+        # TODO(Thomas, 06/25): Breakpoint to check shapes and norms
         total_loss: Tensor = torch.tensor(0.0, device=student_output_list[0].device)
         for s in student_output_list:
             lsm = F.log_softmax(s / self.student_temp, dim=-1)
@@ -138,6 +140,7 @@ class DINOLoss(nn.Module):
 
     @torch.no_grad()
     def reduce_center_update(self, teacher_output: Tensor) -> None:
+        # TODO(Thomas, 06/25): Breakpoint to check shapes and norms
         self.updated = False
         self.len_teacher_output = teacher_output.shape[0]
         self.async_batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
@@ -146,6 +149,7 @@ class DINOLoss(nn.Module):
 
     @torch.no_grad()
     def apply_center_update(self) -> None:
+        # TODO(Thomas, 06/25): Breakpoint to check shapes and norms
         if self.updated is False:
             world_size = dist.get_world_size() if dist.is_initialized() else 1
 
@@ -174,11 +178,13 @@ class IBOTPatchLoss(nn.Module):
         self.center: torch.Tensor  # Type hint for self.center
         self.updated = True
         self.reduce_handle = None
+        # TODO(Thomas, 06/25): Breakpoint to check student_temp and center_momentum
 
     @torch.no_grad()
     def softmax_center_teacher(
         self, teacher_patch_tokens: Tensor, teacher_temp: float
     ) -> Tensor:
+        # TODO(Thomas, 06/25): Breakpoint to check shapes and norms
         self.apply_center_update()
 
         # TODO: self.center uses float32 which might cause unnecessary upcasting in fp16 settings which could slow down training
@@ -235,6 +241,7 @@ class IBOTPatchLoss(nn.Module):
         teacher_patch_tokens: (B, N, D) tensor
         student_masks_flat: (B, N) tensor
         """
+        # TODO(Thomas, 06/25): Breakpoint to check shapes and norms
         t = teacher_patch_tokens
         s = student_patch_tokens
         loss = torch.sum(t * F.log_softmax(s / self.student_temp, dim=-1), dim=-1)
@@ -251,6 +258,7 @@ class IBOTPatchLoss(nn.Module):
         n_masked_patches: int | None = None,
         masks_weight: Tensor | None = None,
     ) -> Tensor:
+        # TODO(Thomas, 06/25): Breakpoint to check shapes and norms
         t = teacher_patch_tokens_masked
         s = student_patch_tokens_masked
         loss: Tensor = lossfunc(t, s, self.student_temp)
@@ -273,6 +281,7 @@ class IBOTPatchLoss(nn.Module):
 
     @torch.no_grad()
     def reduce_center_update(self, teacher_patch_tokens: Tensor) -> None:
+        # TODO(Thomas, 06/25): Breakpoint to check shapes and norms
         self.updated = False
         self.len_teacher_patch_tokens = len(teacher_patch_tokens)
         self.async_batch_center = torch.sum(
@@ -283,6 +292,7 @@ class IBOTPatchLoss(nn.Module):
 
     @torch.no_grad()
     def apply_center_update(self) -> None:
+        # TODO(Thomas, 06/25): Breakpoint to check shapes and norms
         if self.updated is False:
             world_size = dist.get_world_size() if dist.is_initialized() else 1
 
