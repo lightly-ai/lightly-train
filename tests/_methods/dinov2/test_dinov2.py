@@ -328,9 +328,9 @@ class TestDINOv2Args:
         model_scaling_result: ModelVariantScalingResult,
     ) -> None:
         dummy_vit_model_variant = dummy_vit_model()
-        dummy_vit_model_variant.get_model().n_blocks = model_params.n_blocks  # type: ignore[assignment]
-        dummy_vit_model_variant.get_model().embed_dim = model_params.embed_dim  # type: ignore[assignment]
-        dummy_vit_model_variant.get_model().num_heads = model_params.num_heads  # type: ignore[assignment]
+        dummy_vit_model_variant._model.n_blocks = model_params.n_blocks  # type: ignore[assignment]
+        dummy_vit_model_variant._model.embed_dim = model_params.embed_dim  # type: ignore[assignment]
+        dummy_vit_model_variant._model.num_heads = model_params.num_heads  # type: ignore[assignment]
 
         args = DINOv2Args()
         args.resolve_auto(

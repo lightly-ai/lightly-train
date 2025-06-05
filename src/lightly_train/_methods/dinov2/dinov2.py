@@ -765,8 +765,8 @@ class DINOv2(Method):
             end_value=self.method_args.momentum_end,
         )
         update_momentum(
-            self.student_embedding_model_wrapper.get_model(),
-            self.teacher_embedding_model_wrapper.get_model(),
+            self.student_embedding_model_wrapper._model,
+            self.teacher_embedding_model_wrapper._model,
             m=momentum,
         )
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
