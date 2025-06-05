@@ -73,26 +73,29 @@ class TestMaskingGenerator:
         assert n_masked_patch_tokens_min <= mask.sum() <= n_masked_patch_tokens
 
     @pytest.mark.parametrize(
-        "aspect_ratio, factor, is_masked",
+        "aspect_ratio, masking_percentage, is_masked",
         [
-            (0.1, 0.1, False),
-            (0.1, 0.5, True),
-            (0.1, 1.5, False),
+            (0.1, 0.005, False),
+            (0.1, 0.05, True),
+            (0.1, 0.5, False),
             (2.0, 0.001, False),
-            (2.0, 0.1, True),
-            (2.0, 0.5, False),
+            (2.0, 0.01, True),
+            (2.0, 1.0, False),
         ],
     )
     def test_masking_generator__aspect_ratio_validity(
-        self, aspect_ratio: float, factor: Union[float, int], is_masked: bool
+        self,
+        aspect_ratio: float,
+        masking_percentage: Union[float, int],
+        is_masked: bool,
     ) -> None:
-        # We use a factor to reparameterize the number of masked patches allowed, in this case, let A be the aspect ratio and G the grid size.:
-        # 1. the minimum factor allowed should be 0.5**2 / G**2 to ensure that the width to be at least 1
-        # 2. the minimum factor allowed should also be 0.5**2 / (A**2 * G**2) to ensure that the height to be at least 1
-        # 3. the maximum factor allowed should be (G+0.5)**2 / G**2 to ensure that the width does not exceed the grid_size
-        # 4. the maximum factor allowed should also be (G+0.5)**2 / (A**2 * G**2) to ensure that the height does not exceed the grid_size
-        # the exact factor can be slightly different due to int()
-        n_masked_patch_tokens = int(factor * aspect_ratio * self.grid_size**2)
+        # For testing purposes use a masking_percentage to reparameterize the number of masked patches allowed, in this case, let A be the aspect ratio and G the grid size.:
+        # 1. the minimum masking_percentage allowed should also be 0.5**2 / (A*G**2) to ensure that the height to be at least 1
+        # 2. the minimum masking_percentage allowed should be 0.5**2*A / G**2 to ensure that the width to be at least 1
+        # 3. the maximum masking_percentage allowed should be (G+0.5)**2 / (A*G**2) to ensure that the height does not exceed the grid_size
+        # 4. the maximum masking_percentage allowed should also be (G+0.5)**2*A / G**2 to ensure that the width does not exceed the grid_size
+        # the exact masking_percentage can be slightly different due to int()
+        n_masked_patch_tokens = int(masking_percentage * self.grid_size**2)
 
         masking_generator = MaskingGenerator(
             input_size=(self.grid_size, self.grid_size),
