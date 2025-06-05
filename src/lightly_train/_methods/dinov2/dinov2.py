@@ -276,6 +276,8 @@ class DINOv2(Method):
         self.method_args = method_args
 
         # Create teacher and student embedding models
+        # TODO(Guarin, 06/25): Can we refactor this to use the embedding models
+        # directly instead of having to extract the wrapped model?
         model_wrapper: DINOv2ViTModelWrapper = embedding_model.wrapped_model  # type: ignore[assignment]
         self.teacher_embedding_model_wrapper = model_wrapper
         self.student_embedding_model_wrapper = copy.deepcopy(
