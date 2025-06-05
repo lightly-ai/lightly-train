@@ -130,7 +130,7 @@ class TestDINOv2:
         assert DINOv2.optimizer_args_cls(optim_type=optim_type) == expected
 
     @pytest.mark.parametrize(
-        "n_local_crops, ibot_separate_head, centering",
+        "n_local_crops, ibot_separate_head, center_method",
         [
             (8, False, "softmax"),
             (0, False, "softmax"),
@@ -143,7 +143,7 @@ class TestDINOv2:
         mocker: MockerFixture,
         n_local_crops: int,
         ibot_separate_head: bool,
-        centering: Literal["softmax", "sinkhorn_knopp"],
+        center_method: Literal["softmax", "sinkhorn_knopp"],
     ) -> None:
         emb_model = EmbeddingModel(wrapped_model=dummy_vit_model())
         b = 16
@@ -157,11 +157,9 @@ class TestDINOv2:
         }
 
         # run DistillationV2
-        dinov2_args = DINOv2Args()
-        dinov2_args.ibot_separate_head = ibot_separate_head
-        dinov2_args.n_local_crops = n_local_crops
-        dinov2_args.center_method = centering
-
+        dinov2_args = DINOv2Args(
+            ibot_separate_head=ibot_separate_head, center_method=center_method
+        )
         dinov2 = setup_dinov2_helper(dinov2_args, mocker, emb_model, b)
 
         out = dinov2.training_step_impl(batch, 0)

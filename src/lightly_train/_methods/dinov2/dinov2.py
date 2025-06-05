@@ -107,11 +107,6 @@ class DINOv2TrainingStepResult(TrainingStepResult):
 class DINOv2Args(MethodArgs):
     """Args for DINOv2 method for ImageNet dataset."""
 
-    # TODO(Guarin, 06/25): Infer this from the transform instead of having it as an
-    # additional arg.
-    # transform_cls().transform_args_cls().transform_args.local_view.num_views
-    n_local_crops: int = 8
-
     # projection head
     ibot_separate_head: bool | Literal["auto"] = "auto"
     hidden_dim: int = 2048
@@ -387,14 +382,16 @@ class DINOv2(Method):
         )
 
         # Get the views
+        views = batch["views"]
         # Calculate the number of crops
         n_global_crops = 2
-        n_local_crops = self.method_args.n_local_crops
+        n_local_crops = len(views) - n_global_crops
         n_global_crops_loss_terms = (n_global_crops - 1) * n_global_crops
         n_local_crops_loss_terms = max(n_local_crops * n_global_crops, 1)
 
-        views = batch["views"]
-        global_views = torch.cat(views[:2])  # G * [B, C, H, W] -> [G*B, C, H, W]
+        global_views = torch.cat(
+            views[:n_global_crops]
+        )  # G * [B, C, H, W] -> [G*B, C, H, W]
 
         # Masking
         n_crops = global_views.shape[0]  # G*B
@@ -459,7 +456,9 @@ class DINOv2(Method):
         # Process local views through student network if they exist
         dino_local_loss = torch.tensor(0.0)
         if n_local_crops > 0:
-            local_views = torch.cat(views[2:])  # L * [B, C, H, W] -> [L*B, C, H, W]
+            local_views = torch.cat(
+                views[n_global_crops:]
+            )  # L * [B, C, H, W] -> [L*B, C, H, W]
             student_cls_tokens_local = self._forward_student_local(
                 local_views
             )  # [L*B, D]
