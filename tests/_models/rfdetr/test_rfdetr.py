@@ -77,3 +77,12 @@ class TestRFDETRModelWrapper:
         wrapped_model = RFDETRModelWrapper(model=model)
         model_ = wrapped_model.get_model()
         assert model_ is model
+
+    def test__device(self) -> None:
+        # If this test fails it means the wrapped model doesn't move all required
+        # modules to the correct device. This happens if not all required modules
+        # are registered as attributes of the class.
+        model = RFDETRBase()  # type: ignore[no-untyped-call]
+        wrapped_model = RFDETRModelWrapper(model=model)
+        wrapped_model.to("meta")
+        wrapped_model.forward_features(torch.rand(1, 3, 224, 224, device="meta"))
