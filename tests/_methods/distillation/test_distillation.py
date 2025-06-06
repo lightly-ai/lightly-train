@@ -13,7 +13,6 @@ import pytest
 import torch
 import torch.nn.functional as F
 from pytest_mock import MockerFixture
-from torch.nn import Module
 
 from lightly_train._methods.distillation.distillation import (
     Distillation,
@@ -40,7 +39,7 @@ class TestDistillationArgs:
         args.resolve_auto(
             scaling_info=scaling_info,
             optimizer_args=DistillationLARSArgs(),
-            model=Module(),
+            wrapped_model=DummyCustomModel(),
         )
 
         # The expected queue size is 128 and it is expected to be an int.
@@ -59,7 +58,7 @@ class TestDistillationArgs:
         args.resolve_auto(
             scaling_info=scaling_info,
             optimizer_args=DistillationLARSArgs(),
-            model=Module(),
+            wrapped_model=DummyCustomModel(),
         )
 
         # The expected queue size is 8192 and it is expected to be an int.
@@ -80,7 +79,7 @@ class TestDistillationArgs:
             args.resolve_auto(
                 scaling_info=scaling_info,
                 optimizer_args=DistillationLARSArgs(),
-                model=Module(),
+                wrapped_model=DummyCustomModel(),
             )
 
     def test_resolve_auto_does_not_change_explicit_queue_size(self) -> None:
@@ -95,7 +94,7 @@ class TestDistillationArgs:
         args.resolve_auto(
             scaling_info=scaling_info,
             optimizer_args=DistillationLARSArgs(),
-            model=Module(),
+            wrapped_model=DummyCustomModel(),
         )
 
         # Verify that the queue size is unchanged.
