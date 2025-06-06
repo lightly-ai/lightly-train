@@ -84,9 +84,12 @@ formats are supported.
   from torchvision.models import resnet50
 
   model = resnet50()
-  model.load_state_dict(torch.load("my_exported_model.pt"))
-  ```
+  model.load_state_dict(torch.load("my_exported_model.pt", weights_only=True))
+
   ````
+
+  ```
+  ```
 
   ````{dropdown} ultralytics
   ```python
@@ -127,7 +130,7 @@ formats are supported.
   from torchvision.models import resnet50
 
   model = resnet50()
-  model.load_state_dict(torch.load("my_exported_model.pt"))
+  model.load_state_dict(torch.load("my_exported_model.pt", weights_only=True))
   ```
 
 - `torch_model`
@@ -137,7 +140,7 @@ formats are supported.
   ```python
   import torch
 
-  model = torch.load("my_exported_model.pt")
+  model = torch.load("my_exported_model.pt", weights_only=True)
   ```
 
   This requires that the same Lightly**Train** version is installed when the model is
