@@ -96,3 +96,12 @@ class TestDINOv2ViTModelWrapper:
             assert isinstance(teacher_block.drop_path1, torch.nn.Identity)
             assert isinstance(teacher_block.drop_path2, torch.nn.Identity)
             assert teacher_block.sample_drop_ratio == 0.0
+
+    def test__device(self) -> None:
+        # If this test fails it means the wrapped model doesn't move all required
+        # modules to the correct device. This happens if not all required modules
+        # are registered as attributes of the class.
+        model = vit_small()
+        feature_extractor = DINOv2ViTModelWrapper(model=model)
+        feature_extractor.to("meta")
+        feature_extractor.forward_features(torch.rand(1, 3, 224, 224, device="meta"))

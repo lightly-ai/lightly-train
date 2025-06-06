@@ -104,6 +104,15 @@ class TestUltralyticsModelWrapper:
         feature_extractor = UltralyticsModelWrapper(model=model)
         assert feature_extractor.get_model() is model
 
+    def test__device(self) -> None:
+        # If this test fails it means the wrapped model doesn't move all required
+        # modules to the correct device. This happens if not all required modules
+        # are registered as attributes of the class.
+        model = YOLO("yolov8s.yaml")
+        feature_extractor = UltralyticsModelWrapper(model=model)
+        feature_extractor.to("meta")
+        feature_extractor.forward_features(torch.rand(1, 3, 224, 224, device="meta"))
+
 
 def test__sppf_skip_cv2_bn_act() -> None:
     sppf = SPPF(128, 5)
