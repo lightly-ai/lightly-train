@@ -48,3 +48,12 @@ class TestSegmentationModule:
         model = SUPER_GRADIENTS_PACKAGE.get_model("pp_lite_t_seg50")
         fe = SegmentationModuleModelWrapper(model)
         assert fe.get_model() is model
+
+    def test__device(self) -> None:
+        # If this test fails it means the wrapped model doesn't move all required
+        # modules to the correct device. This happens if not all required modules
+        # are registered as attributes of the class.
+        model = SUPER_GRADIENTS_PACKAGE.get_model("pp_lite_t_seg50")
+        fe = SegmentationModuleModelWrapper(model)
+        fe.to("meta")
+        fe.forward_features(torch.rand(1, 3, 224, 224, device="meta"))
