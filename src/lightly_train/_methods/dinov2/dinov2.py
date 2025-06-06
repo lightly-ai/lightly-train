@@ -22,12 +22,12 @@ from lightly.models.modules.heads import DINOProjectionHead
 from lightly.models.utils import update_momentum
 from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
+from pydantic import Field
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
 from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
-from lightly_train import _scaling
 from lightly_train._configs.validate import no_auto
 from lightly_train._methods.dinov2.dinov2_loss import (
     DINOLoss,
@@ -36,9 +36,10 @@ from lightly_train._methods.dinov2.dinov2_loss import (
 from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2ViTTransform,
 )
-from lightly_train._methods.dinov2.scheduler import (
-    linear_warmup_schedule,  # TODO: import from LightlySSL after new release
-)
+
+# TODO(Guarin, 06/25): import linear_warmup_schedule from LightlySSL once we no longer
+# support LightlySSL <= 1.5.20
+from lightly_train._methods.dinov2.scheduler import linear_warmup_schedule
 from lightly_train._methods.dinov2.utils import (
     MaskingGenerator,
     create_collated_masks,
@@ -47,16 +48,13 @@ from lightly_train._methods.dinov2.utils import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    DinoVisionTransformer,
-)
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
-from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
+from lightly_train._scaling import ScalingInfo
 from lightly_train.types import Batch
 
 logger = logging.getLogger(__name__)
@@ -107,25 +105,18 @@ class DINOv2TrainingStepResult(TrainingStepResult):
 
 
 class DINOv2Args(MethodArgs):
-    """Args for DINOv2 method for ImageNet dataset."""
+    """Args for DINOv2 method following the fast setup from the original DINOv2 paper.
 
-    # crops
-    n_local_crops: int = (
-        8  # transform_cls().transform_args_cls().transform_args.local_view.num_views
-    )
-
-    # vit
-    embed_dim: int = 384  # default embed_dim for ViT-S, can be overridden by the model
-    patch_size: int = 14  # default patch_size for ViT-S, can be overridden by the model
+    See: https://github.com/facebookresearch/dinov2/tree/main?tab=readme-ov-file#training
+    """
 
     # projection head
+    # False/True for fast/long setup in original DINOv2
     ibot_separate_head: bool = False
     hidden_dim: int = 2048
-    bottleneck_dim: int = 256
-    bottleneck_dim_ibot: int = 256
-    output_dim: int | Literal["auto"] = (
-        "auto"  # 65536 for ViT-S/B, 131072 for ViT-L/G in the original DINOv2
-    )
+    dino_bottleneck_dim: int = 256  # 256/384 for fast/long setup in original DINOv2
+    ibot_bottleneck_dim: int = 256
+    output_dim: int = 65536  # 65536/131072 for fast/long setup in original DINOv2
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
     norm_last_layer: bool = False
@@ -136,23 +127,23 @@ class DINOv2Args(MethodArgs):
     ibot_loss_weight: float = 1.0
     koleo_loss_weight: float = 0.1
 
-    student_temp: float = 0.1
-
-    centering: Literal["softmax", "sinkhorn_knopp"] = "softmax"
+    # softmax/sinkhorn_knopp for fast/long setup in original DINOv2
+    center_method: Literal["softmax", "sinkhorn_knopp"] = "softmax"
     center_momentum: float = 0.9
 
     # teacher momentum
-    momentum_start: float | Literal["auto"] = (
-        "auto"  # 0.992 for ViT-S/B, 0.994 for ViT-L/G in the original DINOv2
-    )
+    # TODO(Guarin, 06/25): Figure out good momentum start value for smaller datasets.
+    momentum_start: float = 0.992  # 0.992/0.994 for fast/long setup in original DINOv2
     momentum_end: float = 1.0
 
-    # teacher temp scheduler
-    start_teacher_temp: float | Literal["auto"] = "auto"  # 0.04 in the original DINOv2
-    end_teacher_temp: float | Literal["auto"] = "auto"  # 0.07 in the original DINOv2
-    warmup_teacher_temp_epochs: int | Literal["auto"] = (
-        "auto"  # 30 for ViT-S/B, 80 for ViT-L/G in the original DINOv2
-    )
+    student_temp: float = 0.1
+    # TODO(Guarin, 06/25): Figure out good teacher temp start/end values for smaller
+    # datasets.
+    teacher_temp_start: float = 0.04
+    teacher_temp_end: float = 0.07
+    # TODO(Guarin, 06/25): Figure out if we want to reduce warmup epochs for <100 epoch
+    # runs.
+    teacher_temp_warmup_epochs: int = 30  # 30/80 for fast/long setup in original DINOv2
 
     # masking
     mask_ratio_min: float = 0.1
@@ -164,16 +155,14 @@ class DINOv2Args(MethodArgs):
     warmup_epochs: int = 10
 
     # lr decay
-    layerwise_decay: float = 0.9
+    layerwise_decay: float = 0.9  # 0.9/1.0 for fast/long setup in original DINOv2
     patch_embed_lr_multiplier: float = 0.2
 
     # weight decay scheduler
-    weight_decay_start: float | Literal["auto"] = (
-        "auto"  # 0.04 for ViT-S/B in the original DINOv2
-    )
-    weight_decay_end: float | Literal["auto"] = (
-        "auto"  # 0.4 for ViT-S/B, 0.2 for ViT-L/G in the original DINOv2
-    )
+    weight_decay_start: float | Literal["auto"] = "auto"
+    # TODO(Guarin, 06/25): Should we adjust weight decay depending on model
+    # architecture?
+    weight_decay_end: float = 0.4  # 0.4/0.2 for fast/long setup in original DINOv2
 
     # gradient clipping
     gradient_clip_val: float = 3.0
@@ -184,123 +173,22 @@ class DINOv2Args(MethodArgs):
         optimizer_args: OptimizerArgs,
         wrapped_model: ModelWrapper,
     ) -> None:
-        # Determine the args based on the model architecture
-        model = wrapped_model.get_model()
-        if not isinstance(model, DinoVisionTransformer):
-            raise ValueError(
-                f"Expected model to be of type DinoVisionTransformer, but got {type(model)}."
-            )
-        depth: int = model.n_blocks
-        num_heads: int = model.num_heads
-        self.embed_dim: int = model.embed_dim
-        self.patch_size: int = model.patch_size
-        if (depth == 40 and num_heads == 24 and self.embed_dim == 1536) or (
-            depth == 24 and num_heads == 16 and self.embed_dim == 1024
-        ):  # giant / large
-            # projection head
-            self.ibot_separate_head = True
-            self.bottleneck_dim = 384
-            self.bottleneck_dim_ibot = 256
-            # loss
-            self.centering = "sinkhorn_knopp"
-            # lr decay
-            self.layerwise_decay = 1.0
-        elif (depth == 12 and num_heads == 12 and self.embed_dim == 768) or (
-            depth == 12 and num_heads == 6 and self.embed_dim == 384
-        ):  # base / small
-            pass
-        else:
-            logger.warning(
-                f"Model architecture: depth={depth}, num_heads={num_heads}, embed_dim={self.embed_dim} does not match any known DINOv2 model."
-                "Using default parameters for small/base models, but performance may be suboptimal."
-            )
-
-        dataset_size = scaling_info.dataset_size
-        if self.output_dim == "auto":
-            # Default output dim of 65536 is too large for small datasets.
-            self.output_dim = _scaling.get_bucket_value(
-                input=dataset_size,
-                buckets=[
-                    (20_000, 1024),
-                    (50_000, 2048),
-                    (100_000, 4096),
-                    (200_000, 16384),
-                    (500_000, 32768),
-                    (float("inf"), 65536),
-                ],
-            )
-
-        if self.end_teacher_temp == "auto":
-            # Default teacher temperature of 0.07 is too high for small datasets. Lower
-            # temperature results in stronger sharpening which avoids collapse to uniform
-            # distribution.
-            self.end_teacher_temp = _scaling.interpolate(
-                dataset_size,
-                input_start=20_000,
-                input_end=IMAGENET_SIZE,
-                value_start=0.02,
-                value_end=0.07,
-                round_ndigits=2,
-            )
-
-        if self.start_teacher_temp == "auto":
-            self.start_teacher_temp = min(
-                self.end_teacher_temp,
-                _scaling.interpolate(
-                    input=self.end_teacher_temp,
-                    input_start=0.02,
-                    input_end=0.07,
-                    value_start=0.02,
-                    value_end=0.04,
-                    round_ndigits=2,
-                ),
-            )
-
-        if self.warmup_teacher_temp_epochs == "auto":
-            # Default warmup teacher temperature epochs of 30 is too high when training
-            # for only a few total epochs. Have the warmup period be 30% of all epochs,
-            # but with a maximum of 30 epochs.
-            self.warmup_teacher_temp_epochs = int(
-                _scaling.interpolate(
-                    scaling_info.epochs,
-                    input_start=0,
-                    input_end=100,
-                    value_start=0,
-                    value_end=30,
-                )
-            )
-
-        if self.momentum_start == "auto":
-            # Default momentum start of 0.996 is too high for small datasets. Lower momentum
-            # results in slower updates of the teacher model. This is important because with
-            # high momentum (fast changing teacher) and a small dataset, the initial
-            # training epochs become unstable.
-            self.momentum_start = _scaling.interpolate(
-                dataset_size,
-                input_start=20_000,
-                input_end=IMAGENET_SIZE,
-                value_start=0.99,
-                value_end=0.996,
-                round_ndigits=3,
-            )
-
         if isinstance(optimizer_args, AdamWArgs):
             weight_decay = optimizer_args.weight_decay
         else:
             raise ValueError(f"Unsupported optimizer_args type: {type(optimizer_args)}")
         if self.weight_decay_start == "auto":
             self.weight_decay_start = weight_decay
-        if self.weight_decay_end == "auto":
-            self.weight_decay_end = weight_decay
 
 
-class DINOv2AdamWViTSBArgs(AdamWArgs):
+class DINOv2AdamWViTArgs(AdamWArgs):
+    # 0.004/0.0002 for fast/long setup in original DINOv2
+    # 0.002 works well with ViT-S/14 for ImageNet1k
     lr: float = 0.004
-    weight_decay: float = 0.04
-
-
-class DINOv2AdamWViTLGArgs(AdamWArgs):
-    lr: float = 2e-4
+    # Strict is set to False because OmegaConf does not support parsing tuples from the
+    # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
+    betas: tuple[float, float] = Field(default=(0.9, 0.999), strict=False)
+    eps: float = 1e-8
     weight_decay: float = 0.04
 
 
@@ -308,7 +196,7 @@ class DINOv2(Method):
     def __init__(
         self,
         method_args: DINOv2Args,
-        optimizer_args: DINOv2AdamWViTSBArgs | DINOv2AdamWViTLGArgs,
+        optimizer_args: DINOv2AdamWViTArgs,
         embedding_model: EmbeddingModel,
         global_batch_size: int,
     ):
@@ -323,6 +211,8 @@ class DINOv2(Method):
         self.method_args = method_args
 
         # Create teacher and student embedding models
+        # TODO(Guarin, 06/25): Can we refactor this to use the embedding models
+        # directly instead of having to extract the wrapped model?
         model_wrapper: DINOv2ViTModelWrapper = embedding_model.wrapped_model  # type: ignore[assignment]
         self.teacher_embedding_model_wrapper = model_wrapper
         self.student_embedding_model_wrapper = copy.deepcopy(
@@ -331,13 +221,16 @@ class DINOv2(Method):
         self.teacher_embedding_model_wrapper.make_teacher()
         freeze_eval_module(self.teacher_embedding_model_wrapper)
 
+        model = model_wrapper.get_model()
+        self._patch_size = model.patch_size
+
         # Create teacher and student dino heads
         dino_head = partial(
             DINOProjectionHead,
-            input_dim=method_args.embed_dim,
+            input_dim=model.embed_dim,
             hidden_dim=method_args.hidden_dim,
-            bottleneck_dim=method_args.bottleneck_dim,
-            output_dim=no_auto(method_args.output_dim),
+            bottleneck_dim=method_args.dino_bottleneck_dim,
+            output_dim=method_args.output_dim,
             batch_norm=method_args.batch_norm,
             norm_last_layer=method_args.norm_last_layer,
         )
@@ -347,16 +240,15 @@ class DINOv2(Method):
         )
 
         # Create teacher and student iBOT head
-        self.ibot_separate_head: bool = method_args.ibot_separate_head
         self.teacher_ibot_head: DINOHead | IBOTHead
         self.student_ibot_head: DINOHead | IBOTHead
-        if self.ibot_separate_head:
+        if self.method_args.ibot_separate_head:
             ibot_head = partial(
                 DINOProjectionHead,
-                input_dim=method_args.embed_dim,
+                input_dim=model.embed_dim,
                 hidden_dim=method_args.hidden_dim,
-                bottleneck_dim=method_args.bottleneck_dim_ibot,
-                output_dim=no_auto(method_args.output_dim),
+                bottleneck_dim=method_args.ibot_bottleneck_dim,
+                output_dim=method_args.output_dim,
                 batch_norm=method_args.batch_norm,
                 norm_last_layer=method_args.norm_last_layer,
             )
@@ -374,14 +266,13 @@ class DINOv2(Method):
         freeze_eval_module(self.teacher_ibot_head)
 
         # Losses
-        self.centering = method_args.centering
         self.dino_loss = DINOLoss(
-            out_dim=no_auto(method_args.output_dim),
+            out_dim=method_args.output_dim,
             student_temp=method_args.student_temp,
             center_momentum=method_args.center_momentum,
         )
         self.ibot_loss = IBOTPatchLoss(
-            patch_out_dim=no_auto(method_args.output_dim),
+            patch_out_dim=method_args.output_dim,
             student_temp=method_args.student_temp,
             center_momentum=method_args.center_momentum,
         )
@@ -427,29 +318,31 @@ class DINOv2(Method):
         teacher_temp = linear_warmup_schedule(
             step=self.trainer.global_step,
             warmup_steps=int(
-                no_auto(self.method_args.warmup_teacher_temp_epochs)  # type: ignore[operator]
+                self.method_args.teacher_temp_warmup_epochs  # type: ignore[operator]
                 / self.trainer.max_epochs
                 * self.trainer.estimated_stepping_batches
             ),
-            start_value=no_auto(self.method_args.start_teacher_temp),
-            end_value=no_auto(self.method_args.end_teacher_temp),
+            start_value=self.method_args.teacher_temp_start,
+            end_value=self.method_args.teacher_temp_end,
         )
 
         # Get the views
+        views = batch["views"]
         # Calculate the number of crops
         n_global_crops = 2
-        n_local_crops = self.method_args.n_local_crops
+        n_local_crops = len(views) - n_global_crops
         n_global_crops_loss_terms = (n_global_crops - 1) * n_global_crops
         n_local_crops_loss_terms = max(n_local_crops * n_global_crops, 1)
 
-        views = batch["views"]
-        global_views = torch.cat(views[:2])  # G * [B, C, H, W] -> [G*B, C, H, W]
+        global_views = torch.cat(
+            views[:n_global_crops]
+        )  # G * [B, C, H, W] -> [G*B, C, H, W]
 
         # Masking
         n_crops = global_views.shape[0]  # G*B
         batch_size = n_crops // n_global_crops
-        h = global_views.shape[2] // self.method_args.patch_size
-        w = global_views.shape[3] // self.method_args.patch_size
+        h = global_views.shape[2] // self._patch_size
+        w = global_views.shape[3] // self._patch_size
 
         mask_generator = MaskingGenerator(
             input_size=(h, w),
@@ -508,7 +401,9 @@ class DINOv2(Method):
         # Process local views through student network if they exist
         dino_local_loss = torch.tensor(0.0)
         if n_local_crops > 0:
-            local_views = torch.cat(views[2:])  # L * [B, C, H, W] -> [L*B, C, H, W]
+            local_views = torch.cat(
+                views[n_global_crops:]
+            )  # L * [B, C, H, W] -> [L*B, C, H, W]
             student_cls_tokens_local = self._forward_student_local(
                 local_views
             )  # [L*B, D]
@@ -586,7 +481,7 @@ class DINOv2(Method):
         )  # [M, D]
 
         # centering
-        if self.centering == "softmax":
+        if self.method_args.center_method == "softmax":
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
@@ -598,7 +493,7 @@ class DINOv2(Method):
                 teacher_temp=teacher_temp,
             )  # [M, D]
             self.ibot_loss.update_center(masked_patch_tokens_after_ibot)
-        elif self.centering == "sinkhorn_knopp":
+        elif self.method_args.center_method == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
@@ -611,7 +506,9 @@ class DINOv2(Method):
                 ).to(device=self.device, non_blocking=True),
             )  # [M, D]
         else:
-            raise ValueError(f"Unknown centering method: {self.centering}")
+            raise ValueError(
+                f"Unknown centering method: {self.method_args.center_method}"
+            )
 
         return cls_tokens_centered, masked_patch_tokens_centered
 
@@ -666,15 +563,15 @@ class DINOv2(Method):
         optim_type: OptimizerType | Literal["auto"],
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
-            "auto": DINOv2AdamWViTSBArgs,
-            OptimizerType.ADAMW: DINOv2AdamWViTSBArgs,
+            "auto": DINOv2AdamWViTArgs,
+            OptimizerType.ADAMW: DINOv2AdamWViTArgs,
         }
 
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 
     def trainable_modules(self) -> TrainableModules:
         # decay is realized in get_optimizer_with_decay
-        if self.ibot_separate_head:
+        if self.method_args.ibot_separate_head:
             return TrainableModules(
                 modules=[
                     self.student_embedding_model_wrapper.get_model(),
@@ -740,7 +637,7 @@ class DINOv2(Method):
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
-            start_value=self.method_args.weight_decay_start,
+            start_value=no_auto(self.method_args.weight_decay_start),
             end_value=self.method_args.weight_decay_end,
         )
 
@@ -761,7 +658,7 @@ class DINOv2(Method):
         momentum = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
-            start_value=no_auto(self.method_args.momentum_start),
+            start_value=self.method_args.momentum_start,
             end_value=self.method_args.momentum_end,
         )
         update_momentum(
@@ -770,7 +667,7 @@ class DINOv2(Method):
             m=momentum,
         )
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
-        if self.ibot_separate_head:
+        if self.method_args.ibot_separate_head:
             update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
         super().on_train_batch_end(outputs=outputs, batch=batch, batch_idx=batch_idx)
 
