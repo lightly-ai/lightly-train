@@ -75,12 +75,28 @@ class TestMaskingGenerator:
     @pytest.mark.parametrize(
         "aspect_ratio, masking_percentage, is_masked",
         [
-            (0.1, 0.005, False),
+            (
+                0.1,
+                0.005,
+                False,
+            ),  # min masking_percentage allowed for height>=1 is 0.5**2 / (A*G**2) = 0.0098 > 0.005
             (0.1, 0.05, True),
-            (0.1, 0.5, False),
-            (2.0, 0.001, False),
+            (
+                0.1,
+                0.5,
+                False,
+            ),  # max masking_percentage allowed for width<=G is (G+0.5)**2*A / (G**2) = 0.106 < 0.5
+            (
+                2.0,
+                0.001,
+                False,
+            ),  # min masking_percentage allowed for width>=1 is 0.5**2*A / (G**2) = 0.0019 > 0.001
             (2.0, 0.01, True),
-            (2.0, 1.0, False),
+            (
+                2.0,
+                1.0,
+                False,
+            ),  # max masking_percentage allowed for height<=G is (G+0.5)**2 / (A*G**2) = 0.532 < 1.0
         ],
     )
     def test_masking_generator__aspect_ratio_validity(
