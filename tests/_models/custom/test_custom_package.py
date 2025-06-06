@@ -98,7 +98,9 @@ class TestCustomPackage:
         CustomPackage.export_model(model, out)
         assert out.exists()
 
-        model.get_model().load_state_dict(torch.load(out), strict=True)
+        model.get_model().load_state_dict(
+            torch.load(out, weights_only=True), strict=True
+        )
 
     def test_export_model__unwrapped_model(self, tmp_path: Path) -> None:
         model = DummyCustomModel()
@@ -106,7 +108,9 @@ class TestCustomPackage:
         CustomPackage.export_model(model=model.get_model(), out=out)
         assert out.exists()
 
-        model.get_model().load_state_dict(torch.load(out), strict=True)
+        model.get_model().load_state_dict(
+            torch.load(out, weights_only=True), strict=True
+        )
 
     def test_export_model__unsupported_model(self, tmp_path: Path) -> None:
         class UnsupportedModel:

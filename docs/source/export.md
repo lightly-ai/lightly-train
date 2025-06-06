@@ -84,7 +84,7 @@ formats are supported.
   from torchvision.models import resnet50
 
   model = resnet50()
-  model.load_state_dict(torch.load("my_exported_model.pt"))
+  model.load_state_dict(torch.load("my_exported_model.pt", weights_only=True))
   ```
   ````
 
@@ -127,7 +127,7 @@ formats are supported.
   from torchvision.models import resnet50
 
   model = resnet50()
-  model.load_state_dict(torch.load("my_exported_model.pt"))
+  model.load_state_dict(torch.load("my_exported_model.pt", weights_only=True))
   ```
 
 - `torch_model`
