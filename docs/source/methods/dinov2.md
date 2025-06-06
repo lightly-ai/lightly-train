@@ -1,6 +1,6 @@
 (methods-dinov2)=
 
-# DINOv2
+# DINOv2 (beta 🔬)
 
 DINOv2 is a state-of-the-art self-supervised learning method for training vision
 foundation models. It is optimized for large-scale models and datasets.
@@ -28,6 +28,19 @@ if __name__ == "__main__":
 lightly-train train out=out/my_experiment data=my_data_dir model="dinov2_vit/vitb14_pretrain" method="dinov2"
 ```
 ````
+
+The following models are available for DINOv2 pretraining:
+
+- `dinov2_vit/vits14`
+- `dinov2_vit/vits14_pretrain`
+- `dinov2_vit/vitb14`
+- `dinov2_vit/vitb14_pretrain`
+- `dinov2_vit/vitl14`
+- `dinov2_vit/vitl14_pretrain`
+- `dinov2_vit/vitg14`
+- `dinov2_vit/vitg14_pretrain`
+
+Models with a `_pretrain` suffix are [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
 
 ## What's under the Hood
 
@@ -60,9 +73,9 @@ override these settings, see {ref}`method-args`.
 ```
 ````
 
-## Default Image Transforms Settings
+## Default Image Transform Arguments
 
-The following are the default transforms settings for DINOv2. To learn how you can
+The following are the default transform arguments for DINOv2. To learn how you can
 override these settings, see {ref}`method-transform-args`.
 
 ````{dropdown} Default Image Transforms

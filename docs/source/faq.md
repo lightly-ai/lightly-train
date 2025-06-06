@@ -175,14 +175,14 @@ where labeled data is rare or expensive to get.
 ```
 
 ```{dropdown} <h6>How much data do I need?<a class="headerlink" id="how-much-data-do-i-need" href="#how-much-data-do-i-need" title="Link to this heading">¶</a></h6>
-LightlyTrain supports use-cases from thousands to millions of images. We recommend
+LightlyTrain supports use cases from thousands to millions of images. We recommend
 a minimum of a several thousand unlabeled images for training with LightlyTrain and 100+ labeled images
 for the fine-tuning afterwards. The larger the difference in dataset size between the
 unlabeled and labeled data, the larger the benefit of LightlyTrain. For best
 results we recommend at least 5x more unlabeled than labeled data. However, for most cases
 2x more unlabeled than labeled data yields already strong improvements.
 
-An example use-case looks like this:
+An example use case looks like this:
 - 100'000 unlabeled images
 - 10'000 labeled training images
 - 1'000 labeled validation images

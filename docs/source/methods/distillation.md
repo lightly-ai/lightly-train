@@ -1,6 +1,6 @@
 (methods-distillation)=
 
-# DINOv2 Distillation (recommended 🚀)
+# Distillation (recommended 🚀)
 
 Knowledge distillation involves transferring knowledge from a large, compute-intensive teacher model to a smaller, efficient student model by encouraging similarity between the student and teacher representations. It addresses the challenge of bridging the gap between state-of-the-art large-scale vision models and smaller, more computationally efficient models suitable for practical applications.
 
@@ -50,9 +50,9 @@ override these settings, see {ref}`method-args`.
 ```
 ````
 
-## Default Image Transforms Settings
+## Default Image Transform Arguments
 
-The following are the default transforms settings for distillation. To learn how you can
+The following are the default transform arguments for distillation. To learn how you can
 override these settings, see {ref}`method-transform-args`.
 
 ````{dropdown} Default Image Transforms

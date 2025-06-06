@@ -50,21 +50,20 @@ It has the following advantages:
 
 ### When to use DINOv2?
 
-DINOv2 should be selected for the following use-cases:
+DINOv2 should be selected for the following use cases:
 
 - **Vision Transformer (ViT) Models**: DINOv2 is specifically designed for ViT
   architectures. It does not support convolutional models like ResNet or YOLO.
 - **Foundation Model Training**: DINOv2 is the state-of-the-art method for training
   vision foundation models.
 - **Improve Distillation**: Models pretrained with DINOv2 on your dataset can be used
-  as teacher models in the distillation method. This leads to better performance and
-  lets you transfer the DINOv2 knowledge to smaller models with other architectures
-  than ViT.
+  as teacher models in the distillation method. This lets you transfer DINOv2
+  knowledge to smaller models with architectures that are not limited to ViTs.
 
 #### Pros
 
 - **State-of-the-Art Performance**: DINOv2 is the state-of-the-art method for pretraining
-  vision only foundation models.
+  vision foundation models.
 - **High Quality Features**: DINOv2 is known to produce high-quality features that can
   be used for various downstream tasks without the need for fine-tuning.
 - **Combine with Distillation**: Models pretrained with DINOv2 can be used as teacher
@@ -80,7 +79,7 @@ DINOv2 should be selected for the following use-cases:
 - **Large Datasets**: DINOv2 requires large datasets for effective pretraining,
   which may not be feasible for all applications.
 - **Compute Intensive**: DINOv2 is compute-intensive, especially when training large
-  ViT models on large datasets. It requires significant GPU resources and memory.
+  ViT models on large datasets. It requires substantial GPU resources and memory.
 
 ### When to use DINO?
 
