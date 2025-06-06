@@ -97,12 +97,15 @@ class Method(LightningModule):
 
         # Warmup for 10 epochs or 10% of the total number of epochs if max_epochs < 100
         warmup_epochs = min(10, max_epochs / 10)
+        warmup_steps = min(
+            int(self.trainer.estimated_stepping_batches),
+            int(self.trainer.estimated_stepping_batches / max_epochs * warmup_epochs),
+        )
         scheduler = {
             "scheduler": CosineWarmupScheduler(
                 optimizer=optim,
-                warmup_epochs=int(
-                    self.trainer.estimated_stepping_batches / max_epochs * warmup_epochs
-                ),
+                # The arguments are called "epochs" but they can also be steps.
+                warmup_epochs=warmup_steps,
                 max_epochs=int(self.trainer.estimated_stepping_batches),
             ),
             "interval": "step",

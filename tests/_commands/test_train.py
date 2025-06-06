@@ -279,7 +279,12 @@ def test_train__method(tmp_path: Path, method: str, devices: int) -> None:
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
-    # Use smaller model for unit tests.
+    # DINOv2 needs special model
+    model = {
+        "dinov2": "dinov2_vit/vits14",
+    }.get(method, "torchvision/resnet18")
+
+    # Use smaller teacher for unit tests.
     method_args = {
         "distillation": {"teacher": "dinov2_vit/vits14"},
         "distillationv1": {"teacher": "dinov2_vit/vits14"},
@@ -289,7 +294,7 @@ def test_train__method(tmp_path: Path, method: str, devices: int) -> None:
     train.train(
         out=out,
         data=data,
-        model="torchvision/resnet18",
+        model=model,
         devices=devices,
         method=method,
         method_args=method_args,
