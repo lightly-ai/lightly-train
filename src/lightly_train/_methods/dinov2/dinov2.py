@@ -328,8 +328,10 @@ class DINOv2(Method):
         )
         self.teacher_embedding_model_wrapper.make_teacher()
         freeze_eval_module(self.teacher_embedding_model_wrapper)
+        # TODO(Jonas 06/25)can be a method of the model wrapper as soon as we merge the heads and backbone into a single model
 
         # Create teacher and student dino heads
+        #TODO: merge all heads and backbone into a single model. such that we have self.teacher and self.student
         dino_head = partial(
             DINOProjectionHead,
             input_dim=method_args.embed_dim,
@@ -346,6 +348,7 @@ class DINOv2(Method):
 
         # Create teacher and student iBOT head
         self.ibot_separate_head: bool = method_args.ibot_separate_head
+        #TODO(Jonas 06/25)no need for separate attribute can be inferred from self.method_args.ibot_separate_head
         self.teacher_ibot_head: DINOHead | IBOTHead
         self.student_ibot_head: DINOHead | IBOTHead
         if self.ibot_separate_head:
@@ -370,9 +373,13 @@ class DINOv2(Method):
 
         freeze_eval_module(self.teacher_dino_head)
         freeze_eval_module(self.teacher_ibot_head)
+        # TODO(Jonas 06/25)can be a method of the model wrapper as soon as we merge the heads and backbone into a single model
 
         # Losses
         self.centering = method_args.centering
+        # TODO(Jonas 06/25)no need for separate attribute can be inferred from self.method_args.centering
+        # TODO(Jonas 06/25)we could make two loss versions one for centering softmax and one for sinkhorn knopp, 
+        # so we could instantiate the corresponding one and remove logic form the train loop
         self.dino_loss = DINOLoss(
             out_dim=no_auto(method_args.output_dim),
             student_temp=method_args.student_temp,
@@ -386,9 +393,11 @@ class DINOv2(Method):
         self.koleo_loss = KoLeoLoss()
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:
+        # TODO(Jonas 06/25)remove this and use the method base implementation instead
         training_step_log: DINOv2TrainingStepResult = self.training_step_impl(
             batch, batch_idx
         )
+        # TODO(Jonas 06/25)kwargs
 
         train_loss = training_step_log.loss
         dino_global_loss = training_step_log.dino_global_loss
@@ -444,6 +453,7 @@ class DINOv2(Method):
         global_views = torch.cat(views[:2])  # G * [B, C, H, W] -> [G*B, C, H, W]
 
         # Masking
+        # TODO(Jonas 06/25) put the masking into a separate method
         n_crops = global_views.shape[0]  # G*B
         batch_size = n_crops // n_global_crops
         h = global_views.shape[2] // self.method_args.patch_size
@@ -473,7 +483,10 @@ class DINOv2(Method):
         masks_weight = masks["masks_weight"].to(device=self.device, non_blocking=True)
         n_masked_patches = mask_indices_list.shape[0]
 
+        
         # Process global views through teacher and student networks
+        # TODO(Jonas 06/25)kwargs
+        # TODO(Jonas 06/25)consider to move all the forwards into a single forward
         teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
             self._forward_teacher(
                 global_views,
@@ -491,6 +504,7 @@ class DINOv2(Method):
             )  # [G*B, D], [M, D]
         )
 
+        # TODO(Jonas 06/25)clarify if we actually need this list variant --> simplify interface
         # Compute the DINO loss
         dino_global_loss = (
             self.dino_loss.forward(
@@ -505,12 +519,15 @@ class DINOv2(Method):
 
         # Process local views through student network if they exist
         dino_local_loss = torch.tensor(0.0)
+        # TODO(Jonas 06/25)since n_local_crops is known on instantiation, we could avoid the check and instead instantiate a get_local_views depneding on the attribute, simialr the forward local could be instatiated like taht
         if n_local_crops > 0:
             local_views = torch.cat(views[2:])  # L * [B, C, H, W] -> [L*B, C, H, W]
             student_cls_tokens_local = self._forward_student_local(
                 local_views
             )  # [L*B, D]
 
+            # TODO(Jonas 06/25)check if the chunking is actually needed here
+            # TODO(Jonas 06/25)ideally move everything to tensor only no list
             dino_local_loss = (
                 self.dino_loss.forward(
                     student_output_list=student_cls_tokens_local.chunk(
@@ -572,6 +589,7 @@ class DINOv2(Method):
 
         # process the masked patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
+        #TODO(Jonas 06/25)why not flattening the patch tokens here all in one go?
         patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
         masked_patch_tokens = torch.index_select(
@@ -584,12 +602,15 @@ class DINOv2(Method):
         )  # [M, D]
 
         # centering
+        #TODO(Jonas 06/25)instantiate the centering method in the loss and remove the logic from here
         if self.centering == "softmax":
+            # TODO(Jonas 06/25)reshape the return inside the loss
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
             self.dino_loss.update_center(cls_tokens_after_dino)
 
+            # TODO(Jonas 06/25)change the code inside the loss to avoid the unsqueeze
             masked_patch_tokens_after_ibot = masked_patch_tokens_after_ibot.unsqueeze(0)
             masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
                 masked_patch_tokens_after_ibot,
@@ -597,6 +618,7 @@ class DINOv2(Method):
             )  # [M, D]
             self.ibot_loss.update_center(masked_patch_tokens_after_ibot)
         elif self.centering == "sinkhorn_knopp":
+            # TODO(Jonas 06/25)reshape the return inside the loss
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
@@ -604,6 +626,7 @@ class DINOv2(Method):
             masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=teacher_temp,
+                #TODO(Jonas 06/25)move this into the loss if required
                 n_masked_patches_tensor=torch.tensor(
                     [n_masked_patches], dtype=torch.long
                 ).to(device=self.device, non_blocking=True),
@@ -629,6 +652,7 @@ class DINOv2(Method):
 
         # process the patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
+        #TODO(Jonas 06/25)why not flattening the patch tokens here all in one go?
         patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
         masked_patch_tokens = torch.index_select(
@@ -648,6 +672,7 @@ class DINOv2(Method):
         )  # input [L*B, C, ...]
 
         # process the cls tokens
+        #TODO(Jonas 06/25)unnecessary assignment, can be removed
         cls_tokens = tokens["cls_token"]  # [L*B, C]
         cls_tokens_after_dino: Tensor = self.student_dino_head.forward(
             cls_tokens
@@ -672,6 +697,7 @@ class DINOv2(Method):
 
     def trainable_modules(self) -> TrainableModules:
         # decay is realized in get_optimizer_with_decay
+        # TODO(Jonas 06/25)if we unify into a student model we can have a instantiated getter to return the trainables
         if self.ibot_separate_head:
             return TrainableModules(
                 modules=[
@@ -767,6 +793,7 @@ class DINOv2(Method):
             self.teacher_embedding_model_wrapper._model,
             m=momentum,
         )
+        # TODO(Jonas 06/25)can be hidden in the student model as well, to avoid logic here
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
         if self.ibot_separate_head:
             update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
