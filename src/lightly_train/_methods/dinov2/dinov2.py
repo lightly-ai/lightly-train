@@ -603,7 +603,11 @@ class DINOv2(Method):
 
         max_epochs = max(1, self.trainer.max_epochs)
         warmup_steps = min(
-            self.trainer.estimated_stepping_batches,
+            # warmup_steps has to be smaller than the total number of steps because
+            # of: https://github.com/lightly-ai/lightly/pull/1842
+            # TODO(Guarin, 06/25): Remove this once we no longer support
+            # LightlySSL <= 1.5.21.
+            self.trainer.estimated_stepping_batches - 1,
             self.trainer.estimated_stepping_batches
             / max_epochs
             * self.method_args.warmup_epochs,
