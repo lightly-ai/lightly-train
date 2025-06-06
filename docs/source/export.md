@@ -86,11 +86,7 @@ formats are supported.
   model = resnet50()
   model.load_state_dict(torch.load("my_exported_model.pt", weights_only=True))
   ```
-
   ````
-
-  ```
-  ```
 
   ````{dropdown} ultralytics
   ```python
