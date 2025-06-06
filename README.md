@@ -21,7 +21,7 @@ data, significantly reducing the amount of labeling needed to reach a high model
 
 This allows you to focus on new features and domains instead of managing your labeling cycles.
 LightlyTrain is designed for simple integration into existing training pipelines and supports
-a wide range of model architectures and use-cases out of the box.
+a wide range of model architectures and use cases out of the box.
 
 ## Why LightlyTrain
 
@@ -123,6 +123,7 @@ For an overview of all supported models and usage instructions, see the full [mo
 ### Supported Training Methods
 
 - [DINOv2 Distillation](https://docs.lightly.ai/train/stable/methods/index.html#methods-distillation) (recommended 🚀)
+- [DINOv2](https://docs.lightly.ai/train/stable/methods/index.html#methods-dinov2) (beta 🔬)
 - [DINO](https://docs.lightly.ai/train/stable/methods/index.html#methods-dino)
 - [SimCLR](https://docs.lightly.ai/train/stable/methods/index.html#methods-simclr)
 

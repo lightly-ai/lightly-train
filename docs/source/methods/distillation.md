@@ -50,9 +50,9 @@ override these settings, see {ref}`method-args`.
 ```
 ````
 
-## Default Image Transforms Settings
+## Default Image Transform Arguments
 
-The following are the default transforms settings for distillation. To learn how you can
+The following are the default transform arguments for distillation. To learn how you can
 override these settings, see {ref}`method-transform-args`.
 
 ````{dropdown} Default Image Transforms
