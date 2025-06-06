@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Literal
 
 import pytest
-from torch.nn import Module
 
 from lightly_train._methods.dino.dino import (
     DINO,
@@ -22,13 +21,17 @@ from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 
+from ...helpers import DummyCustomModel
+
 
 class TestDINOArgs:
     def test_resolve_auto__default_scaling_info(self) -> None:
         args = DINOArgs()
         scaling_info = ScalingInfo(dataset_size=IMAGENET_SIZE, epochs=100)
         args.resolve_auto(
-            scaling_info=scaling_info, optimizer_args=DINOAdamWArgs(), model=Module()
+            scaling_info=scaling_info,
+            optimizer_args=DINOAdamWArgs(),
+            wrapped_model=DummyCustomModel(),
         )
         assert args.output_dim == 65536
         assert args.teacher_temp == 0.07
@@ -41,7 +44,9 @@ class TestDINOArgs:
         args = DINOArgs()
         scaling_info = ScalingInfo(dataset_size=20_000, epochs=100)
         args.resolve_auto(
-            scaling_info=scaling_info, optimizer_args=DINOAdamWArgs(), model=Module()
+            scaling_info=scaling_info,
+            optimizer_args=DINOAdamWArgs(),
+            wrapped_model=DummyCustomModel(),
         )
         assert args.output_dim == 2048
         assert args.teacher_temp == 0.02
@@ -54,7 +59,9 @@ class TestDINOArgs:
         args = DINOArgs()
         scaling_info = ScalingInfo(dataset_size=IMAGENET_SIZE, epochs=10)
         args.resolve_auto(
-            scaling_info=scaling_info, optimizer_args=DINOAdamWArgs(), model=Module()
+            scaling_info=scaling_info,
+            optimizer_args=DINOAdamWArgs(),
+            wrapped_model=DummyCustomModel(),
         )
         assert args.output_dim == 65536
         assert args.teacher_temp == 0.07
