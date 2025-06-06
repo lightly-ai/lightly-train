@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The method is in beta and further improvements will be released in the coming weeks.
   See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html)
   for more information.
+- Support for Torchvision ShuffleNetV2 models.
 - RT-DETR has now an integrated model wrapper.
 
 ### Changed

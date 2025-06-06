@@ -15,7 +15,7 @@ from lightly_train._models.model_wrapper import (
 from lightly_train._models.torchvision.torchvision import TorchvisionModelWrapper
 
 
-class ConvNeXtFeatureExtractor(TorchvisionModelWrapper):
+class ConvNeXtModelWrapper(TorchvisionModelWrapper):
     _torchvision_models = [ConvNeXt]
     _torchvision_model_name_pattern = r"convnext.*"
 

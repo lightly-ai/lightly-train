@@ -17,7 +17,7 @@ except ImportError:
 
 
 from lightly_train._models.super_gradients.segmentation_module import (
-    SegmentationModuleFeatureExtractor,
+    SegmentationModuleModelWrapper,
 )
 from lightly_train._models.super_gradients.super_gradients_package import (
     SUPER_GRADIENTS_PACKAGE,
@@ -27,24 +27,24 @@ from lightly_train._models.super_gradients.super_gradients_package import (
 class TestSegmentationModule:
     def test_feature_dim(self) -> None:
         model = SUPER_GRADIENTS_PACKAGE.get_model("pp_lite_t_seg50")
-        fe = SegmentationModuleFeatureExtractor(model)
+        fe = SegmentationModuleModelWrapper(model)
         assert fe.feature_dim() == 1024
 
     def test_forward_features(self) -> None:
         model = SUPER_GRADIENTS_PACKAGE.get_model("pp_lite_t_seg50")
-        fe = SegmentationModuleFeatureExtractor(model)
+        fe = SegmentationModuleModelWrapper(model)
         x = torch.rand(1, 3, 224, 224)
         out = fe.forward_features(x)["features"]
         assert out.shape == (1, 1024, 7, 7)
 
     def test_forward_pool(self) -> None:
         model = SUPER_GRADIENTS_PACKAGE.get_model("pp_lite_t_seg50")
-        fe = SegmentationModuleFeatureExtractor(model)
+        fe = SegmentationModuleModelWrapper(model)
         x = torch.rand(1, 3, 224, 224)
         out = fe.forward_pool({"features": x})["pooled_features"]
         assert out.shape == (1, 3, 1, 1)
 
     def test_get_model(self) -> None:
         model = SUPER_GRADIENTS_PACKAGE.get_model("pp_lite_t_seg50")
-        fe = SegmentationModuleFeatureExtractor(model)
+        fe = SegmentationModuleModelWrapper(model)
         assert fe.get_model() is model

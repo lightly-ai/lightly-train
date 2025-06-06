@@ -16,7 +16,7 @@ from lightly_train._models.model_wrapper import (
 from lightly_train._models.torchvision.torchvision import TorchvisionModelWrapper
 
 
-class ResNetFeatureExtractor(TorchvisionModelWrapper):
+class ResNetModelWrapper(TorchvisionModelWrapper):
     _torchvision_models = [ResNet]
     _torchvision_model_name_pattern = r"resnet.*"
 
