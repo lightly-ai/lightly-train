@@ -73,7 +73,7 @@ The following Torchvision models are supported:
   - `torchvision/convnext_large`
   - `torchvision/convnext_small`
   - `torchvision/convnext_tiny`
-- ShuffleNextV2
+- ShuffleNetV2
   - `torchvision/shufflenet_v2_x0_5`
   - `torchvision/shufflenet_v2_x1_0`
   - `torchvision/shufflenet_v2_x1_5`
