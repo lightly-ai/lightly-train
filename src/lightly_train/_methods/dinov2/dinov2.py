@@ -152,6 +152,7 @@ class DINOv2Args(MethodArgs):
 
     # lr scheduler
     min_lr: float = 1.0e-06
+    # TODO(Guarin, 06/25): Handle warmup epochs for runs with <100 epochs.
     warmup_epochs: int = 10
 
     # lr decay
