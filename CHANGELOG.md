@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Support for Torchvision ShuffleNetV2 models.
 - RT-DETR has now an integrated model wrapper.
 
 ### Changed
