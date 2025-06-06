@@ -109,9 +109,9 @@ class TestUltralyticsModelWrapper:
         # modules to the correct device. This happens if not all required modules
         # are registered as attributes of the class.
         model = YOLO("yolov8s.yaml")
-        feature_extractor = UltralyticsModelWrapper(model=model)
-        feature_extractor.to("meta")
-        feature_extractor.forward_features(torch.rand(1, 3, 224, 224, device="meta"))
+        wrapped_model = UltralyticsModelWrapper(model=model)
+        wrapped_model.to("meta")
+        wrapped_model.forward_features(torch.rand(1, 3, 224, 224, device="meta"))
 
 
 def test__sppf_skip_cv2_bn_act() -> None:

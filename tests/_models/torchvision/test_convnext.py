@@ -41,6 +41,6 @@ class TestConvNeXtModelWrapper:
         # modules to the correct device. This happens if not all required modules
         # are registered as attributes of the class.
         model = models.convnext_tiny()
-        feature_extractor = ConvNeXtModelWrapper(model=model)
-        feature_extractor.to("meta")
-        feature_extractor.forward_features(torch.rand(1, 3, 224, 224, device="meta"))
+        wrapped_model = ConvNeXtModelWrapper(model=model)
+        wrapped_model.to("meta")
+        wrapped_model.forward_features(torch.rand(1, 3, 224, 224, device="meta"))
