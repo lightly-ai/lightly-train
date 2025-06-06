@@ -11,7 +11,7 @@ from torchvision import models
 from lightly_train._models.torchvision.resnet import ResNetModelWrapper
 
 
-class TestResNetFeatureExtractor:
+class TestResNetModelWrapper:
     def test_feature_dim(self) -> None:
         model = models.resnet18()
         feature_extractor = ResNetModelWrapper(model=model)

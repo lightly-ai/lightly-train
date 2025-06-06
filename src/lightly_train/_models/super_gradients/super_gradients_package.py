@@ -20,10 +20,10 @@ from lightly_train._models.model_wrapper import (
 )
 from lightly_train._models.package import Package
 from lightly_train._models.super_gradients.customizable_detector import (
-    CustomizableDetectorFeatureExtractor,
+    CustomizableDetectorModelWrapper,
 )
 from lightly_train._models.super_gradients.segmentation_module import (
-    SegmentationModuleFeatureExtractor,
+    SegmentationModuleModelWrapper,
 )
 from lightly_train._models.super_gradients.super_gradients import (
     SuperGradientsModelWrapper,
@@ -39,8 +39,8 @@ class SuperGradientsPackage(Package):
     # Sadly SuperGradients doesn't expose a common interface for all models. We have to
     # define different feature extractors depending on the model types.
     _FEATURE_EXTRACTORS = [
-        CustomizableDetectorFeatureExtractor,
-        SegmentationModuleFeatureExtractor,
+        CustomizableDetectorModelWrapper,
+        SegmentationModuleModelWrapper,
     ]
 
     @classmethod
