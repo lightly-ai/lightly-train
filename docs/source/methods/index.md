@@ -67,8 +67,8 @@ DINOv2 should be selected for the following use cases:
 - **High Quality Features**: DINOv2 is known to produce high-quality features that can
   be used for various downstream tasks without the need for fine-tuning.
 - **Combine with Distillation**: Models pretrained with DINOv2 can be used as teacher
-  models in the distillation method, leading to better performance and allowing you to
-  transfer the DINOv2 knowledge to smaller models with other architectures than ViT.
+  models in the distillation method. This lets you transfer DINOv2 knowledge to smaller
+  models with architectures that are not limited to ViTs.
 - **Pretrained Models Available**: Speed up DINOv2 pretraining on your dataset by
   starting from one of the pretrained models available in LightlyTrain.
 
