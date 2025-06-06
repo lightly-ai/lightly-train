@@ -107,7 +107,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 | Framework | Supported Models | Docs |
 |------------------|---------------------------------------------------|------|
-| Torchvision | ResNet, ConvNext | [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) |
+| Torchvision | ResNet, ConvNext, ShuffleNetV2 | [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) |
 | TIMM | All models | [🔗](https://docs.lightly.ai/train/stable/models/timm.html) |
 | Ultralytics | YOLOv5, YOLOv6, YOLOv8, YOLO11, YOLO12 | [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) |
 | RT-DETR | RT-DETR | [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) |
