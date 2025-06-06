@@ -266,7 +266,6 @@ class DINOv2(Method):
         freeze_eval_module(self.teacher_ibot_head)
 
         # Losses
-        self.centering = method_args.center_method
         self.dino_loss = DINOLoss(
             out_dim=method_args.output_dim,
             student_temp=method_args.student_temp,
@@ -482,7 +481,7 @@ class DINOv2(Method):
         )  # [M, D]
 
         # centering
-        if self.centering == "softmax":
+        if self.method_args.center_method == "softmax":
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
@@ -494,7 +493,7 @@ class DINOv2(Method):
                 teacher_temp=teacher_temp,
             )  # [M, D]
             self.ibot_loss.update_center(masked_patch_tokens_after_ibot)
-        elif self.centering == "sinkhorn_knopp":
+        elif self.method_args.center_method == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
@@ -507,7 +506,9 @@ class DINOv2(Method):
                 ).to(device=self.device, non_blocking=True),
             )  # [M, D]
         else:
-            raise ValueError(f"Unknown centering method: {self.centering}")
+            raise ValueError(
+                f"Unknown centering method: {self.method_args.center_method}"
+            )
 
         return cls_tokens_centered, masked_patch_tokens_centered
 
