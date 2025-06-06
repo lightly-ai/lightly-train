@@ -144,7 +144,7 @@ EXTRAS_PY38 := [dev,mlflow,notebook,super-gradients,tensorboard,timm,ultralytics
 
 # SuperGradients is not compatible with Python>=3.10. It is also not easy to install
 # on MacOS. Therefore we exclude it from the default extras.
-EXTRAS_PY312 := [dev,mlflow,notebook,rfdetr,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY312 := [dev,rfdetr,mlflow,notebook,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies. And SuperGradients is not compatible with
@@ -170,19 +170,21 @@ EXCLUDE_NEWER_DATE := "2025-04-23"
 # (e.g. "torch==2.4.0") with the --index-url or --extra-index-url options from UV leads
 # down a rabbit hole of dependency resolution issues.
 ifdef CI
-PINNED_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-PINNED_TORCH_VERSION_PY312 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
-PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-PINNED_TORCHVISION_VERSION_PY312 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
-MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
+	ifeq ($(OS),Linux)
+		PINNED_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
+		PINNED_TORCH_VERSION_PY312 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
+		PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
+		PINNED_TORCHVISION_VERSION_PY312 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
+		MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
+		MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
+	endif
 else
-PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
-PINNED_TORCH_VERSION_PY312 := "torch==2.4.0"
-PINNED_TORCHVISION_VERSION_PY38 := "torchvision==0.19.0"
-PINNED_TORCHVISION_VERSION_PY312 := "torchvision==0.19.0"
-MINIMAL_TORCH_VERSION_PY38 := "torch==2.1.0"
-MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision==0.16.0"
+	PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
+	PINNED_TORCH_VERSION_PY312 := "torch==2.4.0"
+	PINNED_TORCHVISION_VERSION_PY38 := "torchvision==0.19.0"
+	PINNED_TORCHVISION_VERSION_PY312 := "torchvision==0.19.0"
+	MINIMAL_TORCH_VERSION_PY38 := "torch==2.1.0"
+	MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision==0.16.0"
 endif
 
 
