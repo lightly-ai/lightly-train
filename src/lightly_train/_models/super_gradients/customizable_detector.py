@@ -26,7 +26,7 @@ except ImportError:
     CustomizableDetector = None
 
 
-class CustomizableDetectorFeatureExtractor(Module, SuperGradientsModelWrapper):
+class CustomizableDetectorModelWrapper(Module, SuperGradientsModelWrapper):
     _SUPPORTED_MODEL_CLASSES = (
         (CustomizableDetector,) if CustomizableDetector is not None else tuple()
     )

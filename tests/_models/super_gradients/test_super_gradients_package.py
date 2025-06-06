@@ -20,10 +20,10 @@ from super_gradients.training.models import (
 )
 
 from lightly_train._models.super_gradients.customizable_detector import (
-    CustomizableDetectorFeatureExtractor,
+    CustomizableDetectorModelWrapper,
 )
 from lightly_train._models.super_gradients.segmentation_module import (
-    SegmentationModuleFeatureExtractor,
+    SegmentationModuleModelWrapper,
 )
 from lightly_train._models.super_gradients.super_gradients_package import (
     SuperGradientsPackage,
@@ -85,8 +85,8 @@ class TestSuperGradientsPackage:
     @pytest.mark.parametrize(
         "model_name, expected_cls",
         [
-            ("yolo_nas_s", CustomizableDetectorFeatureExtractor),
-            ("pp_lite_t_seg50", SegmentationModuleFeatureExtractor),
+            ("yolo_nas_s", CustomizableDetectorModelWrapper),
+            ("pp_lite_t_seg50", SegmentationModuleModelWrapper),
         ],
     )
     def test_get_model_wrapper(self, model_name: str, expected_cls: type) -> None:

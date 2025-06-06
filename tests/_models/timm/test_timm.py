@@ -24,7 +24,7 @@ from lightly_train._models.timm import timm as timm_feature_extractor
 from lightly_train._models.timm.timm import TIMMModelWrapper
 
 
-class TestTIMMFeatureExtractor:
+class TestTIMMModelWrapper:
     def test_forward_features(self) -> None:
         model = timm.create_model("resnet18")
         extractor = TIMMModelWrapper(model=model)

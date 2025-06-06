@@ -11,7 +11,7 @@ from torchvision import models
 from lightly_train._models.torchvision.convnext import ConvNeXtModelWrapper
 
 
-class TestConvNeXtFeatureExtractor:
+class TestConvNeXtModelWrapper:
     def test_feature_dim(self) -> None:
         model = models.convnext_tiny()
         feature_extractor = ConvNeXtModelWrapper(model=model)

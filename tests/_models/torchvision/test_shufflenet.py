@@ -11,7 +11,7 @@ from torchvision import models
 from lightly_train._models.torchvision.shufflenet import ShuffleNetV2ModelWrapper
 
 
-class TestShuffleNetV2FeatureExtractor:
+class TestShuffleNetV2ModelWrapper:
     def test_feature_dim(self) -> None:
         model = models.shufflenet_v2_x0_5()
         feature_extractor = ShuffleNetV2ModelWrapper(model=model)
