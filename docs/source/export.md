@@ -141,7 +141,7 @@ formats are supported.
   ```python
   import torch
 
-  model = torch.load("my_exported_model.pt", weights_only=True)
+  model = torch.load("my_exported_model.pt")
   ```
 
   This requires that the same Lightly**Train** version is installed when the model is
