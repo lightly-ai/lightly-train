@@ -601,15 +601,18 @@ class DINOv2(Method):
             raise RuntimeError("Max epochs is not set.")
 
         max_epochs = max(1, self.trainer.max_epochs)
+        warmup_steps = min(
+            self.trainer.estimated_stepping_batches,
+            self.trainer.estimated_stepping_batches
+            / max_epochs
+            * self.method_args.warmup_epochs,
+        )
 
         scheduler = {
             "scheduler": CosineWarmupScheduler(
                 optimizer=optim,
-                warmup_epochs=int(
-                    self.trainer.estimated_stepping_batches
-                    / max_epochs
-                    * self.method_args.warmup_epochs
-                ),
+                # The arguments are called "epochs" but they can also be steps.
+                warmup_epochs=int(warmup_steps),
                 max_epochs=int(self.trainer.estimated_stepping_batches),
                 end_value=self.method_args.min_lr / self.optimizer_args.lr,  # type: ignore[attr-defined]
             ),  # TODO: ignore to be removed after improving optimizer args
