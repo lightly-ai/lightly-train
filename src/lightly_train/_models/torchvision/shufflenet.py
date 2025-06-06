@@ -20,23 +20,23 @@ class ShuffleNetV2ModelWrapper(TorchvisionModelWrapper):
 
     def __init__(self, model: Module):
         super().__init__()
-        self._model = [model]
+        self._model = model
 
     def get_model(self) -> Module:
-        return self._model[0]
+        return self._model
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
-        x = self._model[0].conv1(x)
-        x = self._model[0].maxpool(x)
-        x = self._model[0].stage2(x)
-        x = self._model[0].stage3(x)
-        x = self._model[0].stage4(x)
-        x = self._model[0].conv5(x)
+        x = self._model.conv1(x)
+        x = self._model.maxpool(x)
+        x = self._model.stage2(x)
+        x = self._model.stage3(x)
+        x = self._model.stage4(x)
+        x = self._model.conv5(x)
         return {"features": x}
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": x["features"].mean([2, 3], keepdim=True)}
 
     def feature_dim(self) -> int:
-        feature_dim: int = self._model[0].fc.in_features
+        feature_dim: int = self._model.fc.in_features
         return feature_dim
