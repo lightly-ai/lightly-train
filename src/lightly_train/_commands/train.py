@@ -13,11 +13,14 @@ import logging
 from typing import Any, Literal, Sequence
 
 import pytorch_lightning
+from lightning_fabric import Fabric
+from lightning_fabric.strategies.strategy import Strategy as FabricStrategy
 from omegaconf import DictConfig
 from pydantic import ConfigDict
-from pytorch_lightning.accelerators.accelerator import Accelerator
+from pytorch_lightning.accelerators.accelerator import Accelerator as LightningAccelerator
+from lightning_fabric.accelerators.accelerator import Accelerator as FabricAccelerator
 from pytorch_lightning.loggers import Logger
-from pytorch_lightning.strategies.strategy import Strategy
+from pytorch_lightning.strategies.strategy import Strategy as LightningStrategy
 from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type: ignore[attr-defined]
     _PRECISION_INPUT,
 )
@@ -28,6 +31,7 @@ from lightly_train._callbacks import callback_helpers
 from lightly_train._callbacks.callback_args import CallbackArgs
 from lightly_train._commands import _warnings, common_helpers, train_helpers
 from lightly_train._commands.common_helpers import ModelFormat
+from lightly_train._commands.trainer import LightlyTrainTrainer
 from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._loggers import logger_helpers
@@ -42,6 +46,9 @@ from lightly_train._transforms.transform import MethodTransformArgs
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
+
+
+LIGHTLYTRAIN_TRAINER = True
 
 
 def train(
@@ -61,7 +68,7 @@ def train(
     checkpoint: PathLike | None = None,
     overwrite: bool = False,
     accelerator: str | Accelerator = "auto",
-    strategy: str | Strategy = "auto",
+    strategy: str | LightningStrategy | FabricStrategy = "auto",
     precision: _PRECISION_INPUT = "32-true",  # Default precision in PyTorch Lightning
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
     seed: int = 0,
@@ -233,7 +240,186 @@ def train(
             Deprecated. Use ``resume_interrupted`` instead.
     """
     config = validate.pydantic_model_validate(TrainConfig, locals())
-    train_from_config(config=config)
+    if LIGHTLYTRAIN_TRAINER:
+        _train_from_config_lightly_train_trainer(config=config)
+    else:
+        train_from_config(config=config)
+
+
+def _train_from_config_lightly_train_trainer(config: TrainConfig) -> None:
+    # Convert the config to a TrainConfig instance.
+    config = validate.pydantic_model_validate(TrainConfig, dict(config))
+
+    # Handle deprecated `resume` argument.
+    config.resume_interrupted = common_helpers.get_resume_interrupted(
+        resume_interrupted=config.resume_interrupted,
+        resume=config.resume,
+    )
+
+    # Set up output directory.
+    out_dir = common_helpers.get_out_dir(
+        out=config.out,
+        resume_interrupted=config.resume_interrupted,
+        overwrite=config.overwrite,
+    )
+
+    # Set up logging.
+    _warnings.filter_train_warnings()
+    _logging.set_up_console_logging()
+    _logging.set_up_file_logging(out_dir / "train.log")
+    _logging.set_up_filters()
+    logger.info(
+        f"Args: {common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}"
+    )
+    logger.info(f"Using output directory '{out_dir}'.")
+
+    # Log system information.
+    system_information = _system.get_system_information()
+    _system.log_system_information(system_information=system_information)
+
+    pytorch_lightning.seed_everything(seed=config.seed, workers=True)
+    config.transform_args = train_helpers.get_transform_args(
+        method=config.method, transform_args=config.transform_args
+    )
+    transform_instance = train_helpers.get_transform(
+        method=config.method, transform_args_resolved=config.transform_args
+    )
+    config.float32_matmul_precision = (
+        _float32_matmul_precision.get_float32_matmul_precision(
+            float32_matmul_precision=config.float32_matmul_precision,
+        )
+    )
+
+    # TODO: Lionel (06/25): All the context managers.
+    with common_helpers.get_dataset_temp_mmap_path(out=out_dir) as mmap_filepath:
+        dataset = common_helpers.get_dataset(
+            data=config.data,
+            transform=transform_instance,
+            mmap_filepath=mmap_filepath,
+        )
+        scaling_info = train_helpers.get_scaling_info(
+            dataset=dataset, epochs=config.epochs
+        )
+        wrapped_model = package_helpers.get_wrapped_model(
+            model=config.model, model_args=config.model_args
+        )
+        embedding_model = train_helpers.get_embedding_model(
+            wrapped_model=wrapped_model, embed_dim=config.embed_dim
+        )
+        log_every_n_steps = train_helpers.get_lightning_logging_interval(
+            dataset_size=scaling_info.dataset_size, batch_size=config.batch_size
+        )
+        config.loggers = logger_helpers.get_logger_args(loggers=config.loggers)
+        logger_instances = logger_helpers.get_loggers(
+            logger_args=config.loggers, out=out_dir
+        )
+        config.callbacks = callback_helpers.get_callback_args(
+            callback_args=config.callbacks
+        )
+        callback_instances = callback_helpers.get_callbacks(
+            callback_args=config.callbacks,
+            out=out_dir,
+            wrapped_model=wrapped_model,
+            embedding_model=embedding_model,
+            normalize_args=transform_instance.transform_args.normalize,
+            loggers=logger_instances,
+        )
+        config.accelerator = common_helpers.get_accelerator(
+            accelerator=config.accelerator,
+            fabric=True,
+        )
+        config.strategy = train_helpers.get_strategy(
+            accelerator=config.accelerator,
+            strategy=config.strategy,
+            devices=config.devices,
+            fabric=True,
+        )
+        fabric_instance = Fabric(
+            accelerator=config.accelerator,
+            strategy=config.strategy,
+            devices=config.devices,
+            num_nodes=config.num_nodes,
+            precision=config.precision,
+            callbacks=callback_instances,
+            loggers=logger_instances,
+        )
+        trainer_instance = LightlyTrainTrainer(
+            fabric=fabric_instance,
+            max_epochs=config.epochs,
+            log_every_n_steps=log_every_n_steps,
+            default_root_dir=out_dir,
+        )
+        config.accelerator = trainer_instance.accelerator
+        config.strategy = trainer_instance.strategy
+        config.devices = trainer_instance.world_size // config.num_nodes
+        total_num_devices = train_helpers.get_total_num_devices(
+            num_nodes=trainer_instance.num_nodes,
+            num_devices=trainer_instance.num_devices,
+        )
+        config.batch_size = train_helpers.get_global_batch_size(
+            global_batch_size=config.batch_size,
+            dataset=dataset,
+            total_num_devices=total_num_devices,
+            loader_args=config.loader_args,
+        )
+        config.num_workers = common_helpers.get_num_workers(
+            num_workers=config.num_workers,
+            num_devices_per_node=total_num_devices // trainer_instance.num_nodes,
+        )
+        dataloader = train_helpers.get_dataloader(
+            dataset=dataset,
+            batch_size=config.batch_size // total_num_devices,
+            num_workers=config.num_workers,
+            loader_args=config.loader_args,
+        )
+        method_cls = method_helpers.get_method_cls(method=config.method)
+        config.optim_args = train_helpers.get_optimizer_args(
+            optim_type=train_helpers.get_optimizer_type(optim_type=config.optim),
+            optim_args=config.optim_args,
+            method_cls=method_cls,
+        )
+        config.optim = config.optim_args.type().value
+        config.method_args = train_helpers.get_method_args(
+            method_cls=method_cls,
+            method_args=config.method_args,
+            scaling_info=scaling_info,
+            optimizer_args=config.optim_args,
+            wrapped_model=wrapped_model,
+        )
+        method_instance = train_helpers.get_method(
+            method_cls=method_cls,
+            method_args=config.method_args,
+            optimizer_args=config.optim_args,
+            embedding_model=embedding_model,
+            global_batch_size=config.batch_size,
+        )
+        train_helpers.load_checkpoint(
+            checkpoint=config.checkpoint,
+            resume_interrupted=config.resume_interrupted,
+            wrapped_model=wrapped_model,
+            embedding_model=embedding_model,
+            method=method_instance,
+        )
+        log_resolved_config(config=config, loggers=logger_instances)
+        trainer_instance.fit(
+            model=method_instance,
+            dataloader=dataloader,
+            ckpt_path="last" if config.resume_interrupted else None,
+        )
+    if config.epochs == 0:
+        logger.info("No training epochs specified. Saving model and exiting.")
+        trainer_instance.save_checkpoint(out_dir / "checkpoints" / "last.ckpt")
+    logger.info("Training completed.")
+    package = package_helpers.get_package_from_model(
+        model=wrapped_model, include_custom=True, fallback_custom=True
+    )
+    common_helpers.export_model(
+        model=wrapped_model,
+        out=out_dir / "exported_models" / "exported_last.pt",
+        format=ModelFormat.PACKAGE_DEFAULT,
+        package=package,
+    )
+    logger.info("Model exported.")
 
 
 def train_from_config(config: TrainConfig) -> None:
@@ -439,8 +625,8 @@ class TrainConfig(PydanticConfig):
     resume_interrupted: bool = False
     checkpoint: PathLike | None = None
     overwrite: bool = False
-    accelerator: str | Accelerator = "auto"
-    strategy: str | Strategy = "auto"
+    accelerator: str | LightningAccelerator | FabricAccelerator = "auto"
+    strategy: str | LightningStrategy | FabricStrategy = "auto"
     precision: _PRECISION_INPUT = "32-true"
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
     seed: int = 0

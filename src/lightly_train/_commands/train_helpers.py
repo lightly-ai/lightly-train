@@ -12,9 +12,12 @@ from pathlib import Path
 from typing import Any, Literal, Sized
 
 from pytorch_lightning import Callback, Trainer
-from pytorch_lightning.accelerators.accelerator import Accelerator
-from pytorch_lightning.accelerators.cpu import CPUAccelerator
-from pytorch_lightning.accelerators.cuda import CUDAAccelerator
+from pytorch_lightning.accelerators.accelerator import Accelerator as LightningAccelerator
+from lightning_fabric.accelerators.accelerator import Accelerator as FabricAccelerator
+from pytorch_lightning.accelerators.cpu import CPUAccelerator as LightningCPUAccelerator
+from lightning_fabric.accelerators.cpu import CPUAccelerator as FabricCPUAccelerator
+from pytorch_lightning.accelerators.cuda import CUDAAccelerator as LightningCUDAAccelerator
+from lightning_fabric.accelerators.cuda import CUDAAccelerator as FabricCUDAAccelerator
 from pytorch_lightning.loggers import Logger
 from pytorch_lightning.strategies.strategy import Strategy
 from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type: ignore[attr-defined]
@@ -198,7 +201,7 @@ def get_embedding_model(
 def get_trainer(
     out: Path,
     epochs: int,
-    accelerator: str | Accelerator,
+    accelerator: str | Light,
     strategy: str | Strategy,
     devices: list[int] | str | int,
     num_nodes: int,
@@ -249,18 +252,18 @@ def get_lightning_logging_interval(dataset_size: int, batch_size: int) -> int:
 
 def get_strategy(
     strategy: str | Strategy,
-    accelerator: str | Accelerator,
+    accelerator: str | LightningAccelerator | FabricAccelerator,
     devices: list[int] | str | int,
+    fabric: bool = False,
 ) -> str | Strategy:
     if strategy != "auto":
         logger.debug(f"Using provided strategy '{strategy}'.")
         return strategy
 
-    accelerator_cls: type[CUDAAccelerator] | type[CPUAccelerator]
-    if isinstance(accelerator, CUDAAccelerator) or accelerator == "gpu":
-        accelerator_cls = CUDAAccelerator
-    elif isinstance(accelerator, CPUAccelerator) or accelerator == "cpu":
-        accelerator_cls = CPUAccelerator
+    if isinstance(accelerator, (LightningCUDAAccelerator, FabricCUDAAccelerator)) or accelerator == "gpu":
+        accelerator_cls = LightningCUDAAccelerator if not fabric else FabricCUDAAccelerator
+    elif isinstance(accelerator, (LightningCPUAccelerator, FabricCPUAccelerator)) or accelerator == "cpu":
+        accelerator_cls = LightningCPUAccelerator if not fabric else FabricCPUAccelerator
     else:
         # For non CPU/CUDA accelerators we let PyTorch Lightning decide.
         logger.debug(

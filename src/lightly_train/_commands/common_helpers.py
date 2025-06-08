@@ -20,11 +20,16 @@ from pathlib import Path
 from typing import Any, Generator, Iterable, Literal, Sequence
 
 import torch
-from pytorch_lightning.accelerators.accelerator import Accelerator
-from pytorch_lightning.accelerators.cpu import CPUAccelerator
-from pytorch_lightning.accelerators.cuda import CUDAAccelerator
-from pytorch_lightning.accelerators.mps import MPSAccelerator
-from pytorch_lightning.strategies.strategy import Strategy
+from pytorch_lightning.accelerators.accelerator import Accelerator as LightningAccelerator
+from lightning_fabric.accelerators.accelerator import Accelerator as FabricAccelerator
+from pytorch_lightning.accelerators.cpu import CPUAccelerator as LightningCPUAccelerator
+from lightning_fabric.accelerators.cpu import CPUAccelerator as FabricCPUAccelerator
+from pytorch_lightning.accelerators.cuda import CUDAAccelerator as LightningCUDAAccelerator
+from lightning_fabric.accelerators.cuda import CUDAAccelerator as FabricCUDAAccelerator
+from pytorch_lightning.accelerators.mps import MPSAccelerator as LightningMPSAccelerator
+from lightning_fabric.accelerators.mps import MPSAccelerator as FabricMPSAccelerator
+from pytorch_lightning.strategies.strategy import Strategy as LightningStrategy
+from lightning_fabric.strategies import Strategy as FabricStrategy
 from torch.nn import Module
 from torch.utils.data import Dataset
 
@@ -92,6 +97,7 @@ def get_out_path(out: PathLike, overwrite: bool) -> Path:
 
 def get_accelerator(
     accelerator: str | Accelerator,
+    fabric: bool = False,
 ) -> str | Accelerator:
     logger.debug(f"Getting accelerator for '{accelerator}'.")
     if accelerator != "auto":
@@ -99,15 +105,15 @@ def get_accelerator(
         return accelerator
 
     # Default to CUDA if available.
-    if CUDAAccelerator.is_available():
+    if LightningCUDAAccelerator.is_available():
         logger.debug("CUDA is available, defaulting to CUDA.")
-        return CUDAAccelerator()
-    elif MPSAccelerator.is_available():
+        return LightningCUDAAccelerator() if not fabric else FabricCUDAAccelerator()
+    elif LightningMPSAccelerator.is_available():
         logger.debug("MPS is available, defaulting to MPS.")
-        return MPSAccelerator()
+        return LightningCUDAAccelerator() if not fabric else FabricCUDAAccelerator()
     else:
         logger.debug("CUDA and MPS are not available, defaulting to CPU.")
-        return CPUAccelerator()
+        return LightningCPUAccelerator() if not fabric else FabricCPUAccelerator()
 
 
 def get_out_dir(out: PathLike, resume_interrupted: bool, overwrite: bool) -> Path:
@@ -250,9 +256,9 @@ def sanitize_config_dict(args: dict[str, Any]) -> dict[str, Any]:
     model = args.get("model")
     if model is not None and not isinstance(model, str):
         args["model"] = model.__class__.__name__
-    if isinstance(args.get("accelerator"), Accelerator):
+    if isinstance(args.get("accelerator"), (LightningAccelerator, FabricAccelerator)):
         args["accelerator"] = args["accelerator"].__class__.__name__
-    if isinstance(args.get("strategy"), Strategy):
+    if isinstance(args.get("strategy"), (LightningStrategy, FabricStrategy)):
         args["strategy"] = args["strategy"].__class__.__name__
     if isinstance(args.get("format"), EmbeddingFormat):
         args["format"] = args["format"].value
