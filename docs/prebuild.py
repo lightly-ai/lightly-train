@@ -39,12 +39,12 @@ def build_changelog_html(source_dir: Path) -> None:
 
     def add_version_target(match: Match):
         version = match.group(1)
-        veresion_with_target = textwrap.dedent(f"""
+        version_with_target = textwrap.dedent(f"""
             (changelog-{version.replace(".", "-")})=
 
             {match.group(0)}
         """)
-        return veresion_with_target
+        return version_with_target
 
     changelog_content = re.sub(
         version_pattern,
