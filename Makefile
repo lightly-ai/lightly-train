@@ -144,7 +144,9 @@ EXTRAS_PY38 := [dev,mlflow,notebook,super-gradients,tensorboard,timm,ultralytics
 
 # SuperGradients is not compatible with Python>=3.10. It is also not easy to install
 # on MacOS. Therefore we exclude it from the default extras.
-EXTRAS_PY312 := [dev,mlflow,notebook,rfdetr,tensorboard,timm,ultralytics,wandb]
+# RFDETR has installation issues because of onnxsim dependency on CI with Python 3.12.
+# Onnx dependencies in RFDETR should become optional in RFDETR >1.1.0.
+EXTRAS_PY312 := [dev,mlflow,notebook,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies. And SuperGradients is not compatible with
