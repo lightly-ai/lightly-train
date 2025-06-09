@@ -28,6 +28,15 @@ This allows you to focus on new features and domains instead of managing your la
 LightlyTrain is designed for simple integration into existing training pipelines and supports
 a wide range of model architectures and use cases out of the box.
 
+## News
+
+- \[[0.8.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-8-0)\] - 2025-06-10:
+  [**DINOv2 pretraining**](https://docs.lightly.ai/train/stable/methods/dinov2.html) is
+  now available (beta)!
+- \[[0.7.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-7-0)\] - 2025-05-26:
+  Up to **3x faster distillation** and higher accuracy with [**Distillation v2**](https://docs.lightly.ai/train/stable/methods/distillation.html)
+  (new default method)!
+
 ## Why Lightly**Train**?
 
 - 💸 **No Labels Required**: Speed up development by pretraining models on your unlabeled image and video data.
