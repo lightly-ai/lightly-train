@@ -206,22 +206,19 @@ class DINOv2(Method):
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
         )
-
-        # Load method args
         self.method_args = method_args
 
         # Create teacher and student embedding models
-        # TODO(Guarin, 06/25): Can we refactor this to use the embedding models
-        # directly instead of having to extract the wrapped model?
-        model_wrapper: DINOv2ViTModelWrapper = embedding_model.wrapped_model  # type: ignore[assignment]
-        self.teacher_embedding_model_wrapper = model_wrapper
-        self.student_embedding_model_wrapper = copy.deepcopy(
-            self.teacher_embedding_model_wrapper
-        )
-        self.teacher_embedding_model_wrapper.make_teacher()
-        freeze_eval_module(self.teacher_embedding_model_wrapper)
+        self.teacher_embedding_model = embedding_model
+        self.student_embedding_model = copy.deepcopy(self.teacher_embedding_model)
 
-        model = model_wrapper.get_model()
+        wrapped_model: DINOv2ViTModelWrapper = (
+            self.teacher_embedding_model.wrapped_model  # type: ignore[assignment]
+        )
+        wrapped_model.make_teacher()
+        freeze_eval_module(self.teacher_embedding_model)
+
+        model = wrapped_model.get_model()
         self._patch_size = model.patch_size
 
         # Create teacher and student dino heads
@@ -455,7 +452,7 @@ class DINOv2(Method):
         n_masked_patches: int,
         teacher_temp: float,
     ) -> tuple[Tensor, Tensor]:
-        tokens = self.teacher_embedding_model_wrapper.forward_features(
+        tokens = self.teacher_embedding_model.wrapped_model.forward_features(
             x
         )  # input [G*B, C, ...]
 
@@ -518,9 +515,10 @@ class DINOv2(Method):
         masks: Tensor,
         mask_indices_list: Tensor,
     ) -> tuple[Tensor, Tensor]:
-        tokens = self.student_embedding_model_wrapper.forward_features(
-            x, masks
-        )  # input [G*B, C, ...]
+        wrapped_model: DINOv2ViTModelWrapper = (
+            self.student_embedding_model.wrapped_model  # type: ignore[assignment]
+        )
+        tokens = wrapped_model.forward_features(x=x, masks=masks)  # input [G*B, C, ...]
 
         # process the cls tokens
         cls_tokens = tokens["cls_token"]  # [G*B, C]
@@ -542,7 +540,7 @@ class DINOv2(Method):
         return cls_tokens_after_dino, masked_patch_tokens_after_ibot
 
     def _forward_student_local(self, x: Tensor) -> Tensor:
-        tokens = self.student_embedding_model_wrapper.forward_features(
+        tokens = self.student_embedding_model.wrapped_model.forward_features(
             x
         )  # input [L*B, C, ...]
 
@@ -574,7 +572,7 @@ class DINOv2(Method):
         if self.method_args.ibot_separate_head:
             return TrainableModules(
                 modules=[
-                    self.student_embedding_model_wrapper.get_model(),
+                    self.student_embedding_model,
                     self.student_dino_head,
                     self.student_ibot_head,
                 ],
@@ -582,7 +580,7 @@ class DINOv2(Method):
         else:
             return TrainableModules(
                 modules=[
-                    self.student_embedding_model_wrapper.get_model(),
+                    self.student_embedding_model,
                     self.student_dino_head,
                 ]
             )
@@ -662,8 +660,8 @@ class DINOv2(Method):
             end_value=self.method_args.momentum_end,
         )
         update_momentum(
-            self.student_embedding_model_wrapper._model,
-            self.teacher_embedding_model_wrapper._model,
+            self.student_embedding_model,
+            self.teacher_embedding_model,
             m=momentum,
         )
         update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
