@@ -555,7 +555,7 @@ class DINOv2(Method):
         return TrainableModules(
             modules=[
                 # TODO(Guarin, 06/25): We should pass here the embedding model instead
-                # of the wrapped model for clarity. But this requires changging
+                # of the wrapped model for clarity. But this requires changing
                 # get_optimizer_with_decay.
                 self.student_embedding_model.wrapped_model.get_model(),
                 self.student_head,
