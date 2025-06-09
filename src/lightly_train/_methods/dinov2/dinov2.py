@@ -67,35 +67,6 @@ def freeze_eval_module(module: Module) -> None:
     module.eval()
 
 
-# Wrappers to ensure the param groups are named differently for the DINO and iBOT heads
-class DINOHead(Module):
-    """A wrapper for the DINO projection head."""
-
-    def __init__(self, dino_head: Module) -> None:
-        super().__init__()
-        self._dino_head = dino_head
-
-    def forward(self, x: Tensor) -> Any:
-        return self._dino_head(x)
-
-    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
-        self._dino_head.cancel_last_layer_gradients(current_epoch)
-
-
-class IBOTHead(Module):
-    """A wrapper for the IBOT projection head."""
-
-    def __init__(self, ibot_head: Module) -> None:
-        super().__init__()
-        self._ibot_head = ibot_head
-
-    def forward(self, x: Tensor) -> Any:
-        return self._ibot_head(x)
-
-    def cancel_last_layer_gradients(self, current_epoch: int) -> None:
-        self._ibot_head.cancel_last_layer_gradients(current_epoch)
-
-
 @dataclass
 class DINOv2TrainingStepResult(TrainingStepResult):
     dino_global_loss: Tensor
@@ -192,6 +163,15 @@ class DINOv2AdamWViTArgs(AdamWArgs):
     weight_decay: float = 0.04
 
 
+class DINOv2Head(Module):
+    def __init__(
+        self, dino_head: DINOProjectionHead, ibot_head: DINOProjectionHead
+    ) -> None:
+        super().__init__()
+        self.dino_head = dino_head
+        self.ibot_head = ibot_head
+
+
 class DINOv2(Method):
     def __init__(
         self,
@@ -221,7 +201,7 @@ class DINOv2(Method):
         model = wrapped_model.get_model()
         self._patch_size = model.patch_size
 
-        # Create teacher and student dino heads
+        # Create teacher and student heads
         dino_head = partial(
             DINOProjectionHead,
             input_dim=model.embed_dim,
@@ -231,36 +211,35 @@ class DINOv2(Method):
             batch_norm=method_args.batch_norm,
             norm_last_layer=method_args.norm_last_layer,
         )
-        self.teacher_dino_head = DINOHead(dino_head())
-        self.student_dino_head = DINOHead(
-            dino_head(freeze_last_layer=method_args.student_freeze_last_layer_epochs)
+        teacher_dino_head = dino_head()
+        student_dino_head = dino_head(
+            freeze_last_layer=method_args.student_freeze_last_layer_epochs
         )
 
-        # Create teacher and student iBOT head
-        self.teacher_ibot_head: DINOHead | IBOTHead
-        self.student_ibot_head: DINOHead | IBOTHead
-        if self.method_args.ibot_separate_head:
-            ibot_head = partial(
-                DINOProjectionHead,
-                input_dim=model.embed_dim,
-                hidden_dim=method_args.hidden_dim,
-                bottleneck_dim=method_args.ibot_bottleneck_dim,
-                output_dim=method_args.output_dim,
-                batch_norm=method_args.batch_norm,
-                norm_last_layer=method_args.norm_last_layer,
+        ibot_head = partial(
+            DINOProjectionHead,
+            input_dim=model.embed_dim,
+            hidden_dim=method_args.hidden_dim,
+            bottleneck_dim=method_args.ibot_bottleneck_dim,
+            output_dim=method_args.output_dim,
+            batch_norm=method_args.batch_norm,
+            norm_last_layer=method_args.norm_last_layer,
+        )
+        teacher_ibot_head = teacher_dino_head
+        student_ibot_head = student_dino_head
+        if method_args.ibot_separate_head:
+            teacher_ibot_head = ibot_head()
+            student_ibot_head = ibot_head(
+                freeze_last_layer=method_args.student_freeze_last_layer_epochs
             )
-            self.teacher_ibot_head = IBOTHead(ibot_head())
-            self.student_ibot_head = IBOTHead(
-                ibot_head(
-                    freeze_last_layer=method_args.student_freeze_last_layer_epochs
-                )
-            )
-        else:
-            self.teacher_ibot_head = self.teacher_dino_head
-            self.student_ibot_head = self.student_dino_head
 
-        freeze_eval_module(self.teacher_dino_head)
-        freeze_eval_module(self.teacher_ibot_head)
+        self.teacher_head = DINOv2Head(
+            dino_head=teacher_dino_head, ibot_head=teacher_ibot_head
+        )
+        self.student_head = DINOv2Head(
+            dino_head=student_dino_head, ibot_head=student_ibot_head
+        )
+        freeze_eval_module(self.teacher_head)
 
         # Losses
         self.dino_loss = DINOLoss(
@@ -462,7 +441,9 @@ class DINOv2(Method):
         cls_tokens = torch.cat(
             (cls_tokens[batch_size:], cls_tokens[:batch_size])
         )  # [G*B, C]
-        cls_tokens_after_dino = self.teacher_dino_head.forward(cls_tokens)  # [G*B, D]
+        cls_tokens_after_dino = self.teacher_head.dino_head.forward(
+            cls_tokens
+        )  # [G*B, D]
 
         # process the masked patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
@@ -473,7 +454,7 @@ class DINOv2(Method):
             dim=0,
             index=mask_indices_list,
         )  # [M, C]
-        masked_patch_tokens_after_ibot = self.teacher_ibot_head.forward(
+        masked_patch_tokens_after_ibot = self.teacher_head.ibot_head.forward(
             masked_patch_tokens
         )  # [M, D]
 
@@ -522,7 +503,9 @@ class DINOv2(Method):
 
         # process the cls tokens
         cls_tokens = tokens["cls_token"]  # [G*B, C]
-        cls_tokens_after_dino = self.student_dino_head.forward(cls_tokens)  # [G*B, D]
+        cls_tokens_after_dino = self.student_head.dino_head.forward(
+            cls_tokens
+        )  # [G*B, D]
 
         # process the patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
@@ -533,7 +516,7 @@ class DINOv2(Method):
             dim=0,
             index=mask_indices_list,
         )  # [M, C]
-        masked_patch_tokens_after_ibot = self.student_ibot_head.forward(
+        masked_patch_tokens_after_ibot = self.student_head.ibot_head.forward(
             masked_patch_tokens
         )  # [M, D]
 
@@ -546,7 +529,7 @@ class DINOv2(Method):
 
         # process the cls tokens
         cls_tokens = tokens["cls_token"]  # [L*B, C]
-        cls_tokens_after_dino: Tensor = self.student_dino_head.forward(
+        cls_tokens_after_dino: Tensor = self.student_head.dino_head.forward(
             cls_tokens
         )  # [L*B, D]
 
@@ -569,21 +552,15 @@ class DINOv2(Method):
 
     def trainable_modules(self) -> TrainableModules:
         # decay is realized in get_optimizer_with_decay
-        if self.method_args.ibot_separate_head:
-            return TrainableModules(
-                modules=[
-                    self.student_embedding_model,
-                    self.student_dino_head,
-                    self.student_ibot_head,
-                ],
-            )
-        else:
-            return TrainableModules(
-                modules=[
-                    self.student_embedding_model,
-                    self.student_dino_head,
-                ]
-            )
+        return TrainableModules(
+            modules=[
+                # TODO(Guarin, 06/25): We should pass here the embedding model instead
+                # of the wrapped model for clarity. But this requires changging
+                # get_optimizer_with_decay.
+                self.student_embedding_model.wrapped_model.get_model(),
+                self.student_head,
+            ],
+        )
 
     # Ignore the return type, because pytorch-lightning types it wrongly.
     # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
@@ -628,8 +605,8 @@ class DINOv2(Method):
         )
 
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
-        self.student_dino_head.cancel_last_layer_gradients(self.current_epoch)
-        self.student_ibot_head.cancel_last_layer_gradients(self.current_epoch)
+        self.student_head.dino_head.cancel_last_layer_gradients(self.current_epoch)
+        self.student_head.ibot_head.cancel_last_layer_gradients(self.current_epoch)
 
         # Apply weight decay schedule
         weight_decay = cosine_schedule(
@@ -664,9 +641,7 @@ class DINOv2(Method):
             self.teacher_embedding_model,
             m=momentum,
         )
-        update_momentum(self.student_dino_head, self.teacher_dino_head, m=momentum)
-        if self.method_args.ibot_separate_head:
-            update_momentum(self.student_ibot_head, self.teacher_ibot_head, m=momentum)
+        update_momentum(self.student_head, self.teacher_head, m=momentum)
         super().on_train_batch_end(outputs=outputs, batch=batch, batch_idx=batch_idx)
 
     @staticmethod

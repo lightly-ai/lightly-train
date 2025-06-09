@@ -116,15 +116,15 @@ class TestDINOv2:
 
         # check that the ibot and dino heads are the same
         if ibot_separate_head:
-            assert dinov2.student_dino_head != dinov2.student_ibot_head
+            assert dinov2.student_head.dino_head != dinov2.student_head.ibot_head
         else:
-            assert dinov2.student_dino_head == dinov2.student_ibot_head
-            assert len(list(dinov2.student_dino_head.parameters())) == len(
-                list(dinov2.student_ibot_head.parameters())
+            assert dinov2.student_head.dino_head == dinov2.student_head.ibot_head
+            assert len(list(dinov2.student_head.dino_head.parameters())) == len(
+                list(dinov2.student_head.ibot_head.parameters())
             )
             for (name_dino, param_dino), (name_ibot, param_ibot) in zip(
-                dinov2.student_dino_head.named_parameters(),
-                dinov2.student_ibot_head.named_parameters(),
+                dinov2.student_head.dino_head.named_parameters(),
+                dinov2.student_head.ibot_head.named_parameters(),
             ):
                 assert name_dino == name_ibot
                 assert param_dino.dtype == param_ibot.dtype
@@ -169,7 +169,7 @@ class TestDINOv2:
         def check_param_groups() -> None:
             for param_group in optim.param_groups:
                 name = param_group["name"]
-                if "_ibot_head." not in name and "_dino_head." not in name:
+                if "ibot_head" not in name and "dino_head" not in name:
                     # This is a ViT block --> decay through the layers
                     layer_id = num_layers + 1
                     if (
