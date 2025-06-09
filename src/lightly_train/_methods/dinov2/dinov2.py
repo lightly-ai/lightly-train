@@ -152,6 +152,7 @@ class DINOv2Args(MethodArgs):
 
     # lr scheduler
     min_lr: float = 1.0e-06
+    # TODO(Guarin, 06/25): Handle warmup epochs for runs with <100 epochs.
     warmup_epochs: int = 10
 
     # lr decay
@@ -601,15 +602,22 @@ class DINOv2(Method):
             raise RuntimeError("Max epochs is not set.")
 
         max_epochs = max(1, self.trainer.max_epochs)
+        warmup_steps = min(
+            # warmup_steps has to be smaller than the total number of steps because
+            # of: https://github.com/lightly-ai/lightly/pull/1842
+            # TODO(Guarin, 06/25): Remove this once we no longer support
+            # LightlySSL <= 1.5.21.
+            self.trainer.estimated_stepping_batches - 1,
+            self.trainer.estimated_stepping_batches
+            / max_epochs
+            * self.method_args.warmup_epochs,
+        )
 
         scheduler = {
             "scheduler": CosineWarmupScheduler(
                 optimizer=optim,
-                warmup_epochs=int(
-                    self.trainer.estimated_stepping_batches
-                    / max_epochs
-                    * self.method_args.warmup_epochs
-                ),
+                # The arguments are called "epochs" but they can also be steps.
+                warmup_epochs=int(warmup_steps),
                 max_epochs=int(self.trainer.estimated_stepping_batches),
                 end_value=self.method_args.min_lr / self.optimizer_args.lr,  # type: ignore[attr-defined]
             ),  # TODO: ignore to be removed after improving optimizer args
