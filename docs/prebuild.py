@@ -4,6 +4,7 @@ import re
 import textwrap
 from argparse import ArgumentParser
 from pathlib import Path
+from re import Match
 
 from lightly_train._commands import common_helpers, train_helpers
 from lightly_train._methods import method_helpers
@@ -23,10 +24,36 @@ def build_changelog_html(source_dir: Path) -> None:
     """)
 
     changelog_content = (PROJECT_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    # Remove the "Unreleased" section.
     # Regex matches everything between "## [Unreleased]"" and the next "## [" but does
     # not capture the "## [" part.
     pattern = r"## \\?\[Unreleased\\?\].*?(?=## \\?\[)"
     changelog_content = re.sub(pattern, "", changelog_content, flags=re.DOTALL).strip()
+
+    # Add version targets.
+    # Adds a `(changelog-<version>)=` target above each version header. This is needed
+    # because sphinx otherwise generates generic `id1`, `id2`, etc. targets for the
+    # version headers.
+    version_pattern = r"## \\?\[(\d+\.\d+\.\d+)\\?\] - \d+-\d+-\d+\n"
+
+    def add_version_target(match: Match):
+        version = match.group(1)
+        veresion_with_target = textwrap.dedent(f"""
+            (changelog-{version.replace(".", "-")})=
+
+            {match.group(0)}
+        """)
+        return veresion_with_target
+
+    changelog_content = re.sub(
+        version_pattern,
+        add_version_target,
+        changelog_content,
+        flags=re.DOTALL,
+    )
+
+    # Add header.
     changelog_content = header + changelog_content
 
     # avoid writing file unless the content has changed to avoid infinite build loop
