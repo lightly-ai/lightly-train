@@ -130,13 +130,14 @@ class TestDINOv2:
                 assert param_dino.dtype == param_ibot.dtype
                 assert param_dino.requires_grad == param_ibot.requires_grad
                 assert torch.allclose(param_dino, param_ibot, rtol=1e-3, atol=1e-4)
+        assert out.log_dict is not None
         if n_local_crops == 0:
-            assert out.dino_local_loss == torch.tensor(0.0)
+            assert out.log_dict["train_loss/dino_local_loss"] == torch.tensor(0.0)
         assert out.loss.shape == Size([])
-        assert out.dino_global_loss.shape == Size([])
-        assert out.dino_local_loss.shape == Size([])
-        assert out.ibot_loss.shape == Size([])
-        assert out.koleo_loss.shape == Size([])
+        assert out.log_dict["train_loss/dino_global_loss"].shape == Size([])
+        assert out.log_dict["train_loss/dino_local_loss"].shape == Size([])
+        assert out.log_dict["train_loss/ibot_loss"].shape == Size([])
+        assert out.log_dict["train_loss/koleo_loss"].shape == Size([])
 
     def test_layerwise_decay_optimizer(self, mocker: MockerFixture) -> None:
         emb_model = EmbeddingModel(wrapped_model=dummy_vit_model())

@@ -10,7 +10,6 @@ from __future__ import annotations
 import copy
 import logging
 import math
-from dataclasses import dataclass
 from functools import partial
 from typing import Any, Literal, Mapping
 
@@ -65,14 +64,6 @@ def freeze_eval_module(module: Module) -> None:
     for param in module.parameters():
         param.requires_grad = False
     module.eval()
-
-
-@dataclass
-class DINOv2TrainingStepResult(TrainingStepResult):
-    dino_global_loss: Tensor
-    dino_local_loss: Tensor
-    ibot_loss: Tensor
-    koleo_loss: Tensor
 
 
 class DINOv2Args(MethodArgs):
@@ -255,42 +246,7 @@ class DINOv2(Method):
         )
         self.koleo_loss = KoLeoLoss()
 
-    def training_step(self, batch: Batch, batch_idx: int) -> Tensor:
-        training_step_log: DINOv2TrainingStepResult = self.training_step_impl(
-            batch, batch_idx
-        )
-
-        train_loss = training_step_log.loss
-        dino_global_loss = training_step_log.dino_global_loss
-        dino_local_loss = training_step_log.dino_local_loss
-        ibot_loss = training_step_log.ibot_loss
-        koleo_loss = training_step_log.koleo_loss
-
-        log_dict = {
-            "train_loss": train_loss,
-            "dino_global_loss": dino_global_loss,
-            "dino_local_loss": dino_local_loss,
-            "ibot_loss": ibot_loss,
-            "koleo_loss": koleo_loss,
-        }
-
-        views = batch["views"]
-        self.log_dict(
-            log_dict,
-            prog_bar=True,
-            sync_dist=True,
-            batch_size=len(views[0]),
-        )
-
-        if self.global_step == 0:
-            # Show example views of the images in the first batch only.
-            self._log_example_views(train_batch=batch)
-
-        return train_loss
-
-    def training_step_impl(
-        self, batch: Batch, batch_idx: int
-    ) -> DINOv2TrainingStepResult:
+    def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
         # Teacher temperature scheduling
         teacher_temp = linear_warmup_schedule(
             step=self.trainer.global_step,
@@ -415,12 +371,14 @@ class DINOv2(Method):
             + self.method_args.koleo_loss_weight * koleo_loss
         )
 
-        return DINOv2TrainingStepResult(
+        return TrainingStepResult(
             loss=loss,
-            dino_global_loss=dino_global_loss,
-            dino_local_loss=dino_local_loss,
-            ibot_loss=ibot_loss,
-            koleo_loss=koleo_loss,
+            log_dict={
+                "train_loss/dino_global_loss": dino_global_loss,
+                "train_loss/dino_local_loss": dino_local_loss,
+                "train_loss/ibot_loss": ibot_loss,
+                "train_loss/koleo_loss": koleo_loss,
+            },
         )
 
     @torch.no_grad()
