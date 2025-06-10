@@ -9,30 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **DINOv2 pretraining is now available** with the `method="dinov2"` argument.
-  The method is in beta and further improvements will be released in the coming weeks.
-  See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html)
-  for more information.
-- Support for Torchvision ShuffleNetV2 models.
-- RT-DETR has now an integrated model wrapper.
-
 ### Changed
 
 ### Deprecated
-
-- The `resume` parameter in the `train` command is deprecated in favor of
-  `resume_interrupted` and will be removed in a future release. The new parameter
-  works the same way as the old one, but it is more explicit about its purpose. See
-  (the documentation)[https://docs.lightly.ai/train/stable/train/index.html#resume-training]
-  for more information.
 
 ### Removed
 
 ### Fixed
 
-- Fixed VIT output reshape.
-
 ### Security
+
+## [0.8.0] - 2025-06-10
+
+### Added
+
+- **DINOv2 pretraining is now available** with the `method="dinov2"` argument.
+  The method is in beta and further improvements will be released in the coming weeks.
+  See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html)
+  for more information.
+- Support for [Torchvision ShuffleNetV2 models](https://docs.lightly.ai/train/stable/models/torchvision.html).
+- [RT-DETR](https://docs.lightly.ai/train/stable/models/rtdetr.html) has now an
+  integrated model wrapper.
+
+### Changed
+
+- The [Ultralytics YOLO tutorial](https://docs.lightly.ai/train/stable/tutorials/yolo/index.html)
+  now highlights better how to use YOLO with LightlyTrain.
+
+### Deprecated
+
+- The `resume` parameter in the `train` command is deprecated in favor of
+  `resume_interrupted` and will be removed in a future release. The new parameter
+  behaves the same as the old one but is more explicit about its purpose. See
+  [the documentation](https://docs.lightly.ai/train/stable/train/index.html#resume-training)
+  for more information.
 
 ## [0.7.0] - 2025-05-26
 
@@ -54,8 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Distillation methods now use the teacher model from the [official DINOv2 implementation](https://github.com/facebookresearch/dinov2).
 - The RT-DETR example uses RT-DETRv2, imposing fewer constraints on package versions.
 
-### Deprecated
-
 ### Removed
 
 - Dependency on the transformers library.
@@ -64,8 +72,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `num_workers="auto"` now limits the number of workers to a maximum of 8 workers/GPU
   to avoid overloading systems with many CPU cores.
-
-### Security
 
 ## [0.6.3] - 2025-04-23
 
