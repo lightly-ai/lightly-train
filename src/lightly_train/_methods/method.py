@@ -37,6 +37,7 @@ from lightly_train.types import Batch
 @dataclass
 class TrainingStepResult:
     loss: Tensor
+    log_dict: Mapping[str, Any] | None = None
 
 
 @dataclass
@@ -127,6 +128,13 @@ class Method(LightningModule):
         self.log(
             "train_loss", loss, prog_bar=True, sync_dist=True, batch_size=len(views[0])
         )
+        if training_step_log.log_dict is not None:
+            self.log_dict(
+                training_step_log.log_dict,
+                prog_bar=False,
+                sync_dist=True,
+                batch_size=len(views[0]),
+            )
         if self.global_step == 0:
             # Show example views of the images in the first batch only.
             self._log_example_views(train_batch=batch)
