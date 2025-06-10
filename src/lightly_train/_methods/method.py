@@ -37,6 +37,7 @@ from lightly_train.types import Batch
 @dataclass
 class TrainingStepResult:
     loss: Tensor
+    log_dict: Mapping[str, Any] | None = None
 
 
 @dataclass
@@ -97,12 +98,15 @@ class Method(LightningModule):
 
         # Warmup for 10 epochs or 10% of the total number of epochs if max_epochs < 100
         warmup_epochs = min(10, max_epochs / 10)
+        warmup_steps = min(
+            int(self.trainer.estimated_stepping_batches),
+            int(self.trainer.estimated_stepping_batches / max_epochs * warmup_epochs),
+        )
         scheduler = {
             "scheduler": CosineWarmupScheduler(
                 optimizer=optim,
-                warmup_epochs=int(
-                    self.trainer.estimated_stepping_batches / max_epochs * warmup_epochs
-                ),
+                # The arguments are called "epochs" but they can also be steps.
+                warmup_epochs=warmup_steps,
                 max_epochs=int(self.trainer.estimated_stepping_batches),
             ),
             "interval": "step",
@@ -124,6 +128,13 @@ class Method(LightningModule):
         self.log(
             "train_loss", loss, prog_bar=True, sync_dist=True, batch_size=len(views[0])
         )
+        if training_step_log.log_dict is not None:
+            self.log_dict(
+                training_step_log.log_dict,
+                prog_bar=False,
+                sync_dist=True,
+                batch_size=len(views[0]),
+            )
         if self.global_step == 0:
             # Show example views of the images in the first batch only.
             self._log_example_views(train_batch=batch)
