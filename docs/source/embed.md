@@ -96,7 +96,7 @@ following formats are supported:
   ```python
     import torch
 
-    embeddings = torch.load("my_embeddings.pth", weights_only=True)
+    embeddings = torch.load("my_embeddings.pth")
     embeddings["embeddings"]    # Embeddings
     embeddings["filenames"]     # Image filenames
   ```
