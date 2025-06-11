@@ -68,6 +68,15 @@ class TestTIMMModelWrapper:
         y = extractor.forward_pool(extractor.forward_features(x))["pooled_features"]
         assert y.shape == (1, 384, 1, 1)
 
+    def test__device(self) -> None:
+        # If this test fails it means the wrapped model doesn't move all required
+        # modules to the correct device. This happens if not all required modules
+        # are registered as attributes of the class.
+        model = timm.create_model("resnet18")
+        extractor = TIMMModelWrapper(model=model)
+        extractor.to("meta")
+        extractor.forward_features(torch.rand(1, 3, 64, 64, device="meta"))
+
 
 # TODO: Do not skip if timm <1.0
 @pytest.mark.skip(reason="Requires timm <1.0")
