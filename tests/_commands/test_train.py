@@ -107,7 +107,8 @@ def test_train(
         f"Restoring states from the checkpoint path at {last_ckpt_path}" in caplog.text
     )
     # Epochs in checkpoint are 0-indexed. Epoch 1 is therefore the second epoch.
-    assert torch.load(last_ckpt_path, weights_only=True)["epoch"] == 1
+    # weights_only=True does not work here.
+    assert torch.load(last_ckpt_path, weights_only=False)["epoch"] == 1
 
     # Check that exported checkpoint weights changed between first and second run.
     second_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)

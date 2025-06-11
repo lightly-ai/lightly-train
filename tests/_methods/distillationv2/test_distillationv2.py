@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 import pytest
@@ -310,3 +311,81 @@ class TestDistillationV2:
         assert len(teacher_keys) == 0, (
             "Teacher weights should not be saved in the final checkpoint."
         )
+
+    @pytest.mark.parametrize(
+        "global_batch_size, expected_lr",
+        [
+            (3072, 9.0 * math.sqrt(3072 / 1536)),  # scaling = sqrt(2)
+            (1536, 9.0),  # scaling = 1.0
+            (768, 9.0 * math.sqrt(768 / 1536)),  # scaling = sqrt(0.5)
+            (384, 9.0 * math.sqrt(384 / 1536)),  # scaling = sqrt(0.25)
+            (128, 9.0 * math.sqrt(128 / 1536)),  # scaling = sqrt(1/12)
+        ],
+    )
+    def test_distillation_configure_optimizers_lr_scaling(
+        self,
+        mocker: MockerFixture,
+        global_batch_size: int,
+        expected_lr: float,
+    ) -> None:
+        """Test that the effective learning rate scales correctly with global_batch_size."""
+
+        # Constants.
+        student_embed_dim = 32
+        teacher_embed_dim = 48
+        base_lr = 1.5 * 1536 / 256
+
+        # Dummy student model.
+        student_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(student_embed_dim)
+        )
+
+        # Dummy teacher model.
+        teacher_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(teacher_embed_dim)
+        )
+
+        # Patch get_teacher.
+        mock_get_teacher = mocker.patch(
+            "lightly_train._methods.distillation.distillation.get_teacher"
+        )
+        mock_get_teacher.return_value = teacher_model
+
+        # Instantiate distillation method.
+        distill = DistillationV2(
+            method_args=DistillationV2Args(),
+            optimizer_args=DistillationV2LARSArgs(lr=base_lr),
+            embedding_model=student_model,
+            global_batch_size=global_batch_size,
+        )
+
+        # Mock trainer attributes needed by configure_optimizers.
+        mock_trainer = mocker.Mock()
+        mock_trainer.max_epochs = 100
+        mock_trainer.estimated_stepping_batches = 1000
+        distill.trainer = mock_trainer
+
+        # Call configure_optimizers.
+        optimizers_schedulers = distill.configure_optimizers()
+
+        # Check we got a tuple (optimizers, schedulers).
+        assert isinstance(optimizers_schedulers, tuple), (
+            f"Expected tuple from configure_optimizers, got {type(optimizers_schedulers)}"
+        )
+
+        optimizers, _ = optimizers_schedulers
+
+        # Check that optimizers is a list.
+        assert isinstance(optimizers, list), (
+            f"Expected list of optimizers, got {type(optimizers)}"
+        )
+
+        # There should be exactly one optimizer.
+        assert len(optimizers) == 1
+        optimizer = optimizers[0]
+
+        # Verify that all parameter groups have the expected scaled learning rate.
+        for param_group in optimizer.param_groups:
+            assert param_group["initial_lr"] == pytest.approx(expected_lr, rel=1e-6), (
+                f"Expected learning rate {expected_lr}, but got {param_group['initial_lr']}."
+            )
