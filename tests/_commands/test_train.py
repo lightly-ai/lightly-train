@@ -107,7 +107,7 @@ def test_train(
         f"Restoring states from the checkpoint path at {last_ckpt_path}" in caplog.text
     )
     # Epochs in checkpoint are 0-indexed. Epoch 1 is therefore the second epoch.
-    assert torch.load(last_ckpt_path)["epoch"] == 1
+    assert torch.load(last_ckpt_path, weights_only=True)["epoch"] == 1
 
     # Check that exported checkpoint weights changed between first and second run.
     second_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
@@ -122,7 +122,9 @@ def test_train(
 
     # Check that last.ckpt and exported_model.pt contain same information. If this fails
     # it means that checkpoint loading is not working correctly.
-    exported_state_dict = torch.load(out / "exported_models" / "exported_last.pt")
+    exported_state_dict = torch.load(
+        out / "exported_models" / "exported_last.pt", weights_only=True
+    )
     assert second_state_dict.keys() == exported_state_dict.keys()
     for key in second_state_dict.keys():
         if key.startswith("fc."):
@@ -471,7 +473,9 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
 
     # Check that last.ckpt and exported_model.pt contain same information. If this fails
     # it means that checkpoint loading is not working correctly.
-    exported_state_dict = torch.load(out / "exported_models" / "exported_last.pt")
+    exported_state_dict = torch.load(
+        out / "exported_models" / "exported_last.pt", weights_only=True
+    )
     assert second_state_dict.keys() == exported_state_dict.keys()
     for key in second_state_dict.keys():
         if key.startswith("fc."):
