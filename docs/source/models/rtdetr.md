@@ -58,6 +58,8 @@ if __name__ == "__main__":
     # Change the config file to the desired RT-DETR model
     config = YAMLConfig("configs/rtdetr/rtdetr_r50vd_6x_coco.yml")
     config.yaml_cfg["PResNet"]["pretrained"] = False
+    config.yaml_cfg["PResNet"]["freeze_norm"] = False
+    config.yaml_cfg["PResNet"]["freeze_at"] = -1
     model = config.model
 
     # Pretrain the model
