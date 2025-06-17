@@ -6,7 +6,7 @@ When importing:
 
 - For classes, import classes directly.
 - For functions, import the containing module and call the function using dot notation.
-- Don't do imports that are not used in the file.
+- Don't do imports that are not used in the file. If you accidentally import something that is not used, remove it.
 - Avoid wildcard imports, e.g. `from module import *`.
 - Sort imports alphabetically and also in the following order:
   - Standard library imports
