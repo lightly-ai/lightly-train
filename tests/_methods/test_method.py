@@ -54,7 +54,7 @@ class TestMethod:
             expected_scale = math.sqrt(expected_scale)
         expected_lr = base_lr * expected_scale
 
-        # Instantiate distillation method.
+        # Instantiate dummy method.
         method = DummyMethod(
             method_args=method_args,
             optimizer_args=optimizer_args,
