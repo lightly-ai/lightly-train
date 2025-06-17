@@ -1,27 +1,33 @@
 # Python coding guidelines
 
-## General guidelines
+## Imports
 
 When importing:
 
-1. For classes, import classes directly.
-1. For functions, import the containing module and call the function using dot notation.
-1. Don't do imports that is not used in the file.
-1. Avoid wildcard imports, e.g. `from module import *`.
-1. Sort imports alphabetically and also in the following order:
-   - Standard library imports
-   - Third-party imports
-   - Local imports
-     and group them accordingly with a blank line between each group.
+- For classes, import classes directly.
+- For functions, import the containing module and call the function using dot notation.
+- Don't do imports that are not used in the file.
+- Avoid wildcard imports, e.g. `from module import *`.
+- Sort imports alphabetically and also in the following order:
+  - Standard library imports
+  - Third-party imports
+  - Local imports
+    and group them accordingly with a blank line between each group.
+
+## File Layout
 
 Inside each file, the order of classes and functions should be:
 
-1. public classes
-1. public functions
-1. private classes
-1. private functions.
+- public classes
+- public functions
+- private classes
+- private functions.
 
-For todos, use a format `# TODO({Name}, {month}/{year}): {full_sentence_comment}`, e.g. `# TODO(Michal, 08/2023): Address in the next PR.`.
+Classes should come before global functions, if they are present.
+
+## TODOs
+
+For TODOs, use a format `# TODO({Name}, {month}/{year}): {full_sentence_comment}`, e.g. `# TODO(Michal, 08/2023): Address in the next PR.`.
 
 If using docstrings, use the google style guide and triple quotes. Use `Args:` and `Returns:` sections. Don't repeat the type in the description.
 Any example:
@@ -39,10 +45,15 @@ def foo(bar: int) -> str:
     return str(bar)
 ```
 
-For comments outside of docstrings, use full sentences and proper punctuation.
-E.g. `# This is a comment.` instead of `# this is a comment`.
+## Comments
+
+For comments outside of docstrings, use full sentences and proper punctuation. E.g. `# This is a comment.` instead of `# this is a comment`.
+
+## Assertions
 
 Avoid using `assert` outside of tests.
+
+## Positional vs. Keyword Arguments
 
 Always use keyword arguments when calling functions, except for single-argument functions.
 
@@ -50,7 +61,9 @@ Always use keyword arguments when calling functions, except for single-argument 
 
 Always use type hints, such that mypy passes.
 
-Use newer syntax e.g. `list[int | None]` instead of `List[Optional[int]]`. Only when the latter is needed for Python < 3.10 compatibility, should you add `from __future__ import annotations` at the top of the file.
+Use Python > 3.10 syntax e.g. `list[int | None]` instead of `List[Optional[int]]`. Only when the latter is needed for Python < 3.10 compatibility, should you add `from __future__ import annotations` at the top of the file.
+
+Use `Sequence` and `Mapping` instead of `list` and `dict` for immutable types. Import them from `collections.abc`.
 
 Enforce abstract inputs and concrete outputs despite specified type in prompts. See this example:
 
@@ -59,9 +72,9 @@ def add_suffix_to_list(lst: Sequence[str], suffix: str) -> list[str]:
     return [x + suffix for x in lst]
 ```
 
-Use Sequence and Mapping instead of list and dict for immutable types. Import them from `collections.abc`.
-
 Be specific when ignoring type errors, e.g. `# type: ignore[no-untyped-call]` instead of `# type: ignore`.
+
+Type all PyTorch tensors with `from torch import Tensor`. Note that things like `FloatTensor` and `LongTensor` should NOT be used.
 
 ## Testing
 
