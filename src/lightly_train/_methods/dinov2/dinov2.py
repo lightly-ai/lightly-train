@@ -574,8 +574,11 @@ class DINOv2(Method):
         )
 
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
-        self.student_head.dino_head.cancel_last_layer_gradients(self.current_epoch)
-        self.student_head.ibot_head.cancel_last_layer_gradients(self.current_epoch)
+        # Optionally zero out the learning rate of the last layer.
+        if self.current_epoch < self.method_args.student_freeze_last_layer_epochs:
+            for param_group in optimizer.param_groups:
+                if "last_layer" in param_group["name"]:
+                    param_group["lr"] = 0.0
 
         # Apply weight decay schedule
         weight_decay = cosine_schedule(
