@@ -311,13 +311,15 @@ class DINOv2(Method):
                 teacher_temp,
             )  # [G, B, D], [M, D]
         )
-        student_cls_tokens_global, student_masked_patch_tokens_global = (
-            self._forward_student_global(
-                x=global_views,
-                masks=collated_masks,
-                mask_indices_list=mask_indices_list,
-            )  # [G*B, D], [M, D]
-        )
+        (
+            student_cls_tokens_global,
+            student_cls_tokens_global_before_head,
+            student_masked_patch_tokens_global,
+        ) = self._forward_student_global(
+            x=global_views,
+            masks=collated_masks,
+            mask_indices_list=mask_indices_list,
+        )  # [G*B, D], [M, D]
 
         # Compute the DINO loss
         dino_global_loss = (
@@ -361,7 +363,8 @@ class DINOv2(Method):
         )
 
         koleo_loss = sum(
-            self.koleo_loss(token) for token in student_cls_tokens_global.chunk(2)
+            self.koleo_loss(token)
+            for token in student_cls_tokens_global_before_head.chunk(2)
         )  # [G, B, D], only use global views
 
         loss = (
@@ -479,7 +482,7 @@ class DINOv2(Method):
             masked_patch_tokens
         )  # [M, D]
 
-        return cls_tokens_after_dino, masked_patch_tokens_after_ibot
+        return cls_tokens_after_dino, cls_tokens, masked_patch_tokens_after_ibot
 
     def _forward_student_local(self, x: Tensor) -> Tensor:
         tokens = self.student_embedding_model.wrapped_model.forward_features(
