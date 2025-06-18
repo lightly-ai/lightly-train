@@ -25,9 +25,48 @@ Inside each file, the order of classes and functions should be:
 
 Classes should come before global functions, if they are present.
 
+## Protocols and Abstract Base Classes
+
+- DON'T inherit from Protocols.
+- For Protocol names, use ...able or a general class name.
+  ```python
+  class JsonSerializable(Protocol):
+      def serialize() -> Json:
+          ...
+
+  class Datasource(Protocol):
+      def get_list_access() -> bool:
+          ...
+          def get_write_access() -> bool:
+                  ...
+  ```
+- DON'T implement methods inside Protocols unless you have a strong reason to do so.
+- DON'T mix ABCs with other non-ABC classes.
+- DON'T mix `@abstractmethod` with `@staticmethod`.
+- Use
+  ```python
+  @property
+  @abstractmethod
+  ```
+  for abstract properties.
+
 ## TODOs
 
 For TODOs, use a format `# TODO({Name}, {month}/{year}): {full_sentence_comment}`, e.g. `# TODO(Michal, 08/2023): Address in the next PR.`.
+
+## Comments
+
+For comments outside of docstrings, use full sentences and proper punctuation. E.g. `# This is a comment.` instead of `# this is a comment`.
+
+## Assertions
+
+Avoid using `assert` outside of tests.
+
+## Positional vs. Keyword Arguments
+
+Always use keyword arguments when calling functions, except for single-argument functions.
+
+## Docstrings
 
 If using docstrings, use the google style guide and triple quotes. Use `Args:` and `Returns:` sections. Don't repeat the type in the description.
 Any example:
@@ -44,18 +83,6 @@ def foo(bar: int) -> str:
     """
     return str(bar)
 ```
-
-## Comments
-
-For comments outside of docstrings, use full sentences and proper punctuation. E.g. `# This is a comment.` instead of `# this is a comment`.
-
-## Assertions
-
-Avoid using `assert` outside of tests.
-
-## Positional vs. Keyword Arguments
-
-Always use keyword arguments when calling functions, except for single-argument functions.
 
 ## Typing
 
