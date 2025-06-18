@@ -457,7 +457,7 @@ class DINOv2(Method):
         x: Tensor,
         masks: Tensor,
         mask_indices_list: Tensor,
-    ) -> tuple[Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor]:
         wrapped_model: DINOv2ViTModelWrapper = (
             self.student_embedding_model.wrapped_model  # type: ignore[assignment]
         )
