@@ -111,7 +111,7 @@ def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
     """
     for img_or_dir in imgs_and_dirs:
         if img_or_dir.is_file() and (
-            img_or_dir.suffix in _pil_supported_image_extensions()
+            img_or_dir.suffix.lower() in _pil_supported_image_extensions()
         ):
             yield img_or_dir.resolve()
         elif img_or_dir.is_dir():
