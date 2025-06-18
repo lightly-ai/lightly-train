@@ -17,7 +17,6 @@ import torch
 from lightly.loss import (
     KoLeoLoss,
 )  # we use LightlySSL's KoLeoLoss for better numerical stability
-from lightly.models.modules.heads import DINOProjectionHead
 from lightly.models.utils import update_momentum
 from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
@@ -28,6 +27,7 @@ from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.validate import no_auto
+from lightly_train._methods.dinov2.dinov2_head import DINOv2ProjectionHead
 from lightly_train._methods.dinov2.dinov2_loss import (
     DINOLoss,
     IBOTPatchLoss,
@@ -157,7 +157,7 @@ class DINOv2AdamWViTArgs(AdamWArgs):
 
 class DINOv2Head(Module):
     def __init__(
-        self, dino_head: DINOProjectionHead, ibot_head: DINOProjectionHead
+        self, dino_head: DINOv2ProjectionHead, ibot_head: DINOv2ProjectionHead
     ) -> None:
         super().__init__()
         self.dino_head = dino_head
@@ -195,35 +195,29 @@ class DINOv2(Method):
 
         # Create teacher and student heads
         dino_head = partial(
-            DINOProjectionHead,
-            input_dim=model.embed_dim,
+            DINOv2ProjectionHead,
+            in_dim=model.embed_dim,
             hidden_dim=method_args.hidden_dim,
             bottleneck_dim=method_args.dino_bottleneck_dim,
-            output_dim=method_args.output_dim,
-            batch_norm=method_args.batch_norm,
-            norm_last_layer=method_args.norm_last_layer,
+            out_dim=method_args.output_dim,
+            use_bn=method_args.batch_norm,
         )
         teacher_dino_head = dino_head()
-        student_dino_head = dino_head(
-            freeze_last_layer=method_args.student_freeze_last_layer_epochs
-        )
+        student_dino_head = dino_head()
 
         ibot_head = partial(
-            DINOProjectionHead,
-            input_dim=model.embed_dim,
+            DINOv2ProjectionHead,
+            in_dim=model.embed_dim,
             hidden_dim=method_args.hidden_dim,
-            bottleneck_dim=method_args.ibot_bottleneck_dim,
-            output_dim=method_args.output_dim,
-            batch_norm=method_args.batch_norm,
-            norm_last_layer=method_args.norm_last_layer,
+            bottleneck_dim=method_args.dino_bottleneck_dim,
+            out_dim=method_args.output_dim,
+            use_bn=method_args.batch_norm,
         )
         teacher_ibot_head = teacher_dino_head
         student_ibot_head = student_dino_head
         if method_args.ibot_separate_head:
             teacher_ibot_head = ibot_head()
-            student_ibot_head = ibot_head(
-                freeze_last_layer=method_args.student_freeze_last_layer_epochs
-            )
+            student_ibot_head = ibot_head()
 
         self.teacher_head = DINOv2Head(
             dino_head=teacher_dino_head, ibot_head=teacher_ibot_head
