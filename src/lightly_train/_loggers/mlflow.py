@@ -22,10 +22,11 @@ from lightly_train._env import Env
 
 logger = logging.getLogger(__name__)
 
-PYTORCH_LIGHTNING_BUG_VERSION = "2.5.1"
-PL_BUG_VERSION_INSTALLED = RequirementCache(
-    f"pytorch-lightning=={PYTORCH_LIGHTNING_BUG_VERSION}"
-)
+PYTORCH_LIGHTNING_BUG_VERSIONS = ["2.5.1","2.5.1.post0"]
+PL_BUG_VERSION_INSTALLED = any([
+    RequirementCache(f"pytorch-lightning=={version}")
+    for version in PYTORCH_LIGHTNING_BUG_VERSIONS
+])
 
 
 class MLFlowLoggerArgs(PydanticConfig):
@@ -47,11 +48,11 @@ class MLFlowLoggerArgs(PydanticConfig):
         if v in [True, "all"]:
             if PL_BUG_VERSION_INSTALLED:
                 logger.warning(
-                    f"Due to a bug in pytorch_lightning {PYTORCH_LIGHTNING_BUG_VERSION} "
+                    f"Due to a bug in pytorch_lightning {PYTORCH_LIGHTNING_BUG_VERSIONS} "
                     "(see https://github.com/Lightning-AI/pytorch-lightning/issues/20822), "
                     "logging models with MLFlowLogger is not possible. If you want to log "
                     "models, please install pytorch-lightning as: pip install "
-                    f'"pytorch_lightning>=2.1,!={PYTORCH_LIGHTNING_BUG_VERSION}".'
+                    f'"pytorch_lightning>=2.1,!={PYTORCH_LIGHTNING_BUG_VERSIONS}".'
                 )
                 return False
             return v
