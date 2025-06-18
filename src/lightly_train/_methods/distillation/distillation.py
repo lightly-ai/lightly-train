@@ -58,8 +58,12 @@ class DistillationArgs(MethodArgs):
     # Default temperature parameter to regulate the sharpness of the distributions in the loss.
     temperature: float = 0.07
 
-    # Default teacher
+    # Default teacher.
     teacher: str = "dinov2_vit/vitb14_pretrain"
+
+    # Scaling method for the learning rate.
+    lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
+    reference_batch_size: int = 1536
 
     def resolve_auto(
         self,
@@ -95,7 +99,7 @@ class DistillationArgs(MethodArgs):
 
 
 class DistillationLARSArgs(LARSArgs):
-    lr: float = 0.3
+    lr: float = 1.8  # 1.8 = 0.3 * 1536 / 256
     momentum: float = 0.9
     dampening: float = 0
     weight_decay: float = 1e-6
