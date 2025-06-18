@@ -6,6 +6,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from typing import List
+
 import torch
 from torch import Tensor
 from torch.nn import (
@@ -70,7 +72,7 @@ def _build_mlp(
     if nlayers == 1:
         return Linear(in_dim, bottleneck_dim, bias=bias)
     else:
-        layers: list[Module] = [Linear(in_dim, hidden_dim, bias=bias)]
+        layers: List[Module] = [Linear(in_dim, hidden_dim, bias=bias)]
         if use_bn:
             layers.append(BatchNorm1d(hidden_dim))
         layers.append(GELU())
