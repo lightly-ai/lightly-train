@@ -17,7 +17,6 @@ import torch
 from lightly.loss import (
     KoLeoLoss,
 )  # we use LightlySSL's KoLeoLoss for better numerical stability
-from lightly.models.modules.heads import DINOProjectionHead
 from lightly.models.utils import update_momentum
 from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
@@ -28,6 +27,7 @@ from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.validate import no_auto
+from lightly_train._methods.dinov2.dinov2_head import DINOv2ProjectionHead
 from lightly_train._methods.dinov2.dinov2_loss import (
     DINOLoss,
     IBOTPatchLoss,
@@ -81,8 +81,6 @@ class DINOv2Args(MethodArgs):
     output_dim: int = 65536  # 65536/131072 for fast/long setup in original DINOv2
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
-    norm_last_layer: bool = False
-    # NOTE: head_n_layers is 3 for all heads so we use LightlySSL's DINO head
 
     # loss
     dino_loss_weight: float = 1.0
@@ -161,7 +159,7 @@ class DINOv2AdamWViTArgs(AdamWArgs):
 
 class DINOv2Head(Module):
     def __init__(
-        self, dino_head: DINOProjectionHead, ibot_head: DINOProjectionHead
+        self, dino_head: DINOv2ProjectionHead, ibot_head: DINOv2ProjectionHead
     ) -> None:
         super().__init__()
         self.dino_head = dino_head
@@ -199,35 +197,29 @@ class DINOv2(Method):
 
         # Create teacher and student heads
         dino_head = partial(
-            DINOProjectionHead,
-            input_dim=model.embed_dim,
+            DINOv2ProjectionHead,
+            in_dim=model.embed_dim,
             hidden_dim=method_args.hidden_dim,
             bottleneck_dim=method_args.dino_bottleneck_dim,
-            output_dim=method_args.output_dim,
-            batch_norm=method_args.batch_norm,
-            norm_last_layer=method_args.norm_last_layer,
+            out_dim=method_args.output_dim,
+            use_bn=method_args.batch_norm,
         )
         teacher_dino_head = dino_head()
-        student_dino_head = dino_head(
-            freeze_last_layer=method_args.student_freeze_last_layer_epochs
-        )
+        student_dino_head = dino_head()
 
         ibot_head = partial(
-            DINOProjectionHead,
-            input_dim=model.embed_dim,
+            DINOv2ProjectionHead,
+            in_dim=model.embed_dim,
             hidden_dim=method_args.hidden_dim,
-            bottleneck_dim=method_args.ibot_bottleneck_dim,
-            output_dim=method_args.output_dim,
-            batch_norm=method_args.batch_norm,
-            norm_last_layer=method_args.norm_last_layer,
+            bottleneck_dim=method_args.dino_bottleneck_dim,
+            out_dim=method_args.output_dim,
+            use_bn=method_args.batch_norm,
         )
         teacher_ibot_head = teacher_dino_head
         student_ibot_head = student_dino_head
         if method_args.ibot_separate_head:
             teacher_ibot_head = ibot_head()
-            student_ibot_head = ibot_head(
-                freeze_last_layer=method_args.student_freeze_last_layer_epochs
-            )
+            student_ibot_head = ibot_head()
 
         self.teacher_head = DINOv2Head(
             dino_head=teacher_dino_head, ibot_head=teacher_ibot_head
@@ -315,13 +307,15 @@ class DINOv2(Method):
                 teacher_temp,
             )  # [G, B, D], [M, D]
         )
-        student_cls_tokens_global, student_masked_patch_tokens_global = (
-            self._forward_student_global(
-                x=global_views,
-                masks=collated_masks,
-                mask_indices_list=mask_indices_list,
-            )  # [G*B, D], [M, D]
-        )
+        (
+            student_cls_tokens_global,
+            student_cls_tokens_global_before_head,
+            student_masked_patch_tokens_global,
+        ) = self._forward_student_global(
+            x=global_views,
+            masks=collated_masks,
+            mask_indices_list=mask_indices_list,
+        )  # [G*B, D], [M, D]
 
         # Compute the DINO loss
         dino_global_loss = (
@@ -365,7 +359,8 @@ class DINOv2(Method):
         )
 
         koleo_loss = sum(
-            self.koleo_loss(token) for token in student_cls_tokens_global.chunk(2)
+            self.koleo_loss(token)
+            for token in student_cls_tokens_global_before_head.chunk(2)
         )  # [G, B, D], only use global views
 
         loss = (
@@ -433,6 +428,7 @@ class DINOv2(Method):
                 masked_patch_tokens_after_ibot,
                 teacher_temp=teacher_temp,
             )  # [M, D]
+            masked_patch_tokens_centered = masked_patch_tokens_centered.squeeze(0)
             self.ibot_loss.update_center(masked_patch_tokens_after_ibot)
         elif self.method_args.center_method == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
@@ -458,7 +454,7 @@ class DINOv2(Method):
         x: Tensor,
         masks: Tensor,
         mask_indices_list: Tensor,
-    ) -> tuple[Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor]:
         wrapped_model: DINOv2ViTModelWrapper = (
             self.student_embedding_model.wrapped_model  # type: ignore[assignment]
         )
@@ -483,7 +479,7 @@ class DINOv2(Method):
             masked_patch_tokens
         )  # [M, D]
 
-        return cls_tokens_after_dino, masked_patch_tokens_after_ibot
+        return cls_tokens_after_dino, cls_tokens, masked_patch_tokens_after_ibot
 
     def _forward_student_local(self, x: Tensor) -> Tensor:
         tokens = self.student_embedding_model.wrapped_model.forward_features(
@@ -580,8 +576,11 @@ class DINOv2(Method):
         )
 
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
-        self.student_head.dino_head.cancel_last_layer_gradients(self.current_epoch)
-        self.student_head.ibot_head.cancel_last_layer_gradients(self.current_epoch)
+        # Optionally zero out the learning rate of the last layer.
+        if self.current_epoch < self.method_args.student_freeze_last_layer_epochs:
+            for param_group in optimizer.param_groups:
+                if "last_layer" in param_group["name"]:
+                    param_group["lr"] = 0.0
 
         # Apply weight decay schedule
         weight_decay = cosine_schedule(
