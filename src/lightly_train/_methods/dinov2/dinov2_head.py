@@ -36,9 +36,9 @@ class DINOv2ProjectionHead(Module):
         super().__init__()
         nlayers = max(nlayers, 1)
         self.mlp = _build_mlp(
-            nlayers,
-            in_dim,
-            bottleneck_dim,
+            nlayers=nlayers,
+            in_dim=in_dim,
+            bottleneck_dim=bottleneck_dim,
             hidden_dim=hidden_dim,
             use_bn=use_bn,
             bias=mlp_bias,
