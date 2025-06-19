@@ -6,7 +6,7 @@
 #
 
 
-from typing import List
+from __future__ import annotations
 
 import torch
 from torch import Tensor
@@ -72,7 +72,7 @@ def _build_mlp(
     if nlayers == 1:
         return Linear(in_dim, bottleneck_dim, bias=bias)
     else:
-        layers: List[Module] = [Linear(in_dim, hidden_dim, bias=bias)]
+        layers: list[Module] = [Linear(in_dim, hidden_dim, bias=bias)]
         if use_bn:
             layers.append(BatchNorm1d(hidden_dim))
         layers.append(GELU())
