@@ -81,8 +81,6 @@ class DINOv2Args(MethodArgs):
     output_dim: int = 65536  # 65536/131072 for fast/long setup in original DINOv2
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
-    norm_last_layer: bool = False
-    # NOTE: head_n_layers is 3 for all heads so we use LightlySSL's DINO head
 
     # loss
     dino_loss_weight: float = 1.0
