@@ -5,6 +5,13 @@
 # found in the LICENSE file in the root directory of this source tree.
 #
 
+# References:
+#   - https://github.com/facebookresearch/dinov2/blob/main/dinov2/layers/dino_head.py
+#
+# Modifications Copyright (c) Lightly AG and affiliates:
+#   - Add type hints to the functions
+#   - Modify imports to follow Lightly's conventions
+
 
 from __future__ import annotations
 
