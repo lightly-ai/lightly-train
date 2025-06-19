@@ -119,6 +119,10 @@ class DINOv2Args(MethodArgs):
     layerwise_decay: float = 0.9  # 0.9/1.0 for fast/long setup in original DINOv2
     patch_embed_lr_multiplier: float = 0.2
 
+    # lr scaling
+    lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
+    reference_batch_size: int = 1024
+
     # weight decay scheduler
     weight_decay_start: float | Literal["auto"] = "auto"
     # TODO(Guarin, 06/25): Should we adjust weight decay depending on model
@@ -520,7 +524,12 @@ class DINOv2(Method):
     # Ignore the return type, because pytorch-lightning types it wrongly.
     # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        self.optimizer_args.lr *= math.sqrt(self.global_batch_size / 1024)  # type: ignore[attr-defined]
+        # Scale the learning rate based on the global batch size.
+        lr_scale: float = self.global_batch_size / self.method_args.reference_batch_size
+        if self.method_args.lr_scale_method == "sqrt":
+            lr_scale = math.sqrt(lr_scale)
+
+        self.optimizer_args.lr *= lr_scale  # type: ignore[attr-defined]
         optim = get_optimizer_with_decay(
             optim_args=self.optimizer_args,
             trainable_modules=self.trainable_modules(),

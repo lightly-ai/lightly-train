@@ -85,7 +85,7 @@ from torchvision import models
 
 # Load the pretrained model
 model = models.resnet50()
-model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_last.pt"))
+model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_last.pt", weights_only=True))
 
 # Fine-tune the model with your existing training pipeline
 ...

@@ -60,9 +60,13 @@ class DistillationV2Args(MethodArgs):
     # Hidden dimension of the projection head.
     projection_hidden_dim: int = 2048
 
+    # Scaling method for the learning rate.
+    lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
+    reference_batch_size: int = 1536
+
 
 class DistillationV2LARSArgs(LARSArgs):
-    lr: float = 1.5
+    lr: float = 9.0  # 9.0 = 1.5 * 1536 / 256
     momentum: float = 0.9
     dampening: float = 0
     weight_decay: float = 1e-6
