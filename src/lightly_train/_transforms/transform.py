@@ -21,6 +21,11 @@ from lightly_train._configs.config import PydanticConfig
 from lightly_train.types import TransformInput, TransformOutput
 
 
+class ChannelDropArgs(PydanticConfig):
+    num_channels_keep: int
+    prob_keep: tuple[float, ...]
+
+
 class RandomResizeArgs(PydanticConfig):
     min_scale: float = 0.08
     max_scale: float = 1.0
@@ -121,6 +126,7 @@ class MethodTransformArgs(PydanticConfig):
     # Strict is set to False because OmegaConf does not support parsing tuples from the
     # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
     image_size: tuple[int, int]
+    channel_drop: ChannelDropArgs | None
     random_resize: RandomResizeArgs | None
     random_flip: RandomFlipArgs | None
     random_rotation: RandomRotationArgs | None

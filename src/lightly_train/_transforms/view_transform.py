@@ -25,7 +25,9 @@ from albumentations.pytorch.transforms import ToTensorV2
 from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.transform import (
+    ChannelDropArgs,
     ColorJitterArgs,
     GaussianBlurArgs,
     NormalizeArgs,
@@ -42,6 +44,7 @@ ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_22 = RequirementCache("albumentations>=
 
 
 class ViewTransformArgs(PydanticConfig):
+    channel_drop: ChannelDropArgs | None
     random_resized_crop: RandomResizedCropArgs  # only its .scale attribute can be None
     random_flip: RandomFlipArgs | None
     random_rotation: RandomRotationArgs | None
@@ -94,6 +97,14 @@ class ViewTransform:
         args: ViewTransformArgs,
     ) -> None:
         transform: list[BasicTransform] = []
+
+        if args.channel_drop is not None:
+            transform += [
+                ChannelDrop(
+                    num_channels_keep=args.channel_drop.num_channels_keep,
+                    prob_keep=args.channel_drop.prob_keep,
+                )
+            ]
 
         # .scale here corresponds to MethodTransformArgs.random_resize and may be None
         # .size here corresponds to MethodTransformArgs.image_size and may not be None
