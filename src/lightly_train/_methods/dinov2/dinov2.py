@@ -424,6 +424,7 @@ class DINOv2(Method):
                 masked_patch_tokens_after_ibot,
                 teacher_temp=teacher_temp,
             )  # [M, D]
+            masked_patch_tokens_centered = masked_patch_tokens_centered.squeeze(0)
             self.ibot_loss.update_center(masked_patch_tokens_after_ibot)
         elif self.method_args.center_method == "sinkhorn_knopp":
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
