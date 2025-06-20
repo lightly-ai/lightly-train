@@ -232,6 +232,7 @@ class DINOv2(Method):
         # Losses
         # TODO(Jonas 06/25): make two loss versions one for centering softmax and one for sinkhorn knopp, 
         # so we could instantiate the corresponding one and remove logic form the train loop
+        # LightlySSL solution: https://github.com/lightly-ai/lightly/blob/90ca6abf4cbd34df6e0b58f675d92dc194883602/lightly/models/modules/center.py#L1
         self.dino_loss = DINOLoss(
             out_dim=method_args.output_dim,
             student_temp=method_args.student_temp,
