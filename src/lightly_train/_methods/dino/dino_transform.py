@@ -11,6 +11,7 @@ from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._transforms.transform import (
+    ChannelDropArgs,
     ColorJitterArgs,
     GaussianBlurArgs,
     MethodTransform,
@@ -97,6 +98,7 @@ class DINOTransformArgs(MethodTransformArgs):
     # scales accordingly.
     # https://github.com/facebookresearch/dino#resnet-50-and-other-convnets-trainings
     image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
+    channel_drop: ChannelDropArgs | None = None
     random_resize: DINORandomResizeArgs | None = Field(
         default_factory=DINORandomResizeArgs
     )
@@ -131,6 +133,7 @@ class DINOTransform(MethodTransform):
 
         global_transform_0 = ViewTransform(
             ViewTransformArgs(
+                channel_drop=transform_args.channel_drop,
                 random_resized_crop=RandomResizedCropArgs(
                     size=transform_args.image_size,
                     scale=transform_args.random_resize,
@@ -147,6 +150,7 @@ class DINOTransform(MethodTransform):
 
         global_transform_1 = ViewTransform(
             ViewTransformArgs(
+                channel_drop=transform_args.channel_drop,
                 random_resized_crop=RandomResizedCropArgs(
                     size=transform_args.image_size,
                     scale=transform_args.random_resize,
@@ -167,6 +171,7 @@ class DINOTransform(MethodTransform):
         if transform_args.local_view is not None:
             local_transform = ViewTransform(
                 ViewTransformArgs(
+                    channel_drop=transform_args.channel_drop,
                     random_resized_crop=RandomResizedCropArgs(
                         size=transform_args.local_view.view_size,
                         scale=transform_args.local_view.random_resize,

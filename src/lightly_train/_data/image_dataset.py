@@ -18,6 +18,7 @@ from PIL import Image, ImageFile
 from torch.utils.data import Dataset
 from torchvision.io import ImageReadMode
 
+from lightly_train._env import Env
 from lightly_train.types import (
     DatasetItem,
     ImageFilename,
@@ -42,12 +43,20 @@ class ImageDataset(Dataset[DatasetItem]):
         self.mask_dir = mask_dir
         self.transform = transform
 
+        image_mode = Env.LIGHTLY_TRAIN_IMAGE_MODE.value
+        if image_mode not in ("RGB", "UNCHANGED"):
+            raise ValueError(
+                f'Invalid image mode: {Env.LIGHTLY_TRAIN_IMAGE_MODE.name}="{image_mode}". '
+                "Supported modes are 'RGB' and 'UNCHANGED'."
+            )
+        self.image_mode: Literal["RGB", "UNCHANGED"] = image_mode  # type: ignore[assignment]
+
     def __getitem__(self, idx: int) -> DatasetItem:
         filename = self.image_filenames[idx]
         if self.image_dir is None:
-            image = _open_image(Path(filename))
+            image = _open_image(Path(filename), mode=self.image_mode)
         else:
-            image = _open_image(self.image_dir / filename)
+            image = _open_image(self.image_dir / filename, mode=self.image_mode)
 
         input: TransformInput = {"image": image}
 
@@ -143,14 +152,22 @@ def _torchvision_supported_image_extensions() -> set[str]:
     return {"jpg", "jpeg", "png"}
 
 
-def _open_image(image_path: Path, mode: Literal["RGB", "L"] = "RGB") -> NDArrayImage:
+def _open_image(
+    image_path: Path, mode: Literal["RGB", "L", "UNCHANGED"] = "RGB"
+) -> NDArrayImage:
     image_np: NDArray[np.uint8]
     if image_path.suffix.lower() in _torchvision_supported_image_extensions():
-        mode_torch = {"RGB": ImageReadMode.RGB, "L": ImageReadMode.GRAY}[mode]
+        mode_torch = {
+            "RGB": ImageReadMode.RGB,
+            "L": ImageReadMode.GRAY,
+            "UNCHANGED": ImageReadMode.UNCHANGED,
+        }[mode]
         image_torch = torchvision.io.read_image(str(image_path), mode=mode_torch)
         image_torch = image_torch.permute(1, 2, 0)
         image_np = image_torch.numpy()
     else:
-        image = Image.open(image_path).convert(mode)
+        image = Image.open(image_path)
+        if mode != "UNCHANGED":
+            image = image.convert(mode)
         image_np = np.array(image)
     return image_np
