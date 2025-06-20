@@ -15,8 +15,8 @@ from numpy.typing import NDArray
 class ChannelDrop(ImageOnlyTransform):  # type: ignore[misc]
     def __init__(
         self,
-        num_channels_keep: int = 3,
-        weight_drop: Sequence[float] = (0.0, 0.0, 0.0),
+        num_channels_keep: int,
+        weight_drop: Sequence[float],
         p: float = 1.0,
     ):
         """
