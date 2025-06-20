@@ -26,7 +26,7 @@ except ImportError:
     PPLiteSegBase = None
 
 
-class SegmentationModuleFeatureExtractor(Module, SuperGradientsModelWrapper):
+class SegmentationModuleModelWrapper(Module, SuperGradientsModelWrapper):
     _SUPPORTED_MODEL_CLASSES = (
         (PPLiteSegBase,) if PPLiteSegBase is not None else tuple()
     )

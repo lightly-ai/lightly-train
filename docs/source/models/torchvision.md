@@ -54,8 +54,8 @@ import torch
 from torchvision.models import resnet18
 
 model = resnet18()
-state_dict = torch.load("out/my_experiment/exported_models/exported_last.pt")
-model.load_state_dict(state_dict, weights_only=True)
+state_dict = torch.load("out/my_experiment/exported_models/exported_last.pt", weights_only=True)
+model.load_state_dict(state_dict)
 ```
 
 ## Supported Models
@@ -73,3 +73,8 @@ The following Torchvision models are supported:
   - `torchvision/convnext_large`
   - `torchvision/convnext_small`
   - `torchvision/convnext_tiny`
+- ShuffleNetV2
+  - `torchvision/shufflenet_v2_x0_5`
+  - `torchvision/shufflenet_v2_x1_0`
+  - `torchvision/shufflenet_v2_x1_5`
+  - `torchvision/shufflenet_v2_x2_0`

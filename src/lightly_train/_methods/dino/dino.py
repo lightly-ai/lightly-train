@@ -17,7 +17,7 @@ from lightly.models.utils import update_momentum
 from lightly.utils import optim
 from lightly.utils.scheduler import cosine_schedule
 from torch import Tensor
-from torch.nn import Flatten, Module
+from torch.nn import Flatten
 from torch.optim.optimizer import Optimizer
 
 from lightly_train import _scaling
@@ -28,6 +28,7 @@ from lightly_train._methods.dino.dino_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -64,7 +65,10 @@ class DINOArgs(MethodArgs):
     weight_decay_end: float | Literal["auto"] = "auto"
 
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
+        self,
+        scaling_info: ScalingInfo,
+        optimizer_args: OptimizerArgs,
+        wrapped_model: ModelWrapper,
     ) -> None:
         dataset_size = scaling_info.dataset_size
 

@@ -25,6 +25,54 @@ from lightly_train.types import (
 from .. import helpers
 from ..helpers import DummyMethodTransform
 
+# The list below is not exhaustive. Some image types require extra handlers installed.
+SUPPORTED_IMAGE_EXTENSIONS = [
+    ".bmp",
+    ".BMP",
+    ".dib",
+    ".pcx",
+    ".dds",
+    ".ps",
+    ".eps",
+    ".gif",
+    ".GIF",
+    ".png",
+    ".PNG",
+    ".apng",
+    ".jp2",
+    ".j2k",
+    ".jpc",
+    ".jpf",
+    ".jpx",
+    ".j2c",
+    ".icns",
+    ".ico",
+    ".im",
+    ".jfif",
+    ".jpe",
+    ".jpg",
+    ".JPG",
+    ".jpeg",
+    ".JPEG",
+    ".tif",
+    ".TIF",
+    ".tiff",
+    ".TIFF",
+    ".pbm",
+    ".pgm",
+    ".ppm",
+    ".pnm",
+    ".bw",
+    ".rgb",
+    ".rgba",
+    ".sgi",
+    ".tga",
+    ".icb",
+    ".vda",
+    ".vst",
+    ".webp",
+]
+
 
 @pytest.fixture
 def flat_image_dir(tmp_path: Path) -> Path:
@@ -224,6 +272,25 @@ def test_list_image_files__multiple_dirs(
     )
 
 
+@pytest.mark.parametrize(
+    "extension",
+    SUPPORTED_IMAGE_EXTENSIONS,
+)
+def test_list_image_files__extensions(extension: str, tmp_path: Path) -> None:
+    base_path = tmp_path / "images"
+    filenames = [f"image{i}{extension}" for i in range(1, 3)]
+    imgs = [base_path / filename for filename in filenames]
+    _create_images(
+        base_path=tmp_path / "images",
+        filenames=[f"image{i}{extension}" for i in range(1, 3)],
+    )
+    _filenames = image_dataset.list_image_files(imgs_and_dirs=imgs)
+    assert sorted(list(_filenames)) == [
+        base_path / f"image1{extension}",
+        base_path / f"image2{extension}",
+    ]
+
+
 def test_list_image_filenames__dir_is_symlink(image_dir_being_symlink: Path) -> None:
     file_paths = image_dataset.list_image_filenames(image_dir=image_dir_being_symlink)
     assert sorted(file_paths) == sorted(
@@ -279,46 +346,7 @@ def test_list_image_filenames() -> None:
 
 @pytest.mark.parametrize(
     "extension",
-    # The list below is not exhaustive. Some image types require extra handlers installed.
-    [
-        ".bmp",
-        ".dib",
-        ".pcx",
-        ".dds",
-        ".ps",
-        ".eps",
-        ".gif",
-        ".png",
-        ".apng",
-        ".jp2",
-        ".j2k",
-        ".jpc",
-        ".jpf",
-        ".jpx",
-        ".j2c",
-        ".icns",
-        ".ico",
-        ".im",
-        ".jfif",
-        ".jpe",
-        ".jpg",
-        ".jpeg",
-        ".tif",
-        ".tiff",
-        ".pbm",
-        ".pgm",
-        ".ppm",
-        ".pnm",
-        ".bw",
-        ".rgb",
-        ".rgba",
-        ".sgi",
-        ".tga",
-        ".icb",
-        ".vda",
-        ".vst",
-        ".webp",
-    ],
+    SUPPORTED_IMAGE_EXTENSIONS,
 )
 def test_list_image_filenames__extensions(extension: str, tmp_path: Path) -> None:
     base_path = tmp_path / "images"

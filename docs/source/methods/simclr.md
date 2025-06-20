@@ -44,9 +44,9 @@ override these settings, see {ref}`method-args`.
 ```
 ````
 
-## Default Image Transforms Settings
+## Default Image Transform Arguments
 
-The following are the default transforms settings for SimCLR. To learn how you can override these settings, see {ref}`method-transform-args`.
+The following are the default transform arguments for SimCLR. To learn how you can override these settings, see {ref}`method-transform-args`.
 
 ````{dropdown} Default Image Transforms
 ```{include} _auto/simclr_transform_args.md

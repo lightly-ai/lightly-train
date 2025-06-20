@@ -27,6 +27,7 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -57,11 +58,18 @@ class DistillationArgs(MethodArgs):
     # Default temperature parameter to regulate the sharpness of the distributions in the loss.
     temperature: float = 0.07
 
-    # Default teacher
+    # Default teacher.
     teacher: str = "dinov2_vit/vitb14_pretrain"
 
+    # Scaling method for the learning rate.
+    lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
+    reference_batch_size: int = 1536
+
     def resolve_auto(
-        self, scaling_info: ScalingInfo, optimizer_args: OptimizerArgs, model: Module
+        self,
+        scaling_info: ScalingInfo,
+        optimizer_args: OptimizerArgs,
+        wrapped_model: ModelWrapper,
     ) -> None:
         if self.queue_size == "auto":
             # Reduce the queue size for smaller datasets.
@@ -91,7 +99,7 @@ class DistillationArgs(MethodArgs):
 
 
 class DistillationLARSArgs(LARSArgs):
-    lr: float = 0.3
+    lr: float = 1.8  # 1.8 = 0.3 * 1536 / 256
     momentum: float = 0.9
     dampening: float = 0
     weight_decay: float = 1e-6

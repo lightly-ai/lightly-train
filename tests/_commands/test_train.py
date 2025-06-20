@@ -18,7 +18,6 @@ from omegaconf import OmegaConf
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
-from torch.nn import Module
 
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._commands import train
@@ -33,6 +32,7 @@ from lightly_train._methods.dino.dino import DINOAdamWArgs, DINOArgs
 from lightly_train._scaling import ScalingInfo
 
 from .. import helpers
+from ..helpers import DummyCustomModel
 
 
 def test_train__cpu(tmp_path: Path) -> None:
@@ -107,7 +107,8 @@ def test_train(
         f"Restoring states from the checkpoint path at {last_ckpt_path}" in caplog.text
     )
     # Epochs in checkpoint are 0-indexed. Epoch 1 is therefore the second epoch.
-    assert torch.load(last_ckpt_path)["epoch"] == 1
+    # weights_only=True does not work here.
+    assert torch.load(last_ckpt_path, weights_only=False)["epoch"] == 1
 
     # Check that exported checkpoint weights changed between first and second run.
     second_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
@@ -122,7 +123,9 @@ def test_train(
 
     # Check that last.ckpt and exported_model.pt contain same information. If this fails
     # it means that checkpoint loading is not working correctly.
-    exported_state_dict = torch.load(out / "exported_models" / "exported_last.pt")
+    exported_state_dict = torch.load(
+        out / "exported_models" / "exported_last.pt", weights_only=True
+    )
     assert second_state_dict.keys() == exported_state_dict.keys()
     for key in second_state_dict.keys():
         if key.startswith("fc."):
@@ -279,7 +282,12 @@ def test_train__method(tmp_path: Path, method: str, devices: int) -> None:
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
-    # Use smaller model for unit tests.
+    # DINOv2 needs special model
+    model = {
+        "dinov2": "dinov2_vit/vits14",
+    }.get(method, "torchvision/resnet18")
+
+    # Use smaller teacher for unit tests.
     method_args = {
         "distillation": {"teacher": "dinov2_vit/vits14"},
         "distillationv1": {"teacher": "dinov2_vit/vits14"},
@@ -289,7 +297,7 @@ def test_train__method(tmp_path: Path, method: str, devices: int) -> None:
     train.train(
         out=out,
         data=data,
-        model="torchvision/resnet18",
+        model=model,
         devices=devices,
         method=method,
         method_args=method_args,
@@ -341,7 +349,7 @@ def test_train__TrainConfig__model_dump(tmp_path: Path) -> None:
     method_args.resolve_auto(
         scaling_info=ScalingInfo(dataset_size=20_000, epochs=100),
         optimizer_args=optim_args,
-        model=Module(),
+        wrapped_model=DummyCustomModel(),
     )
     config = TrainConfig(
         out=out,
@@ -466,7 +474,9 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
 
     # Check that last.ckpt and exported_model.pt contain same information. If this fails
     # it means that checkpoint loading is not working correctly.
-    exported_state_dict = torch.load(out / "exported_models" / "exported_last.pt")
+    exported_state_dict = torch.load(
+        out / "exported_models" / "exported_last.pt", weights_only=True
+    )
     assert second_state_dict.keys() == exported_state_dict.keys()
     for key in second_state_dict.keys():
         if key.startswith("fc."):

@@ -13,7 +13,7 @@ from torch.nn import Conv2d, Identity, Module
 from lightly_train._models.model_wrapper import ModelWrapper
 
 
-# EmbeddingModel is not combined into a single class with FeatureExtractor to keep
+# EmbeddingModel is not combined into a single class with ModelWrapper to keep
 # implementing new extractors as simple as possible.
 #
 # Note that in the future we might want to support feature extractors that also generate

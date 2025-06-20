@@ -8,9 +8,12 @@
 from __future__ import annotations
 
 from torch import Tensor
-from torch.nn import AdaptiveAvgPool2d, Identity, Module
+from torch.nn import AdaptiveAvgPool2d, Identity, Module, ModuleList
 
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.block import Block
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
@@ -19,7 +22,7 @@ from lightly_train._models.model_wrapper import (
 
 
 class DINOv2ViTModelWrapper(Module, ModelWrapper):
-    def __init__(self, model: Module) -> None:
+    def __init__(self, model: DinoVisionTransformer) -> None:
         super().__init__()
         self._model = model
         self._feature_dim = int(self._model.embed_dim)
@@ -51,7 +54,7 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
 
-    def get_model(self) -> Module:
+    def get_model(self) -> DinoVisionTransformer:
         return self._model
 
     def make_teacher(self) -> None:
@@ -62,8 +65,9 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
             update_blocks_student_to_teacher(self._model.blocks)
 
 
-def update_blocks_student_to_teacher(blocks: list[Block]) -> None:
+def update_blocks_student_to_teacher(blocks: ModuleList) -> None:
     for block in blocks:
+        assert isinstance(block, Block)
         block.drop_path1 = Identity()
         block.drop_path2 = Identity()
         block.sample_drop_ratio = 0.0

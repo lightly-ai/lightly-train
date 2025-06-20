@@ -26,7 +26,16 @@ data, significantly reducing the amount of labeling needed to reach a high model
 
 This allows you to focus on new features and domains instead of managing your labeling cycles.
 LightlyTrain is designed for simple integration into existing training pipelines and supports
-a wide range of model architectures and use-cases out of the box.
+a wide range of model architectures and use cases out of the box.
+
+## News
+
+- \[[0.8.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-8-0)\] - 2025-06-10:
+  [**DINOv2 pretraining**](https://docs.lightly.ai/train/stable/methods/dinov2.html) is
+  now available (beta 🔬)!
+- \[[0.7.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-7-0)\] - 2025-05-26:
+  Up to **3x faster distillation** and higher accuracy with [**Distillation v2**](https://docs.lightly.ai/train/stable/methods/distillation.html)
+  (new default method)!
 
 ## Why Lightly**Train**?
 
@@ -76,7 +85,7 @@ from torchvision import models
 
 # Load the pretrained model
 model = models.resnet50()
-model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_last.pt"))
+model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_last.pt", weights_only=True))
 
 # Fine-tune the model with your existing training pipeline
 ...
@@ -110,7 +119,7 @@ Want to use your model to generate image embeddings instead? Check out the {ref}
 
 | Library | Supported Models | Docs |
 |------------------|----------------------------------------|------|
-| Torchvision | ResNet, ConvNext | [🔗](#models-torchvision) |
+| Torchvision | ResNet, ConvNext, ShuffleNetV2 | [🔗](#models-torchvision) |
 | TIMM | All models | [🔗](#models-timm) |
 | Ultralytics | YOLOv5, YOLOv6, YOLOv8, YOLO11, YOLO12 | [🔗](#models-ultralytics) |
 | RT-DETR | RT-DETR | [🔗](#models-rtdetr) |
@@ -126,6 +135,7 @@ For an overview of all supported models and usage instructions, see the full [mo
 ### Supported Training Methods
 
 - [DINOv2 Distillation](#methods-distillation) (recommended 🚀)
+- [DINOv2](#methods-dinov2) (beta 🔬)
 - [DINO](#methods-dino)
 - [SimCLR](#methods-simclr)
 

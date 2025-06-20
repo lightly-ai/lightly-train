@@ -18,7 +18,12 @@ from ...helpers import DummyCustomModel
 
 class TestTorchvisionPackage:
     @pytest.mark.parametrize(
-        "model_name", ["torchvision/resnet18", "torchvision/convnext_small"]
+        "model_name",
+        [
+            "torchvision/resnet18",
+            "torchvision/convnext_small",
+            "torchvision/shufflenet_v2_x0_5",
+        ],
     )
     def test_list_model_names(self, model_name: str) -> None:
         assert model_name in TorchvisionPackage.list_model_names()
@@ -42,4 +47,6 @@ class TestTorchvisionPackage:
         assert out_path.exists()
 
         exported_model = torchvision_models.resnet18()
-        exported_model.load_state_dict(torch.load(out_path), strict=True)
+        exported_model.load_state_dict(
+            torch.load(out_path, weights_only=True), strict=True
+        )

@@ -19,8 +19,9 @@ from torchvision import models as torchvision_models
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
-from lightly_train._models.torchvision.convnext import ConvNeXtFeatureExtractor
-from lightly_train._models.torchvision.resnet import ResNetFeatureExtractor
+from lightly_train._models.torchvision.convnext import ConvNeXtModelWrapper
+from lightly_train._models.torchvision.resnet import ResNetModelWrapper
+from lightly_train._models.torchvision.shufflenet import ShuffleNetV2ModelWrapper
 from lightly_train._models.torchvision.torchvision import TorchvisionModelWrapper
 from lightly_train.errors import UnknownModelError
 
@@ -30,7 +31,11 @@ logger = logging.getLogger(__name__)
 class TorchvisionPackage(Package):
     name = "torchvision"
 
-    _FEATURE_EXTRACTORS = [ConvNeXtFeatureExtractor, ResNetFeatureExtractor]
+    _FEATURE_EXTRACTORS = [
+        ConvNeXtModelWrapper,
+        ResNetModelWrapper,
+        ShuffleNetV2ModelWrapper,
+    ]
 
     @classmethod
     def list_model_names(cls) -> list[str]:
