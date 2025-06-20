@@ -79,6 +79,8 @@ class Env:
         default=180,
         type_=int,
     )
+    # Mode in which images are loaded. This can be "RGB" to load images in RGB or
+    # "UNCHANGED" to load images in their original format without any conversion.
     LIGHTLY_TRAIN_IMAGE_MODE: EnvVar[str] = EnvVar(
         name="LIGHTLY_TRAIN_IMAGE_MODE",
         default="RGB",
