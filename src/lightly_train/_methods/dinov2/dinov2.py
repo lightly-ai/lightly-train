@@ -82,6 +82,12 @@ class DINOv2Args(MethodArgs):
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
 
+    # freeze student backbone
+    # Useful when starting from DINOv2 pretrained weights. This allows the projection
+    # head to be trained while the backbone is frozen. This is important because the
+    # DINOv2 pretrained weights do not include the projection head.
+    student_freeze_backbone_epochs: int = 0
+
     # loss
     dino_loss_weight: float = 1.0
     ibot_loss_weight: float = 1.0
@@ -230,7 +236,7 @@ class DINOv2(Method):
         freeze_eval_module(self.teacher_head)
 
         # Losses
-        # TODO(Jonas 06/25): make two loss versions one for centering softmax and one for sinkhorn knopp, 
+        # TODO(Jonas 06/25): make two loss versions one for centering softmax and one for sinkhorn knopp,
         # so we could instantiate the corresponding one and remove logic form the train loop
         # LightlySSL solution: https://github.com/lightly-ai/lightly/blob/90ca6abf4cbd34df6e0b58f675d92dc194883602/lightly/models/modules/center.py#L1
         self.dino_loss = DINOLoss(
@@ -414,7 +420,7 @@ class DINOv2(Method):
 
         # process the masked patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
-        #TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
+        # TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
         patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
         masked_patch_tokens = torch.index_select(
@@ -427,7 +433,7 @@ class DINOv2(Method):
         )  # [M, D]
 
         # centering
-        #TODO(Jonas 06/25): instantiate the centering method in the loss and remove the logic from here
+        # TODO(Jonas 06/25): instantiate the centering method in the loss and remove the logic from here
         if self.method_args.center_method == "softmax":
             # TODO(Jonas 06/25): reshape the return inside the loss
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
@@ -452,7 +458,7 @@ class DINOv2(Method):
             masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=teacher_temp,
-                #TODO(Jonas 06/25): move this into the loss if required
+                # TODO(Jonas 06/25): move this into the loss if required
                 n_masked_patches_tensor=torch.tensor(
                     [n_masked_patches], dtype=torch.long
                 ).to(device=self.device, non_blocking=True),
@@ -483,7 +489,7 @@ class DINOv2(Method):
 
         # process the patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
-        #TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
+        # TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
         patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
         masked_patch_tokens = torch.index_select(
@@ -503,7 +509,7 @@ class DINOv2(Method):
         )  # input [L*B, C, ...]
 
         # process the cls tokens
-        #TODO(Jonas 06/25): unnecessary assignment, can be removed
+        # TODO(Jonas 06/25): unnecessary assignment, can be removed
         cls_tokens = tokens["cls_token"]  # [L*B, C]
         cls_tokens_after_dino: Tensor = self.student_head.dino_head.forward(
             cls_tokens
@@ -593,12 +599,6 @@ class DINOv2(Method):
         )
 
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
-        # Optionally zero out the learning rate of the last layer.
-        if self.current_epoch < self.method_args.student_freeze_last_layer_epochs:
-            for param_group in optimizer.param_groups:
-                if "last_layer" in param_group["name"]:
-                    param_group["lr"] = 0.0
-
         # Apply weight decay schedule
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
@@ -609,9 +609,28 @@ class DINOv2(Method):
 
         updates = []
         for group in optimizer.param_groups:
+            update = {}
+            # Apply weight decay schedule
             if group["weight_decay"] != 0.0:
-                updates.append({"name": group["name"], "weight_decay": weight_decay})
+                update["weight_decay"] = weight_decay
 
+            # Optionally freeze student backbone
+            if (
+                self.current_epoch < self.method_args.student_freeze_backbone_epochs
+                and "head" not in group["name"]
+            ):
+                update["lr"] = 0.0
+
+            # Optionally freeze student last layer
+            if (
+                self.current_epoch < self.method_args.student_freeze_last_layer_epochs
+                and "last_layer" in group["name"]
+            ):
+                update["lr"] = 0.0
+
+            if update:
+                update["name"] = group["name"]
+                updates.append(update)
         update_param_groups(optimizer, updates=updates)
 
     def on_train_batch_end(
