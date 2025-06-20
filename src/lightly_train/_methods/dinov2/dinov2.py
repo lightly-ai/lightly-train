@@ -82,6 +82,12 @@ class DINOv2Args(MethodArgs):
     batch_norm: bool = False
     student_freeze_last_layer_epochs: int = 1
 
+    # freeze student backbone
+    # Useful when starting from DINOv2 pretrained weights. This allows the projection
+    # head to be trained while the backbone is frozen. This is important because the
+    # DINOv2 pretrained weights do not include the projection head.
+    student_freeze_backbone_epochs: int = 0
+
     # loss
     dino_loss_weight: float = 1.0
     ibot_loss_weight: float = 1.0
@@ -576,12 +582,6 @@ class DINOv2(Method):
         )
 
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
-        # Optionally zero out the learning rate of the last layer.
-        if self.current_epoch < self.method_args.student_freeze_last_layer_epochs:
-            for param_group in optimizer.param_groups:
-                if "last_layer" in param_group["name"]:
-                    param_group["lr"] = 0.0
-
         # Apply weight decay schedule
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
@@ -592,9 +592,28 @@ class DINOv2(Method):
 
         updates = []
         for group in optimizer.param_groups:
+            update = {}
+            # Apply weight decay schedule
             if group["weight_decay"] != 0.0:
-                updates.append({"name": group["name"], "weight_decay": weight_decay})
+                update["weight_decay"] = weight_decay
 
+            # Optionally freeze student backbone
+            if (
+                self.current_epoch < self.method_args.student_freeze_backbone_epochs
+                and "head" not in group["name"]
+            ):
+                update["lr"] = 0.0
+
+            # Optionally freeze student last layer
+            if (
+                self.current_epoch < self.method_args.student_freeze_last_layer_epochs
+                and "last_layer" in group["name"]
+            ):
+                update["lr"] = 0.0
+
+            if update:
+                update["name"] = group["name"]
+                updates.append(update)
         update_param_groups(optimizer, updates=updates)
 
     def on_train_batch_end(
