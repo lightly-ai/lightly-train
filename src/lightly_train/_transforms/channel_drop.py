@@ -16,7 +16,7 @@ class ChannelDrop(ImageOnlyTransform):  # type: ignore[misc]
     def __init__(
         self,
         num_channels_keep: int = 3,
-        prob_keep: Sequence[float] = (1.0, 1.0, 1.0),
+        weight_drop: Sequence[float] = (0.0, 0.0, 0.0),
         p: float = 1.0,
     ):
         """
@@ -26,28 +26,34 @@ class ChannelDrop(ImageOnlyTransform):  # type: ignore[misc]
         Args:
             num_channels_keep:
                 Number of channels to keep in the image.
-            prob_keep:
-                Probability for each channel to be kept.
+            weight_drop:
+                Weight for each channel to be dropped. 0 means never dropped,
+                higher values mean higher probability of being dropped.
             p:
                 Probability of applying the transform.
         """
         super().__init__(p=p)
         self.num_channels_keep = num_channels_keep
-        self.prob_keep = list(prob_keep)
+        self.weight_drop = list(weight_drop)
 
         if num_channels_keep < 1:
             raise ValueError(
                 f"num_channels_keep must be at least 1, got {num_channels_keep}."
             )
-        if any(p < 0 for p in self.prob_keep):
+        if any(w < 0 for w in self.weight_drop):
             raise ValueError(
-                f"All probabilities in prob_keep must be non-negative, got {self.prob_keep}."
+                f"All weights in weight_drop must be non-negative, got {self.weight_drop}."
             )
-        if sum(p > 0 for p in self.prob_keep) < self.num_channels_keep:
+        if sum(w == 0 for w in self.weight_drop) > self.num_channels_keep:
             raise ValueError(
-                "At least num_channels_keep channels must have a non-zero probability "
-                f"to be kept, got {self.num_channels_keep} and {self.prob_keep}."
+                "At most num_channels_keep channels can have zero weight "
+                f"to guarantee they can be kept, got {self.num_channels_keep} and "
+                f"{self.weight_drop}."
             )
+
+        # Normalize weights to probabilities
+        weight_array = np.array(self.weight_drop)
+        self._prob_drop = weight_array / weight_array.sum()
 
     def apply(
         self, img: NDArray[np.uint8], **params: dict[str, Any]
@@ -62,31 +68,27 @@ class ChannelDrop(ImageOnlyTransform):  # type: ignore[misc]
         """
         num_channels = img.shape[2]
 
-        if len(self.prob_keep) != num_channels:
+        if len(self.weight_drop) != num_channels:
             raise RuntimeError(
-                f"Length of prob_keep ({len(self.prob_keep)}) must match "
+                f"Length of weight_drop ({len(self.weight_drop)}) must match "
                 f"number of image channels ({num_channels})"
             )
 
         if self.num_channels_keep >= num_channels:
             return img
 
-        prob_keep = np.array(self.prob_keep)
-        prob_keep = prob_keep / prob_keep.sum()  # Normalize
-
-        # Select channels to keep based on probabilities
-        channels_to_keep = np.random.choice(
-            num_channels, size=self.num_channels_keep, replace=False, p=prob_keep
+        channels_to_drop = np.random.choice(
+            num_channels,
+            size=num_channels - self.num_channels_keep,
+            replace=False,
+            p=self._prob_drop,
         )
-
-        # Sort the channels to maintain order
-        channels_to_keep = np.sort(channels_to_keep)
-
-        # Return only the selected channels (remove dropped channels completely)
+        channels_to_keep = np.sort(
+            np.setdiff1d(np.arange(num_channels), channels_to_drop)
+        )
         result = img[:, :, channels_to_keep]
-
         return result
 
     def get_transform_init_args_names(self) -> tuple[str, ...]:
         """Return list of arguments used in __init__ for serialization."""
-        return ("num_channels_keep", "prob_keep")
+        return ("num_channels_keep", "weight_drop")

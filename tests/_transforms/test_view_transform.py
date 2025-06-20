@@ -33,7 +33,7 @@ from lightly_train.types import TransformInput
 def _get_channel_drop_args() -> ChannelDropArgs:
     return ChannelDropArgs(
         num_channels_keep=3,
-        prob_keep=(0.1, 0.0, 0.8, 0.1),
+        weight_drop=(1.0, 1.0, 0.0, 0.0),
     )
 
 

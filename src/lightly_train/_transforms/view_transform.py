@@ -102,7 +102,7 @@ class ViewTransform:
             transform += [
                 ChannelDrop(
                     num_channels_keep=args.channel_drop.num_channels_keep,
-                    prob_keep=args.channel_drop.prob_keep,
+                    weight_drop=args.channel_drop.weight_drop,
                 )
             ]
 

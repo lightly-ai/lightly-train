@@ -15,57 +15,62 @@ from lightly_train._transforms.channel_drop import ChannelDrop
 
 class TestChannelDrop:
     @pytest.mark.parametrize(
-        "num_channels_keep, prob_keep, error",
+        "num_channels_keep, weight_drop, error",
         [
             (-1, tuple(), "num_channels_keep must be at least 1, got -1"),
             (0, tuple(), "num_channels_keep must be at least 1, got 0"),
-            (1, (-1.0, 0.0), "All probabilities in prob_keep must be non-negative"),
+            (1, (-1.0, 0.0), "All weights in weight_drop must be non-negative"),
             (
-                2,
-                (1.0, 0.0),
+                1,
+                (0.0, 0.0),
                 (
-                    "At least num_channels_keep channels must have a non-zero "
-                    "probability to be kept"
+                    "At most num_channels_keep channels can have zero weight "
+                    "to guarantee they can be kept"
                 ),
             ),
         ],
     )
     def test__init__(
-        self, num_channels_keep: int, prob_keep: tuple[float, ...], error: str
+        self, num_channels_keep: int, weight_drop: tuple[float, ...], error: str
     ) -> None:
         with pytest.raises(ValueError, match=error):
-            ChannelDrop(num_channels_keep=num_channels_keep, prob_keep=prob_keep)
+            ChannelDrop(num_channels_keep=num_channels_keep, weight_drop=weight_drop)
 
     @pytest.mark.parametrize(
-        "num_channels_keep, prob_keep, expected_channels",
+        "num_channels_keep, weight_drop, expected_channels",
         [
-            (1, (1.0, 0.0, 0.0, 0.0), (0,)),
-            (1, (0.0, 1.0, 0.0, 0.0), (1,)),
-            (2, (1.0, 1.0, 0.0, 0.0), (0, 1)),
-            (2, (0.0, 0.0, 1.0, 1.0), (2, 3)),
-            (2, (0.1, 0.2, 0.0, 0.0), (0, 1)),
-            (2, (0.0, 0.1, 0.2, 0.1), None),
-            (4, (1.0, 1.0, 1.0, 1.0), (0, 1, 2, 3)),
+            (1, (0.0, 1.0), (0,)),
+            (1, (1.0, 0.0), (1,)),
+            (1, (1.0, 1.0), (None,)),
+            (1, (0.0, 1.0, 1.0), (0,)),
+            (2, (0.0, 0.0, 1.0), (0, 1)),
+            (2, (1.0, 1.0, 0.0), (None, 2)),
+            (3, (1.0, 1.0, 0.0, 0.0), (None, 2, 3)),  # NRGB to NGB or RGB
+            (3, (0.0, 1.0, 1.0, 1.0), (0, None, None)),
+            (3, (0.0, 1.0, 1.0, 0.0), (0, None, 3)),
         ],
     )
     def test__call__(
         self,
         num_channels_keep: int,
-        prob_keep: tuple[float, ...],
-        expected_channels: tuple[int, ...] | None,
+        weight_drop: tuple[float, ...],
+        expected_channels: tuple[int, ...],
     ) -> None:
-        image = np.random.randint(0, 255, size=(10, 10, 4), dtype=np.uint8)
+        image = np.random.randint(0, 255, size=(3, 3, len(weight_drop)), dtype=np.uint8)
 
         transform = ChannelDrop(
-            num_channels_keep=num_channels_keep, prob_keep=prob_keep
+            num_channels_keep=num_channels_keep, weight_drop=weight_drop
         )
         result = transform(image=image)["image"]
 
+        assert result.dtype == image.dtype  # dtype unchanged
         assert result.shape[0] == image.shape[0]  # Height unchanged
         assert result.shape[1] == image.shape[1]  # Width unchanged
         assert result.shape[2] == num_channels_keep  # Channels reduced
-        if expected_channels is not None:
-            for i, channel in enumerate(expected_channels):
-                assert np.array_equal(result[:, :, i], image[:, :, channel]), (
-                    f"Channel {i} does not match expected channel {channel}."
-                )
+        assert len(expected_channels) == num_channels_keep
+        for i, channel in enumerate(expected_channels):
+            if channel is None:
+                continue
+            assert np.array_equal(result[:, :, i], image[:, :, channel]), (
+                f"Channel {i} does not match expected channel {channel}."
+            )

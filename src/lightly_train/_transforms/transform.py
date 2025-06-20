@@ -23,7 +23,7 @@ from lightly_train.types import TransformInput, TransformOutput
 
 class ChannelDropArgs(PydanticConfig):
     num_channels_keep: int
-    prob_keep: tuple[float, ...]
+    weight_drop: tuple[float, ...]
 
 
 class RandomResizeArgs(PydanticConfig):
