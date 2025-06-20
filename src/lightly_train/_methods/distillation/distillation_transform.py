@@ -10,6 +10,7 @@ from __future__ import annotations
 from pydantic import Field
 
 from lightly_train._transforms.transform import (
+    ChannelDropArgs,
     ColorJitterArgs,
     GaussianBlurArgs,
     MethodTransform,
@@ -52,6 +53,7 @@ class DistillationGaussianBlurArgs(GaussianBlurArgs):
 
 class DistillationTransformArgs(MethodTransformArgs):
     image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
+    channel_drop: ChannelDropArgs | None = None
     random_resize: DistillationRandomResizeArgs | None = Field(
         default_factory=DistillationRandomResizeArgs
     )
@@ -74,6 +76,7 @@ class DistillationTransform(MethodTransform):
 
         self.transform = ViewTransform(
             ViewTransformArgs(
+                channel_drop=transform_args.channel_drop,
                 random_resized_crop=RandomResizedCropArgs(
                     size=transform_args.image_size,
                     scale=transform_args.random_resize,

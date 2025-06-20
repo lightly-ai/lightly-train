@@ -22,11 +22,13 @@ from lightly_train._env import Env
 
 logger = logging.getLogger(__name__)
 
-PYTORCH_LIGHTNING_BUG_VERSIONS = ["2.5.1","2.5.1.post0"]
-PL_BUG_VERSION_INSTALLED = any([
-    RequirementCache(f"pytorch-lightning=={version}")
-    for version in PYTORCH_LIGHTNING_BUG_VERSIONS
-])
+PYTORCH_LIGHTNING_BUG_VERSIONS = ["2.5.1", "2.5.1.post0"]
+PL_BUG_VERSION_INSTALLED = any(
+    [
+        RequirementCache(f"pytorch-lightning=={version}")
+        for version in PYTORCH_LIGHTNING_BUG_VERSIONS
+    ]
+)
 
 
 class MLFlowLoggerArgs(PydanticConfig):

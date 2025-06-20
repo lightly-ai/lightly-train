@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the student backbone is frozen during training. We suggest setting it to 1 when
   starting from DINOv2 pretrained weights. See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html)
   for more information.
+- Add channel drop transform.
+- Add option to load multi-channel images with `LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"`.
 
 ### Changed
 
