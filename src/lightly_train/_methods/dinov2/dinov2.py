@@ -230,6 +230,9 @@ class DINOv2(Method):
         freeze_eval_module(self.teacher_head)
 
         # Losses
+        # TODO(Jonas 06/25): make two loss versions one for centering softmax and one for sinkhorn knopp, 
+        # so we could instantiate the corresponding one and remove logic form the train loop
+        # LightlySSL solution: https://github.com/lightly-ai/lightly/blob/90ca6abf4cbd34df6e0b58f675d92dc194883602/lightly/models/modules/center.py#L1
         self.dino_loss = DINOLoss(
             out_dim=method_args.output_dim,
             student_temp=method_args.student_temp,
@@ -268,6 +271,7 @@ class DINOv2(Method):
         )  # G * [B, C, H, W] -> [G*B, C, H, W]
 
         # Masking
+        # TODO(Jonas 06/25): put the masking into a separate method
         n_crops = global_views.shape[0]  # G*B
         batch_size = n_crops // n_global_crops
         h = global_views.shape[2] // self._patch_size
@@ -298,6 +302,8 @@ class DINOv2(Method):
         n_masked_patches = mask_indices_list.shape[0]
 
         # Process global views through teacher and student networks
+        # TODO(Jonas 06/25): kwargs
+        # TODO(Jonas 06/25): consider to move all the forwards into a single forward
         teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
             self._forward_teacher(
                 global_views,
@@ -317,6 +323,7 @@ class DINOv2(Method):
             mask_indices_list=mask_indices_list,
         )  # [G*B, D], [M, D]
 
+        # TODO(Jonas 06/25): clarify if we actually need this list variant --> simplify interface
         # Compute the DINO loss
         dino_global_loss = (
             self.dino_loss.forward(
@@ -331,6 +338,7 @@ class DINOv2(Method):
 
         # Process local views through student network if they exist
         dino_local_loss = torch.tensor(0.0)
+        # TODO(Jonas 06/25): since n_local_crops is known on instantiation, we could avoid the check and instead instantiate a get_local_views depending on the attribute, similar the forward local could be instantiated like that
         if n_local_crops > 0:
             local_views = torch.cat(
                 views[n_global_crops:]
@@ -339,6 +347,7 @@ class DINOv2(Method):
                 local_views
             )  # [L*B, D]
 
+            # TODO(Jonas 06/25): ideally move everything to tensor only no list
             dino_local_loss = (
                 self.dino_loss.forward(
                     student_output_list=student_cls_tokens_local.chunk(
@@ -405,6 +414,7 @@ class DINOv2(Method):
 
         # process the masked patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
+        #TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
         patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
         masked_patch_tokens = torch.index_select(
@@ -417,12 +427,15 @@ class DINOv2(Method):
         )  # [M, D]
 
         # centering
+        #TODO(Jonas 06/25): instantiate the centering method in the loss and remove the logic from here
         if self.method_args.center_method == "softmax":
+            # TODO(Jonas 06/25): reshape the return inside the loss
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
             self.dino_loss.update_center(cls_tokens_after_dino)
 
+            # TODO(Jonas 06/25): change the code inside the loss to avoid the unsqueeze
             masked_patch_tokens_after_ibot = masked_patch_tokens_after_ibot.unsqueeze(0)
             masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
                 masked_patch_tokens_after_ibot,
@@ -431,6 +444,7 @@ class DINOv2(Method):
             masked_patch_tokens_centered = masked_patch_tokens_centered.squeeze(0)
             self.ibot_loss.update_center(masked_patch_tokens_after_ibot)
         elif self.method_args.center_method == "sinkhorn_knopp":
+            # TODO(Jonas 06/25): reshape the return inside the loss
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
@@ -438,6 +452,7 @@ class DINOv2(Method):
             masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=teacher_temp,
+                #TODO(Jonas 06/25): move this into the loss if required
                 n_masked_patches_tensor=torch.tensor(
                     [n_masked_patches], dtype=torch.long
                 ).to(device=self.device, non_blocking=True),
@@ -468,6 +483,7 @@ class DINOv2(Method):
 
         # process the patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
+        #TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
         patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
         masked_patch_tokens = torch.index_select(
@@ -487,6 +503,7 @@ class DINOv2(Method):
         )  # input [L*B, C, ...]
 
         # process the cls tokens
+        #TODO(Jonas 06/25): unnecessary assignment, can be removed
         cls_tokens = tokens["cls_token"]  # [L*B, C]
         cls_tokens_after_dino: Tensor = self.student_head.dino_head.forward(
             cls_tokens
