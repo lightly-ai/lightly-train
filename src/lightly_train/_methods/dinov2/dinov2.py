@@ -300,7 +300,6 @@ class DINOv2(Method):
         masks_weight = masks["masks_weight"].to(device=self.device, non_blocking=True)
         n_masked_patches = mask_indices_list.shape[0]
 
-        
         # Process global views through teacher and student networks
         # TODO(Jonas 06/25): kwargs
         # TODO(Jonas 06/25): consider to move all the forwards into a single forward
