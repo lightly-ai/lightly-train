@@ -59,6 +59,8 @@ format: add-header
 .PHONY: format-check
 format-check:
 	# Check code formatting
+	ruff format --check .
+	# Check linting issues
 	ruff check .
 	# Check markdown formatting
 	mdformat --check ${MDFORMAT_FILES}
