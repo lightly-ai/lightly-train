@@ -25,8 +25,8 @@ from torch.nn import (
     Sequential,
     functional,
     init,
-    utils,
 )
+from torch.nn.utils import parametrizations
 
 
 class DINOv2ProjectionHead(Module):
@@ -51,7 +51,9 @@ class DINOv2ProjectionHead(Module):
             bias=mlp_bias,
         )
         self.apply(self._init_weights)
-        self.last_layer = utils.weight_norm(Linear(bottleneck_dim, out_dim, bias=False))
+        self.last_layer = parametrizations.weight_norm(
+            Linear(bottleneck_dim, out_dim, bias=False)
+        )
         self.last_layer.weight_g.data.fill_(1)  # type: ignore[operator]
 
     def _init_weights(self, m: Module) -> None:
