@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Allow loading pretrained DINOv2 teacher weights for distillation methods with an extra `teacher_weights` argument in `method_args`.
+
 ### Deprecated
 
 ### Removed
@@ -31,8 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add option to load multi-channel images with `LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"`.
 
 ### Changed
-
-- Allow loading pretrained DINOv2 teacher weights for distillation methods with an extra `teacher_weights` argument in `method_args`.
 
 ### Deprecated
 
