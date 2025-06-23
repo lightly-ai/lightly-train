@@ -60,7 +60,9 @@ For comments outside of docstrings, use full sentences and proper punctuation. E
 
 ## Assertions
 
-Avoid using `assert` outside of tests.
+DON’T use assertions for user errors.
+
+DON’T assert that a variable follows its typehint.
 
 ## Positional vs. Keyword Arguments
 
