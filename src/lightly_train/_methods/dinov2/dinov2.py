@@ -230,7 +230,7 @@ class DINOv2(Method):
         freeze_eval_module(self.teacher_head)
 
         # Losses
-        # TODO(Jonas 06/25): make two loss versions one for centering softmax and one for sinkhorn knopp, 
+        # TODO(Jonas 06/25): make two loss versions one for centering softmax and one for sinkhorn knopp,
         # so we could instantiate the corresponding one and remove logic form the train loop
         # LightlySSL solution: https://github.com/lightly-ai/lightly/blob/90ca6abf4cbd34df6e0b58f675d92dc194883602/lightly/models/modules/center.py#L1
         self.dino_loss = DINOLoss(
@@ -414,7 +414,7 @@ class DINOv2(Method):
 
         # process the masked patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
-        #TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
+        # TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
         patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
         masked_patch_tokens = torch.index_select(
@@ -427,7 +427,7 @@ class DINOv2(Method):
         )  # [M, D]
 
         # centering
-        #TODO(Jonas 06/25): instantiate the centering method in the loss and remove the logic from here
+        # TODO(Jonas 06/25): instantiate the centering method in the loss and remove the logic from here
         if self.method_args.center_method == "softmax":
             # TODO(Jonas 06/25): reshape the return inside the loss
             cls_tokens_centered = self.dino_loss.softmax_center_teacher(
@@ -452,7 +452,7 @@ class DINOv2(Method):
             masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
                 masked_patch_tokens_after_ibot,
                 teacher_temp=teacher_temp,
-                #TODO(Jonas 06/25): move this into the loss if required
+                # TODO(Jonas 06/25): move this into the loss if required
                 n_masked_patches_tensor=torch.tensor(
                     [n_masked_patches], dtype=torch.long
                 ).to(device=self.device, non_blocking=True),
@@ -483,7 +483,7 @@ class DINOv2(Method):
 
         # process the patch tokens
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
-        #TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
+        # TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
         patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
 
         masked_patch_tokens = torch.index_select(
@@ -503,7 +503,7 @@ class DINOv2(Method):
         )  # input [L*B, C, ...]
 
         # process the cls tokens
-        #TODO(Jonas 06/25): unnecessary assignment, can be removed
+        # TODO(Jonas 06/25): unnecessary assignment, can be removed
         cls_tokens = tokens["cls_token"]  # [L*B, C]
         cls_tokens_after_dino: Tensor = self.student_head.dino_head.forward(
             cls_tokens

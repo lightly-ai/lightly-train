@@ -60,6 +60,7 @@ format: add-header
 format-check:
 	# Check code formatting
 	ruff format --check .
+	# Check linting issues
 	ruff check .
 	# Check markdown formatting
 	mdformat --check ${MDFORMAT_FILES}
