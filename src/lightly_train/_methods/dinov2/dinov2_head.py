@@ -54,7 +54,8 @@ class DINOv2ProjectionHead(Module):
         self.last_layer = parametrizations.weight_norm(
             Linear(bottleneck_dim, out_dim, bias=False)
         )
-        self.last_layer.weight_g.data.fill_(1)  # type: ignore[operator]
+        # original0 is weight_g, see: https://github.com/pytorch/pytorch/blob/7bcf7da3a268b435777fe87c7794c382f444e86d/torch/nn/utils/parametrizations.py#L355-L361
+        self.last_layer.parametrizations.original0.data.fill_(1)
 
     def _init_weights(self, m: Module) -> None:
         if isinstance(m, Linear):
