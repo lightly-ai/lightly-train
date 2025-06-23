@@ -14,6 +14,14 @@ import pathlib
 from omegaconf import OmegaConf
 
 MODELS = {
+    "vits16": {
+        "url": "",
+        "config": "train/vits16",
+    },
+    "vitl16": {
+        "url": "",
+        "config": "train/vitl16",
+    },
     "vits14": {
         "url": "",
         "config": "train/vits14",
