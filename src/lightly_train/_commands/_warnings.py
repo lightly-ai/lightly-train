@@ -84,6 +84,9 @@ def filter_warnings() -> None:
             "torch.nn.utils.parametrizations.weight_norm."
         ),
     )
+    warnings.filterwarnings(
+        "ignore", message="The `srun` command is available on your system"
+    )
 
     # Torch ConvNext warning
     warnings.filterwarnings(
