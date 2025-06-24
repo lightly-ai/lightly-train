@@ -77,55 +77,20 @@ def test__remove_handlers_by_type() -> None:
 
 
 def test_set_up_file_logging() -> None:
-    temp_path = Path(tempfile.mktemp())
-    try:
-        # Store original logger state
-        logger = logging.getLogger("lightly_train")
-        original_level = logger.level
-        original_handlers = logger.handlers.copy()
-
-        # Reset logger to ensure clean state
-        logger.setLevel(logging.DEBUG)
-
-        _logging.set_up_file_logging(log_file_path=temp_path)
-        logger.debug("debug message")
-        logger.info("info message")
-        logger.warning("warning message")
-        logger.error("error message")
-        logger.critical("critical message")
-
-        # Ensure logs are flushed before reading
-        for handler in logger.handlers:
-            if hasattr(handler, 'flush'):
-                handler.flush()
-
-        logs = temp_path.read_text()
+    with tempfile.NamedTemporaryFile() as file:
+        _logging.set_up_file_logging(log_file_path=Path(file.name))
+        logging.getLogger("lightly_train").debug("debug message")
+        logging.getLogger("lightly_train").info("info message")
+        logging.getLogger("lightly_train").warning("warning message")
+        logging.getLogger("lightly_train").error("error message")
+        logging.getLogger("lightly_train").critical("critical message")
+        logs = Path(file.name).read_text()
+        print(logs)
         assert "debug message" in logs
         assert "info message" in logs
         assert "warning message" in logs
         assert "error message" in logs
         assert "critical message" in logs
-    finally:
-        # Clean up handlers that might still have the file open
-        for handler in logger.handlers[:]:  # Copy list to avoid modification during iteration
-            if isinstance(handler, logging.FileHandler) and str(temp_path) in str(handler.baseFilename):
-                handler.close()
-                logger.removeHandler(handler)
-        
-        # Restore original logger state
-        logger.setLevel(original_level)
-        logger.handlers.clear()
-        logger.handlers.extend(original_handlers)
-
-        # Clean up the file
-        if temp_path.exists():
-            try:
-                temp_path.unlink()
-            except PermissionError:
-                # On Windows, sometimes we need a brief delay
-                import time
-                time.sleep(0.1)
-                temp_path.unlink()
 
 
 class TestRegexFilter:
