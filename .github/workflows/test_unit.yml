@@ -68,6 +68,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Set Up FFmpeg
+        # FFMPEG is not installable on Windows using the setup-ffmpeg action.
         if: ${{ matrix.runners == 'ubuntu-latest' }}
         uses: FedericoCarboni/setup-ffmpeg@v3
         with:
