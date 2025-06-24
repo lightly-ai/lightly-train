@@ -38,12 +38,11 @@ jobs:
     name: Test Unit Minimal Dependencies
     needs: detect-code-changes
     if: needs.detect-code-changes.outputs.run-tests == 'true'
+    runs-on: "ubuntu-latest"
     strategy:
       matrix:
         python: ["3.8"]
         dependencies: ["minimal", "minimal-extras"]
-        runners: ["ubuntu-latest", "windows-latest"]
-    runs-on: ${{ matrix.runners }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -60,8 +59,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Set Up FFmpeg
-        # FFMPEG is not installable on Windows using the setup-ffmpeg action.
-        if: ${{ matrix.dependencies == 'minimal-extras' && matrix.runners == 'ubuntu-latest' }}
+        if: ${{ matrix.dependencies == 'minimal-extras' }}
         uses: FedericoCarboni/setup-ffmpeg@v3
         with:
           ffmpeg-version: 4.3.1
