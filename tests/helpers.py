@@ -31,6 +31,10 @@ from lightly_train._configs.config import PydanticConfig
 from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._methods.simclr.simclr import SimCLR, SimCLRArgs
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    _vit_test,
+)
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
@@ -254,3 +258,7 @@ def assert_same_params(
         a_defaults = {a.name: a.default for a in a_params.values() if not a.required}
         b_defaults = {b.name: b.default for b in b_params.values() if not b.required}
         assert a_defaults == b_defaults
+
+
+def dummy_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv2ViTModelWrapper:
+    return DINOv2ViTModelWrapper(model=_vit_test(patch_size, **kwargs))

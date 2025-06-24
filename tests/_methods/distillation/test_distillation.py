@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Literal
 
 import pytest
@@ -15,6 +16,7 @@ import torch
 import torch.nn.functional as F
 from pytest_mock import MockerFixture
 
+import lightly_train
 from lightly_train._methods.distillation.distillation import (
     Distillation,
     DistillationArgs,
@@ -25,7 +27,7 @@ from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import ScalingInfo
 
-from ...helpers import DummyCustomModel
+from ...helpers import DummyCustomModel, create_images, dummy_vit_model
 
 
 class TestDistillationArgs:
@@ -273,6 +275,60 @@ class TestDistillation:
         assert torch.allclose(
             distill.teacher_queue, x_teacher[:queue_size], atol=1e-6
         ), "Queue shoud contain the first element from the batch."
+
+    def test_load_state_dict_from_pretrained_teacher(
+        self, tmp_path: Path, mocker: MockerFixture
+    ) -> None:
+        """Test that the distillation method can load a state dict from a pretrained teacher model from DINOv2."""
+
+        # Create a temporary directory for the test.
+        data_path = tmp_path / "data"
+        create_images(data_path, files=4, height=224, width=224)
+
+        # export the pretrained teacher model from DINOv2.
+        lightly_train.train(
+            out=tmp_path / "out",
+            data=data_path,
+            method="dinov2",
+            model="dinov2_vit/_vit_test14",
+            transform_args={"image_size": (224, 224)},
+            epochs=0,
+            batch_size=4,
+            accelerator="cpu",
+        )
+
+        # Setup constants.
+        batch_size = 2
+        student_embed_dim = 32
+        queue_size = 10
+
+        # Dummy student model with real params.
+        student_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(student_embed_dim)
+        )
+
+        # Dummy teacher model with real params.
+        teacher_model = EmbeddingModel(wrapped_model=dummy_vit_model(patch_size=14))
+
+        # Patch get_teacher.
+        mock_get_teacher = mocker.patch(
+            "lightly_train._methods.distillation.distillation.get_teacher"
+        )
+        mock_get_teacher.return_value = teacher_model
+
+        # Instantiate the distillation method.
+        _ = Distillation(
+            method_args=DistillationArgs(
+                queue_size=queue_size,
+                teacher="dinov2_vit/_vit_test14",
+                teacher_weights=f"{tmp_path}/exported_models/exported_last.pt",
+            ),
+            optimizer_args=DistillationLARSArgs(),
+            embedding_model=student_model,
+            global_batch_size=batch_size,
+        )
+
+        mock_get_teacher.assert_called_once()
 
     def test_load_state_dict_ignores_missing_teacher_keys(
         self, mocker: MockerFixture

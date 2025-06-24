@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Literal
+from typing import Literal
 
 import pytest
 import torch
@@ -20,19 +20,13 @@ from lightly_train._methods.dinov2.dinov2 import (
     DINOv2AdamWViTArgs,
     DINOv2Args,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    vit_tiny__testing,
-)
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train.types import Batch
 
-
-def dummy_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv2ViTModelWrapper:
-    return DINOv2ViTModelWrapper(model=vit_tiny__testing(patch_size, **kwargs))
+from ...helpers import dummy_vit_model
 
 
 def setup_dinov2_helper(

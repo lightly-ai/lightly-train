@@ -69,6 +69,7 @@ class DINOv2ViTPackage(Package):
 
         # Build the model using the cfg
         model_builders = {
+            "_vit_test": vits._vit_test,
             "vit_small": vits.vit_small,
             "vit_base": vits.vit_base,
             "vit_large": vits.vit_large,
