@@ -16,6 +16,7 @@ import pytest
 import torch
 
 from lightly_train._transforms.transform import (
+    ChannelDropArgs,
     ColorJitterArgs,
     GaussianBlurArgs,
     NormalizeArgs,
@@ -27,6 +28,13 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train._transforms.view_transform import ViewTransform, ViewTransformArgs
 from lightly_train.types import TransformInput
+
+
+def _get_channel_drop_args() -> ChannelDropArgs:
+    return ChannelDropArgs(
+        num_channels_keep=3,
+        weight_drop=(1.0, 1.0, 0.0, 0.0),
+    )
 
 
 def _get_random_resized_crop_args() -> RandomResizedCropArgs:
@@ -76,6 +84,7 @@ def _get_normalize_args() -> NormalizeArgs:
 
 
 PossibleArgsTuple = Tuple[
+    Union[ChannelDropArgs, None],
     RandomResizedCropArgs,
     Union[RandomFlipArgs, None],
     Union[RandomRotationArgs, None],
@@ -88,6 +97,7 @@ PossibleArgsTuple = Tuple[
 
 
 def _get_possible_view_transform_args_combinations() -> list[PossibleArgsTuple]:
+    channel_drop = [_get_channel_drop_args(), None]
     random_resized_crop = [_get_random_resized_crop_args()] * 2
     random_flip = [_get_random_flip_args(), None]
     random_rotation = [_get_random_rotation_args(), None]
@@ -98,6 +108,7 @@ def _get_possible_view_transform_args_combinations() -> list[PossibleArgsTuple]:
     normalize = [_get_normalize_args()] * 2
     return list(
         itertools.product(
+            channel_drop,
             random_resized_crop,
             random_flip,
             random_rotation,
@@ -115,11 +126,12 @@ possible_tuples = _get_possible_view_transform_args_combinations()
 
 class TestViewTransform:
     @pytest.mark.parametrize(
-        "random_resized_crop, random_flip, random_rotation, color_jitter, random_gray_scale, gaussian_blur, solarize, normalize",
+        "channel_drop, random_resized_crop, random_flip, random_rotation, color_jitter, random_gray_scale, gaussian_blur, solarize, normalize",
         possible_tuples,
     )
     def test_view_transform_all_args_combinations(
         self,
+        channel_drop: ChannelDropArgs | None,
         random_resized_crop: RandomResizedCropArgs,
         random_flip: RandomFlipArgs | None,
         random_rotation: RandomRotationArgs | None,
@@ -131,6 +143,7 @@ class TestViewTransform:
     ) -> None:
         view_transform = ViewTransform(
             ViewTransformArgs(
+                channel_drop=channel_drop,
                 random_resized_crop=random_resized_crop,
                 random_flip=random_flip,
                 random_rotation=random_rotation,
@@ -141,8 +154,9 @@ class TestViewTransform:
                 normalize=normalize,
             )
         )
+        num_channels = 3 if channel_drop is None else 4
         tr_input: TransformInput = {
-            "image": np.random.rand(224, 224, 3).astype(np.float32),
+            "image": np.random.rand(224, 224, num_channels).astype(np.float32),
         }
         tr_output = view_transform(tr_input)
         assert isinstance(tr_output, dict)

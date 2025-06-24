@@ -59,6 +59,8 @@ format: add-header
 .PHONY: format-check
 format-check:
 	# Check code formatting
+	ruff format --check .
+	# Check linting issues
 	ruff check .
 	# Check markdown formatting
 	mdformat --check ${MDFORMAT_FILES}
@@ -77,6 +79,7 @@ type-check:
 add-header:
 	licenseheaders -t dev_tools/licenseheader.tmpl -d src \
 		-x src/lightly_train/_methods/dinov2/dinov2_loss.py \
+		-x src/lightly_train/_methods/dinov2/dinov2_head.py \
 		-x src/lightly_train/_methods/dinov2/utils.py \
 		-x src/lightly_train/_modules/teachers/dinov2 \
 		-x src/lightly_train/_lightning_rank_zero.py \
@@ -90,6 +93,7 @@ add-header:
 	
 	licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
 		-f src/lightly_train/_methods/dinov2/dinov2_loss.py \
+		src/lightly_train/_methods/dinov2/dinov2_head.py \
 		src/lightly_train/_methods/dinov2/utils.py \
 		-E py
 
