@@ -14,7 +14,7 @@ import torch
 from lightly_train import _distributed as distributed_helpers
 from lightly_train._data.download import download_from_url
 from lightly_train._env import Env
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+from dinov2_vit.models.vision_transformer import (
     DinoVisionTransformer,
 )
 

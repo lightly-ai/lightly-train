@@ -23,13 +23,13 @@ import torch.nn as nn
 from lightning_utilities.core.imports import RequirementCache
 from torch.nn.init import trunc_normal_
 
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
+from dinov2_vit.layers import (
     MemEffAttention,
     Mlp,
     PatchEmbed,
     SwiGLUFFNFused,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
+from dinov2_vit.layers import (
     NestedTensorBlock as Block,
 )
 
@@ -208,7 +208,6 @@ class DinoVisionTransformer(nn.Module):
             self.blocks = nn.ModuleList(blocks_list)
 
         self.norm = norm_layer(embed_dim)
-        self.head = nn.Identity()
 
         self.mask_token = nn.Parameter(torch.zeros(1, embed_dim))
 
@@ -383,13 +382,8 @@ class DinoVisionTransformer(nn.Module):
             return tuple(zip(outputs, class_tokens))
         return tuple(outputs)
 
-    def forward(self, *args, is_training=False, **kwargs):
-        ret = self.forward_features(*args, **kwargs)
-        if is_training:
-            return ret
-        else:
-            return self.head(ret["x_norm_clstoken"])
-
+    def forward(self, *args, **kwargs):
+        return  self.forward_features(*args, **kwargs)
 
 def init_weights_vit_timm(module: nn.Module, name: str = ""):
     """ViT weight initialization, original timm impl (for reproducibility)"""

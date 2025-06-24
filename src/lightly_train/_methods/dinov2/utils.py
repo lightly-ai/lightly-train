@@ -30,7 +30,7 @@ import numpy as np
 import torch
 from torch.optim.optimizer import Optimizer
 
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+from dinov2_vit.models.vision_transformer import (
     DinoVisionTransformer,
 )
 from lightly_train._optim.optimizer_args import OptimizerArgs

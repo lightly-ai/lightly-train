@@ -15,15 +15,15 @@ from typing import Any, Callable, Dict, List, Tuple
 import torch
 from torch import Tensor, nn
 
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import (
+from dinov2_vit.layers.attention import (
     Attention,
     MemEffAttention,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.drop_path import DropPath
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.layer_scale import (
+from dinov2_vit.layers.drop_path import DropPath
+from dinov2_vit.layers.layer_scale import (
     LayerScale,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.mlp import Mlp
+from dinov2_vit.layers.mlp import Mlp
 
 XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
 try:

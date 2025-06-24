@@ -16,18 +16,18 @@ import torch
 from lightly_train._data.cache import get_cache_dir
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
-from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
+from dinov2_vit.configs import (
     MODELS as VIT_MODELS,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
+from dinov2_vit.configs import (
     get_config_path,
     load_and_merge_config,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit_src.dinov2_helper import load_weights
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models import (
+from lightly_train._models.dinov2_vit.dinov2_helper import load_weights
+from dinov2_vit.models import (
     vision_transformer as vits,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+from dinov2_vit.models.vision_transformer import (
     DinoVisionTransformer,
 )
 from lightly_train._models.model_wrapper import ModelWrapper

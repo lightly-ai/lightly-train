@@ -5,17 +5,17 @@
 # found in the LICENSE file in the root directory of this source tree.
 #
 
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import (
+from dinov2_vit.layers.attention import (
     MemEffAttention,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.block import (
+from dinov2_vit.layers.block import (
     NestedTensorBlock,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.mlp import Mlp
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.patch_embed import (
+from dinov2_vit.layers.mlp import Mlp
+from dinov2_vit.layers.patch_embed import (
     PatchEmbed,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.swiglu_ffn import (
+from dinov2_vit.layers.swiglu_ffn import (
     SwiGLUFFN,
     SwiGLUFFNFused,
 )
