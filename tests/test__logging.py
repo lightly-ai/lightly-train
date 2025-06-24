@@ -85,7 +85,6 @@ def test_set_up_file_logging() -> None:
         logging.getLogger("lightly_train").error("error message")
         logging.getLogger("lightly_train").critical("critical message")
         logs = Path(file.name).read_text()
-        print(logs)
         assert "debug message" in logs
         assert "info message" in logs
         assert "warning message" in logs
