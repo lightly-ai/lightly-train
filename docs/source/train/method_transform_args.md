@@ -4,6 +4,7 @@
 
 Pretraining relies strongly on image transforms (augmentations) such as:
 
+- **Channel Drop**: Randomly drops channels from the image.
 - **Random Cropping and Resizing**: Crops random parts of images and resizes them to fixed
   resolutions.
 - **Random Horizontal and Vertical Flipping**: Mirrors images across horizontal or vertical
@@ -90,14 +91,29 @@ arguments unique to specific methods.
 ```{seealso}
 Interested in the default augmentation settings for each method? Check the method pages:
  - {ref}`methods-distillation`
+ - {ref}`methods-dinov2`
  - {ref}`methods-dino`
  - {ref}`methods-simclr`
 ```
 
 ## Arguments available for all methods
 
-The following arguments are available for all methods {ref}`methods-distillation`,
-{ref}`methods-dino` and {ref}`methods-simclr`.
+The following arguments are available for all methods.
+
+### Channel Drop
+
+Randomly drops channels from the image. Can be disabled by setting to `None`.
+Disabled by default. Only use if you have images with more than 3 channels. Requires
+`LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"` to be set in the environment.
+
+```python skip_ruff
+"channel_drop": {
+    "num_channels_keep": int,                 # number of channels to keep in the image
+    "weight_drop": tuple[float, ...],         # weight for each channel to be dropped
+                                              # 0 means never dropped, higher values mean 
+                                              # higher probability of being dropped
+}
+```
 
 ### Random Cropping and Resizing
 

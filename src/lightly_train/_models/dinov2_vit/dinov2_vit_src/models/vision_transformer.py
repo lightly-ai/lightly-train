@@ -458,9 +458,7 @@ def vit_giant2(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTran
     return model
 
 
-def vit_tiny__testing(
-    patch_size=16, num_register_tokens=0, **kwargs
-) -> DinoVisionTransformer:
+def _vit_test(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=8,

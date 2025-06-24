@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from torch.nn import Module
 
 from lightly_train._data.cache import get_cache_dir
 from lightly_train._models import package_helpers
@@ -70,6 +69,7 @@ class DINOv2ViTPackage(Package):
 
         # Build the model using the cfg
         model_builders = {
+            "_vit_test": vits._vit_test,
             "vit_small": vits.vit_small,
             "vit_base": vits.vit_base,
             "vit_large": vits.vit_large,
@@ -111,7 +111,7 @@ class DINOv2ViTPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> DINOv2ViTModelWrapper:
+    def get_model_wrapper(cls, model: DinoVisionTransformer) -> DINOv2ViTModelWrapper:
         return DINOv2ViTModelWrapper(model=model)
 
     @classmethod

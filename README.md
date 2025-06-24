@@ -21,7 +21,16 @@ data, significantly reducing the amount of labeling needed to reach a high model
 
 This allows you to focus on new features and domains instead of managing your labeling cycles.
 LightlyTrain is designed for simple integration into existing training pipelines and supports
-a wide range of model architectures and use-cases out of the box.
+a wide range of model architectures and use cases out of the box.
+
+## News
+
+- \[[0.8.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-8-0)\] - 2025-06-10:
+  [**DINOv2 pretraining**](https://docs.lightly.ai/train/stable/methods/dinov2.html) is
+  now available (beta 🔬)!
+- \[[0.7.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-7-0)\] - 2025-05-26:
+  Up to **3x faster distillation** and higher accuracy with [**Distillation v2**](https://docs.lightly.ai/train/stable/methods/distillation.html)
+  (new default method)!
 
 ## Why LightlyTrain
 
@@ -69,7 +78,7 @@ from torchvision import models
 
 # Load the pretrained model
 model = models.resnet50()
-model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_last.pt"))
+model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_last.pt", weights_only=True))
 
 # Fine-tune the model with your existing training pipeline
 ...
@@ -107,7 +116,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 | Framework | Supported Models | Docs |
 |------------------|---------------------------------------------------|------|
-| Torchvision | ResNet, ConvNext | [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) |
+| Torchvision | ResNet, ConvNext, ShuffleNetV2 | [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) |
 | TIMM | All models | [🔗](https://docs.lightly.ai/train/stable/models/timm.html) |
 | Ultralytics | YOLOv5, YOLOv6, YOLOv8, YOLO11, YOLO12 | [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) |
 | RT-DETR | RT-DETR | [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) |
@@ -123,6 +132,7 @@ For an overview of all supported models and usage instructions, see the full [mo
 ### Supported Training Methods
 
 - [DINOv2 Distillation](https://docs.lightly.ai/train/stable/methods/index.html#methods-distillation) (recommended 🚀)
+- [DINOv2](https://docs.lightly.ai/train/stable/methods/index.html#methods-dinov2) (beta 🔬)
 - [DINO](https://docs.lightly.ai/train/stable/methods/index.html#methods-dino)
 - [SimCLR](https://docs.lightly.ai/train/stable/methods/index.html#methods-simclr)
 

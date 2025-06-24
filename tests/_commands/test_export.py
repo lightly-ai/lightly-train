@@ -61,7 +61,7 @@ def test_export__torch_state_dict(tmp_path: Path) -> None:
             part=part,
             format="torch_state_dict",
         )
-        _assert_state_dict_equal(torch.load(out_path), expected)
+        _assert_state_dict_equal(torch.load(out_path, weights_only=True), expected)
 
 
 def test_export__torch_model(tmp_path: Path) -> None:
@@ -98,7 +98,7 @@ def test_export__torchvision(tmp_path: Path) -> None:
     export.export(out=out, checkpoint=ckpt_path)
 
     loaded_model = torchvision_models.resnet18()
-    loaded_model.load_state_dict(torch.load(out))
+    loaded_model.load_state_dict(torch.load(out, weights_only=True))
     assert isinstance(loaded_model, type(model))
     assert torch.equal(loaded_model.conv1.weight, model.conv1.weight)
 
@@ -165,7 +165,9 @@ def test_export__custom(tmp_path: Path) -> None:
 
     out_path = tmp_path / "model.pt"
     export.export(out=out_path, checkpoint=ckpt_path)
-    _assert_state_dict_equal(torch.load(out_path), model.state_dict())
+    _assert_state_dict_equal(
+        torch.load(out_path, weights_only=True), model.state_dict()
+    )
 
 
 @pytest.mark.skipif(
@@ -257,7 +259,9 @@ def test_export_from_dictconfig(tmp_path: Path, part: str) -> None:
         )
     )
     export.export_from_dictconfig(config=config)
-    _assert_state_dict_equal(torch.load(out_path), model.state_dict())
+    _assert_state_dict_equal(
+        torch.load(out_path, weights_only=True), model.state_dict()
+    )
 
 
 def _assert_state_dict_equal(a: dict[str, Tensor], b: dict[str, Tensor]) -> None:

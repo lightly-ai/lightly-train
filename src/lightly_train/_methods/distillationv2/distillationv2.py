@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Literal, Mapping, cast
 
 import torch
@@ -37,11 +38,24 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
-def get_teacher(teacher_name: str) -> Module:
+def get_teacher(teacher_name: str, teacher_weights: str | Path | None = None) -> Module:
     wrapped_model = package_helpers.get_wrapped_model(model=teacher_name)
     teacher_embedding_model = wrapped_model.get_model()
-    teacher_embedding_model.eval()
     assert isinstance(teacher_embedding_model, Module)
+
+    # If a path to the teacher weights is provided, load them.
+    if teacher_weights is not None:
+        if not Path(teacher_weights).exists():
+            raise FileNotFoundError(
+                f"Teacher weights file {teacher_weights} does not exist."
+            )
+
+        state_dict = torch.load(teacher_weights, weights_only=True)
+        teacher_embedding_model.load_state_dict(state_dict)
+        logger.debug(f"Loaded teacher weights from {teacher_weights}.")
+
+    teacher_embedding_model.eval()
+
     return teacher_embedding_model
 
 
@@ -54,15 +68,22 @@ class DistillationV2Args(MethodArgs):
     # Default teacher
     teacher: str = "dinov2_vit/vitb14_pretrain"
 
+    # Optional teacher weight path.
+    teacher_weights: str | Path | None = None
+
     # Number of projection layers in the projection head.
     n_projection_layers: int = 1
 
     # Hidden dimension of the projection head.
     projection_hidden_dim: int = 2048
 
+    # Scaling method for the learning rate.
+    lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
+    reference_batch_size: int = 1536
+
 
 class DistillationV2LARSArgs(LARSArgs):
-    lr: float = 1.5
+    lr: float = 9.0  # 9.0 = 1.5 * 1536 / 256
     momentum: float = 0.9
     dampening: float = 0
     weight_decay: float = 1e-6
@@ -125,7 +146,9 @@ class DistillationV2(Method):
             global_batch_size=global_batch_size,
         )
         # Get the teacher model.
-        self.teacher_embedding_model = get_teacher(method_args.teacher)
+        self.teacher_embedding_model = get_teacher(
+            method_args.teacher, method_args.teacher_weights
+        )
         self.teacher_embedding_dim = (
             method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim
         )

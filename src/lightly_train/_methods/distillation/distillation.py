@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Literal, Mapping, cast
 
 import torch
@@ -41,11 +42,24 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
-def get_teacher(teacher_name: str) -> Module:
+def get_teacher(teacher_name: str, teacher_weights: str | Path | None = None) -> Module:
     wrapped_model = package_helpers.get_wrapped_model(model=teacher_name)
     teacher_embedding_model = wrapped_model.get_model()
     assert isinstance(teacher_embedding_model, Module)
+
+    # If a path to the teacher weights is provided, load them.
+    if teacher_weights is not None:
+        if not Path(teacher_weights).exists():
+            raise FileNotFoundError(
+                f"Teacher weights file {teacher_weights} does not exist."
+            )
+
+        state_dict = torch.load(teacher_weights, weights_only=True)
+        teacher_embedding_model.load_state_dict(state_dict)
+        logger.debug(f"Loaded teacher weights from {teacher_weights}.")
+
     teacher_embedding_model.eval()
+
     return teacher_embedding_model
 
 
@@ -58,8 +72,15 @@ class DistillationArgs(MethodArgs):
     # Default temperature parameter to regulate the sharpness of the distributions in the loss.
     temperature: float = 0.07
 
-    # Default teacher
+    # Default teacher.
     teacher: str = "dinov2_vit/vitb14_pretrain"
+
+    # Optional teacher weight path.
+    teacher_weights: str | Path | None = None
+
+    # Scaling method for the learning rate.
+    lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
+    reference_batch_size: int = 1536
 
     def resolve_auto(
         self,
@@ -95,7 +116,7 @@ class DistillationArgs(MethodArgs):
 
 
 class DistillationLARSArgs(LARSArgs):
-    lr: float = 0.3
+    lr: float = 1.8  # 1.8 = 0.3 * 1536 / 256
     momentum: float = 0.9
     dampening: float = 0
     weight_decay: float = 1e-6
@@ -119,7 +140,9 @@ class Distillation(Method):
             global_batch_size=global_batch_size,
         )
         # Get the teacher model.
-        self.teacher_embedding_model = get_teacher(method_args.teacher)
+        self.teacher_embedding_model = get_teacher(
+            method_args.teacher, method_args.teacher_weights
+        )
 
         # Store the student model.
         self.student_embedding_model = embedding_model

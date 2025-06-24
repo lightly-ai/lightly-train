@@ -29,7 +29,12 @@ from lightly_train._checkpoint import (
 from lightly_train._commands import extract_video_frames
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._methods.method import Method
+from lightly_train._methods.method_args import MethodArgs
 from lightly_train._methods.simclr.simclr import SimCLR, SimCLRArgs
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    _vit_test,
+)
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
@@ -37,11 +42,38 @@ from lightly_train._models.model_wrapper import (
     ModelWrapper,
 )
 from lightly_train._optim.adamw_args import AdamWArgs
+from lightly_train._optim.optimizer_args import OptimizerArgs
+from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._transforms.transform import (
     MethodTransform,
     NormalizeArgs,
 )
 from lightly_train.types import TransformInput, TransformOutput
+
+
+class DummyMethod(Method):
+    def __init__(
+        self,
+        method_args: MethodArgs,
+        optimizer_args: OptimizerArgs,
+        embedding_model: EmbeddingModel,
+        global_batch_size: int,
+    ):
+        super().__init__(
+            method_args=method_args,
+            optimizer_args=optimizer_args,
+            embedding_model=embedding_model,
+            global_batch_size=global_batch_size,
+        )
+        self.embedding_model = embedding_model
+        self.method_args = method_args
+
+    def trainable_modules(self) -> TrainableModules:
+        return TrainableModules(modules=[self.embedding_model])
+
+    @staticmethod
+    def method_args_cls() -> type[MethodArgs]:
+        return MethodArgs
 
 
 class DummyCustomModel(Module, ModelWrapper):
@@ -226,3 +258,7 @@ def assert_same_params(
         a_defaults = {a.name: a.default for a in a_params.values() if not a.required}
         b_defaults = {b.name: b.default for b in b_params.values() if not b.required}
         assert a_defaults == b_defaults
+
+
+def dummy_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv2ViTModelWrapper:
+    return DINOv2ViTModelWrapper(model=_vit_test(patch_size, **kwargs))
