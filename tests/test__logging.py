@@ -76,20 +76,19 @@ def test__remove_handlers_by_type() -> None:
         assert not isinstance(handler, logging.StreamHandler)
 
 
-def test_set_up_file_logging() -> None:
-    with tempfile.NamedTemporaryFile() as file:
-        _logging.set_up_file_logging(log_file_path=Path(file.name))
-        logging.getLogger("lightly_train").debug("debug message")
-        logging.getLogger("lightly_train").info("info message")
-        logging.getLogger("lightly_train").warning("warning message")
-        logging.getLogger("lightly_train").error("error message")
-        logging.getLogger("lightly_train").critical("critical message")
-        logs = Path(file.name).read_text()
-        assert "debug message" in logs
-        assert "info message" in logs
-        assert "warning message" in logs
-        assert "error message" in logs
-        assert "critical message" in logs
+def test_set_up_file_logging(tmp_path: Path) -> None:
+    _logging.set_up_file_logging(log_file_path=tmp_path / "test.log")
+    logging.getLogger("lightly_train").debug("debug message")
+    logging.getLogger("lightly_train").info("info message")
+    logging.getLogger("lightly_train").warning("warning message")
+    logging.getLogger("lightly_train").error("error message")
+    logging.getLogger("lightly_train").critical("critical message")
+    logs = (tmp_path / "test.log").read_text()
+    assert "debug message" in logs
+    assert "info message" in logs
+    assert "warning message" in logs
+    assert "error message" in logs
+    assert "critical message" in logs
 
 
 class TestRegexFilter:
