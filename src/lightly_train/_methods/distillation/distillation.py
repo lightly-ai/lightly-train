@@ -47,8 +47,10 @@ def get_teacher(teacher_name: str, teacher_weights: str | Path | None = None) ->
     teacher_embedding_model = wrapped_model.get_model()
     assert isinstance(teacher_embedding_model, Module)
 
-    # If a path to the teacher weights is provided, load them.
-    if teacher_weights is not None:
+    # If a path to the pretrained teacher weights is provided, load them.
+    # Ignore the weights when the pretrained teacher is provided so as to prevent loading
+    # the weights twice.
+    if (not teacher_name.endswith("_pretrain")) and (teacher_weights is not None):
         if not Path(teacher_weights).exists():
             raise FileNotFoundError(
                 f"Teacher weights file {teacher_weights} does not exist."
