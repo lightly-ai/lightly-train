@@ -7,7 +7,6 @@
 #
 import logging
 import os
-import tempfile
 from pathlib import Path
 
 from pytest import LogCaptureFixture
