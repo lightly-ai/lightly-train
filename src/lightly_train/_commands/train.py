@@ -286,7 +286,7 @@ def train_from_config(config: TrainConfig) -> None:
     with common_helpers.verify_out_dir_equal_on_all_local_ranks(
         out=out_dir
     ), common_helpers.get_dataset_temp_mmap_path(
-        out=out_dir
+        data=config.data
     ) as mmap_filepath, _float32_matmul_precision.float32_matmul_precision(
         float32_matmul_precision=config.float32_matmul_precision
     ):

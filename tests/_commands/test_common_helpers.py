@@ -537,7 +537,7 @@ def test_get_num_workers__slurm(
 
 
 def test_get_dataset_temp_mmap_path(tmp_path: Path) -> None:
-    with common_helpers.get_dataset_temp_mmap_path(out=tmp_path) as mmap_path:
+    with common_helpers.get_dataset_temp_mmap_path(data=tmp_path) as mmap_path:
         mmap_path.touch()
     # Make sure file is deleted after exiting the context manager.
     assert not mmap_path.exists()
@@ -548,12 +548,12 @@ def test_get_dataset_temp_mmap_path__rank(
 ) -> None:
     # Simulate calling the function from rank 0
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
-    with common_helpers.get_dataset_temp_mmap_path(out=tmp_path) as mmap_path_rank0:
+    with common_helpers.get_dataset_temp_mmap_path(data=tmp_path) as mmap_path_rank0:
         pass
 
     # Simulate calling the function from rank 1
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
-    with common_helpers.get_dataset_temp_mmap_path(out=tmp_path) as mmap_path_rank1:
+    with common_helpers.get_dataset_temp_mmap_path(data=tmp_path) as mmap_path_rank1:
         pass
 
     assert mmap_path_rank0 == mmap_path_rank1

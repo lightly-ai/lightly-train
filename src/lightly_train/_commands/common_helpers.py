@@ -375,14 +375,15 @@ def _get_package(model: Module) -> BasePackage:
 
 
 @contextlib.contextmanager
-def get_dataset_temp_mmap_path(out: Path) -> Generator[Path, Any, Any]:
+def get_dataset_temp_mmap_path(data: PathLike | Sequence[PathLike]) -> Generator[Path, Any, Any]:
     """Generate file in temporary directory to be used for memory-mapping the dataset.
 
-    Creates a unique filename for the memory-mapped file based on the out path.
-    We use the out path as a deterministic value that is consistent across all ranks
-    on the same node.
+    Creates a unique filename for the memory-mapped file based on the data arg.
+    We use the data arg as a deterministic value that is consistent across all ranks
+    on the same node. Additionally, we can cache the file if required, since the hash 
+    directly reflects the used config.
 
-    We need a determinstic value from "outside" at this point in the code as the
+    We need a deterministic value from "outside" at this point in the code as the
     code might already be running on multiple processes depending on how it was
     started. We cannot create a new filename based on a random value as this would
     create a different filename for each process. Creating the filename on global
@@ -393,17 +394,19 @@ def get_dataset_temp_mmap_path(out: Path) -> Generator[Path, Any, Any]:
     The filename is different on each node. This is necessary to avoid multiple
     processes writing to the same file in case the nodes use a shared filesystem.
     """
-    out_hash = get_sha256(f"{out}-{distributed_helpers.get_node_rank() or 0}")
+    out_hash = get_sha256(f"{data}-{distributed_helpers.get_node_rank() or 0}")
     mmap_filepath = (get_data_tmp_dir() / out_hash).with_suffix(".mmap")
     mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
+
+    reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
     try:
         # Delete the file if it already exists from a previous run.
-        if distributed_helpers.is_local_rank_zero():
+        if not reuse_file and distributed_helpers.is_local_rank_zero():
             _unlink_and_ignore(mmap_filepath)
 
         yield mmap_filepath
     finally:
-        if distributed_helpers.is_local_rank_zero():
+        if not reuse_file and distributed_helpers.is_local_rank_zero():
             _unlink_and_ignore(mmap_filepath)
 
 
@@ -415,6 +418,13 @@ def get_dataset_mmap_filenames(
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
     """
+    if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
+        # If the file already exists and we are allowed to reuse it, return it.
+        logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
+        return memory_mapped_sequence.memory_mapped_sequence_from_file(
+            mmap_filepath=mmap_filepath
+        )
+    
     tmp_path = mmap_filepath.with_suffix(".temp")
     try:
         if distributed_helpers.is_local_rank_zero():
