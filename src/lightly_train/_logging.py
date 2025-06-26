@@ -157,7 +157,7 @@ def set_up_file_logging(log_file_path: Path) -> None:
     ]
 
     for file_logger in file_loggers:
-        _remove_handlers(file_logger, logging.FileHandler)
+        _remove_handlers(file_logger, LightlyTrainRotatingFileHandler)
         file_logger.addHandler(fh)
 
 
