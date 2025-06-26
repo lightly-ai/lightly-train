@@ -23,6 +23,7 @@ from lightly_train.types import (
     DatasetItem,
     ImageFilename,
     NDArrayImage,
+    PathLike,
     Transform,
     TransformInput,
 )
@@ -100,15 +101,16 @@ def list_image_filenames(
     elif files is not None:
         return (ImageFilename(str(fpath.resolve())) for fpath in files)
     elif image_dir is not None:
+        image_dir_str = str(image_dir)
         return (
-            ImageFilename(str(fpath.relative_to(image_dir)))
+            ImageFilename(os.path.relpath(fpath, start=image_dir_str))
             for fpath in _get_image_filepaths(image_dir=image_dir)
         )
     else:
         raise ValueError("Either `image_dir` or `files` must be provided.")
 
 
-def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
+def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[PathLike]:
     """List image files recursively from the given list of image files and directories.
 
     Args:
@@ -129,14 +131,19 @@ def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
             raise ValueError(f"Invalid path: {img_or_dir}")
 
 
-def _get_image_filepaths(image_dir: Path) -> Iterable[Path]:
+def _get_image_filepaths(image_dir: Path) -> Iterable[str]:
     extensions = _pil_supported_image_extensions()
-    for root, _, files in os.walk(image_dir, followlinks=True):
-        root_path = Path(root)
-        for file in files:
-            fpath = root_path / file
-            if fpath.suffix.lower() in extensions:
-                yield fpath
+    stack = [str(image_dir)]
+
+    while stack:
+        current = stack.pop()
+        with os.scandir(current) as it:
+            for entry in it:
+                if entry.is_dir(follow_symlinks=True):
+                    stack.append(entry.path)
+                elif entry.is_file():
+                    if os.path.splitext(entry.name)[1].lower() in extensions:
+                        yield entry.path
 
 
 def _pil_supported_image_extensions() -> set[str]:
