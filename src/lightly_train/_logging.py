@@ -26,6 +26,7 @@ logging.captureWarnings(capture=True)
 
 # Set up the logger for the lightly_train package.
 lightly_logger = logging.getLogger("lightly_train")
+lightly_logger.setLevel(logging.DEBUG)
 
 
 class ConsoleFormatter(logging.Formatter):
@@ -73,7 +74,6 @@ def set_up_console_logging() -> None:
     ch = logging.StreamHandler()
     ch.setLevel(level)
     ch.setFormatter(ConsoleFormatter())
-    lightly_logger.setLevel(logging.DEBUG)
     _set_console_handler(ch)
 
 

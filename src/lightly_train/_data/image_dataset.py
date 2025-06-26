@@ -89,7 +89,8 @@ def list_image_filenames(
             The root directory to scan for images.
 
     Returns:
-        An iterable of image filenames relative to `image_dir`.
+        An iterable of image filenames relative to `image_dir` or absolute paths
+        if `files` is provided.
     """
     if (image_dir is not None and files is not None) or (
         image_dir is None and files is None

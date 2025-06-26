@@ -38,7 +38,7 @@ jobs:
     name: Test Unit Minimal Dependencies
     needs: detect-code-changes
     if: needs.detect-code-changes.outputs.run-tests == 'true'
-    runs-on: ubuntu-latest
+    runs-on: "ubuntu-latest"
     strategy:
       matrix:
         python: ["3.8"]

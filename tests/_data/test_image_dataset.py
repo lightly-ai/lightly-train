@@ -291,6 +291,36 @@ def test_list_image_files__extensions(extension: str, tmp_path: Path) -> None:
     ]
 
 
+def test_list_image_filenames__file_paths() -> None:
+    file_paths = [
+        Path("class1/image1.jpg"),
+        Path("class1/image2.jpg"),
+        Path("class2/image3.jpg"),
+        Path("image4.jpg"),
+    ]
+    filenames = image_dataset.list_image_filenames(files=file_paths)
+
+    # Resolve all paths to absolute paths for consistent comparison
+    expected = [
+        ImageFilename(Path("class1/image1.jpg").resolve()),
+        ImageFilename(Path("class1/image2.jpg").resolve()),
+        ImageFilename(Path("class2/image3.jpg").resolve()),
+        ImageFilename(Path("image4.jpg").resolve()),
+    ]
+
+    assert sorted(list(filenames)) == sorted(expected)
+
+
+def test_list_image_filenames__image_dir(flat_image_dir: Path) -> None:
+    file_paths = image_dataset.list_image_filenames(image_dir=flat_image_dir)
+    assert sorted(file_paths) == sorted(
+        [
+            ImageFilename("image1.jpg"),
+            ImageFilename("image2.jpg"),
+        ]
+    )
+
+
 def test_list_image_filenames__dir_is_symlink(image_dir_being_symlink: Path) -> None:
     file_paths = image_dataset.list_image_filenames(image_dir=image_dir_being_symlink)
     assert sorted(file_paths) == sorted(
@@ -325,23 +355,6 @@ def test_list_image_filenames__multiple_dirs_with_symlinks(
     for file_name, expected_name in zip(file_names, expected):
         print(f"{file_name=}, {expected_name=}")
     assert file_names == expected
-
-
-def test_list_image_filenames() -> None:
-    file_paths = [
-        Path("class1/image1.jpg"),
-        Path("class1/image2.jpg"),
-        Path("class2/image3.jpg"),
-        Path("image4.jpg"),
-    ]
-    filenames = image_dataset.list_image_filenames(files=file_paths)
-    common_dir = Path.cwd()
-    assert sorted(list(filenames)) == [
-        ImageFilename(common_dir / "class1" / "image1.jpg"),
-        ImageFilename(common_dir / "class1" / "image2.jpg"),
-        ImageFilename(common_dir / "class2" / "image3.jpg"),
-        ImageFilename(common_dir / "image4.jpg"),
-    ]
 
 
 @pytest.mark.parametrize(
