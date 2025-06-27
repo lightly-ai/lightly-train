@@ -71,7 +71,7 @@ class TestDINOv2ViTModelWrapper:
 
     @pytest.mark.parametrize(
         "model_name",
-        ["vits14"],
+        ["_vit_test14"],
     )
     def test_make_teacher(self, model_name: str) -> None:
         student = DINOv2ViTPackage.get_model(model_name)
