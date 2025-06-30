@@ -14,7 +14,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOv2ViTPackage
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
-    vit_small,
+    _vit_test,
 )
 
 from ...helpers import DummyCustomModel
@@ -28,6 +28,7 @@ class TestDINOv2ViTPackage:
             ("dinov2_vit/dinov2_vitb14", False),
             ("dinov2_vit/dinov2_vitl14", False),
             ("dinov2_vit/dinov2_vitg14", False),
+            ("dinov2_vit/_vit_test14", True),
             ("dinov2_vit/vits14", True),
             ("dinov2_vit/vitb14", True),
             ("dinov2_vit/vitl14", True),
@@ -39,11 +40,11 @@ class TestDINOv2ViTPackage:
         assert (model_name in model_names) is supported
 
     def test_is_supported_model__model_true(self) -> None:
-        model = vit_small()
+        model = _vit_test()
         assert DINOv2ViTPackage.is_supported_model(model)
 
     def test_is_supported_model__wrapped_model_true(self) -> None:
-        model = vit_small()
+        model = _vit_test()
         wrapped_model = DINOv2ViTModelWrapper(model=model)
         assert DINOv2ViTPackage.is_supported_model(wrapped_model)
 
@@ -57,20 +58,20 @@ class TestDINOv2ViTPackage:
 
     @pytest.mark.parametrize(
         "model_name",
-        ["vits14", "vitb14"],
+        ["_vit_test14", "vits14", "vitb14"],
     )
     def test_get_model(self, model_name: str) -> None:
         model = DINOv2ViTPackage.get_model(model_name=model_name)
         assert isinstance(model, DinoVisionTransformer)
 
     def test_get_model_wrapper(self) -> None:
-        model = vit_small()
+        model = _vit_test()
         fe = DINOv2ViTPackage.get_model_wrapper(model=model)
         assert isinstance(fe, DINOv2ViTModelWrapper)
 
     @pytest.mark.parametrize(
         "model_name",
-        ["vits14"],
+        ["_vit_test14"],
     )
     def test_export_model__model(self, model_name: str, tmp_path: Path) -> None:
         model = DINOv2ViTPackage.get_model(model_name)
@@ -91,7 +92,7 @@ class TestDINOv2ViTPackage:
 
     @pytest.mark.parametrize(
         "model_name",
-        ["vits14"],
+        ["_vit_test14"],
     )
     def test_export_model__wrapped_model(self, model_name: str, tmp_path: Path) -> None:
         model = DINOv2ViTPackage.get_model(model_name=model_name)

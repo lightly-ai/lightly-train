@@ -107,7 +107,6 @@ class TestDistillationV2:
         # Set constants.
         batch_size, channels, height, width = 2, 3, 224, 224
         student_embed_dim = 32
-        teacher_embed_dim = 48
         n_blocks = 2
         patch_size = 14
         n_tokens = (height // patch_size) * (width // patch_size)
@@ -115,22 +114,13 @@ class TestDistillationV2:
         # Create dummy images.
         x = torch.randn(batch_size, channels, height, width)
 
+        teacher_model = dummy_vit_model(patch_size=patch_size).get_model().eval()
+
         # Patch the teacher model.
-        mock_teacher_model = mocker.Mock()
-        mock_teacher_model.embed_dim = teacher_embed_dim
-        mock_teacher_model.patch_size = patch_size
-        mock_teacher_model.get_intermediate_layers.return_value = [
-            torch.randn(
-                batch_size,
-                n_tokens,
-                teacher_embed_dim,
-            )
-            for _ in range(n_blocks)
-        ]
         mock_get_teacher = mocker.patch(
             "lightly_train._methods.distillationv2.distillationv2.get_teacher"
         )
-        mock_get_teacher.return_value = mock_teacher_model
+        mock_get_teacher.return_value = teacher_model
 
         # Patch the student embedding model.
         mock_student_model = mocker.Mock()
@@ -160,12 +150,13 @@ class TestDistillationV2:
         """Test that the distillation method can load a state dict from a pretrained teacher model from DINOv2."""
 
         # Create a temporary directory for the test.
+        out_path = tmp_path / "out"
         data_path = tmp_path / "data"
         create_images(data_path, files=4, height=224, width=224)
 
         # export the pretrained teacher model from DINOv2.
         lightly_train.train(
-            out=tmp_path / "out",
+            out=out_path,
             data=data_path,
             method="dinov2",
             model="dinov2_vit/_vit_test14",
@@ -184,27 +175,16 @@ class TestDistillationV2:
             wrapped_model=DummyCustomModel(student_embed_dim)
         )
 
-        # Dummy teacher model with real params.
-        teacher_model = EmbeddingModel(wrapped_model=dummy_vit_model(patch_size=14))
-
-        # Patch get_teacher.
-        mock_get_teacher = mocker.patch(
-            "lightly_train._methods.distillationv2.distillationv2.get_teacher"
-        )
-        mock_get_teacher.return_value = teacher_model
-
         # Instantiate the distillation method.
         _ = DistillationV2(
             method_args=DistillationV2Args(
                 teacher="dinov2_vit/_vit_test14",
-                teacher_weights=f"{tmp_path}/exported_models/exported_last.pt",
+                teacher_weights=f"{out_path}/exported_models/exported_last.pt",
             ),
             optimizer_args=DistillationV2LARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
         )
-
-        mock_get_teacher.assert_called_once()
 
     def test_load_state_dict_ignores_missing_teacher_keys(
         self, mocker: MockerFixture
@@ -223,8 +203,8 @@ class TestDistillationV2:
 
         # Dummy teacher model with real params.
         teacher_model = EmbeddingModel(
-            wrapped_model=DummyCustomModel(teacher_embed_dim)
-        )
+            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+        ).eval()
 
         # Patch get_teacher.
         mock_get_teacher = mocker.patch(
@@ -272,8 +252,8 @@ class TestDistillationV2:
 
         # Dummy teacher model with real params.
         teacher_model = EmbeddingModel(
-            wrapped_model=DummyCustomModel(teacher_embed_dim)
-        )
+            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+        ).eval()
 
         # Patch get_teacher.
         mock_get_teacher = mocker.patch(
@@ -322,8 +302,8 @@ class TestDistillationV2:
 
         # Dummy teacher model with real params.
         teacher_model = EmbeddingModel(
-            wrapped_model=DummyCustomModel(teacher_embed_dim)
-        )
+            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+        ).eval()
 
         # Patch get_teacher.
         mock_get_teacher = mocker.patch(
