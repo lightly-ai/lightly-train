@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -617,6 +618,31 @@ def test_get_dataset_mmap_filenames__rank_error(
             filenames=filenames,
             mmap_filepath=mmap_filepath_rank1,
         )
+
+
+def test_get_dataset_mmap_filenames__reuse(
+    tmp_path: Path, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+) -> None:
+    filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
+    mmap_filepath = tmp_path / "test.mmap"
+
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_MMAP_REUSE_FILE": "1"})
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_path)})
+    mmap_filenames_first = common_helpers.get_dataset_mmap_filenames(
+        filenames=filenames,
+        mmap_filepath=mmap_filepath,
+    )
+
+    # make sure warning is raised if the file already exists
+    mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
+    with caplog.at_level(logging.WARNING):
+        mmap_filenames_reused = common_helpers.get_dataset_mmap_filenames(
+            filenames=filenames,
+            mmap_filepath=mmap_filepath,
+        )
+    assert "Reusing existing memory-mapped file " in caplog.text
+    assert list(mmap_filenames_first) == filenames
+    assert list(mmap_filenames_reused) == filenames
 
 
 def test_get_dataset__path(tmp_path: Path) -> None:
