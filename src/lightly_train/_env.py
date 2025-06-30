@@ -109,6 +109,11 @@ class Env:
         default=300,
         type_=float,
     )
+    LIGHTLY_TRAIN_MMAP_REUSE_FILE: EnvVar[bool] = EnvVar(
+        name="LIGHTLY_TRAIN_MMAP_REUSE_FILE",
+        default=False,
+        type_=lambda x: x.lower() in ("true", "t", "1", "yes", "y"),
+    )
     LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC: EnvVar[float] = EnvVar(
         name="LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC",
         default=30,
