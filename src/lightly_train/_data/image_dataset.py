@@ -99,7 +99,7 @@ def list_image_filenames(
             "Either `image_dir` or `files` must be provided, but not both."
         )
     elif files is not None:
-        return (ImageFilename(os.path.realpath(fpath)) for fpath in files)
+        return (ImageFilename(fpath) for fpath in files)
     elif image_dir is not None:
         image_dir_str = str(image_dir)
         return (
@@ -120,9 +120,10 @@ def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[PathLike]:
     Returns:
         A list of absolute paths pointing to the image files.
     """
+    extensions = _pil_supported_image_extensions()
     for img_or_dir in imgs_and_dirs:
         if img_or_dir.is_file() and (
-            img_or_dir.suffix.lower() in _pil_supported_image_extensions()
+            img_or_dir.suffix.lower() in extensions
         ):
             yield img_or_dir.resolve()
         elif img_or_dir.is_dir():
@@ -132,17 +133,46 @@ def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[PathLike]:
 
 
 def _get_image_filepaths(image_dir: Path) -> Iterable[str]:
+    # This function is inspired by os.path.walk: https://github.com/python/cpython/blob/008c8cafed3498b0e91766c5d94595f717f92425/Lib/os.py#L289
     extensions = _pil_supported_image_extensions()
     stack = [str(image_dir)]
 
     while stack:
         current = stack.pop()
-        with os.scandir(current) as it:
-            for entry in it:
-                if entry.is_dir(follow_symlinks=True):
+    
+        try:
+            scandir_it = os.scandir(current)
+        except OSError:
+            continue
+
+        with scandir_it:
+            while True:
+                try:
+                    entry = next(scandir_it)
+                except (OSError, StopIteration):
+                    break
+
+                try:
+                    is_dir = entry.is_dir(follow_symlinks=True)
+                except OSError:
+                    is_dir = False
+
+                if is_dir:
                     stack.append(entry.path)
-                elif entry.is_file():
-                    if os.path.splitext(entry.name)[1].lower() in extensions:
+                    continue
+
+                try:
+                    is_file = entry.is_file()
+                except OSError:
+                    is_file = False
+
+                if is_file:
+                    try:
+                        file_extension = os.path.splitext(entry.name)[1].lower()
+                    except (OSError, IndexError):
+                        file_extension = ""
+
+                    if file_extension in extensions:
                         yield entry.path
 
 
