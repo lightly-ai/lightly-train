@@ -32,7 +32,7 @@ dependencies = [
     "pyarrow>=15.0.0",
     "pytorch_lightning>=2.1",
     "tensorboard>=2.10.0",
-    "torch>=2.1.0,<2.6",        # PyTorch Lightning is not yet compatible with PyTorch 2.6
+    "torch>=2.1.0",        # PyTorch Lightning is not yet compatible with PyTorch 2.6
     "torchvision>=0.16.0",      # torchvision 0.15.0 was yanked
     "tqdm>=4.0.0",
 ]
