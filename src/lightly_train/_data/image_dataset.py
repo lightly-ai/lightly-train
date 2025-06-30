@@ -81,7 +81,7 @@ class ImageDataset(Dataset[DatasetItem]):
 
 
 def list_image_filenames(
-    *, image_dir: Path | None = None, files: Iterable[Path] | None = None
+    *, image_dir: Path | None = None, files: Iterable[PathLike] | None = None
 ) -> Iterable[ImageFilename]:
     """List image filenames relative to `image_dir` recursively.
 
@@ -99,7 +99,7 @@ def list_image_filenames(
             "Either `image_dir` or `files` must be provided, but not both."
         )
     elif files is not None:
-        return (ImageFilename(str(fpath.resolve())) for fpath in files)
+        return (ImageFilename(os.path.realpath(fpath)) for fpath in files)
     elif image_dir is not None:
         image_dir_str = str(image_dir)
         return (

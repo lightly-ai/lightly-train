@@ -375,12 +375,14 @@ def _get_package(model: Module) -> BasePackage:
 
 
 @contextlib.contextmanager
-def get_dataset_temp_mmap_path(data: PathLike | Sequence[PathLike]) -> Generator[Path, Any, Any]:
+def get_dataset_temp_mmap_path(
+    data: PathLike | Sequence[PathLike],
+) -> Generator[Path, Any, Any]:
     """Generate file in temporary directory to be used for memory-mapping the dataset.
 
     Creates a unique filename for the memory-mapped file based on the data arg.
     We use the data arg as a deterministic value that is consistent across all ranks
-    on the same node. Additionally, we can cache the file if required, since the hash 
+    on the same node. Additionally, we can cache the file if required, since the hash
     directly reflects the used config.
 
     We need a deterministic value from "outside" at this point in the code as the
@@ -424,7 +426,7 @@ def get_dataset_mmap_filenames(
         return memory_mapped_sequence.memory_mapped_sequence_from_file(
             mmap_filepath=mmap_filepath
         )
-    
+
     tmp_path = mmap_filepath.with_suffix(".temp")
     try:
         if distributed_helpers.is_local_rank_zero():
