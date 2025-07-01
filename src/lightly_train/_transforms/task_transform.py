@@ -7,14 +7,16 @@
 #
 from __future__ import annotations
 
+from typing import Dict
+
 import numpy as np
 from numpy.typing import NDArray
 from torch import Tensor
 
 from lightly_train._configs.config import PydanticConfig
 
-TaskTransformInput = dict[str, NDArray[np.uint8]]
-TaskTransformOutput = dict[str, Tensor]
+TaskTransformInput = Dict[str, NDArray[np.uint8]]
+TaskTransformOutput = Dict[str, Tensor]
 
 
 class TaskTransformArgs(PydanticConfig):
