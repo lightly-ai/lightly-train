@@ -58,6 +58,8 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     mask_dir: Path
     classes: dict[int, str] | None = None
 
+    # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
+    # sure if it makes sense to have this in dataset args.
     def list_image_filenames(self) -> Iterable[ImageFilename]:
         for image_filename in file_helpers.list_image_filenames(
             image_dir=self.image_dir
@@ -65,16 +67,18 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
             if (self.mask_dir / image_filename).with_suffix(".png").exists():
                 yield image_filename
 
+    @staticmethod
+    def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:
+        return MaskSemanticSegmentationDataset
+
 
 class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     train: SplitArgs
     val: SplitArgs
     classes: dict[int, str]
 
-    @staticmethod
-    def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:
-        return MaskSemanticSegmentationDataset
-
+    # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
+    # sure if this makes sense to have in data args.
     def get_train_args(self) -> MaskSemanticSegmentationDatasetArgs:
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
