@@ -99,6 +99,7 @@ def list_image_filenames(
             "Either `image_dir` or `files` must be provided, but not both."
         )
     elif files is not None:
+        # NOTE(Jonas 06/2025): drop resolve if complains about performance are raised.
         return (ImageFilename(str(fpath.resolve())) for fpath in files)
     elif image_dir is not None:
         return (
