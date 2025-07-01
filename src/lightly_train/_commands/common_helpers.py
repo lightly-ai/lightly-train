@@ -480,8 +480,6 @@ def get_dataset(
 
     mask_dir = Env.LIGHTLY_TRAIN_MASK_DIR.value
 
-    # NOTE(Jonas 06/2025): If we would use abspaths on both cases, we could only use the
-    #  _get_image_filepaths for both cases. This would remove some logic.
     if isinstance(data, (str, Path)):
         data = Path(data).resolve()
         if not data.exists():
@@ -492,6 +490,9 @@ def get_dataset(
             raise ValueError(f"Data directory '{data}' is empty!")
         # Use relative paths as filenames when a single directory or file is provided to
         # reduce the file size.
+        # NOTE(Guarin, 01/25): The bottleneck for dataset initialization is filename
+        # listing and not the memory mapping. Listing the train set from ImageNet takes
+        # about 30 seconds. This is mostly because os.walk is not parallelized.
         filenames = image_dataset.list_image_filenames(image_dir=data)
         return ImageDataset(
             image_dir=data,

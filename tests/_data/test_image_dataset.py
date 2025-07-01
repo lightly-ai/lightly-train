@@ -240,8 +240,8 @@ def test_list_image_files__single_flat_dir(flat_image_dir: Path) -> None:
     file_paths = image_dataset.list_image_files(imgs_and_dirs=[flat_image_dir])
     assert sorted(file_paths) == sorted(
         [
-            str(flat_image_dir / "image1.jpg"),
-            str(flat_image_dir / "image2.jpg"),
+            flat_image_dir / "image1.jpg",
+            flat_image_dir / "image2.jpg",
         ]
     )
 
@@ -250,8 +250,8 @@ def test_list_image_files__single_nested_dir(nested_image_dir: Path) -> None:
     file_paths = image_dataset.list_image_files(imgs_and_dirs=[nested_image_dir])
     assert sorted(file_paths) == sorted(
         [
-            str(nested_image_dir / "class1" / "image1.jpg"),
-            str(nested_image_dir / "class2" / "image2.jpg"),
+            nested_image_dir / "class1" / "image1.jpg",
+            nested_image_dir / "class2" / "image2.jpg",
         ]
     )
 
@@ -264,10 +264,10 @@ def test_list_image_files__multiple_dirs(
     )
     assert sorted(file_paths) == sorted(
         [
-            str(flat_image_dir / "image1.jpg"),
-            str(flat_image_dir / "image2.jpg"),
-            str(nested_image_dir / "class1" / "image1.jpg"),
-            str(nested_image_dir / "class2" / "image2.jpg"),
+            flat_image_dir / "image1.jpg",
+            flat_image_dir / "image2.jpg",
+            nested_image_dir / "class1" / "image1.jpg",
+            nested_image_dir / "class2" / "image2.jpg",
         ]
     )
 
