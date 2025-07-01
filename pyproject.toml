@@ -112,6 +112,7 @@ warn_unused_ignores = false
 module = [
     "albumentations.*",
     "lightly.*",
+    "lightning_fabric.*",
     "lightning_fabric.loggers.logger",
     "super_gradients.*",
     "tensorboard.*",

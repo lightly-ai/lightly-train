@@ -62,6 +62,26 @@ class Batch(TypedDict):
     ]  # One tensor per view, of shape (batch_size, w, h) each.
 
 
+class TaskDatasetItem(TypedDict):
+    pass
+
+
+class TaskBatch(TypedDict):
+    pass
+
+
+class MaskSemanticSegmentationDatasetItem(TaskDatasetItem):
+    image_filename: ImageFilename
+    image: Tensor
+    mask: Tensor
+
+
+class MaskSemanticSegmentationBatch(TypedDict):
+    image_filenames: list[ImageFilename]  # length==batch_size
+    images: list[Tensor]  # One tensor per view, of shape (batch_size, 3, w, h) each.
+    masks: list[Tensor]  # One tensor per view, of shape (batch_size, w, h) each.
+
+
 # Replaces torch.optim.optimizer.ParamsT
 # as it is only available in torch>=v2.2.
 # Importing it conditionally cannot make typing work for both older
