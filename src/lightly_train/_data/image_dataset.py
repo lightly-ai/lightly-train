@@ -23,7 +23,6 @@ from lightly_train.types import (
     DatasetItem,
     ImageFilename,
     NDArrayImage,
-    PathLike,
     Transform,
     TransformInput,
 )
@@ -81,7 +80,7 @@ class ImageDataset(Dataset[DatasetItem]):
 
 
 def list_image_filenames(
-    *, image_dir: Path | None = None, files: Iterable[PathLike] | None = None
+    *, image_dir: Path | None = None, files: Iterable[Path] | None = None
 ) -> Iterable[ImageFilename]:
     """List image filenames relative to `image_dir` recursively.
 
@@ -100,11 +99,10 @@ def list_image_filenames(
             "Either `image_dir` or `files` must be provided, but not both."
         )
     elif files is not None:
-        return (ImageFilename(str(fpath)) for fpath in files)
+        return (ImageFilename(str(fpath.resolve())) for fpath in files)
     elif image_dir is not None:
-        image_dir_str = str(image_dir)
         return (
-            ImageFilename(os.path.relpath(fpath, start=image_dir_str))
+            ImageFilename(str(fpath.relative_to(image_dir)))
             for fpath in _get_image_filepaths(image_dir=image_dir)
         )
     else:
