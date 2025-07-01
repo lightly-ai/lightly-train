@@ -15,6 +15,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 
 import lightly_train._data.file_helpers
+from lightly_train._data import file_helpers
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train.types import Batch, DatasetItem, ImageFilename
 
@@ -233,9 +234,7 @@ class TestImageDataset:
 
 
 def test_list_image_files__single_flat_dir(flat_image_dir: Path) -> None:
-    file_paths = lightly_train._data.file_helpers.list_image_files(
-        imgs_and_dirs=[flat_image_dir]
-    )
+    file_paths = file_helpers.list_image_files(imgs_and_dirs=[flat_image_dir])
     assert sorted(file_paths) == sorted(
         [
             flat_image_dir / "image1.jpg",
@@ -245,9 +244,7 @@ def test_list_image_files__single_flat_dir(flat_image_dir: Path) -> None:
 
 
 def test_list_image_files__single_nested_dir(nested_image_dir: Path) -> None:
-    file_paths = lightly_train._data.file_helpers.list_image_files(
-        imgs_and_dirs=[nested_image_dir]
-    )
+    file_paths = file_helpers.list_image_files(imgs_and_dirs=[nested_image_dir])
     assert sorted(file_paths) == sorted(
         [
             nested_image_dir / "class1" / "image1.jpg",
@@ -259,7 +256,7 @@ def test_list_image_files__single_nested_dir(nested_image_dir: Path) -> None:
 def test_list_image_files__multiple_dirs(
     flat_image_dir: Path, nested_image_dir: Path
 ) -> None:
-    file_paths = lightly_train._data.file_helpers.list_image_files(
+    file_paths = file_helpers.list_image_files(
         imgs_and_dirs=[flat_image_dir, nested_image_dir]
     )
     assert sorted(file_paths) == sorted(
@@ -284,7 +281,7 @@ def test_list_image_files__extensions(extension: str, tmp_path: Path) -> None:
         base_path=tmp_path / "images",
         filenames=[f"image{i}{extension}" for i in range(1, 3)],
     )
-    _filenames = lightly_train._data.file_helpers.list_image_files(imgs_and_dirs=imgs)
+    _filenames = file_helpers.list_image_files(imgs_and_dirs=imgs)
     assert sorted(list(_filenames)) == [
         base_path / f"image1{extension}",
         base_path / f"image2{extension}",
@@ -338,7 +335,7 @@ def test_list_image_filenames__dir_is_symlink(image_dir_being_symlink: Path) -> 
 def test_list_image_filenames__multiple_dirs_with_symlinks(
     flat_image_dir: Path, nested_image_dir: Path, image_dir_containing_symlinks: Path
 ) -> None:
-    file_paths = lightly_train._data.file_helpers.list_image_files(
+    file_paths = file_helpers.list_image_files(
         imgs_and_dirs=[flat_image_dir, nested_image_dir, image_dir_containing_symlinks]
     )
     file_names = lightly_train._data.file_helpers.list_image_filenames(
