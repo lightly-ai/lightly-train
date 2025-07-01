@@ -14,13 +14,9 @@ import pytest
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from lightly_train._data import image_dataset
+import lightly_train._data.file_helpers
 from lightly_train._data.image_dataset import ImageDataset
-from lightly_train.types import (
-    Batch,
-    DatasetItem,
-    ImageFilename,
-)
+from lightly_train.types import Batch, DatasetItem, ImageFilename
 
 from .. import helpers
 from ..helpers import DummyMethodTransform
@@ -237,7 +233,9 @@ class TestImageDataset:
 
 
 def test_list_image_files__single_flat_dir(flat_image_dir: Path) -> None:
-    file_paths = image_dataset.list_image_files(imgs_and_dirs=[flat_image_dir])
+    file_paths = lightly_train._data.file_helpers.list_image_files(
+        imgs_and_dirs=[flat_image_dir]
+    )
     assert sorted(file_paths) == sorted(
         [
             flat_image_dir / "image1.jpg",
@@ -247,7 +245,9 @@ def test_list_image_files__single_flat_dir(flat_image_dir: Path) -> None:
 
 
 def test_list_image_files__single_nested_dir(nested_image_dir: Path) -> None:
-    file_paths = image_dataset.list_image_files(imgs_and_dirs=[nested_image_dir])
+    file_paths = lightly_train._data.file_helpers.list_image_files(
+        imgs_and_dirs=[nested_image_dir]
+    )
     assert sorted(file_paths) == sorted(
         [
             nested_image_dir / "class1" / "image1.jpg",
@@ -259,7 +259,7 @@ def test_list_image_files__single_nested_dir(nested_image_dir: Path) -> None:
 def test_list_image_files__multiple_dirs(
     flat_image_dir: Path, nested_image_dir: Path
 ) -> None:
-    file_paths = image_dataset.list_image_files(
+    file_paths = lightly_train._data.file_helpers.list_image_files(
         imgs_and_dirs=[flat_image_dir, nested_image_dir]
     )
     assert sorted(file_paths) == sorted(
@@ -284,7 +284,7 @@ def test_list_image_files__extensions(extension: str, tmp_path: Path) -> None:
         base_path=tmp_path / "images",
         filenames=[f"image{i}{extension}" for i in range(1, 3)],
     )
-    _filenames = image_dataset.list_image_files(imgs_and_dirs=imgs)
+    _filenames = lightly_train._data.file_helpers.list_image_files(imgs_and_dirs=imgs)
     assert sorted(list(_filenames)) == [
         base_path / f"image1{extension}",
         base_path / f"image2{extension}",
@@ -298,7 +298,7 @@ def test_list_image_filenames__file_paths() -> None:
         Path("class2/image3.jpg"),
         Path("image4.jpg"),
     ]
-    filenames = image_dataset.list_image_filenames(files=file_paths)
+    filenames = lightly_train._data.file_helpers.list_image_filenames(files=file_paths)
 
     # Resolve all paths to absolute paths for consistent comparison
     expected = [
@@ -312,7 +312,9 @@ def test_list_image_filenames__file_paths() -> None:
 
 
 def test_list_image_filenames__image_dir(flat_image_dir: Path) -> None:
-    file_paths = image_dataset.list_image_filenames(image_dir=flat_image_dir)
+    file_paths = lightly_train._data.file_helpers.list_image_filenames(
+        image_dir=flat_image_dir
+    )
     assert sorted(file_paths) == sorted(
         [
             ImageFilename("image1.jpg"),
@@ -322,7 +324,9 @@ def test_list_image_filenames__image_dir(flat_image_dir: Path) -> None:
 
 
 def test_list_image_filenames__dir_is_symlink(image_dir_being_symlink: Path) -> None:
-    file_paths = image_dataset.list_image_filenames(image_dir=image_dir_being_symlink)
+    file_paths = lightly_train._data.file_helpers.list_image_filenames(
+        image_dir=image_dir_being_symlink
+    )
     assert sorted(file_paths) == sorted(
         [
             "image1.jpg",
@@ -334,10 +338,10 @@ def test_list_image_filenames__dir_is_symlink(image_dir_being_symlink: Path) -> 
 def test_list_image_filenames__multiple_dirs_with_symlinks(
     flat_image_dir: Path, nested_image_dir: Path, image_dir_containing_symlinks: Path
 ) -> None:
-    file_paths = image_dataset.list_image_files(
+    file_paths = lightly_train._data.file_helpers.list_image_files(
         imgs_and_dirs=[flat_image_dir, nested_image_dir, image_dir_containing_symlinks]
     )
-    file_names = image_dataset.list_image_filenames(
+    file_names = lightly_train._data.file_helpers.list_image_filenames(
         files=file_paths,
     )
     target_dir = image_dir_containing_symlinks.parent / "images_symlinktarget"
@@ -369,7 +373,7 @@ def test_list_image_filenames__extensions(extension: str, tmp_path: Path) -> Non
         base_path=tmp_path / "images",
         filenames=[f"image{i}{extension}" for i in range(1, 3)],
     )
-    _filenames = image_dataset.list_image_filenames(files=imgs)
+    _filenames = lightly_train._data.file_helpers.list_image_filenames(files=imgs)
     assert sorted(list(_filenames)) == [
         ImageFilename(base_path / f"image1{extension}"),
         ImageFilename(base_path / f"image2{extension}"),

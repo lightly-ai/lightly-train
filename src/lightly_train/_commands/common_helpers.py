@@ -28,8 +28,8 @@ from pytorch_lightning.strategies.strategy import Strategy
 from torch.nn import Module
 from torch.utils.data import Dataset
 
+import lightly_train._data.file_helpers
 from lightly_train import _distributed as distributed_helpers
-from lightly_train._data import image_dataset
 from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
 from lightly_train._data.image_dataset import ImageDataset
@@ -493,7 +493,9 @@ def get_dataset(
         # NOTE(Guarin, 01/25): The bottleneck for dataset initialization is filename
         # listing and not the memory mapping. Listing the train set from ImageNet takes
         # about 30 seconds. This is mostly because os.walk is not parallelized.
-        filenames = image_dataset.list_image_filenames(image_dir=data)
+        filenames = lightly_train._data.file_helpers.list_image_filenames(
+            image_dir=data
+        )
         return ImageDataset(
             image_dir=data,
             image_filenames=get_dataset_mmap_filenames(
@@ -517,8 +519,8 @@ def get_dataset(
                 raise ValueError(f"Data directory or file '{d}' does not exist!")
             elif d.is_dir() and not any(d.iterdir()):
                 raise ValueError(f"Data directory '{d}' is empty!")
-        files = image_dataset.list_image_files(imgs_and_dirs=_data)
-        filenames = image_dataset.list_image_filenames(files=files)
+        files = lightly_train._data.file_helpers.list_image_files(imgs_and_dirs=_data)
+        filenames = lightly_train._data.file_helpers.list_image_filenames(files=files)
         return ImageDataset(
             image_dir=None,
             image_filenames=get_dataset_mmap_filenames(
