@@ -5,11 +5,13 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 from typing import Any
 
 from lightning_fabric import Fabric
 from torch import Module
-from torch.optim import Optimizer
+from torch.optim.optimizer import Optimizer
 
 from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation import (
     DINOv2SemanticSegmentation,

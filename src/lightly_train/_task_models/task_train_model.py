@@ -11,7 +11,7 @@ from typing import Any
 
 from lightning_fabric import Fabric
 from torch import Module
-from torch.optim import Optimizer
+from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
 
