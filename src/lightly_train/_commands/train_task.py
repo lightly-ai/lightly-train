@@ -11,6 +11,9 @@ from typing import Any, Literal
 
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._data.mask_semantic_segmentation_dataset import (
+    MaskSemanticSegmentationDataArgs,
+)
 from lightly_train.types import PathLike
 
 
@@ -33,6 +36,6 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
 
 class TrainTaskConfig(PydanticConfig):
     out: PathLike
-    data: dict[str, Any]
+    data: MaskSemanticSegmentationDataArgs
     model: str
     task: Literal["semantic_segmentation"]
