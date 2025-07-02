@@ -9,20 +9,30 @@ from pathlib import Path
 
 from lightly_train._commands import train_task
 
+from .. import helpers
+
 
 def test_train_task(tmp_path: Path) -> None:
     out = tmp_path / "out"
-    # TODO(Guarin, 07/25): Create dummy data.
+    train_images = tmp_path / "train_images"
+    train_masks = tmp_path / "train_masks"
+    val_images = tmp_path / "val_images"
+    val_masks = tmp_path / "val_masks"
+    helpers.create_images(train_images)
+    helpers.create_masks(train_masks)
+    helpers.create_images(val_images)
+    helpers.create_masks(val_masks)
+
     train_task.train_task(
         out=out,
         data={
             "train": {
-                "images": tmp_path / "train_images",
-                "masks": tmp_path / "train_masks",
+                "images": train_images,
+                "masks": train_masks,
             },
             "val": {
-                "images": tmp_path / "val_images",
-                "masks": tmp_path / "val_masks",
+                "images": val_images,
+                "masks": val_masks,
             },
             "classes": {
                 0: "person",

@@ -95,5 +95,6 @@ def get_dataset(
     return dataset_cls(
         dataset_args=dataset_args,
         image_filenames=filenames,
-        transform=lambda x: x,  # TODO(Guarin, 07/25): Add transforms
+        # TODO(Guarin, 07/25): Add transforms
+        transform=lambda x: x,  # type: ignore[arg-type]
     )

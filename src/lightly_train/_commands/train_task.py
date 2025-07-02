@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
-from lightning_fabric.connector import _PRECISION_INPUT
+from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict
 
@@ -73,8 +73,8 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     out_dir = train_task_helpers.get_out_dir(
         fabric=fabric,
         out=config.out,
-        resume_interrupted=False,
-        overwrite=False,
+        resume_interrupted=config.resume_interrupted,
+        overwrite=config.overwrite,
     )
 
     # Set up logging.
