@@ -121,4 +121,15 @@ def open_image(
         if convert_mode is not None:
             image = image.convert(convert_mode)
         image_np = np.array(image)
+    dtype = image_np.dtype
+    if np.issubdtype(dtype, np.unsignedinteger) and dtype != np.uint8:
+        # Convert uint16, uint32, uint64 to signed integer type because torch has only
+        # limited support for these types.
+        dtype_str = str(dtype)  # Str in case dtype is not supported on platform.
+        target_dtype = {
+            "uint16": np.int32,
+            "uint32": np.int64,
+            "uint64": np.int64,  # int128 is not supported by numpy and torch.
+        }[dtype_str]
+        image_np = image_np.astype(target_dtype)
     return image_np

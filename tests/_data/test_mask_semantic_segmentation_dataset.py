@@ -49,7 +49,7 @@ class TestMaskSemanticSegmentationDataset:
         "num_classes, expected_mask_dtype",
         [
             (5, torch.uint8),
-            (500, torch.uint16),
+            (500, torch.int32),
         ],
     )
     def test__getitem__(
@@ -83,8 +83,8 @@ class TestMaskSemanticSegmentationDataset:
             assert item["mask"].shape == (32, 32)
             assert item["mask"].dtype == expected_mask_dtype
             # Need conversion to int because min/max is not implemented for uint16.
-            assert item["mask"].int().min() >= 0
-            assert item["mask"].int().max() < num_classes
+            assert item["mask"].min() >= 0
+            assert item["mask"].max() < num_classes
         assert sorted(item["image_path"] for item in dataset) == [  # type: ignore[attr-defined]
             str(image_dir / "image0.jpg"),
             str(image_dir / "image1.jpg"),
