@@ -87,7 +87,7 @@ class DINOv2SemanticSegmentation(TaskModel):
             return
 
         # Load the checkpoint.
-        state_dict = torch.load(path, map_location="cpu", weights_only=True)
+        state_dict = torch.load(path, map_location="cpu")
 
         # Load the state dict into the backbone.
         missing, unexpected = self.backbone.load_state_dict(state_dict, strict=False)
