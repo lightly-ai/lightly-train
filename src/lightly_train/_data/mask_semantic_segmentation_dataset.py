@@ -72,6 +72,11 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
         return MaskSemanticSegmentationDataset
 
 
+class SplitArgs(PydanticConfig):
+    images: PathLike
+    masks: PathLike
+
+
 class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     train: SplitArgs
     val: SplitArgs
@@ -92,8 +97,3 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             mask_dir=Path(self.val.masks),
             classes=self.classes,
         )
-
-
-class SplitArgs(PydanticConfig):
-    images: PathLike
-    masks: PathLike

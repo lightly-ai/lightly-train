@@ -11,8 +11,10 @@ from lightly_train._commands import train_task
 
 
 def test_train_task(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    # TODO(Guarin, 07/25): Create dummy data.
     train_task.train_task(
-        out=tmp_path / "out",
+        out=out,
         data={
             "train": {
                 "images": tmp_path / "train_images",
@@ -30,3 +32,6 @@ def test_train_task(tmp_path: Path) -> None:
         model="dinov2_vit/vitb14",
         task="semantic_segmentation",
     )
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()

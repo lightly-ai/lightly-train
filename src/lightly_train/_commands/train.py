@@ -18,8 +18,8 @@ from pydantic import ConfigDict
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.loggers import Logger
 from pytorch_lightning.strategies.strategy import Strategy
-from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type: ignore[attr-defined]
-    _PRECISION_INPUT,
+from pytorch_lightning.trainer.connectors.accelerator_connector import (
+    _PRECISION_INPUT,  # type: ignore[attr-defined]
 )
 from torch.nn import Module
 
