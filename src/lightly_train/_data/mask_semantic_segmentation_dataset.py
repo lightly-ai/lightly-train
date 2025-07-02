@@ -43,7 +43,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         mask_path = (self.args.mask_dir / image_filename).with_suffix(".png")
 
         image = file_helpers.open_image(image_path=image_path, mode="RGB")
-        mask = file_helpers.open_image(image_path=mask_path, mode="L")
+        mask = file_helpers.open_image(image_path=mask_path, mode="MASK")
 
         transformed = self.transform({"image": image, "mask": mask})
         return {

@@ -96,7 +96,8 @@ def _torchvision_supported_image_extensions() -> set[str]:
 
 
 def open_image(
-    image_path: Path, mode: Literal["RGB", "L", "UNCHANGED"] = "RGB"
+    image_path: Path,
+    mode: Literal["RGB", "L", "UNCHANGED", "MASK"] = "RGB",
 ) -> NDArrayImage:
     image_np: NDArray[np.uint8]
     if image_path.suffix.lower() in _torchvision_supported_image_extensions():
@@ -104,13 +105,20 @@ def open_image(
             "RGB": ImageReadMode.RGB,
             "L": ImageReadMode.GRAY,
             "UNCHANGED": ImageReadMode.UNCHANGED,
+            "MASK": ImageReadMode.GRAY,
         }[mode]
         image_torch = io.read_image(str(image_path), mode=mode_torch)
         image_torch = image_torch.permute(1, 2, 0)
         image_np = image_torch.numpy()
     else:
+        convert_mode = {
+            "RGB": "RGB",
+            "L": "L",
+            "UNCHANGED": None,
+            "MASK": None,
+        }[mode]
         image = Image.open(image_path)
-        if mode != "UNCHANGED":
-            image = image.convert(mode)
+        if convert_mode is not None:
+            image = image.convert(convert_mode)
         image_np = np.array(image)
     return image_np

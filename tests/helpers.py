@@ -161,9 +161,9 @@ def create_mask(
     height: int = 128,
     width: int = 128,
     num_classes: int = 2,
-    mode: str = "L",
 ) -> None:
-    mask_np = np.random.randint(0, num_classes, size=(height, width), dtype=np.uint8)
+    mode = "L" if num_classes <= 256 else "I"
+    mask_np = np.random.randint(0, num_classes, size=(height, width))
     mask = Image.fromarray(mask_np, mode=mode)
     path.parent.mkdir(parents=True, exist_ok=True)
     mask.save(path)
@@ -175,7 +175,6 @@ def create_masks(
     height: int = 128,
     width: int = 128,
     num_classes: int = 2,
-    mode: str = "L",
 ) -> None:
     mask_dir.mkdir(parents=True, exist_ok=True)
     if isinstance(files, int):
@@ -186,7 +185,6 @@ def create_masks(
             height=height,
             width=width,
             num_classes=num_classes,
-            mode=mode,
         )
 
 
