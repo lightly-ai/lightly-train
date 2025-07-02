@@ -67,12 +67,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: Set Up FFmpeg
-        # FFMPEG is not installable on Windows using the setup-ffmpeg action.
-        if: ${{ matrix.runners == 'ubuntu-latest' }}
-        uses: FedericoCarboni/setup-ffmpeg@v3
-        with:
-          ffmpeg-version: 4.3.1
+      # Disabled because FFmpeg install fails too often in CI. See https://github.com/federicocarboni/setup-ffmpeg/issues/29
+      # - name: Set Up FFmpeg
+      #   # FFMPEG is not installable on Windows using the setup-ffmpeg action.
+      #   if: ${{ matrix.runners == 'ubuntu-latest' }}
+      #   uses: FedericoCarboni/setup-ffmpeg@v3
+      #   with:
+      #     ffmpeg-version: 4.3.1
       - name: Set Up Environment
         run: |
           make install-pinned-${{ matrix.python }}              # Install the dependencies
