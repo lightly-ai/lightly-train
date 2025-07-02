@@ -42,10 +42,18 @@ class DINOv2SemanticSegmentationCrossEntropyLoss(Module):
             Scalar tensor representing the pixel-wise cross-entropy loss.
         """
         # Check the input dimensions.
-        assert logits.ndim == 4, f"Expected logits with 4 dimensions (B, num_classes, H, W), got {logits.shape}"
-        assert targets.ndim == 3, f"Expected targets with 3 dimensions (B, H, W), got {targets.shape}"
-        assert logits.shape[0] == targets.shape[0], f"Batch size mismatch: logits {logits.shape[0]}, targets {targets.shape[0]}"
-        assert logits.shape[2:] == targets.shape[1:], f"Spatial size mismatch: logits {logits.shape[2:]}, targets {targets.shape[1:]}"
+        assert logits.ndim == 4, (
+            f"Expected logits with 4 dimensions (B, num_classes, H, W), got {logits.shape}"
+        )
+        assert targets.ndim == 3, (
+            f"Expected targets with 3 dimensions (B, H, W), got {targets.shape}"
+        )
+        assert logits.shape[0] == targets.shape[0], (
+            f"Batch size mismatch: logits {logits.shape[0]}, targets {targets.shape[0]}"
+        )
+        assert logits.shape[2:] == targets.shape[1:], (
+            f"Spatial size mismatch: logits {logits.shape[2:]}, targets {targets.shape[1:]}"
+        )
 
         # Compute the cross-entropy loss.
         return F.cross_entropy(
