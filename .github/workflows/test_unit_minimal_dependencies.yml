@@ -58,11 +58,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: Set Up FFmpeg
-        if: ${{ matrix.dependencies == 'minimal-extras' }}
-        uses: FedericoCarboni/setup-ffmpeg@v3
-        with:
-          ffmpeg-version: 4.3.1
+      # Disabled because FFmpeg install fails too often in CI. See https://github.com/federicocarboni/setup-ffmpeg/issues/29
+      # - name: Set Up FFmpeg
+      #   if: ${{ matrix.dependencies == 'minimal-extras' }}
+      #   uses: FedericoCarboni/setup-ffmpeg@v3
+      #   with:
+      #     ffmpeg-version: 4.3.1
       - name: Set Up Environment
         run: |
           make install-${{ matrix.dependencies }}
