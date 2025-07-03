@@ -343,7 +343,7 @@ class DINOv2(Method):
         )
 
         # Process local views through student network if they exist
-        dino_local_loss = torch.tensor(0.0)
+        dino_local_loss = torch.zeros_like(dino_global_loss)
         # TODO(Jonas 06/25): since n_local_crops is known on instantiation, we could avoid the check and instead instantiate a get_local_views depending on the attribute, similar the forward local could be instantiated like that
         if n_local_crops > 0:
             local_views = torch.cat(
