@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Literal
 
@@ -714,3 +715,70 @@ def test_get_dataset__dataset() -> None:
         mmap_filepath=None,
     )
     assert dataset == dataset_1
+
+
+@pytest.mark.parametrize(
+    "total_num_devices, global_batch_size, expected_batch_size",
+    [
+        (1, 8, 8),
+        (2, 8, 8),
+        (4, 8, 8),
+    ],
+)
+def test_get_global_batch_size(
+    total_num_devices: int, global_batch_size: int, expected_batch_size: int
+) -> None:
+    dataset = MockDataset(torch.rand(16, 3, 32, 32))
+    result_global_batch_size = common_helpers.get_global_batch_size(
+        global_batch_size=global_batch_size,
+        dataset=dataset,
+        total_num_devices=total_num_devices,
+        loader_args=None,
+    )
+    assert result_global_batch_size == expected_batch_size
+
+
+def test_get_global_batch_size__dataset() -> None:
+    dataset = MockDataset(torch.rand(2, 2, 32, 32))
+    global_batch_size = common_helpers.get_global_batch_size(
+        global_batch_size=8,
+        dataset=dataset,
+        total_num_devices=1,
+        loader_args=None,
+    )
+    assert global_batch_size == 2  # Size of the dataset
+
+
+@pytest.mark.parametrize(
+    "total_num_devices, expected_batch_size",
+    [
+        (1, 4),
+        (2, 8),
+    ],
+)
+def test_get_global_batch_size__loader_args(
+    total_num_devices: int, expected_batch_size: int
+) -> None:
+    dataset = MockDataset(torch.rand(16, 3, 32, 32))
+    global_batch_size = common_helpers.get_global_batch_size(
+        global_batch_size=8,
+        dataset=dataset,
+        total_num_devices=total_num_devices,
+        loader_args={"batch_size": 4},
+    )
+    # Expect: total_num_devices * loader_args["batch_size"]
+    assert global_batch_size == expected_batch_size
+
+
+def test_get_global_batch_size__error() -> None:
+    dataset = MockDataset(torch.rand(16, 3, 32, 32))
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Batch size 8 must be divisible by (num_nodes * devices) = 3."),
+    ):
+        common_helpers.get_global_batch_size(
+            global_batch_size=8,
+            dataset=dataset,
+            total_num_devices=3,
+            loader_args=None,
+        )

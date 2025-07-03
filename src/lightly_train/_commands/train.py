@@ -351,7 +351,7 @@ def train_from_config(config: TrainConfig) -> None:
             num_nodes=trainer_instance.num_nodes,
             num_devices=trainer_instance.num_devices,
         )
-        config.batch_size = train_helpers.get_global_batch_size(
+        config.batch_size = common_helpers.get_global_batch_size(
             global_batch_size=config.batch_size,
             dataset=dataset,
             total_num_devices=total_num_devices,
