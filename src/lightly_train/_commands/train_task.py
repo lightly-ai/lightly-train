@@ -118,9 +118,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     logger.info(f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}")
 
     # TODO(Guarin, 07/25): Choose sensible default for steps. Based on model?
-    config.steps = helpers.get_steps(
-        steps=config.steps,
-    )
+    config.steps = helpers.get_steps(steps=config.steps)
     # TODO(Guarin, 07/25): Choose sensible default for batch size. Based on model?
     config.batch_size = common_helpers.get_global_batch_size(
         global_batch_size=32 if config.batch_size == "auto" else config.batch_size,
@@ -155,9 +153,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     )
     infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
-    model = helpers.get_task_train_model(
-        task_args=config.task_args,
-    )
+    model = helpers.get_task_train_model(task_args=config.task_args)
     model = fabric.setup_module(model)  # type: ignore[assignment]
 
     # TODO(Guarin, 07/25): Init optimizer.
