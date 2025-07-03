@@ -44,10 +44,7 @@ from lightly_train._models.model_wrapper import (
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.trainable_modules import TrainableModules
-from lightly_train._transforms.transform import (
-    MethodTransform,
-    NormalizeArgs,
-)
+from lightly_train._transforms.transform import MethodTransform, NormalizeArgs
 from lightly_train.types import TransformInput, TransformOutput
 
 
@@ -157,6 +154,38 @@ def create_images(
         files = [f"{i}.png" for i in range(files)]
     for filename in files:
         create_image(path=image_dir / filename, height=height, width=width, mode=mode)
+
+
+def create_mask(
+    path: Path,
+    height: int = 128,
+    width: int = 128,
+    num_classes: int = 2,
+) -> None:
+    mode = "L" if num_classes <= 256 else "I"
+    mask_np = np.random.randint(0, num_classes, size=(height, width))
+    mask = Image.fromarray(mask_np, mode=mode)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mask.save(path)
+
+
+def create_masks(
+    mask_dir: Path,
+    files: int | Iterable[str] = 10,
+    height: int = 128,
+    width: int = 128,
+    num_classes: int = 2,
+) -> None:
+    mask_dir.mkdir(parents=True, exist_ok=True)
+    if isinstance(files, int):
+        files = [f"{i}.png" for i in range(files)]
+    for filename in files:
+        create_mask(
+            path=mask_dir / filename,
+            height=height,
+            width=width,
+            num_classes=num_classes,
+        )
 
 
 def create_video(video_path: Path, n_frames: int = 10) -> None:

@@ -71,13 +71,13 @@ class TaskBatch(TypedDict):
 
 
 class MaskSemanticSegmentationDatasetItem(TaskDatasetItem):
-    image_filename: ImageFilename
+    image_path: ImageFilename
     image: Tensor
     mask: Tensor
 
 
 class MaskSemanticSegmentationBatch(TypedDict):
-    image_filenames: list[ImageFilename]  # length==batch_size
+    image_path: list[ImageFilename]  # length==batch_size
     images: list[Tensor]  # One tensor per view, of shape (batch_size, 3, w, h) each.
     masks: list[Tensor]  # One tensor per view, of shape (batch_size, w, h) each.
 
