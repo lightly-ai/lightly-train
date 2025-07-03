@@ -22,7 +22,7 @@ from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
-from lightly_train._data.infinite_dataloader_iterator import InfiniteCycleIterator
+from lightly_train._data.infinite_cycle_iterator import InfiniteCycleIterator
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
