@@ -11,7 +11,7 @@ from typing import Any
 
 from lightning_fabric import Fabric
 from torch.nn import Module
-from torch.optim import AdamW
+from torch.optim.adamw import AdamW
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation import (
