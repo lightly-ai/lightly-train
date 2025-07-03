@@ -165,7 +165,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         batch = next(infinite_train_dataloader)
         # TODO(Guarin, 07/25): Backprop.
         # TODO(Guarin, 07/25): Log loss and metrics.
-        model.train_step(fabric=fabric, batch=batch)
+        model.training_step(fabric=fabric, batch=batch)
         if step % no_auto(config.logger_args.log_every_num_steps) == 0:
             logger.info(f"Step {step}/{config.steps}")
 
@@ -173,7 +173,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         # TODO(Guarin, 07/25): Log loss and metrics.
         if step == config.steps - 1:
             for batch in val_dataloader:
-                model.val_step(fabric=fabric, batch=batch)
+                model.validation_step(fabric=fabric, batch=batch)
     logger.info("Training completed.")
 
 

@@ -41,12 +41,12 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.criterion: Module
         self.metric: Module
 
-    def train_step(
+    def training_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
     ) -> dict[str, Any]:
         return {}
 
-    def val_step(
+    def validation_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
     ) -> dict[str, Any]:
         # Return dictionary with loss and metrics for logging.
