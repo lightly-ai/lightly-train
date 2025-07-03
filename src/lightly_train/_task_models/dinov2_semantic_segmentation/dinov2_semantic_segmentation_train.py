@@ -31,7 +31,13 @@ class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
 class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     def __init__(self, args: DINOv2SemanticSegmentationTrainArgs) -> None:
         super().__init__()
-        self.model: DINOv2SemanticSegmentation
+        self.model = DINOv2SemanticSegmentation(
+            # TODO(Guarin, 10/23): Make configurable and pass all args.
+            # We probably don't want to instantiate the model here. Either we pass it
+            # from the outside or we use a setup function (might be useful for FSDP).
+            model_name="vitb14",
+            num_classes=2,
+        )
         self.criterion: Module
         self.metric: Module
 
