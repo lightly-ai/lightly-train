@@ -155,7 +155,7 @@ def get_train_dataloader(
         loader_args.pop("batch_size", None)
         dataloader_kwargs.update(**loader_args)
     dataloader = DataLoader(**dataloader_kwargs)
-    return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value]
+    return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
 
 
 def get_val_dataloader(
@@ -181,7 +181,7 @@ def get_val_dataloader(
         loader_args.pop("batch_size", None)
         dataloader_kwargs.update(**loader_args)
     dataloader = DataLoader(**dataloader_kwargs)
-    return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value]
+    return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
 
 
 def get_steps(steps: int | Literal["auto"]) -> int:

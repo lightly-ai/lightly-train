@@ -5,8 +5,12 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 from collections.abc import Iterable, Iterator
-from typing import Generic, Self, TypeVar
+from typing import Generic, TypeVar
+
+from typing_extensions import Self
 
 _T = TypeVar("_T")
 
