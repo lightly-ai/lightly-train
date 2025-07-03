@@ -17,7 +17,8 @@ from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict
 
 from lightly_train import _float32_matmul_precision, _logging, _system
-from lightly_train._commands import _warnings, train_task_helpers
+from lightly_train._commands import _warnings, common_helpers
+from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
@@ -81,7 +82,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         config.devices = fabric.world_size // config.num_nodes
     config.precision = fabric.strategy.precision.precision
 
-    out_dir = train_task_helpers.get_out_dir(
+    out_dir = helpers.get_out_dir(
         fabric=fabric,
         out=config.out,
         resume_interrupted=config.resume_interrupted,
@@ -93,7 +94,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     _logging.set_up_console_logging()
     _logging.set_up_file_logging(out_dir / "train.log")
     _logging.set_up_filters()
-    logger.info(f"Args: {train_task_helpers.pretty_format_args(args=initial_config)}")
+    logger.info(f"Args: {helpers.pretty_format_args(args=initial_config)}")
     logger.info(f"Using output directory: '{out_dir}")
 
     # Log system information.
@@ -107,44 +108,54 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
             float32_matmul_precision=config.float32_matmul_precision,
         )
     )
-    config.logger_args = train_task_helpers.get_logger_args(
-        steps=no_auto(config.steps),
-        logger_args=config.logger_args,
-    )
-    config.task_args = train_task_helpers.get_task_train_model_args(
-        task_args=config.task_args
-    )
+    config.task_args = helpers.get_task_train_model_args(task_args=config.task_args)
 
     # TODO(Guarin, 07/25): Verify out_dir same on all local ranks, see train.py. We can simplify this
     # here as distributed processing is already initialized with fabric.
 
-    train_dataset = train_task_helpers.get_dataset(
-        dataset_args=config.data.get_train_args()
-    )
-    val_dataset = train_task_helpers.get_dataset(
-        dataset_args=config.data.get_val_args()
-    )
+    train_dataset = helpers.get_dataset(dataset_args=config.data.get_train_args())
+    val_dataset = helpers.get_dataset(dataset_args=config.data.get_val_args())
     logger.info(f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}")
 
+    # TODO(Guarin, 07/25): Choose sensible default for steps. Based on model?
+    config.steps = helpers.get_steps(
+        steps=config.steps,
+    )
+    # TODO(Guarin, 07/25): Choose sensible default for batch size. Based on model?
+    config.batch_size = common_helpers.get_global_batch_size(
+        global_batch_size=32 if config.batch_size == "auto" else config.batch_size,
+        dataset=train_dataset,
+        total_num_devices=fabric.world_size,
+        loader_args=config.loader_args,
+    )
+    config.num_workers = common_helpers.get_num_workers(
+        num_workers=config.num_workers,
+        num_devices_per_node=fabric.world_size // config.num_nodes,
+    )
+    config.logger_args = helpers.get_logger_args(
+        steps=config.steps,
+        logger_args=config.logger_args,
+    )
+
     # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
-    train_dataloader = train_task_helpers.get_train_dataloader(
+    train_dataloader = helpers.get_train_dataloader(
         fabric=fabric,
         dataset=train_dataset,
-        batch_size=no_auto(config.batch_size),
-        num_workers=no_auto(config.num_workers),
+        batch_size=config.batch_size,
+        num_workers=config.num_workers,
         loader_args=config.loader_args,
     )
     # TODO(Guarin, 07/25): Different batch_size/num_workers for validation?
-    val_dataloader = train_task_helpers.get_val_dataloader(
+    val_dataloader = helpers.get_val_dataloader(
         fabric=fabric,
         dataset=val_dataset,
-        batch_size=no_auto(config.batch_size),
-        num_workers=no_auto(config.num_workers),
+        batch_size=config.batch_size,
+        num_workers=config.num_workers,
         loader_args=config.loader_args,
     )
     infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
-    model = train_task_helpers.get_task_train_model(
+    model = helpers.get_task_train_model(
         task_args=config.task_args,
     )
     model = fabric.setup_module(model)  # type: ignore[assignment]
@@ -153,20 +164,20 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # optimizer = fabric.setup_optimizers(model.get_optimizer())
 
     logger.info(
-        f"Resolved Args: {train_task_helpers.pretty_format_args(args=config.model_dump())}"
+        f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
     )
-    logger.info(f"Starting training for {no_auto(config.steps)} steps...")
-    for step in range(no_auto(config.steps)):
+    logger.info(f"Starting training for {config.steps} steps...")
+    for step in range(config.steps):
         batch = next(infinite_train_dataloader)
         # TODO(Guarin, 07/25): Backprop.
         # TODO(Guarin, 07/25): Log loss and metrics.
         model.train_step(fabric=fabric, batch=batch)
         if step % no_auto(config.logger_args.log_every_num_steps) == 0:
-            logger.info(f"Step {step}/{no_auto(config.steps)}")
+            logger.info(f"Step {step}/{config.steps}")
 
         # TODO(Guarin, 07/25): Validate every `val_every_num_steps` steps.
         # TODO(Guarin, 07/25): Log loss and metrics.
-        if step == no_auto(config.steps) - 1:
+        if step == config.steps - 1:
             for batch in val_dataloader:
                 model.val_step(fabric=fabric, batch=batch)
     logger.info("Training completed.")

@@ -12,7 +12,7 @@ import logging
 from contextlib import contextmanager
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any, Generator, Literal
 
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
@@ -182,6 +182,18 @@ def get_val_dataloader(
         dataloader_kwargs.update(**loader_args)
     dataloader = DataLoader(**dataloader_kwargs)
     return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value]
+
+
+def get_steps(steps: int | Literal["auto"]) -> int:
+    if steps == "auto":
+        return 1000
+    return steps
+
+
+def get_batch_size(batch_size: int | Literal["auto"]) -> int:
+    if batch_size == "auto":
+        return 32
+    return batch_size
 
 
 def get_task_train_model_args(
