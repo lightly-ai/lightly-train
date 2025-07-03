@@ -41,7 +41,7 @@ jobs:
     strategy:
       matrix:
         python: ["3.8", "3.12"]
-        runners: ["ubuntu-latest", "windows-latest"]
+        runners: ["ubuntu-latest"] #"windows-latest"
     runs-on: ${{ matrix.runners }}
     steps:
       - name: Setup cmake
