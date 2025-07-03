@@ -154,10 +154,8 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
     model = helpers.get_task_train_model(task_args=config.task_args)
-    model = fabric.setup_module(model)  # type: ignore[assignment]
-
-    # TODO(Guarin, 07/25): Init optimizer.
-    # optimizer = fabric.setup_optimizers(model.get_optimizer())
+    optimizer = model.get_optimizer()
+    model, optimizer = fabric.setup(model, optimizer)  # type: ignore[assignment]
 
     logger.info(
         f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
