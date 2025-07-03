@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from lightning_fabric import Fabric
-from torch import Module
+from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation import (
@@ -23,12 +23,12 @@ from lightly_train._task_models.task_train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch
 
 
-class DINOv2SemanticSegmentationArgs(TaskTrainModelArgs):
+class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     pass
 
 
 class DINOv2SemanticSegmentationTrain(TaskTrainModel):
-    def __init__(self, args: DINOv2SemanticSegmentationArgs) -> None:
+    def __init__(self, args: DINOv2SemanticSegmentationTrainArgs) -> None:
         super().__init__()
         self.model: DINOv2SemanticSegmentation
         self.criterion: Module

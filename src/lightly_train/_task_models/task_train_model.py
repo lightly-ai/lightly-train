@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from lightning_fabric import Fabric
-from torch import Module
+from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
