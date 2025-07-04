@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documented support for the [RT-DETRv2 models](https://docs.lightly.ai/train/stable/models/rtdetr.html).
+
 ### Changed
 
 - Allow loading pretrained DINOv2 teacher weights for distillation methods with an extra `teacher_weights` argument in `method_args`.
