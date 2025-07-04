@@ -48,7 +48,7 @@ a wide range of model architectures and use cases out of the box.
 :alt: benchmark results
 
 On COCO, YOLOv8-s models pretrained with LightlyTrain achieve high performance across all tested label fractions.
-These improvements hold for other architectures like YOLOv11, RT-DETR, and Faster R-CNN.
+These improvements hold for other architectures like YOLOv11, RT-DETRv2, and Faster R-CNN.
 See our [announcement post](https://www.lightly.ai/blog/introducing-lightly-train) for more details.
 ```
 
@@ -122,7 +122,7 @@ Want to use your model to generate image embeddings instead? Check out the {ref}
 | Torchvision | ResNet, ConvNext, ShuffleNetV2 | [🔗](#models-torchvision) |
 | TIMM | All models | [🔗](#models-timm) |
 | Ultralytics | YOLOv5, YOLOv6, YOLOv8, YOLO11, YOLO12 | [🔗](#models-ultralytics) |
-| RT-DETR | RT-DETR | [🔗](#models-rtdetr) |
+| RT-DETR | RT-DETRv2 | [🔗](#models-rtdetr) |
 | RF-DETR | RF-DETR | [🔗](#models-rfdetr) |
 | YOLOv12 | YOLOv12 | [🔗](#models-yolov12) |
 | SuperGradients | PP-LiteSeg, SSD, YOLO-NAS | [🔗](#models-supergradients) |
