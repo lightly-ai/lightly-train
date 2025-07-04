@@ -39,8 +39,9 @@ def test_train_task(tmp_path: Path) -> None:
                 1: "car",
             },
         },
-        model="dinov2_vit/vitb14",
+        model="dinov2_vit/_vit_test14",
         task="semantic_segmentation",
+        devices=1,
     )
     assert out.exists()
     assert out.is_dir()
