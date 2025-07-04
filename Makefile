@@ -175,7 +175,9 @@ EXCLUDE_NEWER_DATE := "2025-06-08"
 # The CI versions are pinned to specific URLs as specifying them as simple version string
 # (e.g. "torch==2.4.0") with the --index-url or --extra-index-url options from UV leads
 # down a rabbit hole of dependency resolution issues.
-# ifeq ($(OS),Linux)
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Linux)
 ifdef CI
 PINNED_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 PINNED_TORCH_VERSION_PY312 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
@@ -183,7 +185,7 @@ PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl
 PINNED_TORCHVISION_VERSION_PY312 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
 MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-# endif
+endif
 else
 PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
 PINNED_TORCH_VERSION_PY312 := "torch==2.4.0"
