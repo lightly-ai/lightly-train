@@ -60,7 +60,7 @@ def train(
     resume_interrupted: bool = False,
     checkpoint: PathLike | None = None,
     overwrite: bool = False,
-    accelerator: str | Accelerator = "auto",
+    accelerator: str = "auto",
     strategy: str | Strategy = "auto",
     precision: _PRECISION_INPUT = "32-true",  # Default precision in PyTorch Lightning
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",

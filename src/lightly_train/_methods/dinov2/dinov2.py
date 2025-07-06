@@ -135,8 +135,8 @@ class DINOv2Args(MethodArgs):
     # architecture?
     weight_decay_end: float = 0.4  # 0.4/0.2 for fast/long setup in original DINOv2
 
-    # gradient clipping
-    gradient_clip_val: float = 3.0
+    # # gradient clipping
+    # gradient_clip_val: float = 3.0
 
     def resolve_auto(
         self,
@@ -586,17 +586,17 @@ class DINOv2(Method):
         }
         return [optim], [scheduler]  # type: ignore[return-value]
 
-    def configure_gradient_clipping(
-        self,
-        optimizer: Optimizer,
-        gradient_clip_val: int | float | None = None,
-        gradient_clip_algorithm: str | None = None,
-    ) -> None:
-        self.clip_gradients(
-            optimizer=optimizer,
-            gradient_clip_val=self.method_args.gradient_clip_val,
-            gradient_clip_algorithm="norm",
-        )
+    # def configure_gradient_clipping(
+    #     self,
+    #     optimizer: Optimizer,
+    #     gradient_clip_val: int | float | None = None,
+    #     gradient_clip_algorithm: str | None = None,
+    # ) -> None:
+    #     self.clip_gradients(
+    #         optimizer=optimizer,
+    #         gradient_clip_val=self.method_args.gradient_clip_val,
+    #         gradient_clip_algorithm="norm",
+    #     )
 
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
         # Apply weight decay schedule
@@ -646,13 +646,18 @@ class DINOv2(Method):
             start_value=self.method_args.momentum_start,
             end_value=self.method_args.momentum_end,
         )
-        update_momentum(
+        self._update_momentum(
             self.student_embedding_model,
             self.teacher_embedding_model,
             m=momentum,
         )
-        update_momentum(self.student_head, self.teacher_head, m=momentum)
+        self._update_momentum(self.student_head, self.teacher_head, m=momentum)
         super().on_train_batch_end(outputs=outputs, batch=batch, batch_idx=batch_idx)
+
+    def _update_momentum(self, model: Module, model_ema: Module, m: float) -> None:
+        for ema_module, module in zip(model_ema.modules(), model.modules()):
+            # update the FSDP flattened parameters
+            ema_module._flat_param = ema_module._flat_param * m + module._flat_param * (1.0 - m)
 
     @staticmethod
     def transform_cls() -> type[DINOv2ViTTransform]:

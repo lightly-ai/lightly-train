@@ -1,3 +1,5 @@
+my_data_dir
+
 *.code-workspace
 lightly_train_docker_test_data
 out

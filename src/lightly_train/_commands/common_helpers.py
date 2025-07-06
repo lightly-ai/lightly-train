@@ -91,8 +91,8 @@ def get_out_path(out: PathLike, overwrite: bool) -> Path:
 
 
 def get_accelerator(
-    accelerator: str | Accelerator,
-) -> str | Accelerator:
+    accelerator: str,
+) -> str:
     logger.debug(f"Getting accelerator for '{accelerator}'.")
     if accelerator != "auto":
         # User specified an accelerator, return it.
@@ -101,13 +101,13 @@ def get_accelerator(
     # Default to CUDA if available.
     if CUDAAccelerator.is_available():
         logger.debug("CUDA is available, defaulting to CUDA.")
-        return CUDAAccelerator()
+        return "gpu"
     elif MPSAccelerator.is_available():
         logger.debug("MPS is available, defaulting to MPS.")
-        return MPSAccelerator()
+        return "mps"
     else:
         logger.debug("CUDA and MPS are not available, defaulting to CPU.")
-        return CPUAccelerator()
+        return "cpu"
 
 
 def get_out_dir(out: PathLike, resume_interrupted: bool, overwrite: bool) -> Path:

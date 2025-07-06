@@ -262,17 +262,17 @@ class DistillationV2(Method):
             modules=[self.student_embedding_model, self.student_projection_head]
         )
 
-    def configure_gradient_clipping(
-        self,
-        optimizer: Optimizer,
-        gradient_clip_val: int | float | None = None,
-        gradient_clip_algorithm: str | None = None,
-    ) -> None:
-        self.clip_gradients(
-            optimizer=optimizer,
-            gradient_clip_val=1.0,
-            gradient_clip_algorithm="norm",
-        )
+    # def configure_gradient_clipping(
+    #     self,
+    #     optimizer: Optimizer,
+    #     gradient_clip_val: int | float | None = None,
+    #     gradient_clip_algorithm: str | None = None,
+    # ) -> None:
+    #     self.clip_gradients(
+    #         optimizer=optimizer,
+    #         gradient_clip_val=1.0,
+    #         gradient_clip_algorithm="norm",
+    #     )
 
     @staticmethod
     def transform_cls() -> type[MethodTransform]:
