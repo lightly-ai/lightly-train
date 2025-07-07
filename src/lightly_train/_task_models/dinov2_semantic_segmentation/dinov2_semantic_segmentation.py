@@ -60,8 +60,8 @@ class DINOv2SemanticSegmentation(TaskModel):
 
         # Get the backbone.
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
-            model_name,
-            model_args,
+            model_name=model_name,
+            model_args=model_args,
         )
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size

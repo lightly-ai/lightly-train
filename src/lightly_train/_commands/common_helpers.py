@@ -17,7 +17,7 @@ import time
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Sequence
+from typing import Any, Generator, Iterable, Literal, Sequence, Sized, TypeVar
 
 import torch
 from pytorch_lightning.accelerators.accelerator import Accelerator
@@ -542,3 +542,63 @@ def _unlink_and_ignore(path: Path) -> None:
         path.unlink(missing_ok=True)
     except OSError:
         pass
+
+
+_T = TypeVar("_T")
+
+
+def get_global_batch_size(
+    global_batch_size: int,
+    dataset: Dataset[_T],
+    total_num_devices: int,
+    loader_args: dict[str, Any] | None,
+) -> int:
+    """Calculates the global batch size based on the dataset size and number of
+    available nodes and devices.
+
+    Args:
+        global_batch_size:
+            The global batch size. This is the total batch size across all nodes and
+            devices.
+        dataset:
+            Dataset. If the dataset is smaller than the global batch size, the global
+            batch size is reduced to the dataset size.
+        total_num_devices:
+            The total number of devices across all nodes.
+        loader_args:
+            Additional arguments for the DataLoader. If the batch size is provided in
+            loader_args, the global batch size is calculated based on this value as
+            loader_args["batch_size"] * total_num_devices.
+
+    Raises:
+        ValueError: If the global batch size is not divisible by total_num_devices.
+    """
+    if loader_args is not None and "batch_size" in loader_args:
+        # Don't do fancy calculations if the user provides a fixed batch size for the
+        # dataloader.
+        batch_size_per_device = loader_args["batch_size"]
+        global_batch_size = batch_size_per_device * total_num_devices
+        logger.debug(
+            f"Got batch size per device {batch_size_per_device} based on loader_args. "
+        )
+        logger.debug(f"Using global batch size {global_batch_size}.")
+        return global_batch_size
+
+    # Limit batch size for small datasets.
+    if isinstance(dataset, Sized):
+        dataset_size = len(dataset)
+        logger.debug(f"Detected dataset size {dataset_size}.")
+        if dataset_size < global_batch_size:
+            old_global_batch_size = global_batch_size
+            global_batch_size = dataset_size
+            logger.warning(
+                f"Detected dataset size {dataset_size} and batch size "
+                f"{old_global_batch_size}. Reducing batch size to {global_batch_size}."
+            )
+
+    if global_batch_size % total_num_devices != 0:
+        raise ValueError(
+            f"Batch size {global_batch_size} must be divisible by "
+            f"(num_nodes * devices) = {total_num_devices}."
+        )
+    return global_batch_size
