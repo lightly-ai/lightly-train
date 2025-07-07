@@ -151,6 +151,8 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         num_workers=config.num_workers,
         loader_args=config.loader_args,
     )
+    # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
+    # reloading dataloader after every epoch? Is this preferred over persistent workers?
     infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
     model = helpers.get_task_train_model(task_args=config.task_args)
