@@ -34,7 +34,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     ) -> None:
         super().__init__()
         self.model = DINOv2SemanticSegmentation(
-            # TODO(Guarin, 10/23): Make configurable and pass all args.
+            # TODO(Guarin, 10/25): Make configurable and pass all args.
             # We probably don't want to instantiate the model here. Either we pass it
             # from the outside or we use a setup function (might be useful for FSDP).
             model_name=model_name,

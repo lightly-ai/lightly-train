@@ -211,5 +211,10 @@ def get_task_train_model(
     model_name: str,
     task_args: TaskTrainModelArgs,
 ) -> TaskTrainModel:
+    package, model = model_name.split("/", maxsplit=1)
+    if package != "dinov2_vit":
+        raise ValueError(
+            f"Unsupported model '{model_name}'. Only 'dinov2_vit' models are supported."
+        )
     assert isinstance(task_args, DINOv2SemanticSegmentationTrainArgs)
-    return DINOv2SemanticSegmentationTrain(args=task_args, model_name=model_name)
+    return DINOv2SemanticSegmentationTrain(args=task_args, model_name=model)

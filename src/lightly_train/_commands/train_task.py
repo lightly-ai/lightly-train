@@ -155,8 +155,6 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # reloading dataloader after every epoch? Is this preferred over persistent workers?
     infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
-    # TODO(Guarin, 07/25): Support proper model naming with dinov2_vit/vitb14_pretrain
-    # etc.
     model = helpers.get_task_train_model(
         model_name=config.model, task_args=config.task_args
     )

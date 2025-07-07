@@ -59,6 +59,8 @@ class DINOv2SemanticSegmentation(TaskModel):
             backbone_weights_path = model_args.pop("backbone_weights")
 
         # Get the backbone.
+        # TODO(Guarin, 07/25): This builds a student model. Double check that this is
+        # what we want.
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
             model_name=model_name,
             model_args=model_args,
