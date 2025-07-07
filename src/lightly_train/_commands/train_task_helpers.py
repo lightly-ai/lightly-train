@@ -208,7 +208,8 @@ def get_task_train_model_args(
 
 
 def get_task_train_model(
+    model_name: str,
     task_args: TaskTrainModelArgs,
 ) -> TaskTrainModel:
     assert isinstance(task_args, DINOv2SemanticSegmentationTrainArgs)
-    return DINOv2SemanticSegmentationTrain(args=task_args)
+    return DINOv2SemanticSegmentationTrain(args=task_args, model_name=model_name)
