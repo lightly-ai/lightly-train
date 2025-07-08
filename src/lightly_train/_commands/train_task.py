@@ -216,12 +216,14 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
             for val_step, val_batch in enumerate(val_dataloader):
                 is_last_val_step = val_step + 1 == len(val_dataloader)
                 is_val_log_step = val_step == 0 or (
-                    val_step + 1 % no_auto(config.logger_args.val_log_every_num_steps)
+                    (val_step + 1) % no_auto(config.logger_args.val_log_every_num_steps)
                     == 0
                 )
                 with torch.no_grad():
                     val_result = model.validation_step(fabric=fabric, batch=val_batch)
                 if is_val_log_step:
+                    # Show that we are making progress. Metrics are only calculated
+                    # at the end of the validation loop.
                     helpers.log_step(
                         split="val",
                         step=val_step,
