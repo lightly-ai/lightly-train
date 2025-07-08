@@ -122,6 +122,36 @@ class NormalizeArgs(PydanticConfig):
         )
 
 
+class SmallestMaxSizeArgs(PydanticConfig):
+    max_size: int | list[int]  # Maximum size of the smallest side of the image.
+    prob: float
+
+
+class LongestMaxSizeArgs(PydanticConfig):
+    max_size: int | list[int]  # Maximum size of the longest side of the image.
+    prob: float
+
+
+class RandomCropArgs(PydanticConfig):
+    height: int
+    width: int
+    pad_position: str
+    pad_if_needed: bool = False  # Pad if crop size exceeds image size.
+    fill: tuple[float, ...] | float  # Padding value for images.
+    fill_mask: tuple[float, ...] | float  # Padding value for masks.
+    prob: float = 1.0  # Probability to apply RandomCrop.
+
+
+class CenterCropArgs(PydanticConfig):
+    height: int
+    width: int
+    pad_position: str
+    pad_if_needed: bool = False  # Pad if crop size exceeds image size.
+    fill: tuple[float, ...] | float  # Padding value for images.
+    fill_mask: tuple[float, ...] | float  # Padding value for masks.
+    prob: float = 1.0  # Probability to apply RandomCrop.
+
+
 class MethodTransformArgs(PydanticConfig):
     # Strict is set to False because OmegaConf does not support parsing tuples from the
     # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
