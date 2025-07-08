@@ -15,6 +15,7 @@ from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict
+from torchmetrics import Metric
 
 from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._commands import _warnings, common_helpers
@@ -130,10 +131,6 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         num_workers=config.num_workers,
         num_devices_per_node=fabric.world_size // config.num_nodes,
     )
-    config.logger_args = helpers.get_logger_args(
-        steps=config.steps,
-        logger_args=config.logger_args,
-    )
 
     # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
     train_dataloader = helpers.get_train_dataloader(
@@ -155,8 +152,16 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # reloading dataloader after every epoch? Is this preferred over persistent workers?
     infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
+    config.logger_args = helpers.get_logger_args(
+        steps=config.steps,
+        val_steps=len(val_dataloader),
+        logger_args=config.logger_args,
+    )
+
     model = helpers.get_task_train_model(
-        model_name=config.model, task_args=config.task_args
+        model_name=config.model,
+        task_args=config.task_args,
+        data_args=config.data,
     )
     optimizer = model.get_optimizer()
     model, optimizer = fabric.setup(model, optimizer)  # type: ignore[assignment]
@@ -166,18 +171,49 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     )
     logger.info(f"Starting training for {config.steps} steps...")
     for step in range(config.steps):
-        batch = next(infinite_train_dataloader)
-        # TODO(Guarin, 07/25): Backprop.
-        # TODO(Guarin, 07/25): Log loss and metrics.
-        model.training_step(fabric=fabric, batch=batch)
-        if step % no_auto(config.logger_args.log_every_num_steps) == 0:
-            logger.info(f"Step {step}/{config.steps}")
+        is_last_step = step == config.steps - 1
+        is_log_step = step % no_auto(config.logger_args.log_every_num_steps) == 0
+        is_val_step = step % no_auto(config.logger_args.val_every_num_steps) == 0
 
-        # TODO(Guarin, 07/25): Validate every `val_every_num_steps` steps.
-        # TODO(Guarin, 07/25): Log loss and metrics.
-        if step == config.steps - 1:
-            for batch in val_dataloader:
-                model.validation_step(fabric=fabric, batch=batch)
+        optimizer.zero_grad()
+        batch = next(infinite_train_dataloader)
+        train_result = model.training_step(fabric=fabric, batch=batch)
+        if is_log_step or is_last_step:
+            train_log_dict = {
+                name: value.compute() if isinstance(value, Metric) else value
+                for name, value in train_result.log_dict.items()
+            }
+            logger.info(
+                f"Train Step {step}/{config.steps} | Train Loss {train_log_dict['train_loss']:.4f}"
+            )
+            fabric.log_dict(train_log_dict, step=step)
+            for name, value in train_result.log_dict.items():
+                if isinstance(value, Metric):
+                    value.reset()
+        fabric.backward(train_result.loss)
+        optimizer.step()
+
+        if is_val_step or is_last_step:
+            for val_step, val_batch in enumerate(val_dataloader):
+                is_last_val_step = val_step == len(val_dataloader) - 1
+                is_val_log_step = (
+                    val_step % no_auto(config.logger_args.val_log_every_num_steps) == 0
+                )
+                val_result = model.validation_step(fabric=fabric, batch=val_batch)
+                if is_val_log_step:
+                    logger.info(f"Val Step {val_step}/{len(val_dataloader)}")
+                if is_last_val_step:
+                    val_log_dict = {
+                        name: value.compute() if isinstance(value, Metric) else value
+                        for name, value in val_result.log_dict.items()
+                    }
+                    logger.info(
+                        f"Val Step {val_step}/{len(val_dataloader)} | Val Loss {val_log_dict['val_loss']:.4f}"
+                    )
+                    fabric.log_dict(val_log_dict, step=step)
+                    for name, value in val_result.log_dict.items():
+                        if isinstance(value, Metric):
+                            value.reset()
     logger.info("Training completed.")
 
 

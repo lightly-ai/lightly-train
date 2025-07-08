@@ -35,7 +35,7 @@ def test_train_task(tmp_path: Path) -> None:
                 "masks": val_masks,
             },
             "classes": {
-                0: "person",
+                0: "background",
                 1: "car",
             },
         },

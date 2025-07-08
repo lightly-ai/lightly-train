@@ -7,9 +7,12 @@
 #
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from lightning_fabric import Fabric
+from torch import Tensor
 from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 
@@ -52,3 +55,9 @@ class TaskTrainModel(Module):
 
     def get_optimizer(self) -> Optimizer:
         raise NotImplementedError()
+
+
+@dataclass
+class TaskStepResult:
+    loss: Tensor
+    log_dict: Mapping[str, Any]

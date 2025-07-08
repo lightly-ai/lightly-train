@@ -103,13 +103,17 @@ class DINOv2SemanticSegmentation(TaskModel):
         else:
             logger.info("Backbone weights loaded successfully.")
 
-    def forward(self, x: Tensor) -> Tensor:
-        """
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        """Forward pass for inference.
+
         Args:
             x: input image of shape (B, C, H, W)
         Returns:
-            segmentation logits of shape (B, num_classes, H, W)
+            (masks, logits) tuple where masks have shape (B, H, W) and logits have shape
+            (B, num_classes, H, W). The masks are the predicted segmentation masks and
+            the logits are the raw output of the model.
         """
+        # Up-sample to match original image/mask resolution.
         B, _, H, W = x.shape
 
         # Get the patch tokens -> (B, N, D) where N = H_patch * W_patch.
@@ -130,5 +134,5 @@ class DINOv2SemanticSegmentation(TaskModel):
             mode="bilinear",
             align_corners=False,
         )
-
-        return logits
+        masks = logits.argmax(dim=1)
+        return masks, logits

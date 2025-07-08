@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._configs import validate
 from lightly_train._data.mask_semantic_segmentation_dataset import (
+    MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
 )
@@ -84,13 +85,14 @@ def get_out_dir(
 
 def get_logger_args(
     steps: int,
+    val_steps: int,
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None,
 ) -> TaskLoggerArgs:
     if isinstance(logger_args, TaskLoggerArgs):
         return logger_args
     logger_args = {} if logger_args is None else logger_args
     args = validate.pydantic_model_validate(TaskLoggerArgs, logger_args)
-    args.resolve_auto(steps=steps)
+    args.resolve_auto(steps=steps, val_steps=val_steps)
     return args
 
 
@@ -210,6 +212,7 @@ def get_task_train_model_args(
 def get_task_train_model(
     model_name: str,
     task_args: TaskTrainModelArgs,
+    data_args: MaskSemanticSegmentationDataArgs,
 ) -> TaskTrainModel:
     package, model = model_name.split("/", maxsplit=1)
     if package != "dinov2_vit":
@@ -217,4 +220,6 @@ def get_task_train_model(
             f"Unsupported model '{model_name}'. Only 'dinov2_vit' models are supported."
         )
     assert isinstance(task_args, DINOv2SemanticSegmentationTrainArgs)
-    return DINOv2SemanticSegmentationTrain(args=task_args, model_name=model)
+    return DINOv2SemanticSegmentationTrain(
+        task_args=task_args, model_name=model, data_args=data_args
+    )
