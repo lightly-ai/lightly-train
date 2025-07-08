@@ -14,7 +14,7 @@ from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_seg
     DINOv2SemanticSegmentation,
 )
 
-MODEL_NAME = "vitg14"
+MODEL_NAME = "vitb14"
 
 export_path = f"dinov2_vit_ckpts/{MODEL_NAME}/exported_models"
 backbone_weights_path = f"{export_path}/exported_last.pt"
@@ -32,6 +32,7 @@ model = DINOv2SemanticSegmentation(
 )
 model.eval()
 
+# Export the model to ONNX format
 dummy_input = torch.randn(1, 3, 224, 224, requires_grad=False)
 torch.onnx.export(
     model,
@@ -43,7 +44,7 @@ torch.onnx.export(
 
 # Load and sanity-check the ONNX model
 onnx_model = onnx.load(onnx_path)
-onnx.checker.check_model(onnx_path)
+onnx.checker.check_model(onnx_path, full_check=True)
 
 # Compare the ONNX model output with the PyTorch model output
 with torch.no_grad():
