@@ -120,6 +120,7 @@ module = [
     "super_gradients.*",
     "tensorboard.*",
     "timm.*",
+    "torchmetrics.*",
     "torchvision.*",
     "ultralytics.*",
 ]

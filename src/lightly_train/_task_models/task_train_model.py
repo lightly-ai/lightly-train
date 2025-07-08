@@ -7,7 +7,6 @@
 #
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -60,4 +59,4 @@ class TaskTrainModel(Module):
 @dataclass
 class TaskStepResult:
     loss: Tensor
-    log_dict: Mapping[str, Any]
+    log_dict: dict[str, Any]
