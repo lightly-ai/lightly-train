@@ -68,6 +68,11 @@ class DINOv2SemanticSegmentation(TaskModel):
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
 
+        # TODO(Guarin, 07/25): Improve how mask tokens are handled for fine-tuning.
+        # Should we drop them from the model? We disable grads here for DDP to work
+        # without find_unused_parameters=True.
+        self.backbone.mask_token.requires_grad = False
+
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.
         if backbone_weights_path is not None:

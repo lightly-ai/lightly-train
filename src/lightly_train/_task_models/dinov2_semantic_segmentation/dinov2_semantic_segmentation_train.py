@@ -64,15 +64,15 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     def training_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
     ) -> TaskStepResult:
-        images = batch["images"]
-        masks = batch["masks"]
+        images = batch["image"]
+        masks = batch["mask"].long()  # Long required for metrics.
         pred_masks, logits = self.model(images)
         loss = self.criterion(logits, masks)
         self.train_miou.update(pred_masks, masks)
         return TaskStepResult(
             loss=loss,
             log_dict={
-                "train_loss": loss,
+                "train_loss": loss.detach(),
                 "train_metric/miou": self.train_miou,
             },
         )
@@ -80,8 +80,8 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     def validation_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
     ) -> TaskStepResult:
-        images = batch["images"]
-        masks = batch["masks"]
+        images = batch["image"]
+        masks = batch["mask"].long()  # Long required for metrics.
         pred_masks, logits = self.model(images)
         loss = self.criterion(logits, masks)
         self.val_loss.update(loss, weight=images.shape[0])
@@ -95,4 +95,5 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         )
 
     def get_optimizer(self) -> Optimizer:
+        # TODO(Guarin, 07/25): Handle weight decay for norm and bias parameters.
         return AdamW(self.parameters())

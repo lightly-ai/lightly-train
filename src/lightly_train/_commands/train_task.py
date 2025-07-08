@@ -10,12 +10,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
+import torch
 from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict
-from torchmetrics import Metric
 
 from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._commands import _warnings, common_helpers
@@ -114,8 +114,16 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # TODO(Guarin, 07/25): Verify out_dir same on all local ranks, see train.py. We can simplify this
     # here as distributed processing is already initialized with fabric.
 
-    train_dataset = helpers.get_dataset(dataset_args=config.data.get_train_args())
-    val_dataset = helpers.get_dataset(dataset_args=config.data.get_val_args())
+    # TODO(Guarin, 07/25): Allow passing transform args.
+    train_transform = helpers.get_train_transform()
+    val_transform = helpers.get_val_transform()
+
+    train_dataset = helpers.get_dataset(
+        dataset_args=config.data.get_train_args(), transform=train_transform
+    )
+    val_dataset = helpers.get_dataset(
+        dataset_args=config.data.get_val_args(), transform=val_transform
+    )
     logger.info(f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}")
 
     # TODO(Guarin, 07/25): Choose sensible default for steps. Based on model?
@@ -169,51 +177,69 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     logger.info(
         f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
     )
-    logger.info(f"Starting training for {config.steps} steps...")
-    for step in range(config.steps):
-        is_last_step = step == config.steps - 1
-        is_log_step = step % no_auto(config.logger_args.log_every_num_steps) == 0
-        is_val_step = step % no_auto(config.logger_args.val_every_num_steps) == 0
 
-        optimizer.zero_grad()
+    model.train()
+    fabric.barrier()
+    logger.info(f"Training for {config.steps} steps...")
+    for step in range(config.steps):
+        is_last_step = step + 1 == config.steps
+        is_log_step = (
+            step == 0
+            or (step + 1) % no_auto(config.logger_args.log_every_num_steps) == 0
+        )
+        is_val_step = (
+            step > 0
+            and (step + 1) % no_auto(config.logger_args.val_every_num_steps) == 0
+        )
+
         batch = next(infinite_train_dataloader)
         train_result = model.training_step(fabric=fabric, batch=batch)
-        if is_log_step or is_last_step:
-            train_log_dict = {
-                name: value.compute() if isinstance(value, Metric) else value
-                for name, value in train_result.log_dict.items()
-            }
-            logger.info(
-                f"Train Step {step}/{config.steps} | Train Loss {train_log_dict['train_loss']:.4f}"
-            )
-            fabric.log_dict(train_log_dict, step=step)
-            for name, value in train_result.log_dict.items():
-                if isinstance(value, Metric):
-                    value.reset()
         fabric.backward(train_result.loss)
         optimizer.step()
+        optimizer.zero_grad()
+
+        if is_log_step or is_last_step:
+            train_log_dict = helpers.compute_metrics(train_result.log_dict)
+            helpers.log_step(
+                split="train",
+                step=step,
+                max_steps=config.steps,
+                log_dict=train_log_dict,
+            )
+            fabric.log_dict(train_log_dict, step=step)
+            helpers.reset_metrics(train_result.log_dict)
 
         if is_val_step or is_last_step:
+            fabric.barrier()
+            logger.info("Validating...")
+            model.eval()
             for val_step, val_batch in enumerate(val_dataloader):
-                is_last_val_step = val_step == len(val_dataloader) - 1
-                is_val_log_step = (
-                    val_step % no_auto(config.logger_args.val_log_every_num_steps) == 0
+                is_last_val_step = val_step + 1 == len(val_dataloader)
+                is_val_log_step = val_step == 0 or (
+                    val_step + 1 % no_auto(config.logger_args.val_log_every_num_steps)
+                    == 0
                 )
-                val_result = model.validation_step(fabric=fabric, batch=val_batch)
+                with torch.no_grad():
+                    val_result = model.validation_step(fabric=fabric, batch=val_batch)
                 if is_val_log_step:
-                    logger.info(f"Val Step {val_step}/{len(val_dataloader)}")
+                    helpers.log_step(
+                        split="val",
+                        step=val_step,
+                        max_steps=len(val_dataloader),
+                        log_dict={},
+                    )
                 if is_last_val_step:
-                    val_log_dict = {
-                        name: value.compute() if isinstance(value, Metric) else value
-                        for name, value in val_result.log_dict.items()
-                    }
-                    logger.info(
-                        f"Val Step {val_step}/{len(val_dataloader)} | Val Loss {val_log_dict['val_loss']:.4f}"
+                    val_log_dict = helpers.compute_metrics(val_result.log_dict)
+                    helpers.log_step(
+                        split="val",
+                        step=val_step,
+                        max_steps=len(val_dataloader),
+                        log_dict=val_log_dict,
                     )
                     fabric.log_dict(val_log_dict, step=step)
-                    for name, value in val_result.log_dict.items():
-                        if isinstance(value, Metric):
-                            value.reset()
+                    helpers.reset_metrics(val_result.log_dict)
+            model.train()
+            fabric.barrier()
     logger.info("Training completed.")
 
 
