@@ -309,5 +309,21 @@ def load_checkpoint(fabric: Fabric, out_dir: PathLike, state: TrainTaskState) ->
     ckpt_path = get_last_checkpoint_path(out_dir)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
+
+    model = state["model"]
+    model_grads = {n: p.requires_grad for n, p in model.named_parameters()}
+    model_trainings = {n: m.training for n, m in model.named_modules()}
+    optimizer = state["optimizer"]
+    train_dataloader = state["train_dataloader"]
+
     logger.info(f"Loading checkpoint from '{ckpt_path}'")
     fabric.load(path=ckpt_path, state=state)  # type: ignore[arg-type]
+
+    # Sanity check to make sure no new objects were created by fabric.load
+    assert state["model"] is model
+    assert {
+        n: p.requires_grad for n, p in state["model"].named_parameters()
+    } == model_grads
+    assert {n: m.training for n, m in state["model"].named_modules()} == model_trainings
+    assert state["optimizer"] is optimizer
+    assert state["train_dataloader"] is train_dataloader

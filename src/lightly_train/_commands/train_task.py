@@ -174,6 +174,8 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         task_args=config.task_args,
         data_args=config.data,
     )
+    # Set train mode to make sure that all parameters are in the correct state before
+    # the optimizer is initialized.
     model.set_train_mode()
     optimizer = model.get_optimizer()
     model, optimizer = fabric.setup(model, optimizer)  # type: ignore[assignment]
@@ -193,25 +195,23 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
 
     if config.resume_interrupted:
         helpers.load_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
-    start_step = state["step"] + 1
 
     # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
     # reloading dataloader after every epoch? Is this preferred over persistent workers?
-    infinite_train_dataloader = InfiniteCycleIterator(
-        iterable=state["train_dataloader"]
-    )
+    infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
     for name, param in model.named_parameters():
         logger.debug(f"grad={param.requires_grad} {name}")
     for name, module in model.named_modules():
         logger.debug(f"train={module.training} {name}")
 
-    model.set_train_mode()
-    fabric.barrier()
+    start_step = state["step"] + 1
     if start_step > 0:
         logger.info(f"Resuming training from step {start_step}/{config.steps}...")
     else:
         logger.info(f"Training for {config.steps} steps...")
+
+    fabric.barrier()
     for step in range(start_step, config.steps):
         state["step"] = step
         is_last_step = step + 1 == config.steps
