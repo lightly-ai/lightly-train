@@ -13,7 +13,7 @@ installed manually, however LightlyTrain provides a model wrapper for the RT-DET
 
 ```{warning}
 Due to an incompatibility between the `torchvision` version requirements of RT-DETRv1 and 
-LightlyTrain, it is only possible to pretrain RT-DETRv2.
+LightlyTrain, it is only possible to pretrain the RT-DETRv2 implementation. Still, you are able to use the RT-DETR(v1) configs to pretrain RT-DETR models.
 ```
 
 ## RT-DETR Installation
