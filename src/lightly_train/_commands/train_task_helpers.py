@@ -17,9 +17,11 @@ from typing import Any, Generator, Literal
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from torch.utils.data import DataLoader, Dataset
+from torchmetrics import Metric
 
 from lightly_train._configs import validate
 from lightly_train._data.mask_semantic_segmentation_dataset import (
+    MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
 )
@@ -29,40 +31,58 @@ from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_seg
     DINOv2SemanticSegmentationTrain,
     DINOv2SemanticSegmentationTrainArgs,
 )
+from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_transforms import (
+    DINOv2SemanticSegmentationTrainTransform,
+    DINOv2SemanticSegmentationTrainTransformArgs,
+    DINOv2SemanticSegmentationValTransform,
+    DINOv2SemanticSegmentationValTransformArgs,
+)
 from lightly_train._task_models.task_train_model import (
     TaskTrainModel,
     TaskTrainModelArgs,
 )
+from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import PathLike, TaskDatasetItem
 
 logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def rank_zero_unshared_only(
+def filesystem_rank_zero_first(
     fabric: Fabric, path: PathLike
-) -> Generator[None, None, None]:
-    """The code under this context manager is only executed by rank zero.
+) -> Generator[bool, None, None]:
+    """The code under this context manager is first excecuted on rank zero for the
+    filesystem at `path`.
 
-    If the filesystem at path is shared, the code is executed only on global rank zero.
-    If the filesystem at path is not shared, the code is executed on every local rank zero.
+    If the filesystem at path is shared, the code is first executed on global rank zero.
+    If the filesystem at path is not shared, the code is first executed on all local
+    zero ranks.
+
+    Yields:
+        Boolean that indicates whether the code in the current process is executed
+        first.
     """
     is_shared = fabric_utilities.is_shared_filesystem(
         strategy=fabric.strategy, path=path
     )
     local = not is_shared
+    is_filesystem_rank_zero = fabric.is_global_zero or (
+        local and fabric.local_rank == 0
+    )
     with fabric.rank_zero_first(local=local):
-        if fabric.is_global_zero or (local and fabric.local_rank == 0):
-            yield
-        else:
-            return
+        yield is_filesystem_rank_zero
 
 
 def get_out_dir(
     fabric: Fabric, out: PathLike, resume_interrupted: bool, overwrite: bool
 ) -> Path:
     out_dir = Path(out).resolve()
-    with rank_zero_unshared_only(fabric=fabric, path=out_dir):
+    with filesystem_rank_zero_first(
+        fabric=fabric, path=out_dir
+    ) as is_filesystem_rank_zero:
+        if not is_filesystem_rank_zero:
+            return out_dir
+
         if out_dir.exists():
             if not out_dir.is_dir():
                 raise ValueError(f"Output '{out_dir}' is not a directory!")
@@ -84,13 +104,14 @@ def get_out_dir(
 
 def get_logger_args(
     steps: int,
+    val_steps: int,
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None,
 ) -> TaskLoggerArgs:
     if isinstance(logger_args, TaskLoggerArgs):
         return logger_args
     logger_args = {} if logger_args is None else logger_args
     args = validate.pydantic_model_validate(TaskLoggerArgs, logger_args)
-    args.resolve_auto(steps=steps)
+    args.resolve_auto(steps=steps, val_steps=val_steps)
     return args
 
 
@@ -113,21 +134,26 @@ def pretty_format_args(args: dict[str, Any], indent: int = 4) -> str:
     )
 
 
-def _identity(x: Any) -> Any:
-    return x
+def get_train_transform() -> TaskTransform:
+    return DINOv2SemanticSegmentationTrainTransform(
+        DINOv2SemanticSegmentationTrainTransformArgs()
+    )
+
+
+def get_val_transform() -> TaskTransform:
+    return DINOv2SemanticSegmentationValTransform(
+        DINOv2SemanticSegmentationValTransformArgs()
+    )
 
 
 def get_dataset(
-    dataset_args: MaskSemanticSegmentationDatasetArgs,
+    dataset_args: MaskSemanticSegmentationDatasetArgs, transform: TaskTransform
 ) -> MaskSemanticSegmentationDataset:
     # TODO(Guarin, 07/25): MMAP filenames.
     filenames = list(dataset_args.list_image_filenames())
     dataset_cls = dataset_args.get_dataset_cls()
     return dataset_cls(
-        dataset_args=dataset_args,
-        image_filenames=filenames,
-        # TODO(Guarin, 07/25): Add transforms
-        transform=_identity,  # type: ignore[arg-type]
+        dataset_args=dataset_args, image_filenames=filenames, transform=transform
     )
 
 
@@ -210,6 +236,46 @@ def get_task_train_model_args(
 def get_task_train_model(
     model_name: str,
     task_args: TaskTrainModelArgs,
+    data_args: MaskSemanticSegmentationDataArgs,
 ) -> TaskTrainModel:
+    package, model = model_name.split("/", maxsplit=1)
+    if package != "dinov2_vit":
+        raise ValueError(
+            f"Unsupported model '{model_name}'. Only 'dinov2_vit' models are supported."
+        )
     assert isinstance(task_args, DINOv2SemanticSegmentationTrainArgs)
-    return DINOv2SemanticSegmentationTrain(args=task_args, model_name=model_name)
+    return DINOv2SemanticSegmentationTrain(
+        task_args=task_args, model_name=model, data_args=data_args
+    )
+
+
+def log_step(
+    split: Literal["train", "val"], step: int, max_steps: int, log_dict: dict[str, Any]
+) -> None:
+    split_cap = split.capitalize()
+    name_to_display_name = {
+        "train_loss": "Train Loss",
+        "train_metric/miou": "Train mIoU",
+        "val_loss": "Val Loss",
+        "val_metric/miou": "Val mIoU",
+    }
+    parts = [
+        f"{split_cap} Step {step + 1}/{max_steps}",
+    ]
+    for name, value in log_dict.items():
+        parts.append(f"{name_to_display_name[name]}: {value:.4f}")
+    line = " | ".join(parts)
+    logger.info(line)
+
+
+def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
+    return {
+        name: value.compute() if isinstance(value, Metric) else value
+        for name, value in log_dict.items()
+    }
+
+
+def reset_metrics(log_dict: dict[str, Any]) -> None:
+    for value in log_dict.values():
+        if isinstance(value, Metric):
+            value.reset()

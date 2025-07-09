@@ -79,7 +79,7 @@ class SemanticSegmentationTransform(TaskTransform):
                     pad_if_needed=transform_args.random_crop.pad_if_needed,
                     pad_position=transform_args.random_crop.pad_position,
                     fill=transform_args.random_crop.fill,
-                    mask_value=transform_args.random_crop.fill_mask,
+                    fill_mask=transform_args.random_crop.fill_mask,
                     p=transform_args.random_crop.prob,
                 )
             ]
@@ -109,7 +109,7 @@ class SemanticSegmentationTransform(TaskTransform):
                     pad_if_needed=transform_args.center_crop.pad_if_needed,
                     pad_position=transform_args.center_crop.pad_position,
                     fill=transform_args.center_crop.fill,
-                    mask_value=transform_args.center_crop.fill_mask,
+                    fill_mask=transform_args.center_crop.fill_mask,
                     p=transform_args.center_crop.prob,
                 )
             ]

@@ -58,13 +58,25 @@ class DINOv2SemanticSegmentation(TaskModel):
         if model_args is not None and "backbone_weights" in model_args:
             backbone_weights_path = model_args.pop("backbone_weights")
 
+        # Disable drop path by default.
+        args = {
+            "drop_path_rate": 0.0,
+        }
+        if model_args is not None:
+            args.update(model_args)
+
         # Get the backbone.
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
             model_name=model_name,
-            model_args=model_args,
+            model_args=args,
         )
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
+
+        # TODO(Guarin, 07/25): Improve how mask tokens are handled for fine-tuning.
+        # Should we drop them from the model? We disable grads here for DDP to work
+        # without find_unused_parameters=True.
+        self.backbone.mask_token.requires_grad = False
 
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.
@@ -101,13 +113,17 @@ class DINOv2SemanticSegmentation(TaskModel):
         else:
             logger.info("Backbone weights loaded successfully.")
 
-    def forward(self, x: Tensor) -> Tensor:
-        """
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        """Forward pass for inference.
+
         Args:
             x: input image of shape (B, C, H, W)
         Returns:
-            segmentation logits of shape (B, num_classes, H, W)
+            (masks, logits) tuple where masks have shape (B, H, W) and logits have shape
+            (B, num_classes, H, W). The masks are the predicted segmentation masks and
+            the logits are the raw output of the model.
         """
+        # Up-sample to match original image/mask resolution.
         B, _, H, W = x.shape
 
         # Get the patch tokens -> (B, N, D) where N = H_patch * W_patch.
@@ -128,5 +144,5 @@ class DINOv2SemanticSegmentation(TaskModel):
             mode="bilinear",
             align_corners=False,
         )
-
-        return logits
+        masks = logits.argmax(dim=1)
+        return masks, logits

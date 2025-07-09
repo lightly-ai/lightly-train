@@ -7,6 +7,14 @@
 #
 from pathlib import Path
 
+import pytest
+from lightning_utilities.core.imports import RequirementCache
+
+if RequirementCache("torchmetrics<1.5"):
+    # Skip test if torchmetrics version is too old. This can happen if SuperGradients
+    # is installed which requires torchmetrics==0.8
+    pytest.skip("Old torchmetrics version", allow_module_level=True)
+
 from lightly_train._commands import train_task
 
 from .. import helpers
@@ -35,11 +43,11 @@ def test_train_task(tmp_path: Path) -> None:
                 "masks": val_masks,
             },
             "classes": {
-                0: "person",
+                0: "background",
                 1: "car",
             },
         },
-        model="_vit_test14",
+        model="dinov2_vit/_vit_test14",
         task="semantic_segmentation",
         devices=1,
         batch_size=2,

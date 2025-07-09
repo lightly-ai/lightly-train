@@ -14,7 +14,13 @@ from lightly_train._configs.config import PydanticConfig
 
 class TaskLoggerArgs(PydanticConfig):
     log_every_num_steps: int | Literal["auto"] = "auto"
+    val_every_num_steps: int | Literal["auto"] = "auto"
+    val_log_every_num_steps: int | Literal["auto"] = "auto"
 
-    def resolve_auto(self, steps: int) -> None:
+    def resolve_auto(self, steps: int, val_steps: int) -> None:
         if self.log_every_num_steps == "auto":
             self.log_every_num_steps = min(100, max(1, steps // 10))
+        if self.val_every_num_steps == "auto":
+            self.val_every_num_steps = min(1000, max(1, steps))
+        if self.val_log_every_num_steps == "auto":
+            self.val_log_every_num_steps = min(20, max(1, val_steps))

@@ -105,10 +105,8 @@ class DINOv2SemanticSegmentationValTransformArgs(SemanticSegmentationTransformAr
 
 class DINOv2SemanticSegmentationTrainTransform(SemanticSegmentationTransform):
     def __init__(
-        self, transform_args: DINOv2SemanticSegmentationTrainTransformArgs | None = None
+        self, transform_args: DINOv2SemanticSegmentationTrainTransformArgs
     ) -> None:
-        if transform_args is None:
-            transform_args = DINOv2SemanticSegmentationTrainTransformArgs()
         super().__init__(transform_args=transform_args)
 
     @staticmethod
@@ -118,10 +116,8 @@ class DINOv2SemanticSegmentationTrainTransform(SemanticSegmentationTransform):
 
 class DINOv2SemanticSegmentationValTransform(SemanticSegmentationTransform):
     def __init__(
-        self, transform_args: DINOv2SemanticSegmentationValTransformArgs | None = None
+        self, transform_args: DINOv2SemanticSegmentationValTransformArgs
     ) -> None:
-        if transform_args is None:
-            transform_args = DINOv2SemanticSegmentationValTransformArgs()
         super().__init__(transform_args=transform_args)
 
     @staticmethod

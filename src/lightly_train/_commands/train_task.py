@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
+import torch
 from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
@@ -113,8 +114,16 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # TODO(Guarin, 07/25): Verify out_dir same on all local ranks, see train.py. We can simplify this
     # here as distributed processing is already initialized with fabric.
 
-    train_dataset = helpers.get_dataset(dataset_args=config.data.get_train_args())
-    val_dataset = helpers.get_dataset(dataset_args=config.data.get_val_args())
+    # TODO(Guarin, 07/25): Allow passing transform args.
+    train_transform = helpers.get_train_transform()
+    val_transform = helpers.get_val_transform()
+
+    train_dataset = helpers.get_dataset(
+        dataset_args=config.data.get_train_args(), transform=train_transform
+    )
+    val_dataset = helpers.get_dataset(
+        dataset_args=config.data.get_val_args(), transform=val_transform
+    )
     logger.info(f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}")
 
     # TODO(Guarin, 07/25): Choose sensible default for steps. Based on model?
@@ -129,10 +138,6 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     config.num_workers = common_helpers.get_num_workers(
         num_workers=config.num_workers,
         num_devices_per_node=fabric.world_size // config.num_nodes,
-    )
-    config.logger_args = helpers.get_logger_args(
-        steps=config.steps,
-        logger_args=config.logger_args,
     )
 
     # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
@@ -155,10 +160,16 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # reloading dataloader after every epoch? Is this preferred over persistent workers?
     infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
-    # TODO(Guarin, 07/25): Support proper model naming with dinov2_vit/vitb14_pretrain
-    # etc.
+    config.logger_args = helpers.get_logger_args(
+        steps=config.steps,
+        val_steps=len(val_dataloader),
+        logger_args=config.logger_args,
+    )
+
     model = helpers.get_task_train_model(
-        model_name=config.model, task_args=config.task_args
+        model_name=config.model,
+        task_args=config.task_args,
+        data_args=config.data,
     )
     optimizer = model.get_optimizer()
     model, optimizer = fabric.setup(model, optimizer)  # type: ignore[assignment]
@@ -166,20 +177,71 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     logger.info(
         f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
     )
-    logger.info(f"Starting training for {config.steps} steps...")
-    for step in range(config.steps):
-        batch = next(infinite_train_dataloader)
-        # TODO(Guarin, 07/25): Backprop.
-        # TODO(Guarin, 07/25): Log loss and metrics.
-        model.training_step(fabric=fabric, batch=batch)
-        if step % no_auto(config.logger_args.log_every_num_steps) == 0:
-            logger.info(f"Step {step}/{config.steps}")
 
-        # TODO(Guarin, 07/25): Validate every `val_every_num_steps` steps.
-        # TODO(Guarin, 07/25): Log loss and metrics.
-        if step == config.steps - 1:
-            for batch in val_dataloader:
-                model.validation_step(fabric=fabric, batch=batch)
+    model.train()
+    fabric.barrier()
+    logger.info(f"Training for {config.steps} steps...")
+    for step in range(config.steps):
+        is_last_step = step + 1 == config.steps
+        is_log_step = (
+            step == 0
+            or (step + 1) % no_auto(config.logger_args.log_every_num_steps) == 0
+        )
+        is_val_step = (
+            step > 0
+            and (step + 1) % no_auto(config.logger_args.val_every_num_steps) == 0
+        )
+
+        batch = next(infinite_train_dataloader)
+        train_result = model.training_step(fabric=fabric, batch=batch)
+        fabric.backward(train_result.loss)
+        optimizer.step()
+        optimizer.zero_grad()
+
+        if is_log_step or is_last_step:
+            train_log_dict = helpers.compute_metrics(train_result.log_dict)
+            helpers.log_step(
+                split="train",
+                step=step,
+                max_steps=config.steps,
+                log_dict=train_log_dict,
+            )
+            fabric.log_dict(train_log_dict, step=step)
+            helpers.reset_metrics(train_result.log_dict)
+
+        if is_val_step or is_last_step:
+            fabric.barrier()
+            logger.info("Validating...")
+            model.eval()
+            for val_step, val_batch in enumerate(val_dataloader):
+                is_last_val_step = val_step + 1 == len(val_dataloader)
+                is_val_log_step = val_step == 0 or (
+                    (val_step + 1) % no_auto(config.logger_args.val_log_every_num_steps)
+                    == 0
+                )
+                with torch.no_grad():
+                    val_result = model.validation_step(fabric=fabric, batch=val_batch)
+                if is_val_log_step:
+                    # Show that we are making progress. Metrics are only calculated
+                    # at the end of the validation loop.
+                    helpers.log_step(
+                        split="val",
+                        step=val_step,
+                        max_steps=len(val_dataloader),
+                        log_dict={},
+                    )
+                if is_last_val_step:
+                    val_log_dict = helpers.compute_metrics(val_result.log_dict)
+                    helpers.log_step(
+                        split="val",
+                        step=val_step,
+                        max_steps=len(val_dataloader),
+                        log_dict=val_log_dict,
+                    )
+                    fabric.log_dict(val_log_dict, step=step)
+                    helpers.reset_metrics(val_result.log_dict)
+            model.train()
+            fabric.barrier()
     logger.info("Training completed.")
 
 
