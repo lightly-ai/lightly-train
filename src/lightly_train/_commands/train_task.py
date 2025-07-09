@@ -201,6 +201,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     for name, module in model.named_modules():
         logger.debug(f"train={module.training} {name}")
 
+    model.set_train_mode()
     fabric.barrier()
     if start_step > 0:
         logger.info(f"Resuming training from step {start_step}/{config.steps}...")
