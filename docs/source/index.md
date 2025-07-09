@@ -48,7 +48,7 @@ a wide range of model architectures and use cases out of the box.
 :alt: benchmark results
 
 On COCO, YOLOv8-s models pretrained with LightlyTrain achieve high performance across all tested label fractions.
-These improvements hold for other architectures like YOLOv11, RT-DETRv2, and Faster R-CNN.
+These improvements hold for other architectures like YOLOv11, RT-DETR, and Faster R-CNN.
 See our [announcement post](https://www.lightly.ai/blog/introducing-lightly-train) for more details.
 ```
 
