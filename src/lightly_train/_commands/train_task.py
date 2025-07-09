@@ -176,6 +176,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         task_args=config.task_args,
         data_args=config.data,
     )
+    model.set_train_mode()
     optimizer = model.get_optimizer()
     model, optimizer = fabric.setup(model, optimizer)  # type: ignore[assignment]
 
@@ -195,7 +196,6 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         helpers.load_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
     start_step = 0 if state["step"] is None else state["step"] + 1
 
-    model.set_train_mode()
     fabric.barrier()
     if start_step > 0:
         logger.info(f"Resuming training from step {start_step}/{config.steps}...")
