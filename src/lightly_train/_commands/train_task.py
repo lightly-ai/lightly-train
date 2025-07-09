@@ -196,6 +196,11 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         helpers.load_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
     start_step = 0 if state["step"] is None else state["step"] + 1
 
+    for name, param in model.named_parameters():
+        logger.debug(f"grad={param.requires_grad} {name}")
+    for name, module in model.named_modules():
+        logger.debug(f"train={module.training} {name}")
+
     fabric.barrier()
     if start_step > 0:
         logger.info(f"Resuming training from step {start_step}/{config.steps}...")
