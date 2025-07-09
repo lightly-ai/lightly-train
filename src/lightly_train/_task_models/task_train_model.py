@@ -55,6 +55,10 @@ class TaskTrainModel(Module):
     def get_optimizer(self) -> Optimizer:
         raise NotImplementedError()
 
+    def set_train_mode(self) -> None:
+        """Set the model to training mode."""
+        self.train()
+
 
 @dataclass
 class TaskStepResult:
