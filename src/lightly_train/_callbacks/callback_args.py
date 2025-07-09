@@ -37,5 +37,5 @@ class CallbackArgs(PydanticConfig):
     model_checkpoint: ModelCheckpointArgs | None = Field(
         default_factory=ModelCheckpointArgs
     )
-    
+
     device_stats_monitor: DeviceStatsMonitorArgs | None = None
