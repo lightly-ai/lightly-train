@@ -178,7 +178,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
     )
 
-    model.train()
+    model.set_train_mode()
     fabric.barrier()
     logger.info(f"Training for {config.steps} steps...")
     for step in range(config.steps):
@@ -240,7 +240,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
                     )
                     fabric.log_dict(val_log_dict, step=step)
                     helpers.reset_metrics(val_result.log_dict)
-            model.train()
+            model.set_train_mode()
             fabric.barrier()
     logger.info("Training completed.")
 

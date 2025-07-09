@@ -27,11 +27,13 @@ from lightly_train._task_models.task_train_model import (
     TaskTrainModel,
     TaskTrainModelArgs,
 )
-from lightly_train.types import MaskSemanticSegmentationBatch
+from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
 class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
-    pass
+    backbone_weights: PathLike | None = None
+    freeze_backbone: bool = False
+    drop_path_rate: float = 0.0
 
 
 class DINOv2SemanticSegmentationTrain(TaskTrainModel):
@@ -42,12 +44,19 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         data_args: MaskSemanticSegmentationDataArgs,
     ) -> None:
         super().__init__()
+        self.task_args = task_args
+
         self.model = DINOv2SemanticSegmentation(
             # TODO(Guarin, 10/25): Make configurable and pass all args.
             # We probably don't want to instantiate the model here. Either we pass it
             # from the outside or we use a setup function (might be useful for FSDP).
             model_name=model_name,
             num_classes=len(data_args.classes),
+            backbone_weights=task_args.backbone_weights,
+            freeze_backbone=task_args.freeze_backbone,
+            model_args={
+                "drop_path_rate": task_args.drop_path_rate,
+            },
         )
         self.criterion = DINOv2SemanticSegmentationCrossEntropyLoss()
         self.val_loss = MeanMetric()
@@ -98,3 +107,8 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     def get_optimizer(self) -> Optimizer:
         # TODO(Guarin, 07/25): Handle weight decay for norm and bias parameters.
         return AdamW(self.parameters())
+
+    def set_train_mode(self) -> None:
+        self.train()
+        if self.task_args.freeze_backbone:
+            self.model.freeze_backbone()

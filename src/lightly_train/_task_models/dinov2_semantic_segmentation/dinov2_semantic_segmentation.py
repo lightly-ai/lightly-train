@@ -21,6 +21,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
     DinoVisionTransformer,
 )
 from lightly_train._task_models.task_model import TaskModel
+from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
@@ -50,14 +51,11 @@ class DINOv2SemanticSegmentation(TaskModel):
         self,
         model_name: str,
         num_classes: int,
+        backbone_weights: PathLike | None = None,
+        freeze_backbone: bool = False,
         model_args: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
-        # Pop the backbone weights from model_args if it exists.
-        backbone_weights_path = None
-        if model_args is not None and "backbone_weights" in model_args:
-            backbone_weights_path = model_args.pop("backbone_weights")
-
         # Disable drop path by default.
         args = {
             "drop_path_rate": 0.0,
@@ -80,38 +78,14 @@ class DINOv2SemanticSegmentation(TaskModel):
 
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.
-        if backbone_weights_path is not None:
-            self.load_backbone_weights(backbone_weights_path)
+        if backbone_weights is not None:
+            self.load_backbone_weights(backbone_weights)
+
+        if freeze_backbone:
+            self.freeze_backbone()
 
         # Get the segmentation head.
         self.head = LinearSegmentationHead(embed_dim, num_classes)
-
-    def load_backbone_weights(self, path: str) -> None:
-        """
-        Load backbone weights from a checkpoint file.
-
-        Args:
-            path: path to a .pt file, e.g., exported_last.pt.
-        """
-        # Check if the file exists.
-        if not os.path.exists(path):
-            logger.error(f"Checkpoint file not found: {path}")
-            return
-
-        # Load the checkpoint.
-        state_dict = torch.load(path, map_location="cpu")
-
-        # Load the state dict into the backbone.
-        missing, unexpected = self.backbone.load_state_dict(state_dict, strict=False)
-
-        # Log missing and unexpected keys.
-        if missing or unexpected:
-            if missing:
-                logger.warning(f"Missing keys when loading backbone: {missing}")
-            if unexpected:
-                logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
-        else:
-            logger.info("Backbone weights loaded successfully.")
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         """Forward pass for inference.
@@ -146,3 +120,35 @@ class DINOv2SemanticSegmentation(TaskModel):
         )
         masks = logits.argmax(dim=1)
         return masks, logits
+
+    def load_backbone_weights(self, path: PathLike) -> None:
+        """
+        Load backbone weights from a checkpoint file.
+
+        Args:
+            path: path to a .pt file, e.g., exported_last.pt.
+        """
+        # Check if the file exists.
+        if not os.path.exists(path):
+            logger.error(f"Checkpoint file not found: {path}")
+            return
+
+        # Load the checkpoint.
+        state_dict = torch.load(path, map_location="cpu")
+
+        # Load the state dict into the backbone.
+        missing, unexpected = self.backbone.load_state_dict(state_dict, strict=False)
+
+        # Log missing and unexpected keys.
+        if missing or unexpected:
+            if missing:
+                logger.warning(f"Missing keys when loading backbone: {missing}")
+            if unexpected:
+                logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
+        else:
+            logger.info("Backbone weights loaded successfully.")
+
+    def freeze_backbone(self) -> None:
+        self.backbone.eval()
+        for param in self.backbone.parameters():
+            param.requires_grad = False
