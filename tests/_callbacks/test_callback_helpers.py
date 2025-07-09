@@ -12,7 +12,6 @@ from typing import Any
 
 import pytest
 from pytorch_lightning.callbacks import (
-    DeviceStatsMonitor,
     EarlyStopping,
 )
 
@@ -78,7 +77,7 @@ def test_get_callbacks__default(tmp_path: Path) -> None:
         normalize_args=NormalizeArgs(),
         loggers=[],
     )
-    assert len(callbacks) == 6
+    assert len(callbacks) == 5
     early_stopping = next(c for c in callbacks if isinstance(c, EarlyStopping))
     model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert early_stopping.monitor == "train_loss"
@@ -101,7 +100,7 @@ def test_get_callbacks__mlflow(tmp_path: Path) -> None:
         normalize_args=NormalizeArgs(),
         loggers=loggers,
     )
-    assert len(callbacks) == 7
+    assert len(callbacks) == 6
     early_stopping = next(c for c in callbacks if isinstance(c, EarlyStopping))
     model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert early_stopping.monitor == "train_loss"
@@ -126,8 +125,7 @@ def test_get_callbacks__disable(tmp_path: Path) -> None:
         normalize_args=NormalizeArgs(),
         loggers=[],
     )
-    assert len(callbacks) == 4
-    assert any(isinstance(c, DeviceStatsMonitor) for c in callbacks)
+    assert len(callbacks) == 3
     assert any(isinstance(c, ModelCheckpoint) for c in callbacks)
     assert not any(isinstance(c, MLFlowLogging) for c in callbacks)
 
