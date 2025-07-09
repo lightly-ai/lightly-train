@@ -185,7 +185,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     )
 
     state = {
-        "mode": model,
+        "model": model,
         "optimizer": optimizer,
         "train_dataloader": train_dataloader,
         "step": None,
