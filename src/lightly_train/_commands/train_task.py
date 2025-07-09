@@ -30,6 +30,7 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskCheckpointArgs
 from lightly_train._task_models.task_train_model import TaskTrainModelArgs
+from lightly_train._train_task_state import TrainTaskState
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -161,9 +162,6 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         num_workers=config.num_workers,
         loader_args=config.loader_args,
     )
-    # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
-    # reloading dataloader after every epoch? Is this preferred over persistent workers?
-    infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
     config.logger_args = helpers.get_logger_args(
         steps=config.steps,
@@ -184,17 +182,24 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
     )
 
-    state = {
-        "model": model,
-        "optimizer": optimizer,
-        "train_dataloader": train_dataloader,
-        "step": None,
+    state = TrainTaskState(
+        model=model,
+        optimizer=optimizer,
+        train_dataloader=train_dataloader,
+        step=-1,
         # TODO(Guarin, 07/25): Add config to state. For this we have to make the config
         # JSON serializable.
-    }
+    )
+
     if config.resume_interrupted:
         helpers.load_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
-    start_step = 0 if state["step"] is None else state["step"] + 1
+    start_step = state["step"] + 1
+
+    # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
+    # reloading dataloader after every epoch? Is this preferred over persistent workers?
+    infinite_train_dataloader = InfiniteCycleIterator(
+        iterable=state["train_dataloader"]
+    )
 
     for name, param in model.named_parameters():
         logger.debug(f"grad={param.requires_grad} {name}")

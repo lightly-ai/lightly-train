@@ -42,6 +42,7 @@ from lightly_train._task_models.task_train_model import (
     TaskTrainModel,
     TaskTrainModelArgs,
 )
+from lightly_train._train_task_state import TrainTaskState
 from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import PathLike, TaskDatasetItem
 
@@ -298,15 +299,15 @@ def get_last_checkpoint_path(out_dir: PathLike) -> Path:
     return ckpt_path
 
 
-def save_checkpoint(fabric: Fabric, out_dir: Path, state: dict[str, Any]) -> None:
+def save_checkpoint(fabric: Fabric, out_dir: Path, state: TrainTaskState) -> None:
     ckpt_path = get_last_checkpoint_path(out_dir)
     logger.info(f"Saving checkpoint to '{ckpt_path}'")
-    fabric.save(path=ckpt_path, state=state)
+    fabric.save(path=ckpt_path, state=state)  # type: ignore[arg-type]
 
 
-def load_checkpoint(fabric: Fabric, out_dir: PathLike, state: dict[str, Any]) -> None:
+def load_checkpoint(fabric: Fabric, out_dir: PathLike, state: TrainTaskState) -> None:
     ckpt_path = get_last_checkpoint_path(out_dir)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
     logger.info(f"Loading checkpoint from '{ckpt_path}'")
-    fabric.load(path=ckpt_path, state=state)
+    fabric.load(path=ckpt_path, state=state)  # type: ignore[arg-type]
