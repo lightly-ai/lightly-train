@@ -319,7 +319,8 @@ def load_checkpoint(fabric: Fabric, out_dir: PathLike, state: TrainTaskState) ->
     logger.info(f"Loading checkpoint from '{ckpt_path}'")
     fabric.load(path=ckpt_path, state=state)  # type: ignore[arg-type]
 
-    # Sanity check to make sure no new objects were created by fabric.load
+    # Sanity check to make sure that checkpoint loading didn't create new objects or
+    # changed the model state.
     assert state["model"] is model
     assert {
         n: p.requires_grad for n, p in state["model"].named_parameters()
