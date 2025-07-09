@@ -53,6 +53,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.val_loss = MeanMetric()
 
         # MeanIoU assumes that background is class 0.
+        # TODO(Guarin, 07/25): Make params configurable.
         self.train_miou = MeanIoU(
             num_classes=max(data_args.classes) + 1,
             include_background=True,

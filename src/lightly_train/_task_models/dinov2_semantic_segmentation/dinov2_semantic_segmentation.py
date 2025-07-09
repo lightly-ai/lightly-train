@@ -58,12 +58,17 @@ class DINOv2SemanticSegmentation(TaskModel):
         if model_args is not None and "backbone_weights" in model_args:
             backbone_weights_path = model_args.pop("backbone_weights")
 
+        # Disable drop path by default.
+        args = {
+            "drop_path_rate": 0.0,
+        }
+        if model_args is not None:
+            args.update(model_args)
+
         # Get the backbone.
-        # TODO(Guarin, 07/25): This builds a student model. Double check that this is
-        # what we want.
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
             model_name=model_name,
-            model_args=model_args,
+            model_args=args,
         )
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
