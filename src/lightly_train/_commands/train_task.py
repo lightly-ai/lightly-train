@@ -28,6 +28,7 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
+from lightly_train._task_checkpoint import TaskCheckpointArgs
 from lightly_train._task_models.task_train_model import TaskTrainModelArgs
 from lightly_train.types import PathLike
 
@@ -55,6 +56,7 @@ def train_task(
     logger_args: dict[str, Any] | None = None,
     task_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
+    checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
     config = validate.pydantic_model_validate(TrainTaskConfig, locals())
     train_task_from_config(config=config)
@@ -110,6 +112,9 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         )
     )
     config.task_args = helpers.get_task_train_model_args(task_args=config.task_args)
+    config.checkpoint_args = helpers.get_checkpoint_args(
+        checkpoint_args=config.checkpoint_args
+    )
 
     # TODO(Guarin, 07/25): Verify out_dir same on all local ranks, see train.py. We can simplify this
     # here as distributed processing is already initialized with fabric.
@@ -178,10 +183,26 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
     )
 
+    state = {
+        "mode": model,
+        "optimizer": optimizer,
+        "train_dataloader": train_dataloader,
+        "step": None,
+        # TODO(Guarin, 07/25): Add config to state. For this we have to make the config
+        # JSON serializable.
+    }
+    if config.resume_interrupted:
+        helpers.load_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
+    start_step = 0 if state["step"] is None else state["step"] + 1
+
     model.set_train_mode()
     fabric.barrier()
-    logger.info(f"Training for {config.steps} steps...")
-    for step in range(config.steps):
+    if start_step > 0:
+        logger.info(f"Resuming training from step {start_step}/{config.steps}...")
+    else:
+        logger.info(f"Training for {config.steps} steps...")
+    for step in range(start_step, config.steps):
+        state["step"] = step
         is_last_step = step + 1 == config.steps
         is_log_step = (
             step == 0
@@ -190,6 +211,10 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         is_val_step = (
             step > 0
             and (step + 1) % no_auto(config.logger_args.val_every_num_steps) == 0
+        )
+        is_save_ckpt_step = (
+            step > 0
+            and (step + 1) % no_auto(config.checkpoint_args.save_every_num_steps) == 0
         )
 
         batch = next(infinite_train_dataloader)
@@ -221,15 +246,6 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
                 )
                 with torch.no_grad():
                     val_result = model.validation_step(fabric=fabric, batch=val_batch)
-                if is_val_log_step:
-                    # Show that we are making progress. Metrics are only calculated
-                    # at the end of the validation loop.
-                    helpers.log_step(
-                        split="val",
-                        step=val_step,
-                        max_steps=len(val_dataloader),
-                        log_dict={},
-                    )
                 if is_last_val_step:
                     val_log_dict = helpers.compute_metrics(val_result.log_dict)
                     helpers.log_step(
@@ -240,8 +256,19 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
                     )
                     fabric.log_dict(val_log_dict, step=step)
                     helpers.reset_metrics(val_result.log_dict)
+                elif is_val_log_step:
+                    # Show that we are making progress. Metrics are only calculated
+                    # at the end of the validation loop.
+                    helpers.log_step(
+                        split="val",
+                        step=val_step,
+                        max_steps=len(val_dataloader),
+                        log_dict={},
+                    )
             model.set_train_mode()
             fabric.barrier()
+        if is_save_ckpt_step or is_last_step:
+            helpers.save_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
     logger.info("Training completed.")
 
 
@@ -265,6 +292,7 @@ class TrainTaskConfig(PydanticConfig):
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
     task_args: dict[str, Any] | TaskTrainModelArgs | None = None
     loader_args: dict[str, Any] | None = None
+    checkpoint_args: dict[str, Any] | TaskCheckpointArgs | None = None
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)

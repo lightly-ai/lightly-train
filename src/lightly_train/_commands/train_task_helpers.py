@@ -27,6 +27,7 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 )
 from lightly_train._env import Env
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
+from lightly_train._task_checkpoint import TaskCheckpointArgs
 from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_train import (
     DINOv2SemanticSegmentationTrain,
     DINOv2SemanticSegmentationTrainArgs,
@@ -279,3 +280,33 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
     for value in log_dict.values():
         if isinstance(value, Metric):
             value.reset()
+
+
+def get_checkpoint_args(
+    checkpoint_args: dict[str, Any] | TaskCheckpointArgs | None,
+) -> TaskCheckpointArgs:
+    if isinstance(checkpoint_args, TaskCheckpointArgs):
+        return checkpoint_args
+    checkpoint_args = {} if checkpoint_args is None else checkpoint_args
+    args = validate.pydantic_model_validate(TaskCheckpointArgs, checkpoint_args)
+    return args
+
+
+def get_last_checkpoint_path(out_dir: PathLike) -> Path:
+    out_dir = Path(out_dir).resolve()
+    ckpt_path = out_dir / "checkpoints" / "last.ckpt"
+    return ckpt_path
+
+
+def save_checkpoint(fabric: Fabric, out_dir: Path, state: dict[str, Any]) -> None:
+    ckpt_path = get_last_checkpoint_path(out_dir)
+    logger.info(f"Saving checkpoint to '{ckpt_path}'")
+    fabric.save(path=ckpt_path, state=state)
+
+
+def load_checkpoint(fabric: Fabric, out_dir: PathLike, state: dict[str, Any]) -> None:
+    ckpt_path = get_last_checkpoint_path(out_dir)
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
+    logger.info(f"Loading checkpoint from '{ckpt_path}'")
+    fabric.load(path=ckpt_path, state=state)
