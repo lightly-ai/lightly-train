@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documented support for the [RT-DETRv2 models](https://docs.lightly.ai/train/stable/models/rtdetr.html).
+
 ### Changed
 
 - The callback `DeviceStatsMonitor` is now disabled by default.
