@@ -10,8 +10,7 @@ from __future__ import annotations
 from lightning_fabric import Fabric
 from torch.optim.adamw import AdamW
 from torch.optim.optimizer import Optimizer
-from torchmetrics import MeanMetric
-from torchmetrics.segmentation import MeanIoU
+from torchmetrics import JaccardIndex, MeanMetric
 
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
@@ -64,11 +63,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
 
         # MeanIoU assumes that background is class 0.
         # TODO(Guarin, 07/25): Make params configurable.
-        self.train_miou = MeanIoU(
+        self.train_miou = JaccardIndex(
+            task="multiclass",
             num_classes=max(data_args.classes) + 1,
-            include_background=True,
-            per_class=False,
-            input_format="index",
+            ignore_index=task_args.ignore_index,
         )
         self.val_miou = self.train_miou.clone()
 
