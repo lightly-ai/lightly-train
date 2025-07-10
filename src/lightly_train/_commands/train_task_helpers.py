@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import json
 import logging
-from contextlib import contextmanager
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Literal
+from typing import Any, Literal
 
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
@@ -49,42 +48,19 @@ from lightly_train.types import PathLike, TaskDatasetItem
 logger = logging.getLogger(__name__)
 
 
-@contextmanager
-def filesystem_rank_zero_first(
-    fabric: Fabric, path: PathLike
-) -> Generator[bool, None, None]:
-    """The code under this context manager is first excecuted on rank zero for the
-    filesystem at `path`.
-
-    If the filesystem at path is shared, the code is first executed on global rank zero.
-    If the filesystem at path is not shared, the code is first executed on all local
-    zero ranks.
-
-    Yields:
-        Boolean that indicates whether the code in the current process is executed
-        first.
-    """
-    is_shared = fabric_utilities.is_shared_filesystem(
-        strategy=fabric.strategy, path=path
-    )
-    local = not is_shared
-    is_filesystem_rank_zero = fabric.is_global_zero or (
-        local and fabric.local_rank == 0
-    )
-    with fabric.rank_zero_first(local=local):
-        yield is_filesystem_rank_zero
-
-
 def get_out_dir(
-    fabric: Fabric, out: PathLike, resume_interrupted: bool, overwrite: bool
+    fabric: Fabric,
+    out: PathLike,
+    resume_interrupted: bool,
+    overwrite: bool,
 ) -> Path:
-    out_dir = Path(out).resolve()
-    with filesystem_rank_zero_first(
-        fabric=fabric, path=out_dir
-    ) as is_filesystem_rank_zero:
-        if not is_filesystem_rank_zero:
-            return out_dir
+    # Use the same output directory on all ranks. This avoids issues where users
+    # accidentally create different directories on each rank, for example with:
+    #   out=datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    out_global_rank_zero = fabric.broadcast(str(out))
+    out_dir = Path(out_global_rank_zero)
 
+    def check_and_create_out_dir() -> None:
         if out_dir.exists():
             if not out_dir.is_dir():
                 raise ValueError(f"Output '{out_dir}' is not a directory!")
@@ -101,6 +77,29 @@ def get_out_dir(
                 )
         else:
             out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create the output directory if it doesn't exist.
+    with fabric.rank_zero_first():
+        if fabric.global_rank == 0:
+            check_and_create_out_dir()
+
+    # Check if the output directory is on a shared filesystem. We can only check this
+    # after global rank zero has created the directory.
+    try:
+        is_shared_filesystem = fabric_utilities.is_shared_filesystem(
+            strategy=fabric.strategy, path=out_dir
+        )
+    except FileNotFoundError:
+        # Clearly not a shared filesystem because we just created the directory.
+        is_shared_filesystem = False
+
+    # If the filesystem is not shared we have to create the output directory on every
+    # node individually.
+    if not is_shared_filesystem:
+        with fabric.rank_zero_first(local=True):
+            if fabric.local_rank == 0 and fabric.global_rank != 0:
+                check_and_create_out_dir()
+
     return out_dir
 
 
