@@ -32,10 +32,9 @@ class CallbackArgs(PydanticConfig):
     learning_rate_monitor: LearningRateMonitorArgs | None = Field(
         default_factory=LearningRateMonitorArgs
     )
+    device_stats_monitor: DeviceStatsMonitorArgs | None = None
     early_stopping: EarlyStoppingArgs | None = Field(default_factory=EarlyStoppingArgs)
     model_export: ModelExportArgs | None = Field(default_factory=ModelExportArgs)
     model_checkpoint: ModelCheckpointArgs | None = Field(
         default_factory=ModelCheckpointArgs
     )
-
-    device_stats_monitor: DeviceStatsMonitorArgs | None = None

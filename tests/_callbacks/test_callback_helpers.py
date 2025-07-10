@@ -11,9 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pytorch_lightning.callbacks import (
-    EarlyStopping,
-)
+from pytorch_lightning.callbacks import DeviceStatsMonitor, EarlyStopping
 
 from lightly_train._callbacks import callback_helpers
 from lightly_train._callbacks.callback_args import CallbackArgs, DeviceStatsMonitorArgs
@@ -123,8 +121,7 @@ def test_get_callbacks__enable_devicestatsmonitor(tmp_path: Path) -> None:
         loggers=[],
     )
     assert len(callbacks) == 6
-    assert any(isinstance(c, ModelCheckpoint) for c in callbacks)
-    assert not any(isinstance(c, MLFlowLogging) for c in callbacks)
+    assert any(isinstance(c, DeviceStatsMonitor) for c in callbacks)
 
 
 def test_get_callbacks__disable(tmp_path: Path) -> None:
