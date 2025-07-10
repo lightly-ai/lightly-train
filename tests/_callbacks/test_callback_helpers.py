@@ -16,9 +16,7 @@ from pytorch_lightning.callbacks import (
 )
 
 from lightly_train._callbacks import callback_helpers
-from lightly_train._callbacks.callback_args import (
-    CallbackArgs,
-)
+from lightly_train._callbacks.callback_args import CallbackArgs, DeviceStatsMonitorArgs
 from lightly_train._callbacks.checkpoint import ModelCheckpoint, ModelCheckpointArgs
 from lightly_train._callbacks.mlflow_logging import MLFlowLogging
 from lightly_train._loggers.mlflow import MLFlowLogger
@@ -108,6 +106,25 @@ def test_get_callbacks__mlflow(tmp_path: Path) -> None:
     assert model_checkpoint.save_last
     assert str(model_checkpoint.dirpath) == str(tmp_path / "checkpoints")
     assert any(isinstance(c, MLFlowLogging) for c in callbacks)
+
+
+def test_get_callbacks__enable_devicestatsmonitor(tmp_path: Path) -> None:
+    model = DummyCustomModel()
+    embedding_model = EmbeddingModel(wrapped_model=model)
+    callback_args = CallbackArgs(
+        device_stats_monitor=DeviceStatsMonitorArgs(),
+    )
+    callbacks = callback_helpers.get_callbacks(
+        callback_args=callback_args,
+        out=tmp_path,
+        wrapped_model=model,
+        embedding_model=embedding_model,
+        normalize_args=NormalizeArgs(),
+        loggers=[],
+    )
+    assert len(callbacks) == 6
+    assert any(isinstance(c, ModelCheckpoint) for c in callbacks)
+    assert not any(isinstance(c, MLFlowLogging) for c in callbacks)
 
 
 def test_get_callbacks__disable(tmp_path: Path) -> None:
