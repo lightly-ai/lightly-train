@@ -119,7 +119,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 | Torchvision | ResNet, ConvNext, ShuffleNetV2 | [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) |
 | TIMM | All models | [🔗](https://docs.lightly.ai/train/stable/models/timm.html) |
 | Ultralytics | YOLOv5, YOLOv6, YOLOv8, YOLO11, YOLO12 | [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) |
-| RT-DETR | RT-DETR | [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) |
+| RT-DETR | RT-DETR & RT-DETRv2 | [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) |
 | RF-DETR | RF-DETR | [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) |
 | YOLOv12 | YOLOv12 | [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) |
 | SuperGradients | PP-LiteSeg, SSD, YOLO-NAS | [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) |
