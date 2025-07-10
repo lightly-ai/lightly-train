@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Literal
 
 import torch
@@ -70,6 +71,15 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # have to initialize the output directory and some other things. Fabric doesn't
     # expose a method to add callbacks and loggers later but it should be safe to do
     # so anyways.
+
+    config.logger_args = helpers.get_logger_args(
+        logger_args=config.logger_args,
+    )
+    logger_instances = helpers.get_loggers(
+        logger_args=config.logger_args,
+        out=Path(config.out),
+    )
+
     # TODO(Guarin, 07/25): Validate and initialize arguments passed to Fabric properly.
     fabric = Fabric(
         accelerator=config.accelerator,
@@ -77,6 +87,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         devices=config.devices,
         num_nodes=config.num_nodes,
         precision=config.precision,
+        loggers=logger_instances,
     )
     fabric.launch()
     config.accelerator = fabric.accelerator
@@ -163,11 +174,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         loader_args=config.loader_args,
     )
 
-    config.logger_args = helpers.get_logger_args(
-        steps=config.steps,
-        val_steps=len(val_dataloader),
-        logger_args=config.logger_args,
-    )
+    config.logger_args.resolve_auto(steps=config.steps, val_steps=len(val_dataloader))
 
     model = helpers.get_task_train_model(
         model_name=config.model,

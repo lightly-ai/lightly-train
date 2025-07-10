@@ -10,9 +10,11 @@ from __future__ import annotations
 from typing import Literal
 
 from lightly_train._configs.config import PydanticConfig
-
+from lightly_train._loggers.mlflow import MLFlowLoggerArgs
 
 class TaskLoggerArgs(PydanticConfig):
+    mlflow: MLFlowLoggerArgs | None = None
+    
     log_every_num_steps: int | Literal["auto"] = "auto"
     val_every_num_steps: int | Literal["auto"] = "auto"
     val_log_every_num_steps: int | Literal["auto"] = "auto"
