@@ -58,7 +58,9 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
                 "drop_path_rate": task_args.drop_path_rate,
             },
         )
-        self.criterion = DINOv2SemanticSegmentationCrossEntropyLoss(task_args.ignore_index)
+        self.criterion = DINOv2SemanticSegmentationCrossEntropyLoss(
+            task_args.ignore_index
+        )
         self.val_loss = MeanMetric()
 
         # MeanIoU assumes that background is class 0.
