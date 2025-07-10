@@ -8,7 +8,11 @@ with LightlyTrain.
 ```{note}
 RT-DETR is not a pip-installable Python package. For this reason,
 RT-DETR is not fully integrated with LightlyTrain and has to be
-installed manually.
+installed manually, however LightlyTrain provides a model wrapper for the RT-DETR models.
+```
+
+```{warning}
+Due to an incompatibility between the torchvision version requirements of RT-DETRv1, we support the RT-DETRv2 implementation that is backward compatible and allows the training of both RT-DETR(v1) and RT-DETRv2 models.
 ```
 
 ## RT-DETR Installation
@@ -89,8 +93,23 @@ for more information on how to fine-tune a model.
 
 The following RT-DETR model variants are supported:
 
-- `rtdetr_r18vd`
-- `rtdetr_r34vd`
-- `rtdetr_r50vd`
-- `rtdetr_r50vd_m`
-- `rtdetr_r101vd`
+- RT-DETR
+  - `rtdetr/rtdetr_r18vd_6x_coco.yml`
+  - `rtdetr/rtdetr_r34vd_6x_coco.yml`
+  - `rtdetr/rtdetr_r50vd_6x_coco.yml`
+  - `rtdetr/rtdetr_r50vd_m_6x_coco.yml`
+  - `rtdetr/rtdetr_r101vd_6x_coco.yml`
+- RT-DETRv2
+  - `rtdetrv2/rtdetrv2_r18vd_120e_coco.yml`
+  - `rtdetrv2/rtdetrv2_r18vd_120e_voc.yml`
+  - `rtdetrv2/rtdetrv2_r18vd_dsp_3x_coco.yml`
+  - `rtdetrv2/rtdetrv2_r18vd_sp1_120e_coco.yml`
+  - `rtdetrv2/rtdetrv2_r18vd_sp2_120e_coco.yml`
+  - `rtdetrv2/rtdetrv2_r18vd_sp3_120e_coco.yml`
+  - `rtdetrv2/rtdetrv2_r34vd_120e_coco.yml`
+  - `rtdetrv2/rtdetrv2_r34vd_dsp_1x_coco.yml`
+  - `rtdetrv2/rtdetrv2_r50vd_6x_coco.yml`
+  - `rtdetrv2/rtdetrv2_r50vd_dsp_1x_coco.yml`
+  - `rtdetrv2/rtdetrv2_r50vd_m_7x_coco.yml`
+  - `rtdetrv2/rtdetrv2_r50vd_m_dsp_3x_coco.yml`
+  - `rtdetrv2/rtdetrv2_r101vd_6x_coco.yml`

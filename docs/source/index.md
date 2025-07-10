@@ -122,7 +122,7 @@ Want to use your model to generate image embeddings instead? Check out the {ref}
 | Torchvision | ResNet, ConvNext, ShuffleNetV2 | [🔗](#models-torchvision) |
 | TIMM | All models | [🔗](#models-timm) |
 | Ultralytics | YOLOv5, YOLOv6, YOLOv8, YOLO11, YOLO12 | [🔗](#models-ultralytics) |
-| RT-DETR | RT-DETR | [🔗](#models-rtdetr) |
+| RT-DETR | RT-DETR & RT-DETRv2 | [🔗](#models-rtdetr) |
 | RF-DETR | RF-DETR | [🔗](#models-rfdetr) |
 | YOLOv12 | YOLOv12 | [🔗](#models-yolov12) |
 | SuperGradients | PP-LiteSeg, SSD, YOLO-NAS | [🔗](#models-supergradients) |
