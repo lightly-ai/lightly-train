@@ -161,7 +161,7 @@ def pretty_format_args(args: dict[str, Any], indent: int = 4) -> str:
     )
 
 
-def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
+def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:  # type: ignore[no-any-return]
     args_str = json.dumps(args, cls=PrettyFormatArgsJSONEncoder)
     args_dict = json.loads(args_str)
     return args_dict
