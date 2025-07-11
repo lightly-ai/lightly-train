@@ -161,6 +161,12 @@ def pretty_format_args(args: dict[str, Any], indent: int = 4) -> str:
     )
 
 
+def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
+    args_str = json.dumps(args, cls=PrettyFormatArgsJSONEncoder)
+    args_dict: dict[str, Any] = json.loads(args_str)
+    return args_dict
+
+
 def get_train_transform() -> TaskTransform:
     return DINOv2SemanticSegmentationTrainTransform(
         DINOv2SemanticSegmentationTrainTransformArgs()
