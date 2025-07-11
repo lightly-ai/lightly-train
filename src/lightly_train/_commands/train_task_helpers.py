@@ -106,12 +106,16 @@ def get_out_dir(
 
 
 def get_logger_args(
+    steps: int,
+    val_steps: int,
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None,
 ) -> TaskLoggerArgs:
     if isinstance(logger_args, TaskLoggerArgs):
         return logger_args
     logger_args = {} if logger_args is None else logger_args
-    return validate.pydantic_model_validate(TaskLoggerArgs, logger_args)
+    args = validate.pydantic_model_validate(TaskLoggerArgs, logger_args)
+    args.resolve_auto(steps=steps, val_steps=val_steps)
+    return args
 
 
 def get_loggers(logger_args: TaskLoggerArgs, out: Path) -> list[FabricLogger]:
