@@ -70,7 +70,6 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # have to initialize the output directory and some other things. Fabric doesn't
     # expose a method to add callbacks and loggers later but it should be safe to do
     # so anyways.
-
     # TODO(Guarin, 07/25): Validate and initialize arguments passed to Fabric properly.
     fabric = Fabric(
         accelerator=config.accelerator,
