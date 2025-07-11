@@ -189,6 +189,10 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
     )
 
+    hyperparams = common_helpers.sanitize_config_dict(config.model_dump())
+    for logger_instance in fabric.loggers:
+        logger_instance.log_hyperparams(hyperparams)
+
     state = TrainTaskState(
         model=model,
         optimizer=optimizer,
