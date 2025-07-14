@@ -15,6 +15,7 @@ from typing import Any, Literal
 
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
+from lightning_fabric.loggers.logger import Logger as FabricLogger
 from torch.utils.data import DataLoader, Dataset
 from torchmetrics import Metric
 
@@ -25,6 +26,7 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDatasetArgs,
 )
 from lightly_train._env import Env
+from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskCheckpointArgs
 from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_train import (
@@ -116,6 +118,30 @@ def get_logger_args(
     return args
 
 
+def get_loggers(logger_args: TaskLoggerArgs, out: Path) -> list[FabricLogger]:
+    """Get logger instances based on the provided configuration.
+
+    All loggers are configured with the same output directory 'out'.
+
+    Args:
+        logger_args:
+            Configuration for the loggers.
+        out:
+            Path to the output directory.
+
+    Returns:
+        List of loggers.
+    """
+    loggers: list[FabricLogger] = []
+
+    if logger_args.mlflow is not None:
+        logger.debug(f"Using mlflow logger with args {logger_args.mlflow}")
+        loggers.append(MLFlowLogger(save_dir=out, **logger_args.mlflow.model_dump()))
+
+    logger.debug(f"Using loggers {[log.__class__.__name__ for log in loggers]}.")
+    return loggers
+
+
 class PrettyFormatArgsJSONEncoder(JSONEncoder):
     """Custom JSON encoder to pretty format the output."""
 
@@ -133,6 +159,12 @@ def pretty_format_args(args: dict[str, Any], indent: int = 4) -> str:
     return json.dumps(
         args, indent=indent, sort_keys=True, cls=PrettyFormatArgsJSONEncoder
     )
+
+
+def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
+    args_str = json.dumps(args, cls=PrettyFormatArgsJSONEncoder)
+    args_dict: dict[str, Any] = json.loads(args_str)
+    return args_dict
 
 
 def get_train_transform() -> TaskTransform:
