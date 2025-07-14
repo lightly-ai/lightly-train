@@ -91,6 +91,11 @@ class TestMaskSemanticSegmentationDataset:
         ]
 
     def test_mask_unique_values_from_train_task_setup(self, tmp_path: Path) -> None:
+        from typing import Any, cast
+
+        import torch
+        from torchmetrics import JaccardIndex
+
         train_images = tmp_path / "train_images"
         train_masks = tmp_path / "train_masks"
         val_images = tmp_path / "val_images"
@@ -114,15 +119,27 @@ class TestMaskSemanticSegmentationDataset:
             transform=transform,
         )
 
+        metric = JaccardIndex(  # type: ignore[arg-type]
+            task=cast(Any, "multiclass"),
+            num_classes=2,
+            ignore_index=-100,
+        )
+
         for idx in range(len(dataset)):
             item = dataset[idx]
             mask = item["mask"]
 
             assert isinstance(mask, torch.Tensor), "Mask is not a tensor"
-            unique_vals = mask.unique().tolist()
+            unique_vals = mask.unique().tolist()  # type: ignore[no-untyped-call]
             print(f"Mask {idx} unique values: {unique_vals}")
 
-            # Check values are within class range
             assert all(v in {0, 1} for v in unique_vals), (
                 f"Unexpected mask values: {unique_vals}"
             )
+
+            # Dummy prediction = ground truth
+            preds = torch.randint(low=0, high=2, size=mask.shape, dtype=mask.dtype)
+
+            score = metric(preds, mask)
+            print(f"Mask {idx} Jaccard Index score: {score.item():.4f}")
+            assert isinstance(score, torch.Tensor)
