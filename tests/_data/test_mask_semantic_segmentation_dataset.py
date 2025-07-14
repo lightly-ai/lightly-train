@@ -89,3 +89,40 @@ class TestMaskSemanticSegmentationDataset:
             str(image_dir / "image0.jpg"),
             str(image_dir / "image1.jpg"),
         ]
+
+    def test_mask_unique_values_from_train_task_setup(self, tmp_path: Path) -> None:
+        train_images = tmp_path / "train_images"
+        train_masks = tmp_path / "train_masks"
+        val_images = tmp_path / "val_images"
+        val_masks = tmp_path / "val_masks"
+
+        helpers.create_images(train_images)
+        helpers.create_masks(train_masks)
+        helpers.create_images(val_images)
+        helpers.create_masks(val_masks)
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=train_images,
+            mask_dir=train_masks,
+            classes={0: "background", 1: "car"},
+        )
+
+        transform = DummyTransform(transform_args=TaskTransformArgs())
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_filenames=list(dataset_args.list_image_filenames()),
+            transform=transform,
+        )
+
+        for idx in range(len(dataset)):
+            item = dataset[idx]
+            mask = item["mask"]
+
+            assert isinstance(mask, torch.Tensor), "Mask is not a tensor"
+            unique_vals = mask.unique().tolist()
+            print(f"Mask {idx} unique values: {unique_vals}")
+
+            # Check values are within class range
+            assert all(v in {0, 1} for v in unique_vals), (
+                f"Unexpected mask values: {unique_vals}"
+            )
