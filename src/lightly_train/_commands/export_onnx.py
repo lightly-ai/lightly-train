@@ -11,9 +11,9 @@ from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_seg
     DINOv2SemanticSegmentation,
 )
 
-MODEL_NAME = "vitb14"
+MODEL_NAME = "vits14"
 
-export_path = f"dinov2_vit_ckpts/{MODEL_NAME}/exported_models"
+export_path = f"out/dinov2/{MODEL_NAME}/exported_models"
 backbone_weights_path = f"{export_path}/exported_last.pt"
 onnx_path = f"{export_path}/dinov2_segmentation_{MODEL_NAME}.onnx"
 
@@ -23,9 +23,7 @@ torch.use_deterministic_algorithms(True)
 model = DINOv2SemanticSegmentation(
     model_name=MODEL_NAME,
     num_classes=2,
-    model_args={
-        "backbone_weights": backbone_weights_path,
-    },
+    backbone_weights=backbone_weights_path,
 )
 model.eval()
 
@@ -36,5 +34,10 @@ torch.onnx.export(
     (dummy_input,),
     onnx_path,
     input_names=["input"],
-    output_names=["output"],
+    output_names=["mask", "logits"],
+    dynamic_axes={
+        "input": {0: "batch_size", 2: "height", 3: "width"},
+        "mask": {0: "batch_size", 2: "height", 3: "width"},
+        "logits": {0: "batch_size", 2: "height", 3: "width"},
+    },
 )
