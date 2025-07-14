@@ -166,7 +166,7 @@ def create_mask(
     mask_np = np.random.randint(0, num_classes, size=(height, width))
     mask = Image.fromarray(mask_np, mode=mode)
     path.parent.mkdir(parents=True, exist_ok=True)
-    mask.save(path)
+    mask.save(path, format="PNG")
 
 
 def create_masks(
