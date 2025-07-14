@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from typing import Any, cast
+
 from lightning_fabric import Fabric
 from torch.optim.adamw import AdamW
 from torch.optim.optimizer import Optimizer
@@ -66,7 +68,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         # MeanIoU assumes that background is class 0.
         # TODO(Guarin, 07/25): Make params configurable.
         self.train_miou = JaccardIndex(  # type: ignore[arg-type]
-            task="multiclass",
+            task=cast(Any, "multiclass"),
             num_classes=max(data_args.classes) + 1,
             ignore_index=task_args.ignore_index,
         )
