@@ -18,6 +18,10 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
 )
+from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_transforms import (
+    DINOv2SemanticSegmentationTrainTransform,
+    DINOv2SemanticSegmentationTrainTransformArgs,
+)
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -112,7 +116,10 @@ class TestMaskSemanticSegmentationDataset:
             classes={0: "background", 1: "car"},
         )
 
-        transform = DummyTransform(transform_args=TaskTransformArgs())
+        transform = DINOv2SemanticSegmentationTrainTransform(
+            DINOv2SemanticSegmentationTrainTransformArgs()
+        )
+
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
             image_filenames=list(dataset_args.list_image_filenames()),
