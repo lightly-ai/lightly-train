@@ -102,7 +102,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
                 "drop_path_rate": task_args.drop_path_rate,
             },
         )
-        # self.criterion = DINOv2SemanticSegmentationCrossEntropyLoss()
         self.criterion = MaskClassificationLoss(
             num_points=task_args.loss_num_points,
             oversample_ratio=task_args.loss_oversample_ratio,

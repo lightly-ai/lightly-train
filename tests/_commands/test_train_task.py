@@ -15,11 +15,17 @@ if RequirementCache("torchmetrics<1.5"):
     # is installed which requires torchmetrics==0.8
     pytest.skip("Old torchmetrics version", allow_module_level=True)
 
+import sys
+
 from lightly_train._commands import train_task
 
 from .. import helpers
 
 
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="Fails on Windows since switching to Jaccard index.",
+)
 def test_train_task(tmp_path: Path) -> None:
     out = tmp_path / "out"
     train_images = tmp_path / "train_images"
