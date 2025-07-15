@@ -80,7 +80,7 @@ class DINOv2Args(MethodArgs):
     ibot_bottleneck_dim: int = 256
     output_dim: int = 65536  # 65536/131072 for fast/long setup in original DINOv2
     batch_norm: bool = False
-    student_freeze_last_layer_epochs: int = 1
+    student_freeze_last_layer_steps: int = 1250
 
     # freeze student backbone
     # Useful when starting from DINOv2 pretrained weights. This allows the projection
@@ -623,7 +623,7 @@ class DINOv2(Method):
 
             # Optionally freeze student last layer
             if (
-                self.current_epoch < self.method_args.student_freeze_last_layer_epochs
+                self.trainer.global_step < self.method_args.student_freeze_last_layer_steps
                 and "last_layer" in group["name"]
             ):
                 update["lr"] = 0.0
