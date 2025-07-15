@@ -163,7 +163,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         # Loss
         num_blocks = len(self.model.backbone.blocks)
         losses = {}
-        log_dict = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
             range(num_blocks - self.task_args.num_joint_blocks, num_blocks + 1),
