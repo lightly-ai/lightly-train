@@ -182,7 +182,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # Set train mode to make sure that all parameters are in the correct state before
     # the optimizer is initialized.
     model.set_train_mode()
-    optimizer = model.get_optimizer()
+    optimizer, scheduler = model.get_optimizer(total_steps=config.steps)
     model, optimizer = fabric.setup(model, optimizer)  # type: ignore[assignment]
 
     logger.info(
@@ -242,6 +242,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         fabric.backward(train_result.loss)
         optimizer.step()
         optimizer.zero_grad()
+        scheduler.step()
 
         if is_log_step or is_last_step:
             train_log_dict = helpers.compute_metrics(train_result.log_dict)
@@ -251,6 +252,10 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
                 max_steps=config.steps,
                 log_dict=train_log_dict,
             )
+            # TODO(Guarin, 07/25): Consider logging this under a "debug" prefix?
+            for group in optimizer.param_groups:
+                train_log_dict[f"lr/{group['name']}"] = group["lr"]
+                train_log_dict[f"wd/{group['name']}"] = group["weight_decay"]
             fabric.log_dict(train_log_dict, step=step)
             helpers.reset_metrics(train_result.log_dict)
 

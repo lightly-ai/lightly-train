@@ -15,6 +15,7 @@ from lightning_fabric import Fabric
 from torch import Tensor
 from torch.nn import ModuleList
 from torch.optim.adamw import AdamW
+from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torchmetrics import JaccardIndex, MeanMetric
 from torchmetrics.classification import MulticlassJaccardIndex
@@ -27,6 +28,9 @@ from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_seg
 )
 from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_mask_loss import (
     MaskClassificationLoss,
+)
+from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_scheduler import (
+    TwoStageWarmupPolySchedule,
 )
 from lightly_train._task_models.task_train_model import (
     TaskStepResult,
@@ -63,6 +67,10 @@ class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     attn_mask_annealing_steps_end: list[int] = [13040, 19560, 26080, 32600]
 
     # Optim
+    lr: float = 1e-4
+    llrd: float = 0.8  # Layer decay
+    weight_decay: float = 0.05
+    lr_warmup_steps: tuple = (500, 1000)
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
 
@@ -365,9 +373,71 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         for i in range(len(preds)):
             metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])
 
-    def get_optimizer(self) -> Optimizer:
-        # TODO(Guarin, 07/25): Handle weight decay for norm and bias parameters.
-        return AdamW(self.parameters())
+    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+        # TODO(Guarin, 07/25): It seems like EoMT doesn't exclude norm/bias params
+        # from weight decay. We might want to change this.
+        backbone_params = set(self.model.backbone.parameters())
+        backbone_param_groups = []
+        other_param_groups = []
+        backbone_blocks = len(self.model.backbone.blocks)
+        block_i = backbone_blocks
+
+        for name, param in reversed(list(self.named_parameters())):
+            lr = self.task_args.lr
+            if param in backbone_params:
+                name_list = name.split(".")
+                is_block = False
+                for i, key in enumerate(name_list):
+                    if key == "blocks":
+                        block_i = int(name_list[i + 1])
+                        is_block = True
+                if is_block or block_i == 0:
+                    lr *= self.task_args.llrd ** (backbone_blocks - 1 - block_i)
+                backbone_param_groups.append(
+                    {"params": [param], "lr": lr, "name": name}
+                )
+            else:
+                other_param_groups.append(
+                    {"params": [param], "lr": self.task_args.lr, "name": name}
+                )
+
+        # TODO(Guarin, 07/25): Added this to reduce number of logged lr/wd values.
+        # Might want to revisit this. Maybe we can make it nicer based on block names?
+        def group_param_groups(
+            param_groups: list[dict[str, Any]],
+        ) -> list[dict[str, Any]]:
+            grouped = []
+            current_group = {}
+            last_group = None
+            for group in param_groups:
+                if not current_group:
+                    current_group = group
+                    grouped.append(current_group)
+                elif group["lr"] != current_group["lr"]:
+                    current_group["name"] = (
+                        f"{current_group['name']}-{last_group['name']}"
+                    )
+                    current_group = group
+                    grouped.append(current_group)
+                else:
+                    current_group["params"].extend(group["params"])
+                last_group = group
+            return grouped
+
+        grouped_backbone_param_groups = group_param_groups(backbone_param_groups)
+        grouped_other_param_groups = group_param_groups(other_param_groups)
+
+        param_groups = grouped_backbone_param_groups + grouped_other_param_groups
+        optimizer = AdamW(param_groups, weight_decay=self.task_args.weight_decay)
+
+        scheduler = TwoStageWarmupPolySchedule(
+            optimizer,
+            num_backbone_params=len(backbone_param_groups),
+            warmup_steps=self.task_args.lr_warmup_steps,
+            total_steps=total_steps,
+            poly_power=self.task_args.poly_power,
+        )
+        return optimizer, scheduler
 
     def set_train_mode(self) -> None:
         self.train()

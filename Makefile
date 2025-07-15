@@ -85,6 +85,7 @@ add-header:
 		-x src/lightly_train/_lightning_rank_zero.py \
 		-x src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_mask_loss.py \
 		-x src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_scale_block.py \
+		-x src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_scheduler.py \
 		-E py
 	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
@@ -107,6 +108,7 @@ add-header:
 	licenseheaders -t dev_tools/eomt_licenseheader.tmpl \
 		-f src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_mask_loss.py \
 		src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_scale_block.py \
+		src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_scheduler.py \
 		-E py
 
 

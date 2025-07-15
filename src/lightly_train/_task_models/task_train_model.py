@@ -13,6 +13,7 @@ from typing import Any
 from lightning_fabric import Fabric
 from torch import Tensor
 from torch.nn import Module
+from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
@@ -52,7 +53,7 @@ class TaskTrainModel(Module):
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
 
-    def get_optimizer(self) -> Optimizer:
+    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         raise NotImplementedError()
 
     def set_train_mode(self) -> None:
