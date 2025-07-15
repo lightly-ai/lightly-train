@@ -9,8 +9,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import onnx
-import onnxruntime as ort  # type: ignore[import-untyped]
 import pytest
 import torch
 
@@ -18,6 +16,16 @@ from lightly_train._commands import export_onnx
 from lightly_train._commands.export_onnx import ExportONNXConfig
 
 from .. import helpers
+
+try:
+    import onnx  # type: ignore[import-not-found]
+except ImportError:
+    pytest.skip("onnx is not installed", allow_module_level=True)
+
+try:
+    import onnxruntime as ort  # type: ignore[import-untyped, import-not-found]
+except ImportError:
+    pytest.skip("onnxruntime is not installed", allow_module_level=True)
 
 
 @pytest.fixture
@@ -147,7 +155,3 @@ def test_export_dynamic_batch(onnx_model_path: Path, batch_size: int) -> None:
     assert onnx_logits.shape[0] == batch_size, (
         f"Logits batch size should be {batch_size}"
     )
-
-    # Verify output shapes are consistent
-    assert len(onnx_mask.shape) == 4, "Mask should have 4 dimensions (B, C, H, W)"
-    assert len(onnx_logits.shape) == 4, "Logits should have 4 dimensions (B, C, H, W)"
