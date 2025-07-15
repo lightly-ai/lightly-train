@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 from albumentations import (
     BasicTransform,
     CenterCrop,
@@ -16,7 +17,9 @@ from albumentations import (
     HorizontalFlip,
     LongestMaxSize,
     Normalize,
+    OneOf,
     RandomCrop,
+    Resize,
     SmallestMaxSize,
 )
 from albumentations.pytorch import ToTensorV2
@@ -34,14 +37,17 @@ from lightly_train._transforms.transform import (
     NormalizeArgs,
     RandomCropArgs,
     RandomFlipArgs,
+    ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
 
 
 class SemanticSegmentationTransformArgs(TaskTransformArgs):
+    image_size: tuple[int, int]
     normalize: NormalizeArgs
     random_flip: RandomFlipArgs | None
     color_jitter: ColorJitterArgs | None
+    scale_jitter: ScaleJitterArgs | None
     smallest_max_size: SmallestMaxSizeArgs | None
     longest_max_size: LongestMaxSizeArgs | None
     center_crop: CenterCropArgs | None
@@ -54,6 +60,27 @@ class SemanticSegmentationTransform(TaskTransform):
 
         # Initialize the list of transforms to apply.
         transform: list[BasicTransform] = []
+
+        if transform_args.scale_jitter is not None:
+            # This follows recommendation on how to replace torchvision ScaleJitter with
+            # albumentations: https://albumentations.ai/docs/torchvision-kornia2albumentations/
+            scales = np.linspace(
+                start=transform_args.scale_jitter.min_scale,
+                stop=transform_args.scale_jitter.max_scale,
+                num=transform_args.scale_jitter.num_scales,
+            )
+            transform += [
+                OneOf(
+                    [
+                        Resize(
+                            height=int(scale * transform_args.image_size[0]),
+                            width=int(scale * transform_args.image_size[1]),
+                        )
+                        for scale in scales
+                    ],
+                    p=transform_args.scale_jitter.prob,
+                )
+            ]
 
         # During training we randomly crop the image to a fixed size
         # without changing the aspect ratio.
@@ -72,6 +99,8 @@ class SemanticSegmentationTransform(TaskTransform):
                 raise ValueError(
                     "random_crop must be provided if smallest_max_size is set."
                 )
+
+        if transform_args.random_crop is not None:
             transform += [
                 RandomCrop(
                     height=transform_args.random_crop.height,
@@ -87,7 +116,7 @@ class SemanticSegmentationTransform(TaskTransform):
         # During evaluation we force the image to be of a fixed size
         # using padding if needed. The aspect ratio is preserved and no
         # information is lost if crop size is the same as max_size.
-        elif transform_args.longest_max_size is not None:
+        if transform_args.longest_max_size is not None:
             # Resize the image such that the longest side is of a fixed size.
             transform += [
                 LongestMaxSize(
@@ -102,6 +131,8 @@ class SemanticSegmentationTransform(TaskTransform):
                 raise ValueError(
                     "center_crop must be provided if longest_max_size is set."
                 )
+
+        if transform_args.center_crop is not None:
             transform += [
                 CenterCrop(
                     height=transform_args.center_crop.height,
@@ -113,11 +144,6 @@ class SemanticSegmentationTransform(TaskTransform):
                     p=transform_args.center_crop.prob,
                 )
             ]
-        else:
-            raise ValueError(
-                "Either smallest_max_size or longest_max_size must be "
-                "provided in the transform arguments."
-            )
 
         # Optionally apply random horizontal flip.
         if transform_args.random_flip is not None:
