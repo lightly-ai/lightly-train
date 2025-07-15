@@ -610,14 +610,16 @@ class DINOv2(Method):
 
             # Optionally freeze student backbone
             if (
-                self.trainer.global_step < self.method_args.student_freeze_backbone_steps
+                self.trainer.global_step
+                < self.method_args.student_freeze_backbone_steps
                 and "head" not in group["name"]
             ):
                 update["lr"] = 0.0
 
             # Optionally freeze student last layer
             if (
-                self.trainer.global_step < self.method_args.student_freeze_last_layer_steps
+                self.trainer.global_step
+                < self.method_args.student_freeze_last_layer_steps
                 and "last_layer" in group["name"]
             ):
                 update["lr"] = 0.0
