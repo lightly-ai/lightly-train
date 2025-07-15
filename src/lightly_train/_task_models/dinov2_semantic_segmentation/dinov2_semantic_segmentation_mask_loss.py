@@ -55,13 +55,13 @@ class MaskClassificationLoss(Mask2FormerLoss):
             cost_class=class_coefficient,
         )
 
-    @torch.compiler.disable
+    @torch.compiler.disable  # type: ignore[misc]
     def forward(
         self,
         masks_queries_logits: torch.Tensor,
-        targets: List[dict],
+        targets: List[dict[str, torch.Tensor]],
         class_queries_logits: Optional[torch.Tensor] = None,
-    ):
+    ) -> dict[str, torch.Tensor]:
         mask_labels = [
             target["masks"].to(masks_queries_logits.dtype) for target in targets
         ]
@@ -74,12 +74,12 @@ class MaskClassificationLoss(Mask2FormerLoss):
             class_labels=class_labels,
         )
 
-        loss_masks = self.loss_masks(masks_queries_logits, mask_labels, indices)
-        loss_classes = self.loss_labels(class_queries_logits, class_labels, indices)
+        loss_masks = self.loss_masks(masks_queries_logits, mask_labels, indices)  # type: ignore[no-untyped-call]
+        loss_classes = self.loss_labels(class_queries_logits, class_labels, indices)  # type: ignore[arg-type]
 
         return {**loss_masks, **loss_classes}
 
-    def loss_masks(self, masks_queries_logits, mask_labels, indices):
+    def loss_masks(self, masks_queries_logits, mask_labels, indices):  # type: ignore
         loss_masks = super().loss_masks(masks_queries_logits, mask_labels, indices, 1)
 
         num_masks = sum(len(tgt) for (_, tgt) in indices)
@@ -93,14 +93,14 @@ class MaskClassificationLoss(Mask2FormerLoss):
         else:
             world_size = 1
 
-        num_masks = torch.clamp(num_masks_tensor / world_size, min=1)
+        num_masks_tensor = torch.clamp(num_masks_tensor / world_size, min=1)
 
         for key in loss_masks.keys():
-            loss_masks[key] = loss_masks[key] / num_masks
+            loss_masks[key] = loss_masks[key] / num_masks_tensor
 
         return loss_masks
 
-    def loss_total(self, losses_all_layers) -> torch.Tensor:
+    def loss_total(self, losses_all_layers: dict[str, torch.Tensor]) -> torch.Tensor:
         loss_total = None
         for loss_key, loss in losses_all_layers.items():
             if "mask" in loss_key:

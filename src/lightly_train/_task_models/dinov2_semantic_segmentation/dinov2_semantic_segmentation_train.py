@@ -70,7 +70,7 @@ class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     lr: float = 1e-4
     llrd: float = 0.8  # Layer decay
     weight_decay: float = 0.05
-    lr_warmup_steps: tuple = (500, 1000)
+    lr_warmup_steps: tuple[int, int] = (500, 1000)
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
     # Unused EoMT args:
@@ -319,19 +319,21 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             )
         return targets
 
-    def to_per_pixel_logits_semantic(self, mask_logits: Tensor, class_logits: Tensor):
+    def to_per_pixel_logits_semantic(
+        self, mask_logits: Tensor, class_logits: Tensor
+    ) -> Tensor:
         return torch.einsum(
             "bqhw, bqc -> bchw",
             mask_logits.sigmoid(),
             class_logits.softmax(dim=-1)[..., :-1],
         )
 
-    @torch.compiler.disable
+    @torch.compiler.disable  # type: ignore[misc]
     def to_per_pixel_targets_semantic(
         self,
         targets: list[dict[str, Tensor]],
         ignore_idx: int,
-    ):
+    ) -> list[Tensor]:
         per_pixel_targets = []
         for target in targets:
             per_pixel_target = torch.full(
@@ -361,18 +363,21 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         elif current_iter >= final_iter:
             return torch.zeros(1, device=device, dtype=dtype)
         else:
-            progress = (current_iter - start_iter) / (final_iter - start_iter)
-            progress = torch.tensor(progress, device=device, dtype=dtype)
-            return (1.0 - progress).pow(self.task_args.poly_power)
+            progress = torch.tensor(
+                (current_iter - start_iter) / (final_iter - start_iter),
+                device=device,
+                dtype=dtype,
+            )
+            return (1.0 - progress).pow(self.task_args.poly_power)  # type: ignore[no-any-return]
 
-    @torch.compiler.disable
+    @torch.compiler.disable  # type: ignore[misc]
     def update_metrics_semantic(
         self,
         preds: Tensor,
         targets: list[torch.Tensor],
         block_idx: int,
         metrics: ModuleList,
-    ):
+    ) -> None:
         for i in range(len(preds)):
             metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])
 
@@ -410,13 +415,14 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             param_groups: list[dict[str, Any]],
         ) -> list[dict[str, Any]]:
             grouped = []
-            current_group = {}
+            current_group: dict[str, Any] = {}
             last_group = None
             for group in param_groups:
                 if not current_group:
                     current_group = group
                     grouped.append(current_group)
                 elif group["lr"] != current_group["lr"]:
+                    assert last_group is not None
                     current_group["name"] = (
                         f"{current_group['name']}-{last_group['name']}"
                     )
@@ -435,7 +441,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
 
         scheduler = TwoStageWarmupPolySchedule(
             optimizer,
-            num_backbone_params=len(backbone_param_groups),
+            num_backbone_params=len(grouped_backbone_param_groups),
             warmup_steps=self.task_args.lr_warmup_steps,
             total_steps=total_steps,
             poly_power=self.task_args.poly_power,

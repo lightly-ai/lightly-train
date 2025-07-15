@@ -7,17 +7,18 @@
 
 
 from torch.optim.lr_scheduler import LRScheduler
+from torch.optim.optimizer import Optimizer
 
 
 class TwoStageWarmupPolySchedule(LRScheduler):
     def __init__(
         self,
-        optimizer,
+        optimizer: Optimizer,
         num_backbone_params: int,
         warmup_steps: tuple[int, int],
         total_steps: int,
         poly_power: float,
-        last_epoch=-1,
+        last_epoch: int = -1,
     ):
         self.num_backbone_params = num_backbone_params
         self.warmup_steps = warmup_steps
@@ -25,7 +26,7 @@ class TwoStageWarmupPolySchedule(LRScheduler):
         self.poly_power = poly_power
         super().__init__(optimizer, last_epoch)
 
-    def get_lr(self):
+    def get_lr(self) -> list[float]:
         step = self.last_epoch
         lrs = []
         non_vit_warmup, vit_warmup = self.warmup_steps
