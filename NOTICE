@@ -10,6 +10,11 @@ This project incorporates the following third-party components:
 - Modifications:
   - The logging related to xFormers availability has been changed and moved to a single place. Affected files: .../attention.py, .../block.py, .../swiglu_ffn.py, vision_transformer.py
 
+**EoMT**
+- Source: https://github.com/tue-mps/eomt
+- License: MIT License
+- License file: licenses/EOMT_LICENSE
+
 **PyTorch Lightning**
 - Source: https://github.com/Lightning-AI/pytorch-lightning
 - License: Apache License 2.0
