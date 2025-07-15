@@ -52,18 +52,16 @@ def export_onnx_from_config(config: ExportONNXConfig) -> None:
     logger.info(f"Args: {common_helpers.pretty_format_args(args=config.model_dump())}")
 
     out_path = common_helpers.get_out_path(out=config.out, overwrite=config.overwrite)
-    checkpoint_path = common_helpers.get_checkpoint_path(
-        checkpoint=config.checkpoint
-    )
+    checkpoint_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
 
     # Load the model
     torch.use_deterministic_algorithms(True)
     checkpoint = torch.load(checkpoint_path)
     model = DINOv2SemanticSegmentation(
-        model_name="vits14", #checkpoint["model_name"],
-        num_classes=2 #checkpoint["num_classes"],
+        model_name="vits14",  # checkpoint["model_name"],
+        num_classes=2,  # checkpoint["num_classes"],
     )
-    model.load_state_dict(checkpoint["state_dict"], strict=False) # TODO
+    model.load_state_dict(checkpoint["state_dict"], strict=False)  # TODO
     model.eval()
 
     # Export the model to ONNX format
