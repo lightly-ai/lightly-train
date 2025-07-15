@@ -57,6 +57,14 @@ class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     loss_dice_coefficient: float = 5.0
     loss_class_coefficient: float = 2.0
 
+    # Attention mask annealing.
+    # This follows EoMT ADE20K semantic segmentation ViT-L defaults.
+    attn_mask_annealing_steps_start: list[int] = [6520, 13040, 19560, 26080]
+    attn_mask_annealing_steps_end: list[int] = [13040, 19560, 26080, 32600]
+
+    # Optim
+    poly_power: float = 0.9  # Used for lr and mask annealing.
+
 
 class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     def __init__(
@@ -131,7 +139,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         )
 
     def training_step(
-        self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
+        self, fabric: Fabric, batch: MaskSemanticSegmentationBatch, step: int
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"].long()  # Long required for metrics.
@@ -160,7 +168,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
             losses.update(block_losses)
         loss = self.criterion.loss_total(losses_all_layers=block_losses)
-        log_dict = {f"train_loss/{k}": v for k, v in losses.items()}
+        loss_dict = {f"train_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
         target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=0)
@@ -189,13 +197,26 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             # These metrics should match the original EoMT metrics.
             metrics[f"train_metric/miou{block_suffix}_cls"] = metric
 
-        # self.train_miou.update(pred_pixel_masks, target_pixel_masks)
+        mask_prob_dict = {
+            f"train_attn_mask_prob/block{block_idx + num_blocks - self.task_args.num_joint_blocks}": value
+            for block_idx, value in enumerate(self.model.attn_mask_probs)
+        }
+
+        # Mask annealing.
+        for i in range(len(self.model.attn_mask_probs)):
+            self.model.attn_mask_probs[i] = self.mask_annealing(
+                start_iter=self.task_args.attn_mask_annealing_steps_start[i],
+                current_iter=step,
+                final_iter=self.task_args.attn_mask_annealing_steps_end[i],
+            )
+
         return TaskStepResult(
             loss=loss,
             log_dict={
                 "train_loss": loss.detach(),
-                **log_dict,
+                **loss_dict,
                 **metrics,
+                **mask_prob_dict,
             },
         )
 
@@ -315,6 +336,23 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             per_pixel_targets.append(per_pixel_target)
 
         return per_pixel_targets
+
+    def mask_annealing(
+        self,
+        start_iter: int,
+        current_iter: int,
+        final_iter: int,
+    ) -> Tensor:
+        device = self.model.attn_mask_probs[0].device
+        dtype = self.model.attn_mask_probs[0].dtype
+        if current_iter < start_iter:
+            return torch.ones(1, device=device, dtype=dtype)
+        elif current_iter >= final_iter:
+            return torch.zeros(1, device=device, dtype=dtype)
+        else:
+            progress = (current_iter - start_iter) / (final_iter - start_iter)
+            progress = torch.tensor(progress, device=device, dtype=dtype)
+            return (1.0 - progress).pow(self.task_args.poly_power)
 
     @torch.compiler.disable
     def update_metrics_semantic(

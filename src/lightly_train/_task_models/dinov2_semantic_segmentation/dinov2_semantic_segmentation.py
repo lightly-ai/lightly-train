@@ -175,9 +175,7 @@ class DINOv2SemanticSegmentation(TaskModel):
                 )
 
             if (
-                # NOTE: Changed from original code to only run during training.
-                self.training
-                and self.masked_attn_enabled
+                self.masked_attn_enabled
                 and i >= len(self.backbone.blocks) - self.num_joint_blocks
             ):
                 mask_logits, class_logits = self._predict(
@@ -186,32 +184,34 @@ class DINOv2SemanticSegmentation(TaskModel):
                 mask_logits_per_layer.append(mask_logits)
                 class_logits_per_layer.append(class_logits)
 
-                attn_mask = torch.ones(
-                    x.shape[0],
-                    x.shape[1],
-                    x.shape[1],
-                    dtype=torch.bool,
-                    device=x.device,
-                )
-                interpolated = F.interpolate(
-                    input=mask_logits,
-                    size=grid_size,
-                    mode="bilinear",
-                )
-                interpolated = interpolated.view(
-                    interpolated.size(0), interpolated.size(1), -1
-                )
-                attn_mask[
-                    :,
-                    : self.num_queries,
-                    self.num_queries + 1 + self.backbone.num_register_tokens :,
-                ] = interpolated > 0
-                attn_mask = self._disable_attn_mask(
-                    attn_mask=attn_mask,
-                    prob=self.attn_mask_probs[
-                        i - len(self.backbone.blocks) + self.num_joint_blocks
-                    ],
-                )
+                # NOTE: Changed from original code to only run during training.
+                if self.training:
+                    attn_mask = torch.ones(
+                        x.shape[0],
+                        x.shape[1],
+                        x.shape[1],
+                        dtype=torch.bool,
+                        device=x.device,
+                    )
+                    interpolated = F.interpolate(
+                        input=mask_logits,
+                        size=grid_size,
+                        mode="bilinear",
+                    )
+                    interpolated = interpolated.view(
+                        interpolated.size(0), interpolated.size(1), -1
+                    )
+                    attn_mask[
+                        :,
+                        : self.num_queries,
+                        self.num_queries + 1 + self.backbone.num_register_tokens :,
+                    ] = interpolated > 0
+                    attn_mask = self._disable_attn_mask(
+                        attn_mask=attn_mask,
+                        prob=self.attn_mask_probs[
+                            i - len(self.backbone.blocks) + self.num_joint_blocks
+                        ],
+                    )
 
             # This mirrors forward of DINOv2 Block.
             if self.training and block.sample_drop_ratio > 0:

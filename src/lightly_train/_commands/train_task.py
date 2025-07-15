@@ -238,7 +238,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         batch = next(infinite_train_dataloader)
-        train_result = model.training_step(fabric=fabric, batch=batch)
+        train_result = model.training_step(fabric=fabric, batch=batch, step=step)
         fabric.backward(train_result.loss)
         optimizer.step()
         optimizer.zero_grad()
