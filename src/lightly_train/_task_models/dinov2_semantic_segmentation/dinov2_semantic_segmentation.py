@@ -181,6 +181,8 @@ class DINOv2SemanticSegmentation(TaskModel):
                 mask_logits, class_logits = self._predict(
                     self.backbone.norm(x), grid_size=grid_size
                 )
+                # TODO(Guarin, 07/25): Do we want to norm before appending? This is what
+                # DINOv2 does.
                 mask_logits_per_layer.append(mask_logits)
                 class_logits_per_layer.append(class_logits)
 
