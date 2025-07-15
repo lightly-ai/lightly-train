@@ -73,6 +73,10 @@ class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     lr_warmup_steps: tuple = (500, 1000)
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
+    # Unused EoMT args:
+    # - mask_thresh: Only used for panoptic segmentation.
+    # - overlap_thresh: Only used for panoptic segmentation.
+
 
 class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     def __init__(
