@@ -86,7 +86,7 @@ class DINOv2Args(MethodArgs):
     # Useful when starting from DINOv2 pretrained weights. This allows the projection
     # head to be trained while the backbone is frozen. This is important because the
     # DINOv2 pretrained weights do not include the projection head.
-    student_freeze_backbone_epochs: int = 0
+    student_freeze_backbone_steps: int = 0
 
     # loss
     dino_loss_weight: float = 1.0
@@ -612,7 +612,7 @@ class DINOv2(Method):
 
             # Optionally freeze student backbone
             if (
-                self.current_epoch < self.method_args.student_freeze_backbone_epochs
+                self.trainer.global_step < self.method_args.student_freeze_backbone_steps
                 and "head" not in group["name"]
             ):
                 update["lr"] = 0.0
