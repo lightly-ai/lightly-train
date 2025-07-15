@@ -25,8 +25,7 @@ logger = logging.getLogger(__name__)
 def export_onnx(
     *,
     out: PathLike,
-    model_name: str,
-    backbone_weights: PathLike,
+    checkpoint: PathLike,
     overwrite: bool = False,
 ) -> None:
     """Export a model from a checkpoint.
@@ -53,17 +52,18 @@ def export_onnx_from_config(config: ExportONNXConfig) -> None:
     logger.info(f"Args: {common_helpers.pretty_format_args(args=config.model_dump())}")
 
     out_path = common_helpers.get_out_path(out=config.out, overwrite=config.overwrite)
-    backbone_weights = common_helpers.get_checkpoint_path(
-        checkpoint=config.backbone_weights
+    checkpoint_path = common_helpers.get_checkpoint_path(
+        checkpoint=config.checkpoint
     )
 
     # Load the model
     torch.use_deterministic_algorithms(True)
+    checkpoint = torch.load(checkpoint_path)
     model = DINOv2SemanticSegmentation(
-        model_name=config.model_name,
-        num_classes=2,  # TODO
-        backbone_weights=backbone_weights,  # TODO
+        model_name="vits14", #checkpoint["model_name"],
+        num_classes=2 #checkpoint["num_classes"],
     )
+    model.load_state_dict(checkpoint["state_dict"], strict=False) # TODO
     model.eval()
 
     # Export the model to ONNX format
@@ -85,6 +85,5 @@ def export_onnx_from_config(config: ExportONNXConfig) -> None:
 
 class ExportONNXConfig(PydanticConfig):
     out: PathLike
-    model_name: str
-    backbone_weights: PathLike
+    checkpoint: PathLike
     overwrite: bool = False
