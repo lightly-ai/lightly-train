@@ -107,8 +107,6 @@ class DINOv2Args(MethodArgs):
     # datasets.
     teacher_temp_start: float = 0.04
     teacher_temp_end: float = 0.07
-    # TODO(Guarin, 06/25): Figure out if we want to reduce warmup epochs for <100 epoch
-    # runs.
     teacher_temp_warmup_steps: int = 37500
 
     # masking
