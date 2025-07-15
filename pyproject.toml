@@ -33,9 +33,6 @@ dependencies = [
     "pytorch_lightning>=2.1",
     "tensorboard>=2.10.0",
     "torch>=2.1.0,<2.6",        # PyTorch Lightning is not yet compatible with PyTorch 2.6
-    "torchmetrics>=0.8",        # 0.8 is required by SuperGradients
-                                # 1.5.2 is the last version that supports Python 3.8
-                                # 1.7 is recommended version
     "torchvision>=0.16.0",      # torchvision 0.15.0 was yanked
     "tqdm>=4.0.0",
 ]
@@ -64,6 +61,12 @@ dev = [
     "sphinx-inline-tabs>=2023.4.21",
     "sphinxcontrib-googleanalytics>=0.4",
     "sphinx>=7.1",              # Allow old sphinx version for Python 3.8 compatibility
+]
+finetune = [
+    "torchmetrics>=0.8",    # 0.8 is required by SuperGradients
+                            # 1.5.2 is the last version that supports Python 3.8
+                            # 1.7 is recommended version
+    "transformers>=4.51.3", # 4.51.3 is the default for EoMT
 ]
 mlflow = [
     "mlflow>=2.0.0", # contain fixes for numpy>=2.0 support
