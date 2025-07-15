@@ -105,7 +105,19 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.val_miou = self.train_miou.clone()
 
         # Classwise MeanIoU for each joint block. Based on EoMT implementation.
-        self.metrics = ModuleList(
+        self.train_metrics = ModuleList(
+            [
+                MulticlassJaccardIndex(
+                    num_classes=max(data_args.classes) + 1,
+                    validate_args=False,
+                    # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
+                    ignore_index=task_args.ignore_index,
+                    average=None,
+                )
+                for _ in range(task_args.num_joint_blocks + 1)
+            ]
+        )
+        self.val_metrics = ModuleList(
             [
                 MulticlassJaccardIndex(
                     num_classes=max(data_args.classes) + 1,
@@ -125,20 +137,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         masks = batch["mask"].long()  # Long required for metrics.
         B, C, H, W = images.shape
 
-        targets = []
-        for mask in masks:
-            img_masks = []
-            img_labels = []
-            class_ids = mask.unique()
-            for class_id in class_ids:
-                img_masks.append(mask == class_id)
-                img_labels.append(class_id)
-            targets.append(
-                {
-                    "masks": torch.stack(img_masks),
-                    "labels": images.new_tensor(img_labels, dtype=torch.long),
-                }
-            )
+        targets = self.get_targets(masks)
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(images)
 
         # Loss
@@ -171,7 +170,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
             logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
             self.update_metrics_semantic(
-                preds=logits, targets=target_pixel_masks, block_idx=block_idx
+                metrics=self.train_metrics,
+                preds=logits,
+                targets=target_pixel_masks,
+                block_idx=block_idx,
             )
         for pred, targ in zip(logits, target_pixel_masks):
             self.train_miou.update(pred[None, ...], targ[None, ...])
@@ -181,7 +183,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         }
         for block_idx, metric in zip(
             range(num_blocks - self.task_args.num_joint_blocks, num_blocks + 1),
-            self.metrics,
+            self.train_metrics,
         ):
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
             # These metrics should match the original EoMT metrics.
@@ -202,17 +204,88 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"].long()  # Long required for metrics.
-        pred_masks, logits = self.model(images)
-        loss = self.criterion(logits, masks)
-        self.val_loss.update(loss, weight=images.shape[0])
-        self.val_miou.update(pred_masks, masks)
+        B, C, H, W = images.shape
+
+        targets = self.get_targets(masks)
+        # TODO(Guarin, 07/25): Use a different forward method for validation?
+        mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(images)
+
+        # Loss
+        num_blocks = len(self.model.backbone.blocks)
+        losses = {}
+        log_dict = {}
+        for block_idx, block_mask_logits, block_class_logits in zip(
+            # Add +1 to num_blocks for final output.
+            range(num_blocks - self.task_args.num_joint_blocks, num_blocks + 1),
+            mask_logits_per_layer,
+            class_logits_per_layer,
+            strict=True,
+        ):
+            block_losses = self.criterion(
+                masks_queries_logits=block_mask_logits,
+                class_queries_logits=block_class_logits,
+                targets=targets,
+            )
+            block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
+            block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
+            losses.update(block_losses)
+        loss = self.criterion.loss_total(losses_all_layers=block_losses)
+        log_dict = {f"val_loss/{k}": v for k, v in losses.items()}
+
+        # Metrics
+        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=0)
+        for block_idx, (mask_logits, class_logits) in enumerate(
+            list(zip(mask_logits_per_layer, class_logits_per_layer))
+        ):
+            mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+            logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
+            self.update_metrics_semantic(
+                metrics=self.val_metrics,
+                preds=logits,
+                targets=target_pixel_masks,
+                block_idx=block_idx,
+            )
+        for pred, targ in zip(logits, target_pixel_masks):
+            self.val_miou.update(pred[None, ...], targ[None, ...])
+
+        metrics: dict[str, Any] = {
+            "val_metric/miou": self.val_miou,
+        }
+        for block_idx, metric in zip(
+            range(num_blocks - self.task_args.num_joint_blocks, num_blocks + 1),
+            self.val_metrics,
+        ):
+            block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
+            # These metrics should match the original EoMT metrics.
+            metrics[f"val_metric/miou{block_suffix}_cls"] = metric
+
         return TaskStepResult(
             loss=loss,
             log_dict={
-                "val_loss": self.val_loss,
-                "val_metric/miou": self.val_miou,
+                "val_loss": loss.detach(),
+                **log_dict,
+                **metrics,
             },
         )
+
+    def get_targets(self, masks: Tensor) -> list[dict[str, Tensor]]:
+        # This follows logic from: https://github.com/tue-mps/eomt/blob/716cbd562366b9746804579b48b866da487d9485/datasets/ade20k_semantic.py#L47-L48
+        targets = []
+        for mask in masks:
+            img_masks = []
+            img_labels = []
+            class_ids = mask.unique()
+            # TODO(Guarin, 07/25): EoMT checks whether class id is in class mappings.
+            for class_id in class_ids:
+                img_masks.append(mask == class_id)
+                img_labels.append(class_id)
+            targets.append(
+                {
+                    "masks": torch.stack(img_masks),
+                    "labels": mask.new_tensor(img_labels, dtype=torch.long),
+                }
+            )
+        return targets
 
     def to_per_pixel_logits_semantic(self, mask_logits: Tensor, class_logits: Tensor):
         return torch.einsum(
@@ -249,9 +322,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         preds: Tensor,
         targets: list[torch.Tensor],
         block_idx: int,
+        metrics: ModuleList,
     ):
         for i in range(len(preds)):
-            self.metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])
+            metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])
 
     def get_optimizer(self) -> Optimizer:
         # TODO(Guarin, 07/25): Handle weight decay for norm and bias parameters.

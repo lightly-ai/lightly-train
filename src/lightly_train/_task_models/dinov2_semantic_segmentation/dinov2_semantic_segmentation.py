@@ -175,7 +175,9 @@ class DINOv2SemanticSegmentation(TaskModel):
                 )
 
             if (
-                self.masked_attn_enabled
+                # NOTE: Changed from original code to only run during training.
+                self.training
+                and self.masked_attn_enabled
                 and i >= len(self.backbone.blocks) - self.num_joint_blocks
             ):
                 mask_logits, class_logits = self._predict(
