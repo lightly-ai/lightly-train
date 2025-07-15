@@ -109,7 +109,7 @@ class DINOv2Args(MethodArgs):
     teacher_temp_end: float = 0.07
     # TODO(Guarin, 06/25): Figure out if we want to reduce warmup epochs for <100 epoch
     # runs.
-    teacher_temp_warmup_epochs: int = 30  # 30/80 for fast/long setup in original DINOv2
+    teacher_temp_warmup_steps: int = 37500
 
     # masking
     mask_ratio_min: float = 0.1
@@ -255,11 +255,7 @@ class DINOv2(Method):
         # Teacher temperature scheduling
         teacher_temp = linear_warmup_schedule(
             step=self.trainer.global_step,
-            warmup_steps=int(
-                self.method_args.teacher_temp_warmup_epochs  # type: ignore[operator]
-                / self.trainer.max_epochs
-                * self.trainer.estimated_stepping_batches
-            ),
+            warmup_steps=self.method_args.teacher_temp_warmup_steps,
             start_value=self.method_args.teacher_temp_start,
             end_value=self.method_args.teacher_temp_end,
         )
