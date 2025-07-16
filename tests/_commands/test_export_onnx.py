@@ -25,12 +25,14 @@ from .. import helpers
 @pytest.fixture
 def dummy_input() -> Tensor:
     """Fixture providing dummy input tensor."""
+
     return torch.randn(1, 3, 224, 224)
 
 
 @pytest.fixture
 def dummy_checkpoint_path(tmp_path: Path) -> Path:
     """Fixture providing dummy backbone weights file."""
+
     weights_path = tmp_path / "dummy_weights.ckpt"
     # Create a dummy weights file
     dummy_weights = {
@@ -46,6 +48,7 @@ def dummy_checkpoint_path(tmp_path: Path) -> Path:
 @pytest.fixture
 def onnx_model_path(tmp_path: Path, dummy_checkpoint_path: Path) -> Path:
     """Fixture that creates an ONNX model file for testing."""
+
     onnx_path: Path = tmp_path / "model.onnx"
     export_onnx.export_onnx(
         out=onnx_path,
@@ -56,11 +59,13 @@ def onnx_model_path(tmp_path: Path, dummy_checkpoint_path: Path) -> Path:
 
 def test_export_parameters() -> None:
     """Test that export function and configs have the same parameters and default values."""
+
     helpers.assert_same_params(a=ExportONNXConfig, b=export_onnx.export_onnx)
 
 
 def test_export_succeeds(tmp_path: Path, dummy_checkpoint_path: Path) -> None:
     """Test that ONNX export succeeds and creates a valid file."""
+
     onnx_path: Path = tmp_path / "model.onnx"
 
     # Test export function
@@ -76,6 +81,7 @@ def test_export_succeeds(tmp_path: Path, dummy_checkpoint_path: Path) -> None:
 
 def test_export_with_nonexistent_weights(tmp_path: Path) -> None:
     """Test that export fails gracefully with nonexistent weights file."""
+
     onnx_path: Path = tmp_path / "model.onnx"
     nonexistent_weights = tmp_path / "nonexistent_weights.pth"
 
@@ -86,9 +92,9 @@ def test_export_with_nonexistent_weights(tmp_path: Path) -> None:
         )
 
 
-def test_export_onnx(dummy_input: Tensor, onnx_model_path: Path) -> None:
-    """Test that the exported ONNX model passes ONNX validation and can be run with ONNX Runtime."""
-    ort = pytest.importorskip("onnxruntime", reason="onnxruntime is not installed")
+def test_export_onnx(onnx_model_path: Path) -> None:
+    """Test that the exported ONNX model passes ONNX validation."""
+
     onnx_model: onnx.ModelProto = onnx.load(str(onnx_model_path))
 
     try:
@@ -96,6 +102,10 @@ def test_export_onnx(dummy_input: Tensor, onnx_model_path: Path) -> None:
     except Exception as e:
         pytest.fail(f"ONNX model validation failed: {e}")
 
+
+def test_onnxruntime_inference(dummy_input: Tensor, onnx_model_path: Path) -> None:
+    """Test that ONNXRuntime can run inference on the exported model."""
+    ort = pytest.importorskip("onnxruntime", reason="onnxruntime is not installed")
     try:
         ort_session = ort.InferenceSession(
             str(onnx_model_path), providers=["CPUExecutionProvider"]

@@ -96,9 +96,9 @@ xformers = [
 onnx = [
     "onnx>=1.15.0",
 ]
-onnxruntime = [
+inference = [
     "onnxruntime>=1.21.0",
-]
+] # inference engines
 
 [project.scripts]
 lightly-train = "lightly_train._cli:_cli_entrypoint"
