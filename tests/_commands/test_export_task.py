@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -45,6 +46,9 @@ def dummy_checkpoint_path(tmp_path: Path) -> Path:
 
 
 class TestExportTask:
+    @pytest.mark.skipif(
+        sys.version_info < (3, 10), reason="Requires Python 3.10 or higher for typing."
+    )
     def test_export_parameters(self) -> None:
         """Test that export function and configs have the same parameters and default values."""
         helpers.assert_same_params(a=ExportTaskConfig, b=export_task.export_task)
