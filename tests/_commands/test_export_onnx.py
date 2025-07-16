@@ -19,11 +19,6 @@ try:
 except ImportError:
     pytest.skip("onnx is not installed", allow_module_level=True)
 
-try:
-    import onnxruntime as ort
-except ImportError:
-    pytest.skip("onnxruntime is not installed", allow_module_level=True)
-
 from .. import helpers
 
 
@@ -93,6 +88,7 @@ def test_export_with_nonexistent_weights(tmp_path: Path) -> None:
 
 def test_export_onnx(dummy_input: Tensor, onnx_model_path: Path) -> None:
     """Test that the exported ONNX model passes ONNX validation and can be run with ONNX Runtime."""
+    ort = pytest.importorskip("onnxruntime", reason="onnxruntime is not installed")
     onnx_model: onnx.ModelProto = onnx.load(str(onnx_model_path))
 
     try:
@@ -101,7 +97,7 @@ def test_export_onnx(dummy_input: Tensor, onnx_model_path: Path) -> None:
         pytest.fail(f"ONNX model validation failed: {e}")
 
     try:
-        ort_session: ort.InferenceSession = ort.InferenceSession(
+        ort_session = ort.InferenceSession(
             str(onnx_model_path), providers=["CPUExecutionProvider"]
         )
     except Exception as e:

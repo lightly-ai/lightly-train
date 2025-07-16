@@ -95,6 +95,8 @@ xformers = [
 ]
 onnx = [
     "onnx>=1.17.0",
+]
+onnxruntime = [
     "onnxruntime>=1.21.0",
 ]
 
