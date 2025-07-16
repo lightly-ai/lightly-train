@@ -5,6 +5,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 from pathlib import Path
 
 import pytest
@@ -47,9 +49,7 @@ class TestExportTask:
         """Test that export function and configs have the same parameters and default values."""
         helpers.assert_same_params(a=ExportTaskConfig, b=export_task.export_task)
 
-    def test_export_onnx_succeeds(
-        self, tmp_path: Path, dummy_checkpoint_path: Path
-    ) -> None:
+    def test_export__onnx(self, tmp_path: Path, dummy_checkpoint_path: Path) -> None:
         """Test that ONNX export succeeds and creates a valid file."""
         onnx_path = tmp_path / "model.onnx"
 
@@ -62,19 +62,19 @@ class TestExportTask:
         assert onnx_path.exists(), "ONNX file should be created"
         assert onnx_path.stat().st_size > 0, "ONNX file should not be empty"
 
-    def test_export_with_nonexistent_weights(self, tmp_path: Path) -> None:
-        """Test that export fails gracefully with nonexistent weights file."""
+    def test_export__invalid_weights(self, tmp_path: Path) -> None:
+        """Test that export fails gracefully with invalid weights file."""
         onnx_path = tmp_path / "model.onnx"
-        nonexistent_weights = tmp_path / "nonexistent_weights.pth"
+        invalid_weights = tmp_path / "invalid_weights.pth"
 
         with pytest.raises((FileNotFoundError, RuntimeError)):
             export_task.export_task(
                 out=onnx_path,
-                checkpoint=nonexistent_weights,
+                checkpoint=invalid_weights,
                 format="onnx",
             )
 
-    def test_export_onnx_validation(
+    def test_export__onnx_validation(
         self, tmp_path: Path, dummy_checkpoint_path: Path
     ) -> None:
         """Test that the exported ONNX model passes validation."""
@@ -89,7 +89,7 @@ class TestExportTask:
         onnx_model = onnx.load(str(onnx_path))
         onnx.checker.check_model(onnx_model, full_check=True)
 
-    def test_inference_with_onnxruntime(
+    def test_export__inference_with_onnxruntime(
         self, tmp_path: Path, dummy_checkpoint_path: Path, dummy_input: Tensor
     ) -> None:
         """Test that ONNXRuntime can run inference on the exported model."""

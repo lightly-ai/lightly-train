@@ -73,7 +73,9 @@ def export_task_from_config(config: ExportTaskConfig) -> None:
     _logging.set_up_filters()
     logger.info(f"Args: {common_helpers.pretty_format_args(args=config.model_dump())}")
 
-    out_path = common_helpers.get_out_path(out=config.out, overwrite=config.overwrite)
+    out_path = common_helpers.get_out_path(
+        out=config.out, overwrite=config.overwrite
+    ).as_posix()  # TODO(Yutong, 07/25): make sure the format corrsponds to the output file extension!
     checkpoint_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
 
     # Load the model
@@ -81,7 +83,7 @@ def export_task_from_config(config: ExportTaskConfig) -> None:
     checkpoint = torch.load(checkpoint_path)
     model = DINOv2SemanticSegmentation(
         model_name="vits14",  # TODO(Yutong, 07/25): use checkpoint["model_name"],
-        num_classes=2,  # TODOO(Yutong, 07/25): use checkpoint["num_classes"],
+        num_classes=2,  # TODO(Yutong, 07/25): use checkpoint["num_classes"],
     )
     model.load_state_dict(checkpoint["state_dict"], strict=False)
     model.eval()
@@ -92,11 +94,11 @@ def export_task_from_config(config: ExportTaskConfig) -> None:
         dummy_input = torch.randn(
             1, config.num_channels, config.height, config.width, requires_grad=False
         )
-        logger.info(f"Exporting ONNX model to '{out_path.as_posix()}'")
+        logger.info(f"Exporting ONNX model to '{out_path}'")
         torch.onnx.export(
             model,
             (dummy_input,),
-            out_path.as_posix(),
+            out_path,
             input_names=["input"],
             output_names=["mask", "logits"],
             dynamic_axes={
