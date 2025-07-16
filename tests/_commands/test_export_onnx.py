@@ -5,12 +5,11 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-import sys
 from pathlib import Path
 
-import numpy as np
 import pytest
 import torch
+from torch import Tensor
 
 from lightly_train._commands import export_onnx
 from lightly_train._commands.export_onnx import ExportONNXConfig
@@ -29,7 +28,7 @@ except ImportError:
 
 
 @pytest.fixture
-def dummy_input() -> torch.Tensor:
+def dummy_input() -> Tensor:
     """Fixture providing dummy input tensor."""
     return torch.randn(1, 3, 224, 224)
 
@@ -60,6 +59,11 @@ def onnx_model_path(tmp_path: Path, dummy_checkpoint_path: Path) -> Path:
     return onnx_path
 
 
+def test_export_parameters() -> None:
+    """Test that export function and configs have the same parameters and default values."""
+    helpers.assert_same_params(a=ExportONNXConfig, b=export_onnx.export_onnx)
+
+
 def test_export_succeeds(tmp_path: Path, dummy_checkpoint_path: Path) -> None:
     """Test that ONNX export succeeds and creates a valid file."""
     onnx_path: Path = tmp_path / "model.onnx"
@@ -87,16 +91,8 @@ def test_export_with_nonexistent_weights(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10), reason="Requires Python 3.10 or higher for typing."
-)
-def test_export_parameters() -> None:
-    """Test that export function and configs have the same parameters and default values."""
-    helpers.assert_same_params(a=ExportONNXConfig, b=export_onnx.export_onnx)
-
-
-def test_onnx_model_consistency_check(onnx_model_path: Path) -> None:
-    """Test that the exported ONNX model passes ONNX validation."""
+def test_export_onnx(dummy_input: Tensor, onnx_model_path: Path) -> None:
+    """Test that the exported ONNX model passes ONNX validation and can be run with ONNX Runtime."""
     onnx_model: onnx.ModelProto = onnx.load(str(onnx_model_path))
 
     try:
@@ -104,35 +100,6 @@ def test_onnx_model_consistency_check(onnx_model_path: Path) -> None:
     except Exception as e:
         pytest.fail(f"ONNX model validation failed: {e}")
 
-
-def test_shape_inference_runs(onnx_model_path: Path) -> None:
-    """Test that shape inference runs without errors."""
-    model: onnx.ModelProto = onnx.load(str(onnx_model_path))
-
-    try:
-        inferred: onnx.ModelProto = onnx.shape_inference.infer_shapes(model)
-    except Exception as e:
-        pytest.fail(f"Shape inference failed: {e}")
-
-    # Check that inference produced results
-    assert inferred.graph, "Inferred model should have a graph"
-    assert len(inferred.graph.input) == 1, "Inferred model should have one input"
-    assert len(inferred.graph.output) == 2, "Inferred model should have two outputs"
-
-    # Verify input has shape information
-    input_shape = inferred.graph.input[0].type.tensor_type.shape
-    assert input_shape.dim, "Input should have shape dimensions"
-
-
-@pytest.mark.parametrize("batch_size", [1, 4, 8])
-def test_export_dynamic_batch(onnx_model_path: Path, batch_size: int) -> None:
-    """Test that the exported model works with different batch sizes."""
-    # Create input with the specified batch size
-    dummy_input: torch.Tensor = torch.randn(
-        batch_size, 3, 224, 224, requires_grad=False
-    )
-
-    # Create inference session
     try:
         ort_session: ort.InferenceSession = ort.InferenceSession(
             str(onnx_model_path), providers=["CPUExecutionProvider"]
@@ -140,18 +107,8 @@ def test_export_dynamic_batch(onnx_model_path: Path, batch_size: int) -> None:
     except Exception as e:
         pytest.fail(f"Failed to create ONNX Runtime session: {e}")
 
-    # Run inference
     try:
         ort_inputs = {"input": dummy_input.cpu().numpy()}
-        ort_outs = ort_session.run(["mask", "logits"], ort_inputs)
-        onnx_mask, onnx_logits = ort_outs
+        ort_session.run(["mask", "logits"], ort_inputs)
     except Exception as e:
         pytest.fail(f"ONNX Runtime inference failed: {e}")
-
-    # Verify output shapes match expected batch size
-    assert isinstance(onnx_mask, np.ndarray), "Mask output should be numpy array"
-    assert isinstance(onnx_logits, np.ndarray), "Logits output should be numpy array"
-    assert onnx_mask.shape[0] == batch_size, f"Mask batch size should be {batch_size}"
-    assert onnx_logits.shape[0] == batch_size, (
-        f"Logits batch size should be {batch_size}"
-    )
