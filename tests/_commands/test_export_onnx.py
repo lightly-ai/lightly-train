@@ -14,17 +14,17 @@ from torch import Tensor
 from lightly_train._commands import export_onnx
 from lightly_train._commands.export_onnx import ExportONNXConfig
 
-from .. import helpers
-
 try:
-    import onnx  # type: ignore[import-not-found]
+    import onnx
 except ImportError:
     pytest.skip("onnx is not installed", allow_module_level=True)
 
 try:
-    import onnxruntime as ort  # type: ignore[import-untyped, import-not-found]
+    import onnxruntime as ort
 except ImportError:
     pytest.skip("onnxruntime is not installed", allow_module_level=True)
+
+from .. import helpers
 
 
 @pytest.fixture
