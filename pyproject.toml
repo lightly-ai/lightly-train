@@ -96,7 +96,7 @@ xformers = [
 onnx = [
     "onnx>=1.15.0",
 ]
-inference = [
+onnxruntime = [
     "onnxruntime>=1.21.0",
 ] # inference engines
 
