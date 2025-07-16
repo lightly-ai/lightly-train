@@ -94,7 +94,7 @@ xformers = [
     "xformers>=0.0.18",
 ]
 onnx = [
-    "onnx>=1.17.0",
+    "onnx>=1.15.0",
 ]
 onnxruntime = [
     "onnxruntime>=1.21.0",
