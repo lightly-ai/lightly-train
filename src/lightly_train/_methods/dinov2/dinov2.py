@@ -559,6 +559,8 @@ class DINOv2(Method):
             layerwise_decay=self.method_args.layerwise_decay,
             patch_embed_lr_multiplier=self.method_args.patch_embed_lr_multiplier,
         )
+        for g in optim.param_groups:
+            print({k: v for k, v in g.items() if k != "params"})
         if self.trainer.max_epochs is None:
             raise RuntimeError("Max epochs is not set.")
 
@@ -610,6 +612,10 @@ class DINOv2(Method):
         updates = []
         for group in optimizer.param_groups:
             update = {}
+            # NOTE: If you change behavior of parameters here then make sure to also
+            # double check dinov2/utils.py:get_fused_param_groups whether it needs
+            # any updates.
+
             # Apply weight decay schedule
             if group["weight_decay"] != 0.0:
                 update["weight_decay"] = weight_decay

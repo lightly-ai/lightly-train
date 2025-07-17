@@ -14,7 +14,11 @@ import numpy as np
 import pytest
 import torch
 
+from lightly_train._methods.dinov2 import utils
+from lightly_train._methods.dinov2.dinov2 import DINOv2AdamWViTArgs
 from lightly_train._methods.dinov2.utils import MaskingGenerator, create_collated_masks
+
+from ... import helpers
 
 
 class TestMaskingGenerator:
@@ -230,3 +234,88 @@ class TestCreateCollatedMasks:
         collated_masks = masks["collated_masks"]
         for mask in collated_masks:
             assert not mask.any()
+
+
+def test_get_optimizer_with_decay() -> None:
+    dinov2 = helpers.get_method_dinov2()
+    trainable_modules = dinov2.trainable_modules()
+    optim = utils.get_optimizer_with_decay(
+        optim_args=DINOv2AdamWViTArgs(),
+        trainable_modules=trainable_modules,
+        layerwise_decay=dinov2.method_args.layerwise_decay,
+        patch_embed_lr_multiplier=dinov2.method_args.patch_embed_lr_multiplier,
+    )
+
+    # Map fused params back to their original names.
+    param_to_name = {}
+    for module in list(trainable_modules.modules) + list(
+        trainable_modules.modules_no_weight_decay
+    ):
+        param_to_name.update({p: n for n, p in module.named_parameters()})
+    groups = []
+    for group in optim.param_groups:
+        groups.append({param_to_name[p] for p in group["params"]})
+
+    # Hardcoded to make 100% sure that the groups are correct. If something fails here
+    # then there is probably an issue in the grouping logic or the way we set lr, wd, or
+    # other parameters for the different parameters.
+    expected_groups = [
+        {"cls_token", "pos_embed", "mask_token"},
+        {"patch_embed.proj.weight"},
+        {"patch_embed.proj.bias"},
+        {
+            "blocks.0.norm1.weight",
+            "blocks.0.norm1.bias",
+            "blocks.0.attn.qkv.bias",
+            "blocks.0.attn.proj.bias",
+            "blocks.0.ls1.gamma",
+            "blocks.0.norm2.weight",
+            "blocks.0.norm2.bias",
+            "blocks.0.mlp.fc1.bias",
+            "blocks.0.mlp.fc2.bias",
+            "blocks.0.ls2.gamma",
+        },
+        {
+            "blocks.0.attn.qkv.weight",
+            "blocks.0.attn.proj.weight",
+            "blocks.0.mlp.fc1.weight",
+            "blocks.0.mlp.fc2.weight",
+        },
+        {
+            "blocks.1.norm1.weight",
+            "blocks.1.norm1.bias",
+            "blocks.1.attn.qkv.bias",
+            "blocks.1.attn.proj.bias",
+            "blocks.1.ls1.gamma",
+            "blocks.1.norm2.weight",
+            "blocks.1.norm2.bias",
+            "blocks.1.mlp.fc1.bias",
+            "blocks.1.mlp.fc2.bias",
+            "blocks.1.ls2.gamma",
+        },
+        {
+            "blocks.1.attn.qkv.weight",
+            "blocks.1.attn.proj.weight",
+            "blocks.1.mlp.fc1.weight",
+            "blocks.1.mlp.fc2.weight",
+        },
+        {
+            "norm.weight",
+            "norm.bias",
+        },
+        {
+            "dino_head.mlp.0.weight",
+            "dino_head.mlp.2.weight",
+            "dino_head.mlp.4.weight",
+        },
+        {
+            "dino_head.mlp.0.bias",
+            "dino_head.mlp.2.bias",
+            "dino_head.mlp.4.bias",
+        },
+        {
+            "dino_head.last_layer.parametrizations.weight.original0",
+            "dino_head.last_layer.parametrizations.weight.original1",
+        },
+    ]
+    assert groups == expected_groups
