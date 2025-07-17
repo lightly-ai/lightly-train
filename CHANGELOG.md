@@ -9,12 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Allow loading pretrained DINOv2 teacher weights for distillation methods with an extra
+  `teacher_weights` argument in `method_args`.
+- Support images with different number of channels in the channel drop transform.
 - Documented support for the [RT-DETRv2 models](https://docs.lightly.ai/train/stable/models/rtdetr.html).
 
 ### Changed
 
 - The callback `DeviceStatsMonitor` is now disabled by default.
-- Allow loading pretrained DINOv2 teacher weights for distillation methods with an extra `teacher_weights` argument in `method_args`.
 
 ### Deprecated
 
@@ -35,14 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add channel drop transform.
 - Add option to load multi-channel images with `LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"`.
 - Add option to reuse memmap dataset file via environment variable: `LIGHTLY_TRAIN_MMAP_REUSE_FILE=True`.
-
-### Changed
-
-### Deprecated
-
-### Removed
-
-### Fixed
 
 ### Security
 
