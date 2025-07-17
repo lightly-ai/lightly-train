@@ -32,7 +32,7 @@ if __name__ == "__main__":
         data="my_data_dir",
         model="dinov2_vit/vitb14_pretrain",
         method="dinov2",
-        epochs=100, # We recommend epochs = -(-125000 * batch size // dataset size)
+        epochs=100, # We recommend epochs = 125000 * batch size // dataset size
     )
 ````
 
