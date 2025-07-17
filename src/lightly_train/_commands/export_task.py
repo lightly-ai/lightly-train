@@ -79,7 +79,6 @@ def export_task_from_config(config: ExportTaskConfig) -> None:
     checkpoint_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
 
     # Load the model
-    torch.use_deterministic_algorithms(True)
     checkpoint = torch.load(checkpoint_path)
     model = DINOv2SemanticSegmentation(
         model_name="vits14",  # TODO(Yutong, 07/25): use checkpoint["model_name"],
