@@ -13,14 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `teacher_weights` argument in `method_args`.
 - Support images with different number of channels in the channel drop transform.
 - Documented support for the [RT-DETRv2 models](https://docs.lightly.ai/train/stable/models/rtdetr.html).
+- Warning if the number of steps is below the recommendation for DINOv2.
 
 ### Changed
 
 - The callback `DeviceStatsMonitor` is now disabled by default.
+- Allow loading pretrained DINOv2 teacher weights for distillation methods with an extra `teacher_weights` argument in `method_args`.
+- Replaced epoch-based warmup hyperparameters with iteration-based ones.
 
 ### Deprecated
 
 ### Removed
+
+- Updated the documentation to remove a note and specific recommendation for using DINOv2 with pretrained weights.
 
 ### Fixed
 
