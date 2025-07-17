@@ -135,12 +135,18 @@ class DINOv2Args(MethodArgs):
     # gradient clipping
     gradient_clip_val: float = 3.0
 
+    # dataset size
+    dataset_size: int | None = None
+
     def resolve_auto(
         self,
         scaling_info: ScalingInfo,
         optimizer_args: OptimizerArgs,
         wrapped_model: ModelWrapper,
     ) -> None:
+        # Set the dataset size.
+        self.dataset_size = scaling_info.dataset_size
+
         if isinstance(optimizer_args, AdamWArgs):
             weight_decay = optimizer_args.weight_decay
         else:
@@ -170,6 +176,8 @@ class DINOv2Head(Module):
 
 
 class DINOv2(Method):
+    RECOMMENDED_MIN_STEPS = 125000
+
     def __init__(
         self,
         method_args: DINOv2Args,
@@ -649,3 +657,26 @@ class DINOv2(Method):
     @staticmethod
     def transform_cls() -> type[DINOv2ViTTransform]:
         return DINOv2ViTTransform
+
+    def on_fit_start(self) -> None:
+        # Check if dataset size is set.
+        assert self.method_args.dataset_size is not None, (
+            "dataset_size must be set before training."
+        )
+
+        # Warn if total steps < 125k.
+        if self.trainer.estimated_stepping_batches < self.RECOMMENDED_MIN_STEPS:
+            # Compute dataset-specific epoch recommendation.
+            steps_per_epoch = self.method_args.dataset_size // self.global_batch_size
+            recommended_epochs = math.ceil(self.RECOMMENDED_MIN_STEPS / steps_per_epoch)
+            total_num_steps = self.trainer.estimated_stepping_batches
+
+            # Display recommendation.
+            logger.warning(
+                f"Configured epochs ({self.trainer.max_epochs}) will result in "
+                f"{total_num_steps} steps, which is fewer "
+                f"than {self.RECOMMENDED_MIN_STEPS} steps. "
+                f"Recommended at least {recommended_epochs} epochs "
+                f"for dataset size {self.method_args.dataset_size} and "
+                f"batch size {self.global_batch_size}."
+            )
