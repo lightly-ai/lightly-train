@@ -127,7 +127,7 @@ def get_method_dinov2() -> DINOv2:
     )
     dinov2 = DINOv2(
         method_args=dinov2_args,
-        optimizer_args=DINOv2AdamWViTArgs(),
+        optimizer_args=optim_args,
         embedding_model=EmbeddingModel(wrapped_model=wrapped_model),
         global_batch_size=2,
     )
