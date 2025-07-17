@@ -100,7 +100,7 @@ class TestDINOv2:
             "filename": [f"img_{i}" for i in range(b)],
         }
 
-        # run DistillationV2
+        # run DINOv2
         dinov2_args = DINOv2Args(
             ibot_separate_head=ibot_separate_head, center_method=center_method
         )
