@@ -1,6 +1,6 @@
 (methods-dinov2)=
 
-# DINOv2 (beta 🔬)
+# DINOv2
 
 DINOv2 is a state-of-the-art self-supervised learning method for training vision
 foundation models. It is optimized for large-scale models and datasets.
