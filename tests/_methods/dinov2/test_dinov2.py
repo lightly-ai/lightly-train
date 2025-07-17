@@ -206,13 +206,16 @@ class TestDINOv2:
         )
         check_param_groups()
 
+        optim.step()
         scheduler.step()
 
         # Second batch
         target_lr = lr_neutral
         check_param_groups()
 
+        optim.step()
         scheduler.step()
+        optim.step()
         scheduler.step()
 
         # Last Batch
