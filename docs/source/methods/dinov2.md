@@ -8,6 +8,18 @@ DINOv2 pretrained models are effective across a wide range of tasks, including
 image classification, object detection, and segmentation. They are also known to
 generate high-quality features that can be used without fine-tuning the model.
 
+```{table}
+
+| Implementation | Model | ImageNet k-NN |
+|--------------|----------|---------------|
+| LightlyTrain | ViT-L/16 | 81.9% |
+| [Official](https://github.com/facebookresearch/dinov2) | ViT-L/16 | 81.6% |
+
+```
+
+*The LightlyTrain DINOv2 implementation matches or outperforms the official
+implementation. All models are trained from scratch on ImageNet-1K.*
+
 ## Use DINOv2 in LightlyTrain
 
 ````{tab} Python

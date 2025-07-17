@@ -70,14 +70,19 @@ class ChannelDrop(ImageOnlyTransform):  # type: ignore[misc]
         """
         num_channels = img.shape[2]
 
+        if self.num_channels_keep == num_channels:
+            return img
+        elif self.num_channels_keep > num_channels:
+            raise ValueError(
+                f"num_channels_keep ({self.num_channels_keep}) cannot be greater "
+                f"than the number of channels in the image ({num_channels})."
+            )
+
         if len(self.weight_drop) != num_channels:
             raise RuntimeError(
                 f"Length of weight_drop ({len(self.weight_drop)}) must match "
                 f"number of image channels ({num_channels})"
             )
-
-        if self.num_channels_keep >= num_channels:
-            return img
 
         channels_to_drop = np.random.choice(
             num_channels,
