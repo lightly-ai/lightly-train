@@ -21,6 +21,7 @@ from lightly.models.utils import update_momentum
 from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
 from pydantic import Field
+from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
 from torch.nn import Module
@@ -658,25 +659,29 @@ class DINOv2(Method):
     def transform_cls() -> type[DINOv2ViTTransform]:
         return DINOv2ViTTransform
 
-    def on_fit_start(self) -> None:
+    @rank_zero_only  # type: ignore[misc]
+    def warn_if_steps_too_low(self) -> None:
         # Check if dataset size is set.
         assert self.method_args.dataset_size is not None, (
             "dataset_size must be set before training."
         )
 
+        # Compute dataset-specific epoch recommendation.
+        steps_per_epoch = self.method_args.dataset_size // self.global_batch_size
+        recommended_epochs = math.ceil(self.RECOMMENDED_MIN_STEPS / steps_per_epoch)
+        total_num_steps = self.trainer.estimated_stepping_batches
+
+        # Display recommendation.
+        logger.warning(
+            f"Configured epochs ({self.trainer.max_epochs}) will result in "
+            f"{total_num_steps} steps, which is fewer "
+            f"than {self.RECOMMENDED_MIN_STEPS} steps. "
+            f"Recommended at least {recommended_epochs} epochs "
+            f"for dataset size {self.method_args.dataset_size} and "
+            f"batch size {self.global_batch_size}."
+        )
+
+    def on_fit_start(self) -> None:
         # Warn if total steps < 125k.
         if self.trainer.estimated_stepping_batches < self.RECOMMENDED_MIN_STEPS:
-            # Compute dataset-specific epoch recommendation.
-            steps_per_epoch = self.method_args.dataset_size // self.global_batch_size
-            recommended_epochs = math.ceil(self.RECOMMENDED_MIN_STEPS / steps_per_epoch)
-            total_num_steps = self.trainer.estimated_stepping_batches
-
-            # Display recommendation.
-            logger.warning(
-                f"Configured epochs ({self.trainer.max_epochs}) will result in "
-                f"{total_num_steps} steps, which is fewer "
-                f"than {self.RECOMMENDED_MIN_STEPS} steps. "
-                f"Recommended at least {recommended_epochs} epochs "
-                f"for dataset size {self.method_args.dataset_size} and "
-                f"batch size {self.global_batch_size}."
-            )
+            self.warn_if_steps_too_low()
