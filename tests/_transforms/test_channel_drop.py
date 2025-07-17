@@ -37,26 +37,30 @@ class TestChannelDrop:
             ChannelDrop(num_channels_keep=num_channels_keep, weight_drop=weight_drop)
 
     @pytest.mark.parametrize(
-        "num_channels_keep, weight_drop, expected_channels",
+        "num_channels, num_channels_keep, weight_drop, expected_channels",
         [
-            (1, (0.0, 1.0), (0,)),
-            (1, (1.0, 0.0), (1,)),
-            (1, (1.0, 1.0), (None,)),
-            (1, (0.0, 1.0, 1.0), (0,)),
-            (2, (0.0, 0.0, 1.0), (0, 1)),
-            (2, (1.0, 1.0, 0.0), (None, 2)),
-            (3, (1.0, 1.0, 0.0, 0.0), (None, 2, 3)),  # NRGB to NGB or RGB
-            (3, (0.0, 1.0, 1.0, 1.0), (0, None, None)),
-            (3, (0.0, 1.0, 1.0, 0.0), (0, None, 3)),
+            (1, 1, (0.0, 1.0), (0,)),  # No drop
+            (2, 1, (0.0, 1.0), (0,)),
+            (2, 1, (1.0, 0.0), (1,)),
+            (2, 1, (1.0, 1.0), (None,)),
+            (3, 1, (0.0, 1.0, 1.0), (0,)),
+            (2, 2, (0.0, 0.0, 1.0), (0, 1)),  # No drop
+            (3, 2, (0.0, 0.0, 1.0), (0, 1)),
+            (3, 2, (1.0, 1.0, 0.0), (None, 2)),
+            (3, 3, (1.0, 1.0, 0.0, 0.0), (0, 1, 2)),  # No drop
+            (4, 3, (1.0, 1.0, 0.0, 0.0), (None, 2, 3)),  # NRGB to NGB or RGB
+            (4, 3, (0.0, 1.0, 1.0, 1.0), (0, None, None)),
+            (4, 3, (0.0, 1.0, 1.0, 0.0), (0, None, 3)),
         ],
     )
     def test__call__(
         self,
+        num_channels: int,
         num_channels_keep: int,
         weight_drop: tuple[float, ...],
         expected_channels: tuple[int, ...],
     ) -> None:
-        image = np.random.randint(0, 255, size=(3, 3, len(weight_drop)), dtype=np.uint8)
+        image = np.random.randint(0, 255, size=(3, 3, num_channels), dtype=np.uint8)
 
         transform = ChannelDrop(
             num_channels_keep=num_channels_keep, weight_drop=weight_drop
