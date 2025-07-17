@@ -254,6 +254,8 @@ def get_fused_param_groups(param_groups: list[dict[str, Any]]) -> list[dict[str,
 
     This is slightly more efficient for the optimizer but the main benefit is that it
     reduces the number of log messages (one per group).
+
+    The fused groups are named after the first parameter in the group.
     """
     fused = {}
     for group in param_groups:
