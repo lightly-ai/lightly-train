@@ -20,11 +20,6 @@ if __name__ == "__main__":
         data="my_data_dir",
         model="dinov2_vit/vitb14_pretrain",
         method="dinov2",
-        method_args={
-            # Only set these arguments when starting from a pretrained model
-            "student_freeze_backbone_epochs": 1,  # Freeze the student backbone for 1 epoch
-            "student_freeze_last_layer_epochs": 0,  # Unfreeze the student last layer
-        },
     )
 ````
 
@@ -46,33 +41,6 @@ The following models are available for DINOv2 pretraining:
 - `dinov2_vit/vitg14_pretrain`
 
 Models with a `_pretrain` suffix are [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
-
-````{note}
-When starting from a pretrained model we highly recommend to set the
-`student_freeze_backbone_epochs` and `student_freeze_last_layer_epochs` arguments:
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.train(
-        out="out/my_experiment",
-        data="my_data_dir",
-        model="dinov2_vit/vitb14_pretrain",
-        method="dinov2",
-        method_args={
-            "student_freeze_backbone_epochs": 1,  # Freeze the student backbone for 1 epoch
-            "student_freeze_last_layer_epochs": 0,  # Unfreeze the student last layer
-        },
-    )
-```
-
-The reason for this is that the pretrained models only contain weights for the backbone
-but not the head. Freezing the backbone for the first epoch allows the model to
-initialize the head weights based on the pretrained backbone.
-
-If you start from scratch, then do **not** set these arguments.
-````
 
 ## What's under the Hood
 
