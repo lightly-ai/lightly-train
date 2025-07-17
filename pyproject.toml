@@ -93,6 +93,12 @@ wandb = [
 xformers = [
     "xformers>=0.0.18",
 ]
+onnx = [
+    "onnx>=1.15.0",
+]
+onnxruntime = [
+    "onnxruntime>=1.21.0",
+] # inference engines
 
 [project.scripts]
 lightly-train = "lightly_train._cli:_cli_entrypoint"
@@ -123,6 +129,7 @@ module = [
     "torchmetrics.*",
     "torchvision.*",
     "ultralytics.*",
+    "onnxruntime.*",
 ]
 ignore_missing_imports = true
  
