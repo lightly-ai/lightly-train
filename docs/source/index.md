@@ -135,7 +135,7 @@ For an overview of all supported models and usage instructions, see the full [mo
 ### Supported Training Methods
 
 - [DINOv2 Distillation](#methods-distillation) (recommended 🚀)
-- [DINOv2](#methods-dinov2) (beta 🔬)
+- [DINOv2](#methods-dinov2)
 - [DINO](#methods-dino)
 - [SimCLR](#methods-simclr)
 

@@ -132,7 +132,7 @@ For an overview of all supported models and usage instructions, see the full [mo
 ### Supported Training Methods
 
 - [DINOv2 Distillation](https://docs.lightly.ai/train/stable/methods/index.html#methods-distillation) (recommended 🚀)
-- [DINOv2](https://docs.lightly.ai/train/stable/methods/index.html#methods-dinov2) (beta 🔬)
+- [DINOv2](https://docs.lightly.ai/train/stable/methods/index.html#methods-dinov2)
 - [DINO](https://docs.lightly.ai/train/stable/methods/index.html#methods-dino)
 - [SimCLR](https://docs.lightly.ai/train/stable/methods/index.html#methods-simclr)
 
