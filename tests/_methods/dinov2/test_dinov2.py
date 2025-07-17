@@ -137,7 +137,7 @@ class TestDINOv2:
         emb_model = EmbeddingModel(wrapped_model=dummy_vit_model())
         b = 16
 
-        dinov2_args = DINOv2Args(warmup_epochs=1)
+        dinov2_args = DINOv2Args(warmup_steps=2)
         dinov2_args.layerwise_decay = 0.9
 
         trainer_mock = mocker.Mock()
