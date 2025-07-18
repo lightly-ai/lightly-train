@@ -27,7 +27,7 @@ a wide range of model architectures and use cases out of the box.
 
 - \[[0.9.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-9-0)\] - 2025-07-21:
   [**DINOv2 pretraining**](https://docs.lightly.ai/train/stable/methods/dinov2.html) is
-  now officially available!
+  now out of beta and officially available!
 - \[[0.8.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-8-0)\] - 2025-06-10:
   [**DINOv2 pretraining**](https://docs.lightly.ai/train/stable/methods/dinov2.html) is
   now available (beta 🔬)!
