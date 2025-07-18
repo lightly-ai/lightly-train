@@ -9,27 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Allow loading pretrained DINOv2 teacher weights for distillation methods with an extra
-  `teacher_weights` argument in `method_args`.
-- Support images with different number of channels in the channel drop transform.
-- Documented support for the [RT-DETRv2 models](https://docs.lightly.ai/train/stable/models/rtdetr.html).
-- Warning if the number of steps is below the recommendation for DINOv2.
-
 ### Changed
-
-- The callback `DeviceStatsMonitor` is now disabled by default.
-- Allow loading pretrained DINOv2 teacher weights for distillation methods with an extra `teacher_weights` argument in `method_args`.
-- Replaced epoch-based warmup hyperparameters with iteration-based ones.
 
 ### Deprecated
 
 ### Removed
 
-- Updated the documentation to remove a note and specific recommendation for using DINOv2 with pretrained weights.
-
 ### Fixed
 
 ### Security
+
+## [0.9.0] - 2025-07-21
+
+### Added
+
+- Add an extra `teacher_weights` argument in `method_args` to allow loading pretrained DINOv2 teacher weights for distillation methods.
+- Add support for allowing images with different number of channels in the channel drop transform.
+- Add documentation for the [RT-DETRv2 models](https://docs.lightly.ai/train/stable/models/rtdetr.html).
+- Add warning for situations where the number of steps is below the recommendation for DINOv2.
+
+### Changed
+
+- The callback `DeviceStatsMonitor` is now disabled by default.
+- Replace epoch-based warmup hyperparameters with iteration-based ones.
+
+### Removed
+
+- Remove a note and specific recommendation for using DINOv2 with pretrained weights in the documentation.
 
 ## [0.8.1] - 2025-06-23
 
@@ -42,8 +48,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add channel drop transform.
 - Add option to load multi-channel images with `LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"`.
 - Add option to reuse memmap dataset file via environment variable: `LIGHTLY_TRAIN_MMAP_REUSE_FILE=True`.
-
-### Security
 
 ## [0.8.0] - 2025-06-10
 
