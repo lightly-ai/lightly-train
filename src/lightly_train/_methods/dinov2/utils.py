@@ -19,6 +19,7 @@
 # - get_optimizer_with_decay, get_vit_lr_decay_rate: removed the different options
 #       as in this codebase only one version is supported also check if model is
 #       DinoVisionTransformer to validate it is the "backbone"
+# - get_fused_param_groups: Adapted from original code to work with our group structure.
 
 from __future__ import annotations
 
@@ -207,6 +208,9 @@ def get_optimizer_with_decay(
 
     all_param_groups: List[Dict[str, Any]] = []
     for module in trainable_modules.modules:
+        # NOTE: If you change behavior of parameters here then make sure to also
+        # double check get_fused_param_groups whether it needs any updates.
+
         is_backbone = False
         if isinstance(module, DinoVisionTransformer):
             is_backbone = True
@@ -225,7 +229,7 @@ def get_optimizer_with_decay(
                 )
             d = {
                 "name": name,
-                "params": param,
+                "params": [param],
                 "lr": optim_args.lr * decay_rate,  # type: ignore[attr-defined]
                 "weight_decay": optim_args.weight_decay,  # type: ignore[attr-defined]
                 "foreach": True,
@@ -241,4 +245,28 @@ def get_optimizer_with_decay(
 
             all_param_groups.append(d)
 
-    return optim_args.get_optimizer(params=all_param_groups, lr_scale=1.0)
+    fused_param_groups = get_fused_param_groups(all_param_groups)
+    return optim_args.get_optimizer(params=fused_param_groups, lr_scale=1.0)
+
+
+def get_fused_param_groups(param_groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Fuses parameter groups with the same properties.
+
+    This is slightly more efficient for the optimizer but the main benefit is that it
+    reduces the number of log messages (one per group).
+
+    The fused groups are named after the first parameter in the group.
+    """
+    fused = {}
+    for group in param_groups:
+        ids = {k: v for k, v in group.items() if k not in ["params", "name"]}
+        # Add head and last_layer because they are treated differently in
+        # DINOv2.on_before_optimizer_step
+        ids["head"] = "head" in group["name"]
+        ids["last_layer"] = "last_layer" in group["name"]
+        group_id = "_".join(f"{k}={v}" for k, v in ids.items())
+        if group_id not in fused:
+            fused[group_id] = group
+        else:
+            fused[group_id]["params"].extend(group["params"])
+    return list(fused.values())

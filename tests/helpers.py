@@ -28,9 +28,11 @@ from lightly_train._checkpoint import (
 )
 from lightly_train._commands import extract_video_frames
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._methods.dinov2.dinov2 import DINOv2, DINOv2AdamWViTArgs, DINOv2Args
 from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._methods.simclr.simclr import SimCLR, SimCLRArgs
+from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     _vit_test,
@@ -44,6 +46,7 @@ from lightly_train._models.model_wrapper import (
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.trainable_modules import TrainableModules
+from lightly_train._scaling import ScalingInfo
 from lightly_train._transforms.transform import MethodTransform, NormalizeArgs
 from lightly_train.types import TransformInput, TransformOutput
 
@@ -111,6 +114,24 @@ def get_method(wrapped_model: ModelWrapper) -> Method:
         embedding_model=EmbeddingModel(wrapped_model=wrapped_model),
         global_batch_size=2,
     )
+
+
+def get_method_dinov2() -> DINOv2:
+    optim_args = DINOv2AdamWViTArgs()
+    dinov2_args = DINOv2Args()
+    wrapped_model = package_helpers.get_wrapped_model(model="dinov2_vit/_vit_test14")
+    dinov2_args.resolve_auto(
+        scaling_info=ScalingInfo(dataset_size=1000, epochs=100),
+        optimizer_args=optim_args,
+        wrapped_model=wrapped_model,
+    )
+    dinov2 = DINOv2(
+        method_args=dinov2_args,
+        optimizer_args=optim_args,
+        embedding_model=EmbeddingModel(wrapped_model=wrapped_model),
+        global_batch_size=2,
+    )
+    return dinov2
 
 
 def get_checkpoint(
