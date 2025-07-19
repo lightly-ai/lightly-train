@@ -21,6 +21,7 @@ from lightly.models.utils import update_momentum
 from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
 from pydantic import Field
+from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
 from torch.nn import Module
@@ -80,13 +81,13 @@ class DINOv2Args(MethodArgs):
     ibot_bottleneck_dim: int = 256
     output_dim: int = 65536  # 65536/131072 for fast/long setup in original DINOv2
     batch_norm: bool = False
-    student_freeze_last_layer_epochs: int = 1
+    student_freeze_last_layer_steps: int = 1250
 
     # freeze student backbone
     # Useful when starting from DINOv2 pretrained weights. This allows the projection
     # head to be trained while the backbone is frozen. This is important because the
     # DINOv2 pretrained weights do not include the projection head.
-    student_freeze_backbone_epochs: int = 0
+    student_freeze_backbone_steps: int = 0
 
     # loss
     dino_loss_weight: float = 1.0
@@ -107,9 +108,7 @@ class DINOv2Args(MethodArgs):
     # datasets.
     teacher_temp_start: float = 0.04
     teacher_temp_end: float = 0.07
-    # TODO(Guarin, 06/25): Figure out if we want to reduce warmup epochs for <100 epoch
-    # runs.
-    teacher_temp_warmup_epochs: int = 30  # 30/80 for fast/long setup in original DINOv2
+    teacher_temp_warmup_steps: int = 37500
 
     # masking
     mask_ratio_min: float = 0.1
@@ -118,8 +117,7 @@ class DINOv2Args(MethodArgs):
 
     # lr scheduler
     min_lr: float = 1.0e-06
-    # TODO(Guarin, 06/25): Handle warmup epochs for runs with <100 epochs.
-    warmup_epochs: int = 10
+    warmup_steps: int = 12500
 
     # lr decay
     layerwise_decay: float = 0.9  # 0.9/1.0 for fast/long setup in original DINOv2
@@ -173,6 +171,8 @@ class DINOv2Head(Module):
 
 
 class DINOv2(Method):
+    RECOMMENDED_MIN_STEPS = 125000
+
     def __init__(
         self,
         method_args: DINOv2Args,
@@ -255,11 +255,7 @@ class DINOv2(Method):
         # Teacher temperature scheduling
         teacher_temp = linear_warmup_schedule(
             step=self.trainer.global_step,
-            warmup_steps=int(
-                self.method_args.teacher_temp_warmup_epochs  # type: ignore[operator]
-                / self.trainer.max_epochs
-                * self.trainer.estimated_stepping_batches
-            ),
+            warmup_steps=self.method_args.teacher_temp_warmup_steps,
             start_value=self.method_args.teacher_temp_start,
             end_value=self.method_args.teacher_temp_end,
         )
@@ -563,16 +559,13 @@ class DINOv2(Method):
         if self.trainer.max_epochs is None:
             raise RuntimeError("Max epochs is not set.")
 
-        max_epochs = max(1, self.trainer.max_epochs)
         warmup_steps = min(
             # warmup_steps has to be smaller than the total number of steps because
             # of: https://github.com/lightly-ai/lightly/pull/1842
             # TODO(Guarin, 06/25): Remove this once we no longer support
             # LightlySSL <= 1.5.21.
             self.trainer.estimated_stepping_batches - 1,
-            self.trainer.estimated_stepping_batches
-            / max_epochs
-            * self.method_args.warmup_epochs,
+            self.method_args.warmup_steps,
         )
 
         scheduler = {
@@ -621,14 +614,16 @@ class DINOv2(Method):
 
             # Optionally freeze student backbone
             if (
-                self.current_epoch < self.method_args.student_freeze_backbone_epochs
+                self.trainer.global_step
+                < self.method_args.student_freeze_backbone_steps
                 and "head" not in group["name"]
             ):
                 update["lr"] = 0.0
 
             # Optionally freeze student last layer
             if (
-                self.current_epoch < self.method_args.student_freeze_last_layer_epochs
+                self.trainer.global_step
+                < self.method_args.student_freeze_last_layer_steps
                 and "last_layer" in group["name"]
             ):
                 update["lr"] = 0.0
@@ -662,3 +657,31 @@ class DINOv2(Method):
     @staticmethod
     def transform_cls() -> type[DINOv2ViTTransform]:
         return DINOv2ViTTransform
+
+    @rank_zero_only  # type: ignore[misc]
+    def warn_if_steps_too_low(self) -> None:
+        # Check if the dataloader is set (for mypy).
+        assert self.trainer.train_dataloader is not None, (
+            "dataloader must be set before training."
+        )
+
+        # Compute dataset-specific epoch recommendation.
+        dataset_size = len(self.trainer.train_dataloader.dataset)
+        steps_per_epoch = dataset_size // self.global_batch_size
+        recommended_epochs = math.ceil(self.RECOMMENDED_MIN_STEPS / steps_per_epoch)
+        total_num_steps = self.trainer.estimated_stepping_batches
+
+        # Display recommendation.
+        logger.warning(
+            f"Configured epochs ({self.trainer.max_epochs}) will result in "
+            f"{total_num_steps} steps, which is fewer "
+            f"than {self.RECOMMENDED_MIN_STEPS} steps. "
+            f"Recommended at least {recommended_epochs} epochs "
+            f"for dataset size {dataset_size} and "
+            f"batch size {self.global_batch_size}."
+        )
+
+    def on_fit_start(self) -> None:
+        # Warn if total steps < 125k.
+        if self.trainer.estimated_stepping_batches < self.RECOMMENDED_MIN_STEPS:
+            self.warn_if_steps_too_low()
