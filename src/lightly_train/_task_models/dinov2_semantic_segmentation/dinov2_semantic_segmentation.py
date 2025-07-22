@@ -54,6 +54,7 @@ class LinearSegmentationHead(Module):
 class DINOv2SemanticSegmentation(TaskModel):
     def __init__(
         self,
+        *,
         model_name: str,
         num_classes: int,
         num_queries: int,
