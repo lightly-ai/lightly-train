@@ -5,6 +5,7 @@
 # ---------------------------------------------------------------
 #
 
+from __future__ import annotations
 
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer

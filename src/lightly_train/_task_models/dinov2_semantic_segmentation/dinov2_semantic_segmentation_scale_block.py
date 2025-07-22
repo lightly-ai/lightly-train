@@ -8,6 +8,8 @@
 # Modifications Copyright 2025 Lightly AG:
 # - Replace timm LayerNorm2D implementation with torch version
 
+from __future__ import annotations
+
 from typing import Type
 
 from torch import Tensor, nn
