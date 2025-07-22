@@ -16,6 +16,7 @@ from typing import Any, Literal
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
+from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from torchmetrics import Metric
 
@@ -296,16 +297,23 @@ def log_step(
         f"{split_cap} Step {step + 1}/{max_steps}",
     ]
     for name, value in log_dict.items():
-        parts.append(f"{name_to_display_name[name]}: {value:.4f}")
+        if name in name_to_display_name:
+            parts.append(f"{name_to_display_name[name]}: {value:.4f}")
     line = " | ".join(parts)
     logger.info(line)
 
 
 def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
-    return {
-        name: value.compute() if isinstance(value, Metric) else value
-        for name, value in log_dict.items()
-    }
+    metrics = {}
+    for name, value in log_dict.items():
+        if isinstance(value, Metric):
+            value = value.compute()
+        if isinstance(value, Tensor) and value.numel() > 1:
+            for i, v in enumerate(value):
+                metrics[f"{name}_{i}"] = v.item()
+        else:
+            metrics[name] = value
+    return metrics
 
 
 def reset_metrics(log_dict: dict[str, Any]) -> None:

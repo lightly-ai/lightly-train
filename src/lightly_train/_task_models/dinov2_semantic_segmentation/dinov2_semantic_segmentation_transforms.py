@@ -20,19 +20,29 @@ from lightly_train._transforms.transform import (
     NormalizeArgs,
     RandomCropArgs,
     RandomFlipArgs,
+    ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
 
 
 class DINOv2SemanticSegmentationColorJitterArgs(ColorJitterArgs):
-    # TODO(Thomas, 07/2025): Adjust these values to match the PhotoMetric Distortion from:
-    # https://github.com/open-mmlab/mmsegmentation/blob/main/mmseg/datasets/transforms/transforms.py#L583
-    prob: float = 0.8
-    strength: float = 0.5
-    brightness: float = 0.8
-    contrast: float = 0.8
-    saturation: float = 0.4
-    hue: float = 0.2
+    # Differences between EoMT and this transform:
+    # - EoMT always applies brightness before contrast/saturation/hue.
+    # - EoMT applies all transforms indedenently with probability 0.5. We apply either
+    #   all or none with probability 0.5.
+    prob: float = 0.5
+    strength: float = 1.0
+    brightness: float = 32.0 / 255.0
+    contrast: float = 0.5
+    saturation: float = 0.5
+    hue: float = 18.0 / 360.0
+
+
+class DINOv2SemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
+    min_scale: float = 0.5
+    max_scale: float = 2.0
+    num_scales: int = 20
+    prob: float = 1.0
 
 
 class DINOv2SemanticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
@@ -70,14 +80,16 @@ class DINOv2SemanticSegmentationTrainTransformArgs(SemanticSegmentationTransform
     Defines default transform arguments for semantic segmentation training with DINOv2.
     """
 
+    image_size: tuple[int, int] = (518, 518)
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs = Field(default_factory=RandomFlipArgs)
     color_jitter: DINOv2SemanticSegmentationColorJitterArgs = Field(
         default_factory=DINOv2SemanticSegmentationColorJitterArgs
     )
-    smallest_max_size: SmallestMaxSizeArgs = Field(
-        default_factory=DINOv2SemanticSegmentationSmallestMaxSizeArgs
+    scale_jitter: ScaleJitterArgs | None = Field(
+        default_factory=DINOv2SemanticSegmentationScaleJitterArgs
     )
+    smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs = Field(
         default_factory=DINOv2SemanticSegmentationRandomCropArgs
     )
@@ -90,9 +102,11 @@ class DINOv2SemanticSegmentationValTransformArgs(SemanticSegmentationTransformAr
     Defines default transform arguments for semantic segmentation validation with DINOv2.
     """
 
+    image_size: tuple[int, int] = (518, 518)
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs | None = None
     color_jitter: ColorJitterArgs | None = None
+    scale_jitter: ScaleJitterArgs | None = None
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs | None = None
     longest_max_size: LongestMaxSizeArgs = Field(

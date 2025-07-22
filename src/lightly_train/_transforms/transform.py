@@ -122,6 +122,13 @@ class NormalizeArgs(PydanticConfig):
         )
 
 
+class ScaleJitterArgs(PydanticConfig):
+    min_scale: float
+    max_scale: float
+    num_scales: int
+    prob: float
+
+
 class SmallestMaxSizeArgs(PydanticConfig):
     max_size: int | list[int]  # Maximum size of the smallest side of the image.
     prob: float

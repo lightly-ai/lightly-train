@@ -83,6 +83,8 @@ def export_task_from_config(config: ExportTaskConfig) -> None:
     model = DINOv2SemanticSegmentation(
         model_name="vits14",  # TODO(Yutong, 07/25): use checkpoint["model_name"],
         num_classes=2,  # TODO(Yutong, 07/25): use checkpoint["num_classes"],
+        num_queries=100,  # TODO: Use checkpoint["num_queries"]
+        num_joint_blocks=4,  # TODO: Use checkpoint["num_joint_blocks"]
     )
     model.load_state_dict(checkpoint["state_dict"], strict=False)
     model.eval()
