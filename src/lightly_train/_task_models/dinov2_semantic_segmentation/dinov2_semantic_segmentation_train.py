@@ -431,8 +431,11 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
                 last_group = group
             return grouped
 
-        grouped_backbone_param_groups = group_param_groups(backbone_param_groups)
-        grouped_other_param_groups = group_param_groups(other_param_groups)
+        # TODO(Guarin, 07/25): Group again. Rename to fuse_param_groups.
+        # grouped_backbone_param_groups = group_param_groups(backbone_param_groups)
+        # grouped_other_param_groups = group_param_groups(other_param_groups)
+        grouped_backbone_param_groups = backbone_param_groups
+        grouped_other_param_groups = other_param_groups
 
         param_groups = grouped_backbone_param_groups + grouped_other_param_groups
         optimizer = AdamW(param_groups, weight_decay=self.task_args.weight_decay)
