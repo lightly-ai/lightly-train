@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Patch embedding in ViT to support image resolution that is not a multiple of the patch size.
+- Augmentations plotting function to support odd-sized images.
+- DistillationV2 to work with image resolution that is not a multiple of the patch size.
+
 ### Deprecated
 
 ### Removed

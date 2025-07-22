@@ -47,12 +47,15 @@ def plot_example_augmentations(train_batch: Batch, max_examples: int = 10) -> PI
         for i_row, image_tensor in enumerate(batch):
             if i_row >= n_examples:
                 break
+            # TODO(Thomas,07/25): Fix swapped x and y.
             x_mid = header_height + i_row * grid_height + grid_height // 2
             x_start = x_mid - image_tensor.shape[1] // 2
             x_end = x_mid + image_tensor.shape[1] // 2
+            x_end += image_tensor.shape[1] % 2  # Ensure working with odd sizes
             y_mid = header_width + i_column * grid_width + grid_width // 2
             y_start = y_mid - image_tensor.shape[2] // 2
             y_end = y_mid + image_tensor.shape[2] // 2
+            y_end += image_tensor.shape[2] % 2  # Ensure working with odd sizes
             combined_aug_tensor[
                 :,
                 x_start:x_end,
