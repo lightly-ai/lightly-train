@@ -106,7 +106,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             num_points=task_args.loss_num_points,
             oversample_ratio=task_args.loss_oversample_ratio,
             importance_sample_ratio=task_args.loss_importance_sample_ratio,
-            mask_coefficient=task_args.loss_class_coefficient,
+            mask_coefficient=task_args.loss_mask_coefficient,
             dice_coefficient=task_args.loss_dice_coefficient,
             class_coefficient=task_args.loss_class_coefficient,
             num_labels=len(data_args.classes),
