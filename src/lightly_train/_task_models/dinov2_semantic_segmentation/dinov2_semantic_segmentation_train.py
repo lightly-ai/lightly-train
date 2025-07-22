@@ -40,6 +40,9 @@ from lightly_train._task_models.task_train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
+# TODO: remove this.
+CLASS_MAPPING = {i: i - 1 for i in range(1, 151)}
+
 class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     backbone_weights: PathLike | None = None
     freeze_backbone: bool = False
@@ -87,7 +90,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     ) -> None:
         super().__init__()
         self.task_args = task_args
-
+        print(f"num_classes: {len(data_args.classes)}")
         self.model = DINOv2SemanticSegmentation(
             # TODO(Guarin, 10/25): Make configurable and pass all args.
             # We probably don't want to instantiate the model here. Either we pass it
@@ -118,7 +121,8 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         # TODO(Guarin, 07/25): Make params configurable.
         self.train_miou = JaccardIndex(
             task="multiclass",
-            num_classes=max(data_args.classes) + 1,
+            # num_classes=max(data_args.classes) + 1,
+            num_classes=len(data_args.classes),
             ignore_index=task_args.ignore_index,
         )
         self.val_miou = self.train_miou.clone()
@@ -127,7 +131,8 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.train_metrics = ModuleList(
             [
                 MulticlassJaccardIndex(
-                    num_classes=max(data_args.classes) + 1,
+                    # num_classes=max(data_args.classes) + 1,
+                    num_classes=len(data_args.classes),
                     validate_args=False,
                     # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
                     ignore_index=task_args.ignore_index,
@@ -139,7 +144,8 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.val_metrics = ModuleList(
             [
                 MulticlassJaccardIndex(
-                    num_classes=max(data_args.classes) + 1,
+                    # num_classes=max(data_args.classes) + 1,
+                    num_classes=len(data_args.classes),
                     validate_args=False,
                     # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
                     ignore_index=task_args.ignore_index,
@@ -156,8 +162,15 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         masks = batch["mask"].long()  # Long required for metrics.
         B, C, H, W = images.shape
 
-        targets = self.get_targets(masks)
+        targets, valid_targets_bool = self.get_targets(masks)
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(images)
+        
+        # Filter out empty targets.
+        targets = [t for t, v in zip(targets, valid_targets_bool.tolist()) if v]
+
+        # Filter out predictions corresponding to empty targets.
+        mask_logits_per_layer = [mlpl[valid_targets_bool] for mlpl in mask_logits_per_layer]
+        class_logits_per_layer = [clpl[valid_targets_bool] for clpl in class_logits_per_layer]
 
         # Loss
         num_blocks = len(self.model.backbone.blocks)
@@ -181,7 +194,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         loss_dict = {f"train_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
-        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=0)
+        target_pixel_masks = self.to_per_pixel_targets_semantic(
+            targets,
+            ignore_idx=self.task_args.ignore_index,
+        )
         for block_idx, (mask_logits, class_logits) in enumerate(
             list(zip(mask_logits_per_layer, class_logits_per_layer))
         ):
@@ -237,9 +253,16 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         masks = batch["mask"].long()  # Long required for metrics.
         B, C, H, W = images.shape
 
-        targets = self.get_targets(masks)
+        targets, valid_targets_bool = self.get_targets(masks)
         # TODO(Guarin, 07/25): Use a different forward method for validation?
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(images)
+
+        # Filter out empty targets.
+        targets = [t for t, v in zip(targets, valid_targets_bool.tolist()) if v]
+
+        # Filter out predictions corresponding to empty targets.
+        mask_logits_per_layer = [mlpl[valid_targets_bool] for mlpl in mask_logits_per_layer]
+        class_logits_per_layer = [clpl[valid_targets_bool] for clpl in class_logits_per_layer]
 
         # Loss
         num_blocks = len(self.model.backbone.blocks)
@@ -264,7 +287,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         log_dict = {f"val_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
-        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=0)
+        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=self.task_args.ignore_index)
         for block_idx, (mask_logits, class_logits) in enumerate(
             list(zip(mask_logits_per_layer, class_logits_per_layer))
         ):
@@ -302,21 +325,38 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     def get_targets(self, masks: Tensor) -> list[dict[str, Tensor]]:
         # This follows logic from: https://github.com/tue-mps/eomt/blob/716cbd562366b9746804579b48b866da487d9485/datasets/ade20k_semantic.py#L47-L48
         targets = []
-        for mask in masks:
+        valid_targets = torch.zeros(len(masks), dtype=torch.bool, device=masks.device)
+        for i, mask in enumerate(masks):
             img_masks = []
             img_labels = []
             class_ids = mask.unique()
             # TODO(Guarin, 07/25): EoMT checks whether class id is in class mappings.
             for class_id in class_ids:
+                class_id_cpu = class_id.item() # I know this is slow
+                if class_id_cpu not in CLASS_MAPPING:
+                    # labels 0 is ignored
+                    continue
+
                 img_masks.append(mask == class_id)
-                img_labels.append(class_id)
-            targets.append(
-                {
-                    "masks": torch.stack(img_masks),
-                    "labels": mask.new_tensor(img_labels, dtype=torch.long),
-                }
-            )
-        return targets
+                img_labels.append(CLASS_MAPPING[class_id_cpu]) # TODO: hard-coded for ade20k
+            if len(img_masks) > 0:
+                targets.append(
+                    {
+                        "masks": torch.stack(img_masks),
+                        "labels": mask.new_tensor(img_labels, dtype=torch.long),
+                    }
+                )
+                valid_targets[i] = True
+            else:
+                targets.append(
+                    {
+                        "masks": torch.empty(1),
+                        "labels": torch.empty(1),
+                    }
+                )
+                valid_targets[i] = False
+            
+        return targets, valid_targets
 
     def to_per_pixel_logits_semantic(
         self, mask_logits: Tensor, class_logits: Tensor
