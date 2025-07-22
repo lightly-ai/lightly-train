@@ -29,6 +29,7 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
+from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskCheckpointArgs
 from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_train import (
     DINOv2SemanticSegmentationTrain,
@@ -138,6 +139,11 @@ def get_loggers(logger_args: TaskLoggerArgs, out: Path) -> list[FabricLogger]:
     if logger_args.mlflow is not None:
         logger.debug(f"Using mlflow logger with args {logger_args.mlflow}")
         loggers.append(MLFlowLogger(save_dir=out, **logger_args.mlflow.model_dump()))
+    if logger_args.tensorboard is not None:
+        logger.debug(f"Using tensorboard logger with args {logger_args.tensorboard}")
+        loggers.append(
+            TensorBoardLogger(save_dir=out, **logger_args.tensorboard.model_dump())
+        )
 
     logger.debug(f"Using loggers {[log.__class__.__name__ for log in loggers]}.")
     return loggers
