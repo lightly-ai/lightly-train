@@ -47,6 +47,7 @@ from lightly_train._task_models.task_train_model import (
 from lightly_train._train_task_state import TrainTaskState
 from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import PathLike, TaskDatasetItem
+from src.lightly_train._loggers.tensorboard import TensorBoardLogger
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,11 @@ def get_loggers(logger_args: TaskLoggerArgs, out: Path) -> list[FabricLogger]:
     if logger_args.mlflow is not None:
         logger.debug(f"Using mlflow logger with args {logger_args.mlflow}")
         loggers.append(MLFlowLogger(save_dir=out, **logger_args.mlflow.model_dump()))
+    if logger_args.tensorboard is not None:
+        logger.debug(f"Using tensorboard logger with args {logger_args.tensorboard}")
+        loggers.append(
+            TensorBoardLogger(save_dir=out, **logger_args.tensorboard.model_dump())
+        )
 
     logger.debug(f"Using loggers {[log.__class__.__name__ for log in loggers]}.")
     return loggers

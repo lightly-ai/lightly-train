@@ -9,8 +9,11 @@ from __future__ import annotations
 
 from typing import Literal
 
+from pydantic import Field
+
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._loggers.mlflow import MLFlowLoggerArgs
+from src.lightly_train._loggers.tensorboard import TensorBoardLoggerArgs
 
 
 class TaskLoggerArgs(PydanticConfig):
@@ -19,6 +22,9 @@ class TaskLoggerArgs(PydanticConfig):
     val_log_every_num_steps: int | Literal["auto"] = "auto"
 
     mlflow: MLFlowLoggerArgs | None = None
+    tensorboard: TensorBoardLoggerArgs | None = Field(
+        default_factory=TensorBoardLoggerArgs
+    )
 
     def resolve_auto(self, steps: int, val_steps: int) -> None:
         if self.log_every_num_steps == "auto":
