@@ -14,6 +14,8 @@ if RequirementCache("torchmetrics<1.5"):
     # Skip test if torchmetrics version is too old. This can happen if SuperGradients
     # is installed which requires torchmetrics==0.8
     pytest.skip("Old torchmetrics version", allow_module_level=True)
+if not RequirementCache("transformers"):
+    pytest.skip("Transformers not installed", allow_module_level=True)
 
 import sys
 
@@ -55,6 +57,9 @@ def test_train_task(tmp_path: Path) -> None:
         },
         model="dinov2_vit/_vit_test14",
         task="semantic_segmentation",
+        task_args={
+            "num_joint_blocks": 1,  # Reduce joint blocks for _vit_test14
+        },
         devices=1,
         batch_size=2,
         num_workers=2,
