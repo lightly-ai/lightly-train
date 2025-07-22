@@ -29,6 +29,7 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
+from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskCheckpointArgs
 from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_train import (
     DINOv2SemanticSegmentationTrain,
@@ -47,7 +48,6 @@ from lightly_train._task_models.task_train_model import (
 from lightly_train._train_task_state import TrainTaskState
 from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import PathLike, TaskDatasetItem
-from src.lightly_train._loggers.tensorboard import TensorBoardLogger
 
 logger = logging.getLogger(__name__)
 

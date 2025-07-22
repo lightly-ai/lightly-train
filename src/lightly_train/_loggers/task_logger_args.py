@@ -13,7 +13,7 @@ from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._loggers.mlflow import MLFlowLoggerArgs
-from src.lightly_train._loggers.tensorboard import TensorBoardLoggerArgs
+from lightly_train._loggers.tensorboard import TensorBoardLoggerArgs
 
 
 class TaskLoggerArgs(PydanticConfig):
