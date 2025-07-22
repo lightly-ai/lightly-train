@@ -92,6 +92,12 @@ class DINOv2SemanticSegmentation(TaskModel):
         if freeze_backbone:
             self.freeze_backbone()
 
+        if len(self.backbone.blocks) < num_joint_blocks:
+            raise ValueError(
+                f"num_joint_blocks ({num_joint_blocks}) cannot be larger than the "
+                f"number of blocks in the backbone ({len(self.backbone.blocks)})."
+            )
+
         ### EoMT Specific parameters.
         self.num_queries = num_queries
         # Number of blocks that process queries and image tokens jointly.
