@@ -25,7 +25,7 @@ from transformers.models.mask2former.modeling_mask2former import (
 )
 
 
-class MaskClassificationLoss(Mask2FormerLoss):
+class MaskClassificationLoss(Mask2FormerLoss):  # type: ignore[misc]
     def __init__(
         self,
         num_points: int,

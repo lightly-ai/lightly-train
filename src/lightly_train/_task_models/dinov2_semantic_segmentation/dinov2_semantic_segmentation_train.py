@@ -18,7 +18,9 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torchmetrics import JaccardIndex, MeanMetric
-from torchmetrics.classification import MulticlassJaccardIndex
+from torchmetrics.classification import (
+    MulticlassJaccardIndex,  # type: ignore[attr-defined]
+)
 
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
@@ -116,7 +118,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
 
         # MeanIoU assumes that background is class 0.
         # TODO(Guarin, 07/25): Make params configurable.
-        self.train_miou = JaccardIndex(
+        self.train_miou = JaccardIndex(  # type: ignore[arg-type]
             task="multiclass",
             num_classes=max(data_args.classes) + 1,
             ignore_index=task_args.ignore_index,
@@ -167,7 +169,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             range(num_blocks - self.task_args.num_joint_blocks, num_blocks + 1),
             mask_logits_per_layer,
             class_logits_per_layer,
-            strict=True,
         ):
             block_losses = self.criterion(
                 masks_queries_logits=block_mask_logits,
