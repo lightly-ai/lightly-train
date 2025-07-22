@@ -71,7 +71,7 @@ class PatchEmbed(nn.Module):
         )
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> Tuple[Tensor, int, int]:
         _, _, H, W = x.shape
         patch_H, patch_W = self.patch_size
 
