@@ -150,7 +150,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     train_dataloader = helpers.get_train_dataloader(
         fabric=fabric,
         dataset=train_dataset,
-        batch_size=config.batch_size,
+        batch_size=config.batch_size // fabric.world_size,
         num_workers=config.num_workers,
         loader_args=config.loader_args,
     )
@@ -158,7 +158,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     val_dataloader = helpers.get_val_dataloader(
         fabric=fabric,
         dataset=val_dataset,
-        batch_size=config.batch_size,
+        batch_size=config.batch_size // fabric.world_size,
         num_workers=config.num_workers,
         loader_args=config.loader_args,
     )
