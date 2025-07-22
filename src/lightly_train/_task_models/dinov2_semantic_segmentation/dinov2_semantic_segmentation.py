@@ -157,6 +157,11 @@ class DINOv2SemanticSegmentation(TaskModel):
         masks = logits.argmax(dim=1)
         return masks, logits
 
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        # TODO(Guarin, 07/25): Update to return (masks, logits) tuple.
+        mask_logits_per_layer, class_logits_per_layer = self.forward_train(x)
+        return mask_logits_per_layer[0], class_logits_per_layer[0]
+
     # TODO(Guarin, 07/25): Refactor to take attn_mask_probs as input.
     def forward_train(self, x: Tensor) -> tuple[list[Tensor], list[Tensor]]:
         B, C, H, W = x.shape
