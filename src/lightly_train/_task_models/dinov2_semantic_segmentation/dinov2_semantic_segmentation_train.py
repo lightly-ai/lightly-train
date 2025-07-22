@@ -177,7 +177,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
             losses.update(block_losses)
-        loss = self.criterion.loss_total(losses_all_layers=block_losses)
+        loss = self.criterion.loss_total(losses_all_layers=losses)
         loss_dict = {f"train_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
@@ -244,7 +244,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         # Loss
         num_blocks = len(self.model.backbone.blocks)
         losses = {}
-        log_dict = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
             range(num_blocks - self.task_args.num_joint_blocks, num_blocks + 1),
@@ -260,7 +259,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
             losses.update(block_losses)
-        loss = self.criterion.loss_total(losses_all_layers=block_losses)
+        loss = self.criterion.loss_total(losses_all_layers=losses)
         log_dict = {f"val_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
