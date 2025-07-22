@@ -1,12 +1,24 @@
 (methods-dinov2)=
 
-# DINOv2 (beta 🔬)
+# DINOv2
 
 DINOv2 is a state-of-the-art self-supervised learning method for training vision
 foundation models. It is optimized for large-scale models and datasets.
 DINOv2 pretrained models are effective across a wide range of tasks, including
 image classification, object detection, and segmentation. They are also known to
 generate high-quality features that can be used without fine-tuning the model.
+
+```{table}
+
+| Implementation | Model | ImageNet k-NN |
+|--------------|----------|---------------|
+| LightlyTrain | ViT-L/16 | 81.9% |
+| [Official](https://github.com/facebookresearch/dinov2) | ViT-L/16 | 81.6% |
+
+```
+
+*The LightlyTrain DINOv2 implementation matches or outperforms the official
+implementation. All models are trained from scratch on ImageNet-1K.*
 
 ## Use DINOv2 in LightlyTrain
 
@@ -20,11 +32,7 @@ if __name__ == "__main__":
         data="my_data_dir",
         model="dinov2_vit/vitb14_pretrain",
         method="dinov2",
-        method_args={
-            # Only set these arguments when starting from a pretrained model
-            "student_freeze_backbone_epochs": 1,  # Freeze the student backbone for 1 epoch
-            "student_freeze_last_layer_epochs": 0,  # Unfreeze the student last layer
-        },
+        epochs=100, # We recommend epochs = 125000 * batch size // dataset size
     )
 ````
 
@@ -46,33 +54,6 @@ The following models are available for DINOv2 pretraining:
 - `dinov2_vit/vitg14_pretrain`
 
 Models with a `_pretrain` suffix are [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
-
-````{note}
-When starting from a pretrained model we highly recommend to set the
-`student_freeze_backbone_epochs` and `student_freeze_last_layer_epochs` arguments:
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.train(
-        out="out/my_experiment",
-        data="my_data_dir",
-        model="dinov2_vit/vitb14_pretrain",
-        method="dinov2",
-        method_args={
-            "student_freeze_backbone_epochs": 1,  # Freeze the student backbone for 1 epoch
-            "student_freeze_last_layer_epochs": 0,  # Unfreeze the student last layer
-        },
-    )
-```
-
-The reason for this is that the pretrained models only contain weights for the backbone
-but not the head. Freezing the backbone for the first epoch allows the model to
-initialize the head weights based on the pretrained backbone.
-
-If you start from scratch, then do **not** set these arguments.
-````
 
 ## What's under the Hood
 

@@ -152,20 +152,20 @@ else
 EDITABLE := -e
 endif
 
-# RFDETR is not compatible with Python<3.9. Therefore we exclude it from the
+# RFDETR and ONNXRuntime is not compatible with Python<3.9. Therefore we exclude it from the
 # default extras.
-EXTRAS_PY38 := [dev,finetune,mlflow,notebook,super-gradients,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY38 := [dev,finetune,mlflow,notebook,onnx,super-gradients,tensorboard,timm,ultralytics,wandb]
 
 # SuperGradients is not compatible with Python>=3.10. It is also not easy to install
 # on MacOS. Therefore we exclude it from the default extras.
 # RFDETR has installation issues because of onnxsim dependency on CI with Python 3.12.
 # Onnx dependencies in RFDETR should become optional in RFDETR >1.1.0.
-EXTRAS_PY312 := [dev,finetune,mlflow,notebook,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY312 := [dev,finetune,mlflow,notebook,onnx,onnxruntime,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies. And SuperGradients is not compatible with
 # Python>=3.10, therefore we also remove it from the default development dependencies.
-EXTRAS_DEV := [dev,finetune,mlflow,notebook,tensorboard,timm,ultralytics,wandb]
+EXTRAS_DEV := [dev,finetune,mlflow,notebook,onnx,onnxruntime,tensorboard,timm,ultralytics,wandb]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.

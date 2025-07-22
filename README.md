@@ -25,6 +25,9 @@ a wide range of model architectures and use cases out of the box.
 
 ## News
 
+- \[[0.9.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-9-0)\] - 2025-07-21:
+  [**DINOv2 pretraining**](https://docs.lightly.ai/train/stable/methods/dinov2.html) is
+  now out of beta and officially available!
 - \[[0.8.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-8-0)\] - 2025-06-10:
   [**DINOv2 pretraining**](https://docs.lightly.ai/train/stable/methods/dinov2.html) is
   now available (beta 🔬)!
@@ -132,7 +135,7 @@ For an overview of all supported models and usage instructions, see the full [mo
 ### Supported Training Methods
 
 - [DINOv2 Distillation](https://docs.lightly.ai/train/stable/methods/index.html#methods-distillation) (recommended 🚀)
-- [DINOv2](https://docs.lightly.ai/train/stable/methods/index.html#methods-dinov2) (beta 🔬)
+- [DINOv2](https://docs.lightly.ai/train/stable/methods/index.html#methods-dinov2)
 - [DINO](https://docs.lightly.ai/train/stable/methods/index.html#methods-dino)
 - [SimCLR](https://docs.lightly.ai/train/stable/methods/index.html#methods-simclr)
 
