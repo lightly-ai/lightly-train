@@ -199,7 +199,8 @@ class DINOv2SemanticSegmentation(TaskModel):
                 class_logits_per_layer.append(class_logits)
 
                 # NOTE: Changed from original code to only run during training.
-                if self.training:
+                # TODO(Guarin, 07/25): Revert again?
+                if True: # if self.training:
                     attn_mask = torch.ones(
                         x.shape[0],
                         x.shape[1],
