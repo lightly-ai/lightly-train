@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Any, Literal, Mapping, cast
 
@@ -204,8 +205,12 @@ class DistillationV2(Method):
         b, _, image_h, image_w = x.shape
 
         # Infer the spatial size of the teacher features.
-        teacher_features_h = image_h // self.teacher_embedding_model.patch_size
-        teacher_features_w = image_w // self.teacher_embedding_model.patch_size
+        teacher_features_h = math.ceil(
+            image_h / self.teacher_embedding_model.patch_size
+        )
+        teacher_features_w = math.ceil(
+            image_w / self.teacher_embedding_model.patch_size
+        )
 
         # Forward the images through the student model.
         x = self.student_embedding_model(x, pool=False)

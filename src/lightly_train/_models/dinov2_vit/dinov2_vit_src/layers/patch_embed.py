@@ -9,9 +9,11 @@
 #   https://github.com/facebookresearch/dino/blob/master/vision_transformer.py
 #   https://github.com/rwightman/pytorch-image-models/tree/master/timm/layers/patch_embed.py
 
+import math
 from typing import Callable, Optional, Tuple, Union
 
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 
 
@@ -69,9 +71,20 @@ class PatchEmbed(nn.Module):
         )
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> Tuple[Tensor, int, int]:
         _, _, H, W = x.shape
         patch_H, patch_W = self.patch_size
+
+        # Find the next multiple of patch size for height & width.
+        new_H = math.ceil(H / patch_H) * patch_H
+        new_W = math.ceil(W / patch_W) * patch_W
+
+        if new_H != H or new_W != W:
+            # Resize image to nearest valid resolution
+            x = F.interpolate(
+                x, size=(new_H, new_W), mode="bicubic", align_corners=False
+            )
+            H, W = new_H, new_W
 
         assert H % patch_H == 0, (
             f"Input image height {H} is not a multiple of patch height {patch_H}"
@@ -86,7 +99,7 @@ class PatchEmbed(nn.Module):
         x = self.norm(x)
         if not self.flatten_embedding:
             x = x.reshape(-1, H, W, self.embed_dim)  # B H W C
-        return x
+        return x, new_H, new_W
 
     def flops(self) -> float:
         Ho, Wo = self.patches_resolution
