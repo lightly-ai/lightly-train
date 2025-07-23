@@ -12,7 +12,9 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
+from torch import Tensor
 from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
@@ -47,7 +49,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         if dataset_args.check_empty_targets:
             self.filter_empty_targets()
 
-    def is_mask_valid(self, mask: NDArray) -> bool:
+    def is_mask_valid(self, mask: NDArray[np.uint8]) -> bool:
         # Get unique values in the mask.
         unique_values = np.unique(mask)
 
@@ -102,11 +104,39 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
     def __len__(self) -> int:
         return len(self.image_filenames)
 
+    def get_binary_masks(self, mask: Tensor) -> dict[str, Tensor]:
+        # This follows logic from:
+        # https://github.com/tue-mps/eomt/blob/716cbd562366b9746804579b48b866da487d9485/datasets/ade20k_semantic.py#L47-L48
+
+        img_masks = []
+        img_labels = []
+        class_ids = mask.unique().tolist()  # type: ignore[no-untyped-call]
+
+        # Iterate over the labels present in the mask.
+        for class_id in class_ids:
+            # Check if the class id is the valid classes.
+            if class_id not in self.valid_classes:
+                continue
+
+            # Create binary mask for the class.
+            img_masks.append(mask == class_id)
+
+            # Store the class label.
+            img_labels.append(self.class_mappings[class_id])
+
+        # Store the targets.
+        targets = {
+            "masks": torch.stack(img_masks),
+            "labels": mask.new_tensor(img_labels, dtype=torch.long),
+        }
+        return targets
+
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
         image_filename = self.image_filenames[index]
         image_path = self.args.image_dir / image_filename
         mask_path = (self.args.mask_dir / image_filename).with_suffix(".png")
 
+        # Load the image and the mask.
         image = file_helpers.open_image(image_path=image_path, mode="RGB")
         mask = file_helpers.open_image(image_path=mask_path, mode="MASK")
 
@@ -116,10 +146,14 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             transformed = self.transform({"image": image, "mask": mask})
             mask_is_valid = self.is_mask_valid(transformed["mask"].numpy())
 
+        # Get binary masks.
+        target = self.get_binary_masks(transformed["mask"])
+
         return {
             "image_path": str(image_path),  # Str for torch dataloader compatibility.
             "image": transformed["image"],
             "mask": transformed["mask"],
+            "target": target,
         }
 
 
