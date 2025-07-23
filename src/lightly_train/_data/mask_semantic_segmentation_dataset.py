@@ -12,6 +12,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 import numpy as np
+from numpy.typing import NDArray
 from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
@@ -46,7 +47,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         if dataset_args.check_empty_targets:
             self.filter_empty_targets()
 
-    def is_mask_valid(self, mask: np.ndarray) -> bool:
+    def is_mask_valid(self, mask: NDArray) -> bool:
         # Get unique values in the mask.
         unique_values = np.unique(mask)
 
@@ -109,7 +110,12 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         image = file_helpers.open_image(image_path=image_path, mode="RGB")
         mask = file_helpers.open_image(image_path=mask_path, mode="MASK")
 
-        transformed = self.transform({"image": image, "mask": mask})
+        # Re-do the augmentation until the mask is valid.
+        mask_is_valid = False
+        while not mask_is_valid:
+            transformed = self.transform({"image": image, "mask": mask})
+            mask_is_valid = self.is_mask_valid(transformed["mask"].numpy())
+
         return {
             "image_path": str(image_path),  # Str for torch dataloader compatibility.
             "image": transformed["image"],
