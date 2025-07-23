@@ -7,10 +7,11 @@
 #
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Optional
 
+import numpy as np
 from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
@@ -22,6 +23,8 @@ from lightly_train.types import (
     MaskSemanticSegmentationDatasetItem,
     PathLike,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
@@ -37,6 +40,41 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Get the class mappings.
         self.class_mappings = self.get_class_mappings()
+        self.valid_classes = np.array(list(self.class_mappings.keys()))
+
+        # Optionally filter image filenames corresponding to empty targets.
+        if dataset_args.check_empty_targets:
+            self.filter_empty_targets()
+
+    def is_mask_valid(self, mask: np.ndarray) -> bool:
+        # Get unique values in the mask.
+        unique_values = np.unique(mask)
+
+        # Uniform masks are discarded.
+        if len(unique_values) == 1:
+            return False
+
+        # Check if at least one value in the mask is in the valid classes.
+        return bool(np.isin(unique_values, self.valid_classes).any())
+
+    def filter_empty_targets(self) -> None:
+        # Instantiate new list of file names
+        new_image_filenames = []
+
+        # Populate the new lists with file names corresponding to valid targets.
+        for filename in self.image_filenames:
+            filepath = (self.args.mask_dir / filename).with_suffix(".png")
+
+            mask = file_helpers.open_image(image_path=filepath, mode="MASK")
+            if self.is_mask_valid(mask):
+                new_image_filenames.append(filename)
+
+        # Display the number of filtered files.
+        n_filtered_files = len(self) - len(new_image_filenames)
+        logger.info(f"Filtered {n_filtered_files} invalid masks out of {len(self)}.")
+
+        # Update the list of valid files.
+        self.image_filenames = new_image_filenames
 
     def get_class_mappings(self) -> dict[int, int]:
         # Verify the classes are set (for mypy).
@@ -84,6 +122,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     mask_dir: Path
     classes: dict[int, str] | None = None
     ignore_classes: set[int] = set()
+    check_empty_targets: bool = True
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
@@ -109,6 +148,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     val: SplitArgs
     classes: dict[int, str]
     ignore_classes: set[int] = set()
+    check_empty_targets: bool = True
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if this makes sense to have in data args.
@@ -118,6 +158,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             mask_dir=Path(self.train.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
+            check_empty_targets=self.check_empty_targets,
         )
 
     def get_val_args(self) -> MaskSemanticSegmentationDatasetArgs:
@@ -126,4 +167,5 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             mask_dir=Path(self.val.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
+            check_empty_targets=self.check_empty_targets,
         )
