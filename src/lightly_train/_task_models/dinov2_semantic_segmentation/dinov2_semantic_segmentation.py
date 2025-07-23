@@ -198,34 +198,39 @@ class DINOv2SemanticSegmentation(TaskModel):
                 mask_logits_per_layer.append(mask_logits)
                 class_logits_per_layer.append(class_logits)
 
-                # NOTE: Changed from original code to only run during training.
-                if self.training:
-                    attn_mask = torch.ones(
-                        x.shape[0],
-                        x.shape[1],
-                        x.shape[1],
-                        dtype=torch.bool,
-                        device=x.device,
-                    )
-                    interpolated = F.interpolate(
-                        input=mask_logits,
-                        size=grid_size,
-                        mode="bilinear",
-                    )
-                    interpolated = interpolated.view(
-                        interpolated.size(0), interpolated.size(1), -1
-                    )
-                    attn_mask[
-                        :,
-                        : self.num_queries,
-                        self.num_queries + 1 + self.backbone.num_register_tokens :,
-                    ] = interpolated > 0
-                    attn_mask = self._disable_attn_mask(
-                        attn_mask=attn_mask,
-                        prob=self.attn_mask_probs[
-                            i - len(self.backbone.blocks) + self.num_joint_blocks
-                        ],
-                    )
+                # NOTE(Guarin, 07/25): Attention masking is enabled for training and
+                # validation. We keep it enabled for validation to match metrics of the
+                # original EoMT implementation. This results in significantly higher
+                # validation mIoU during training. However, it would also make sense
+                # to disable during validation as inference doesn't use attention
+                # masking.
+                # TODO(Guarin, 07/25): Disable for inference.
+                attn_mask = torch.ones(
+                    x.shape[0],
+                    x.shape[1],
+                    x.shape[1],
+                    dtype=torch.bool,
+                    device=x.device,
+                )
+                interpolated = F.interpolate(
+                    input=mask_logits,
+                    size=grid_size,
+                    mode="bilinear",
+                )
+                interpolated = interpolated.view(
+                    interpolated.size(0), interpolated.size(1), -1
+                )
+                attn_mask[
+                    :,
+                    : self.num_queries,
+                    self.num_queries + 1 + self.backbone.num_register_tokens :,
+                ] = interpolated > 0
+                attn_mask = self._disable_attn_mask(
+                    attn_mask=attn_mask,
+                    prob=self.attn_mask_probs[
+                        i - len(self.backbone.blocks) + self.num_joint_blocks
+                    ],
+                )
 
             # This mirrors forward of DINOv2 Block.
             if self.training and block.sample_drop_ratio > 0:
