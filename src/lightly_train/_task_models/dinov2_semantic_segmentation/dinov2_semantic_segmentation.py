@@ -198,6 +198,13 @@ class DINOv2SemanticSegmentation(TaskModel):
                 mask_logits_per_layer.append(mask_logits)
                 class_logits_per_layer.append(class_logits)
 
+                # NOTE(Guarin, 07/25): Attention masking is enabled for training and
+                # validation. We keep it enabled for validation to match metrics of the
+                # original EoMT implementation. This results in significantly higher
+                # validation mIoU during training. However, it would also make sense
+                # to disable during validation as inference doesn't use attention
+                # masking.
+                # TODO(Guarin, 07/25): Disable for inference.
                 attn_mask = torch.ones(
                     x.shape[0],
                     x.shape[1],
