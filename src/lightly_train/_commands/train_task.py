@@ -136,7 +136,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     config.steps = helpers.get_steps(steps=config.steps)
     # TODO(Guarin, 07/25): Choose sensible default for batch size. Based on model?
     config.batch_size = common_helpers.get_global_batch_size(
-        global_batch_size=32 if config.batch_size == "auto" else config.batch_size,
+        global_batch_size=16 if config.batch_size == "auto" else config.batch_size,
         dataset=train_dataset,
         total_num_devices=fabric.world_size,
         loader_args=config.loader_args,
