@@ -74,6 +74,7 @@ class MaskSemanticSegmentationDatasetItem(TaskDatasetItem):
     image_path: ImageFilename
     image: Tensor
     mask: Tensor
+    target: dict[str, Tensor]
 
 
 class MaskSemanticSegmentationBatch(TypedDict):
