@@ -39,6 +39,11 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self.class_mappings = self.get_class_mappings()
 
     def get_class_mappings(self) -> dict[int, int]:
+        # Verify the classes are set (for mypy).
+        assert self.args.classes is not None, (
+            "Segmentation dataset classes must be set."
+        )
+
         # Set variables.
         original_classes = self.args.classes.keys()
         ignore_classes = self.args.ignore_classes
@@ -78,7 +83,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
     mask_dir: Path
     classes: dict[int, str] | None = None
-    ignore_classes: set[int] | None = None
+    ignore_classes: set[int] = set()
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
@@ -103,7 +108,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     train: SplitArgs
     val: SplitArgs
     classes: dict[int, str]
-    ignore_classes: Optional[set[int]] = None
+    ignore_classes: set[int] = set()
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if this makes sense to have in data args.
