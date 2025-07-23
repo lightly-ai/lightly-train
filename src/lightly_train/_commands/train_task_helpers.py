@@ -256,12 +256,6 @@ def get_steps(steps: int | Literal["auto"]) -> int:
     return steps
 
 
-def get_batch_size(batch_size: int | Literal["auto"]) -> int:
-    if batch_size == "auto":
-        return 32
-    return batch_size
-
-
 def get_task_train_model_args(
     task_args: dict[str, Any] | TaskTrainModelArgs | None,
 ) -> TaskTrainModelArgs:
