@@ -208,7 +208,7 @@ def get_train_dataloader(
     # TODO(Guarin, 07/25): Persistent workers by default?
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
-        batch_size=batch_size,
+        batch_size=batch_size // fabric.world_size,
         shuffle=True,
         num_workers=num_workers,
         drop_last=True,
@@ -234,7 +234,7 @@ def get_val_dataloader(
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
-        batch_size=batch_size,
+        batch_size=batch_size // fabric.world_size,
         shuffle=False,
         num_workers=num_workers,
         drop_last=False,
@@ -254,12 +254,6 @@ def get_steps(steps: int | Literal["auto"]) -> int:
     if steps == "auto":
         return 1000
     return steps
-
-
-def get_batch_size(batch_size: int | Literal["auto"]) -> int:
-    if batch_size == "auto":
-        return 32
-    return batch_size
 
 
 def get_task_train_model_args(
