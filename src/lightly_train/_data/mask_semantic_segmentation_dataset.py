@@ -35,6 +35,26 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self.image_filenames = image_filenames
         self.transform = transform
 
+        # Get the class mappings.
+        self.class_mappings = self.get_class_mappings()
+
+    def get_class_mappings(self) -> dict[int, int]:
+        # Set variables.
+        original_classes = self.args.classes.keys()
+        ignore_classes = self.args.ignore_classes
+        class_mappings = {}
+        class_counter = 0
+
+        # Iterate over the classes and populate the class_mapppings.
+        for original_class in original_classes:
+            if original_class not in ignore_classes:
+                # Re-map the class.
+                class_mappings[original_class] = class_counter
+
+                # Update the class counter.
+                class_counter += 1
+        return class_mappings
+
     def __len__(self) -> int:
         return len(self.image_filenames)
 
