@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from pathlib import Path
+from typing import Optional
 
 from torch.utils.data import Dataset
 
@@ -57,6 +58,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
     mask_dir: Path
     classes: dict[int, str] | None = None
+    ignore_classes: set[int] | None = None
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
@@ -81,6 +83,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     train: SplitArgs
     val: SplitArgs
     classes: dict[int, str]
+    ignore_classes: Optional[set[int]] = None
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if this makes sense to have in data args.
@@ -89,6 +92,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             image_dir=Path(self.train.images),
             mask_dir=Path(self.train.masks),
             classes=self.classes,
+            ignore_classes=self.ignore_classes,
         )
 
     def get_val_args(self) -> MaskSemanticSegmentationDatasetArgs:
@@ -96,4 +100,5 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             image_dir=Path(self.val.images),
             mask_dir=Path(self.val.masks),
             classes=self.classes,
+            ignore_classes=self.ignore_classes,
         )
