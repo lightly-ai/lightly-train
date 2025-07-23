@@ -66,7 +66,7 @@ class DINOv2SemanticSegmentationCenterCropArgs(CenterCropArgs):
     pad_if_needed: bool = True
     pad_position: str = "center"
     fill: int = 0
-    fill_mask: int = -100  # Align this value with ignore_index in the loss.
+    fill_mask: int = -100  #TODO Align this value with ignore_index in the loss.
     prob: float = 1.0
 
 

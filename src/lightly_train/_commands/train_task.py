@@ -273,6 +273,8 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
                     val_result = model.validation_step(fabric=fabric, batch=val_batch)
                 if is_last_val_step:
                     val_log_dict = helpers.compute_metrics(val_result.log_dict)
+                    val_iou_all = [v for k, v in val_log_dict.items() if k.startswith("val_metric/miou_cls")]
+                    val_log_dict["metrics/val_iou_all"] = sum(val_iou_all) / len(val_iou_all)
                     helpers.log_step(
                         split="val",
                         step=val_step,

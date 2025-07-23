@@ -52,7 +52,7 @@ class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     num_joint_blocks: int = 4
 
     # TODO(Guarin, 07/25): Move this to data args? EoMT uses 255 instead.
-    ignore_index: int = -100
+    ignore_index: int = 255
 
     # Loss terms
     loss_num_points: int = 12544
@@ -89,13 +89,17 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     ) -> None:
         super().__init__()
         self.task_args = task_args
+        self.data_args = data_args
+        self.class_mapping = {class_id: i for i, class_id in enumerate(data_args.classes)}
+        max_class_id = max(self.class_mapping.values())
+        num_classes = max_class_id + 1
 
         self.model = DINOv2SemanticSegmentation(
             # TODO(Guarin, 10/25): Make configurable and pass all args.
             # We probably don't want to instantiate the model here. Either we pass it
             # from the outside or we use a setup function (might be useful for FSDP).
             model_name=model_name,
-            num_classes=len(data_args.classes),
+            num_classes=num_classes,
             num_queries=task_args.num_queries,
             num_joint_blocks=task_args.num_joint_blocks,
             backbone_weights=task_args.backbone_weights,
@@ -111,7 +115,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             mask_coefficient=task_args.loss_mask_coefficient,
             dice_coefficient=task_args.loss_dice_coefficient,
             class_coefficient=task_args.loss_class_coefficient,
-            num_labels=len(data_args.classes),
+            num_labels=num_classes,
             no_object_coefficient=task_args.loss_no_object_coefficient,
         )
         self.val_loss = MeanMetric()
@@ -120,7 +124,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         # TODO(Guarin, 07/25): Make params configurable.
         self.train_miou = JaccardIndex(
             task="multiclass",  # type: ignore[arg-type]
-            num_classes=max(data_args.classes) + 1,
+            num_classes=num_classes,
             ignore_index=task_args.ignore_index,
         )
         self.val_miou = self.train_miou.clone()
@@ -129,7 +133,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.train_metrics = ModuleList(
             [
                 MulticlassJaccardIndex(
-                    num_classes=max(data_args.classes) + 1,
+                    num_classes=num_classes,
                     validate_args=False,
                     # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
                     ignore_index=task_args.ignore_index,
@@ -141,7 +145,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.val_metrics = ModuleList(
             [
                 MulticlassJaccardIndex(
-                    num_classes=max(data_args.classes) + 1,
+                    num_classes=num_classes,
                     validate_args=False,
                     # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
                     ignore_index=task_args.ignore_index,
@@ -182,7 +186,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         loss_dict = {f"train_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
-        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=0)
+        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=self.task_args.ignore_index)
         for block_idx, (mask_logits, class_logits) in enumerate(
             list(zip(mask_logits_per_layer, class_logits_per_layer))
         ):
@@ -263,7 +267,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         log_dict = {f"val_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
-        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=0)
+        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=self.task_args.ignore_index)
         for block_idx, (mask_logits, class_logits) in enumerate(
             list(zip(mask_logits_per_layer, class_logits_per_layer))
         ):
@@ -307,8 +311,17 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             class_ids = mask.unique()
             # TODO(Guarin, 07/25): EoMT checks whether class id is in class mappings.
             for class_id in class_ids:
+                new_class_id = self.class_mapping.get(class_id.item())
+                if new_class_id is None:
+                    # Ignore classes that are not in the mapping.
+                    continue
                 img_masks.append(mask == class_id)
-                img_labels.append(class_id)
+                img_labels.append(new_class_id)
+            # TODO(Guarin, 07/25): Remove, this is only for debugging learning rates.
+            if not img_masks:
+                print("WARNING: No masks found for image")
+                img_masks.append(mask.new_ones(mask.shape))
+                img_labels.append(1)
             targets.append(
                 {
                     "masks": torch.stack(img_masks),
@@ -409,7 +422,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
 
         # TODO(Guarin, 07/25): Added this to reduce number of logged lr/wd values.
         # Might want to revisit this. Maybe we can make it nicer based on block names?
-        def group_param_groups(
+        def fuse_param_groups(
             param_groups: list[dict[str, Any]],
         ) -> list[dict[str, Any]]:
             grouped = []
@@ -432,17 +445,17 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             return grouped
 
         # TODO(Guarin, 07/25): Group again. Rename to fuse_param_groups.
-        # grouped_backbone_param_groups = group_param_groups(backbone_param_groups)
-        # grouped_other_param_groups = group_param_groups(other_param_groups)
-        grouped_backbone_param_groups = backbone_param_groups
-        grouped_other_param_groups = other_param_groups
+        fused_backbone_param_groups = fuse_param_groups(backbone_param_groups)
+        fused_other_param_groups = fuse_param_groups(other_param_groups)
+        # fused_backbone_param_groups = backbone_param_groups
+        # fused_other_param_groups = other_param_groups
 
-        param_groups = grouped_backbone_param_groups + grouped_other_param_groups
+        param_groups = fused_backbone_param_groups + fused_other_param_groups
         optimizer = AdamW(param_groups, weight_decay=self.task_args.weight_decay)
 
         scheduler = TwoStageWarmupPolySchedule(
             optimizer,
-            num_backbone_params=len(grouped_backbone_param_groups),
+            num_backbone_params=len(fused_backbone_param_groups),
             warmup_steps=self.task_args.lr_warmup_steps,
             total_steps=total_steps,
             poly_power=self.task_args.poly_power,
