@@ -294,7 +294,6 @@ class DINOv2SemanticSegmentation(TaskModel):
             .permute(2, 0, 3, 1, 4)
         )
         q, k, v = qkv[0] * module.scale, qkv[1], qkv[2]
-        attn = q @ k.transpose(-2, -1)
 
         if mask is not None:
             mask = mask[:, None, ...].expand(-1, module.num_heads, -1, -1)
