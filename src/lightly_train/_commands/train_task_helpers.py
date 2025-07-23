@@ -198,6 +198,16 @@ def get_dataset(
     )
 
 
+def collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
+    # TODO(Thomas, 07/25): make this task/split dependant.
+    return {
+        "image_paths": [item["image_path"] for item in batch],
+        "image": torch.stack([item["image"] for item in batch]),
+        "mask": torch.stack([item["mask"] for item in batch]),
+        "target": [item["target"] for item in batch],
+    }
+
+
 def get_train_dataloader(
     fabric: Fabric,
     dataset: Dataset[TaskDatasetItem],
@@ -205,15 +215,6 @@ def get_train_dataloader(
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
 ) -> DataLoader[TaskDatasetItem]:
-    # Define the collate function. TODO(Thomas, 07/25): make this task dependant.
-    def collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
-        return {
-            "image_paths": [item["image_path"] for item in batch],
-            "image": torch.stack([item["image"] for item in batch]),
-            "mask": torch.stack([item["mask"] for item in batch]),
-            "target": [item["target"] for item in batch],
-        }
-
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
     # TODO(Guarin, 07/25): Persistent workers by default?
     dataloader_kwargs: dict[str, Any] = dict(
@@ -242,16 +243,6 @@ def get_val_dataloader(
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
 ) -> DataLoader[TaskDatasetItem]:
-    # Define the collate function. TODO(Thomas, 07/25): make this task dependant and
-    # change to support sliding window.
-    def collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
-        return {
-            "image_paths": [item["image_path"] for item in batch],
-            "image": torch.stack([item["image"] for item in batch]),
-            "mask": torch.stack([item["mask"] for item in batch]),
-            "target": [item["target"] for item in batch],
-        }
-
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
