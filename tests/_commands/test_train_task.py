@@ -19,7 +19,10 @@ if not RequirementCache("transformers"):
 
 import sys
 
-from lightly_train._commands import train_task
+import torch
+
+from lightly_train._commands import export_task, train_task
+from lightly_train._task_models import task_model_helpers
 
 from .. import helpers
 
@@ -68,3 +71,34 @@ def test_train_task(tmp_path: Path) -> None:
     assert out.exists()
     assert out.is_dir()
     assert (out / "train.log").exists()
+
+    model = task_model_helpers.load_task_model_from_checkpoint(
+        checkpoint=out / "checkpoints" / "last.ckpt"
+    )
+    # Check forward pass
+    dummy_input = torch.randn(1, 3, 224, 224)
+    model(dummy_input)
+
+    # Check ONNX export
+    if RequirementCache("onnx"):
+        import onnx
+
+        onnx_out = out / "model.onnx"
+        export_task.export_task(
+            out=onnx_out,
+            checkpoint=out / "checkpoints" / "last.ckpt",
+            format="onnx",
+        )
+        onnx_model = onnx.load(str(onnx_out))
+        onnx.checker.check_model(onnx_model, full_check=True)
+
+        # Check ONNX inference
+        if RequirementCache("onnxruntime"):
+            import onnxruntime as ort
+
+            ort_session = ort.InferenceSession(
+                str(onnx_out), providers=["CPUExecutionProvider"]
+            )
+
+            ort_inputs = {"input": dummy_input.cpu().numpy()}
+            ort_session.run(["mask", "logits"], ort_inputs)

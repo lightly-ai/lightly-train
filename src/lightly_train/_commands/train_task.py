@@ -174,16 +174,16 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     )
     fabric.loggers.extend(logger_instances)
 
-    model = helpers.get_task_train_model(
+    train_model = helpers.get_task_train_model(
         model_name=config.model,
         task_args=config.task_args,
         data_args=config.data,
     )
     # Set train mode to make sure that all parameters are in the correct state before
     # the optimizer is initialized.
-    model.set_train_mode()
-    optimizer, scheduler = model.get_optimizer(total_steps=config.steps)
-    model, optimizer = fabric.setup(model, optimizer)  # type: ignore[assignment]
+    train_model.set_train_mode()
+    optimizer, scheduler = train_model.get_optimizer(total_steps=config.steps)
+    train_model, optimizer = fabric.setup(train_model, optimizer)  # type: ignore[assignment]
 
     logger.info(
         f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
@@ -194,10 +194,12 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         logger_instance.log_hyperparams(hyperparams)
 
     state = TrainTaskState(
-        model=model,
+        train_model=train_model,
         optimizer=optimizer,
         train_dataloader=train_dataloader,
         step=-1,
+        model_class_path=train_model.get_task_model().class_path,
+        model_init_args=train_model.get_task_model().init_args,
         # TODO(Guarin, 07/25): Add config to state. For this we have to make the config
         # JSON serializable.
     )
@@ -209,9 +211,9 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # reloading dataloader after every epoch? Is this preferred over persistent workers?
     infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
-    for name, param in model.named_parameters():
+    for name, param in train_model.named_parameters():
         logger.debug(f"grad={param.requires_grad} {name}")
-    for name, module in model.named_modules():
+    for name, module in train_model.named_modules():
         logger.debug(f"train={module.training} {name}")
 
     start_step = state["step"] + 1
@@ -238,7 +240,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         batch = next(infinite_train_dataloader)
-        train_result = model.training_step(fabric=fabric, batch=batch, step=step)
+        train_result = train_model.training_step(fabric=fabric, batch=batch, step=step)
         fabric.backward(train_result.loss)
         optimizer.step()
         optimizer.zero_grad()
@@ -262,7 +264,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         if is_val_step or is_last_step:
             fabric.barrier()
             logger.info("Validating...")
-            model.eval()
+            train_model.eval()
             for val_step, val_batch in enumerate(val_dataloader):
                 is_last_val_step = val_step + 1 == len(val_dataloader)
                 is_val_log_step = val_step == 0 or (
@@ -270,7 +272,9 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
                     == 0
                 )
                 with torch.no_grad():
-                    val_result = model.validation_step(fabric=fabric, batch=val_batch)
+                    val_result = train_model.validation_step(
+                        fabric=fabric, batch=val_batch
+                    )
                 if is_last_val_step:
                     val_log_dict = helpers.compute_metrics(val_result.log_dict)
                     helpers.log_step(
@@ -290,7 +294,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
                         max_steps=len(val_dataloader),
                         log_dict={},
                     )
-            model.set_train_mode()
+            train_model.set_train_mode()
             fabric.barrier()
         if is_save_ckpt_step or is_last_step:
             helpers.save_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
