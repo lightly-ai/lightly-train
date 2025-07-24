@@ -156,9 +156,9 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"].long()  # Long required for metrics.
-        B, C, H, W = images.shape
+        targets = batch["target"]
+        _, _, H, W = images.shape
 
-        targets = self.get_targets(masks)
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(images)
 
         # Loss
@@ -182,7 +182,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         loss_dict = {f"train_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
-        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=0)
         for block_idx, (mask_logits, class_logits) in enumerate(
             list(zip(mask_logits_per_layer, class_logits_per_layer))
         ):
@@ -191,10 +190,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             self.update_metrics_semantic(
                 metrics=self.train_metrics,
                 preds=logits,
-                targets=target_pixel_masks,
+                targets=masks,
                 block_idx=block_idx,
             )
-        for pred, targ in zip(logits, target_pixel_masks):
+        for pred, targ in zip(logits, masks):
             self.train_miou.update(pred[None, ...], targ[None, ...])
 
         metrics: dict[str, Any] = {
@@ -236,9 +235,9 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"].long()  # Long required for metrics.
-        B, C, H, W = images.shape
+        targets = batch["target"]
+        _, _, H, W = images.shape
 
-        targets = self.get_targets(masks)
         # TODO(Guarin, 07/25): Use a different forward method for validation?
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(images)
 
@@ -263,7 +262,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         log_dict = {f"val_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
-        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=0)
         for block_idx, (mask_logits, class_logits) in enumerate(
             list(zip(mask_logits_per_layer, class_logits_per_layer))
         ):
@@ -272,10 +270,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             self.update_metrics_semantic(
                 metrics=self.val_metrics,
                 preds=logits,
-                targets=target_pixel_masks,
+                targets=masks,
                 block_idx=block_idx,
             )
-        for pred, targ in zip(logits, target_pixel_masks):
+        for pred, targ in zip(logits, masks):
             self.val_miou.update(pred[None, ...], targ[None, ...])
 
         metrics: dict[str, Any] = {
