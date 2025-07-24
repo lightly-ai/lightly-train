@@ -81,6 +81,7 @@ class MaskSemanticSegmentationBatch(TypedDict):
     image_path: list[ImageFilename]  # length==batch_size
     image: Tensor  # One tensor per view, of shape (batch_size, 3, w, h) each.
     mask: Tensor  # One tensor per view, of shape (batch_size, w, h) each.
+    target: list[dict[str, Tensor]]
 
 
 # Replaces torch.optim.optimizer.ParamsT
