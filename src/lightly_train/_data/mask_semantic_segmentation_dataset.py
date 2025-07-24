@@ -131,6 +131,19 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         }
         return targets
 
+    def remap_mask(self, mask: torch.Tensor, ignore_index: int = -100) -> torch.Tensor:
+        # Create a lookup table initialized with ignore_index
+        max_class = int(mask.max().item())
+        lut = torch.full((max_class + 1,), ignore_index, dtype=torch.long)
+
+        # Fill in valid mappings
+        for old_class, new_class in self.class_mapping.items():
+            if old_class <= max_class:
+                lut[old_class] = new_class
+
+        # Use LUT to remap efficiently
+        return lut[mask.to(torch.long)]
+
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
         image_filename = self.image_filenames[index]
         image_path = self.args.image_dir / image_filename
@@ -154,10 +167,14 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Get binary masks.
         target = self.get_binary_masks(transformed["mask"])
 
+        # Mark pixels to ignore in the masks.
+        transformed_mask = transformed["mask"]
+        transformed_mask = self.remap_mask(transformed_mask)
+
         return {
             "image_path": str(image_path),  # Str for torch dataloader compatibility.
             "image": transformed["image"],
-            "mask": transformed["mask"],
+            "mask": transformed_mask,
             "target": target,
         }
 
