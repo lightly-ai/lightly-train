@@ -41,9 +41,9 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self.image_filenames = image_filenames
         self.transform = transform
 
-        # Get the class mappings.
-        self.class_mappings = self.get_class_mappings()
-        self.valid_classes = np.array(list(self.class_mappings.keys()))
+        # Get the class mapping.
+        self.class_mapping = self.get_class_mapping()
+        self.valid_classes = np.array(list(self.class_mapping.keys()))
 
         # Optionally filter image filenames corresponding to empty targets.
         if dataset_args.check_empty_targets:
@@ -79,7 +79,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Update the list of valid files.
         self.image_filenames = new_image_filenames
 
-    def get_class_mappings(self) -> dict[int, int]:
+    def get_class_mapping(self) -> dict[int, int]:
         # Verify the classes are set (for mypy).
         assert self.args.classes is not None, (
             "Segmentation dataset classes must be set."
@@ -88,18 +88,18 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Set variables.
         original_classes = self.args.classes.keys()
         ignore_classes = self.args.ignore_classes
-        class_mappings = {}
+        class_mapping = {}
         class_counter = 0
 
         # Iterate over the classes and populate the class_mapppings.
         for original_class in original_classes:
             if original_class not in ignore_classes:
                 # Re-map the class.
-                class_mappings[original_class] = class_counter
+                class_mapping[original_class] = class_counter
 
                 # Update the class counter.
                 class_counter += 1
-        return class_mappings
+        return class_mapping
 
     def __len__(self) -> int:
         return len(self.image_filenames)
@@ -122,7 +122,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             img_masks.append(mask == class_id)
 
             # Store the class label.
-            img_labels.append(self.class_mappings[class_id])
+            img_labels.append(self.class_mapping[class_id])
 
         # Store the targets.
         targets = {
