@@ -347,7 +347,7 @@ class DINOv2SemanticSegmentation(TaskModel):
         new_state_dict = {}
         for name, param in state_dict.items():
             if name.startswith("model."):
-                name = name.removeprefix("model.")
+                name = name[len("model.") :]
                 if name in param_names:
                     new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)
