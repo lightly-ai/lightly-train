@@ -78,12 +78,7 @@ def test_train_task(tmp_path: Path) -> None:
     # Check forward pass
     model(torch.randn(1, 3, 224, 224))
 
-    # Check export if onnx is installed.
-    try:
-        import onnx
-    except ImportError:
-        pass
-    else:
+    if RequirementCache("onnx"):
         export_task.export_task(
             out=out / "model.onnx",
             checkpoint=out / "checkpoints" / "last.ckpt",
