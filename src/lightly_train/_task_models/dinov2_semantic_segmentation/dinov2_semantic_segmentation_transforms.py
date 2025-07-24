@@ -80,6 +80,7 @@ class DINOv2SemanticSegmentationTrainTransformArgs(SemanticSegmentationTransform
     Defines default transform arguments for semantic segmentation training with DINOv2.
     """
 
+    ignore_index: int = -100
     image_size: tuple[int, int] = (518, 518)
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs = Field(default_factory=RandomFlipArgs)
@@ -102,6 +103,7 @@ class DINOv2SemanticSegmentationValTransformArgs(SemanticSegmentationTransformAr
     Defines default transform arguments for semantic segmentation validation with DINOv2.
     """
 
+    ignore_index: int = -100
     image_size: tuple[int, int] = (518, 518)
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs | None = None
