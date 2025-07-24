@@ -21,7 +21,7 @@ import sys
 
 import torch
 
-from lightly_train._commands import train_task
+from lightly_train._commands import export_task, train_task
 from lightly_train._task_models import task_model_helpers
 
 from .. import helpers
@@ -75,4 +75,17 @@ def test_train_task(tmp_path: Path) -> None:
     model = task_model_helpers.load_task_model_from_checkpoint(
         checkpoint=out / "checkpoints" / "last.ckpt"
     )
+    # Check forward pass
     model(torch.randn(1, 3, 224, 224))
+
+    # Check export if onnx is installed.
+    try:
+        import onnx
+    except ImportError:
+        pass
+    else:
+        export_task.export_task(
+            out=out / "model.onnx",
+            checkpoint=out / "checkpoints" / "last.ckpt",
+            format="onnx",
+        )
