@@ -41,6 +41,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self.args = dataset_args
         self.image_filenames = image_filenames
         self.transform = transform
+        self.ignore_index = dataset_args.ignore_index
 
         # Get the class mapping.
         self.class_mapping = self.get_class_mapping()
@@ -132,10 +133,10 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         }
         return targets
 
-    def remap_mask(self, mask: torch.Tensor, ignore_index: int = -100) -> torch.Tensor:
+    def remap_mask(self, mask: torch.Tensor) -> torch.Tensor:
         # Create a lookup table initialized with ignore_index
         max_class = int(mask.max().item())
-        lut = torch.full((max_class + 1,), ignore_index, dtype=torch.long)
+        lut = torch.full((max_class + 1,), self.ignore_index, dtype=torch.long)
 
         # Fill in valid mappings
         for old_class, new_class in self.class_mapping.items():
@@ -186,6 +187,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     classes: dict[int, str] | None = None
     ignore_classes: set[int] = set()
     check_empty_targets: bool = True
+    ignore_index: int = -100
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
@@ -236,20 +238,26 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if this makes sense to have in data args.
-    def get_train_args(self) -> MaskSemanticSegmentationDatasetArgs:
+    def get_train_args(
+        self,
+    ) -> MaskSemanticSegmentationDatasetArgs:
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
             mask_dir=Path(self.train.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
             check_empty_targets=self.check_empty_targets,
+            ignore_index=self.ignore_index,
         )
 
-    def get_val_args(self) -> MaskSemanticSegmentationDatasetArgs:
+    def get_val_args(
+        self,
+    ) -> MaskSemanticSegmentationDatasetArgs:
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.val.images),
             mask_dir=Path(self.val.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
             check_empty_targets=self.check_empty_targets,
+            ignore_index=self.ignore_index,
         )
