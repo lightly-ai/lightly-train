@@ -16,6 +16,14 @@ from lightly_train.types import PathLike
 
 
 def load_task_model_from_checkpoint(checkpoint: PathLike) -> TaskModel:
+    """Load a task model from a checkpoint file.
+
+    Args:
+        checkpoint:
+            Path to the checkpoint file. For example "out/checkpoints/last.ckpt".
+    Returns:
+        The loaded model.
+    """
     ckpt = torch.load(checkpoint, weights_only=False)
 
     # Import the model class dynamically
