@@ -175,15 +175,19 @@ def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
     return args_dict
 
 
-def get_train_transform() -> TaskTransform:
+def get_train_transform(ignore_index: int) -> TaskTransform:
     return DINOv2SemanticSegmentationTrainTransform(
-        DINOv2SemanticSegmentationTrainTransformArgs()
+        DINOv2SemanticSegmentationTrainTransformArgs(
+            ignore_index=ignore_index,
+        )
     )
 
 
-def get_val_transform() -> TaskTransform:
+def get_val_transform(ignore_index: int) -> TaskTransform:
     return DINOv2SemanticSegmentationValTransform(
-        DINOv2SemanticSegmentationValTransformArgs()
+        DINOv2SemanticSegmentationValTransformArgs(
+            ignore_index=ignore_index,
+        )
     )
 
 
