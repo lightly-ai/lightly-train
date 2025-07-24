@@ -140,6 +140,11 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         image = file_helpers.open_image(image_path=image_path, mode="RGB")
         mask = file_helpers.open_image(image_path=mask_path, mode="MASK")
 
+        # Verify that the mask and the image have the same shape.
+        assert image.shape[:2] == mask.shape, (
+            f"Shape mismatch: image shape is {image.shape[:2]} while mask shape is {mask.shape}."
+        )
+
         # Re-do the augmentation until the mask is valid.
         mask_is_valid = False
         while not mask_is_valid:
