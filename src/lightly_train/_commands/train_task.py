@@ -121,14 +121,16 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     # here as distributed processing is already initialized with fabric.
 
     # TODO(Guarin, 07/25): Allow passing transform args.
-    train_transform = helpers.get_train_transform()
-    val_transform = helpers.get_val_transform()
+    train_transform = helpers.get_train_transform(ignore_index=config.data.ignore_index)
+    val_transform = helpers.get_val_transform(ignore_index=config.data.ignore_index)
 
     train_dataset = helpers.get_dataset(
-        dataset_args=config.data.get_train_args(), transform=train_transform
+        dataset_args=config.data.get_train_args(),
+        transform=train_transform,
     )
     val_dataset = helpers.get_dataset(
-        dataset_args=config.data.get_val_args(), transform=val_transform
+        dataset_args=config.data.get_val_args(),
+        transform=val_transform,
     )
     logger.info(f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}")
 
