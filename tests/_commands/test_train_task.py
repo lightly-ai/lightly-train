@@ -19,7 +19,10 @@ if not RequirementCache("transformers"):
 
 import sys
 
+import torch
+
 from lightly_train._commands import train_task
+from lightly_train._task_models import task_model_helpers
 
 from .. import helpers
 
@@ -68,3 +71,8 @@ def test_train_task(tmp_path: Path) -> None:
     assert out.exists()
     assert out.is_dir()
     assert (out / "train.log").exists()
+
+    model = task_model_helpers.load_task_model_from_checkpoint(
+        checkpoint=out / "checkpoints" / "last.ckpt"
+    )
+    model(torch.randn(1, 3, 224, 224))

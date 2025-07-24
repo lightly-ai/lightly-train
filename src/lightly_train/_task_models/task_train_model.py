@@ -17,6 +17,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._task_models.task_model import TaskModel
 
 
 class TaskTrainModelArgs(PydanticConfig):
@@ -59,6 +60,13 @@ class TaskTrainModel(Module):
     def set_train_mode(self) -> None:
         """Set the model to training mode."""
         self.train()
+
+    def get_task_model(self) -> TaskModel:
+        """Returns the task model.
+
+        This is the model that users interact with for inference and deployment.
+        """
+        raise NotImplementedError()
 
 
 @dataclass

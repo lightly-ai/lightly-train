@@ -349,9 +349,9 @@ def load_checkpoint(fabric: Fabric, out_dir: PathLike, state: TrainTaskState) ->
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
 
-    model = state["model"]
-    model_grads = {n: p.requires_grad for n, p in model.named_parameters()}
-    model_trainings = {n: m.training for n, m in model.named_modules()}
+    train_model = state["train_model"]
+    train_model_grads = {n: p.requires_grad for n, p in train_model.named_parameters()}
+    train_model_trainings = {n: m.training for n, m in train_model.named_modules()}
     optimizer = state["optimizer"]
     train_dataloader = state["train_dataloader"]
 
@@ -360,10 +360,12 @@ def load_checkpoint(fabric: Fabric, out_dir: PathLike, state: TrainTaskState) ->
 
     # Sanity check to make sure that checkpoint loading didn't create new objects or
     # changed the model state.
-    assert state["model"] is model
+    assert state["train_model"] is train_model
     assert {
-        n: p.requires_grad for n, p in state["model"].named_parameters()
-    } == model_grads
-    assert {n: m.training for n, m in state["model"].named_modules()} == model_trainings
+        n: p.requires_grad for n, p in state["train_model"].named_parameters()
+    } == train_model_grads
+    assert {
+        n: m.training for n, m in state["train_model"].named_modules()
+    } == train_model_trainings
     assert state["optimizer"] is optimizer
     assert state["train_dataloader"] is train_dataloader

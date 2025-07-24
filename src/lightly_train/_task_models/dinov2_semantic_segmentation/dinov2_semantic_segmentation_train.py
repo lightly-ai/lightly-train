@@ -151,6 +151,9 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             ]
         )
 
+    def get_task_model(self) -> DINOv2SemanticSegmentation:
+        return self.model
+
     def training_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch, step: int
     ) -> TaskStepResult:

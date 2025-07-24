@@ -63,7 +63,7 @@ class DINOv2SemanticSegmentation(TaskModel):
         freeze_backbone: bool = False,
         model_args: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__()
+        super().__init__(locals())
         # Disable drop path by default.
         args = {
             "drop_path_rate": 0.0,
@@ -341,6 +341,17 @@ class DINOv2SemanticSegmentation(TaskModel):
                 logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
         else:
             logger.info("Backbone weights loaded successfully.")
+
+    def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
+        """Load the state dict from a training checkpoint."""
+        param_names = {name for name, _ in self.named_parameters()}
+        new_state_dict = {}
+        for name, param in state_dict.items():
+            if name.startswith("model."):
+                name = name.removeprefix("model.")
+                if name in param_names:
+                    new_state_dict[name] = param
+        self.load_state_dict(new_state_dict, strict=True)
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()
