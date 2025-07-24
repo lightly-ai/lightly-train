@@ -51,9 +51,6 @@ class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int = 4
 
-    # TODO(Guarin, 07/25): Move this to data args? EoMT uses 255 instead.
-    ignore_index: int = -100
-
     # Loss terms
     loss_num_points: int = 12544
     loss_oversample_ratio: float = 3.0
@@ -95,7 +92,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             # We probably don't want to instantiate the model here. Either we pass it
             # from the outside or we use a setup function (might be useful for FSDP).
             model_name=model_name,
-            num_classes=len(data_args.classes),
+            num_classes=data_args.num_classes + 1,
             num_queries=task_args.num_queries,
             num_joint_blocks=task_args.num_joint_blocks,
             backbone_weights=task_args.backbone_weights,
@@ -111,7 +108,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             mask_coefficient=task_args.loss_mask_coefficient,
             dice_coefficient=task_args.loss_dice_coefficient,
             class_coefficient=task_args.loss_class_coefficient,
-            num_labels=len(data_args.classes),
+            num_labels=data_args.num_classes + 1,
             no_object_coefficient=task_args.loss_no_object_coefficient,
         )
         self.val_loss = MeanMetric()
@@ -120,8 +117,8 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         # TODO(Guarin, 07/25): Make params configurable.
         self.train_miou = JaccardIndex(
             task="multiclass",  # type: ignore[arg-type]
-            num_classes=max(data_args.classes) + 1,
-            ignore_index=task_args.ignore_index,
+            num_classes=data_args.num_classes + 1,
+            ignore_index=data_args.ignore_index,
         )
         self.val_miou = self.train_miou.clone()
 
@@ -129,10 +126,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.train_metrics = ModuleList(
             [
                 MulticlassJaccardIndex(
-                    num_classes=max(data_args.classes) + 1,
+                    num_classes=data_args.num_classes + 1,
                     validate_args=False,
                     # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
-                    ignore_index=task_args.ignore_index,
+                    ignore_index=data_args.ignore_index,
                     average=None,
                 )
                 for _ in range(task_args.num_joint_blocks + 1)
@@ -141,10 +138,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.val_metrics = ModuleList(
             [
                 MulticlassJaccardIndex(
-                    num_classes=max(data_args.classes) + 1,
+                    num_classes=data_args.num_classes + 1,
                     validate_args=False,
                     # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
-                    ignore_index=task_args.ignore_index,
+                    ignore_index=data_args.ignore_index,
                     average=None,
                 )
                 for _ in range(task_args.num_joint_blocks + 1)
