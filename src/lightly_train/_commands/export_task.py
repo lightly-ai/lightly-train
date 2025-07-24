@@ -16,9 +16,7 @@ from torch import distributed
 from lightly_train import _logging
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation import (
-    DINOv2SemanticSegmentation,
-)
+from lightly_train._task_models import task_model_helpers
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -77,17 +75,10 @@ def export_task_from_config(config: ExportTaskConfig) -> None:
         out=config.out, overwrite=config.overwrite
     ).as_posix()  # TODO(Yutong, 07/25): make sure the format corrsponds to the output file extension!
     checkpoint_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
-
-    # Load the model
-    checkpoint = torch.load(checkpoint_path)
-    model = DINOv2SemanticSegmentation(
-        model_name="vits14",  # TODO(Yutong, 07/25): use checkpoint["model_name"],
-        num_classes=2,  # TODO(Yutong, 07/25): use checkpoint["num_classes"],
-        num_queries=100,  # TODO: Use checkpoint["num_queries"]
-        num_joint_blocks=4,  # TODO: Use checkpoint["num_joint_blocks"]
+    task_model = task_model_helpers.load_task_model_from_checkpoint(
+        checkpoint=checkpoint_path
     )
-    model.load_state_dict(checkpoint["state_dict"], strict=False)
-    model.eval()
+    task_model.eval()
 
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
@@ -97,7 +88,7 @@ def export_task_from_config(config: ExportTaskConfig) -> None:
         )
         logger.info(f"Exporting ONNX model to '{out_path}'")
         torch.onnx.export(
-            model,
+            task_model,
             (dummy_input,),
             out_path,
             input_names=["input"],

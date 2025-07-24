@@ -126,7 +126,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 | RF-DETR | RF-DETR | [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) |
 | YOLOv12 | YOLOv12 | [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) |
 | SuperGradients | PP-LiteSeg, SSD, YOLO-NAS | [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) |
-| Custom Models | Any PyTorch model | [🔗](https://docs.lightly.ai/train/stable/models/custom-models.html) |
+| Custom Models | Any PyTorch model | [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) |
 
 For an overview of all supported models and usage instructions, see the full [model docs](https://docs.lightly.ai/train/stable/models/index.html).
 
