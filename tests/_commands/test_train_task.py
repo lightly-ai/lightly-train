@@ -76,11 +76,29 @@ def test_train_task(tmp_path: Path) -> None:
         checkpoint=out / "checkpoints" / "last.ckpt"
     )
     # Check forward pass
-    model(torch.randn(1, 3, 224, 224))
+    dummy_input = torch.randn(1, 3, 224, 224)
+    model(dummy_input)
 
+    # Check ONNX export
     if RequirementCache("onnx"):
+        import onnx
+
+        onnx_out = out / "model.onnx"
         export_task.export_task(
-            out=out / "model.onnx",
+            out=onnx_out,
             checkpoint=out / "checkpoints" / "last.ckpt",
             format="onnx",
         )
+        onnx_model = onnx.load(str(onnx_out))
+        onnx.checker.check_model(onnx_model, full_check=True)
+
+        # Check ONNX inference
+        if RequirementCache("onnxruntime"):
+            import onnxruntime as ort
+
+            ort_session = ort.InferenceSession(
+                str(onnx_out), providers=["CPUExecutionProvider"]
+            )
+
+            ort_inputs = {"input": dummy_input.cpu().numpy()}
+            ort_session.run(["mask", "logits"], ort_inputs)
