@@ -244,6 +244,7 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         batch = next(infinite_train_dataloader)
         train_result = train_model.training_step(fabric=fabric, batch=batch, step=step)
         fabric.backward(train_result.loss)
+        train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
         optimizer.step()
         optimizer.zero_grad()
         scheduler.step()
