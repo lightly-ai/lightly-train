@@ -88,15 +88,19 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             "Segmentation dataset classes must be set."
         )
 
-        # Set variables.
+        # Set original classes.
         original_classes = self.args.classes.keys()
-        ignore_classes = self.args.ignore_classes
-        if ignore_classes is None:
-            ignore_classes = {}
-        class_mapping = {}
-        class_counter = 0
+
+        # Set the ignore classes.
+        ignore_classes: set[int]
+        if self.args.ignore_classes is None:
+            ignore_classes = set()
+        else:
+            ignore_classes = self.args.ignore_classes
 
         # Iterate over the classes and populate the class_mapppings.
+        class_mapping = {}
+        class_counter = 0
         for original_class in original_classes:
             if original_class not in ignore_classes:
                 # Re-map the class.
@@ -200,7 +204,6 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
     mask_dir: Path
     classes: dict[int, str] | None = None
-    # ignore_classes: set[int] = set()
     ignore_classes: set[int] | None = None
     check_empty_targets: bool = True
     ignore_index: int = -100
