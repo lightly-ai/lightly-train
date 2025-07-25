@@ -68,6 +68,9 @@ class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     attn_mask_annealing_steps_start: list[int] = [6520, 13040, 19560, 26080]
     attn_mask_annealing_steps_end: list[int] = [13040, 19560, 26080, 32600]
 
+    # Gradient clipping.
+    gradient_clip_val: float = 0.01
+
     # Optim
     lr: float = 1e-4
     llrd: float = 0.8  # Layer decay
@@ -453,3 +456,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.train()
         if self.task_args.freeze_backbone:
             self.model.freeze_backbone()
+
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
+        fabric.clip_gradients(
+            module=self,
+            optimizer=optimizer,
+            max_norm=self.task_args.gradient_clip_val,
+        )
