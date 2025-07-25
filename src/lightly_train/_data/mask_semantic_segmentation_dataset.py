@@ -165,9 +165,19 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Re-do the augmentation until the mask is valid.
         mask_is_valid = False
-        while not mask_is_valid:
+        for _ in range(20):
             transformed = self.transform({"image": image, "mask": mask})
             mask_is_valid = self.is_mask_valid(transformed["mask"].numpy())
+            if mask_is_valid:
+                break
+
+        # Raise an error if the mask is still empty.
+        if not mask_is_valid:
+            raise RuntimeError(
+                "Failed to obtain a valid mask after 20 augmentation retries. "
+                "Consider enabling `check_empty_targets=True` in the data arguments to "
+                "filter out such samples before training."
+            )
 
         # Get binary masks.
         target = self.get_binary_masks(transformed["mask"])
