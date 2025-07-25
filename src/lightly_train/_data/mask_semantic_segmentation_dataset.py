@@ -180,9 +180,11 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             )
 
         # Get binary masks.
+        # TODO(Thomas, 07/25): Make this optional.
         target = self.get_binary_masks(transformed["mask"])
 
         # Mark pixels to ignore in the masks.
+        # TODO(Thomas, 07/25): Make this optional.
         transformed_mask = transformed["mask"]
         transformed_mask = self.remap_mask(transformed_mask)
 
