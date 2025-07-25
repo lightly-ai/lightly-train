@@ -139,7 +139,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
     def remap_mask(self, mask: torch.Tensor) -> torch.Tensor:
         # Create a lookup table initialized with ignore_index
         max_class = int(mask.max().item())
-        lut = torch.full((max_class + 1,), self.ignore_index, dtype=torch.long)
+        lut = mask.new_full((max_class + 1,), self.ignore_index, dtype=torch.long)
 
         # Fill in valid mappings
         for old_class, new_class in self.class_mapping.items():
