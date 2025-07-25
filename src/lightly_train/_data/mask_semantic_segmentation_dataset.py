@@ -63,6 +63,8 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         return bool(np.isin(unique_values, self.valid_classes).any())
 
     def filter_empty_targets(self) -> None:
+        # TODO(Thomas, 07/25): Move the filtering outside of the dataset for compatibility
+        # with mmapped files and speed.
         # Instantiate new list of file names
         new_image_filenames = []
 
