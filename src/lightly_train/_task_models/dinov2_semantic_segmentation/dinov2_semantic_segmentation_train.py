@@ -17,7 +17,7 @@ from torch.nn import ModuleList
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
-from torchmetrics import MeanMetric
+from torchmetrics import JaccardIndex, MeanMetric
 from torchmetrics.classification import (  # type: ignore[attr-defined]
     MulticlassJaccardIndex,
 )
@@ -112,13 +112,13 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             no_object_coefficient=task_args.loss_no_object_coefficient,
         )
         self.val_loss = MeanMetric()
-
-        self.train_miou = MulticlassJaccardIndex(
+        # MeanIoU assumes that background is class 0.
+        # TODO(Guarin, 07/25): Make params configurable.
+        # TODO(Thomas, 07/25): Use self.train_metrics only.
+        self.train_miou = JaccardIndex(
+            task="multiclass",  # type: ignore[arg-type]
             num_classes=data_args.num_included_classes,
-            validate_args=False,
-            # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
             ignore_index=data_args.ignore_index,
-            average="macro",
         )
         self.val_miou = self.train_miou.clone()
 
