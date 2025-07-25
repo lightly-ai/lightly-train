@@ -91,6 +91,8 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Set variables.
         original_classes = self.args.classes.keys()
         ignore_classes = self.args.ignore_classes
+        if ignore_classes is None:
+            ignore_classes = {}
         class_mapping = {}
         class_counter = 0
 
@@ -186,7 +188,8 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
     mask_dir: Path
     classes: dict[int, str] | None = None
-    ignore_classes: set[int] = set()
+    # ignore_classes: set[int] = set()
+    ignore_classes: set[int] | None = None
     check_empty_targets: bool = True
     ignore_index: int = -100
 
@@ -213,7 +216,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     train: SplitArgs
     val: SplitArgs
     classes: dict[int, str]
-    ignore_classes: set[int] = set()
+    ignore_classes: set[int] | None = None
     check_empty_targets: bool = True
 
     # Ignore index and number of classes can't be set by the user.
@@ -223,8 +226,11 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     @model_validator(mode="after")
     def compute_internal_fields(self) -> MaskSemanticSegmentationDataArgs:
         """Automatically set ignore_index and num_classes."""
-        # Keep only classes that aren't ignored
-        kept_classes = set(self.classes.keys()) - self.ignore_classes
+        kept_classes = set(self.classes.keys())
+        if self.ignore_classes is not None:
+            kept_classes -= self.ignore_classes
+
+        # Infer the number of valid classes.
         num_classes = len(kept_classes)
 
         # Ignore index = negative of num_classes (or whatever logic you want)
