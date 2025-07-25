@@ -7,7 +7,6 @@
 #
 from __future__ import annotations
 
-import logging
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
@@ -27,8 +26,6 @@ from lightly_train.types import (
     MaskSemanticSegmentationDatasetItem,
     PathLike,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
@@ -77,8 +74,10 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
                 new_image_filenames.append(filename)
 
         # Display the number of filtered files.
+        # TODO(Thomas, 07/25): Change the print to logging once the function is moved
+        # outside of the dataset.
         n_filtered_files = len(self) - len(new_image_filenames)
-        logger.info(f"Filtered {n_filtered_files} invalid masks out of {len(self)}.")
+        print(f"Filtered {n_filtered_files} invalid masks out of {len(self)}.")
 
         # Update the list of valid files.
         self.image_filenames = new_image_filenames
