@@ -68,6 +68,9 @@ class TaskTrainModel(Module):
         """
         raise NotImplementedError()
 
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
+        pass
+
 
 @dataclass
 class TaskStepResult:
