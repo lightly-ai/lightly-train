@@ -17,7 +17,7 @@ from torch.nn import ModuleList
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
-from torchmetrics import JaccardIndex, MeanMetric
+from torchmetrics import MeanMetric
 from torchmetrics.classification import (  # type: ignore[attr-defined]
     MulticlassJaccardIndex,
 )
