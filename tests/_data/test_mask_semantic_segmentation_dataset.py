@@ -46,14 +46,18 @@ class DummyTransform(TaskTransform):
 
 class TestMaskSemanticSegmentationDataset:
     @pytest.mark.parametrize(
-        "num_classes, expected_mask_dtype",
+        "num_classes, expected_mask_dtype, ignore_index",
         [
-            (5, torch.uint8),
-            (500, torch.int32),
+            (5, torch.long, -100),
+            (500, torch.long, -100),
         ],
     )
     def test__getitem__(
-        self, num_classes: int, expected_mask_dtype: torch.dtype, tmp_path: Path
+        self,
+        num_classes: int,
+        expected_mask_dtype: torch.dtype,
+        tmp_path: Path,
+        ignore_index: int,
     ) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
@@ -66,6 +70,7 @@ class TestMaskSemanticSegmentationDataset:
             image_dir=image_dir,
             mask_dir=mask_dir,
             classes={0: "background", 1: "object"},
+            ignore_index=ignore_index,
         )
         transform = DummyTransform(transform_args=TaskTransformArgs())
         dataset = MaskSemanticSegmentationDataset(
@@ -82,9 +87,18 @@ class TestMaskSemanticSegmentationDataset:
             assert isinstance(item["mask"], Tensor)
             assert item["mask"].shape == (32, 32)
             assert item["mask"].dtype == expected_mask_dtype
+
             # Need conversion to int because min/max is not implemented for uint16.
-            assert item["mask"].min() >= 0
-            assert item["mask"].max() < num_classes
+            # All valid (non-ignored) pixels should be between 0 and num_classes-1
+            mask = item["mask"]
+            valid_pixels = mask != ignore_index
+            if valid_pixels.any():
+                assert mask[valid_pixels].min() >= 0
+                assert mask[valid_pixels].max() < num_classes
+
+            # Ignored pixels should exactly match ignore_index
+            ignored_pixels = mask == ignore_index
+            assert (ignored_pixels.sum() + valid_pixels.sum()) == mask.numel()
         assert sorted(item["image_path"] for item in dataset) == [  # type: ignore[attr-defined]
             str(image_dir / "image0.jpg"),
             str(image_dir / "image1.jpg"),

@@ -43,6 +43,7 @@ from lightly_train._transforms.transform import (
 
 
 class SemanticSegmentationTransformArgs(TaskTransformArgs):
+    ignore_index: int
     image_size: tuple[int, int]
     normalize: NormalizeArgs
     random_flip: RandomFlipArgs | None
@@ -108,7 +109,7 @@ class SemanticSegmentationTransform(TaskTransform):
                     pad_if_needed=transform_args.random_crop.pad_if_needed,
                     pad_position=transform_args.random_crop.pad_position,
                     fill=transform_args.random_crop.fill,
-                    fill_mask=transform_args.random_crop.fill_mask,
+                    fill_mask=transform_args.ignore_index,
                     p=transform_args.random_crop.prob,
                 )
             ]
@@ -140,7 +141,7 @@ class SemanticSegmentationTransform(TaskTransform):
                     pad_if_needed=transform_args.center_crop.pad_if_needed,
                     pad_position=transform_args.center_crop.pad_position,
                     fill=transform_args.center_crop.fill,
-                    fill_mask=transform_args.center_crop.fill_mask,
+                    fill_mask=transform_args.ignore_index,
                     p=transform_args.center_crop.prob,
                 )
             ]

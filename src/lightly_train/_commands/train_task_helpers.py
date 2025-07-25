@@ -13,6 +13,7 @@ from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Literal
 
+import torch
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
@@ -174,15 +175,19 @@ def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
     return args_dict
 
 
-def get_train_transform() -> TaskTransform:
+def get_train_transform(ignore_index: int) -> TaskTransform:
     return DINOv2SemanticSegmentationTrainTransform(
-        DINOv2SemanticSegmentationTrainTransformArgs()
+        DINOv2SemanticSegmentationTrainTransformArgs(
+            ignore_index=ignore_index,
+        )
     )
 
 
-def get_val_transform() -> TaskTransform:
+def get_val_transform(ignore_index: int) -> TaskTransform:
     return DINOv2SemanticSegmentationValTransform(
-        DINOv2SemanticSegmentationValTransformArgs()
+        DINOv2SemanticSegmentationValTransformArgs(
+            ignore_index=ignore_index,
+        )
     )
 
 
@@ -195,6 +200,16 @@ def get_dataset(
     return dataset_cls(
         dataset_args=dataset_args, image_filenames=filenames, transform=transform
     )
+
+
+def collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
+    # TODO(Thomas, 07/25): make this task/split dependant.
+    return {
+        "image_paths": [item["image_path"] for item in batch],
+        "image": torch.stack([item["image"] for item in batch]),
+        "mask": torch.stack([item["mask"] for item in batch]),
+        "target": [item["target"] for item in batch],
+    }
 
 
 def get_train_dataloader(
@@ -213,6 +228,7 @@ def get_train_dataloader(
         num_workers=num_workers,
         drop_last=True,
         timeout=timeout,
+        collate_fn=collate_fn,
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
@@ -239,6 +255,7 @@ def get_val_dataloader(
         num_workers=num_workers,
         drop_last=False,
         timeout=timeout,
+        collate_fn=collate_fn,
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")

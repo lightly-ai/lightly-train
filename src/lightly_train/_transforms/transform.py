@@ -145,7 +145,6 @@ class RandomCropArgs(PydanticConfig):
     pad_position: str
     pad_if_needed: bool = False  # Pad if crop size exceeds image size.
     fill: tuple[float, ...] | float  # Padding value for images.
-    fill_mask: tuple[float, ...] | float  # Padding value for masks.
     prob: float = 1.0  # Probability to apply RandomCrop.
 
 
@@ -155,7 +154,6 @@ class CenterCropArgs(PydanticConfig):
     pad_position: str
     pad_if_needed: bool = False  # Pad if crop size exceeds image size.
     fill: tuple[float, ...] | float  # Padding value for images.
-    fill_mask: tuple[float, ...] | float  # Padding value for masks.
     prob: float = 1.0  # Probability to apply RandomCrop.
 
 

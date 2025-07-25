@@ -51,9 +51,6 @@ class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int = 4
 
-    # TODO(Guarin, 07/25): Move this to data args? EoMT uses 255 instead.
-    ignore_index: int = -100
-
     # Loss terms
     loss_num_points: int = 12544
     loss_oversample_ratio: float = 3.0
@@ -98,7 +95,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             # We probably don't want to instantiate the model here. Either we pass it
             # from the outside or we use a setup function (might be useful for FSDP).
             model_name=model_name,
-            num_classes=len(data_args.classes),
+            num_classes=data_args.num_included_classes,
             num_queries=task_args.num_queries,
             num_joint_blocks=task_args.num_joint_blocks,
             backbone_weights=task_args.backbone_weights,
@@ -114,17 +111,17 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             mask_coefficient=task_args.loss_mask_coefficient,
             dice_coefficient=task_args.loss_dice_coefficient,
             class_coefficient=task_args.loss_class_coefficient,
-            num_labels=len(data_args.classes),
+            num_labels=data_args.num_included_classes,
             no_object_coefficient=task_args.loss_no_object_coefficient,
         )
         self.val_loss = MeanMetric()
-
         # MeanIoU assumes that background is class 0.
         # TODO(Guarin, 07/25): Make params configurable.
+        # TODO(Thomas, 07/25): Use self.train_metrics only.
         self.train_miou = JaccardIndex(
             task="multiclass",  # type: ignore[arg-type]
-            num_classes=max(data_args.classes) + 1,
-            ignore_index=task_args.ignore_index,
+            num_classes=data_args.num_included_classes,
+            ignore_index=data_args.ignore_index,
         )
         self.val_miou = self.train_miou.clone()
 
@@ -132,10 +129,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.train_metrics = ModuleList(
             [
                 MulticlassJaccardIndex(
-                    num_classes=max(data_args.classes) + 1,
+                    num_classes=data_args.num_included_classes,
                     validate_args=False,
                     # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
-                    ignore_index=task_args.ignore_index,
+                    ignore_index=data_args.ignore_index,
                     average=None,
                 )
                 for _ in range(task_args.num_joint_blocks + 1)
@@ -144,10 +141,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self.val_metrics = ModuleList(
             [
                 MulticlassJaccardIndex(
-                    num_classes=max(data_args.classes) + 1,
+                    num_classes=data_args.num_included_classes,
                     validate_args=False,
                     # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
-                    ignore_index=task_args.ignore_index,
+                    ignore_index=data_args.ignore_index,
                     average=None,
                 )
                 for _ in range(task_args.num_joint_blocks + 1)
@@ -162,9 +159,9 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"].long()  # Long required for metrics.
-        B, C, H, W = images.shape
+        targets = batch["target"]
+        _, _, H, W = images.shape
 
-        targets = self.get_targets(masks)
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(images)
 
         # Loss
@@ -188,7 +185,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         loss_dict = {f"train_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
-        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=0)
         for block_idx, (mask_logits, class_logits) in enumerate(
             list(zip(mask_logits_per_layer, class_logits_per_layer))
         ):
@@ -197,10 +193,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             self.update_metrics_semantic(
                 metrics=self.train_metrics,
                 preds=logits,
-                targets=target_pixel_masks,
+                targets=masks,
                 block_idx=block_idx,
             )
-        for pred, targ in zip(logits, target_pixel_masks):
+        for pred, targ in zip(logits, masks):
             self.train_miou.update(pred[None, ...], targ[None, ...])
 
         metrics: dict[str, Any] = {
@@ -242,9 +238,9 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"].long()  # Long required for metrics.
-        B, C, H, W = images.shape
+        targets = batch["target"]
+        _, _, H, W = images.shape
 
-        targets = self.get_targets(masks)
         # TODO(Guarin, 07/25): Use a different forward method for validation?
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(images)
 
@@ -269,7 +265,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         log_dict = {f"val_loss/{k}": v for k, v in losses.items()}
 
         # Metrics
-        target_pixel_masks = self.to_per_pixel_targets_semantic(targets, ignore_idx=0)
         for block_idx, (mask_logits, class_logits) in enumerate(
             list(zip(mask_logits_per_layer, class_logits_per_layer))
         ):
@@ -278,10 +273,10 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             self.update_metrics_semantic(
                 metrics=self.val_metrics,
                 preds=logits,
-                targets=target_pixel_masks,
+                targets=masks,
                 block_idx=block_idx,
             )
-        for pred, targ in zip(logits, target_pixel_masks):
+        for pred, targ in zip(logits, masks):
             self.val_miou.update(pred[None, ...], targ[None, ...])
 
         metrics: dict[str, Any] = {
