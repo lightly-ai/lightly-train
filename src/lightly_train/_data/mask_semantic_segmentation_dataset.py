@@ -13,7 +13,6 @@ from pathlib import Path
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from pydantic import Field, model_validator
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -234,29 +233,18 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ignore_classes: set[int] | None = None
     check_empty_targets: bool = True
 
-    # Ignore index and number of classes can't be set by the user.
-    ignore_index: int = Field(default=-100, exclude=True)
-    num_classes: int = Field(default=-1, exclude=True)
-
-    @model_validator(mode="after")
-    def compute_internal_fields(self) -> MaskSemanticSegmentationDataArgs:
-        """Automatically set ignore_index and num_classes."""
+    @property
+    def num_included_classes(self) -> int:
         kept_classes = set(self.classes.keys())
         if self.ignore_classes is not None:
             kept_classes -= self.ignore_classes
 
         # Infer the number of valid classes.
-        num_classes = len(kept_classes)
+        return len(kept_classes)
 
-        # Ignore index = negative of num_classes (or whatever logic you want)
-        ignore_index = -self.num_classes
-
-        return self.model_copy(
-            update={
-                "num_classes": num_classes,
-                "ignore_index": ignore_index,
-            }
-        )
+    @property
+    def ignore_index(self) -> int:
+        return -100
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if this makes sense to have in data args.
