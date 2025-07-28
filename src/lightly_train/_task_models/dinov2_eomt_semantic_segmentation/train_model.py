@@ -44,7 +44,7 @@ from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
-    freeze_backbone: bool = False
+    backbone_freeze: bool = False
     drop_path_rate: float = 0.0
     num_queries: int = 100  # Default for ADE20K
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
@@ -100,7 +100,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             num_queries=model_args.num_queries,
             num_joint_blocks=model_args.num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
-            backbone_freeze=model_args.freeze_backbone,
+            backbone_freeze=model_args.backbone_freeze,
             backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
             },
@@ -450,7 +450,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         self.train()
-        if self.model_args.freeze_backbone:
+        if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
