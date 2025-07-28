@@ -36,7 +36,32 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-def train_task(
+def train_semantic_segmentation(
+    *,
+    out: PathLike,
+    data: dict[str, Any],
+    model: str,
+    steps: int | Literal["auto"] = "auto",
+    batch_size: int | Literal["auto"] = "auto",
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    accelerator: str = "auto",
+    strategy: str = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    overwrite: bool = False,
+    resume_interrupted: bool = False,
+    seed: int | None = 0,
+    logger_args: dict[str, Any] | None = None,
+    task_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    checkpoint_args: dict[str, Any] | None = None,
+) -> None:
+    return _train_task(**locals(), task="semantic_segmentation")
+
+
+def _train_task(
     *,
     out: PathLike,
     data: dict[str, Any],
@@ -60,10 +85,10 @@ def train_task(
     checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
     config = validate.pydantic_model_validate(TrainTaskConfig, locals())
-    train_task_from_config(config=config)
+    _train_task_from_config(config=config)
 
 
-def train_task_from_config(config: TrainTaskConfig) -> None:
+def _train_task_from_config(config: TrainTaskConfig) -> None:
     config = validate.pydantic_model_validate(TrainTaskConfig, dict(config))
     initial_config = config.model_dump()
     # NOTE(Guarin, 07/25): We add callbacks and loggers later to fabric because we first

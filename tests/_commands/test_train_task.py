@@ -37,7 +37,7 @@ skip_on_ci_with_cuda = bool(os.environ.get("CI")) and torch.cuda.is_available()
         "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
     ),
 )
-def test_train_task(tmp_path: Path) -> None:
+def test_train_semantic_segmentation(tmp_path: Path) -> None:
     out = tmp_path / "out"
     train_images = tmp_path / "train_images"
     train_masks = tmp_path / "train_masks"
@@ -48,7 +48,7 @@ def test_train_task(tmp_path: Path) -> None:
     helpers.create_images(val_images)
     helpers.create_masks(val_masks)
 
-    train_task.train_task(
+    train_task.train_semantic_segmentation(
         out=out,
         data={
             "train": {
@@ -65,7 +65,6 @@ def test_train_task(tmp_path: Path) -> None:
             },
         },
         model="dinov2_vit/_vit_test14",
-        task="semantic_segmentation",
         task_args={
             "num_joint_blocks": 1,  # Reduce joint blocks for _vit_test14
         },
@@ -78,7 +77,7 @@ def test_train_task(tmp_path: Path) -> None:
     assert out.is_dir()
     assert (out / "train.log").exists()
 
-    model = task_model_helpers.load_task_model_from_checkpoint(
+    model = task_model_helpers.load_model_from_checkpoint(
         checkpoint=out / "checkpoints" / "last.ckpt"
     )
     # Check forward pass

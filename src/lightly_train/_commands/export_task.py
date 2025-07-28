@@ -75,7 +75,7 @@ def export_task_from_config(config: ExportTaskConfig) -> None:
         out=config.out, overwrite=config.overwrite
     ).as_posix()  # TODO(Yutong, 07/25): make sure the format corrsponds to the output file extension!
     checkpoint_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
-    task_model = task_model_helpers.load_task_model_from_checkpoint(
+    task_model = task_model_helpers.load_model_from_checkpoint(
         checkpoint=checkpoint_path
     )
     task_model.eval()

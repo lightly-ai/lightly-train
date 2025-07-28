@@ -15,8 +15,8 @@ from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 
-def load_task_model_from_checkpoint(checkpoint: PathLike) -> TaskModel:
-    """Load a task model from a checkpoint file.
+def load_model_from_checkpoint(checkpoint: PathLike) -> TaskModel:
+    """Load a model from a checkpoint file.
 
     Args:
         checkpoint:
