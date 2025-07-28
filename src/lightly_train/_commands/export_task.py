@@ -21,8 +21,7 @@ from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
-
-def export_task(
+def _export_task(
     *,
     out: PathLike,
     checkpoint: PathLike,
@@ -34,7 +33,7 @@ def export_task(
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
 ) -> None:
-    """Export a task model from a checkpoint.
+    """Export a model from a checkpoint.
 
     Args:
         out:
@@ -57,10 +56,11 @@ def export_task(
             Format specific arguments. Eg. "dynamic" for onnx and int8 precision for tensorrt.
     """
     config = ExportTaskConfig(**locals())
-    export_task_from_config(config=config)
+    _export_task_from_config(config=config)
 
+export_semantic_segmentation = _export_task
 
-def export_task_from_config(config: ExportTaskConfig) -> None:
+def _export_task_from_config(config: ExportTaskConfig) -> None:
     # Only export on rank 0.
     if distributed.is_initialized() and distributed.get_rank() > 0:
         return

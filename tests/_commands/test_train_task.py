@@ -89,7 +89,7 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
         import onnx
 
         onnx_out = out / "model.onnx"
-        export_task.export_task(
+        export_task._export_task(
             out=onnx_out,
             checkpoint=out / "checkpoints" / "last.ckpt",
             format="onnx",
