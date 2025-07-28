@@ -17,6 +17,7 @@ if RequirementCache("torchmetrics<1.5"):
 if not RequirementCache("transformers"):
     pytest.skip("Transformers not installed", allow_module_level=True)
 
+import os
 import sys
 
 import torch
@@ -26,10 +27,15 @@ from lightly_train._task_models import task_model_helpers
 
 from .. import helpers
 
+skip_on_ci_with_cuda = bool(os.environ.get("CI")) and torch.cuda.is_available()
+
 
 @pytest.mark.skipif(
-    sys.platform.startswith("win"),
-    reason="Fails on Windows since switching to Jaccard index.",
+    sys.platform.startswith("win") or skip_on_ci_with_cuda,
+    reason=(
+        "Fails on Windows since switching to Jaccard index "
+        "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
+    ),
 )
 def test_train_task(tmp_path: Path) -> None:
     out = tmp_path / "out"
