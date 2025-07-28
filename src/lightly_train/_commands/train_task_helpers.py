@@ -42,9 +42,9 @@ from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_seg
     DINOv2SemanticSegmentationValTransform,
     DINOv2SemanticSegmentationValTransformArgs,
 )
-from lightly_train._task_models.task_train_model import (
-    TaskTrainModel,
-    TaskTrainModelArgs,
+from lightly_train._task_models.train_model import (
+    TrainModel,
+    TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
 from lightly_train._transforms.task_transform import TaskTransform
@@ -274,9 +274,9 @@ def get_steps(steps: int | Literal["auto"]) -> int:
 
 
 def get_train_model_args(
-    model_args: dict[str, Any] | TaskTrainModelArgs | None,
-) -> TaskTrainModelArgs:
-    if isinstance(model_args, TaskTrainModelArgs):
+    model_args: dict[str, Any] | TrainModelArgs | None,
+) -> TrainModelArgs:
+    if isinstance(model_args, TrainModelArgs):
         return model_args
     model_args = {} if model_args is None else model_args
     task_cls = DINOv2SemanticSegmentationTrainArgs
@@ -286,9 +286,9 @@ def get_train_model_args(
 
 def get_task_train_model(
     model_name: str,
-    task_args: TaskTrainModelArgs,
+    task_args: TrainModelArgs,
     data_args: MaskSemanticSegmentationDataArgs,
-) -> TaskTrainModel:
+) -> TrainModel:
     package, model = model_name.split("/", maxsplit=1)
     if package != "dinov2_vit":
         raise ValueError(

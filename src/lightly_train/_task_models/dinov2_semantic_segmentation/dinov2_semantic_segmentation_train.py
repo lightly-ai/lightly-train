@@ -34,15 +34,15 @@ from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_seg
 from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_scheduler import (
     TwoStageWarmupPolySchedule,
 )
-from lightly_train._task_models.task_train_model import (
+from lightly_train._task_models.train_model import (
     TaskStepResult,
-    TaskTrainModel,
-    TaskTrainModelArgs,
+    TrainModel,
+    TrainModelArgs,
 )
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
-class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
+class DINOv2SemanticSegmentationTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     freeze_backbone: bool = False
     drop_path_rate: float = 0.0
@@ -80,7 +80,7 @@ class DINOv2SemanticSegmentationTrainArgs(TaskTrainModelArgs):
     # - overlap_thresh: Only used for panoptic segmentation.
 
 
-class DINOv2SemanticSegmentationTrain(TaskTrainModel):
+class DINOv2SemanticSegmentationTrain(TrainModel):
     def __init__(
         self,
         task_args: DINOv2SemanticSegmentationTrainArgs,

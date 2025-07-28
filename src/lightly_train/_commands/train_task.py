@@ -29,7 +29,7 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 )
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskCheckpointArgs
-from lightly_train._task_models.task_train_model import TaskTrainModelArgs
+from lightly_train._task_models.train_model import TrainModelArgs
 from lightly_train._train_task_state import TrainTaskState
 from lightly_train.types import PathLike
 
@@ -347,7 +347,7 @@ class TrainTaskConfig(PydanticConfig):
     resume_interrupted: bool = False
     seed: int | None = 0
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
-    model_args: dict[str, Any] | TaskTrainModelArgs | None = None
+    model_args: dict[str, Any] | TrainModelArgs | None = None
     loader_args: dict[str, Any] | None = None
     checkpoint_args: dict[str, Any] | TaskCheckpointArgs | None = None
 
