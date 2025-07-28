@@ -25,14 +25,14 @@ from torchmetrics.classification import (  # type: ignore[attr-defined]
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
-from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation import (
-    DINOv2SemanticSegmentation,
-)
-from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_mask_loss import (
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.mask_loss import (
     MaskClassificationLoss,
 )
-from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_scheduler import (
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
+)
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model import (
+    DINOv2EoMTSemanticSegmentation,
 )
 from lightly_train._task_models.train_model import (
     TaskStepResult,
@@ -42,7 +42,7 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
-class DINOv2SemanticSegmentationTrainArgs(TrainModelArgs):
+class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     freeze_backbone: bool = False
     drop_path_rate: float = 0.0
@@ -80,17 +80,17 @@ class DINOv2SemanticSegmentationTrainArgs(TrainModelArgs):
     # - overlap_thresh: Only used for panoptic segmentation.
 
 
-class DINOv2SemanticSegmentationTrain(TrainModel):
+class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     def __init__(
         self,
-        model_args: DINOv2SemanticSegmentationTrainArgs,
+        model_args: DINOv2EoMTSemanticSegmentationTrainArgs,
         model_name: str,
         data_args: MaskSemanticSegmentationDataArgs,
     ) -> None:
         super().__init__()
         self.model_args = model_args
 
-        self.model = DINOv2SemanticSegmentation(
+        self.model = DINOv2EoMTSemanticSegmentation(
             # TODO(Guarin, 10/25): Make configurable and pass all args.
             # We probably don't want to instantiate the model here. Either we pass it
             # from the outside or we use a setup function (might be useful for FSDP).
@@ -151,7 +151,7 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
             ]
         )
 
-    def get_task_model(self) -> DINOv2SemanticSegmentation:
+    def get_task_model(self) -> DINOv2EoMTSemanticSegmentation:
         return self.model
 
     def training_step(

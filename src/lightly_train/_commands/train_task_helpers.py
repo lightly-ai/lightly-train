@@ -32,11 +32,11 @@ from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskCheckpointArgs
-from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_train import (
-    DINOv2SemanticSegmentationTrain,
-    DINOv2SemanticSegmentationTrainArgs,
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
+    DINOv2EoMTSemanticSegmentationTrain,
+    DINOv2EoMTSemanticSegmentationTrainArgs,
 )
-from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_transforms import (
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
     DINOv2SemanticSegmentationTrainTransform,
     DINOv2SemanticSegmentationTrainTransformArgs,
     DINOv2SemanticSegmentationValTransform,
@@ -279,7 +279,7 @@ def get_train_model_args(
     if isinstance(model_args, TrainModelArgs):
         return model_args
     model_args = {} if model_args is None else model_args
-    task_cls = DINOv2SemanticSegmentationTrainArgs
+    task_cls = DINOv2EoMTSemanticSegmentationTrainArgs
     args = validate.pydantic_model_validate(task_cls, model_args)
     return args
 
@@ -294,8 +294,8 @@ def get_train_model(
         raise ValueError(
             f"Unsupported model '{model_name}'. Only 'dinov2_vit' models are supported."
         )
-    assert isinstance(model_args, DINOv2SemanticSegmentationTrainArgs)
-    return DINOv2SemanticSegmentationTrain(
+    assert isinstance(model_args, DINOv2EoMTSemanticSegmentationTrainArgs)
+    return DINOv2EoMTSemanticSegmentationTrain(
         model_args=model_args, model_name=model, data_args=data_args
     )
 
