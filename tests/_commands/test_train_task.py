@@ -22,7 +22,6 @@ import sys
 
 import torch
 
-from lightly_train._task_models import task_model_helpers
 import lightly_train
 
 from .. import helpers

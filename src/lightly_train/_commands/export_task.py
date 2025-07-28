@@ -21,6 +21,7 @@ from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
+
 def export_onnx(
     *,
     out: PathLike,
@@ -30,9 +31,10 @@ def export_onnx(
     height: int = 224,
     width: int = 224,
     overwrite: bool = False,
-    format_args: dict[str, Any] | None = None,  
+    format_args: dict[str, Any] | None = None,
 ) -> None:
     return _export_task(format="onnx", **locals())
+
 
 def _export_task(
     *,

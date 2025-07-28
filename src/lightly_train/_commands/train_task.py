@@ -263,7 +263,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
         is_save_ckpt_step = (
             step > 0
-            and (step + 1) % no_auto(config.save_checkpoint_args.save_every_num_steps) == 0
+            and (step + 1) % no_auto(config.save_checkpoint_args.save_every_num_steps)
+            == 0
         )
 
         batch = next(infinite_train_dataloader)
