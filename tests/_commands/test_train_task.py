@@ -34,7 +34,7 @@ skip_on_ci_with_cuda = bool(os.environ.get("CI")) and torch.cuda.is_available()
     sys.platform.startswith("win") or skip_on_ci_with_cuda,
     reason=(
         "Fails on Windows since switching to Jaccard index "
-        "OR on GitHub-hosted CI with GPU (insufficient shared memory causes worker bus error)"
+        "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
     ),
 )
 def test_train_task(tmp_path: Path) -> None:
