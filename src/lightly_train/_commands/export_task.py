@@ -21,6 +21,19 @@ from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
+def export_onnx(
+    *,
+    out: PathLike,
+    checkpoint: PathLike,
+    format: Literal["onnx"],
+    batch_size: int = 1,
+    num_channels: int = 3,
+    height: int = 224,
+    width: int = 224,
+    overwrite: bool = False,
+    format_args: dict[str, Any] | None = None,  
+) -> None:
+    return _export_task(format="onnx", **locals())
 
 def _export_task(
     *,
@@ -58,9 +71,6 @@ def _export_task(
     """
     config = ExportTaskConfig(**locals())
     _export_task_from_config(config=config)
-
-
-export_semantic_segmentation = _export_task
 
 
 def _export_task_from_config(config: ExportTaskConfig) -> None:

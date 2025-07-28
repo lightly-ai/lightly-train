@@ -58,7 +58,7 @@ def train_semantic_segmentation(
     loader_args: dict[str, Any] | None = None,
     checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
-    return _train_task(**locals(), task="semantic_segmentation")
+    return _train_task(task="semantic_segmentation", **locals())
 
 
 def _train_task(

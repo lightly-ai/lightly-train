@@ -22,8 +22,8 @@ import sys
 
 import torch
 
-from lightly_train._commands import export_task, train_task
 from lightly_train._task_models import task_model_helpers
+import lightly_train
 
 from .. import helpers
 
@@ -48,7 +48,7 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
     helpers.create_images(val_images)
     helpers.create_masks(val_masks)
 
-    train_task.train_semantic_segmentation(
+    lightly_train.train_semantic_segmentation(
         out=out,
         data={
             "train": {
@@ -89,7 +89,7 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
         import onnx
 
         onnx_out = out / "model.onnx"
-        export_task._export_task(
+        lightly_train.export_onnx(
             out=onnx_out,
             checkpoint=out / "checkpoints" / "last.ckpt",
             format="onnx",
