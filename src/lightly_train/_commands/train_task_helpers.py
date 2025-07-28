@@ -273,14 +273,14 @@ def get_steps(steps: int | Literal["auto"]) -> int:
     return steps
 
 
-def get_task_train_model_args(
-    task_args: dict[str, Any] | TaskTrainModelArgs | None,
+def get_train_model_args(
+    model_args: dict[str, Any] | TaskTrainModelArgs | None,
 ) -> TaskTrainModelArgs:
-    if isinstance(task_args, TaskTrainModelArgs):
-        return task_args
-    task_args = {} if task_args is None else task_args
+    if isinstance(model_args, TaskTrainModelArgs):
+        return model_args
+    model_args = {} if model_args is None else model_args
     task_cls = DINOv2SemanticSegmentationTrainArgs
-    args = validate.pydantic_model_validate(task_cls, task_args)
+    args = validate.pydantic_model_validate(task_cls, model_args)
     return args
 
 

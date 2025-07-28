@@ -54,7 +54,7 @@ def train_semantic_segmentation(
     resume_interrupted: bool = False,
     seed: int | None = 0,
     logger_args: dict[str, Any] | None = None,
-    task_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -80,7 +80,7 @@ def _train_task(
     resume_interrupted: bool = False,
     seed: int | None = 0,
     logger_args: dict[str, Any] | None = None,
-    task_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -137,7 +137,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             float32_matmul_precision=config.float32_matmul_precision,
         )
     )
-    config.task_args = helpers.get_task_train_model_args(task_args=config.task_args)
+    config.model_args = helpers.get_train_model_args(model_args=config.model_args)
     config.checkpoint_args = helpers.get_checkpoint_args(
         checkpoint_args=config.checkpoint_args
     )
@@ -203,7 +203,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
     train_model = helpers.get_task_train_model(
         model_name=config.model,
-        task_args=config.task_args,
+        task_args=config.model_args,
         data_args=config.data,
     )
     # Set train mode to make sure that all parameters are in the correct state before
@@ -347,7 +347,7 @@ class TrainTaskConfig(PydanticConfig):
     resume_interrupted: bool = False
     seed: int | None = 0
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
-    task_args: dict[str, Any] | TaskTrainModelArgs | None = None
+    model_args: dict[str, Any] | TaskTrainModelArgs | None = None
     loader_args: dict[str, Any] | None = None
     checkpoint_args: dict[str, Any] | TaskCheckpointArgs | None = None
 
