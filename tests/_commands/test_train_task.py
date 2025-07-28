@@ -77,7 +77,7 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
     assert out.is_dir()
     assert (out / "train.log").exists()
 
-    model = task_model_helpers.load_model_from_checkpoint(
+    model = lightly_train.load_model_from_checkpoint(
         checkpoint=out / "checkpoints" / "last.ckpt"
     )
     # Check forward pass
