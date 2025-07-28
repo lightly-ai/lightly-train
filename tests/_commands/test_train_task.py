@@ -92,7 +92,6 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
         lightly_train.export_onnx(
             out=onnx_out,
             checkpoint=out / "checkpoints" / "last.ckpt",
-            format="onnx",
         )
         onnx_model = onnx.load(str(onnx_out))
         onnx.checker.check_model(onnx_model, full_check=True)

@@ -25,7 +25,6 @@ def export_onnx(
     *,
     out: PathLike,
     checkpoint: PathLike,
-    format: Literal["onnx"],
     batch_size: int = 1,
     num_channels: int = 3,
     height: int = 224,
