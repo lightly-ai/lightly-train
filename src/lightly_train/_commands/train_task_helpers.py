@@ -31,7 +31,7 @@ from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
-from lightly_train._task_checkpoint import TaskCheckpointArgs
+from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrainArgs,
@@ -339,13 +339,13 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
             value.reset()
 
 
-def get_checkpoint_args(
-    checkpoint_args: dict[str, Any] | TaskCheckpointArgs | None,
-) -> TaskCheckpointArgs:
-    if isinstance(checkpoint_args, TaskCheckpointArgs):
+def get_save_checkpoint_args(
+    checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None,
+) -> TaskSaveCheckpointArgs:
+    if isinstance(checkpoint_args, TaskSaveCheckpointArgs):
         return checkpoint_args
     checkpoint_args = {} if checkpoint_args is None else checkpoint_args
-    args = validate.pydantic_model_validate(TaskCheckpointArgs, checkpoint_args)
+    args = validate.pydantic_model_validate(TaskSaveCheckpointArgs, checkpoint_args)
     return args
 
 

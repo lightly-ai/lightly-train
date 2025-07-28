@@ -28,7 +28,7 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
-from lightly_train._task_checkpoint import TaskCheckpointArgs
+from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModelArgs
 from lightly_train._train_task_state import TrainTaskState
 from lightly_train.types import PathLike
@@ -56,7 +56,7 @@ def train_semantic_segmentation(
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
-    checkpoint_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
     return _train_task(task="semantic_segmentation", **locals())
 
@@ -82,7 +82,7 @@ def _train_task(
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
-    checkpoint_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
     config = validate.pydantic_model_validate(TrainTaskConfig, locals())
     _train_task_from_config(config=config)
@@ -138,8 +138,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
     )
     config.model_args = helpers.get_train_model_args(model_args=config.model_args)
-    config.checkpoint_args = helpers.get_checkpoint_args(
-        checkpoint_args=config.checkpoint_args
+    config.save_checkpoint_args = helpers.get_save_checkpoint_args(
+        checkpoint_args=config.save_checkpoint_args
     )
 
     # TODO(Guarin, 07/25): Verify out_dir same on all local ranks, see train.py. We can simplify this
@@ -263,7 +263,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
         is_save_ckpt_step = (
             step > 0
-            and (step + 1) % no_auto(config.checkpoint_args.save_every_num_steps) == 0
+            and (step + 1) % no_auto(config.save_checkpoint_args.save_every_num_steps) == 0
         )
 
         batch = next(infinite_train_dataloader)
@@ -349,7 +349,7 @@ class TrainTaskConfig(PydanticConfig):
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
     model_args: dict[str, Any] | TrainModelArgs | None = None
     loader_args: dict[str, Any] | None = None
-    checkpoint_args: dict[str, Any] | TaskCheckpointArgs | None = None
+    save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)
