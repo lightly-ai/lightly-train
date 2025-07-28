@@ -19,7 +19,6 @@ from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
-from torchmetrics import Metric
 
 from lightly_train._configs import validate
 from lightly_train._data.mask_semantic_segmentation_dataset import (
@@ -321,6 +320,9 @@ def log_step(
 
 
 def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
+    # Lazy import because torchmetrics is optional dependency.
+    from torchmetrics import Metric
+
     metrics = {}
     for name, value in log_dict.items():
         if isinstance(value, Metric):
@@ -334,6 +336,9 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
 
 
 def reset_metrics(log_dict: dict[str, Any]) -> None:
+    # Lazy import because torchmetrics is optional dependency.
+    from torchmetrics import Metric
+
     for value in log_dict.values():
         if isinstance(value, Metric):
             value.reset()

@@ -17,16 +17,9 @@ from torch.nn import ModuleList
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
-from torchmetrics import JaccardIndex, MeanMetric
-from torchmetrics.classification import (  # type: ignore[attr-defined]
-    MulticlassJaccardIndex,
-)
 
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
-)
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.mask_loss import (
-    MaskClassificationLoss,
 )
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
@@ -89,6 +82,18 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         data_args: MaskSemanticSegmentationDataArgs,
     ) -> None:
         super().__init__()
+        # Lazy import because torchmetrics is an optional dependency.
+        from torchmetrics import JaccardIndex, MeanMetric
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MulticlassJaccardIndex,
+        )
+
+        # Lazy import because MaskClassificationLoss depends on optional transformers
+        # dependeny.
+        from lightly_train._task_models.dinov2_eomt_semantic_segmentation.mask_loss import (
+            MaskClassificationLoss,
+        )
+
         self.model_args = model_args
 
         self.model = DINOv2EoMTSemanticSegmentation(
