@@ -201,9 +201,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     )
     fabric.loggers.extend(logger_instances)
 
-    train_model = helpers.get_task_train_model(
+    train_model = helpers.get_train_model(
         model_name=config.model,
-        task_args=config.model_args,
+        model_args=config.model_args,
         data_args=config.data,
     )
     # Set train mode to make sure that all parameters are in the correct state before

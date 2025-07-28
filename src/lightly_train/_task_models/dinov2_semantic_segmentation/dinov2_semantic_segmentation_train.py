@@ -83,12 +83,12 @@ class DINOv2SemanticSegmentationTrainArgs(TrainModelArgs):
 class DINOv2SemanticSegmentationTrain(TrainModel):
     def __init__(
         self,
-        task_args: DINOv2SemanticSegmentationTrainArgs,
+        model_args: DINOv2SemanticSegmentationTrainArgs,
         model_name: str,
         data_args: MaskSemanticSegmentationDataArgs,
     ) -> None:
         super().__init__()
-        self.task_args = task_args
+        self.model_args = model_args
 
         self.model = DINOv2SemanticSegmentation(
             # TODO(Guarin, 10/25): Make configurable and pass all args.
@@ -96,23 +96,23 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
             # from the outside or we use a setup function (might be useful for FSDP).
             model_name=model_name,
             num_classes=data_args.num_included_classes,
-            num_queries=task_args.num_queries,
-            num_joint_blocks=task_args.num_joint_blocks,
-            backbone_weights=task_args.backbone_weights,
-            freeze_backbone=task_args.freeze_backbone,
+            num_queries=model_args.num_queries,
+            num_joint_blocks=model_args.num_joint_blocks,
+            backbone_weights=model_args.backbone_weights,
+            freeze_backbone=model_args.freeze_backbone,
             model_args={
-                "drop_path_rate": task_args.drop_path_rate,
+                "drop_path_rate": model_args.drop_path_rate,
             },
         )
         self.criterion = MaskClassificationLoss(
-            num_points=task_args.loss_num_points,
-            oversample_ratio=task_args.loss_oversample_ratio,
-            importance_sample_ratio=task_args.loss_importance_sample_ratio,
-            mask_coefficient=task_args.loss_mask_coefficient,
-            dice_coefficient=task_args.loss_dice_coefficient,
-            class_coefficient=task_args.loss_class_coefficient,
+            num_points=model_args.loss_num_points,
+            oversample_ratio=model_args.loss_oversample_ratio,
+            importance_sample_ratio=model_args.loss_importance_sample_ratio,
+            mask_coefficient=model_args.loss_mask_coefficient,
+            dice_coefficient=model_args.loss_dice_coefficient,
+            class_coefficient=model_args.loss_class_coefficient,
             num_labels=data_args.num_included_classes,
-            no_object_coefficient=task_args.loss_no_object_coefficient,
+            no_object_coefficient=model_args.loss_no_object_coefficient,
         )
         self.val_loss = MeanMetric()
         # MeanIoU assumes that background is class 0.
@@ -135,7 +135,7 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
                     ignore_index=data_args.ignore_index,
                     average=None,
                 )
-                for _ in range(task_args.num_joint_blocks + 1)
+                for _ in range(model_args.num_joint_blocks + 1)
             ]
         )
         self.val_metrics = ModuleList(
@@ -147,7 +147,7 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
                     ignore_index=data_args.ignore_index,
                     average=None,
                 )
-                for _ in range(task_args.num_joint_blocks + 1)
+                for _ in range(model_args.num_joint_blocks + 1)
             ]
         )
 
@@ -169,7 +169,7 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
         losses = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
-            range(num_blocks - self.task_args.num_joint_blocks, num_blocks + 1),
+            range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
             mask_logits_per_layer,
             class_logits_per_layer,
         ):
@@ -203,7 +203,7 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
             "train_metric/miou": self.train_miou,
         }
         for block_idx, metric in zip(
-            range(num_blocks - self.task_args.num_joint_blocks, num_blocks + 1),
+            range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
             self.train_metrics,
         ):
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
@@ -211,16 +211,16 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
             metrics[f"train_metric/miou{block_suffix}_cls"] = metric
 
         mask_prob_dict = {
-            f"train_attn_mask_prob/block{block_idx + num_blocks - self.task_args.num_joint_blocks}": value
+            f"train_attn_mask_prob/block{block_idx + num_blocks - self.model_args.num_joint_blocks}": value
             for block_idx, value in enumerate(self.model.attn_mask_probs)
         }
 
         # Mask annealing.
         for i in range(len(self.model.attn_mask_probs)):
             self.model.attn_mask_probs[i] = self.mask_annealing(
-                start_iter=self.task_args.attn_mask_annealing_steps_start[i],
+                start_iter=self.model_args.attn_mask_annealing_steps_start[i],
                 current_iter=step,
-                final_iter=self.task_args.attn_mask_annealing_steps_end[i],
+                final_iter=self.model_args.attn_mask_annealing_steps_end[i],
             )
 
         return TaskStepResult(
@@ -249,7 +249,7 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
         losses = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
-            range(num_blocks - self.task_args.num_joint_blocks, num_blocks + 1),
+            range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
             mask_logits_per_layer,
             class_logits_per_layer,
         ):
@@ -283,7 +283,7 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
             "val_metric/miou": self.val_miou,
         }
         for block_idx, metric in zip(
-            range(num_blocks - self.task_args.num_joint_blocks, num_blocks + 1),
+            range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
             self.val_metrics,
         ):
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
@@ -367,7 +367,7 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
                 device=device,
                 dtype=dtype,
             )
-            return (1.0 - progress).pow(self.task_args.poly_power)  # type: ignore[no-any-return]
+            return (1.0 - progress).pow(self.model_args.poly_power)  # type: ignore[no-any-return]
 
     @torch.compiler.disable  # type: ignore[misc]
     def update_metrics_semantic(
@@ -390,7 +390,7 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
         block_i = backbone_blocks
 
         for name, param in reversed(list(self.named_parameters())):
-            lr = self.task_args.lr
+            lr = self.model_args.lr
             if param in backbone_params:
                 name_list = name.split(".")
                 is_block = False
@@ -399,13 +399,13 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
                         block_i = int(name_list[i + 1])
                         is_block = True
                 if is_block or block_i == 0:
-                    lr *= self.task_args.llrd ** (backbone_blocks - 1 - block_i)
+                    lr *= self.model_args.llrd ** (backbone_blocks - 1 - block_i)
                 backbone_param_groups.append(
                     {"params": [param], "lr": lr, "name": name}
                 )
             else:
                 other_param_groups.append(
-                    {"params": [param], "lr": self.task_args.lr, "name": name}
+                    {"params": [param], "lr": self.model_args.lr, "name": name}
                 )
 
         # TODO(Guarin, 07/25): Added this to reduce number of logged lr/wd values.
@@ -436,25 +436,25 @@ class DINOv2SemanticSegmentationTrain(TrainModel):
         grouped_other_param_groups = group_param_groups(other_param_groups)
 
         param_groups = grouped_backbone_param_groups + grouped_other_param_groups
-        optimizer = AdamW(param_groups, weight_decay=self.task_args.weight_decay)
+        optimizer = AdamW(param_groups, weight_decay=self.model_args.weight_decay)
 
         scheduler = TwoStageWarmupPolySchedule(
             optimizer,
             num_backbone_params=len(grouped_backbone_param_groups),
-            warmup_steps=self.task_args.lr_warmup_steps,
+            warmup_steps=self.model_args.lr_warmup_steps,
             total_steps=total_steps,
-            poly_power=self.task_args.poly_power,
+            poly_power=self.model_args.poly_power,
         )
         return optimizer, scheduler
 
     def set_train_mode(self) -> None:
         self.train()
-        if self.task_args.freeze_backbone:
+        if self.model_args.freeze_backbone:
             self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         fabric.clip_gradients(
             module=self,
             optimizer=optimizer,
-            max_norm=self.task_args.gradient_clip_val,
+            max_norm=self.model_args.gradient_clip_val,
         )

@@ -284,9 +284,9 @@ def get_train_model_args(
     return args
 
 
-def get_task_train_model(
+def get_train_model(
     model_name: str,
-    task_args: TrainModelArgs,
+    model_args: TrainModelArgs,
     data_args: MaskSemanticSegmentationDataArgs,
 ) -> TrainModel:
     package, model = model_name.split("/", maxsplit=1)
@@ -294,9 +294,9 @@ def get_task_train_model(
         raise ValueError(
             f"Unsupported model '{model_name}'. Only 'dinov2_vit' models are supported."
         )
-    assert isinstance(task_args, DINOv2SemanticSegmentationTrainArgs)
+    assert isinstance(model_args, DINOv2SemanticSegmentationTrainArgs)
     return DINOv2SemanticSegmentationTrain(
-        task_args=task_args, model_name=model, data_args=data_args
+        model_args=model_args, model_name=model, data_args=data_args
     )
 
 

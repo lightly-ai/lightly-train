@@ -65,7 +65,7 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
             },
         },
         model="dinov2_vit/_vit_test14",
-        task_args={
+        model_args={
             "num_joint_blocks": 1,  # Reduce joint blocks for _vit_test14
         },
         devices=1,
