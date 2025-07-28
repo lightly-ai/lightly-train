@@ -21,6 +21,7 @@ from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
+
 def _export_task(
     *,
     out: PathLike,
@@ -58,7 +59,9 @@ def _export_task(
     config = ExportTaskConfig(**locals())
     _export_task_from_config(config=config)
 
+
 export_semantic_segmentation = _export_task
+
 
 def _export_task_from_config(config: ExportTaskConfig) -> None:
     # Only export on rank 0.

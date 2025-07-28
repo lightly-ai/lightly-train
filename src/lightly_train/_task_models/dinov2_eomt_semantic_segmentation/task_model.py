@@ -40,16 +40,16 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         num_queries: int,
         num_joint_blocks: int,
         backbone_weights: PathLike | None = None,
-        freeze_backbone: bool = False,
-        model_args: dict[str, Any] | None = None,
+        backbone_freeze: bool = False,
+        backbone_args: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(locals())
         # Disable drop path by default.
         args = {
             "drop_path_rate": 0.0,
         }
-        if model_args is not None:
-            args.update(model_args)
+        if backbone_args is not None:
+            args.update(backbone_args)
 
         # Get the backbone.
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
@@ -69,7 +69,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         if backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
-        if freeze_backbone:
+        if backbone_freeze:
             self.freeze_backbone()
 
         if len(self.backbone.blocks) < num_joint_blocks:

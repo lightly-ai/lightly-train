@@ -83,8 +83,9 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     def __init__(
         self,
-        model_args: DINOv2EoMTSemanticSegmentationTrainArgs,
+        *,
         model_name: str,
+        model_args: DINOv2EoMTSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
     ) -> None:
         super().__init__()
@@ -99,8 +100,8 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             num_queries=model_args.num_queries,
             num_joint_blocks=model_args.num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
-            freeze_backbone=model_args.freeze_backbone,
-            model_args={
+            backbone_freeze=model_args.freeze_backbone,
+            backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
             },
         )
