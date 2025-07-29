@@ -45,15 +45,15 @@ lightly-train train out=out/my_experiment data=my_data_dir model="dinov2/vitb14-
 The following models are available for DINOv2 pretraining:
 
 - `dinov2/vits14`
-- `dinov2/vits14-pretrain`
+- `dinov2/vits14-pretrained`
 - `dinov2/vitb14`
-- `dinov2/vitb14-pretrain`
+- `dinov2/vitb14-pretrained`
 - `dinov2/vitl14`
-- `dinov2/vitl14-pretrain`
+- `dinov2/vitl14-pretrained`
 - `dinov2/vitg14`
-- `dinov2/vitg14-pretrain`
+- `dinov2/vitg14-pretrained`
 
-Models with a `-pretrain` suffix are [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
+Models with a `-pretrained` suffix are [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
 
 ## What's under the Hood
 
