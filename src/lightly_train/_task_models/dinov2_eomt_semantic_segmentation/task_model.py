@@ -14,7 +14,7 @@ from typing import Any
 
 import torch
 from torch import Tensor
-from torch.nn import GELU, Embedding, Linear, Module, Sequential
+from torch.nn import GELU, Embedding, Linear, Sequential
 from torch.nn import functional as F
 
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
@@ -22,7 +22,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Att
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
-from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_scale_block import (
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
 )
 from lightly_train._task_models.task_model import TaskModel
@@ -31,27 +31,7 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-class LinearSegmentationHead(Module):
-    """
-    Linear segmentation head.
-    """
-
-    def __init__(self, embed_dim: int, num_classes: int) -> None:
-        super().__init__()
-        self.classifier = Linear(embed_dim, num_classes)
-
-    def forward(self, x: Tensor) -> Tensor:
-        """
-        Args:
-            x: patch tokens, shape (B, N, D)
-        Returns:
-            patch logits, shape (B, N, num_classes)
-        """
-        logits: Tensor = self.classifier(x)
-        return logits
-
-
-class DINOv2SemanticSegmentation(TaskModel):
+class DINOv2EoMTSemanticSegmentation(TaskModel):
     def __init__(
         self,
         *,
@@ -60,16 +40,16 @@ class DINOv2SemanticSegmentation(TaskModel):
         num_queries: int,
         num_joint_blocks: int,
         backbone_weights: PathLike | None = None,
-        freeze_backbone: bool = False,
-        model_args: dict[str, Any] | None = None,
+        backbone_freeze: bool = False,
+        backbone_args: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(locals())
         # Disable drop path by default.
         args = {
             "drop_path_rate": 0.0,
         }
-        if model_args is not None:
-            args.update(model_args)
+        if backbone_args is not None:
+            args.update(backbone_args)
 
         # Get the backbone.
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
@@ -89,7 +69,7 @@ class DINOv2SemanticSegmentation(TaskModel):
         if backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
-        if freeze_backbone:
+        if backbone_freeze:
             self.freeze_backbone()
 
         if len(self.backbone.blocks) < num_joint_blocks:
@@ -124,44 +104,6 @@ class DINOv2SemanticSegmentation(TaskModel):
         self.register_buffer(
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
-
-        # TODO(Guarin, 07/25): Remove
-        # self.head = LinearSegmentationHead(embed_dim, num_classes)
-
-    # TODO(Guarin, 07/25): Remove
-    def forward_linear(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        """Forward pass for inference.
-
-        Args:
-            x: input image of shape (B, C, H, W)
-        Returns:
-            (masks, logits) tuple where masks have shape (B, H, W) and logits have shape
-            (B, num_classes, H, W). The masks are the predicted segmentation masks and
-            the logits are the raw output of the model.
-        """
-        # Up-sample to match original image/mask resolution.
-        B, _, H, W = x.shape
-
-        # Get the patch tokens -> (B, N, D) where N = H_patch * W_patch.
-        patch_tokens = self.backbone(x, is_training=True)["x_norm_patchtokens"]
-
-        # Classify the patch tokens -> (B, N, num_classes).
-        logits: Tensor = self.head(patch_tokens)
-
-        # Reshape back to (B, num_classes, H_patch, W_patch).
-        H_patch = H // self.patch_size
-        W_patch = W // self.patch_size
-        logits = logits.permute(0, 2, 1).reshape(B, -1, H_patch, W_patch)
-
-        # Up-sample to match original image/mask resolution.
-        logits = F.interpolate(
-            logits,
-            size=(H, W),
-            mode="bilinear",
-            align_corners=False,
-        )
-        masks = logits.argmax(dim=1)
-        return masks, logits
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         # TODO(Guarin, 07/25): Update to return (masks, logits) tuple.

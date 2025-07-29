@@ -28,15 +28,40 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
-from lightly_train._task_checkpoint import TaskCheckpointArgs
-from lightly_train._task_models.task_train_model import TaskTrainModelArgs
+from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._task_models.train_model import TrainModelArgs
 from lightly_train._train_task_state import TrainTaskState
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
 
-def train_task(
+def train_semantic_segmentation(
+    *,
+    out: PathLike,
+    data: dict[str, Any],
+    model: str,
+    steps: int | Literal["auto"] = "auto",
+    batch_size: int | Literal["auto"] = "auto",
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    accelerator: str = "auto",
+    strategy: str = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    overwrite: bool = False,
+    resume_interrupted: bool = False,
+    seed: int | None = 0,
+    logger_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
+) -> None:
+    return _train_task(task="semantic_segmentation", **locals())
+
+
+def _train_task(
     *,
     out: PathLike,
     data: dict[str, Any],
@@ -55,15 +80,15 @@ def train_task(
     resume_interrupted: bool = False,
     seed: int | None = 0,
     logger_args: dict[str, Any] | None = None,
-    task_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
-    checkpoint_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
     config = validate.pydantic_model_validate(TrainTaskConfig, locals())
-    train_task_from_config(config=config)
+    _train_task_from_config(config=config)
 
 
-def train_task_from_config(config: TrainTaskConfig) -> None:
+def _train_task_from_config(config: TrainTaskConfig) -> None:
     config = validate.pydantic_model_validate(TrainTaskConfig, dict(config))
     initial_config = config.model_dump()
     # NOTE(Guarin, 07/25): We add callbacks and loggers later to fabric because we first
@@ -112,9 +137,9 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
             float32_matmul_precision=config.float32_matmul_precision,
         )
     )
-    config.task_args = helpers.get_task_train_model_args(task_args=config.task_args)
-    config.checkpoint_args = helpers.get_checkpoint_args(
-        checkpoint_args=config.checkpoint_args
+    config.model_args = helpers.get_train_model_args(model_args=config.model_args)
+    config.save_checkpoint_args = helpers.get_save_checkpoint_args(
+        checkpoint_args=config.save_checkpoint_args
     )
 
     # TODO(Guarin, 07/25): Verify out_dir same on all local ranks, see train.py. We can simplify this
@@ -176,9 +201,9 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
     )
     fabric.loggers.extend(logger_instances)
 
-    train_model = helpers.get_task_train_model(
+    train_model = helpers.get_train_model(
         model_name=config.model,
-        task_args=config.task_args,
+        model_args=config.model_args,
         data_args=config.data,
     )
     # Set train mode to make sure that all parameters are in the correct state before
@@ -238,7 +263,8 @@ def train_task_from_config(config: TrainTaskConfig) -> None:
         )
         is_save_ckpt_step = (
             step > 0
-            and (step + 1) % no_auto(config.checkpoint_args.save_every_num_steps) == 0
+            and (step + 1) % no_auto(config.save_checkpoint_args.save_every_num_steps)
+            == 0
         )
 
         batch = next(infinite_train_dataloader)
@@ -322,9 +348,9 @@ class TrainTaskConfig(PydanticConfig):
     resume_interrupted: bool = False
     seed: int | None = 0
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
-    task_args: dict[str, Any] | TaskTrainModelArgs | None = None
+    model_args: dict[str, Any] | TrainModelArgs | None = None
     loader_args: dict[str, Any] | None = None
-    checkpoint_args: dict[str, Any] | TaskCheckpointArgs | None = None
+    save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)

@@ -20,7 +20,6 @@ from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
-from torchmetrics import Metric
 
 from lightly_train._configs import validate
 from lightly_train._data.mask_semantic_segmentation_dataset import (
@@ -32,20 +31,20 @@ from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
-from lightly_train._task_checkpoint import TaskCheckpointArgs
-from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_train import (
-    DINOv2SemanticSegmentationTrain,
-    DINOv2SemanticSegmentationTrainArgs,
+from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
+    DINOv2EoMTSemanticSegmentationTrain,
+    DINOv2EoMTSemanticSegmentationTrainArgs,
 )
-from lightly_train._task_models.dinov2_semantic_segmentation.dinov2_semantic_segmentation_transforms import (
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
     DINOv2SemanticSegmentationTrainTransform,
     DINOv2SemanticSegmentationTrainTransformArgs,
     DINOv2SemanticSegmentationValTransform,
     DINOv2SemanticSegmentationValTransformArgs,
 )
-from lightly_train._task_models.task_train_model import (
-    TaskTrainModel,
-    TaskTrainModelArgs,
+from lightly_train._task_models.train_model import (
+    TrainModel,
+    TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
 from lightly_train._transforms.task_transform import TaskTransform
@@ -281,30 +280,30 @@ def get_steps(steps: int | Literal["auto"]) -> int:
     return steps
 
 
-def get_task_train_model_args(
-    task_args: dict[str, Any] | TaskTrainModelArgs | None,
-) -> TaskTrainModelArgs:
-    if isinstance(task_args, TaskTrainModelArgs):
-        return task_args
-    task_args = {} if task_args is None else task_args
-    task_cls = DINOv2SemanticSegmentationTrainArgs
-    args = validate.pydantic_model_validate(task_cls, task_args)
+def get_train_model_args(
+    model_args: dict[str, Any] | TrainModelArgs | None,
+) -> TrainModelArgs:
+    if isinstance(model_args, TrainModelArgs):
+        return model_args
+    model_args = {} if model_args is None else model_args
+    task_cls = DINOv2EoMTSemanticSegmentationTrainArgs
+    args = validate.pydantic_model_validate(task_cls, model_args)
     return args
 
 
-def get_task_train_model(
+def get_train_model(
     model_name: str,
-    task_args: TaskTrainModelArgs,
+    model_args: TrainModelArgs,
     data_args: MaskSemanticSegmentationDataArgs,
-) -> TaskTrainModel:
+) -> TrainModel:
     package, model = model_name.split("/", maxsplit=1)
     if package != "dinov2_vit":
         raise ValueError(
             f"Unsupported model '{model_name}'. Only 'dinov2_vit' models are supported."
         )
-    assert isinstance(task_args, DINOv2SemanticSegmentationTrainArgs)
-    return DINOv2SemanticSegmentationTrain(
-        task_args=task_args, model_name=model, data_args=data_args
+    assert isinstance(model_args, DINOv2EoMTSemanticSegmentationTrainArgs)
+    return DINOv2EoMTSemanticSegmentationTrain(
+        model_args=model_args, model_name=model, data_args=data_args
     )
 
 
@@ -329,6 +328,9 @@ def log_step(
 
 
 def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
+    # Lazy import because torchmetrics is optional dependency.
+    from torchmetrics import Metric
+
     metrics = {}
     for name, value in log_dict.items():
         if isinstance(value, Metric):
@@ -342,18 +344,21 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
 
 
 def reset_metrics(log_dict: dict[str, Any]) -> None:
+    # Lazy import because torchmetrics is optional dependency.
+    from torchmetrics import Metric
+
     for value in log_dict.values():
         if isinstance(value, Metric):
             value.reset()
 
 
-def get_checkpoint_args(
-    checkpoint_args: dict[str, Any] | TaskCheckpointArgs | None,
-) -> TaskCheckpointArgs:
-    if isinstance(checkpoint_args, TaskCheckpointArgs):
+def get_save_checkpoint_args(
+    checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None,
+) -> TaskSaveCheckpointArgs:
+    if isinstance(checkpoint_args, TaskSaveCheckpointArgs):
         return checkpoint_args
     checkpoint_args = {} if checkpoint_args is None else checkpoint_args
-    args = validate.pydantic_model_validate(TaskCheckpointArgs, checkpoint_args)
+    args = validate.pydantic_model_validate(TaskSaveCheckpointArgs, checkpoint_args)
     return args
 
 
