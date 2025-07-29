@@ -22,7 +22,21 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-def export_task(
+def export_onnx(
+    *,
+    out: PathLike,
+    checkpoint: PathLike,
+    batch_size: int = 1,
+    num_channels: int = 3,
+    height: int = 224,
+    width: int = 224,
+    overwrite: bool = False,
+    format_args: dict[str, Any] | None = None,
+) -> None:
+    return _export_task(format="onnx", **locals())
+
+
+def _export_task(
     *,
     out: PathLike,
     checkpoint: PathLike,
@@ -34,7 +48,7 @@ def export_task(
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
 ) -> None:
-    """Export a task model from a checkpoint.
+    """Export a model from a checkpoint.
 
     Args:
         out:
@@ -57,10 +71,10 @@ def export_task(
             Format specific arguments. Eg. "dynamic" for onnx and int8 precision for tensorrt.
     """
     config = ExportTaskConfig(**locals())
-    export_task_from_config(config=config)
+    _export_task_from_config(config=config)
 
 
-def export_task_from_config(config: ExportTaskConfig) -> None:
+def _export_task_from_config(config: ExportTaskConfig) -> None:
     # Only export on rank 0.
     if distributed.is_initialized() and distributed.get_rank() > 0:
         return
@@ -75,7 +89,7 @@ def export_task_from_config(config: ExportTaskConfig) -> None:
         out=config.out, overwrite=config.overwrite
     ).as_posix()  # TODO(Yutong, 07/25): make sure the format corrsponds to the output file extension!
     checkpoint_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
-    task_model = task_model_helpers.load_task_model_from_checkpoint(
+    task_model = task_model_helpers.load_model_from_checkpoint(
         checkpoint=checkpoint_path
     )
     task_model.eval()

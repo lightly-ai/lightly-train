@@ -20,11 +20,11 @@ from lightly_train._configs.config import PydanticConfig
 from lightly_train._task_models.task_model import TaskModel
 
 
-class TaskTrainModelArgs(PydanticConfig):
+class TrainModelArgs(PydanticConfig):
     pass
 
 
-class TaskTrainModel(Module):
+class TrainModel(Module):
     """Base class for task-specific models for training. Not exposed to the user.
 
     This class stores the model, criterion, and metrics for training and validation.
