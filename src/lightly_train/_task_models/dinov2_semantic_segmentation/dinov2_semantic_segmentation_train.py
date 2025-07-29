@@ -235,7 +235,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         )
 
     def tile(
-        self, images: Tensor
+        self, images: list[Tensor]
     ) -> tuple[list[Tensor], list[tuple[int, int, int, bool]]]:
         crops, origins = [], []
 
@@ -315,8 +315,8 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         image_sizes = [image.shape[-2:] for image in images]
 
         # Tile the images.
-        crops, origins = self.tile(images)
-        crops = torch.stack(crops)
+        crops_list, origins = self.tile(images)
+        crops = torch.stack(crops_list)
 
         # Tile the targets for the loss
         binary_masks = [target["masks"] for target in targets]
