@@ -66,7 +66,7 @@ class DINOv2ViTPackage(Package):
 
         # Replace "-pretrain" with "-pretrained" suffix for backwards compatibility.
         if model_name.endswith("-pretrain"):
-            model_name = model_name[:-len("-pretrain")] + "-pretrained"
+            model_name = model_name[: -len("-pretrain")] + "-pretrained"
 
         if model_name not in VIT_MODELS:
             raise ValueError(
