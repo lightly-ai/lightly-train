@@ -26,11 +26,11 @@ import lightly_train
 
 from .. import helpers
 
-IS_SELF_HOSTED_DOCKER_RUNNER = "GH_RUNNER_NAME" in os.environ
+is_self_hosted_docker_runner = "GH_RUNNER_NAME" in os.environ
 
 
 @pytest.mark.skipif(
-    sys.platform.startswith("win") or IS_SELF_HOSTED_DOCKER_RUNNER,
+    sys.platform.startswith("win") or is_self_hosted_docker_runner,
     reason=(
         "Fails on Windows since switching to Jaccard index "
         "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
