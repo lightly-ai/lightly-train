@@ -119,7 +119,7 @@ def get_method(wrapped_model: ModelWrapper) -> Method:
 def get_method_dinov2() -> DINOv2:
     optim_args = DINOv2AdamWViTArgs()
     dinov2_args = DINOv2Args()
-    wrapped_model = package_helpers.get_wrapped_model(model="dinov2/_vit_test14")
+    wrapped_model = package_helpers.get_wrapped_model(model="dinov2/_vittest14")
     dinov2_args.resolve_auto(
         scaling_info=ScalingInfo(dataset_size=1000, epochs=100),
         optimizer_args=optim_args,

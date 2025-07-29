@@ -159,7 +159,7 @@ class TestDistillationV2:
             out=out_path,
             data=data_path,
             method="dinov2",
-            model="dinov2/_vit_test14",
+            model="dinov2/_vittest14",
             transform_args={"image_size": (224, 224)},
             epochs=0,
             batch_size=4,
@@ -178,7 +178,7 @@ class TestDistillationV2:
         # Instantiate the distillation method.
         _ = DistillationV2(
             method_args=DistillationV2Args(
-                teacher="dinov2/_vit_test14",
+                teacher="dinov2/_vittest14",
                 teacher_weights=f"{out_path}/exported_models/exported_last.pt",
             ),
             optimizer_args=DistillationV2LARSArgs(),
