@@ -30,7 +30,7 @@ if __name__ == "__main__":
     lightly_train.train(
         out="out/my_experiment", 
         data="my_data_dir",
-        model="dinov2/vitb14-pretrain",
+        model="dinov2/vitb14-pretrained",
         method="dinov2",
         epochs=100, # We recommend epochs = 125000 * batch size // dataset size
     )
@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out=out/my_experiment data=my_data_dir model="dinov2/vitb14-pretrain" method="dinov2"
+lightly-train train out=out/my_experiment data=my_data_dir model="dinov2/vitb14-pretrained" method="dinov2"
 ```
 ````
 
