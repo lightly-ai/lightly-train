@@ -26,7 +26,7 @@ import lightly_train
 
 from .. import helpers
 
-IS_SELF_HOSTED_DOCKER_RUNNER = os.environ.get("GH_RUNNER_NAME") == "docker-gpu"
+IS_SELF_HOSTED_DOCKER_RUNNER = "GH_RUNNER_NAME" in os.environ
 
 
 @pytest.mark.skipif(
