@@ -26,11 +26,11 @@ import lightly_train
 
 from .. import helpers
 
-skip_on_ci_with_cuda = bool(os.environ.get("CI")) and torch.cuda.is_available()
+IS_SELF_HOSTED_DOCKER_RUNNER = os.environ.get("GH_RUNNER_NAME") == "docker-gpu"
 
 
 @pytest.mark.skipif(
-    sys.platform.startswith("win") or skip_on_ci_with_cuda,
+    sys.platform.startswith("win") or IS_SELF_HOSTED_DOCKER_RUNNER,
     reason=(
         "Fails on Windows since switching to Jaccard index "
         "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
