@@ -62,7 +62,8 @@ class DINOv2ViTPackage(Package):
         # - "vitb14_pretained" -> "vitb14-pretrained"
         # - "_vittest14_pretrained" -> "_vittest14-pretrained"
         # We keep leading underscores for private test models.
-        model_name = model_name[0] + model_name[1:].replace("_", "-")
+        if model_name:
+            model_name = model_name[0] + model_name[1:].replace("_", "-")
 
         # Replace "-pretrain" with "-pretrained" suffix for backwards compatibility.
         if model_name.endswith("-pretrain"):
