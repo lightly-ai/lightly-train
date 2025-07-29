@@ -159,7 +159,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch, step: int
     ) -> TaskStepResult:
         images = batch["image"]
-        masks = batch["mask"]  # Long required for metrics.
+        masks = batch["mask"]
         targets = batch["target"]
         _, _, H, W = images.shape
 
@@ -258,7 +258,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
                 end = start + crop_size
 
                 # Image is tall.
-                # if resized_img.shape[-2] > resized_img.shape[-1]:
                 if is_tall:
                     crop = image[:, start:end, :]
 
@@ -284,7 +283,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
 
         # Initialize the tensors containing the final predictions.
         for size in image_sizes:
-            # h, w = self.scale_img_size_semantic(size)
             logit_sums.append(
                 torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
             )
@@ -293,7 +291,6 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
             )
 
         for crop_index, (image_index, start, end, is_tall) in enumerate(origins):
-            # if image_sizes[image_index][0] > image_sizes[image_index][1]:
             # Image is tall.
             if is_tall:
                 logit_sums[image_index][:, start:end, :] += crop_logits[crop_index]
@@ -313,7 +310,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
     ) -> TaskStepResult:
         images = batch["image"]
-        masks = batch["mask"]  # Long required for metrics.
+        masks = batch["mask"]
         targets = batch["target"]
         image_sizes = [image.shape[-2:] for image in images]
 

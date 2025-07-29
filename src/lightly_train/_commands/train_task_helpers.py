@@ -204,7 +204,7 @@ def get_dataset(
 
 
 def collate_fn(batch: list[dict[str, Any]], split: str) -> dict[str, Any]:
-    # Prepate the batch without any stacking.
+    # Prepare the batch without any stacking.
     out: dict[str, Any] = {
         "image_paths": [item["image_path"] for item in batch],
         "image": [item["image"] for item in batch],
