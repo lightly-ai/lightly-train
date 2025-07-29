@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 class DINOv2ViTPackage(Package):
-    name = "dinov2_vit"
+    name = "dinov2"
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -138,7 +138,7 @@ class DINOv2ViTPackage(Package):
                 "import torch",
                 "",
                 "# Load the pretrained model",
-                "model = DINOv2ViTPackage.get_model('dinov2_vit/<vitXX>') # Replace with the model name used in train",
+                "model = DINOv2ViTPackage.get_model('dinov2/<vitXX>') # Replace with the model name used in train",
                 f"model.load_state_dict(torch.load('{out}', weights_only=True))",
                 "",
                 "# Finetune or evaluate the model",

@@ -290,9 +290,11 @@ def get_task_train_model(
     data_args: MaskSemanticSegmentationDataArgs,
 ) -> TaskTrainModel:
     package, model = model_name.split("/", maxsplit=1)
-    if package != "dinov2_vit":
+    if package == "dinov2_vit":  # For backwards compatibility
+        package = "dinov2"
+    if package != "dinov2":
         raise ValueError(
-            f"Unsupported model '{model_name}'. Only 'dinov2_vit' models are supported."
+            f"Unsupported model '{model_name}'. Only 'dinov2' models are supported."
         )
     assert isinstance(task_args, DINOv2SemanticSegmentationTrainArgs)
     return DINOv2SemanticSegmentationTrain(

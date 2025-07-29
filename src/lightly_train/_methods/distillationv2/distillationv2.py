@@ -67,7 +67,7 @@ class DistillationV2Args(MethodArgs):
     n_teacher_blocks: int = 2
 
     # Default teacher
-    teacher: str = "dinov2_vit/vitb14_pretrain"
+    teacher: str = "dinov2/vitb14_pretrain"
 
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None

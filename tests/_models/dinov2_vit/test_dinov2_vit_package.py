@@ -24,15 +24,18 @@ class TestDINOv2ViTPackage:
     @pytest.mark.parametrize(
         "model_name, supported",
         [
-            ("dinov2_vit/dinov2_vits14", False),
-            ("dinov2_vit/dinov2_vitb14", False),
-            ("dinov2_vit/dinov2_vitl14", False),
-            ("dinov2_vit/dinov2_vitg14", False),
-            ("dinov2_vit/_vit_test14", True),
-            ("dinov2_vit/vits14", True),
-            ("dinov2_vit/vitb14", True),
-            ("dinov2_vit/vitl14", True),
-            ("dinov2_vit/vitg14", True),
+            # The dinov2_vit/XYZ models are False because they are deprecated. You can
+            # still instantiate them but they are not in the list of model names.
+            ("dinov2_vit/_vit_test14", False),
+            ("dinov2_vit/vits14", False),
+            ("dinov2_vit/vitb14", False),
+            ("dinov2_vit/vitl14", False),
+            ("dinov2_vit/vitg14", False),
+            ("dinov2/_vit_test14", True),
+            ("dinov2/vits14", True),
+            ("dinov2/vitb14", True),
+            ("dinov2/vitl14", True),
+            ("dinov2/vitg14", True),
         ],
     )
     def test_list_model_names(self, model_name: str, supported: bool) -> None:

@@ -291,7 +291,7 @@ class TestDistillation:
             out=out_path,
             data=data_path,
             method="dinov2",
-            model="dinov2_vit/_vit_test14",
+            model="dinov2/_vit_test14",
             transform_args={"image_size": (224, 224)},
             epochs=0,
             batch_size=4,
@@ -312,7 +312,7 @@ class TestDistillation:
         _ = Distillation(
             method_args=DistillationArgs(
                 queue_size=queue_size,
-                teacher="dinov2_vit/_vit_test14",
+                teacher="dinov2/_vit_test14",
                 teacher_weights=f"{out_path}/exported_models/exported_last.pt",
             ),
             optimizer_args=DistillationLARSArgs(),

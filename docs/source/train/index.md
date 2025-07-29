@@ -384,7 +384,7 @@ if __name__ == "__main__":
         model="torchvision/resnet18",       # Model to train
         method="distillation",              # Pretraining method
         method_args={                       # Override the default teacher model
-            "teacher": "dinov2_vit/vitl14_pretrain",
+            "teacher": "dinov2/vitl14_pretrain",
         },
     )
 ```
@@ -392,7 +392,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" method="distillation" method_args.teacher="dinov2_vit/vitl14_pretrain"
+lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" method="distillation" method_args.teacher="dinov2/vitl14_pretrain"
 ```
 ````
 
