@@ -46,7 +46,7 @@ class DINOv2SemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
 
 
 class DINOv2SemanticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
-    max_size: list[int] = [int(518 * x * 0.1) for x in range(5, 21)]
+    max_size: list[int] = [518]
     prob: float = 1.0
 
 
@@ -105,14 +105,12 @@ class DINOv2SemanticSegmentationValTransformArgs(SemanticSegmentationTransformAr
     random_flip: RandomFlipArgs | None = None
     color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
-    smallest_max_size: SmallestMaxSizeArgs | None = None
+    smallest_max_size: SmallestMaxSizeArgs = Field(
+        default_factory=DINOv2SemanticSegmentationSmallestMaxSizeArgs
+    )
     random_crop: RandomCropArgs | None = None
-    longest_max_size: LongestMaxSizeArgs = Field(
-        default_factory=DINOv2SemanticSegmentationLongestMaxSizeArgs
-    )
-    center_crop: CenterCropArgs = Field(
-        default_factory=DINOv2SemanticSegmentationCenterCropArgs
-    )
+    longest_max_size: LongestMaxSizeArgs | None = None
+    center_crop: CenterCropArgs | None = None
 
 
 class DINOv2SemanticSegmentationTrainTransform(SemanticSegmentationTransform):

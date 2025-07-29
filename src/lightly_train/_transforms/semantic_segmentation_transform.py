@@ -95,12 +95,6 @@ class SemanticSegmentationTransform(TaskTransform):
                 )
             ]
 
-            # Randomly crop the image to a fixed size.
-            if transform_args.random_crop is None:
-                raise ValueError(
-                    "random_crop must be provided if smallest_max_size is set."
-                )
-
         if transform_args.random_crop is not None:
             transform += [
                 RandomCrop(
