@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from functools import partial
 from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Literal
@@ -201,14 +202,21 @@ def get_dataset(
     )
 
 
-def collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
-    # TODO(Thomas, 07/25): make this task/split dependant.
-    return {
+def collate_fn(batch: list[dict[str, Any]], split: str) -> dict[str, Any]:
+    # Prepare the batch without any stacking.
+    out: dict[str, Any] = {
         "image_paths": [item["image_path"] for item in batch],
-        "image": torch.stack([item["image"] for item in batch]),
-        "mask": torch.stack([item["mask"] for item in batch]),
+        "image": [item["image"] for item in batch],
+        "mask": [item["mask"] for item in batch],
         "target": [item["target"] for item in batch],
     }
+
+    # During training images and masks all have the same shape.
+    if split == "train":
+        out["image"] = torch.stack(out["image"])
+        out["mask"] = torch.stack(out["mask"])
+
+    return out
 
 
 def get_train_dataloader(
@@ -227,7 +235,7 @@ def get_train_dataloader(
         num_workers=num_workers,
         drop_last=True,
         timeout=timeout,
-        collate_fn=collate_fn,
+        collate_fn=partial(collate_fn, split="train"),
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
@@ -254,7 +262,7 @@ def get_val_dataloader(
         num_workers=num_workers,
         drop_last=False,
         timeout=timeout,
-        collate_fn=collate_fn,
+        collate_fn=partial(collate_fn, split="validation"),
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")

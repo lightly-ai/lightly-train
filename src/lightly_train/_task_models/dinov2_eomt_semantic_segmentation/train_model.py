@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import torch
@@ -164,7 +165,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch, step: int
     ) -> TaskStepResult:
         images = batch["image"]
-        masks = batch["mask"].long()  # Long required for metrics.
+        masks = batch["mask"]
         targets = batch["target"]
         _, _, H, W = images.shape
 
@@ -239,49 +240,152 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             },
         )
 
+    def tile(
+        self, images: list[Tensor]
+    ) -> tuple[list[Tensor], list[tuple[int, int, int, bool]]]:
+        crops, origins = [], []
+
+        for i, image in enumerate(images):
+            h, w = image.shape[-2:]
+            long_side_size = max(h, w)
+            short_side_size = min(h, w)
+
+            # Is the image tall or wide?
+            is_tall = h > w
+
+            # By construction the short side size is equal to the crop size.
+            crop_size = short_side_size
+            num_crops = math.ceil(long_side_size / crop_size)
+            overlap = num_crops * crop_size - long_side_size
+            overlap_per_crop = (overlap / (num_crops - 1)) if overlap > 0 else 0
+
+            for j in range(num_crops):
+                start = int(j * (crop_size - overlap_per_crop))
+                end = start + crop_size
+
+                # Image is tall.
+                if is_tall:
+                    crop = image[:, start:end, :]
+
+                # Image is wide.
+                else:
+                    crop = image[:, :, start:end]
+
+                # Store the crop.
+                crops.append(crop)
+
+                # Store the position of the crop.
+                origins.append((i, start, end, is_tall))
+
+        return crops, origins
+
+    def untile(
+        self,
+        crop_logits: Tensor,
+        origins: list[tuple[int, int, int, bool]],
+        image_sizes: list[tuple[int, int]],
+    ) -> list[Tensor]:
+        logit_sums, logit_counts = [], []
+
+        # Initialize the tensors containing the final predictions.
+        for size in image_sizes:
+            logit_sums.append(
+                torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
+            )
+            logit_counts.append(
+                torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
+            )
+
+        for crop_index, (image_index, start, end, is_tall) in enumerate(origins):
+            # Image is tall.
+            if is_tall:
+                logit_sums[image_index][:, start:end, :] += crop_logits[crop_index]
+                logit_counts[image_index][:, start:end, :] += 1
+            # Image is wide.
+            else:
+                logit_sums[image_index][:, :, start:end] += crop_logits[crop_index]
+                logit_counts[image_index][:, :, start:end] += 1
+
+        # Average the logits in the regions of overlap.
+        return [
+            logit_sum / logit_count
+            for logit_sum, logit_count in zip(logit_sums, logit_counts)
+        ]
+
     def validation_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
     ) -> TaskStepResult:
         images = batch["image"]
-        masks = batch["mask"].long()  # Long required for metrics.
+        masks = batch["mask"]
         targets = batch["target"]
-        _, _, H, W = images.shape
+        image_sizes = [image.shape[-2:] for image in images]
+
+        # Tile the images.
+        crops_list, origins = self.tile(images)  # type: ignore[arg-type]
+        crops = torch.stack(crops_list)
+
+        # Tile the targets for the loss
+        binary_masks = [target["masks"] for target in targets]
+        binary_masks_labels = [target["labels"] for target in targets]
+        binary_masks_crops, _ = self.tile(binary_masks)
+
+        # Compute the target per crop.
+        targets_crops = []
+        for origin, binary_masks_crop in zip(origins, binary_masks_crops):
+            # Store the binary mask and label for the crop.
+            targets_crops.append(
+                {
+                    "masks": binary_masks_crop,
+                    "labels": binary_masks_labels[origin[0]],
+                }
+            )
 
         # TODO(Guarin, 07/25): Use a different forward method for validation?
-        mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(images)
-
-        # Loss
+        mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(crops)
         num_blocks = len(self.model.backbone.blocks)
         losses = {}
-        for block_idx, block_mask_logits, block_class_logits in zip(
-            # Add +1 to num_blocks for final output.
-            range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
-            mask_logits_per_layer,
-            class_logits_per_layer,
-        ):
-            block_losses = self.criterion(
-                masks_queries_logits=block_mask_logits,
-                class_queries_logits=block_class_logits,
-                targets=targets,
+        for i, (block_idx, mask_logits, class_logits) in enumerate(
+            zip(
+                # Add +1 to num_blocks for final output.
+                range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
+                mask_logits_per_layer,
+                class_logits_per_layer,
             )
-            block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
-            block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
-            losses.update(block_losses)
-        loss = self.criterion.loss_total(losses_all_layers=losses)
-        log_dict = {f"val_loss/{k}": v for k, v in losses.items()}
-
-        # Metrics
-        for block_idx, (mask_logits, class_logits) in enumerate(
-            list(zip(mask_logits_per_layer, class_logits_per_layer))
         ):
-            mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-            logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
+            h, w = crops.shape[-2:]
+            mask_logits = F.interpolate(mask_logits, (h, w), mode="bilinear")
+            crop_logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
+
+            # Un-tile the predictions.
+            logits = self.untile(
+                crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
+            )
+
+            # Update the metrics.
             self.update_metrics_semantic(
                 metrics=self.val_metrics,
                 preds=logits,
                 targets=masks,
-                block_idx=block_idx,
+                block_idx=i,
             )
+
+            # Compute the loss
+            block_losses = self.criterion(
+                masks_queries_logits=mask_logits,
+                class_queries_logits=class_logits,
+                targets=targets_crops,
+            )
+            block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
+            block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
+            losses.update(block_losses)
+
+        # Compute the total loss.
+        loss = self.criterion.loss_total(losses_all_layers=losses)
+
+        # Store the block-wise losses.
+        log_dict = {f"val_loss/{k}": v for k, v in losses.items()}
+
+        # Update the targets and predictions of the last block.
         for pred, targ in zip(logits, masks):
             self.val_miou.update(pred[None, ...], targ[None, ...])
 
