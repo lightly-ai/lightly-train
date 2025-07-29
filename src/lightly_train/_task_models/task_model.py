@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from torch.nn import Module
+import torch
 
 
 class TaskModel(Module):
@@ -38,6 +39,11 @@ class TaskModel(Module):
     def class_path(self) -> str:
         """Returns the class path of the model."""
         return f"{self.__module__}.{self.__class__.__name__}"
+    
+    @property
+    def device(self) -> torch.device:
+        """Returns the device the model is currently on."""
+        return next(self.parameters()).device
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""
