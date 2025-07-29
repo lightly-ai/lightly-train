@@ -59,7 +59,7 @@ class DINOv2ViTPackage(Package):
         Get a DINOv2 ViT model by name. Here the student version is build.
         """
         # Replace "_" with "-" for backwards compatibility.
-        # - "vitb14_pretained" -> "vitb14-pretrained"
+        # - "vitb14_pretrained" -> "vitb14-pretrained"
         # - "_vittest14_pretrained" -> "_vittest14-pretrained"
         # We keep leading underscores for private test models.
         if model_name:
