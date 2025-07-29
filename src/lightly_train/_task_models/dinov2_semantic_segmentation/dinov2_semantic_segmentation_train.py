@@ -158,7 +158,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch, step: int
     ) -> TaskStepResult:
         images = batch["image"]
-        masks = batch["mask"].long()  # Long required for metrics.
+        masks = batch["mask"]  # Long required for metrics.
         targets = batch["target"]
         _, _, H, W = images.shape
 
@@ -237,7 +237,7 @@ class DINOv2SemanticSegmentationTrain(TaskTrainModel):
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
     ) -> TaskStepResult:
         images = batch["image"]
-        masks = batch["mask"].long()  # Long required for metrics.
+        masks = batch["mask"]  # Long required for metrics.
         targets = batch["target"]
         _, _, H, W = images.shape
 
