@@ -38,7 +38,7 @@ dependencies = [
                             # 1.5.2 is the last version that supports Python 3.8
                             # 1.7 is recommended version
     "torchvision>=0.16.0",  # torchvision 0.15.0 was yanked
-    "transformers>=4.46",   # Transformers is neede for fine-tuning.
+    "transformers>=4.46",   # Transformers is needed for fine-tuning.
                             # 4.46 is last version that supports Python 3.8.
                             # 4.51.3 is the default for EoMT
     "tqdm>=4.0.0",
