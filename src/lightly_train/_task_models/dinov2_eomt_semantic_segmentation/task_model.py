@@ -43,7 +43,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         backbone_freeze: bool = False,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(locals())
+        super().__init__(locals(), ignore_args={"backbone_weights"})
         # Disable drop path by default.
         args = {
             "drop_path_rate": 0.0,

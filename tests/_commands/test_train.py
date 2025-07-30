@@ -284,14 +284,14 @@ def test_train__method(tmp_path: Path, method: str, devices: int) -> None:
 
     # DINOv2 needs special model
     model = {
-        "dinov2": "dinov2_vit/_vit_test14",
+        "dinov2": "dinov2/_vittest14",
     }.get(method, "torchvision/resnet18")
 
     # Use smaller teacher for unit tests.
     method_args = {
-        "distillation": {"teacher": "dinov2_vit/_vit_test14"},
-        "distillationv1": {"teacher": "dinov2_vit/_vit_test14"},
-        "distillationv2": {"teacher": "dinov2_vit/_vit_test14"},
+        "distillation": {"teacher": "dinov2/_vittest14"},
+        "distillationv1": {"teacher": "dinov2/_vittest14"},
+        "distillationv2": {"teacher": "dinov2/_vittest14"},
     }.get(method, {})
 
     train.train(
