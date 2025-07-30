@@ -50,6 +50,22 @@ MODELS = {
         "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth",
         "config": "eval/vitg14_pretrain",
     },
+    "vits14-reg4-pretrained": {
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_reg4_pretrain.pth",
+        "config": "eval/vits14_reg4_pretrain",
+    },
+    "vitb14-reg4-pretrained": {
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_reg4_pretrain.pth",
+        "config": "eval/vitb14_reg4_pretrain",
+    },
+    "vitl14-reg4-pretrained": {
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_reg4_pretrain.pth",
+        "config": "eval/vitl14_reg4_pretrain",
+    },
+    "vitg14-reg4-pretrained": {
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_reg4_pretrain.pth",
+        "config": "eval/vitg14_reg4_pretrain",
+    },
 }
 
 
