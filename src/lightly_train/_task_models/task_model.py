@@ -20,16 +20,32 @@ class TaskModel(Module):
     on Fabric or Lightning modules.
     """
 
-    def __init__(self, init_args: dict[str, Any]):
-        init_args = init_args.copy()
-        init_args.pop("self", None)
-        init_args.pop("__class__", None)
-        self._init_args = init_args
+    def __init__(self, init_args: dict[str, Any], ignore_args: set[str] | None = None):
+        """
+        Args:
+            init_args:
+                Arguments used to initialize the model. We save those to make it easy
+                to serialize and load the model again.
+            ignore_args:
+                Arguments in init_args that should be ignored. This is useful to ignore
+                arguments that are not relevant for serialization, such as
+                `backbone_weights` which is not relevant anymore after the model is
+                loaded for the first time.
+        """
         super().__init__()
+        ignore_args = set() if ignore_args is None else ignore_args
+        ignore_args.update({"self", "__class__"})
+        unknown_keys = ignore_args - init_args.keys()
+        if unknown_keys:
+            raise ValueError(
+                f"Unknown keys in ignore_args: {unknown_keys}. "
+                "Please contact the Lightly team if you encounter this error."
+            )
+        self._init_args = {k: v for k, v in init_args.items() if k not in ignore_args}
 
     @property
     def init_args(self) -> dict[str, Any]:
-        """Returns the arguments used to initialize the model
+        """Returns the arguments used to initialize the model.
 
         This is useful for serialization of the model.
         """
@@ -37,7 +53,10 @@ class TaskModel(Module):
 
     @property
     def class_path(self) -> str:
-        """Returns the class path of the model."""
+        """Returns the class path of the model.
+
+        This is useful for serialization of the model.
+        """
         return f"{self.__module__}.{self.__class__.__name__}"
 
     @property

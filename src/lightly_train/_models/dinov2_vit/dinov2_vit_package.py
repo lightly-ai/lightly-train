@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 class DINOv2ViTPackage(Package):
-    name = "dinov2_vit"
+    name = "dinov2"
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -58,6 +58,17 @@ class DINOv2ViTPackage(Package):
         """
         Get a DINOv2 ViT model by name. Here the student version is build.
         """
+        # Replace "_" with "-" for backwards compatibility.
+        # - "vitb14_pretrained" -> "vitb14-pretrained"
+        # - "_vittest14_pretrained" -> "_vittest14-pretrained"
+        # We keep leading underscores for private test models.
+        if model_name:
+            model_name = model_name[0] + model_name[1:].replace("_", "-")
+
+        # Replace "-pretrain" with "-pretrained" suffix for backwards compatibility.
+        if model_name.endswith("-pretrain"):
+            model_name = model_name[: -len("-pretrain")] + "-pretrained"
+
         if model_name not in VIT_MODELS:
             raise ValueError(
                 f"Unknown model: {model_name} available models are: {cls.list_model_names()}"
@@ -99,7 +110,7 @@ class DINOv2ViTPackage(Package):
         model = model_builder(**kwargs)
 
         # Load the pretrained model if required
-        if model_name.endswith("_pretrain"):
+        if model_name.endswith("-pretrained"):
             cache_dir = get_cache_dir()
             checkpoint_dir = cache_dir / "weights"
             model = load_weights(
@@ -138,7 +149,7 @@ class DINOv2ViTPackage(Package):
                 "import torch",
                 "",
                 "# Load the pretrained model",
-                "model = DINOv2ViTPackage.get_model('dinov2_vit/<vitXX>') # Replace with the model name used in train",
+                "model = DINOv2ViTPackage.get_model('dinov2/<vitXX>') # Replace with the model name used in train",
                 f"model.load_state_dict(torch.load('{out}', weights_only=True))",
                 "",
                 "# Finetune or evaluate the model",
