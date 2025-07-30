@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from torch.nn import Module
 import torch
+from torch.nn import Module
 
 
 class TaskModel(Module):
@@ -39,7 +39,7 @@ class TaskModel(Module):
     def class_path(self) -> str:
         """Returns the class path of the model."""
         return f"{self.__module__}.{self.__class__.__name__}"
-    
+
     @property
     def device(self) -> torch.device:
         """Returns the device the model is currently on."""
