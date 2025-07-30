@@ -17,7 +17,10 @@ from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 
-def load_model_from_checkpoint(checkpoint: PathLike) -> TaskModel:
+def load_model_from_checkpoint(
+    checkpoint: PathLike,
+    device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
+) -> TaskModel:
     """Load a model from a checkpoint file.
 
     Args:
