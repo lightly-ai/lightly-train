@@ -63,9 +63,9 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
                 1: "car",
             },
         },
-        model="dinov2_vit/_vit_test14",
+        model="dinov2/_vittest14",
         model_args={
-            "num_joint_blocks": 1,  # Reduce joint blocks for _vit_test14
+            "num_joint_blocks": 1,  # Reduce joint blocks for _vittest14
         },
         devices=1,
         batch_size=2,
