@@ -384,7 +384,7 @@ if __name__ == "__main__":
         model="torchvision/resnet18",       # Model to train
         method="distillation",              # Pretraining method
         method_args={                       # Override the default teacher model
-            "teacher": "dinov2/vitl14-pretrained",
+            "teacher": "dinov2/vitl14-noreg-pretrained",
         },
     )
 ```
