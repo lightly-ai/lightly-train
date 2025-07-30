@@ -66,7 +66,6 @@ def _resolve_device(device: str | torch.device | None) -> torch.device:
             # Return the default MPS device if available.
             return torch.device("mps")
         else:
-            logger.debug("No GPU found, falling back to CPU.")
             return torch.device("cpu")
     else:
         raise ValueError(
