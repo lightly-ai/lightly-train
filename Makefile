@@ -83,9 +83,9 @@ add-header:
 		-x src/lightly_train/_methods/dinov2/utils.py \
 		-x src/lightly_train/_modules/teachers/dinov2 \
 		-x src/lightly_train/_lightning_rank_zero.py \
-		-x src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_mask_loss.py \
-		-x src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_scale_block.py \
-		-x src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_scheduler.py \
+		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
+		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
+		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
 		-E py
 	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
@@ -106,9 +106,9 @@ add-header:
 
 	# Apply the MIT license header to the EoMT derived files
 	licenseheaders -t dev_tools/eomt_licenseheader.tmpl \
-		-f src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_mask_loss.py \
-		src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_scale_block.py \
-		src/lightly_train/_task_models/dinov2_semantic_segmentation/dinov2_semantic_segmentation_scheduler.py \
+		-f src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
+		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
+		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
 		-E py
 
 

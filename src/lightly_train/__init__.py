@@ -31,20 +31,26 @@ os.environ["NO_ALBUMENTATIONS_UPDATE"] = "1"
 from lightly_train._commands.common_helpers import ModelFormat, ModelPart
 from lightly_train._commands.embed import embed
 from lightly_train._commands.export import export
+from lightly_train._commands.export_task import export_onnx
 from lightly_train._commands.train import train
+from lightly_train._commands.train_task import train_semantic_segmentation
 from lightly_train._embedding.embedding_format import EmbeddingFormat
 from lightly_train._methods.method_helpers import list_methods
 from lightly_train._models.package_helpers import list_model_names as list_models
+from lightly_train._task_models.task_model_helpers import load_model_from_checkpoint
 
 __all__ = [
     "embed",
     "EmbeddingFormat",
     "export",
+    "export_onnx",
     "list_methods",
     "list_models",
     "ModelFormat",
     "ModelPart",
     "train",
+    "train_semantic_segmentation",
+    "load_model_from_checkpoint",
 ]
 
 __version__ = "0.9.0"
