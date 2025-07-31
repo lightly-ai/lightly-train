@@ -109,11 +109,12 @@ def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
 
 
 def open_image_tensor(image_path: Path) -> Tensor:
+    image: Tensor
     if image_path.suffix.lower() in _torchvision_supported_image_extensions():
-        image: Tensor = io.read_image(str(image_path), mode=ImageReadMode.RGB)
+        image = io.read_image(str(image_path), mode=ImageReadMode.RGB)
         return image
     else:
-        image: Tensor = F.pil_to_tensor(Image.open(image_path).convert("RGB"))
+        image = F.pil_to_tensor(Image.open(image_path).convert("RGB"))
         return image
 
 
