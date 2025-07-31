@@ -32,10 +32,18 @@ class TestDINOv2ViTPackage:
             ("dinov2_vit/vitl14", False),
             ("dinov2_vit/vitg14", False),
             ("dinov2/_vittest14", True),
-            ("dinov2/vits14", True),
-            ("dinov2/vitb14", True),
-            ("dinov2/vitl14", True),
-            ("dinov2/vitg14", True),
+            ("dinov2/vits14-noreg", True),
+            ("dinov2/vitb14-noreg", True),
+            ("dinov2/vitl14-noreg", True),
+            ("dinov2/vitg14-noreg", True),
+            ("dinov2/vits14-noreg-pretrained", True),
+            ("dinov2/vitb14-noreg-pretrained", True),
+            ("dinov2/vitl14-noreg-pretrained", True),
+            ("dinov2/vitg14-noreg-pretrained", True),
+            ("dinov2/vits14-pretrained", True),
+            ("dinov2/vitb14-pretrained", True),
+            ("dinov2/vitl14-pretrained", True),
+            ("dinov2/vitg14-pretrained", True),
         ],
     )
     def test_list_model_names(self, model_name: str, supported: bool) -> None:
@@ -61,7 +69,7 @@ class TestDINOv2ViTPackage:
 
     @pytest.mark.parametrize(
         "model_name",
-        ["_vittest14", "vits14", "vitb14"],
+        ["_vittest14", "vits14-noreg", "vitb14-noreg"],
     )
     def test_get_model(self, model_name: str) -> None:
         model = DINOv2ViTPackage.get_model(model_name=model_name)

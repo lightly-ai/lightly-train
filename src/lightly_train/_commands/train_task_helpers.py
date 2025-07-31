@@ -282,12 +282,16 @@ def get_steps(steps: int | Literal["auto"]) -> int:
 
 def get_train_model_args(
     model_args: dict[str, Any] | TrainModelArgs | None,
+    total_steps: int,
 ) -> TrainModelArgs:
     if isinstance(model_args, TrainModelArgs):
         return model_args
     model_args = {} if model_args is None else model_args
     task_cls = DINOv2EoMTSemanticSegmentationTrainArgs
     args = validate.pydantic_model_validate(task_cls, model_args)
+    args.resolve_auto(
+        total_steps=total_steps,
+    )
     return args
 
 

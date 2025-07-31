@@ -7,8 +7,7 @@
 #
 from __future__ import annotations
 
-import math
-from typing import Any
+from typing import Any, Literal
 
 import torch
 import torch.nn.functional as F
@@ -19,6 +18,7 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
@@ -38,7 +38,6 @@ from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
-    backbone_freeze: bool = False
     drop_path_rate: float = 0.0
     num_queries: int = 100  # Default for ADE20K
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
@@ -56,8 +55,8 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
     # Attention mask annealing.
     # This follows EoMT ADE20K semantic segmentation ViT-L defaults.
-    attn_mask_annealing_steps_start: list[int] = [6520, 13040, 19560, 26080]
-    attn_mask_annealing_steps_end: list[int] = [13040, 19560, 26080, 32600]
+    attn_mask_annealing_steps_start: list[int] | Literal["auto"] = "auto"
+    attn_mask_annealing_steps_end: list[int] | Literal["auto"] = "auto"
 
     # Gradient clipping.
     gradient_clip_val: float = 0.01
@@ -72,6 +71,24 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Unused EoMT args:
     # - mask_thresh: Only used for panoptic segmentation.
     # - overlap_thresh: Only used for panoptic segmentation.
+
+    def resolve_auto(self, total_steps: int) -> None:
+        # Infer the number of training phases from the number of joint blocks.
+        num_training_phases = self.num_joint_blocks + 2
+
+        # The phases all have the same duration.
+        phases = [
+            round(i * total_steps / num_training_phases)
+            for i in range(num_training_phases + 1)
+        ]
+
+        # Set the start and stop of each phases.
+        self.attn_mask_annealing_steps_start = phases[1:-2]
+        self.attn_mask_annealing_steps_end = phases[2:-1]
+
+        # Ensure the number of phases is correct.
+        assert len(self.attn_mask_annealing_steps_start) == self.num_joint_blocks
+        assert len(self.attn_mask_annealing_steps_end) == self.num_joint_blocks
 
 
 class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
@@ -102,11 +119,13 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             # We probably don't want to instantiate the model here. Either we pass it
             # from the outside or we use a setup function (might be useful for FSDP).
             model_name=model_name,
-            num_classes=data_args.num_included_classes,
+            classes=data_args.included_classes,
+            class_ignore_index=(
+                data_args.ignore_index if data_args.ignore_classes else None
+            ),
             num_queries=model_args.num_queries,
             num_joint_blocks=model_args.num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
-            backbone_freeze=model_args.backbone_freeze,
             backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
             },
@@ -196,7 +215,8 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             list(zip(mask_logits_per_layer, class_logits_per_layer))
         ):
             mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-            logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
+            logits = self.model.to_per_pixel_logits_semantic(mask_logits, class_logits)
+            logits = logits[:, :-1]  # Drop ignore class logits.
             self.update_metrics_semantic(
                 metrics=self.train_metrics,
                 preds=logits,
@@ -225,9 +245,9 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         # Mask annealing.
         for i in range(len(self.model.attn_mask_probs)):
             self.model.attn_mask_probs[i] = self.mask_annealing(
-                start_iter=self.model_args.attn_mask_annealing_steps_start[i],
+                start_iter=no_auto(self.model_args.attn_mask_annealing_steps_start)[i],
                 current_iter=step,
-                final_iter=self.model_args.attn_mask_annealing_steps_end[i],
+                final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
         return TaskStepResult(
@@ -240,78 +260,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             },
         )
 
-    def tile(
-        self, images: list[Tensor]
-    ) -> tuple[list[Tensor], list[tuple[int, int, int, bool]]]:
-        crops, origins = [], []
-
-        for i, image in enumerate(images):
-            h, w = image.shape[-2:]
-            long_side_size = max(h, w)
-            short_side_size = min(h, w)
-
-            # Is the image tall or wide?
-            is_tall = h > w
-
-            # By construction the short side size is equal to the crop size.
-            crop_size = short_side_size
-            num_crops = math.ceil(long_side_size / crop_size)
-            overlap = num_crops * crop_size - long_side_size
-            overlap_per_crop = (overlap / (num_crops - 1)) if overlap > 0 else 0
-
-            for j in range(num_crops):
-                start = int(j * (crop_size - overlap_per_crop))
-                end = start + crop_size
-
-                # Image is tall.
-                if is_tall:
-                    crop = image[:, start:end, :]
-
-                # Image is wide.
-                else:
-                    crop = image[:, :, start:end]
-
-                # Store the crop.
-                crops.append(crop)
-
-                # Store the position of the crop.
-                origins.append((i, start, end, is_tall))
-
-        return crops, origins
-
-    def untile(
-        self,
-        crop_logits: Tensor,
-        origins: list[tuple[int, int, int, bool]],
-        image_sizes: list[tuple[int, int]],
-    ) -> list[Tensor]:
-        logit_sums, logit_counts = [], []
-
-        # Initialize the tensors containing the final predictions.
-        for size in image_sizes:
-            logit_sums.append(
-                torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
-            )
-            logit_counts.append(
-                torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
-            )
-
-        for crop_index, (image_index, start, end, is_tall) in enumerate(origins):
-            # Image is tall.
-            if is_tall:
-                logit_sums[image_index][:, start:end, :] += crop_logits[crop_index]
-                logit_counts[image_index][:, start:end, :] += 1
-            # Image is wide.
-            else:
-                logit_sums[image_index][:, :, start:end] += crop_logits[crop_index]
-                logit_counts[image_index][:, :, start:end] += 1
-
-        # Average the logits in the regions of overlap.
-        return [
-            logit_sum / logit_count
-            for logit_sum, logit_count in zip(logit_sums, logit_counts)
-        ]
-
     def validation_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
     ) -> TaskStepResult:
@@ -321,13 +269,13 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         image_sizes = [image.shape[-2:] for image in images]
 
         # Tile the images.
-        crops_list, origins = self.tile(images)  # type: ignore[arg-type]
+        crops_list, origins = self.model.tile(images)  # type: ignore[arg-type]
         crops = torch.stack(crops_list)
 
         # Tile the targets for the loss
         binary_masks = [target["masks"] for target in targets]
         binary_masks_labels = [target["labels"] for target in targets]
-        binary_masks_crops, _ = self.tile(binary_masks)
+        binary_masks_crops, _ = self.model.tile(binary_masks)
 
         # Compute the target per crop.
         targets_crops = []
@@ -354,10 +302,13 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         ):
             h, w = crops.shape[-2:]
             mask_logits = F.interpolate(mask_logits, (h, w), mode="bilinear")
-            crop_logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
+            crop_logits = self.model.to_per_pixel_logits_semantic(
+                mask_logits, class_logits
+            )
+            crop_logits = crop_logits[:, :-1]  # Drop ignore class logits.
 
             # Un-tile the predictions.
-            logits = self.untile(
+            logits = self.model.untile(
                 crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
             )
 
@@ -427,15 +378,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 }
             )
         return targets
-
-    def to_per_pixel_logits_semantic(
-        self, mask_logits: Tensor, class_logits: Tensor
-    ) -> Tensor:
-        return torch.einsum(
-            "bqhw, bqc -> bchw",
-            mask_logits.sigmoid(),
-            class_logits.softmax(dim=-1)[..., :-1],
-        )
 
     @torch.compiler.disable  # type: ignore[misc]
     def to_per_pixel_targets_semantic(
@@ -559,8 +501,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         self.train()
-        if self.model_args.backbone_freeze:
-            self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         fabric.clip_gradients(
