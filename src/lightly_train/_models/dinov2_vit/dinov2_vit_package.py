@@ -13,7 +13,7 @@ from typing import Any
 
 import torch
 
-from lightly_train._data.cache import get_cache_dir
+from lightly_train._data import cache
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
@@ -111,8 +111,7 @@ class DINOv2ViTPackage(Package):
 
         # Load the pretrained model if required
         if model_name.endswith("-pretrained"):
-            cache_dir = get_cache_dir()
-            checkpoint_dir = cache_dir / "weights"
+            checkpoint_dir = cache.get_model_cache_dir()
             model = load_weights(
                 model=model,
                 checkpoint_dir=checkpoint_dir,

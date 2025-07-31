@@ -24,6 +24,7 @@ from torchvision import models
 
 from lightly_train import _distributed
 from lightly_train._commands import common_helpers
+from lightly_train._data import cache
 from tests._commands.test_train_helpers import MockDataset
 
 
@@ -171,8 +172,9 @@ def test_get_out_dir__nonempty(
             )
 
 
-def test_get_tmp_dir() -> None:
-    assert common_helpers.get_tmp_dir()
+def test_get_tmp_dir__default() -> None:
+    # This is by default the same as the data cache directory.
+    assert common_helpers.get_tmp_dir() == cache.get_data_cache_dir()
 
 
 def test_get_tmp_dir__custom(tmp_path: Path, mocker: MockerFixture) -> None:

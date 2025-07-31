@@ -67,6 +67,9 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
         model_args={
             "num_joint_blocks": 1,  # Reduce joint blocks for _vittest14
         },
+        # The operator 'aten::upsample_bicubic2d.out' raises a NotImplementedError
+        # on macOS with MPS backend.
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
         num_workers=2,
