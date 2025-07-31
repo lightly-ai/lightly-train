@@ -19,12 +19,17 @@ T = TypeVar("T")
 @dataclass(frozen=True)
 class EnvVar(Generic[T]):
     name: str
-    default: T
+    default_: Callable[[], T] | T
     type_: Callable[[str], T]
     # If True, empty strings are converted to the default value. This happens for:
     # MY_ENV_VAR=
     # MY_ENV_VAR=""
     convert_empty_str_to_default: bool = True
+
+    @property
+    def default(self) -> T:
+        """Returns the default value of the environment variable."""
+        return self.default_() if callable(self.default_) else self.default_
 
     @property
     def value(self) -> T:
@@ -56,19 +61,19 @@ class EnvVar(Generic[T]):
 class Env:
     LIGHTLY_TRAIN_LOG_LEVEL: EnvVar[str] = EnvVar(
         name="LIGHTLY_TRAIN_LOG_LEVEL",
-        default=logging.getLevelName(logging.INFO),
+        default_=logging.getLevelName(logging.INFO),
         type_=str,
     )
     # Base directory for all Lightly Train cache files.
     LIGHTLY_TRAIN_CACHE_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_CACHE_DIR",
-        default=Path.home() / ".cache" / "lightly-train",
+        default_=Path.home() / ".cache" / "lightly-train",
         type_=Path,
     )
     # Path to directory where weights of pretrained models are cached.
     LIGHTLY_TRAIN_MODEL_CACHE_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_MODEL_CACHE_DIR",
-        default=LIGHTLY_TRAIN_CACHE_DIR.value / "models",
+        default_=lambda: Env.LIGHTLY_TRAIN_CACHE_DIR.value / "models",
         type_=Path,
     )
     # Path to directory where temporary files are stored.
@@ -76,14 +81,14 @@ class Env:
     # now to avoid breaking changes.
     LIGHTLY_TRAIN_TMP_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_TMP_DIR",
-        default=LIGHTLY_TRAIN_CACHE_DIR.value / "data",
+        default_=lambda: Env.LIGHTLY_TRAIN_CACHE_DIR.value / "data",
         type_=Path,
     )
     # Path to directory where data is cached. These are mainly the memory-mapped files.
     # TODO(Lionel, 08/25): Change the default to LIGHTLY_TRAIN_CACHE_DIR.value / "data".
     LIGHTLY_TRAIN_DATA_CACHE_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_DATA_CACHE_DIR",
-        default=LIGHTLY_TRAIN_TMP_DIR.value,
+        default_=lambda: Env.LIGHTLY_TRAIN_TMP_DIR.value,
         type_=Path,
     )
     # Timeout in seconds for the dataloader to collect a batch from the workers. This is
@@ -91,66 +96,66 @@ class Env:
     # timeout.
     LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC: EnvVar[int] = EnvVar(
         name="LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC",
-        default=180,
+        default_=180,
         type_=int,
     )
     # Mode in which images are loaded. This can be "RGB" to load images in RGB or
     # "UNCHANGED" to load images in their original format without any conversion.
     LIGHTLY_TRAIN_IMAGE_MODE: EnvVar[str] = EnvVar(
         name="LIGHTLY_TRAIN_IMAGE_MODE",
-        default="RGB",
+        default_="RGB",
         type_=str,
     )
     LIGHTLY_TRAIN_MASK_DIR: EnvVar[Path | None] = EnvVar(
         name="LIGHTLY_TRAIN_MASK_DIR",
-        default=None,
+        default_=None,
         type_=Path,
     )
     # Maximum number of workers in case num_workers is set to "auto".
     LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO: EnvVar[int] = EnvVar(
         name="LIGHTLY_TRAIN_MAX_NUM_WORKERS_AUTO",
-        default=8,
+        default_=8,
         type_=int,
     )
     # Default number of workers in case num_workers is set to "auto" but LightlyTrain
     # cannot automatically determined the number of available CPUs.
     LIGHTLY_TRAIN_DEFAULT_NUM_WORKERS_AUTO: EnvVar[int] = EnvVar(
         name="LIGHTLY_TRAIN_DEFAULT_NUM_WORKERS_AUTO",
-        default=8,
+        default_=8,
         type_=int,
     )
     LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC: EnvVar[float] = EnvVar(
         name="LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC",
-        default=300,
+        default_=300,
         type_=float,
     )
     LIGHTLY_TRAIN_MMAP_REUSE_FILE: EnvVar[bool] = EnvVar(
         name="LIGHTLY_TRAIN_MMAP_REUSE_FILE",
-        default=False,
+        default_=False,
         type_=lambda x: x.lower() in ("true", "t", "1", "yes", "y"),
     )
     LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC: EnvVar[float] = EnvVar(
         name="LIGHTLY_TRAIN_VERIFY_OUT_DIR_TIMEOUT_SEC",
-        default=30,
+        default_=30,
         type_=float,
     )
     LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC: EnvVar[float] = EnvVar(
         name="LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC",
-        default=180,
+        default_=180,
         type_=float,
     )
     MLFLOW_TRACKING_URI: EnvVar[str | None] = EnvVar(
         name="MLFLOW_TRACKING_URI",
-        default=None,
+        default_=None,
         type_=str,
     )
     SLURM_CPUS_PER_TASK: EnvVar[int | None] = EnvVar(
         name="SLURM_CPUS_PER_TASK",
-        default=None,
+        default_=None,
         type_=int,
     )
     SLURM_JOB_ID: EnvVar[str | None] = EnvVar(
         name="SLURM_JOB_ID",
-        default=None,
+        default_=None,
         type_=str,
     )

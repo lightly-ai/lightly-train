@@ -18,7 +18,7 @@ from lightly_train._env import EnvVar
 
 class TestEnvVar:
     def test_name(self) -> None:
-        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default=42, type_=int)
+        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default_=42, type_=int)
         assert env_var.name == "LIGHTLY_TRAIN_TEST_ENV_VAR"
 
     @pytest.mark.parametrize(
@@ -42,7 +42,7 @@ class TestEnvVar:
     ) -> None:
         env_var = EnvVar(
             name="LIGHTLY_TRAIN_TEST_ENV_VAR",
-            default=default,
+            default_=default,
             type_=type_,
             convert_empty_str_to_default=convert_empty_str_to_default,
         )
@@ -50,15 +50,28 @@ class TestEnvVar:
             mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TEST_ENV_VAR": env_value})
         assert env_var.value == expected
 
+    def test_value__dynamic_default(self, mocker: MockerFixture) -> None:
+        def default_value() -> int:
+            return 42
+
+        env_var = EnvVar(
+            name="LIGHTLY_TRAIN_TEST_ENV_VAR",
+            default_=default_value,
+            type_=int,
+        )
+        assert env_var.value == 42
+        mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TEST_ENV_VAR": "100"})
+        assert env_var.value == 100
+
     def test_raw_value(self, mocker: MockerFixture) -> None:
-        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default=42, type_=int)
+        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default_=42, type_=int)
         mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TEST_ENV_VAR": "100"})
         assert env_var.raw_value == "100"
 
     def test_raw_value__default(self) -> None:
-        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default=42, type_=int)
+        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default_=42, type_=int)
         assert env_var.raw_value == "42"
 
     def test_raw_value__default_none(self) -> None:
-        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default=None, type_=int)
+        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default_=None, type_=int)
         assert env_var.raw_value is None
