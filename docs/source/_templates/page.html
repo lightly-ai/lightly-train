@@ -1,0 +1,13 @@
+{% extends "furo/page.html" %}
+
+{# Include GTM head code in the HTML head section #}
+{% block extrahead %}
+{% include "gtm/head.html" %}
+{{ super() }}
+{% endblock %}
+
+{# Include GTM body code right after the opening body tag (Furo provides the `body` block) #}
+{% block body %}
+{% include "gtm/body.html" %}
+{{ super() }}
+{% endblock %}

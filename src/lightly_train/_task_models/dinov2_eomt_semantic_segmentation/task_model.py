@@ -70,7 +70,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             backbone_args:
                 Additional arguments to pass to the DINOv2 backbone.
         """
-        super().__init__(locals())
+        super().__init__(locals(), ignore_args={"backbone_weights"})
         self.classes = classes
         self.class_ignore_index = class_ignore_index
 
@@ -135,7 +135,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             Linear(embed_dim, embed_dim),
         )
 
-        num_upscale = max(1, int(math.log2(self.patch_size)) - 2)
+        num_upscale = max(1, math.ceil(math.log2(self.patch_size)) - 2)
         self.upscale = Sequential(
             *[ScaleBlock(embed_dim) for _ in range(num_upscale)],
         )

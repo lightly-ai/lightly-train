@@ -26,11 +26,11 @@ import lightly_train
 
 from .. import helpers
 
-skip_on_ci_with_cuda = bool(os.environ.get("CI")) and torch.cuda.is_available()
+is_self_hosted_docker_runner = "GH_RUNNER_NAME" in os.environ
 
 
 @pytest.mark.skipif(
-    sys.platform.startswith("win") or skip_on_ci_with_cuda,
+    sys.platform.startswith("win") or is_self_hosted_docker_runner,
     reason=(
         "Fails on Windows since switching to Jaccard index "
         "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
@@ -63,9 +63,9 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
                 1: "car",
             },
         },
-        model="dinov2_vit/_vit_test14",
+        model="dinov2/_vittest14",
         model_args={
-            "num_joint_blocks": 1,  # Reduce joint blocks for _vit_test14
+            "num_joint_blocks": 1,  # Reduce joint blocks for _vittest14
         },
         devices=1,
         batch_size=2,
