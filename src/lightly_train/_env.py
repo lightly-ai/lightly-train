@@ -59,16 +59,30 @@ class Env:
         default=logging.getLevelName(logging.INFO),
         type_=str,
     )
+    # Base directory for all Lightly Train cache files.
     LIGHTLY_TRAIN_CACHE_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_CACHE_DIR",
         default=Path.home() / ".cache" / "lightly-train",
         type_=Path,
     )
-    # Path to directory where temporary files are stored. By default, the temporary
-    # directory from the system is used.
-    LIGHTLY_TRAIN_TMP_DIR: EnvVar[Path | None] = EnvVar(
+    # Path to directory where weights of pretrained models are cached.
+    LIGHTLY_TRAIN_MODEL_CACHE_DIR: EnvVar[Path] = EnvVar(
+        name="LIGHTLY_TRAIN_MODEL_CACHE_DIR",
+        default=LIGHTLY_TRAIN_CACHE_DIR.value / "weights",
+        type_=Path,
+    )
+    # Path to directory where temporary files are stored.
+    # TODO(Lionel, 08/25): Deprecate this in favor of LIGHTLY_TRAIN_DATA_CACHE_DIR and
+    # a LIGHTLY_TRAIN_TEMP_DIR in case we need a truly temporary directory as well.
+    LIGHTLY_TRAIN_TMP_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_TMP_DIR",
-        default=None,
+        default=LIGHTLY_TRAIN_CACHE_DIR.value / "data",
+        type_=Path,
+    )
+    # Path to directory where data is cached. These are mainly the memory-mapped files.
+    LIGHTLY_TRAIN_DATA_CACHE_DIR: EnvVar[Path] = EnvVar(
+        name="LIGHTLY_TRAIN_DATA_CACHE_DIR",
+        default=LIGHTLY_TRAIN_TMP_DIR.value,
         type_=Path,
     )
     # Timeout in seconds for the dataloader to collect a batch from the workers. This is

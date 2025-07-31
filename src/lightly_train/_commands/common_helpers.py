@@ -12,7 +12,6 @@ import hashlib
 import json
 import logging
 import os
-import tempfile
 import time
 import warnings
 from enum import Enum
@@ -29,7 +28,7 @@ from torch.nn import Module
 from torch.utils.data import Dataset
 
 from lightly_train import _distributed as distributed_helpers
-from lightly_train._data import file_helpers
+from lightly_train._data import cache, file_helpers
 from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
 from lightly_train._data.image_dataset import ImageDataset
@@ -135,22 +134,9 @@ def get_out_dir(out: PathLike, resume_interrupted: bool, overwrite: bool) -> Pat
     return out_dir
 
 
-def get_tmp_dir() -> Path:
-    """Get the temporary directory for Lightly Train."""
-    tmp_dir = Env.LIGHTLY_TRAIN_TMP_DIR.value
-    if tmp_dir is None:
-        tmp_dir = Path(tempfile.gettempdir()) / "lightly-train"
-    return tmp_dir
-
-
-def get_data_tmp_dir() -> Path:
-    """Get the temporary directory for Lightly Train data."""
-    return get_tmp_dir() / "data"
-
-
 def get_verify_out_tmp_dir() -> Path:
     """Get the temporary directory for Lightly Train verify out."""
-    return get_tmp_dir() / "verify-out"
+    return cache.get_data_cache_dir() / "verify-out"
 
 
 def get_sha256(value: Any) -> str:
@@ -397,7 +383,7 @@ def get_dataset_temp_mmap_path(
     processes writing to the same file in case the nodes use a shared filesystem.
     """
     out_hash = get_sha256(f"{data}-{distributed_helpers.get_node_rank() or 0}")
-    mmap_filepath = (get_data_tmp_dir() / out_hash).with_suffix(".mmap")
+    mmap_filepath = (cache.get_data_cache_dir() / out_hash).with_suffix(".mmap")
     mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
 
     reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
