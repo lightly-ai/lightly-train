@@ -92,7 +92,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             Linear(embed_dim, embed_dim),
         )
 
-        num_upscale = max(1, int(math.log2(self.patch_size)) - 2)
+        num_upscale = max(1, math.ceil(math.log2(self.patch_size)) - 2)
         self.upscale = Sequential(
             *[ScaleBlock(embed_dim) for _ in range(num_upscale)],
         )
