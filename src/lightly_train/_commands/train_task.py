@@ -137,7 +137,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             float32_matmul_precision=config.float32_matmul_precision,
         )
     )
-    config.model_args = helpers.get_train_model_args(model_args=config.model_args)
     config.save_checkpoint_args = helpers.get_save_checkpoint_args(
         checkpoint_args=config.save_checkpoint_args
     )
@@ -171,6 +170,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     config.num_workers = common_helpers.get_num_workers(
         num_workers=config.num_workers,
         num_devices_per_node=fabric.world_size // config.num_nodes,
+    )
+
+    config.model_args = helpers.get_train_model_args(
+        model_args=config.model_args, total_steps=no_auto(config.steps)
     )
 
     # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
