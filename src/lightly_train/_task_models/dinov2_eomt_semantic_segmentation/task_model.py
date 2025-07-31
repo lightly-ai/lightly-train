@@ -183,16 +183,16 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # Resize shorter edge to 518
         # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
         # model.
-        x = transforms_functional.resize(x, size=[518])
-        x = x.unsqueeze(0)  # (1, C, H, W)
+        x = transforms_functional.resize(x, size=[518])  # (C, H, W) -> (C, H', W')
+        x = x.unsqueeze(0)  # (1, C, H', W')
 
-        logits = self._forward_logits(x)  # (1, C, H, W)
+        logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
         if self.class_ignore_index is None:
             # Restrict logits to known classes only.
-            logits = logits[:, :-1]
+            logits = logits[:, :-1]  # (1, K, H', W')
         logits = F.interpolate(
             logits, size=(image_h, image_w), mode="bilinear"
-        )  # (1, C, H, W)
+        )  # (1, K|K+1, H, W)
 
         masks = logits.argmax(dim=1)  # (1, H, W)
         # Map internal class IDs to class IDs.
@@ -381,6 +381,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         )
 
     def _forward_logits(self, x: Tensor) -> Tensor:
+        """Forward pass that returns the logits of the last layer. Intended for
+        inference."""
         # x is a batch of images with shape (B, C, H, W).
 
         # Tiling.
@@ -390,6 +392,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         crop_h, crop_w = crops.shape[-2:]
 
         # Forward pass.
+        # forward_train returns logits for multiple layers but we only use the last
+        # one for inference.
         mask_logits_per_layer, class_logits_per_layer = self.forward_train(crops)
         mask_logits = mask_logits_per_layer[-1]
         class_logits = class_logits_per_layer[-1]
