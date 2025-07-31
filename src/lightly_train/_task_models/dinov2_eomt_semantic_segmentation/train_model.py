@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Literal
 
 import torch
 import torch.nn.functional as F
@@ -56,8 +56,8 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
     # Attention mask annealing.
     # This follows EoMT ADE20K semantic segmentation ViT-L defaults.
-    attn_mask_annealing_steps_start: list[int] = [6520, 13040, 19560, 26080]
-    attn_mask_annealing_steps_end: list[int] = [13040, 19560, 26080, 32600]
+    attn_mask_annealing_steps_start: list[int] | Literal["auto"] = "auto"
+    attn_mask_annealing_steps_end: list[int] | Literal["auto"] = "auto"
 
     # Gradient clipping.
     gradient_clip_val: float = 0.01
@@ -72,6 +72,24 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Unused EoMT args:
     # - mask_thresh: Only used for panoptic segmentation.
     # - overlap_thresh: Only used for panoptic segmentation.
+
+    def resolve_auto(self, total_steps: int) -> None:
+        # Infer the number of training phases from the number of joint blocks.
+        num_training_phases = self.num_joint_blocks + 2
+
+        # The phases all have the same duration.
+        phases = [
+            round(i * total_steps / num_training_phases)
+            for i in range(num_training_phases + 1)
+        ]
+
+        # Set the start and stop of each phases.
+        self.attn_mask_annealing_steps_start: list[int] = phases[1:-2]
+        self.attn_mask_annealing_steps_end: list[int] = phases[2:-1]
+
+        # Ensure the number of phases is correct.
+        assert len(self.attn_mask_annealing_steps_start) == self.num_joint_blocks
+        assert len(self.attn_mask_annealing_steps_end) == self.num_joint_blocks
 
 
 class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
