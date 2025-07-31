@@ -34,6 +34,22 @@ MODELS = {
         "url": "",
         "config": "train/vitg14",
     },
+    "vits14": {
+        "url": "",
+        "config": "train/vits14_reg4",
+    },
+    "vitb14": {
+        "url": "",
+        "config": "train/vitb14_reg4",
+    },
+    "vitl14": {
+        "url": "",
+        "config": "train/vitl14_reg4",
+    },
+    "vitg14": {
+        "url": "",
+        "config": "train/vitg14_reg4",
+    },
     "vits14-noreg-pretrained": {
         "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth",
         "config": "eval/vits14_pretrain",
