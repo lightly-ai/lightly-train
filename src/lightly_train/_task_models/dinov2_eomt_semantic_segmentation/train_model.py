@@ -85,8 +85,8 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
         ]
 
         # Set the start and stop of each phases.
-        self.attn_mask_annealing_steps_start: list[int] = phases[1:-2]
-        self.attn_mask_annealing_steps_end: list[int] = phases[2:-1]
+        self.attn_mask_annealing_steps_start = phases[1:-2]
+        self.attn_mask_annealing_steps_end = phases[2:-1]
 
         # Ensure the number of phases is correct.
         assert len(self.attn_mask_annealing_steps_start) == self.num_joint_blocks
