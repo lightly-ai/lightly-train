@@ -102,16 +102,19 @@ def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
     if isinstance(image, Tensor):
         return image
     elif isinstance(image, PILImage):
-        return F.pil_to_tensor(image)
+        image_tensor: Tensor = F.pil_to_tensor(image)
+        return image_tensor
     else:
         return open_image_tensor(Path(image))
 
 
 def open_image_tensor(image_path: Path) -> Tensor:
     if image_path.suffix.lower() in _torchvision_supported_image_extensions():
-        return io.read_image(str(image_path), mode=ImageReadMode.RGB)
+        image: Tensor = io.read_image(str(image_path), mode=ImageReadMode.RGB)
+        return image
     else:
-        return F.pil_to_tensor(Image.open(image_path).convert("RGB"))
+        image: Tensor = F.pil_to_tensor(Image.open(image_path).convert("RGB"))
+        return image
 
 
 def open_image_numpy(
