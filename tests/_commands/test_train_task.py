@@ -81,7 +81,10 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
     )
     # Check forward pass
     dummy_input = torch.randn(1, 3, 224, 224)
-    model(dummy_input)
+    prediction = model.predict(dummy_input[0])
+    assert prediction.shape == (224, 224)
+    assert prediction.min() >= 0
+    assert prediction.max() <= 1
 
     # Check ONNX export
     if RequirementCache("onnx"):
@@ -102,6 +105,7 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
             ort_session = ort.InferenceSession(
                 str(onnx_out), providers=["CPUExecutionProvider"]
             )
-
             ort_inputs = {"input": dummy_input.cpu().numpy()}
-            ort_session.run(["mask", "logits"], ort_inputs)
+            onnx_masks, onnx_logits = ort_session.run(["masks", "logits"], ort_inputs)
+            assert onnx_masks.shape == (1, 224, 224)
+            assert onnx_logits.shape == (1, 2, 224, 224)
