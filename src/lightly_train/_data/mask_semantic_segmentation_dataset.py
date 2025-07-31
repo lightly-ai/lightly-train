@@ -68,7 +68,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         for filename in self.image_filenames:
             filepath = (self.args.mask_dir / filename).with_suffix(".png")
 
-            mask = file_helpers.open_image(image_path=filepath, mode="MASK")
+            mask = file_helpers.open_image_numpy(image_path=filepath, mode="MASK")
             if self.is_mask_valid(mask):
                 new_image_filenames.append(filename)
 
@@ -158,8 +158,8 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         mask_path = (self.args.mask_dir / image_filename).with_suffix(".png")
 
         # Load the image and the mask.
-        image = file_helpers.open_image(image_path=image_path, mode="RGB")
-        mask = file_helpers.open_image(image_path=mask_path, mode="MASK")
+        image = file_helpers.open_image_numpy(image_path=image_path, mode="RGB")
+        mask = file_helpers.open_image_numpy(image_path=mask_path, mode="MASK")
 
         # Verify that the mask and the image have the same shape.
         assert image.shape[:2] == mask.shape, (
@@ -234,13 +234,14 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     check_empty_targets: bool = True
 
     @property
-    def num_included_classes(self) -> int:
-        kept_classes = set(self.classes.keys())
-        if self.ignore_classes is not None:
-            kept_classes -= self.ignore_classes
+    def included_classes(self) -> dict[int, str]:
+        """Returns classes that are not ignored."""
+        ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+        return {k: v for k, v in self.classes.items() if k not in ignore_classes}
 
-        # Infer the number of valid classes.
-        return len(kept_classes)
+    @property
+    def num_included_classes(self) -> int:
+        return len(self.included_classes)
 
     @property
     def ignore_index(self) -> int:

@@ -44,9 +44,9 @@ class ImageDataset(Dataset[DatasetItem]):
     def __getitem__(self, idx: int) -> DatasetItem:
         filename = self.image_filenames[idx]
         if self.image_dir is None:
-            image = file_helpers.open_image(Path(filename), mode=self.image_mode)
+            image = file_helpers.open_image_numpy(Path(filename), mode=self.image_mode)
         else:
-            image = file_helpers.open_image(
+            image = file_helpers.open_image_numpy(
                 self.image_dir / filename, mode=self.image_mode
             )
 
@@ -54,7 +54,7 @@ class ImageDataset(Dataset[DatasetItem]):
 
         if self.mask_dir:
             maskname = Path(filename).with_suffix(".png")
-            mask = file_helpers.open_image(self.mask_dir / maskname, mode="L")
+            mask = file_helpers.open_image_numpy(self.mask_dir / maskname, mode="L")
             input["mask"] = mask
 
         transformed = self.transform(input)

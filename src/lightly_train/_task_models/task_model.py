@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from PIL.Image import Image as PILImage
+from torch import Tensor
 from torch.nn import Module
+
+from lightly_train.types import PathLike
 
 
 class TaskModel(Module):
@@ -57,6 +61,16 @@ class TaskModel(Module):
         This is useful for serialization of the model.
         """
         return f"{self.__module__}.{self.__class__.__name__}"
+
+    def predict(self, image: PathLike | PILImage | Tensor) -> Any:
+        """Returns predictions for the given image.
+
+        Args:
+            image:
+                The input image as a path, PIL image, or tensor. Tensors must have shape
+                (C, H, W).
+        """
+        raise NotImplementedError()
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""

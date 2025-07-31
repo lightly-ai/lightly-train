@@ -14,10 +14,13 @@ from typing import Iterable, Literal, Sequence
 import numpy as np
 from numpy.typing import NDArray
 from PIL import Image
+from PIL.Image import Image as PILImage
+from torch import Tensor
 from torchvision import io
 from torchvision.io import ImageReadMode
+from torchvision.transforms.v2 import functional as F
 
-from lightly_train.types import ImageFilename, NDArrayImage
+from lightly_train.types import ImageFilename, NDArrayImage, PathLike
 
 
 def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
@@ -95,7 +98,27 @@ def _torchvision_supported_image_extensions() -> set[str]:
     return {"jpg", "jpeg", "png"}
 
 
-def open_image(
+def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
+    if isinstance(image, Tensor):
+        return image
+    elif isinstance(image, PILImage):
+        image_tensor: Tensor = F.pil_to_tensor(image)
+        return image_tensor
+    else:
+        return open_image_tensor(Path(image))
+
+
+def open_image_tensor(image_path: Path) -> Tensor:
+    image: Tensor
+    if image_path.suffix.lower() in _torchvision_supported_image_extensions():
+        image = io.read_image(str(image_path), mode=ImageReadMode.RGB)
+        return image
+    else:
+        image = F.pil_to_tensor(Image.open(image_path).convert("RGB"))
+        return image
+
+
+def open_image_numpy(
     image_path: Path,
     mode: Literal["RGB", "L", "UNCHANGED", "MASK"] = "RGB",
 ) -> NDArrayImage:
