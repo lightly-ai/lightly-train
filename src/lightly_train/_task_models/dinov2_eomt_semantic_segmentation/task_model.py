@@ -187,6 +187,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         x = x.unsqueeze(0)  # (1, C, H, W)
 
         logits = self._forward_logits(x)  # (1, C, H, W)
+        if self.class_ignore_index is None:
+            # Restrict logits to known classes only.
+            logits = logits[:, :-1]
         logits = F.interpolate(
             logits, size=(image_h, image_w), mode="bilinear"
         )  # (1, C, H, W)
@@ -199,6 +202,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         # Function used for ONNX export
         logits = self._forward_logits(x)  # (B, C, H, W)
+        if self.class_ignore_index is None:
+            # Restrict logits to known classes only.
+            logits = logits[:, :-1]
         masks = logits.argmax(dim=1)  # (B, H, W)
         # Map internal class IDs to class IDs.
         masks = self.internal_class_to_class[masks]
@@ -395,10 +401,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
         )
         logits = torch.stack(logits_list)  # (B, C, H, W)
-
-        if self.class_ignore_index is None:
-            # Restrict logits to known classes only.
-            logits = logits[:, :-1]
         return logits
 
     def _predict(self, x: Tensor, grid_size: tuple[int, int]) -> tuple[Tensor, Tensor]:
