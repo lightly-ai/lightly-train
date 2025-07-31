@@ -19,6 +19,7 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
@@ -243,9 +244,9 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         # Mask annealing.
         for i in range(len(self.model.attn_mask_probs)):
             self.model.attn_mask_probs[i] = self.mask_annealing(
-                start_iter=self.model_args.attn_mask_annealing_steps_start[i],
+                start_iter=no_auto(self.model_args.attn_mask_annealing_steps_start)[i],
                 current_iter=step,
-                final_iter=self.model_args.attn_mask_annealing_steps_end[i],
+                final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
         return TaskStepResult(
