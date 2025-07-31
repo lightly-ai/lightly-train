@@ -106,10 +106,10 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             (dummy_input,),
             out_path,
             input_names=["input"],
-            output_names=["mask", "logits"],
+            output_names=["masks", "logits"],
             dynamic_axes={
                 "input": {0: "batch_size", 2: "height", 3: "width"},
-                "mask": {0: "batch_size", 2: "height", 3: "width"},
+                "masks": {0: "batch_size", 1: "height", 2: "width"},
                 "logits": {0: "batch_size", 2: "height", 3: "width"},
             },
             **config.format_args if config.format_args else {},
