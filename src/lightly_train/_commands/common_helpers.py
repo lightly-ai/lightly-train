@@ -136,7 +136,7 @@ def get_out_dir(out: PathLike, resume_interrupted: bool, overwrite: bool) -> Pat
 
 def get_verify_out_tmp_dir() -> Path:
     """Get the temporary directory for Lightly Train verify out."""
-    return cache.get_data_cache_dir() / "verify-out"
+    return Env.LIGHTLY_TRAIN_TMP_DIR.value / "verify-out"
 
 
 def get_sha256(value: Any) -> str:
