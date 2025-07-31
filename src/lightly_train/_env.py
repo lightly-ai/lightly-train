@@ -68,18 +68,19 @@ class Env:
     # Path to directory where weights of pretrained models are cached.
     LIGHTLY_TRAIN_MODEL_CACHE_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_MODEL_CACHE_DIR",
-        default=LIGHTLY_TRAIN_CACHE_DIR.value / "weights",
+        default=LIGHTLY_TRAIN_CACHE_DIR.value / "models",
         type_=Path,
     )
     # Path to directory where temporary files are stored.
-    # TODO(Lionel, 08/25): Deprecate this in favor of LIGHTLY_TRAIN_DATA_CACHE_DIR and
-    # a LIGHTLY_TRAIN_TEMP_DIR in case we need a truly temporary directory as well.
+    # TODO(Lionel, 08/25): Use a true temporary directory instead. Kept like this for
+    # now to avoid breaking changes.
     LIGHTLY_TRAIN_TMP_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_TMP_DIR",
         default=LIGHTLY_TRAIN_CACHE_DIR.value / "data",
         type_=Path,
     )
     # Path to directory where data is cached. These are mainly the memory-mapped files.
+    # TODO(Lionel, 08/25): Change the default to LIGHTLY_TRAIN_CACHE_DIR.value / "data".
     LIGHTLY_TRAIN_DATA_CACHE_DIR: EnvVar[Path] = EnvVar(
         name="LIGHTLY_TRAIN_DATA_CACHE_DIR",
         default=LIGHTLY_TRAIN_TMP_DIR.value,
