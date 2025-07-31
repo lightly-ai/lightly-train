@@ -11,7 +11,6 @@ from typing import Any
 
 from PIL.Image import Image as PILImage
 from torch import Tensor
-import torch
 from torch.nn import Module
 
 from lightly_train.types import PathLike
@@ -62,11 +61,6 @@ class TaskModel(Module):
         This is useful for serialization of the model.
         """
         return f"{self.__module__}.{self.__class__.__name__}"
-
-    @property
-    def device(self) -> torch.device:
-        """Returns the device the model is currently on."""
-        return next(self.parameters()).device
 
     def predict(self, image: PathLike | PILImage | Tensor) -> Any:
         """Returns predictions for the given image.
