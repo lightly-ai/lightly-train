@@ -49,7 +49,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         """
         Args:
             model_name:
-                The model name. For example "vits14-pretrain-eomt".
+                The model name. For example "vits14-eomt".
             classes:
                 A dict mapping the class ID to the class name. The dict must only
                 contain the classes that the model should predict. It must NOT contain

@@ -41,7 +41,11 @@ class DINOv2ViTPackage(Package):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [f"{cls.name}/{entry}" for entry in list(VIT_MODELS.keys())]
+        return [
+            f"{cls.name}/{model_name}"
+            for model_name, model_info in VIT_MODELS.items()
+            if model_info["list"]
+        ]
 
     @classmethod
     def is_supported_model(
@@ -109,14 +113,15 @@ class DINOv2ViTPackage(Package):
 
         model = model_builder(**kwargs)
 
-        # Load the pretrained model if required
-        if model_name.endswith("-pretrained"):
+        # Load weights if available.
+        weights_url = VIT_MODELS[model_name].get("url")
+        if weights_url:
             cache_dir = get_cache_dir()
             checkpoint_dir = cache_dir / "weights"
             model = load_weights(
                 model=model,
                 checkpoint_dir=checkpoint_dir,
-                url=VIT_MODELS[model_name]["url"],
+                url=weights_url,
             )
 
         return model
