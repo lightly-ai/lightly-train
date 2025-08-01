@@ -228,7 +228,7 @@ if __name__ == "__main__":
 ```
 
 The classes in the dataset must be specified in the `classes` dictionary. The keys
-are the class IDs and the value are the class names. The class IDs must be identical to
+are the class IDs and the values are the class names. The class IDs must be identical to
 the values in the mask images. All possible class IDs must be specified, otherwise
 Lightly**Train** will raise an error if an unknown class ID is encountered. If you would
 like to ignore some classes during training, you specify their class IDs in the
