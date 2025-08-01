@@ -141,9 +141,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         checkpoint_args=config.save_checkpoint_args
     )
 
-    # TODO(Guarin, 07/25): Verify out_dir same on all local ranks, see train.py. We can simplify this
-    # here as distributed processing is already initialized with fabric.
-
     # TODO(Guarin, 07/25): Allow passing transform args.
     train_transform = helpers.get_train_transform(ignore_index=config.data.ignore_index)
     val_transform = helpers.get_val_transform(ignore_index=config.data.ignore_index)
@@ -158,11 +155,18 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     )
     logger.info(f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}")
 
-    # TODO(Guarin, 07/25): Choose sensible default for steps. Based on model?
-    config.steps = helpers.get_steps(steps=config.steps)
-    # TODO(Guarin, 07/25): Choose sensible default for batch size. Based on model?
+    model_args_cls = helpers.get_train_model_args_cls(
+        model_name=config.model, model_args=config.model_args
+    )
+    config.steps = helpers.get_steps(
+        steps=config.steps, default_steps=model_args_cls.default_steps
+    )
     config.batch_size = common_helpers.get_global_batch_size(
-        global_batch_size=16 if config.batch_size == "auto" else config.batch_size,
+        global_batch_size=(
+            model_args_cls.default_batch_size
+            if config.batch_size == "auto"
+            else config.batch_size
+        ),
         dataset=train_dataset,
         total_num_devices=fabric.world_size,
         loader_args=config.loader_args,
@@ -173,7 +177,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     )
 
     config.model_args = helpers.get_train_model_args(
-        model_args=config.model_args, total_steps=no_auto(config.steps)
+        model_args=config.model_args,
+        model_args_cls=model_args_cls,
+        total_steps=no_auto(config.steps),
     )
 
     # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
