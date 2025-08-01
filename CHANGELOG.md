@@ -17,6 +17,7 @@ fine-tuning method! 🔥
   See the [semantic segmentation documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
   for more information.
 - Support for image resolutions that are not a multiple of the patch size in DINOv2.
+- Pretraining allows now custom filenames for checkpoints.
 
 ### Changed
 

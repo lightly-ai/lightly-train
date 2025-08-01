@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class ModelCheckpointArgs(PydanticConfig):
+    filename: str | None = None
     save_last: bool = True
     enable_version_counter: bool = False
     save_top_k: int = 1
