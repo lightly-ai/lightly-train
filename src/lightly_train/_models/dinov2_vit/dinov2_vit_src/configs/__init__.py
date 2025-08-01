@@ -9,6 +9,8 @@
 # - added get_config_path function
 # - added MODELS dictionary
 
+from __future__ import annotations
+
 import pathlib
 from typing import TypedDict
 
