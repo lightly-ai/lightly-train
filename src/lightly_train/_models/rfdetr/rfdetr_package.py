@@ -21,7 +21,7 @@ except ImportError:
         pass
 
 
-from lightly_train._models import package_helpers
+from lightly_train._models import log_usage_example
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 from lightly_train._models.rfdetr.rfdetr import RFDETRModelWrapper
@@ -139,7 +139,7 @@ class RFDETRPackage(Package):
                 "...",
             ]
             logger.info(
-                package_helpers.format_log_msg_model_usage_example(log_message_code)
+                log_usage_example.format_log_msg_model_usage_example(log_message_code)
             )
 
 
