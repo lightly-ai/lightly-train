@@ -157,7 +157,10 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         class_labels = list(data_args.included_classes.values())
         self.train_classwise_iou = ModuleList(
             [
-                ClasswiseWrapper(
+                # Type ignore because old torchmetrics versions (0.8) don't support the
+                # `prefix` argument. We only use the old versions for SuperGradients
+                # support.
+                ClasswiseWrapper(  # type: ignore[call-arg]
                     MulticlassJaccardIndex(
                         num_classes=data_args.num_included_classes,
                         validate_args=False,
@@ -172,7 +175,10 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
         self.val_classwise_iou = ModuleList(
             [
-                ClasswiseWrapper(
+                # Type ignore because old torchmetrics versions (0.8) don't support the
+                # `prefix` argument. We only use the old versions for SuperGradients
+                # support.
+                ClasswiseWrapper(  # type: ignore[call-arg]
                     MulticlassJaccardIndex(
                         num_classes=data_args.num_included_classes,
                         validate_args=False,
