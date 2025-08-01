@@ -344,6 +344,9 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
         if isinstance(value, Tensor) and value.numel() > 1:
             for i, v in enumerate(value):
                 metrics[f"{name}_{i}"] = v.item()
+        if isinstance(value, dict):
+            for class_name, class_value in value.items():
+                metrics[f"{name}{class_name}"] = class_value.item()
         else:
             metrics[name] = value
     return metrics
