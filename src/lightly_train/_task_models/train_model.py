@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from lightning_fabric import Fabric
 from torch import Tensor
@@ -21,7 +21,14 @@ from lightly_train._task_models.task_model import TaskModel
 
 
 class TrainModelArgs(PydanticConfig):
-    pass
+    # Default values that are used if the user didn't specify the value manually.
+    # We store this in the model args as these values depend on the model. The values
+    # are ClassVar because they have to be accessed before the class is instantiated.
+    default_batch_size: ClassVar[int]
+    default_steps: ClassVar[int]
+
+    def resolve_auto(self, total_steps: int) -> None:
+        pass
 
 
 class TrainModel(Module):
