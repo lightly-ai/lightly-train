@@ -79,8 +79,7 @@ class DINOv2ViTPackage(Package):
             )
 
         # Get the model cfg
-        config_name: str = VIT_MODELS[model_name]["config"]
-        config_path = get_config_path(config_name=config_name)
+        config_path = get_config_path(config_name=VIT_MODELS[model_name]["config"])
         cfg = load_and_merge_config(str(config_path))
 
         # Build the model using the cfg
@@ -115,7 +114,7 @@ class DINOv2ViTPackage(Package):
         model = model_builder(**kwargs)
 
         # Load weights if available.
-        weights_url: str | None = VIT_MODELS[model_name].get("url")
+        weights_url = VIT_MODELS[model_name].get("url")
         if weights_url:
             cache_dir = get_cache_dir()
             checkpoint_dir = cache_dir / "weights"
