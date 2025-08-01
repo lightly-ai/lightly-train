@@ -51,10 +51,6 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Get unique values in the mask.
         unique_values = np.unique(mask)
 
-        # Uniform masks are discarded.
-        if len(unique_values) == 1:
-            return False
-
         # Check if at least one value in the mask is in the valid classes.
         return bool(np.isin(unique_values, self.valid_classes).any())
 
