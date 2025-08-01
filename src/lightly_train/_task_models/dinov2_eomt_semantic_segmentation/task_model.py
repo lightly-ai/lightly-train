@@ -71,6 +71,12 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 Additional arguments to pass to the DINOv2 backbone.
         """
         super().__init__(locals(), ignore_args={"backbone_weights"})
+        if not model_name.endswith("-eomt"):
+            raise ValueError(
+                f"Model name must end with '-eomt', got '{model_name}' instead."
+            )
+
+        self.model_name = model_name
         self.classes = classes
         self.class_ignore_index = class_ignore_index
 
@@ -98,8 +104,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             args.update(backbone_args)
 
         # Get the backbone.
+        backbone_name = self.model_name[: -len("-eomt")]
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
-            model_name=model_name,
+            model_name=backbone_name,
             model_args=args,
         )
         embed_dim = self.backbone.embed_dim
