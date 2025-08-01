@@ -73,7 +73,7 @@ class DistillationArgs(MethodArgs):
     temperature: float = 0.07
 
     # Default teacher.
-    teacher: str = "dinov2/vitb14-noreg-pretrained"
+    teacher: str = "dinov2/vitb14-noreg"
 
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None

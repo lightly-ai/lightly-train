@@ -7,81 +7,155 @@
 
 # Modifications Copyright 2025 Lightly AG:
 # - added get_config_path function
-# - added MODELS and TRAIN_MODELS dictionaries
+# - added MODELS dictionary
+
+from __future__ import annotations
 
 import pathlib
+from typing import TypedDict
 
 from omegaconf import OmegaConf
 
-MODELS = {
-    "_vittest14": {
-        "url": "",
-        "config": "train/_vittest14",
-    },  # This is a test model for development purposes only.
-    "vits14-noreg": {
-        "url": "",
-        "config": "train/vits14",
-    },
-    "vitb14-noreg": {
-        "url": "",
-        "config": "train/vitb14",
-    },
-    "vitl14-noreg": {
-        "url": "",
-        "config": "train/vitl14",
-    },
-    "vitg14-noreg": {
-        "url": "",
-        "config": "train/vitg14",
-    },
-    "vits14": {
-        "url": "",
-        "config": "train/vits14_reg4",
-    },
-    "vitb14": {
-        "url": "",
-        "config": "train/vitb14_reg4",
-    },
-    "vitl14": {
-        "url": "",
-        "config": "train/vitl14_reg4",
-    },
-    "vitg14": {
-        "url": "",
-        "config": "train/vitg14_reg4",
-    },
-    "vits14-noreg-pretrained": {
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth",
-        "config": "eval/vits14_pretrain",
-    },
-    "vitb14-noreg-pretrained": {
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth",
-        "config": "eval/vitb14_pretrain",
-    },
-    "vitl14-noreg-pretrained": {
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth",
-        "config": "eval/vitl14_pretrain",
-    },
-    "vitg14-noreg-pretrained": {
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth",
-        "config": "eval/vitg14_pretrain",
-    },
-    "vits14-pretrained": {
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_reg4_pretrain.pth",
-        "config": "eval/vits14_reg4_pretrain",
-    },
-    "vitb14-pretrained": {
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_reg4_pretrain.pth",
-        "config": "eval/vitb14_reg4_pretrain",
-    },
-    "vitl14-pretrained": {
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_reg4_pretrain.pth",
-        "config": "eval/vitl14_reg4_pretrain",
-    },
-    "vitg14-pretrained": {
-        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_reg4_pretrain.pth",
-        "config": "eval/vitg14_reg4_pretrain",
-    },
+
+class _Model(TypedDict):
+    """Dictionary type for DINOv2 models."""
+
+    url: str
+    config: str
+    list: bool
+
+
+MODELS: dict[str, _Model] = {
+    # Test model for development purposes only.
+    "_vittest14": _Model(
+        url="",
+        config="train/_vittest14",
+        list=False,
+    ),
+    # Default models are pretrained and with registers.
+    "vits14": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_reg4_pretrain.pth",
+        config="eval/vits14_reg4_pretrain",
+        list=True,
+    ),
+    "vitb14": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_reg4_pretrain.pth",
+        config="eval/vitb14_reg4_pretrain",
+        list=True,
+    ),
+    "vitl14": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_reg4_pretrain.pth",
+        config="eval/vitl14_reg4_pretrain",
+        list=True,
+    ),
+    "vitg14": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_reg4_pretrain.pth",
+        config="eval/vitg14_reg4_pretrain",
+        list=True,
+    ),
+    # Models without registers if needed.
+    "vits14-noreg": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth",
+        config="eval/vits14_pretrain",
+        list=False,
+    ),
+    "vitb14-noreg": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth",
+        config="eval/vitb14_pretrain",
+        list=False,
+    ),
+    "vitl14-noreg": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth",
+        config="eval/vitl14_pretrain",
+        list=False,
+    ),
+    "vitg14-noreg": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth",
+        config="eval/vitg14_pretrain",
+        list=False,
+    ),
+    # Not pretrained models if needed.
+    "vits14-notpretrained": _Model(
+        url="",
+        config="train/vits14_reg4",
+        list=False,
+    ),
+    "vitb14-notpretrained": _Model(
+        url="",
+        config="train/vitb14_reg4",
+        list=False,
+    ),
+    "vitl14-notpretrained": _Model(
+        url="",
+        config="train/vitl14_reg4",
+        list=False,
+    ),
+    "vitg14-notpretrained": _Model(
+        url="",
+        config="train/vitg14_reg4",
+        list=False,
+    ),
+    "vits14-noreg-notpretrained": _Model(
+        url="",
+        config="train/vits14",
+        list=False,
+    ),
+    "vitb14-noreg-notpretrained": _Model(
+        url="",
+        config="train/vitb14",
+        list=False,
+    ),
+    "vitl14-noreg-notpretrained": _Model(
+        url="",
+        config="train/vitl14",
+        list=False,
+    ),
+    "vitg14-noreg-notpretrained": _Model(
+        url="",
+        config="train/vitg14",
+        list=False,
+    ),
+    # Models with `-pretrained` suffix for backwards compatibility.
+    "vits14-pretrained": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_reg4_pretrain.pth",
+        config="eval/vits14_reg4_pretrain",
+        list=False,
+    ),
+    "vitb14-pretrained": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_reg4_pretrain.pth",
+        config="eval/vitb14_reg4_pretrain",
+        list=False,
+    ),
+    "vitl14-pretrained": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_reg4_pretrain.pth",
+        config="eval/vitl14_reg4_pretrain",
+        list=False,
+    ),
+    "vitg14-pretrained": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_reg4_pretrain.pth",
+        config="eval/vitg14_reg4_pretrain",
+        list=False,
+    ),
+    "vits14-noreg-pretrained": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth",
+        config="eval/vits14_pretrain",
+        list=False,
+    ),
+    "vitb14-noreg-pretrained": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth",
+        config="eval/vitb14_pretrain",
+        list=False,
+    ),
+    "vitl14-noreg-pretrained": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth",
+        config="eval/vitl14_pretrain",
+        list=False,
+    ),
+    "vitg14-noreg-pretrained": _Model(
+        url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth",
+        config="eval/vitg14_pretrain",
+        list=False,
+    ),
 }
 
 
