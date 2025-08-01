@@ -14,7 +14,7 @@ from typing import Any
 import torch
 
 from lightly_train._data.cache import get_cache_dir
-from lightly_train._models import package_helpers
+from lightly_train._models import log_usage_example
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
     MODELS as VIT_MODELS,
@@ -161,7 +161,7 @@ class DINOv2ViTPackage(Package):
                 "...",
             ]
             logger.info(
-                package_helpers.format_log_msg_model_usage_example(log_message_code)
+                log_usage_example.format_log_msg_model_usage_example(log_message_code)
             )
 
 
