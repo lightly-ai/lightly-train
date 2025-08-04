@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.10.0] - 2025-08-04
+
 🔥 **New: Train state-of-the-art semantic segmentation models** with our new
 [**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
 fine-tuning method! 🔥
@@ -33,11 +47,8 @@ fine-tuning method! 🔥
 
 ### Deprecated
 
-### Removed
-
-### Fixed
-
-### Security
+- The `dinov2_vit/vits14_pretrain` model name is deprecated and will be removed in a
+  future release. Use `dinov2/vits14` instead.
 
 ## [0.9.0] - 2025-07-21
 
