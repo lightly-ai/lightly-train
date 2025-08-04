@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 from itertools import chain
-from os import linesep
 from typing import Any, Literal, overload
 
 from torch.nn import Module
@@ -139,25 +138,3 @@ def _parse_model_name(model: str) -> tuple[str, str]:
     if package_name == "dinov2_vit":  # For backwards compatibility.
         package_name = "dinov2"
     return package_name, model_name
-
-
-def format_log_msg_model_usage_example(log_message_code_block: list[str]) -> str:
-    log_message_header = (
-        f"Example: How to use the exported model{linesep}{'-' * 88}{linesep}"
-    )
-
-    log_message_footer = f"{'-' * 88}{linesep}"
-
-    def format_code_lines(lines: list[str]) -> str:
-        str_out = ""
-        for line in lines:
-            str_out += f"{line}{linesep}"
-        return str_out
-
-    log_message = (
-        log_message_header
-        + format_code_lines(log_message_code_block)
-        + log_message_footer
-    )
-
-    return log_message
