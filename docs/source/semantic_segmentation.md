@@ -10,7 +10,9 @@ Kerssies et al. and reaches 58.4% mIoU on the ADE20K dataset.
 ```
 
 Training a semantic segmentation model with LightlyTrain is straightforward and
-only requires a few lines of code:
+only requires a few lines of code. The dataset must follow the [ADE20K format](https://ade20k.csail.mit.edu/)
+with RGB images and integer masks in PNG format. See [data](#semantic-segmentation-data)
+for more details.
 
 ````{tab} Python
 ```python
@@ -19,7 +21,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov2/vits14-eomt",
+        model="dinov2/vitl14-eomt",
         data={
             "train": {
                 "images": "my_data_dir/train/images",   # Path to training images
@@ -71,64 +73,6 @@ plt.imshow(image_with_masks.permute(1, 2, 0))
 The predicted masks have shape `(height, width)` and each value corresponds to a class
 ID as defined in the `classes` dictionary in the dataset.
 
-(semantic-segmentation-pretrain-finetune)=
-
-## Optional: Pretrain and Fine-tune a Semantic Segmentation Model
-
-To further improve the performance of your semantic segmentation model, you can first
-pretrain a DINOv2 model on unlabeled data using self-supervised learning and then
-fine-tune it on your segmentation dataset. This is especially useful if your dataset
-is only partially labeled or if you have access to a large amount of unlabeled data.
-
-The following example shows how to pretrain and fine-tune the model. Check out the page
-on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2 models on unlabeled
-data.
-
-````{tab} Python
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    # Pretrain a DINOv2 model.
-    lightly_train.train(
-        out="out/my_pretrain_experiment",
-        data="my_pretrain_data_dir",
-        model="dinov2/vits14",
-        method="dinov2",
-        epochs=100, # We recommend epochs = 125000 * batch size // dataset size
-    )
-
-    # Fine-tune the DINOv2 model for semantic segmentation.
-    lightly_train.train_semantic_segmentation(
-        out="out/my_experiment",
-        model="dinov2/vits14-eomt",
-        model_args={
-            # Path to your pretrained DINOv2 model.
-            "backbone_weights": "out/my_pretrain_experiment/exported_models/exported_last.pt",
-        },
-        data={
-            "train": {
-                "images": "my_data_dir/train/images",   # Path to training images
-                "masks": "my_data_dir/train/masks",     # Path to training masks
-            },
-            "val": {
-                "images": "my_data_dir/val/images",     # Path to validation images
-                "masks": "my_data_dir/val/masks",       # Path to validation masks
-            },
-            "classes": {                                # Classes in the dataset                    
-                0: "background",
-                1: "car",
-                2: "bicycle",
-                # ...
-            },
-            # Optional, classes that are in the dataset but should be ignored during
-            # training.
-            "ignore_classes": [0], 
-        },
-    )
-```
-````
-
 (semantic-segmentation-output)=
 
 ## Out
@@ -156,9 +100,9 @@ and checkpoints organized.
 ## Data
 
 Lightly**Train** supports training semantic segmentation models with images and masks.
-Every image must have a corresponding mask that contains the segmentation labels in the
-first channel. The mask must be in PNG format and the pixel values must be integers
-representing the class labels.
+Every image must have a corresponding mask with the same filename except for the file
+extension. The masks must be PNG images in grayscale integer format, where each pixel
+value corresponds to a class ID.
 
 The following image formats are supported:
 
@@ -204,7 +148,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov2/vits14-eomt",
+        model="dinov2/vitl14-eomt",
         data={
             "train": {
                 "images": "my_data_dir/train/images",   # Path to training images
@@ -277,7 +221,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov2/vits14-eomt",
+        model="dinov2/vitl14-eomt",
         data={
             # ...
         },
@@ -311,7 +255,60 @@ logger_args={"tensorboard": None}
 ```
 ````
 
-### Performance Optimizations
+(semantic-segmentation-pretrain-finetune)=
 
-For performance optimizations, e.g. using accelerators, multi-GPU, multi-node, and
-precision settings, see the [performance](#performance) page.
+## Pretrain and Fine-tune a Semantic Segmentation Model
+
+To further improve the performance of your semantic segmentation model, you can first
+pretrain a DINOv2 model on unlabeled data using self-supervised learning and then
+fine-tune it on your segmentation dataset. This is especially useful if your dataset
+is only partially labeled or if you have access to a large amount of unlabeled data.
+
+The following example shows how to pretrain and fine-tune the model. Check out the page
+on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2 models on unlabeled
+data.
+
+````{tab} Python
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    # Pretrain a DINOv2 model.
+    lightly_train.train(
+        out="out/my_pretrain_experiment",
+        data="my_pretrain_data_dir",
+        model="dinov2/vitl14",
+        method="dinov2",
+        epochs=100, # We recommend epochs = 125000 * batch size // dataset size
+    )
+
+    # Fine-tune the DINOv2 model for semantic segmentation.
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt",
+        model_args={
+            # Path to your pretrained DINOv2 model.
+            "backbone_weights": "out/my_pretrain_experiment/exported_models/exported_last.pt",
+        },
+        data={
+            "train": {
+                "images": "my_data_dir/train/images",   # Path to training images
+                "masks": "my_data_dir/train/masks",     # Path to training masks
+            },
+            "val": {
+                "images": "my_data_dir/val/images",     # Path to validation images
+                "masks": "my_data_dir/val/masks",       # Path to validation masks
+            },
+            "classes": {                                # Classes in the dataset                    
+                0: "background",
+                1: "car",
+                2: "bicycle",
+                # ...
+            },
+            # Optional, classes that are in the dataset but should be ignored during
+            # training.
+            "ignore_classes": [0], 
+        },
+    )
+```
+````
