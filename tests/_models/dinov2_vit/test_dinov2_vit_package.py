@@ -22,8 +22,26 @@ from ...helpers import DummyCustomModel
 
 class TestDINOv2ViTPackage:
     @pytest.mark.parametrize(
-        "model_name, supported",
+        "model_name, listed",
         [
+            ("dinov2/vits14", True),
+            ("dinov2/vitb14", True),
+            ("dinov2/vitl14", True),
+            ("dinov2/vitg14", True),
+            # These models are False because they are not listed but they can still be
+            # instantiated if needed.
+            ("dinov2/vits14-noreg", False),
+            ("dinov2/vitb14-noreg", False),
+            ("dinov2/vitl14-noreg", False),
+            ("dinov2/vitg14-noreg", False),
+            ("dinov2/vits14-noreg-pretrained", False),
+            ("dinov2/vitb14-noreg-pretrained", False),
+            ("dinov2/vitl14-noreg-pretrained", False),
+            ("dinov2/vitg14-noreg-pretrained", False),
+            ("dinov2/vits14-pretrained", False),
+            ("dinov2/vitb14-pretrained", False),
+            ("dinov2/vitl14-pretrained", False),
+            ("dinov2/vitg14-pretrained", False),
             # The dinov2_vit/XYZ models are False because they are deprecated. You can
             # still instantiate them but they are not in the list of model names.
             ("dinov2_vit/_vittest14", False),
@@ -31,24 +49,12 @@ class TestDINOv2ViTPackage:
             ("dinov2_vit/vitb14", False),
             ("dinov2_vit/vitl14", False),
             ("dinov2_vit/vitg14", False),
-            ("dinov2/_vittest14", True),
-            ("dinov2/vits14-noreg", True),
-            ("dinov2/vitb14-noreg", True),
-            ("dinov2/vitl14-noreg", True),
-            ("dinov2/vitg14-noreg", True),
-            ("dinov2/vits14-noreg-pretrained", True),
-            ("dinov2/vitb14-noreg-pretrained", True),
-            ("dinov2/vitl14-noreg-pretrained", True),
-            ("dinov2/vitg14-noreg-pretrained", True),
-            ("dinov2/vits14-pretrained", True),
-            ("dinov2/vitb14-pretrained", True),
-            ("dinov2/vitl14-pretrained", True),
-            ("dinov2/vitg14-pretrained", True),
+            ("dinov2/_vittest14", False),
         ],
     )
-    def test_list_model_names(self, model_name: str, supported: bool) -> None:
+    def test_list_model_names(self, model_name: str, listed: bool) -> None:
         model_names = DINOv2ViTPackage.list_model_names()
-        assert (model_name in model_names) is supported
+        assert (model_name in model_names) is listed
 
     def test_is_supported_model__model_true(self) -> None:
         model = _vit_test()
@@ -69,7 +75,12 @@ class TestDINOv2ViTPackage:
 
     @pytest.mark.parametrize(
         "model_name",
-        ["_vittest14", "vits14-noreg", "vitb14-noreg"],
+        [
+            "_vittest14",
+            "vits14-notpretrained",
+            "vits14-noreg-notpretrained",
+            "vitb14-noreg-notpretrained",
+        ],
     )
     def test_get_model(self, model_name: str) -> None:
         model = DINOv2ViTPackage.get_model(model_name=model_name)
