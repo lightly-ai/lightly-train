@@ -266,15 +266,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             step == 0
             or (step + 1) % no_auto(config.logger_args.log_every_num_steps) == 0
         )
-        is_val_step = (
-            step > 0
-            and (step + 1) % no_auto(config.logger_args.val_every_num_steps) == 0
-        )
-        is_save_ckpt_step = (
-            step > 0
-            and (step + 1) % no_auto(config.save_checkpoint_args.save_every_num_steps)
-            == 0
-        )
+        is_val_step = (step + 1) % no_auto(config.logger_args.val_every_num_steps) == 0
+        is_save_ckpt_step = (step + 1) % no_auto(
+            config.save_checkpoint_args.save_every_num_steps
+        ) == 0
 
         batch = next(infinite_train_dataloader)
         train_result = train_model.training_step(fabric=fabric, batch=batch, step=step)
@@ -292,12 +287,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 max_steps=config.steps,
                 log_dict=train_log_dict,
             )
-            # TODO(Guarin, 07/25): Consider logging this under a "debug" prefix?
             for group in optimizer.param_groups:
-                train_log_dict[f"lr/{group['name']}"] = group["lr"]
-                train_log_dict[f"wd/{group['name']}"] = group["weight_decay"]
+                train_log_dict[f"learning_rate/{group['name']}"] = group["lr"]
+                train_log_dict[f"weight_decay/{group['name']}"] = group["weight_decay"]
             fabric.log_dict(train_log_dict, step=step)
             helpers.reset_metrics(train_result.log_dict)
+
+        if is_save_ckpt_step or is_last_step:
+            helpers.save_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
 
         if is_val_step or is_last_step:
             fabric.barrier()
@@ -334,8 +331,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     )
             train_model.set_train_mode()
             fabric.barrier()
-        if is_save_ckpt_step or is_last_step:
-            helpers.save_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
     logger.info("Training completed.")
 
 

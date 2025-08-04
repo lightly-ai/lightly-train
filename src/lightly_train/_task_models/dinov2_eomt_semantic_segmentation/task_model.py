@@ -49,7 +49,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         """
         Args:
             model_name:
-                The model name. For example "vits14-pretrain-eomt".
+                The model name. For example "vits14-eomt".
             classes:
                 A dict mapping the class ID to the class name. The dict must only
                 contain the classes that the model should predict. It must NOT contain
@@ -150,7 +150,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # TODO(Guarin, 07/25): Move all attention mask handling to the train module.
         # Attention mask prob can be passed as argument to forward_train. No need to
         # store it as a parameter here.
-        self.masked_attn_enabled = True
         self.register_buffer(
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
@@ -218,16 +217,19 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         return masks, logits
 
     # TODO(Guarin, 07/25): Refactor to take attn_mask_probs as input.
-    def forward_train(self, x: Tensor) -> tuple[list[Tensor], list[Tensor]]:
-        B, C, H, W = x.shape
+    def forward_train(
+        self, x: Tensor, return_logits_per_layer: bool
+    ) -> tuple[list[Tensor], list[Tensor]]:
+        _, _, H, W = x.shape
         patch_size = self.backbone.patch_size
         grid_size = (H // patch_size, W // patch_size)
 
         x = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
-        attn_mask = None
         mask_logits_per_layer, class_logits_per_layer = [], []
 
         for i, block in enumerate(self.backbone.blocks):
+            attn_mask = None
+
             if i == len(self.backbone.blocks) - self.num_joint_blocks:
                 # Prepend query tokens.
                 x = torch.cat(
@@ -236,50 +238,50 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 )
 
             if (
-                self.masked_attn_enabled
+                return_logits_per_layer
                 and i >= len(self.backbone.blocks) - self.num_joint_blocks
             ):
                 mask_logits, class_logits = self._predict(
                     self.backbone.norm(x), grid_size=grid_size
                 )
-                # TODO(Guarin, 07/25): Do we want to norm before appending? This is what
-                # DINOv2 does.
                 mask_logits_per_layer.append(mask_logits)
                 class_logits_per_layer.append(class_logits)
 
-                # NOTE(Guarin, 07/25): Attention masking is enabled for training and
-                # validation. We keep it enabled for validation to match metrics of the
-                # original EoMT implementation. This results in significantly higher
-                # validation mIoU during training. However, it would also make sense
-                # to disable during validation as inference doesn't use attention
-                # masking.
-                # TODO(Guarin, 07/25): Disable for inference.
-                attn_mask = torch.ones(
-                    x.shape[0],
-                    x.shape[1],
-                    x.shape[1],
-                    dtype=torch.bool,
-                    device=x.device,
-                )
-                interpolated = F.interpolate(
-                    input=mask_logits,
-                    size=grid_size,
-                    mode="bilinear",
-                )
-                interpolated = interpolated.view(
-                    interpolated.size(0), interpolated.size(1), -1
-                )
-                attn_mask[
-                    :,
-                    : self.num_queries,
-                    self.num_queries + 1 + self.backbone.num_register_tokens :,
-                ] = interpolated > 0
-                attn_mask = self._disable_attn_mask(
-                    attn_mask=attn_mask,
-                    prob=self.attn_mask_probs[
-                        i - len(self.backbone.blocks) + self.num_joint_blocks
-                    ],
-                )
+                # NOTE(Guarin, 08/25): This is different from the original EoMT code.
+                # The original code also applies the attention mask during validation.
+                # This results is higher reported validation mIoU during training.
+                # As attention masking is disabled towards the end of training, the
+                # mIoU values converge to the same values whether the attention mask
+                # is applied or not. We disable the attention mask as this is also
+                # what happens during inference. This way our validation mIoU reflects
+                # actual inference performance.
+                if self.training:
+                    attn_mask = torch.ones(
+                        x.shape[0],
+                        x.shape[1],
+                        x.shape[1],
+                        dtype=torch.bool,
+                        device=x.device,
+                    )
+                    interpolated = F.interpolate(
+                        input=mask_logits,
+                        size=grid_size,
+                        mode="bilinear",
+                    )
+                    interpolated = interpolated.view(
+                        interpolated.size(0), interpolated.size(1), -1
+                    )
+                    attn_mask[
+                        :,
+                        : self.num_queries,
+                        self.num_queries + 1 + self.backbone.num_register_tokens :,
+                    ] = interpolated > 0
+                    attn_mask = self._disable_attn_mask(
+                        attn_mask=attn_mask,
+                        prob=self.attn_mask_probs[
+                            i - len(self.backbone.blocks) + self.num_joint_blocks
+                        ],
+                    )
 
             # This mirrors forward of DINOv2 Block.
             if self.training and block.sample_drop_ratio > 0:
@@ -399,9 +401,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         crop_h, crop_w = crops.shape[-2:]
 
         # Forward pass.
-        # forward_train returns logits for multiple layers but we only use the last
-        # one for inference.
-        mask_logits_per_layer, class_logits_per_layer = self.forward_train(crops)
+        # Only the logits of the last layer are returned.
+        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
+            crops, return_logits_per_layer=False
+        )
         mask_logits = mask_logits_per_layer[-1]
         class_logits = class_logits_per_layer[-1]
 
@@ -488,7 +491,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             return
 
         # Load the checkpoint.
-        state_dict = torch.load(path, map_location="cpu")
+        state_dict = torch.load(path, map_location="cpu", weights_only=False)
 
         # Load the state dict into the backbone.
         missing, unexpected = self.backbone.load_state_dict(state_dict, strict=False)

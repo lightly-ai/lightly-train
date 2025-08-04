@@ -14,7 +14,7 @@ from typing import Any
 import torch
 from torch.nn import Module
 
-from lightly_train._models import package_helpers
+from lightly_train._models import log_usage_example
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import BasePackage
 
@@ -57,7 +57,7 @@ class CustomPackage(BasePackage):
                 "...",
             ]
             logger.info(
-                package_helpers.format_log_msg_model_usage_example(log_message_code)
+                log_usage_example.format_log_msg_model_usage_example(log_message_code)
             )
 
 
