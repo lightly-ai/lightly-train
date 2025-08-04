@@ -30,6 +30,10 @@ a wide range of model architectures and use cases out of the box.
 
 ## News
 
+- \[[0.10.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-10-0)\] - 2025-08-04:
+  🔥 **Train state-of-the-art semantic segmentation models** with our new
+  [**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
+  fine-tuning method! 🔥
 - \[[0.9.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-9-0)\] - 2025-07-21:
   [**DINOv2 pretraining**](https://docs.lightly.ai/train/stable/methods/dinov2.html) is
   now officially available!
@@ -96,6 +100,11 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 ```{seealso}
 Looking for a full fine-tuning example? Head over to the [Quick Start](quick_start.md#fine-tune)!
+```
+
+```{seealso}
+🔥 **New:** Want to train a state-of-the-art semantic segmentation model? Head over to
+the [semantic segmentation guide](#semantic-segmentation)!
 ```
 
 ```{seealso}
@@ -225,6 +234,7 @@ maxdepth: 2
 quick_start
 installation
 train/index
+semantic_segmentation
 export
 embed
 models/index
