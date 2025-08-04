@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import torch
 import torch.nn.functional as F
@@ -37,6 +37,11 @@ from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
 class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
+    default_batch_size: ClassVar[int] = 16
+    # Default comes from ADE20K dataset:
+    # 20210 images / batch size 16 * 31 epochs ~= 40k steps.
+    default_steps: ClassVar[int] = 40_000
+
     backbone_weights: PathLike | None = None
     drop_path_rate: float = 0.0
     num_queries: int = 100  # Default for ADE20K
@@ -68,9 +73,9 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     lr_warmup_steps: tuple[int, int] = (500, 1000)
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
-    # Unused EoMT args:
-    # - mask_thresh: Only used for panoptic segmentation.
-    # - overlap_thresh: Only used for panoptic segmentation.
+    # Metrics
+    metric_log_classwise: bool = True
+    metric_log_debug: bool = False
 
     def resolve_auto(self, total_steps: int) -> None:
         # Infer the number of training phases from the number of joint blocks.
@@ -101,7 +106,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
-        from torchmetrics import JaccardIndex, MeanMetric
+        from torchmetrics import ClasswiseWrapper, JaccardIndex, MeanMetric
         from torchmetrics.classification import (  # type: ignore[attr-defined]
             MulticlassJaccardIndex,
         )
@@ -140,10 +145,12 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             num_labels=data_args.num_included_classes,
             no_object_coefficient=model_args.loss_no_object_coefficient,
         )
+
+        # Metrics
         self.val_loss = MeanMetric()
-        # MeanIoU assumes that background is class 0.
-        # TODO(Guarin, 07/25): Make params configurable.
-        # TODO(Thomas, 07/25): Use self.train_metrics only.
+
+        # TODO(Guarin, 08/25): Speed up metric calculation by not calculating
+        # mIoU and classwise IoU separately. mIoU can be derived from the classwise IoU.
         self.train_miou = JaccardIndex(
             task="multiclass",  # type: ignore[arg-type]
             num_classes=data_args.num_included_classes,
@@ -152,26 +159,39 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         self.val_miou = self.train_miou.clone()
 
         # Classwise MeanIoU for each joint block. Based on EoMT implementation.
-        self.train_metrics = ModuleList(
+        class_labels = list(data_args.included_classes.values())
+        self.train_classwise_iou = ModuleList(
             [
-                MulticlassJaccardIndex(
-                    num_classes=data_args.num_included_classes,
-                    validate_args=False,
-                    # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
-                    ignore_index=data_args.ignore_index,
-                    average=None,
+                # Type ignore because old torchmetrics versions (0.8) don't support the
+                # `prefix` argument. We only use the old versions for SuperGradients
+                # support.
+                ClasswiseWrapper(  # type: ignore[call-arg]
+                    MulticlassJaccardIndex(
+                        num_classes=data_args.num_included_classes,
+                        validate_args=False,
+                        ignore_index=data_args.ignore_index,
+                        average=None,
+                    ),
+                    prefix="_",
+                    labels=class_labels,
                 )
                 for _ in range(model_args.num_joint_blocks + 1)
             ]
         )
-        self.val_metrics = ModuleList(
+        self.val_classwise_iou = ModuleList(
             [
-                MulticlassJaccardIndex(
-                    num_classes=data_args.num_included_classes,
-                    validate_args=False,
-                    # NOTE(Guarin, 07/25): EoMT uses 255 as ignore index.
-                    ignore_index=data_args.ignore_index,
-                    average=None,
+                # Type ignore because old torchmetrics versions (0.8) don't support the
+                # `prefix` argument. We only use the old versions for SuperGradients
+                # support.
+                ClasswiseWrapper(  # type: ignore[call-arg]
+                    MulticlassJaccardIndex(
+                        num_classes=data_args.num_included_classes,
+                        validate_args=False,
+                        ignore_index=data_args.ignore_index,
+                        average=None,
+                    ),
+                    prefix="_",
+                    labels=class_labels,
                 )
                 for _ in range(model_args.num_joint_blocks + 1)
             ]
@@ -188,7 +208,9 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         targets = batch["target"]
         _, _, H, W = images.shape
 
-        mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(images)
+        mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
+            images, return_logits_per_layer=True
+        )
 
         # Loss
         num_blocks = len(self.model.backbone.blocks)
@@ -208,7 +230,11 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
             losses.update(block_losses)
         loss = self.criterion.loss_total(losses_all_layers=losses)
-        loss_dict = {f"train_loss/{k}": v for k, v in losses.items()}
+        loss_log_dict = {
+            f"train_loss/{k}": v
+            for k, v in losses.items()
+            if "block" not in k or self.model_args.metric_log_debug
+        }
 
         # Metrics
         for block_idx, (mask_logits, class_logits) in enumerate(
@@ -218,7 +244,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             logits = self.model.to_per_pixel_logits_semantic(mask_logits, class_logits)
             logits = logits[:, :-1]  # Drop ignore class logits.
             self.update_metrics_semantic(
-                metrics=self.train_metrics,
+                metrics=self.train_classwise_iou,
                 preds=logits,
                 targets=masks,
                 block_idx=block_idx,
@@ -229,18 +255,21 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         metrics: dict[str, Any] = {
             "train_metric/miou": self.train_miou,
         }
-        for block_idx, metric in zip(
-            range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
-            self.train_metrics,
-        ):
-            block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
-            # These metrics should match the original EoMT metrics.
-            metrics[f"train_metric/miou{block_suffix}_cls"] = metric
+        if self.model_args.metric_log_classwise or self.model_args.metric_log_debug:
+            for block_idx, metric in zip(
+                range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
+                self.train_classwise_iou,
+            ):
+                block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
+                if not block_suffix or self.model_args.metric_log_debug:
+                    metrics[f"train_metric_classwise/miou{block_suffix}"] = metric
 
-        mask_prob_dict = {
-            f"train_attn_mask_prob/block{block_idx + num_blocks - self.model_args.num_joint_blocks}": value
-            for block_idx, value in enumerate(self.model.attn_mask_probs)
-        }
+        mask_prob_dict = {}
+        if self.model_args.metric_log_debug:
+            mask_prob_dict = {
+                f"attention_mask_probability/block{block_idx + num_blocks - self.model_args.num_joint_blocks}": value
+                for block_idx, value in enumerate(self.model.attn_mask_probs)
+            }
 
         # Mask annealing.
         for i in range(len(self.model.attn_mask_probs)):
@@ -254,7 +283,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             loss=loss,
             log_dict={
                 "train_loss": loss.detach(),
-                **loss_dict,
+                **loss_log_dict,
                 **metrics,
                 **mask_prob_dict,
             },
@@ -288,8 +317,9 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 }
             )
 
-        # TODO(Guarin, 07/25): Use a different forward method for validation?
-        mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(crops)
+        mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
+            crops, return_logits_per_layer=True
+        )
         num_blocks = len(self.model.backbone.blocks)
         losses = {}
         for i, (block_idx, mask_logits, class_logits) in enumerate(
@@ -314,7 +344,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
 
             # Update the metrics.
             self.update_metrics_semantic(
-                metrics=self.val_metrics,
+                metrics=self.val_classwise_iou,
                 preds=logits,
                 targets=masks,
                 block_idx=i,
@@ -334,7 +364,11 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
         # Store the block-wise losses.
-        log_dict = {f"val_loss/{k}": v for k, v in losses.items()}
+        log_dict = {
+            f"val_loss/{k}": v
+            for k, v in losses.items()
+            if "block" not in k or self.model_args.metric_log_debug
+        }
 
         # Update the targets and predictions of the last block.
         for pred, targ in zip(logits, masks):
@@ -343,13 +377,14 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         metrics: dict[str, Any] = {
             "val_metric/miou": self.val_miou,
         }
-        for block_idx, metric in zip(
-            range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
-            self.val_metrics,
-        ):
-            block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
-            # These metrics should match the original EoMT metrics.
-            metrics[f"val_metric/miou{block_suffix}_cls"] = metric
+        if self.model_args.metric_log_classwise or self.model_args.metric_log_debug:
+            for block_idx, metric in zip(
+                range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
+                self.val_classwise_iou,
+            ):
+                block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
+                if not block_suffix or self.model_args.metric_log_debug:
+                    metrics[f"val_metric_classwise/miou{block_suffix}"] = metric
 
         return TaskStepResult(
             loss=loss,

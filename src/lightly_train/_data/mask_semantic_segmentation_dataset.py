@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from numpy.typing import NDArray
+from pydantic import Field
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -50,10 +51,6 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
     def is_mask_valid(self, mask: NDArray[np.uint8]) -> bool:
         # Get unique values in the mask.
         unique_values = np.unique(mask)
-
-        # Uniform masks are discarded.
-        if len(unique_values) == 1:
-            return False
 
         # Check if at least one value in the mask is in the valid classes.
         return bool(np.isin(unique_values, self.valid_classes).any())
@@ -203,7 +200,8 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
     mask_dir: Path
     classes: dict[int, str] | None = None
-    ignore_classes: set[int] | None = None
+    # Disable strict to allow pydantic to convert lists/tuples to sets.
+    ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
     ignore_index: int = -100
 
