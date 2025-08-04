@@ -274,24 +274,32 @@ def get_val_dataloader(
     return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
 
 
-def get_steps(steps: int | Literal["auto"]) -> int:
-    if steps == "auto":
-        return 1000
-    return steps
+def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
+    return default_steps if steps == "auto" else steps
+
+
+def get_train_model_args_cls(
+    model_name: str, model_args: dict[str, Any] | TrainModelArgs | None
+) -> type[TrainModelArgs]:
+    if isinstance(model_args, TrainModelArgs):
+        return model_args.__class__
+
+    # TODO(Guarin, 08/25): Properly handle model name and args linking.
+    if model_name.endswith("-eomt"):
+        return DINOv2EoMTSemanticSegmentationTrainArgs
+    raise ValueError(f"Unsupported model name '{model_name}'.")
 
 
 def get_train_model_args(
     model_args: dict[str, Any] | TrainModelArgs | None,
+    model_args_cls: type[TrainModelArgs],
     total_steps: int,
 ) -> TrainModelArgs:
     if isinstance(model_args, TrainModelArgs):
         return model_args
     model_args = {} if model_args is None else model_args
-    task_cls = DINOv2EoMTSemanticSegmentationTrainArgs
-    args = validate.pydantic_model_validate(task_cls, model_args)
-    args.resolve_auto(
-        total_steps=total_steps,
-    )
+    args = validate.pydantic_model_validate(model_args_cls, model_args)
+    args.resolve_auto(total_steps=total_steps)
     return args
 
 

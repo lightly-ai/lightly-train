@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import torch
 import torch.nn.functional as F
@@ -37,6 +37,11 @@ from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
 class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
+    default_batch_size: ClassVar[int] = 16
+    # Default comes from ADE20K dataset:
+    # 20210 images / batch size 16 * 31 epochs ~= 40k steps.
+    default_steps: ClassVar[int] = 40_000
+
     backbone_weights: PathLike | None = None
     drop_path_rate: float = 0.0
     num_queries: int = 100  # Default for ADE20K
