@@ -14,7 +14,6 @@ from typing import Any
 import torch
 
 from lightly_train._data import cache
-from lightly_train._models import package_helpers
 from lightly_train._models import log_usage_example
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
