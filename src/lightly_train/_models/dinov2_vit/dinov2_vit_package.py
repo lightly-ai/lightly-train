@@ -13,8 +13,8 @@ from typing import Any
 
 import torch
 
-from lightly_train._data.cache import get_cache_dir
-from lightly_train._models import package_helpers
+from lightly_train._data import cache
+from lightly_train._models import log_usage_example
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
     MODELS as VIT_MODELS,
@@ -41,7 +41,11 @@ class DINOv2ViTPackage(Package):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [f"{cls.name}/{entry}" for entry in list(VIT_MODELS.keys())]
+        return [
+            f"{cls.name}/{model_name}"
+            for model_name, model_info in VIT_MODELS.items()
+            if model_info["list"]
+        ]
 
     @classmethod
     def is_supported_model(
@@ -75,7 +79,7 @@ class DINOv2ViTPackage(Package):
             )
 
         # Get the model cfg
-        config_path = get_config_path(VIT_MODELS[model_name]["config"])
+        config_path = get_config_path(config_name=VIT_MODELS[model_name]["config"])
         cfg = load_and_merge_config(str(config_path))
 
         # Build the model using the cfg
@@ -109,14 +113,14 @@ class DINOv2ViTPackage(Package):
 
         model = model_builder(**kwargs)
 
-        # Load the pretrained model if required
-        if model_name.endswith("-pretrained"):
-            cache_dir = get_cache_dir()
-            checkpoint_dir = cache_dir / "weights"
+        # Load weights if available.
+        weights_url = VIT_MODELS[model_name].get("url")
+        if weights_url:
+            checkpoint_dir = cache.get_model_cache_dir()
             model = load_weights(
                 model=model,
                 checkpoint_dir=checkpoint_dir,
-                url=VIT_MODELS[model_name]["url"],
+                url=weights_url,
             )
 
         return model
@@ -156,7 +160,7 @@ class DINOv2ViTPackage(Package):
                 "...",
             ]
             logger.info(
-                package_helpers.format_log_msg_model_usage_example(log_message_code)
+                log_usage_example.format_log_msg_model_usage_example(log_message_code)
             )
 
 
