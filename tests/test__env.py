@@ -18,7 +18,7 @@ from lightly_train._env import EnvVar
 
 class TestEnvVar:
     def test_name(self) -> None:
-        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default_=42, type_=int)
+        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", _default=42, _type=int)
         assert env_var.name == "LIGHTLY_TRAIN_TEST_ENV_VAR"
 
     @pytest.mark.parametrize(
@@ -42,8 +42,8 @@ class TestEnvVar:
     ) -> None:
         env_var = EnvVar(
             name="LIGHTLY_TRAIN_TEST_ENV_VAR",
-            default_=default,
-            type_=type_,
+            _default=default,
+            _type=type_,
             convert_empty_str_to_default=convert_empty_str_to_default,
         )
         if env_value is not None:
@@ -56,22 +56,22 @@ class TestEnvVar:
 
         env_var = EnvVar(
             name="LIGHTLY_TRAIN_TEST_ENV_VAR",
-            default_=default_value,
-            type_=int,
+            _default=default_value,
+            _type=int,
         )
         assert env_var.value == 42
         mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TEST_ENV_VAR": "100"})
         assert env_var.value == 100
 
     def test_raw_value(self, mocker: MockerFixture) -> None:
-        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default_=42, type_=int)
+        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", _default=42, _type=int)
         mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TEST_ENV_VAR": "100"})
         assert env_var.raw_value == "100"
 
     def test_raw_value__default(self) -> None:
-        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default_=42, type_=int)
+        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", _default=42, _type=int)
         assert env_var.raw_value == "42"
 
     def test_raw_value__default_none(self) -> None:
-        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", default_=None, type_=int)
+        env_var = EnvVar(name="LIGHTLY_TRAIN_TEST_ENV_VAR", _default=None, _type=int)
         assert env_var.raw_value is None
