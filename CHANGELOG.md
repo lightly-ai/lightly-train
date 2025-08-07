@@ -9,21 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- DINOv2 pre-trained models with registers to supported models.
-- Pretraining allows now custom filenames for checkpoints.
-
 ### Changed
-
-- Patch embedding in ViT to support image resolution that is not a multiple of the patch size.
-- Augmentations plotting function to support odd-sized images.
-- DistillationV2 to work with image resolution that is not a multiple of the patch size.
-- DINOv2 model names to be more consistent with the new naming scheme. The model name
-  scheme changed from `dinov2_vit/vits14_pretrained` to `dinov2/vits14`. The pretrained
-  weights are now always loaded by default, making the `pretrained` suffix redundant.
-- DINOv2 models are now using registers by default, which increases model performance.
-  You can continue using models without registers with the `-noreg` suffix:
-  `dinov2/vits14-noreg`.
-- Default teacher name in distillation methods.
 - LightlyTrain now infers the best number of epochs based on the chosen method, dataset size and batch size.
 
 ### Deprecated
@@ -33,6 +19,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.10.0] - 2025-08-04
+
+🔥 **New: Train state-of-the-art semantic segmentation models** with our new
+[**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
+fine-tuning method! 🔥
+
+### Added
+
+- DINOv2 semantic segmentation fine-tuning with the `train_semantic_segmentation` command.
+  See the [semantic segmentation documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
+  for more information.
+- Support for image resolutions that are not a multiple of the patch size in DINOv2.
+
+### Changed
+
+- DINOv2 model names to be more consistent with the new naming scheme. The model name
+  scheme changed from `dinov2_vit/vits14_pretrain` to `dinov2/vits14`. The pretrained
+  weights are now always loaded by default, making the `pretrain` suffix redundant.
+- DINOv2 models are now using registers by default which increases model performance.
+  You can continue using models without registers with the `-noreg` suffix:
+  `dinov2/vits14-noreg`.
+- DINOv2 and distillation to work with image resolutions that are not a multiple of the
+  patch size.
+- Temporary files are now stored in the `~/.cache/lightly-train` directory be default.
+  The location can be changed with the `LIGHTLY_TRAIN_CACHE_DIR` environment variable.
+
+### Deprecated
+
+- The `dinov2_vit/vits14_pretrain` model name is deprecated and will be removed in a
+  future release. Use `dinov2/vits14` instead.
 
 ## [0.9.0] - 2025-07-21
 
