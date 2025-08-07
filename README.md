@@ -95,7 +95,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 - **Fine-Tune Example**: Looking for a full fine-tuning example? Head over to the [Quick Start](https://docs.lightly.ai/train/stable/quick_start.html#fine-tune)!
 
-- **🔥 New: Semantic Segmentation Fine-tuning**: Want to train a state-of-the-art semantic segmentation model? Head over to the [semantic segmentation guide](https://docs.lightly.ai/train/stable/semantic-segmentation.html)!
+- **🔥 New: Semantic Segmentation Fine-tuning**: Want to train a state-of-the-art semantic segmentation model? Head over to the [semantic segmentation guide](https://docs.lightly.ai/train/stable/semantic_segmentation.html)!
 
 - **Embedding Example**: Want to use your pretrained model to generate image embeddings instead? Check out the [embed](https://docs.lightly.ai/train/stable/embed.html) guide!
 
