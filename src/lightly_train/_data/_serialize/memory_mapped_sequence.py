@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Generic, Iterable, Sequence, TypeVar, overload
 
@@ -75,21 +76,26 @@ class MemoryMappedSequence(Sequence[T], Generic[T]):
         """
         self._path = path
         self._column = column
-        # The table is lazily loaded from the file when the sequence is accessed. This
-        # makes sure that the table is only initialized inside the dataloader and not
-        # when the dataset is first created. This avoids sharing table references
-        # between processes. The following scenarios are covered:
+        # The table is lazily initialized on every process independently. This avoids
+        # accidentally sharing table references between processes.
+        # The following scenarios are covered:
         # - Dataloader processes are created with "spawn" method:
         #   __setstate__ is called which initializes the instance again, setting the
         #   table to None.
         # - Dataloader processes are created with "fork" method:
-        #   __setstate__ is NOT called as the dataset is not pickled. Instead the memory
+        #   __setstate__ is not called as the dataset is not pickled. Instead the memory
         #   space for the dataset from the main process is copied. In this case, no
-        #   table reference is shared as long as the sequence has not been accessed yet.
+        #   table reference is shared as the table is re-initialized in the new process
+        #   when the first item is accessed.
         self._table: Table | None = None
+        self._pid: int = -1  # Process ID of the process that last accessed the table.
 
     def table(self) -> Table:
-        if self._table is None:
+        pid = os.getpid()
+        if pid != self._pid or self._table is None:
+            # Re-initialize the table if the process ID has changed or if the table is
+            # not initialized yet.
+            self._pid = pid
             self._table = _mmap_table_from_file(mmap_filepath=self._path)
         return self._table
 
