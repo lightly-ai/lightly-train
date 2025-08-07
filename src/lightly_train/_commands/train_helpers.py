@@ -359,11 +359,11 @@ def get_epochs(
     elif method_args_cls.default_steps is not None:
         logger.debug(f"Using default steps {method_args_cls.default_steps}.")
         # Calculate epochs from steps.
-        epochs = math.ceil(method_args_cls.default_steps * batch_size / dataset_size)
+        _epochs = math.ceil(method_args_cls.default_steps * batch_size / dataset_size)
         logger.debug(
             f"Calculated epochs {epochs} from steps {method_args_cls.default_steps}."
         )
-        return epochs
+        return _epochs
     else:
         raise ValueError(
             f"An unexpected error occurred while determining the number of epochs for method '{method_args_cls.__name__}'. "
