@@ -77,7 +77,10 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     metric_log_classwise: bool = True
     metric_log_debug: bool = False
 
-    def resolve_auto(self, total_steps: int, model_name: str) -> None:
+    def resolve_auto(self, total_steps: int, **kwargs: Any) -> None:
+        # Get the model name.
+        model_name = kwargs["model_name"]
+
         if self.num_joint_blocks == "auto":
             # Set the dict to match scale to num_joint_blocks.
             scale_to_num_joint_blocks = {
@@ -89,7 +92,7 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
             # Set the num_joint_blocks based on the scale.
             model_name = model_name.split("/", maxsplit=1)[-1]
-            scale_index = model_name.find("vit")
+            scale_index = model_name.lower().find("vit")
             assert scale_index != -1, (
                 "The model name is expected to contain the string 'vit'."
             )
