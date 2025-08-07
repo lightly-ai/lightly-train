@@ -47,7 +47,7 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     num_queries: int = 100  # Default for ADE20K
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
-    num_joint_blocks: int = 4
+    num_joint_blocks: int | Literal["auto"] = "auto"
 
     # Loss terms
     loss_num_points: int = 12544
@@ -77,7 +77,29 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     metric_log_classwise: bool = True
     metric_log_debug: bool = False
 
-    def resolve_auto(self, total_steps: int) -> None:
+    def resolve_auto(self, total_steps: int, model_name: str) -> None:
+        if self.num_joint_blocks == "auto":
+            # Set the dict to match scale to num_joint_blocks.
+            scale_to_num_joint_blocks = {
+                "s": 3,
+                "b": 3,
+                "l": 4,
+                "g": 5,
+            }
+
+            # Set the num_joint_blocks based on the scale.
+            model_name = model_name.split("/", maxsplit=1)[-1]
+            scale_index = model_name.find("vit")
+            assert scale_index != -1, (
+                "The model name is expected to contain the string 'vit'."
+            )
+            scale_index += 3  # End of the string "vit"
+            scale = model_name[scale_index]
+            assert scale in scale_to_num_joint_blocks, (
+                "Expected model name format: '<PACKAGE>/vit{s|b|l|g}...'."
+            )
+            self.num_joint_blocks = scale_to_num_joint_blocks[scale]
+
         # Infer the number of training phases from the number of joint blocks.
         num_training_phases = self.num_joint_blocks + 2
 
