@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import re
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -80,28 +81,18 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     def resolve_auto(self, total_steps: int, **kwargs: Any) -> None:
         # Get the model name.
         model_name = kwargs["model_name"]
+        assert model_name is not None
 
         if self.num_joint_blocks == "auto":
-            # Set the dict to match scale to num_joint_blocks.
-            scale_to_num_joint_blocks = {
-                "s": 3,
-                "b": 3,
-                "l": 4,
-                "g": 5,
-            }
-
-            # Set the num_joint_blocks based on the scale.
-            model_name = model_name.split("/", maxsplit=1)[-1]
-            scale_index = model_name.lower().find("vit")
-            assert scale_index != -1, (
-                "The model name is expected to contain the string 'vit'."
-            )
-            scale_index += 3  # End of the string "vit"
-            scale = model_name[scale_index]
-            assert scale in scale_to_num_joint_blocks, (
-                "Expected model name format: '<PACKAGE>/vit{s|b|l|g}...'."
-            )
-            self.num_joint_blocks = scale_to_num_joint_blocks[scale]
+            match = re.match(r"(dinov2(?:_vit)?)/(vit[slbg]).*", model_name)
+            assert match is not None, f"Could not parse model size from model_name='{model_name}'"
+            model_size = match.group(1)
+            self.num_joint_blocks = {
+                "vits": 3,
+                "vitb": 3,
+                "vitl": 4,
+                "vitg": 5,
+            }[model_size]
 
         # Infer the number of training phases from the number of joint blocks.
         num_training_phases = self.num_joint_blocks + 2
@@ -143,6 +134,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         self.model_args = model_args
+        assert isinstance(model_args.num_joint_blocks, int)
 
         self.model = DINOv2EoMTSemanticSegmentation(
             # TODO(Guarin, 10/25): Make configurable and pass all args.
@@ -228,6 +220,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     def training_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch, step: int
     ) -> TaskStepResult:
+        assert isinstance(self.model_args.num_joint_blocks, int)
         images = batch["image"]
         masks = batch["mask"]
         targets = batch["target"]
@@ -317,6 +310,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     def validation_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
     ) -> TaskStepResult:
+        assert isinstance(self.model_args.num_joint_blocks, int)
         images = batch["image"]
         masks = batch["mask"]
         targets = batch["target"]
