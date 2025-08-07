@@ -88,7 +88,8 @@ class MemoryMappedSequence(Sequence[T], Generic[T]):
         #   table reference is shared as the table is re-initialized in the new process
         #   when the first item is accessed.
         self._table: Table | None = None
-        self._pid: int = -1  # Process ID of the process that last accessed the table.
+        # Process ID of the process that last accessed the table.
+        self._pid: int | None = None
 
     def table(self) -> Table:
         pid = os.getpid()
