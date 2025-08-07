@@ -44,7 +44,7 @@ def memory_mapped_sequence_from_file(
     logger.debug(
         f"Creating memory mapped sequence with {table.num_rows} '{column_name}'."
     )
-    return MemoryMappedSequence(table=table, path=mmap_filepath, column=column_name)
+    return MemoryMappedSequence(path=mmap_filepath, column=column_name)
 
 
 class MemoryMappedSequence(Sequence[T], Generic[T]):
@@ -62,26 +62,39 @@ class MemoryMappedSequence(Sequence[T], Generic[T]):
 
     def __init__(
         self,
-        table: Table,
         path: Path,
         column: str,
     ):
         """Instantiates a new memory mapped sequence from a table and path.
 
         Args:
-            table:
-                The PyArrow table.
             path:
                 The path to the PyArrow file.
             column:
                 The relevant column in the table.
         """
-        self._table = table
         self._path = path
         self._column = column
+        # The table is lazily loaded from the file when the sequence is accessed. This
+        # makes sure that the table is only initialized inside the dataloader and not
+        # when the dataset is first created. This avoids sharing table references
+        # between processes. The following scenarios are covered:
+        # - Dataloader processes are created with "spawn" method:
+        #   __setstate__ is called which initializes the instance again, setting the
+        #   table to None.
+        # - Dataloader processes are created with "fork" method:
+        #   __setstate__ is NOT called as the dataset is not pickled. Instead the memory
+        #   space for the dataset from the main process is copied. In this case, no
+        #   table reference is shared as long as the sequence has not been accessed yet.
+        self._table: Table | None = None
+
+    def table(self) -> Table:
+        if self._table is None:
+            self._table = _mmap_table_from_file(mmap_filepath=self._path)
+        return self._table
 
     def __len__(self) -> int:
-        num_rows: int = self._table.num_rows
+        num_rows: int = self.table().num_rows
         return num_rows
 
     @overload
@@ -92,10 +105,10 @@ class MemoryMappedSequence(Sequence[T], Generic[T]):
 
     def __getitem__(self, index: int | slice) -> T | Sequence[T]:
         if isinstance(index, int):
-            item_: T = self._table.column(self._column)[index].as_py()
+            item_: T = self.table().column(self._column)[index].as_py()
             return item_
         else:
-            items: Sequence[T] = self._table.column(self._column)[index].to_pylist()
+            items: Sequence[T] = self.table().column(self._column)[index].to_pylist()
             return items
 
     def __getstate__(self) -> dict[str, Any]:
@@ -104,8 +117,7 @@ class MemoryMappedSequence(Sequence[T], Generic[T]):
     def __setstate__(self, state: dict[str, Any]) -> None:
         column = state["column"]
         path = state["path"]
-        table = _mmap_table_from_file(path)
-        MemoryMappedSequence.__init__(self, table=table, path=path, column=column)
+        MemoryMappedSequence.__init__(self, path=path, column=column)
 
 
 def _stream_write_table_to_file(

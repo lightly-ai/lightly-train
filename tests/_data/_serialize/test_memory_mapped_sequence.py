@@ -78,20 +78,17 @@ class TestMemoryMappedSequence:
                     }
                 )
             )
-        with pa.memory_map(str(mmap_filepath.resolve())) as source:
-            table = ipc.open_file(source).read_all()
-
         # Create a sequence from each column.
         str_sequence: MemoryMappedSequence[str] = MemoryMappedSequence(
-            table=table, path=mmap_filepath, column="column1"
+            path=mmap_filepath, column="column1"
         )
         assert str_sequence[:] == ["hello", "world"]
         int_sequence: MemoryMappedSequence[int] = MemoryMappedSequence(
-            table=table, path=mmap_filepath, column="column2"
+            path=mmap_filepath, column="column2"
         )
         assert int_sequence[:] == [1, 2]
         float_sequence: MemoryMappedSequence[float] = MemoryMappedSequence(
-            table=table, path=mmap_filepath, column="column3"
+            path=mmap_filepath, column="column3"
         )
         assert float_sequence[:] == [0.1, 0.2]
 
