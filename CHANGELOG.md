@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   You can continue using models without registers with the `-noreg` suffix:
   `dinov2/vits14-noreg`.
 - Default teacher name in distillation methods.
+- LightlyTrain now infers the best number of epochs based on the chosen method, dataset size and batch size.
 
 ### Deprecated
 
