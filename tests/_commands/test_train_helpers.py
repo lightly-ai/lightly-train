@@ -306,12 +306,17 @@ def test_get_optimizer_args(
 @pytest.mark.parametrize(
     "dataset, expected",
     [
-        (FakeData(size=2), ScalingInfo(dataset_size=2, epochs=100)),
-        (iter(FakeData(size=2)), ScalingInfo(dataset_size=IMAGENET_SIZE, epochs=100)),
+        (FakeData(size=2), 2),
+        (iter(FakeData(size=2)), IMAGENET_SIZE),
     ],
 )
-def test_get_scaling_info(dataset: Dataset[DatasetItem], expected: ScalingInfo) -> None:
-    assert train_helpers.get_scaling_info(dataset=dataset, epochs=100) == expected
+def test_dataset_size(dataset: Dataset[DatasetItem], expected: int) -> None:
+    assert train_helpers.get_dataset_size(dataset=dataset) == expected
+
+
+def test_get_scaling_info() -> None:
+    expected = ScalingInfo(dataset_size=100, epochs=10)
+    assert train_helpers.get_scaling_info(dataset_size=100, epochs=10) == expected
 
 
 @pytest.mark.parametrize(
@@ -356,6 +361,45 @@ def test_get_method() -> None:
     assert method.global_batch_size == 1
     assert method.embedding_model == embedding_model
     assert method.optimizer_args == AdamWArgs()
+
+
+# Test for SimCLR and DINOv2 methods.
+@pytest.mark.parametrize(
+    "method,passed_epochs,dataset_size,passed_batch_size,expected_epochs",
+    [
+        ("simclr", 10, 32, 100_000, 10),
+        ("simclr", "auto", 256, 100_000, 100),
+        (
+            "dinov2",
+            "auto",
+            1_000_000,
+            32,
+            4,  # 125_000 * 32 / 1_000_000 = 4
+        ),
+        (
+            "dinov2",
+            "auto",
+            10_000,
+            1024,
+            12800,  # 125_000 * 1024 / 10_000 = 12800
+        ),
+        ("dinov2", 10, 1, 100_000, 10),
+    ],
+)
+def test_get_epochs(
+    method: str,
+    passed_epochs: int | Literal["auto"],
+    dataset_size: int,
+    passed_batch_size: int,
+    expected_epochs: int,
+) -> None:
+    epochs = train_helpers.get_epochs(
+        method=method,
+        epochs=passed_epochs,
+        batch_size=passed_batch_size,
+        dataset_size=dataset_size,
+    )
+    assert epochs == expected_epochs
 
 
 @pytest.mark.parametrize(

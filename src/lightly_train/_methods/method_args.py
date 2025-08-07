@@ -20,7 +20,8 @@ class MethodArgs(PydanticConfig):
     This does not include optimizer or scheduler arguments.
     """
 
-    default_steps: ClassVar[int] = 1000
+    default_steps: ClassVar[int | None] = None
+    default_epochs: ClassVar[int | None] = 100
 
     lr_scale_method: Literal["linear", "sqrt"] = "linear"
     reference_batch_size: int = 256
