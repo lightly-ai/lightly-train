@@ -32,6 +32,9 @@ from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model import (
+    DINOv2EoMTSemanticSegmentation,
+)
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrainArgs,
@@ -307,17 +310,34 @@ def get_train_model(
     model_name: str,
     model_args: TrainModelArgs,
     data_args: MaskSemanticSegmentationDataArgs,
+    val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
 ) -> TrainModel:
-    package, model = model_name.split("/", maxsplit=1)
-    if package == "dinov2_vit":  # For backwards compatibility
-        package = "dinov2"
-    if package != "dinov2":
+    package_name, model_name = model_name.split("/", maxsplit=1)
+    if package_name == "dinov2_vit":  # For backwards compatibility
+        package_name = "dinov2"
+    if package_name != "dinov2":
         raise ValueError(
             f"Unsupported model '{model_name}'. Only 'dinov2' models are supported."
         )
     assert isinstance(model_args, DINOv2EoMTSemanticSegmentationTrainArgs)
+    model = DINOv2EoMTSemanticSegmentation(
+        # TODO(Guarin, 10/25): Make configurable and pass all args.
+        model_name=model_name,
+        classes=data_args.included_classes,
+        class_ignore_index=(
+            data_args.ignore_index if data_args.ignore_classes else None
+        ),
+        image_size=val_transform_args.image_size,
+        image_normalize=val_transform_args.normalize.model_dump(),
+        num_queries=model_args.num_queries,
+        num_joint_blocks=model_args.num_joint_blocks,
+        backbone_weights=model_args.backbone_weights,
+        backbone_args={
+            "drop_path_rate": model_args.drop_path_rate,
+        },
+    )
     return DINOv2EoMTSemanticSegmentationTrain(
-        model_args=model_args, model_name=model, data_args=data_args
+        model_args=model_args, model=model, data_args=data_args
     )
 
 

@@ -100,7 +100,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     def __init__(
         self,
         *,
-        model_name: str,
+        model: DINOv2EoMTSemanticSegmentation,
         model_args: DINOv2EoMTSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
     ) -> None:
@@ -118,23 +118,8 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         self.model_args = model_args
+        self.model = model
 
-        self.model = DINOv2EoMTSemanticSegmentation(
-            # TODO(Guarin, 10/25): Make configurable and pass all args.
-            # We probably don't want to instantiate the model here. Either we pass it
-            # from the outside or we use a setup function (might be useful for FSDP).
-            model_name=model_name,
-            classes=data_args.included_classes,
-            class_ignore_index=(
-                data_args.ignore_index if data_args.ignore_classes else None
-            ),
-            num_queries=model_args.num_queries,
-            num_joint_blocks=model_args.num_joint_blocks,
-            backbone_weights=model_args.backbone_weights,
-            backbone_args={
-                "drop_path_rate": model_args.drop_path_rate,
-            },
-        )
         self.criterion = MaskClassificationLoss(
             num_points=model_args.loss_num_points,
             oversample_ratio=model_args.loss_oversample_ratio,
