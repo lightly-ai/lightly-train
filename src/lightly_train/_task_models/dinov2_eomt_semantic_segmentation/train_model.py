@@ -85,7 +85,9 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
         if self.num_joint_blocks == "auto":
             match = re.match(r"(dinov2(?:_vit)?)/(vit[slbg]).*", model_name)
-            assert match is not None, f"Could not parse model size from model_name='{model_name}'"
+            assert match is not None, (
+                f"Could not parse model size from model_name='{model_name}'"
+            )
             model_size = match.group(1)
             self.num_joint_blocks = {
                 "vits": 3,
