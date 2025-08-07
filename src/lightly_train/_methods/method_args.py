@@ -6,7 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -19,6 +19,8 @@ class MethodArgs(PydanticConfig):
 
     This does not include optimizer or scheduler arguments.
     """
+
+    default_steps: ClassVar[int] = 1000
 
     lr_scale_method: Literal["linear", "sqrt"] = "linear"
     reference_batch_size: int = 256

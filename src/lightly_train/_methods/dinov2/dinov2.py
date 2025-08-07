@@ -11,7 +11,7 @@ import copy
 import logging
 import math
 from functools import partial
-from typing import Any, Literal, Mapping
+from typing import Any, ClassVar, Literal, Mapping
 
 import torch
 from lightly.loss import (
@@ -72,6 +72,8 @@ class DINOv2Args(MethodArgs):
 
     See: https://github.com/facebookresearch/dinov2/tree/main?tab=readme-ov-file#training
     """
+
+    default_steps: ClassVar[int] = 125_000
 
     # projection head
     # False/True for fast/long setup in original DINOv2

@@ -277,16 +277,24 @@ def get_optimizer_args(
     return validate.pydantic_model_validate(optim_args_cls, optim_args)
 
 
-def get_scaling_info(
+def get_dataset_size(
     dataset: Dataset[DatasetItem],
-    epochs: int,
-) -> ScalingInfo:
+) -> int:
     if isinstance(dataset, Sized):
         dataset_size = len(dataset)
+        logger.debug(f"Found dataset size {dataset_size}.")
     else:
-        logger.debug("Dataset does not have a length. Using default dataset size")
+        logger.debug(
+            f"Dataset does not have a length. Using default dataset size {IMAGENET_SIZE}."
+        )
         dataset_size = IMAGENET_SIZE
-    logger.debug(f"Found dataset size {dataset_size}.")
+    return dataset_size
+
+
+def get_scaling_info(
+    dataset_size: int,
+    epochs: int,
+) -> ScalingInfo:
     return ScalingInfo(dataset_size=dataset_size, epochs=epochs)
 
 
@@ -325,6 +333,18 @@ def get_method(
         embedding_model=embedding_model,
         global_batch_size=global_batch_size,
     )
+
+
+def get_epochs(
+    method: str, epochs: int | Literal["auto"], dataset_size: int, batch_size: int
+) -> int:
+    method_cls = method_helpers.get_method_cls(method)
+    if epochs == "auto":
+        if method_cls.default_epochs is not None:
+            logger.debug(
+                f"Using default epochs {method_cls.default_epochs} for method '{method_cls.__name__}'."
+            )
+            return method_cls.default_epochs
 
 
 def load_checkpoint(
