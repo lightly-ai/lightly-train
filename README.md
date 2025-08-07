@@ -208,7 +208,7 @@ LightlyTrain is complementary to existing pretrained models and can start from e
 
 </details>
 
-Check our [complete FAQ](https://docs.lightly.ai/train/faq.html) for more information.
+Check our [complete FAQ](https://docs.lightly.ai/train/stable/faq.html) for more information.
 
 ## License
 
