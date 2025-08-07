@@ -32,7 +32,6 @@ if __name__ == "__main__":
         data="my_data_dir",
         model="dinov2/vitb14",
         method="dinov2",
-        epochs=100,
     )
 ````
 

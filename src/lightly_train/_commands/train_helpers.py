@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any, Literal, Sized
+import math
 
 from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
@@ -350,21 +351,21 @@ def get_epochs(
 
     if epochs != "auto":
         logger.debug(
-            f"Using provided epochs {epochs} for method '{method_args_cls.__name__}'."
+            f"Using provided epochs {epochs}."
         )
         return epochs
 
     if method_args_cls.default_epochs is not None:
         logger.debug(
-            f"Using default epochs {method_args_cls.default_epochs} for method '{method_args_cls.__name__}'."
+            f"Using default epochs {method_args_cls.default_epochs}."
         )
         return method_args_cls.default_epochs
     elif method_args_cls.default_steps is not None:
         logger.debug(
-            f"Using default steps {method_args_cls.default_steps} for method '{method_args_cls.__name__}'."
+            f"Using default steps {method_args_cls.default_steps}."
         )
         # Calculate epochs from steps.
-        epochs = method_args_cls.default_steps * batch_size // dataset_size
+        epochs = math.ceil(method_args_cls.default_steps * batch_size / dataset_size)
         logger.debug(
             f"Calculated epochs {epochs} from steps {method_args_cls.default_steps}."
         )
