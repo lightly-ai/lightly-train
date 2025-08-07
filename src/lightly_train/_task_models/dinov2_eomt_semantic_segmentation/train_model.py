@@ -151,7 +151,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 data_args.ignore_index if data_args.ignore_classes else None
             ),
             num_queries=model_args.num_queries,
-            num_joint_blocks=model_args.num_joint_blocks,
+            num_joint_blocks=no_auto(model_args.num_joint_blocks),
             backbone_weights=model_args.backbone_weights,
             backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
