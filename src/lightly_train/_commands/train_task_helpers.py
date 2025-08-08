@@ -302,12 +302,13 @@ def get_train_model_args(
     model_args: dict[str, Any] | TrainModelArgs | None,
     model_args_cls: type[TrainModelArgs],
     total_steps: int,
+    model_name: str,
 ) -> TrainModelArgs:
     if isinstance(model_args, TrainModelArgs):
         return model_args
     model_args = {} if model_args is None else model_args
     args = validate.pydantic_model_validate(model_args_cls, model_args)
-    args.resolve_auto(total_steps=total_steps)
+    args.resolve_auto(total_steps=total_steps, model_name=model_name)
     return args
 
 
