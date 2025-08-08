@@ -22,6 +22,7 @@ from lightly_train._data import file_helpers
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import (
+    BinaryMasksDict,
     ImageFilename,
     MaskSemanticSegmentationDatasetItem,
     PathLike,
@@ -109,7 +110,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
     def __len__(self) -> int:
         return len(self.image_filenames)
 
-    def get_binary_masks(self, mask: Tensor) -> dict[str, Tensor]:
+    def get_binary_masks(self, mask: Tensor) -> BinaryMasksDict:
         # This follows logic from:
         # https://github.com/tue-mps/eomt/blob/716cbd562366b9746804579b48b866da487d9485/datasets/ade20k_semantic.py#L47-L48
 
@@ -129,12 +130,11 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             # Store the class label.
             img_labels.append(self.class_mapping[class_id])
 
-        # Store the targets.
-        targets = {
+        binary_masks: BinaryMasksDict = {
             "masks": torch.stack(img_masks),
             "labels": mask.new_tensor(img_labels, dtype=torch.long),
         }
-        return targets
+        return binary_masks
 
     def remap_mask(self, mask: torch.Tensor) -> torch.Tensor:
         # Create a lookup table initialized with ignore_index
@@ -181,7 +181,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Get binary masks.
         # TODO(Thomas, 07/25): Make this optional.
-        target = self.get_binary_masks(transformed["mask"])
+        binary_masks = self.get_binary_masks(transformed["mask"])
 
         # Mark pixels to ignore in the masks.
         # TODO(Thomas, 07/25): Make this optional.
@@ -192,7 +192,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             "image_path": str(image_path),  # Str for torch dataloader compatibility.
             "image": transformed["image"],
             "mask": transformed_mask,
-            "target": target,
+            "binary_masks": binary_masks,
         }
 
 

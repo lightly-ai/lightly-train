@@ -48,7 +48,12 @@ from lightly_train._task_models.train_model import (
 )
 from lightly_train._train_task_state import TrainTaskState
 from lightly_train._transforms.task_transform import TaskTransform
-from lightly_train.types import PathLike, TaskDatasetItem
+from lightly_train.types import (
+    MaskSemanticSegmentationBatch,
+    MaskSemanticSegmentationDatasetItem,
+    PathLike,
+    TaskDatasetItem,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -201,14 +206,16 @@ def get_dataset(
         dataset_args=dataset_args, image_filenames=filenames, transform=transform
     )
 
-
-def collate_fn(batch: list[dict[str, Any]], split: str) -> dict[str, Any]:
+# TODO(Guarin, 08/25): Move this to function to the _data module.
+def collate_fn(
+    batch: list[MaskSemanticSegmentationDatasetItem], split: str
+) -> MaskSemanticSegmentationBatch:
     # Prepare the batch without any stacking.
-    out: dict[str, Any] = {
-        "image_paths": [item["image_path"] for item in batch],
+    out: MaskSemanticSegmentationBatch = {
+        "image_path": [item["image_path"] for item in batch],
         "image": [item["image"] for item in batch],
         "mask": [item["mask"] for item in batch],
-        "target": [item["target"] for item in batch],
+        "binary_masks": [item["binary_masks"] for item in batch],
     }
 
     # During training images and masks all have the same shape.
