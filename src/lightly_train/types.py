@@ -23,6 +23,8 @@ PackageModel = Any
 
 # Types for the new transforms.
 NDArrayImage = NDArray[np.uint8]
+NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
+NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
 
 
 class TransformInput(TypedDict):
@@ -88,7 +90,7 @@ class ObjectDetectionDatasetItem(TypedDict):
     image_path: PathLike
     image: Tensor
     bboxes: Tensor  # Of shape (n_boxes, 4) with (x_center, y_center, w, h) coordinates.
-    classes: Tensor  # Of shape (n_boxes, 1) with class labels.
+    classes: Tensor  # Of shape (n_boxes,) with class labels.
 
 
 # Replaces torch.optim.optimizer.ParamsT
