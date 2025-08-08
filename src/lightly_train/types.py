@@ -84,6 +84,13 @@ class MaskSemanticSegmentationBatch(TypedDict):
     target: list[dict[str, Tensor]]
 
 
+class ObjectDetectionDatasetItem(TypedDict):
+    image_path: PathLike
+    image: Tensor
+    bboxes: Tensor  # Of shape (n_boxes, 4) with (x_center, y_center, w, h) coordinates.
+    classes: Tensor  # Of shape (n_boxes, 1) with class labels.
+
+
 # Replaces torch.optim.optimizer.ParamsT
 # as it is only available in torch>=v2.2.
 # Importing it conditionally cannot make typing work for both older
