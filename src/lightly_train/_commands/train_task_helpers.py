@@ -206,6 +206,7 @@ def get_dataset(
         dataset_args=dataset_args, image_filenames=filenames, transform=transform
     )
 
+
 # TODO(Guarin, 08/25): Move this to function to the _data module.
 def collate_fn(
     batch: list[MaskSemanticSegmentationDatasetItem], split: str
