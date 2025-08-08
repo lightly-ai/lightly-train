@@ -135,7 +135,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         self.model_args = model_args
-        assert isinstance(model_args.num_joint_blocks, int)
+        num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
 
         self.model = DINOv2EoMTSemanticSegmentation(
             # TODO(Guarin, 10/25): Make configurable and pass all args.
@@ -147,7 +147,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 data_args.ignore_index if data_args.ignore_classes else None
             ),
             num_queries=model_args.num_queries,
-            num_joint_blocks=no_auto(model_args.num_joint_blocks),
+            num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
             backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
@@ -193,7 +193,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                     prefix="_",
                     labels=class_labels,
                 )
-                for _ in range(model_args.num_joint_blocks + 1)
+                for _ in range(num_joint_blocks + 1)
             ]
         )
         self.val_classwise_iou = ModuleList(
@@ -211,7 +211,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                     prefix="_",
                     labels=class_labels,
                 )
-                for _ in range(model_args.num_joint_blocks + 1)
+                for _ in range(num_joint_blocks + 1)
             ]
         )
 
@@ -221,7 +221,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     def training_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch, step: int
     ) -> TaskStepResult:
-        assert isinstance(self.model_args.num_joint_blocks, int)
+        num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
         masks = batch["mask"]
         targets = batch["target"]
@@ -236,7 +236,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         losses = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
-            range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
+            range(num_blocks - num_joint_blocks, num_blocks + 1),
             mask_logits_per_layer,
             class_logits_per_layer,
         ):
@@ -276,7 +276,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         }
         if self.model_args.metric_log_classwise or self.model_args.metric_log_debug:
             for block_idx, metric in zip(
-                range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
+                range(num_blocks - num_joint_blocks, num_blocks + 1),
                 self.train_classwise_iou,
             ):
                 block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
@@ -286,7 +286,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
             mask_prob_dict = {
-                f"attention_mask_probability/block{block_idx + num_blocks - self.model_args.num_joint_blocks}": value
+                f"attention_mask_probability/block{block_idx + num_blocks - num_joint_blocks}": value
                 for block_idx, value in enumerate(self.model.attn_mask_probs)
             }
 
@@ -311,7 +311,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     def validation_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
     ) -> TaskStepResult:
-        assert isinstance(self.model_args.num_joint_blocks, int)
+        num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
         masks = batch["mask"]
         targets = batch["target"]
@@ -345,7 +345,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         for i, (block_idx, mask_logits, class_logits) in enumerate(
             zip(
                 # Add +1 to num_blocks for final output.
-                range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
+                range(num_blocks - num_joint_blocks, num_blocks + 1),
                 mask_logits_per_layer,
                 class_logits_per_layer,
             )
@@ -399,7 +399,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         }
         if self.model_args.metric_log_classwise or self.model_args.metric_log_debug:
             for block_idx, metric in zip(
-                range(num_blocks - self.model_args.num_joint_blocks, num_blocks + 1),
+                range(num_blocks - num_joint_blocks, num_blocks + 1),
                 self.val_classwise_iou,
             ):
                 block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
