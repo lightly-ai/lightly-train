@@ -32,9 +32,6 @@ from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model import (
-    DINOv2EoMTSemanticSegmentation,
-)
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrainArgs,
@@ -178,20 +175,32 @@ def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
     return args_dict
 
 
-def get_train_transform(ignore_index: int) -> TaskTransform:
-    return DINOv2SemanticSegmentationTrainTransform(
-        DINOv2SemanticSegmentationTrainTransformArgs(
-            ignore_index=ignore_index,
-        )
+def get_train_transform_args(
+    ignore_index: int,
+) -> DINOv2SemanticSegmentationTrainTransformArgs:
+    return DINOv2SemanticSegmentationTrainTransformArgs(
+        ignore_index=ignore_index,
     )
 
 
-def get_val_transform(ignore_index: int) -> TaskTransform:
-    return DINOv2SemanticSegmentationValTransform(
-        DINOv2SemanticSegmentationValTransformArgs(
-            ignore_index=ignore_index,
-        )
+def get_train_transform(
+    train_transform_args: DINOv2SemanticSegmentationTrainTransformArgs,
+) -> TaskTransform:
+    return DINOv2SemanticSegmentationTrainTransform(train_transform_args)
+
+
+def get_val_transform_args(
+    ignore_index: int,
+) -> DINOv2SemanticSegmentationValTransformArgs:
+    return DINOv2SemanticSegmentationValTransformArgs(
+        ignore_index=ignore_index,
     )
+
+
+def get_val_transform(
+    val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
+) -> TaskTransform:
+    return DINOv2SemanticSegmentationValTransform(val_transform_args)
 
 
 def get_dataset(
@@ -320,24 +329,12 @@ def get_train_model(
             f"Unsupported model '{model_name}'. Only 'dinov2' models are supported."
         )
     assert isinstance(model_args, DINOv2EoMTSemanticSegmentationTrainArgs)
-    model = DINOv2EoMTSemanticSegmentation(
-        # TODO(Guarin, 10/25): Make configurable and pass all args.
-        model_name=model_name,
-        classes=data_args.included_classes,
-        class_ignore_index=(
-            data_args.ignore_index if data_args.ignore_classes else None
-        ),
-        image_size=val_transform_args.image_size,
-        image_normalize=val_transform_args.normalize.model_dump(),
-        num_queries=model_args.num_queries,
-        num_joint_blocks=model_args.num_joint_blocks,
-        backbone_weights=model_args.backbone_weights,
-        backbone_args={
-            "drop_path_rate": model_args.drop_path_rate,
-        },
-    )
+
     return DINOv2EoMTSemanticSegmentationTrain(
-        model_args=model_args, model=model, data_args=data_args
+        model_args=model_args,
+        model_name=model_name,
+        data_args=data_args,
+        val_transform_args=val_transform_args,
     )
 
 

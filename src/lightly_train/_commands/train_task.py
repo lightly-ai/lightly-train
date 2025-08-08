@@ -222,8 +222,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     )
 
     # TODO(Guarin, 07/25): Allow passing transform args.
-    train_transform = helpers.get_train_transform(ignore_index=config.data.ignore_index)
-    val_transform = helpers.get_val_transform(ignore_index=config.data.ignore_index)
+    train_transform_args = helpers.get_train_transform_args(
+        ignore_index=config.data.ignore_index
+    )
+    val_transform_args = helpers.get_val_transform_args(
+        ignore_index=config.data.ignore_index
+    )
+    train_transform = helpers.get_train_transform(train_transform_args)
+    val_transform = helpers.get_val_transform(val_transform_args)
 
     train_dataset = helpers.get_dataset(
         dataset_args=config.data.get_train_args(),
@@ -294,6 +300,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         model_name=config.model,
         model_args=config.model_args,
         data_args=config.data,
+        val_transform_args=val_transform_args,
     )
     # Set train mode to make sure that all parameters are in the correct state before
     # the optimizer is initialized.

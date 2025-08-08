@@ -28,6 +28,9 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scheduler impo
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model import (
     DINOv2EoMTSemanticSegmentation,
 )
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
+    DINOv2SemanticSegmentationValTransformArgs,
+)
 from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
@@ -100,9 +103,10 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     def __init__(
         self,
         *,
-        model: DINOv2EoMTSemanticSegmentation,
+        model_name: str,
         model_args: DINOv2EoMTSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
+        val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
@@ -118,7 +122,23 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         self.model_args = model_args
-        self.model = model
+
+        self.model = DINOv2EoMTSemanticSegmentation(
+            # TODO(Guarin, 10/25): Make configurable and pass all args.
+            model_name=model_name,
+            classes=data_args.included_classes,
+            class_ignore_index=(
+                data_args.ignore_index if data_args.ignore_classes else None
+            ),
+            image_size=val_transform_args.image_size,
+            image_normalize=val_transform_args.normalize.model_dump(),
+            num_queries=model_args.num_queries,
+            num_joint_blocks=model_args.num_joint_blocks,
+            backbone_weights=model_args.backbone_weights,
+            backbone_args={
+                "drop_path_rate": model_args.drop_path_rate,
+            },
+        )
 
         self.criterion = MaskClassificationLoss(
             num_points=model_args.loss_num_points,
