@@ -57,6 +57,7 @@ class ImageDataset(Dataset[DatasetItem]):
             mask = file_helpers.open_image_numpy(self.mask_dir / maskname, mode="L")
             input["mask"] = mask
 
+        # (H, W, C) -> (C, H, W)
         transformed = self.transform(input)
 
         dataset_item: DatasetItem = {

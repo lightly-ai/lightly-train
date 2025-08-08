@@ -99,6 +99,7 @@ def _torchvision_supported_image_extensions() -> set[str]:
 
 
 def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
+    """Returns image as (C, H, W) tensor."""
     if isinstance(image, Tensor):
         return image
     elif isinstance(image, PILImage):
@@ -109,6 +110,7 @@ def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
 
 
 def open_image_tensor(image_path: Path) -> Tensor:
+    """Returns image as (C, H, W) tensor."""
     image: Tensor
     if image_path.suffix.lower() in _torchvision_supported_image_extensions():
         image = io.read_image(str(image_path), mode=ImageReadMode.RGB)
@@ -122,6 +124,7 @@ def open_image_numpy(
     image_path: Path,
     mode: Literal["RGB", "L", "UNCHANGED", "MASK"] = "RGB",
 ) -> NDArrayImage:
+    """Returns image as (H, W, C) numpy array."""
     image_np: NDArray[np.uint8]
     if image_path.suffix.lower() in _torchvision_supported_image_extensions():
         mode_torch = {
