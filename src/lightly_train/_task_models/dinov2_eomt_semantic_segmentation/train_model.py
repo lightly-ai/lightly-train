@@ -78,11 +78,7 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     metric_log_classwise: bool = True
     metric_log_debug: bool = False
 
-    def resolve_auto(self, total_steps: int, **kwargs: Any) -> None:
-        # Get the model name.
-        model_name = kwargs["model_name"]
-        assert model_name is not None
-
+    def resolve_auto(self, total_steps: int, model_name: str) -> None:
         if self.num_joint_blocks == "auto":
             match = re.match(r"(dinov2(?:_vit)?)/(vit[slbg]).*", model_name)
             assert match is not None, (
