@@ -27,7 +27,7 @@ class TrainModelArgs(PydanticConfig):
     default_batch_size: ClassVar[int]
     default_steps: ClassVar[int]
 
-    def resolve_auto(self, total_steps: int) -> None:
+    def resolve_auto(self, total_steps: int, model_name: str) -> None:
         pass
 
 
