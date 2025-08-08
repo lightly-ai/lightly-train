@@ -207,7 +207,7 @@ def get_dataset(
     )
 
 
-# TODO(Guarin, 08/25): Move this to function to the _data module.
+# TODO(Guarin, 08/25): Move this function to the _data module.
 def collate_fn(
     batch: list[MaskSemanticSegmentationDatasetItem], split: str
 ) -> MaskSemanticSegmentationBatch:
