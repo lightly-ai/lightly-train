@@ -166,6 +166,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Re-do the augmentation until the mask is valid.
         mask_is_valid = False
         for _ in range(20):
+            # (H, W, C) -> (C, H, W)
             transformed = self.transform({"image": image, "mask": mask})
             mask_is_valid = self.is_mask_valid(transformed["mask"].numpy())
             if mask_is_valid:
