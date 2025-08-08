@@ -175,20 +175,32 @@ def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
     return args_dict
 
 
-def get_train_transform(ignore_index: int) -> TaskTransform:
-    return DINOv2SemanticSegmentationTrainTransform(
-        DINOv2SemanticSegmentationTrainTransformArgs(
-            ignore_index=ignore_index,
-        )
+def get_train_transform_args(
+    ignore_index: int,
+) -> DINOv2SemanticSegmentationTrainTransformArgs:
+    return DINOv2SemanticSegmentationTrainTransformArgs(
+        ignore_index=ignore_index,
     )
 
 
-def get_val_transform(ignore_index: int) -> TaskTransform:
-    return DINOv2SemanticSegmentationValTransform(
-        DINOv2SemanticSegmentationValTransformArgs(
-            ignore_index=ignore_index,
-        )
+def get_train_transform(
+    train_transform_args: DINOv2SemanticSegmentationTrainTransformArgs,
+) -> TaskTransform:
+    return DINOv2SemanticSegmentationTrainTransform(train_transform_args)
+
+
+def get_val_transform_args(
+    ignore_index: int,
+) -> DINOv2SemanticSegmentationValTransformArgs:
+    return DINOv2SemanticSegmentationValTransformArgs(
+        ignore_index=ignore_index,
     )
+
+
+def get_val_transform(
+    val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
+) -> TaskTransform:
+    return DINOv2SemanticSegmentationValTransform(val_transform_args)
 
 
 def get_dataset(
@@ -308,17 +320,22 @@ def get_train_model(
     model_name: str,
     model_args: TrainModelArgs,
     data_args: MaskSemanticSegmentationDataArgs,
+    val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
 ) -> TrainModel:
-    package, model = model_name.split("/", maxsplit=1)
-    if package == "dinov2_vit":  # For backwards compatibility
-        package = "dinov2"
-    if package != "dinov2":
+    package_name, model_name = model_name.split("/", maxsplit=1)
+    if package_name == "dinov2_vit":  # For backwards compatibility
+        package_name = "dinov2"
+    if package_name != "dinov2":
         raise ValueError(
             f"Unsupported model '{model_name}'. Only 'dinov2' models are supported."
         )
     assert isinstance(model_args, DINOv2EoMTSemanticSegmentationTrainArgs)
+
     return DINOv2EoMTSemanticSegmentationTrain(
-        model_args=model_args, model_name=model, data_args=data_args
+        model_args=model_args,
+        model_name=model_name,
+        data_args=data_args,
+        val_transform_args=val_transform_args,
     )
 
 
