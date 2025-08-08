@@ -296,7 +296,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         images = batch["image"]
         masks = batch["mask"]
         binary_masks = batch["binary_masks"]
-        image_sizes = [image.shape[-2:] for image in images]
+        image_sizes = [(image.shape[-2], image.shape[-1]) for image in images]
 
         # Tile the images.
         crops_list, origins = self.model.tile(images)  # type: ignore[arg-type]

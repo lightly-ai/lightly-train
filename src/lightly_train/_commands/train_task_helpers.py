@@ -212,17 +212,17 @@ def collate_fn(
     batch: list[MaskSemanticSegmentationDatasetItem], split: str
 ) -> MaskSemanticSegmentationBatch:
     # Prepare the batch without any stacking.
+    images = [item["image"] for item in batch]
+    masks = [item["mask"] for item in batch]
+
     out: MaskSemanticSegmentationBatch = {
         "image_path": [item["image_path"] for item in batch],
-        "image": [item["image"] for item in batch],
-        "mask": [item["mask"] for item in batch],
+        # Stack images during training as they all have the same shape.
+        # During validation every image can have a different shape.
+        "image": torch.stack(images) if split == "train" else images,
+        "mask": torch.stack(masks) if split == "train" else masks,
         "binary_masks": [item["binary_masks"] for item in batch],
     }
-
-    # During training images and masks all have the same shape.
-    if split == "train":
-        out["image"] = torch.stack(out["image"])
-        out["mask"] = torch.stack(out["mask"])
 
     return out
 

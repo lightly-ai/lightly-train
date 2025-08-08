@@ -228,7 +228,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     train: SplitArgs
     val: SplitArgs
     classes: dict[int, str]
-    ignore_classes: set[int] | None = None
+    ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
 
     @property
