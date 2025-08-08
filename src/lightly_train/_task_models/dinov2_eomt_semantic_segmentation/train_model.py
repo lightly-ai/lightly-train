@@ -204,7 +204,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch, step: int
     ) -> TaskStepResult:
         images = batch["image"]
-        assert isinstance(images, Tensor)
+        assert isinstance(images, Tensor), "Images must be a single tensor for training"
         masks = batch["mask"]
         binary_masks = batch["binary_masks"]
         _, _, H, W = images.shape
