@@ -190,7 +190,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
         # model.
         x = transforms_functional.resize(x, size=[518])  # (C, H, W) -> (C, H', W')
-        x = x.unsqueeze(0)  # (1, C, H', W')
+        x = self._to_device(x).unsqueeze(0)  # (1, C, H', W')
 
         logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
         if self.class_ignore_index is None:

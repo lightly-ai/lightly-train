@@ -62,6 +62,17 @@ class TaskModel(Module):
         """
         return f"{self.__module__}.{self.__class__.__name__}"
 
+    @property
+    def device(self) -> torch.device:
+        try:
+            return next(self.parameters()).device
+        except StopIteration:
+            return torch.device("cpu")  # no params case
+
+    def _to_device(self, t: Tensor) -> Tensor:
+        # no-op if already on the right device
+        return t.to(self.device, non_blocking=(self.device.type == "cuda"))
+
     def predict(self, image: PathLike | PILImage | Tensor) -> Any:
         """Returns predictions for the given image.
 
