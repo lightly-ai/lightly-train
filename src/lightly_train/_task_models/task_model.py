@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
