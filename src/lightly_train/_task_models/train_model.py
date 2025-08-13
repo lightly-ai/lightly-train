@@ -18,6 +18,7 @@ from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._task_models.task_model import TaskModel
+from lightly_train._transforms.task_transform import TaskTransform
 
 
 class TrainModelArgs(PydanticConfig):
@@ -27,7 +28,10 @@ class TrainModelArgs(PydanticConfig):
     default_batch_size: ClassVar[int]
     default_steps: ClassVar[int]
 
-    def resolve_auto(self, total_steps: int, model_name: str) -> None:
+    train_transform_cls: ClassVar[type[TaskTransform]]
+    val_transform_cls: ClassVar[type[TaskTransform]]
+
+    def resolve_auto(self, total_steps: int) -> None:
         pass
 
 

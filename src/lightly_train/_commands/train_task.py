@@ -289,9 +289,21 @@ def _train_task_from_config(
     config.save_checkpoint_args = helpers.get_save_checkpoint_args(
         checkpoint_args=config.save_checkpoint_args
     )
+    model_args_cls = helpers.get_train_model_args_cls(
+        model_name=config.model, model_args=config.model_args
+    )
+    # TODO(Guarin, 07/25): Allow passing transform args.
+    train_transform_args = helpers.get_train_transform_args(
+        ignore_index=config.data.ignore_index
+    )
+    val_transform_args = helpers.get_val_transform_args(
+        ignore_index=config.data.ignore_index
+    )
+    train_transform = model_args_cls.train_transform_cls(
+        **train_transform_args.model_dump()
+    )
+    val_transform = model_args_cls.val_transform_cls(**val_transform_args.model_dump())
 
-    train_transform = helpers.get_train_transform(ignore_index=config.data.ignore_index)
-    val_transform = helpers.get_val_transform(ignore_index=config.data.ignore_index)
     train_dataset = helpers.get_dataset(
         dataset_args=config.data.get_train_args(),
         transform=train_transform,
@@ -303,9 +315,6 @@ def _train_task_from_config(
 
     logger.info(f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}")
 
-    model_args_cls = helpers.get_train_model_args_cls(
-        model_name=config.model, model_args=config.model_args
-    )
     config.steps = helpers.get_steps(
         steps=config.steps, default_steps=model_args_cls.default_steps
     )
@@ -361,6 +370,7 @@ def _train_task_from_config(
         model_name=config.model,
         model_args=config.model_args,
         data_args=config.data,
+        val_transform_args=val_transform_args,
     )
     # Set train mode to make sure that all parameters are in the correct state before
     # the optimizer is initialized.

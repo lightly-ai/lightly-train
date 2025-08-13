@@ -7,20 +7,37 @@
 #
 from __future__ import annotations
 
-from typing import Dict
+from typing import TypedDict
 
 import numpy as np
+from albumentations import BboxParams
 from numpy.typing import NDArray
+from pydantic import Field
 from torch import Tensor
+from typing_extensions import NotRequired
 
 from lightly_train._configs.config import PydanticConfig
 
-TaskTransformInput = Dict[str, NDArray[np.uint8]]
-TaskTransformOutput = Dict[str, Tensor]
+
+class TaskTransformInput(TypedDict):
+    image: NDArray[np.uint8]
+    mask: NotRequired[NDArray[np.uint8]]
+    bboxes: NotRequired[NDArray[np.float64]]
+    class_labels: NotRequired[NDArray[np.int64]]
+
+
+class TaskTransformOutput(TypedDict):
+    image: Tensor
+    mask: NotRequired[Tensor]
+    bboxes: NotRequired[Tensor]
+    class_labels: NotRequired[Tensor]
 
 
 class TaskTransformArgs(PydanticConfig):
-    pass
+    # We use the YOLO format internally for now.
+    bbox_params: BboxParams = Field(
+        default_factory=lambda: BboxParams(format="yolo", label_fields=["class_labels"])
+    )
 
 
 class TaskTransform:
