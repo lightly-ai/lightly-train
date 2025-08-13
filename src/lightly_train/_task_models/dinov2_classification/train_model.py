@@ -10,12 +10,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import ClassVar
 
+import torch
 from lightning_fabric import Fabric
 from torch import Tensor, nn
 
 from lightly_train._data.classification_dataset import ClassificationDataArgs
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models.train_model import (
-    TaskModel,
     TaskStepResult,
     TrainModel,
     TrainModelArgs,
@@ -45,33 +46,27 @@ class DINOv2Classification(nn.Module):
         drop_path_rate: float = 0.0,
     ) -> None:
         super().__init__()
-        # Import backbone directly (assume available in lightly_train.models)
-        try:
-            from lightly_train.models.dinov2 import DINOv2Backbone
-        except ImportError:
-            # Stub for mypy
-            class DINOv2Backbone(nn.Module):
-                embed_dim: int = 384
 
-                def __init__(self, *args, **kwargs) -> None:
-                    super().__init__()
-
-                def forward(self, x: Tensor) -> Tensor:
-                    return x
-
-        self.backbone = DINOv2Backbone(
-            model_name=model_name,
-            weights=backbone_weights,
-            drop_path_rate=drop_path_rate,
+        backbone_args = {"drop_path_rate": drop_path_rate}
+        backbone_name = model_name
+        self.backbone = DINOV2_VIT_PACKAGE.get_model(
+            model_name=backbone_name,
+            model_args=backbone_args,
         )
         embed_dim = getattr(self.backbone, "embed_dim", 384)
         self.classifier = nn.Linear(embed_dim, num_classes)
+
+        # Load backbone weights if provided
+        if backbone_weights is not None:
+            state_dict = torch.load(backbone_weights, map_location="cpu")
+            self.backbone.load_state_dict(state_dict, strict=False)
 
     def forward(self, x: Tensor) -> Tensor:
         # Assume backbone returns (B, N+1, D), where first token is class token
         tokens = self.backbone(x)  # (B, N+1, D)
         class_token = tokens[:, 0]  # (B, D)
         logits = self.classifier(class_token)  # (B, num_classes)
+        assert isinstance(logits, Tensor)
         return logits
 
 
@@ -92,7 +87,7 @@ class DINOv2ClassificationTrainModel(TrainModel):
         )
         self.criterion = nn.CrossEntropyLoss()
 
-    def get_task_model(self) -> TaskModel:
+    def get_task_model(self) -> DINOv2Classification:
         # Return type must match base class
         return self.model  # type: ignore[return-value]
 

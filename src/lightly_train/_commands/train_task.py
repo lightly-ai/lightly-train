@@ -23,9 +23,6 @@ from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
-from lightly_train._data.classification_dataset import (
-    ClassificationDataArgs,
-)
 from lightly_train._data.infinite_cycle_iterator import InfiniteCycleIterator
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
@@ -234,31 +231,14 @@ def _train_task(
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
-    config_cls: type[TrainTaskConfig] | type[ClassificationTrainTaskConfig]
-    if task == "semantic_segmentation":
-        config_cls = TrainTaskConfig
-    elif task == "classification":
-        config_cls = ClassificationTrainTaskConfig
-    else:
-        raise ValueError(f"Unknown task: {task}")
-
-    config = validate.pydantic_model_validate(config_cls, locals())
+    config = validate.pydantic_model_validate(TrainTaskConfig, locals())
     _train_task_from_config(config=config, task=task)
 
 
 def _train_task_from_config(
-    config: TrainTaskConfig | ClassificationTrainTaskConfig,
-    task: str = "semantic_segmentation",
+    config: TrainTaskConfig,
+    task: str,
 ) -> None:
-    # Ensure config is the correct type for attribute access.
-    if task == "semantic_segmentation":
-        assert isinstance(config, TrainTaskConfig)
-    elif task == "classification":
-        assert isinstance(config, ClassificationTrainTaskConfig)
-    else:
-        raise ValueError(f"Unknown task: {task}")
-
-    config = validate.pydantic_model_validate(type(config), dict(config))
     initial_config = config.model_dump()
     # NOTE(Guarin, 07/25): We add callbacks and loggers later to fabric because we first
     # have to initialize the output directory and some other things. Fabric doesn't
@@ -310,39 +290,16 @@ def _train_task_from_config(
         checkpoint_args=config.save_checkpoint_args
     )
 
-    # Select transforms and datasets based on task
-    if task == "semantic_segmentation":
-        seg_config = config  # type: ignore[assignment]
-        assert isinstance(seg_config, TrainTaskConfig)
-        train_transform = helpers.get_train_transform(
-            ignore_index=seg_config.data.ignore_index
-        )
-        val_transform = helpers.get_val_transform(
-            ignore_index=seg_config.data.ignore_index
-        )
-        train_dataset = helpers.get_dataset(
-            dataset_args=seg_config.data.get_train_args(),
-            transform=train_transform,
-        )
-        val_dataset = helpers.get_dataset(
-            dataset_args=seg_config.data.get_val_args(),
-            transform=val_transform,
-        )
-    elif task == "classification":
-        cls_config = config  # type: ignore[assignment]
-        assert isinstance(cls_config, ClassificationTrainTaskConfig)
-        train_transform = helpers.get_train_transform(ignore_index=-100)
-        val_transform = helpers.get_val_transform(ignore_index=-100)
-        train_dataset = helpers.get_dataset(
-            dataset_args=cls_config.data.get_train_args(),
-            transform=train_transform,
-        )
-        val_dataset = helpers.get_dataset(
-            dataset_args=cls_config.data.get_val_args(),
-            transform=val_transform,
-        )
-    else:
-        raise ValueError(f"Unknown task: {task}")
+    train_transform = helpers.get_train_transform(ignore_index=config.data.ignore_index)
+    val_transform = helpers.get_val_transform(ignore_index=config.data.ignore_index)
+    train_dataset = helpers.get_dataset(
+        dataset_args=config.data.get_train_args(),
+        transform=train_transform,
+    )
+    val_dataset = helpers.get_dataset(
+        dataset_args=config.data.get_val_args(),
+        transform=val_transform,
+    )
 
     logger.info(f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}")
 
@@ -528,7 +485,7 @@ class TrainTaskConfig(PydanticConfig):
     out: PathLike
     data: MaskSemanticSegmentationDataArgs
     model: str
-    task: Literal["semantic_segmentation"]
+    task: Literal["semantic_segmentation", "classification"]
     steps: int | Literal["auto"] = "auto"
     batch_size: int | Literal["auto"] = "auto"
     num_workers: int | Literal["auto"] = "auto"
@@ -547,29 +504,4 @@ class TrainTaskConfig(PydanticConfig):
     save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
-class ClassificationTrainTaskConfig(PydanticConfig):
-    out: PathLike
-    data: ClassificationDataArgs
-    model: str
-    task: Literal["classification"]
-    steps: int | Literal["auto"] = "auto"
-    batch_size: int | Literal["auto"] = "auto"
-    num_workers: int | Literal["auto"] = "auto"
-    devices: int | str | list[int] = "auto"
-    num_nodes: int = 1
-    accelerator: str | Accelerator = "auto"
-    strategy: str | Strategy = "auto"
-    precision: _PRECISION_INPUT = "bf16-mixed"
-    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
-    overwrite: bool = False
-    resume_interrupted: bool = False
-    seed: int | None = 0
-    logger_args: dict[str, Any] | TaskLoggerArgs | None = None
-    model_args: dict[str, Any] | TrainModelArgs | None = None
-    loader_args: dict[str, Any] | None = None
-    save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
-
     model_config = ConfigDict(arbitrary_types_allowed=True)
