@@ -31,7 +31,7 @@ class TrainModelArgs(PydanticConfig):
     train_transform_cls: ClassVar[type[TaskTransform]]
     val_transform_cls: ClassVar[type[TaskTransform]]
 
-    def resolve_auto(self, total_steps: int) -> None:
+    def resolve_auto(self, total_steps: int, model_name: str) -> None:
         pass
 
 
