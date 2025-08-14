@@ -49,6 +49,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     default_steps: ClassVar[int] = 40_000
 
     backbone_weights: PathLike | None = None
+    backbone_url: str = ""
     drop_path_rate: float = 0.0
     num_queries: int = 100  # Default for ADE20K
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
@@ -85,7 +86,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
     def resolve_auto(self, total_steps: int, model_name: str) -> None:
         if self.num_joint_blocks == "auto":
-            match = re.match(r"dinov3/(?P<model_size>vit(s|l|b|g|h|7b).*", model_name)
+            match = re.match(r"dinov3/(?P<model_size>vit(s|l|b|g|h|7b)).*", model_name)
             if match is None:
                 raise ValueError(
                     f"Unknown model name '{model_name}', "
@@ -162,6 +163,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             num_queries=model_args.num_queries,
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
+            backbone_url=model_args.backbone_url,
             backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
             },

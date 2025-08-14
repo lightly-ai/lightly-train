@@ -50,6 +50,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         image_normalize: dict[str, float],
         num_queries: int,
         num_joint_blocks: int,
+        backbone_url: str,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
@@ -82,10 +83,13 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             backbone_weights:
                 The path to the DINOv3 backbone weights. The weights must be exported
                 using LightlyTrain.
+            backbone_url:
+                The URL to the DINOv3 backbone weights. This is used to download the
+                weights.
             backbone_args:
                 Additional arguments to pass to the DINOv3 backbone.
         """
-        super().__init__(locals(), ignore_args={"backbone_weights"})
+        super().__init__(locals(), ignore_args={"backbone_weights", "backbone_url"})
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
@@ -112,6 +116,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # Disable drop path by default.
         args = {
             "drop_path_rate": 0.0,
+            "teacher_url": backbone_url,
         }
         if backbone_args is not None:
             args.update(backbone_args)
@@ -342,7 +347,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                     attn_mask[
                         :,
                         : self.num_queries,
-                        self.num_queries + 1 + self.backbone.num_register_tokens :,
+                        self.num_queries + 1 + 4 :,
                     ] = interpolated > 0
                     attn_mask = self._disable_attn_mask(
                         attn_mask=attn_mask,
@@ -485,8 +490,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         class_logits = self.class_head(q)
 
-        # num queries + 1 class token + num register tokens
-        x = x[:, self.num_queries + 1 + self.backbone.num_register_tokens :, :]
+        # num queries + 1 class token + 4 register tokens
+        x = x[:, self.num_queries + 1 + 4 :, :]
         x = x.transpose(1, 2).reshape(x.shape[0], -1, *grid_size)
 
         mask_logits = torch.einsum(
@@ -510,7 +515,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             attn_mask[
                 :,
                 : self.num_queries,
-                self.num_queries + 1 + self.backbone.num_register_tokens :,
+                self.num_queries + 1 + 4 :,
             ][random_queries] = True
 
         return attn_mask
@@ -537,7 +542,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             mask = mask[:, None, ...].expand(-1, module.num_heads, -1, -1)
         x = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask)
         x = x.transpose(1, 2)
-        x.reshape([B, N, C])
+        x = x.reshape([B, N, C])
         x = module.proj(x)
         x = module.proj_drop(x)
         return x
