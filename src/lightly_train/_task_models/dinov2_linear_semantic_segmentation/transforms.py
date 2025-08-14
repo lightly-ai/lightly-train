@@ -25,7 +25,7 @@ from lightly_train._transforms.transform import (
 )
 
 
-class DINOv2EoMTSemanticSegmentationColorJitterArgs(ColorJitterArgs):
+class DINOv2LinearSemanticSegmentationColorJitterArgs(ColorJitterArgs):
     # Differences between EoMT and this transform:
     # - EoMT always applies brightness before contrast/saturation/hue.
     # - EoMT applies all transforms indedenently with probability 0.5. We apply either
@@ -38,19 +38,19 @@ class DINOv2EoMTSemanticSegmentationColorJitterArgs(ColorJitterArgs):
     hue: float = 18.0 / 360.0
 
 
-class DINOv2EoMTSemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
+class DINOv2LinearSemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
     min_scale: float = 0.5
     max_scale: float = 2.0
     num_scales: int = 20
     prob: float = 1.0
 
 
-class DINOv2EoMTSemanticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
+class DINOv2LinearSemanticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
     max_size: list[int] = [518]
     prob: float = 1.0
 
 
-class DINOv2EoMTSemanticSegmentationRandomCropArgs(RandomCropArgs):
+class DINOv2LinearSemanticSegmentationRandomCropArgs(RandomCropArgs):
     height: int = 518
     width: int = 518
     pad_if_needed: bool = True
@@ -59,7 +59,7 @@ class DINOv2EoMTSemanticSegmentationRandomCropArgs(RandomCropArgs):
     prob: float = 1.0
 
 
-class DINOv2EoMTSemanticSegmentationCenterCropArgs(CenterCropArgs):
+class DINOv2LinearSemanticSegmentationCenterCropArgs(CenterCropArgs):
     height: int = 518
     width: int = 518
     pad_if_needed: bool = True
@@ -68,12 +68,12 @@ class DINOv2EoMTSemanticSegmentationCenterCropArgs(CenterCropArgs):
     prob: float = 1.0
 
 
-class DINOv2EoMTSemanticSegmentationLongestMaxSizeArgs(LongestMaxSizeArgs):
+class DINOv2LinearSemanticSegmentationLongestMaxSizeArgs(LongestMaxSizeArgs):
     max_size: int = 518
     prob: float = 1.0
 
 
-class DINOv2EoMTSemanticSegmentationTrainTransformArgs(
+class DINOv2LinearSemanticSegmentationTrainTransformArgs(
     SemanticSegmentationTransformArgs
 ):
     """
@@ -83,21 +83,23 @@ class DINOv2EoMTSemanticSegmentationTrainTransformArgs(
     image_size: tuple[int, int] = (518, 518)
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs = Field(default_factory=RandomFlipArgs)
-    color_jitter: DINOv2EoMTSemanticSegmentationColorJitterArgs = Field(
-        default_factory=DINOv2EoMTSemanticSegmentationColorJitterArgs
+    color_jitter: DINOv2LinearSemanticSegmentationColorJitterArgs = Field(
+        default_factory=DINOv2LinearSemanticSegmentationColorJitterArgs
     )
     scale_jitter: ScaleJitterArgs | None = Field(
-        default_factory=DINOv2EoMTSemanticSegmentationScaleJitterArgs
+        default_factory=DINOv2LinearSemanticSegmentationScaleJitterArgs
     )
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs = Field(
-        default_factory=DINOv2EoMTSemanticSegmentationRandomCropArgs
+        default_factory=DINOv2LinearSemanticSegmentationRandomCropArgs
     )
     longest_max_size: LongestMaxSizeArgs | None = None
     center_crop: CenterCropArgs | None = None
 
 
-class DINOv2EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransformArgs):
+class DINOv2LinearSemanticSegmentationValTransformArgs(
+    SemanticSegmentationTransformArgs
+):
     """
     Defines default transform arguments for semantic segmentation validation with DINOv2.
     """
@@ -108,26 +110,26 @@ class DINOv2EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
     color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
     smallest_max_size: SmallestMaxSizeArgs = Field(
-        default_factory=DINOv2EoMTSemanticSegmentationSmallestMaxSizeArgs
+        default_factory=DINOv2LinearSemanticSegmentationSmallestMaxSizeArgs
     )
     random_crop: RandomCropArgs | None = None
     longest_max_size: LongestMaxSizeArgs | None = None
     center_crop: CenterCropArgs | None = None
 
 
-class DINOv2EoMTSemanticSegmentationTrainTransform(SemanticSegmentationTransform):
-    transform_args_cls = DINOv2EoMTSemanticSegmentationTrainTransformArgs
+class DINOv2LinearSemanticSegmentationTrainTransform(SemanticSegmentationTransform):
+    transform_args_cls = DINOv2LinearSemanticSegmentationTrainTransformArgs
 
     def __init__(
-        self, transform_args: DINOv2EoMTSemanticSegmentationTrainTransformArgs
+        self, transform_args: DINOv2LinearSemanticSegmentationTrainTransformArgs
     ) -> None:
         super().__init__(transform_args=transform_args)
 
 
-class DINOv2EoMTSemanticSegmentationValTransform(SemanticSegmentationTransform):
-    transform_args_cls = DINOv2EoMTSemanticSegmentationValTransformArgs
+class DINOv2LinearSemanticSegmentationValTransform(SemanticSegmentationTransform):
+    transform_args_cls = DINOv2LinearSemanticSegmentationValTransformArgs
 
     def __init__(
-        self, transform_args: DINOv2EoMTSemanticSegmentationValTransformArgs
+        self, transform_args: DINOv2LinearSemanticSegmentationValTransformArgs
     ) -> None:
         super().__init__(transform_args=transform_args)

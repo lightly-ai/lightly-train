@@ -299,12 +299,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     )
     fabric.loggers.extend(logger_instances)
 
-    train_model = helpers.get_train_model(
+    train_model = train_model_cls(
         model_name=config.model,
         model_args=config.model_args,
         data_args=config.data,
         val_transform_args=val_transform_args,
     )
+
     # Set train mode to make sure that all parameters are in the correct state before
     # the optimizer is initialized.
     train_model.set_train_mode()

@@ -56,6 +56,8 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
 
 
 class SemanticSegmentationTransform(TaskTransform):
+    transform_args_cls: type[SemanticSegmentationTransformArgs]
+
     def __init__(self, transform_args: SemanticSegmentationTransformArgs) -> None:
         super().__init__(transform_args)
 
@@ -172,10 +174,6 @@ class SemanticSegmentationTransform(TaskTransform):
 
         # Create the final transform.
         self.transform = Compose(transform, additional_targets={"mask": "mask"})
-
-    @staticmethod
-    def transform_args_cls() -> type[SemanticSegmentationTransformArgs]:
-        return SemanticSegmentationTransformArgs
 
     def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:
         transformed = self.transform(image=input["image"], mask=input["mask"])
