@@ -1,14 +1,20 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 
 from typing import Callable, List, Optional
 
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import cat_keep_shapes, uncat_with_shapes
+from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import (
+    cat_keep_shapes,
+    uncat_with_shapes,
+)
 
 
 class ListForwardMixin(object):
@@ -66,9 +72,15 @@ class SwiGLUFFN(nn.Module, ListForwardMixin):
         hidden_features = hidden_features or in_features
         d = int(hidden_features * 2 / 3)
         swiglu_hidden_features = d + (-d % align_to)
-        self.w1 = nn.Linear(in_features, swiglu_hidden_features, bias=bias, device=device)
-        self.w2 = nn.Linear(in_features, swiglu_hidden_features, bias=bias, device=device)
-        self.w3 = nn.Linear(swiglu_hidden_features, out_features, bias=bias, device=device)
+        self.w1 = nn.Linear(
+            in_features, swiglu_hidden_features, bias=bias, device=device
+        )
+        self.w2 = nn.Linear(
+            in_features, swiglu_hidden_features, bias=bias, device=device
+        )
+        self.w3 = nn.Linear(
+            swiglu_hidden_features, out_features, bias=bias, device=device
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         x1 = self.w1(x)

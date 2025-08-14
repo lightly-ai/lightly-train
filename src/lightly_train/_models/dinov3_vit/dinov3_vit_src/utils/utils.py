@@ -1,7 +1,10 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 
 import logging
 import os
@@ -23,10 +26,16 @@ def cat_keep_shapes(x_list: List[Tensor]) -> Tuple[Tensor, List[Tuple[int]], Lis
     return flattened, shapes, num_tokens
 
 
-def uncat_with_shapes(flattened: Tensor, shapes: List[Tuple[int]], num_tokens: List[int]) -> List[Tensor]:
+def uncat_with_shapes(
+    flattened: Tensor, shapes: List[Tuple[int]], num_tokens: List[int]
+) -> List[Tensor]:
     outputs_splitted = torch.split_with_sizes(flattened, num_tokens, dim=0)
-    shapes_adjusted = [shape[:-1] + torch.Size([flattened.shape[-1]]) for shape in shapes]
-    outputs_reshaped = [o.reshape(shape) for o, shape in zip(outputs_splitted, shapes_adjusted)]
+    shapes_adjusted = [
+        shape[:-1] + torch.Size([flattened.shape[-1]]) for shape in shapes
+    ]
+    outputs_reshaped = [
+        o.reshape(shape) for o, shape in zip(outputs_splitted, shapes_adjusted)
+    ]
     return outputs_reshaped
 
 

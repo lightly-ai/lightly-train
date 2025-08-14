@@ -1,7 +1,10 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 
 import logging
 from functools import partial
@@ -11,7 +14,15 @@ import torch
 import torch.nn.init
 from torch import Tensor, nn
 
-from lightly_train._models.dinov3_vit.dinov3_vit_src.layers import LayerScale, Mlp, PatchEmbed, RMSNorm, RopePositionEmbedding, SelfAttentionBlock, SwiGLUFFN
+from lightly_train._models.dinov3_vit.dinov3_vit_src.layers import (
+    LayerScale,
+    Mlp,
+    PatchEmbed,
+    RMSNorm,
+    RopePositionEmbedding,
+    SelfAttentionBlock,
+    SwiGLUFFN,
+)
 from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import named_apply
 
 logger = logging.getLogger("dinov3")
@@ -92,7 +103,9 @@ class DinoVisionTransformer(nn.Module):
 
         norm_layer_cls = norm_layer_dict[norm_layer]
 
-        self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
+        self.num_features = self.embed_dim = (
+            embed_dim  # num_features for consistency with other models
+        )
         self.n_blocks = depth
         self.num_heads = num_heads
         self.patch_size = patch_size
@@ -108,13 +121,19 @@ class DinoVisionTransformer(nn.Module):
         self.cls_token = nn.Parameter(torch.empty(1, 1, embed_dim, device=device))
         self.n_storage_tokens = n_storage_tokens
         if self.n_storage_tokens > 0:
-            self.storage_tokens = nn.Parameter(torch.empty(1, n_storage_tokens, embed_dim, device=device))
+            self.storage_tokens = nn.Parameter(
+                torch.empty(1, n_storage_tokens, embed_dim, device=device)
+            )
         logger.info(f"using base={pos_embed_rope_base} for rope new")
         logger.info(f"using min_period={pos_embed_rope_min_period} for rope new")
         logger.info(f"using max_period={pos_embed_rope_max_period} for rope new")
-        logger.info(f"using normalize_coords={pos_embed_rope_normalize_coords} for rope new")
+        logger.info(
+            f"using normalize_coords={pos_embed_rope_normalize_coords} for rope new"
+        )
         logger.info(f"using shift_coords={pos_embed_rope_shift_coords} for rope new")
-        logger.info(f"using rescale_coords={pos_embed_rope_rescale_coords} for rope new")
+        logger.info(
+            f"using rescale_coords={pos_embed_rope_rescale_coords} for rope new"
+        )
         logger.info(f"using jitter_coords={pos_embed_rope_jitter_coords} for rope new")
         logger.info(f"using dtype={pos_embed_rope_dtype} for rope new")
         self.rope_embed = RopePositionEmbedding(
@@ -183,13 +202,17 @@ class DinoVisionTransformer(nn.Module):
         nn.init.zeros_(self.mask_token)
         named_apply(init_weights_vit, self)
 
-    def prepare_tokens_with_masks(self, x: Tensor, masks=None) -> Tuple[Tensor, Tuple[int]]:
+    def prepare_tokens_with_masks(
+        self, x: Tensor, masks=None
+    ) -> Tuple[Tensor, Tuple[int]]:
         x = self.patch_embed(x)
         B, H, W, _ = x.shape
         x = x.flatten(1, 2)
 
         if masks is not None:
-            x = torch.where(masks.unsqueeze(-1), self.mask_token.to(x.dtype).unsqueeze(0), x)
+            x = torch.where(
+                masks.unsqueeze(-1), self.mask_token.to(x.dtype).unsqueeze(0), x
+            )
             cls_token = self.cls_token
         else:
             cls_token = self.cls_token + 0 * self.mask_token
@@ -215,7 +238,9 @@ class DinoVisionTransformer(nn.Module):
 
         return x, (H, W)
 
-    def forward_features_list(self, x_list: List[Tensor], masks_list: List[Tensor]) -> List[Dict[str, Tensor]]:
+    def forward_features_list(
+        self, x_list: List[Tensor], masks_list: List[Tensor]
+    ) -> List[Dict[str, Tensor]]:
         x = []
         rope = []
         for t_x, t_masks in zip(x_list, masks_list):
@@ -235,7 +260,9 @@ class DinoVisionTransformer(nn.Module):
                 if self.untie_global_and_local_cls_norm and self.training and idx == 1:
                     # Assume second entry of list corresponds to local crops.
                     # We only ever apply this during training.
-                    x_norm_cls_reg = self.local_cls_norm(x[:, : self.n_storage_tokens + 1])
+                    x_norm_cls_reg = self.local_cls_norm(
+                        x[:, : self.n_storage_tokens + 1]
+                    )
                 elif self.untie_cls_and_patch_norms:
                     x_norm_cls_reg = self.cls_norm(x[:, : self.n_storage_tokens + 1])
                 else:
@@ -256,17 +283,23 @@ class DinoVisionTransformer(nn.Module):
             )
         return output
 
-    def forward_features(self, x: Tensor | List[Tensor], masks: Optional[Tensor] = None) -> List[Dict[str, Tensor]]:
+    def forward_features(
+        self, x: Tensor | List[Tensor], masks: Optional[Tensor] = None
+    ) -> List[Dict[str, Tensor]]:
         if isinstance(x, torch.Tensor):
             return self.forward_features_list([x], [masks])[0]
         else:
             return self.forward_features_list(x, masks)
 
-    def _get_intermediate_layers_not_chunked(self, x: Tensor, n: int = 1) -> List[Tensor]:
+    def _get_intermediate_layers_not_chunked(
+        self, x: Tensor, n: int = 1
+    ) -> List[Tensor]:
         x, (H, W) = self.prepare_tokens_with_masks(x)
         # If n is an int, take the n last blocks. If it's a list, take them
         output, total_block_len = [], len(self.blocks)
-        blocks_to_take = range(total_block_len - n, total_block_len) if isinstance(n, int) else n
+        blocks_to_take = (
+            range(total_block_len - n, total_block_len) if isinstance(n, int) else n
+        )
         for i, blk in enumerate(self.blocks):
             if self.rope_embed is not None:
                 rope_sincos = self.rope_embed(H=H, W=W)
@@ -275,7 +308,9 @@ class DinoVisionTransformer(nn.Module):
             x = blk(x, rope_sincos)
             if i in blocks_to_take:
                 output.append(x)
-        assert len(output) == len(blocks_to_take), f"only {len(output)} / {len(blocks_to_take)} blocks found"
+        assert len(output) == len(blocks_to_take), (
+            f"only {len(output)} / {len(blocks_to_take)} blocks found"
+        )
         return output
 
     def get_intermediate_layers(
@@ -295,7 +330,9 @@ class DinoVisionTransformer(nn.Module):
                 if self.untie_cls_and_patch_norms:
                     x_norm_cls_reg = self.cls_norm(out[:, : self.n_storage_tokens + 1])
                     x_norm_patch = self.norm(out[:, self.n_storage_tokens + 1 :])
-                    outputs_normed.append(torch.cat((x_norm_cls_reg, x_norm_patch), dim=1))
+                    outputs_normed.append(
+                        torch.cat((x_norm_cls_reg, x_norm_patch), dim=1)
+                    )
                 else:
                     outputs_normed.append(self.norm(out))
             outputs = outputs_normed
@@ -305,7 +342,9 @@ class DinoVisionTransformer(nn.Module):
         if reshape:
             B, _, h, w = x.shape
             outputs = [
-                out.reshape(B, h // self.patch_size, w // self.patch_size, -1).permute(0, 3, 1, 2).contiguous()
+                out.reshape(B, h // self.patch_size, w // self.patch_size, -1)
+                .permute(0, 3, 1, 2)
+                .contiguous()
                 for out in outputs
             ]
         if not return_class_token and not return_extra_tokens:
@@ -317,7 +356,9 @@ class DinoVisionTransformer(nn.Module):
         elif return_class_token and return_extra_tokens:
             return tuple(zip(outputs, class_tokens, extra_tokens))
 
-    def forward(self, *args, is_training: bool = False, **kwargs) -> List[Dict[str, Tensor]] | Tensor:
+    def forward(
+        self, *args, is_training: bool = False, **kwargs
+    ) -> List[Dict[str, Tensor]] | Tensor:
         ret = self.forward_features(*args, **kwargs)
         if is_training:
             return ret

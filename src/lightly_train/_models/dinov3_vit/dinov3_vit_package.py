@@ -13,13 +13,9 @@ from typing import Any
 
 import torch
 
-from lightly_train._data import cache
 from lightly_train._models import log_usage_example
 from lightly_train._models.dinov3_vit.dinov3_vit import DINOv3ViTModelWrapper
-from lightly_train._models.dinov3_vit.dinov3_vit_src.dinov3_helper import load_weights
-from lightly_train._models.dinov3_vit.dinov3_vit_src.models import (
-    vision_transformer as vits,
-)
+from lightly_train._models.dinov3_vit.dinov3_vit_src.hub import backbones
 from lightly_train._models.dinov3_vit.dinov3_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
@@ -34,9 +30,7 @@ class DINOv3ViTPackage(Package):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [
-            f"{cls.name}/vits16"
-        ]
+        return [f"{cls.name}/vits16"]
 
     @classmethod
     def is_supported_model(
@@ -53,13 +47,15 @@ class DINOv3ViTPackage(Package):
         """
         Get a DINOv3 ViT model by name. Here the student version is build.
         """
-        model = vits.vit_small(**model_args)
-
-        checkpoint_dir = cache.get_model_cache_dir()
-        model = load_weights(
-            model=model,
-            checkpoint_dir=checkpoint_dir,
-        )
+        model_to_getter = {
+            "vits16": backbones.dinov3_vits16,
+            "vitb16plus": backbones.dinov3_vits16plus,
+            "vitb16": backbones.dinov3_vitb16,
+            "vitl16": backbones.dinov3_vitl16,
+            "vitl16plus": backbones.dinov3_vitl16plus,
+            "vith16plus": backbones.dinov3_vith16plus,
+        }
+        model = model_to_getter[model_name](weights=model_args["teacher_url"])
 
         return model
 
