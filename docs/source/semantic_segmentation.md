@@ -279,7 +279,6 @@ if __name__ == "__main__":
         data="my_pretrain_data_dir",
         model="dinov2/vitl14",
         method="dinov2",
-        epochs=100, # We recommend epochs = 125000 * batch size // dataset size
     )
 
     # Fine-tune the DINOv2 model for semantic segmentation.

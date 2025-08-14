@@ -52,7 +52,7 @@ def train(
     method: str = "distillation",
     method_args: dict[str, Any] | None = None,
     embed_dim: int | None = None,
-    epochs: int = 100,
+    epochs: int | Literal["auto"] = "auto",
     batch_size: int = 128,
     num_workers: int | Literal["auto"] = "auto",
     devices: int | str | list[int] = "auto",
@@ -106,7 +106,8 @@ def train(
             Embedding dimension. Set this if you want to train an embedding model with
             a specific dimension. If None, the output dimension of ``model`` is used.
         epochs:
-            Number of training epochs.
+            Number of training epochs. Set to "auto" to automatically determine the
+            number of epochs based on the dataset size and batch size.
         batch_size:
             Global batch size. The batch size per device/GPU is inferred from this value
             and the number of devices and nodes.
@@ -295,8 +296,16 @@ def train_from_config(config: TrainConfig) -> None:
             transform=transform_instance,
             mmap_filepath=mmap_filepath,
         )
+        dataset_size = train_helpers.get_dataset_size(dataset=dataset)
+        config.epochs = train_helpers.get_epochs(
+            method=config.method,
+            epochs=config.epochs,
+            dataset_size=dataset_size,
+            batch_size=config.batch_size,
+        )
         scaling_info = train_helpers.get_scaling_info(
-            dataset=dataset, epochs=config.epochs
+            dataset_size=dataset_size,
+            epochs=config.epochs,
         )
         wrapped_model = package_helpers.get_wrapped_model(
             model=config.model, model_args=config.model_args
@@ -431,7 +440,7 @@ class TrainConfig(PydanticConfig):
     method: str = "distillation"
     method_args: dict[str, Any] | MethodArgs | None = None
     embed_dim: int | None = None
-    epochs: int = 100
+    epochs: int | Literal["auto"] = "auto"
     batch_size: int = 128
     num_workers: int | Literal["auto"] = "auto"
     devices: int | str | list[int] = "auto"
