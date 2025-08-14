@@ -34,18 +34,6 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-class DinoV2EoMTSemanticSegmentationArgs:
-    model_name: str
-    classes: dict[int, str]
-    class_ignore_index: int | None
-    image_size: tuple[int, int]
-    image_normalize: dict[str, float]
-    num_queries: int
-    num_joint_blocks: int
-    backbone_weights: PathLike | None
-    backbone_args: dict[str, Any] | None
-
-
 class DINOv2EoMTSemanticSegmentation(TaskModel):
     def __init__(
         self,
