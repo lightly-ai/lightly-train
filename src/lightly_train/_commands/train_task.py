@@ -220,10 +220,19 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     config.save_checkpoint_args = helpers.get_save_checkpoint_args(
         checkpoint_args=config.save_checkpoint_args
     )
-
+    train_model_cls = helpers.get_train_model_cls(
+        model_name=config.model,
+    )
     # TODO(Guarin, 07/25): Allow passing transform args.
-    train_transform = helpers.get_train_transform(ignore_index=config.data.ignore_index)
-    val_transform = helpers.get_val_transform(ignore_index=config.data.ignore_index)
+    train_transform_args, val_transform_args = helpers.get_transform_args(
+        train_model_cls=train_model_cls, ignore_index=config.data.ignore_index
+    )
+    train_transform = helpers.get_train_transform(
+        train_model_cls=train_model_cls, train_transform_args=train_transform_args
+    )
+    val_transform = helpers.get_val_transform(
+        train_model_cls=train_model_cls, val_transform_args=val_transform_args
+    )
 
     train_dataset = helpers.get_dataset(
         dataset_args=config.data.get_train_args(),
@@ -235,15 +244,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     )
     logger.info(f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}")
 
-    model_args_cls = helpers.get_train_model_args_cls(
-        model_name=config.model, model_args=config.model_args
-    )
+    train_model_args_cls = train_model_cls.train_model_args_cls
+
     config.steps = helpers.get_steps(
-        steps=config.steps, default_steps=model_args_cls.default_steps
+        steps=config.steps, default_steps=train_model_args_cls.default_steps
     )
     config.batch_size = common_helpers.get_global_batch_size(
         global_batch_size=(
-            model_args_cls.default_batch_size
+            train_model_args_cls.default_batch_size
             if config.batch_size == "auto"
             else config.batch_size
         ),
@@ -258,7 +266,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
     config.model_args = helpers.get_train_model_args(
         model_args=config.model_args,
-        model_args_cls=model_args_cls,
+        model_args_cls=train_model_args_cls,
         total_steps=no_auto(config.steps),
         model_name=config.model,
     )
@@ -295,6 +303,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         model_name=config.model,
         model_args=config.model_args,
         data_args=config.data,
+        val_transform_args=val_transform_args,
     )
     # Set train mode to make sure that all parameters are in the correct state before
     # the optimizer is initialized.
