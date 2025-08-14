@@ -58,16 +58,16 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     metric_log_classwise: bool = True
     metric_log_debug: bool = False
 
-    def resolve_auto(self, total_steps: int) -> None:
+    def resolve_auto(self, total_steps: int, model_name: str) -> None:
         pass
 
 
 class DINOv2LinearSemanticSegmentationTrain(TrainModel):
-    task: str = "semantic_segmentation"
-    model_arg_cls: DINOv2LinearSemanticSegmentationTrainArgs
-    task_model_cls: DINOv2LinearSemanticSegmentation
-    train_transform_cls: DINOv2LinearSemanticSegmentationTrainTransform
-    val_transform_cls: DINOv2LinearSemanticSegmentationValTransform
+    task = "semantic_segmentation"
+    model_arg_cls = DINOv2LinearSemanticSegmentationTrainArgs
+    task_model_cls = DINOv2LinearSemanticSegmentation
+    train_transform_cls = DINOv2LinearSemanticSegmentationTrainTransform
+    val_transform_cls = DINOv2LinearSemanticSegmentationValTransform
 
     def __init__(
         self,
