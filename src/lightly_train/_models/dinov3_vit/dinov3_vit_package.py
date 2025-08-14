@@ -16,13 +16,6 @@ import torch
 from lightly_train._data import cache
 from lightly_train._models import log_usage_example
 from lightly_train._models.dinov3_vit.dinov3_vit import DINOv3ViTModelWrapper
-from lightly_train._models.dinov3_vit.dinov3_vit_src.configs import (
-    MODELS as VIT_MODELS,
-)
-from lightly_train._models.dinov3_vit.dinov3_vit_src.configs import (
-    get_config_path,
-    load_and_merge_config,
-)
 from lightly_train._models.dinov3_vit.dinov3_vit_src.dinov3_helper import load_weights
 from lightly_train._models.dinov3_vit.dinov3_vit_src.models import (
     vision_transformer as vits,
@@ -42,9 +35,7 @@ class DINOv3ViTPackage(Package):
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [
-            f"{cls.name}/{model_name}"
-            for model_name, model_info in VIT_MODELS.items()
-            if model_info["list"]
+            f"{cls.name}/vits16"
         ]
 
     @classmethod
@@ -60,21 +51,9 @@ class DINOv3ViTPackage(Package):
         cls, model_name: str, model_args: dict[str, Any] | None = None
     ) -> DinoVisionTransformer:
         """
-        Get a DINOv2 ViT model by name. Here the student version is build.
+        Get a DINOv3 ViT model by name. Here the student version is build.
         """
-        # Get the model cfg
-        config_path = get_config_path(config_name=VIT_MODELS[model_name]["config"])
-        cfg = load_and_merge_config(str(config_path))
-
-        # Build the model using the cfg
-        model_builders = {
-            "vit_small": vits.vit_small,
-        }
-        model_builder = model_builders.get(cfg.student.arch, None)
-        if model_builder is None:
-            raise TypeError(f"Unsupported architecture type {cfg.student.arch}.")
-
-        model = model_builder(**model_args)
+        model = vits.vit_small(**model_args)
 
         checkpoint_dir = cache.get_model_cache_dir()
         model = load_weights(
