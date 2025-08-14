@@ -23,7 +23,6 @@ from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._configs import validate
 from lightly_train._data.mask_semantic_segmentation_dataset import (
-    MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
 )
@@ -34,7 +33,6 @@ from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
-    DINOv2EoMTSemanticSegmentationTrainArgs,
 )
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
     DINOv2SemanticSegmentationTrainTransformArgs,
@@ -338,30 +336,6 @@ def get_train_model_args(
     args = validate.pydantic_model_validate(model_args_cls, model_args)
     args.resolve_auto(total_steps=total_steps, model_name=model_name)
     return args
-
-
-def get_train_model(
-    model_name: str,
-    model_args: TrainModelArgs,
-    data_args: MaskSemanticSegmentationDataArgs,
-    val_transform_args: TaskTransformArgs,
-) -> TrainModel:
-    package_name, model_name = model_name.split("/", maxsplit=1)
-    if package_name == "dinov2_vit":  # For backwards compatibility
-        package_name = "dinov2"
-    if package_name != "dinov2":
-        raise ValueError(
-            f"Unsupported model '{model_name}'. Only 'dinov2' models are supported."
-        )
-    assert isinstance(model_args, DINOv2EoMTSemanticSegmentationTrainArgs)
-    assert isinstance(val_transform_args, DINOv2SemanticSegmentationValTransformArgs)
-
-    return DINOv2EoMTSemanticSegmentationTrain(
-        model_args=model_args,
-        model_name=model_name,
-        data_args=data_args,
-        val_transform_args=val_transform_args,
-    )
 
 
 def log_step(
