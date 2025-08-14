@@ -141,12 +141,79 @@ def train_semantic_segmentation(
     return _train_task(task="semantic_segmentation", **locals())
 
 
+def train_classification(
+    *,
+    out: PathLike,
+    data: dict[str, Any],
+    model: str,
+    steps: int | Literal["auto"] = "auto",
+    batch_size: int | Literal["auto"] = "auto",
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    accelerator: str = "auto",
+    strategy: str = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    overwrite: bool = False,
+    resume_interrupted: bool = False,
+    seed: int | None = 0,
+    logger_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
+) -> None:
+    """Train a classification model.
+
+    Args:
+        out:
+            Output directory.
+        data:
+            Dataset configuration.
+        model:
+            Model to train.
+        steps:
+            Number of training steps.
+        batch_size:
+            Global batch size.
+        num_workers:
+            Number of workers for the dataloader.
+        devices:
+            Number of devices/GPUs for training.
+        num_nodes:
+            Number of nodes for distributed training.
+        accelerator:
+            Hardware accelerator.
+        strategy:
+            Training strategy.
+        precision:
+            Training precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication.
+        overwrite:
+            Overwrite the output directory if it already exists.
+        resume_interrupted:
+            Resume training from an interrupted run.
+        seed:
+            Random seed for reproducibility.
+        logger_args:
+            Logger arguments.
+        model_args:
+            Model training arguments.
+        loader_args:
+            Arguments for the PyTorch DataLoader.
+        save_checkpoint_args:
+            Arguments to configure the saving of checkpoints.
+    """
+    return _train_task(task="classification", **locals())
+
+
 def _train_task(
     *,
     out: PathLike,
     data: dict[str, Any],
     model: str,
-    task: Literal["semantic_segmentation"],
+    task: Literal["semantic_segmentation", "classification"],
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
     num_workers: int | Literal["auto"] = "auto",
@@ -165,11 +232,13 @@ def _train_task(
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
     config = validate.pydantic_model_validate(TrainTaskConfig, locals())
-    _train_task_from_config(config=config)
+    _train_task_from_config(config=config, task=task)
 
 
-def _train_task_from_config(config: TrainTaskConfig) -> None:
-    config = validate.pydantic_model_validate(TrainTaskConfig, dict(config))
+def _train_task_from_config(
+    config: TrainTaskConfig,
+    task: str,
+) -> None:
     initial_config = config.model_dump()
     # NOTE(Guarin, 07/25): We add callbacks and loggers later to fabric because we first
     # have to initialize the output directory and some other things. Fabric doesn't
@@ -220,10 +289,20 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     config.save_checkpoint_args = helpers.get_save_checkpoint_args(
         checkpoint_args=config.save_checkpoint_args
     )
-
+    model_args_cls = helpers.get_train_model_args_cls(
+        model_name=config.model, model_args=config.model_args
+    )
     # TODO(Guarin, 07/25): Allow passing transform args.
-    train_transform = helpers.get_train_transform(ignore_index=config.data.ignore_index)
-    val_transform = helpers.get_val_transform(ignore_index=config.data.ignore_index)
+    train_transform_args = helpers.get_train_transform_args(
+        ignore_index=config.data.ignore_index
+    )
+    val_transform_args = helpers.get_val_transform_args(
+        ignore_index=config.data.ignore_index
+    )
+    train_transform = model_args_cls.train_transform_cls(
+        **train_transform_args.model_dump()
+    )
+    val_transform = model_args_cls.val_transform_cls(**val_transform_args.model_dump())
 
     train_dataset = helpers.get_dataset(
         dataset_args=config.data.get_train_args(),
@@ -233,11 +312,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         dataset_args=config.data.get_val_args(),
         transform=val_transform,
     )
+
     logger.info(f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}")
 
-    model_args_cls = helpers.get_train_model_args_cls(
-        model_name=config.model, model_args=config.model_args
-    )
     config.steps = helpers.get_steps(
         steps=config.steps, default_steps=model_args_cls.default_steps
     )
@@ -263,7 +340,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         model_name=config.model,
     )
 
-    # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
     train_dataloader = helpers.get_train_dataloader(
         fabric=fabric,
         dataset=train_dataset,
@@ -271,7 +347,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         num_workers=config.num_workers,
         loader_args=config.loader_args,
     )
-    # TODO(Guarin, 07/25): Different batch_size/num_workers for validation?
     val_dataloader = helpers.get_val_dataloader(
         fabric=fabric,
         dataset=val_dataset,
@@ -295,6 +370,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         model_name=config.model,
         model_args=config.model_args,
         data_args=config.data,
+        val_transform_args=val_transform_args,
     )
     # Set train mode to make sure that all parameters are in the correct state before
     # the optimizer is initialized.
@@ -419,7 +495,7 @@ class TrainTaskConfig(PydanticConfig):
     out: PathLike
     data: MaskSemanticSegmentationDataArgs
     model: str
-    task: Literal["semantic_segmentation"]
+    task: Literal["semantic_segmentation", "classification"]
     steps: int | Literal["auto"] = "auto"
     batch_size: int | Literal["auto"] = "auto"
     num_workers: int | Literal["auto"] = "auto"
