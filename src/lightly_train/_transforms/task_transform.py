@@ -36,8 +36,13 @@ class TaskTransformOutput(TypedDict):
 class TaskTransformArgs(PydanticConfig):
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
-        default_factory=lambda: BboxParams(format="yolo", label_fields=["class_labels"])
+        default_factory=lambda: BboxParams(
+            format="yolo", label_fields=["class_labels"]
+        ),
     )
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class TaskTransform:

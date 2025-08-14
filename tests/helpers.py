@@ -247,7 +247,7 @@ def create_normalized_yolo_labels(labels_dir: Path, image_paths: list[Path]) -> 
     for image_path in image_paths:
         label_path = labels_dir / f"{image_path.stem}.txt"
         with open(label_path, "w") as f:
-            f.write("0 1 1 0.5 0.5\n")
+            f.write("2 0.375 0.5 0.25 0.5\n")
 
 
 def create_yolo_dataset(tmp_path: Path, split_first: bool) -> None:

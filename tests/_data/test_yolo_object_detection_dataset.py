@@ -7,13 +7,37 @@
 #
 from pathlib import Path
 
+import albumentations as A
+
 from lightly_train._data.yolo_object_detection_dataset import (
     YoloObjectDetectionDataset,
     YoloObjectDetectionDatasetArgs,
 )
-from lightly_train._transforms.task_transform import TaskTransform
+from lightly_train._transforms.task_transform import (
+    TaskTransform,
+    TaskTransformArgs,
+    TaskTransformInput,
+    TaskTransformOutput,
+)
 
 from ..helpers import create_yolo_dataset
+
+
+class DummyTransform(TaskTransform):
+    def __init__(self, transform_args: TaskTransformArgs):
+        super().__init__(transform_args=transform_args)
+        self.transform = A.Compose(
+            [
+                A.Resize(32, 32),
+                A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+                A.pytorch.transforms.ToTensorV2(),
+            ],
+            bbox_params=self.transform_args.bbox_params,
+        )
+
+    def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:
+        output: TaskTransformOutput = self.transform(**input)
+        return output
 
 
 class TestYoloObjectDetectionDataset:
@@ -22,12 +46,17 @@ class TestYoloObjectDetectionDataset:
         names = {0: "class_0", 1: "class_1"}
         args = YoloObjectDetectionDatasetArgs(
             path=tmp_path,
-            train="train/images",
-            val="val/images",
+            train=Path("train/images"),
+            val=Path("val/images"),
             names=names,
         )
-        YoloObjectDetectionDataset(
+        dataset = YoloObjectDetectionDataset(
             dataset_args=args,
-            transform=TaskTransform(),
+            transform=DummyTransform(TaskTransformArgs()),
+            image_filenames=["0.png", "1.png"],
             mode="train",
         )
+        sample = dataset[0]
+        assert sample["image"].shape == (3, 640, 640)
+        assert sample["bboxes"].shape == (2, 4)
+        assert sample["classes"].shape == (2,)

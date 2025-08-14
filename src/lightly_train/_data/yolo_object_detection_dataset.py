@@ -8,10 +8,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Sequence
 
 import pydantic
-import torch
 from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
@@ -24,7 +23,7 @@ class YoloObjectDetectionDatasetArgs(PydanticConfig):
     path: Path
     train: Path
     val: Path
-    test: Path | None
+    test: Path | None = None
     names: dict[int, str]
 
     @pydantic.field_validator("train", "val", mode="after")
@@ -41,10 +40,12 @@ class YoloObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
         self,
         dataset_args: YoloObjectDetectionDatasetArgs,
         transform: TaskTransform,
+        image_filenames: Sequence[str],
         mode: Literal["train", "val", "test"],
     ) -> None:
         self._args = dataset_args
         self.transform = transform
+        self.image_filenames = image_filenames
         self.mode = mode
 
         self._image_dir, self._label_dir = self._get_image_and_labels_dirs()
@@ -82,16 +83,6 @@ class YoloObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
         else:
             raise ValueError(f"Unknown mode: {self.mode}")
 
-    def _determine_train_folder_first(
-        self,
-        train_path: Path,
-        val_path: Path,
-    ) -> bool:
-        if str(train_path).split("/").index("images") == 1:
-            assert str(val_path).split("/").index("images") == 1
-            return True
-        return False
-
     def __len__(self) -> int:
         return len(self.image_filenames)
 
@@ -109,20 +100,22 @@ class YoloObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
         if not label_path.exists():
             raise FileNotFoundError(f"Label file {label_path} does not exist.")
 
-        image = file_helpers.open_image_numpy(image_path)
-        bboxes, class_labels = file_helpers.open_yolo_label_numpy(label_path)
+        image_ = file_helpers.open_image_numpy(image_path)
+        bboxes_, class_labels_ = file_helpers.open_yolo_label_numpy(label_path)
 
         transformed = self.transform(
             {
-                "image": image,
-                "bboxes": bboxes,  # Shape (n_boxes, 4)
-                "class_labels": class_labels,  # Shape (n_boxes,)
+                "image": image_,
+                "bboxes": bboxes_,  # Shape (n_boxes, 4)
+                "class_labels": class_labels_,  # Shape (n_boxes,)
             }
         )
 
-        image_ = torch.from_numpy(transformed["image"]).permute(2, 0, 1)
-        bboxes_ = torch.from_numpy(transformed["bboxes"]).float()
-        class_labels_ = torch.from_numpy(transformed["class_labels"]).long()
+        print(type(image_), type(bboxes_), type(class_labels_))  # Debugging line
+
+        image_ = transformed["image"]
+        bboxes_ = transformed["bboxes"]
+        class_labels_ = transformed["class_labels"].long()
 
         return ObjectDetectionDatasetItem(
             image_path=image_path,
