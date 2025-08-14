@@ -45,7 +45,7 @@ def get_teacher(
     method_args: DistillationV2Args | None = None,
 ) -> Module:
     model_args = None
-    if method_args is not None:
+    if "dinov3" in teacher_name and method_args is not None:
         model_args = {
             "teacher_url": method_args.teacher_url,
         }

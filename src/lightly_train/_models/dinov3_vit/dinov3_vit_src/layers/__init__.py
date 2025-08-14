@@ -4,6 +4,9 @@
 # # This software may be used and distributed in accordance with
 # # the terms of the DINOv3 License Agreement.#
 
+# TODO(Lionel, 08/25): Remove the linting skip.
+# ruff: noqa
+
 from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.attention import (
     CausalSelfAttention,
     LinearKMaskedBias,

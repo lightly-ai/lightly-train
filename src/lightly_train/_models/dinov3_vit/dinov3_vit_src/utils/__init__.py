@@ -4,6 +4,9 @@
 # # This software may be used and distributed in accordance with
 # # the terms of the DINOv3 License Agreement.#
 
+# TODO(Lionel, 08/25): Remove the linter skip.
+# ruff: noqa
+
 from .dtype import as_torch_dtype
 from .utils import (
     cat_keep_shapes,
