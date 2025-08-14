@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Literal
 
 import pydantic
 import torch
@@ -17,7 +17,7 @@ from torch.utils.data import Dataset
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._transforms.task_transform import TaskTransform
-from lightly_train.types import ImageFilename, ObjectDetectionDatasetItem
+from lightly_train.types import ObjectDetectionDatasetItem
 
 
 class YoloObjectDetectionDatasetArgs(PydanticConfig):
@@ -40,12 +40,10 @@ class YoloObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
     def __init__(
         self,
         dataset_args: YoloObjectDetectionDatasetArgs,
-        image_filenames: Sequence[ImageFilename],
         transform: TaskTransform,
         mode: Literal["train", "val", "test"],
     ) -> None:
         self._args = dataset_args
-        self.image_filenames = image_filenames
         self.transform = transform
         self.mode = mode
 

@@ -243,24 +243,24 @@ def create_videos(
         )
 
 
-def create_normalized_yolo_labels(labels_dir: Path, image_names: list[str]) -> None:
-    for image_name in image_names:
-        label_path = labels_dir / f"{image_name.stem}.txt"
+def create_normalized_yolo_labels(labels_dir: Path, image_paths: list[Path]) -> None:
+    for image_path in image_paths:
+        label_path = labels_dir / f"{image_path.stem}.txt"
         with open(label_path, "w") as f:
-            f.write("0 0 1 1 0.5 0.5\n")
+            f.write("0 1 1 0.5 0.5\n")
 
 
-def create_yolo_dataset(tmp_path: Path, train_folder_first: bool):
+def create_yolo_dataset(tmp_path: Path, split_first: bool) -> None:
     """Create a minimal YOLO object detection dataset.
 
     Args:
-        train_folder_first: If set to True, the dataset will have the "train" and "val"
+        split_first: If set to True, the dataset will have the "train" and "val"
             directories at the top level, and the "images" and "labels" directories
             will be nested within them. If set to False, "images" and "labels" will be
             at the top.
     """
     # Define directories.
-    if train_folder_first:
+    if split_first:
         train_images = tmp_path / "train" / "images"
         val_images = tmp_path / "val" / "images"
         train_labels = tmp_path / "train" / "labels"
@@ -276,15 +276,15 @@ def create_yolo_dataset(tmp_path: Path, train_folder_first: bool):
         dir.mkdir(parents=True, exist_ok=True)
 
     # Create images.
-    create_images(images_dir=train_images, files=2, height=64, width=64)
-    create_images(images_dir=val_images, files=2, height=64, width=64)
+    create_images(image_dir=train_images, files=2)
+    create_images(image_dir=val_images, files=2)
 
     # Create labels.
-    create_yolo_labels(
-        labels_dir=train_labels, images_dir=train_images, files=2, height=64, width=64
+    create_normalized_yolo_labels(
+        labels_dir=train_labels, image_paths=list(train_images.glob("*.png"))
     )
-    create_yolo_labels(
-        labels_dir=val_labels, images_dir=val_images, files=2, height=64, width=64
+    create_normalized_yolo_labels(
+        labels_dir=val_labels, image_paths=list(val_images.glob("*.png"))
     )
 
 
