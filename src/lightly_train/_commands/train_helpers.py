@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Any, Literal, Sized
 
@@ -277,16 +278,24 @@ def get_optimizer_args(
     return validate.pydantic_model_validate(optim_args_cls, optim_args)
 
 
-def get_scaling_info(
+def get_dataset_size(
     dataset: Dataset[DatasetItem],
-    epochs: int,
-) -> ScalingInfo:
+) -> int:
     if isinstance(dataset, Sized):
         dataset_size = len(dataset)
+        logger.debug(f"Found dataset size {dataset_size}.")
     else:
-        logger.debug("Dataset does not have a length. Using default dataset size")
+        logger.debug(
+            f"Dataset does not have a length. Using default dataset size {IMAGENET_SIZE}."
+        )
         dataset_size = IMAGENET_SIZE
-    logger.debug(f"Found dataset size {dataset_size}.")
+    return dataset_size
+
+
+def get_scaling_info(
+    dataset_size: int,
+    epochs: int,
+) -> ScalingInfo:
     return ScalingInfo(dataset_size=dataset_size, epochs=epochs)
 
 
@@ -325,6 +334,41 @@ def get_method(
         embedding_model=embedding_model,
         global_batch_size=global_batch_size,
     )
+
+
+def get_epochs(
+    method: str, epochs: int | Literal["auto"], dataset_size: int, batch_size: int
+) -> int:
+    method_args_cls = method_helpers.get_method_cls(method).method_args_cls()
+
+    assert not (
+        method_args_cls.default_epochs is None and method_args_cls.default_steps is None
+    )
+    assert not (
+        isinstance(method_args_cls.default_epochs, int)
+        and isinstance(method_args_cls.default_steps, int)
+    )
+
+    if epochs != "auto":
+        logger.debug(f"Using provided epochs {epochs}.")
+        return epochs
+
+    if method_args_cls.default_epochs is not None:
+        logger.debug(f"Using default epochs {method_args_cls.default_epochs}.")
+        return method_args_cls.default_epochs
+    elif method_args_cls.default_steps is not None:
+        logger.debug(f"Using default steps {method_args_cls.default_steps}.")
+        # Calculate epochs from steps.
+        _epochs = math.ceil(method_args_cls.default_steps * batch_size / dataset_size)
+        logger.debug(
+            f"Calculated epochs {epochs} from steps {method_args_cls.default_steps}."
+        )
+        return _epochs
+    else:
+        raise ValueError(
+            f"An unexpected error occurred while determining the number of epochs for method '{method_args_cls.__name__}'. "
+            "Please contact the Lightly team."
+        )
 
 
 def load_checkpoint(

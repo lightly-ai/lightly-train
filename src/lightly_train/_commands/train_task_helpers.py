@@ -37,9 +37,7 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model im
     DINOv2EoMTSemanticSegmentationTrainArgs,
 )
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
-    DINOv2SemanticSegmentationTrainTransform,
     DINOv2SemanticSegmentationTrainTransformArgs,
-    DINOv2SemanticSegmentationValTransform,
     DINOv2SemanticSegmentationValTransformArgs,
 )
 from lightly_train._task_models.train_model import (
@@ -47,10 +45,15 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
-from lightly_train._transforms.task_transform import TaskTransform
+from lightly_train._transforms.task_transform import TaskTransform, TaskTransformArgs
 from lightly_train.types import PathLike, TaskDatasetItem
 
 logger = logging.getLogger(__name__)
+
+
+TASK_TRAIN_MODEL_CLASSES = [
+    DINOv2EoMTSemanticSegmentationTrain,
+]
 
 
 def get_out_dir(
@@ -175,32 +178,50 @@ def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
     return args_dict
 
 
-def get_train_transform_args(
-    ignore_index: int,
-) -> DINOv2SemanticSegmentationTrainTransformArgs:
-    return DINOv2SemanticSegmentationTrainTransformArgs(
-        ignore_index=ignore_index,
+def get_transform_args(
+    train_model_cls: type[TrainModel],
+    ignore_index: int | None,
+) -> tuple[TaskTransformArgs, TaskTransformArgs]:
+    if train_model_cls.task != "semantic_segmentation" and ignore_index is not None:
+        raise ValueError(
+            "`ignore_index` is only supported for semantic segmentation tasks."
+        )
+
+    train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls()
+    val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls()
+
+    if ignore_index is None:
+        return (
+            train_transform_args_cls(),
+            val_transform_args_cls(),
+        )
+
+    # This is for mypy, since `ignore_index` is currently not in all the transform_args.
+    assert issubclass(
+        train_transform_args_cls,
+        DINOv2SemanticSegmentationTrainTransformArgs,
+    )
+    assert issubclass(
+        val_transform_args_cls,
+        DINOv2SemanticSegmentationValTransformArgs,
+    )
+    return train_transform_args_cls(ignore_index=ignore_index), val_transform_args_cls(
+        ignore_index=ignore_index
     )
 
 
 def get_train_transform(
-    train_transform_args: DINOv2SemanticSegmentationTrainTransformArgs,
+    train_model_cls: type[TrainModel],
+    train_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
-    return DINOv2SemanticSegmentationTrainTransform(train_transform_args)
-
-
-def get_val_transform_args(
-    ignore_index: int,
-) -> DINOv2SemanticSegmentationValTransformArgs:
-    return DINOv2SemanticSegmentationValTransformArgs(
-        ignore_index=ignore_index,
-    )
+    return train_model_cls.train_transform_cls(transform_args=train_transform_args)
 
 
 def get_val_transform(
-    val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
+    train_model_cls: type[TrainModel],
+    val_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
-    return DINOv2SemanticSegmentationValTransform(val_transform_args)
+    return train_model_cls.val_transform_cls(transform_args=val_transform_args)
 
 
 def get_dataset(
@@ -290,6 +311,13 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
     return default_steps if steps == "auto" else steps
 
 
+def get_train_model_cls(model_name: str) -> type[TrainModel]:
+    for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
+        if train_model_cls.is_supported_model(model_name):
+            return train_model_cls
+    raise ValueError(f"Unsupported model name '{model_name}'.")
+
+
 def get_train_model_args_cls(
     model_name: str, model_args: dict[str, Any] | TrainModelArgs | None
 ) -> type[TrainModelArgs]:
@@ -297,8 +325,10 @@ def get_train_model_args_cls(
         return model_args.__class__
 
     # TODO(Guarin, 08/25): Properly handle model name and args linking.
-    if model_name.endswith("-eomt"):
-        return DINOv2EoMTSemanticSegmentationTrainArgs
+    for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
+        if train_model_cls.is_supported_model(model_name):
+            return train_model_cls.train_model_args_cls
+
     raise ValueError(f"Unsupported model name '{model_name}'.")
 
 
@@ -306,12 +336,13 @@ def get_train_model_args(
     model_args: dict[str, Any] | TrainModelArgs | None,
     model_args_cls: type[TrainModelArgs],
     total_steps: int,
+    model_name: str,
 ) -> TrainModelArgs:
     if isinstance(model_args, TrainModelArgs):
         return model_args
     model_args = {} if model_args is None else model_args
     args = validate.pydantic_model_validate(model_args_cls, model_args)
-    args.resolve_auto(total_steps=total_steps)
+    args.resolve_auto(total_steps=total_steps, model_name=model_name)
     return args
 
 
@@ -319,7 +350,7 @@ def get_train_model(
     model_name: str,
     model_args: TrainModelArgs,
     data_args: MaskSemanticSegmentationDataArgs,
-    val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
+    val_transform_args: TaskTransformArgs,
 ) -> TrainModel:
     package_name, model_name = model_name.split("/", maxsplit=1)
     if package_name == "dinov2_vit":  # For backwards compatibility
@@ -329,6 +360,7 @@ def get_train_model(
             f"Unsupported model '{model_name}'. Only 'dinov2' models are supported."
         )
     assert isinstance(model_args, DINOv2EoMTSemanticSegmentationTrainArgs)
+    assert isinstance(val_transform_args, DINOv2SemanticSegmentationValTransformArgs)
 
     return DINOv2EoMTSemanticSegmentationTrain(
         model_args=model_args,
