@@ -6,6 +6,9 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+# TODO(Lionel, 08/25): Remove the linting skip.
+# ruff: noqa
+
 from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.attention import (
     CausalSelfAttention,
     LinearKMaskedBias,

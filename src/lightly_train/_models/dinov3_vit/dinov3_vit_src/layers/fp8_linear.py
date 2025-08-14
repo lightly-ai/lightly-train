@@ -111,9 +111,9 @@ def convert_linears_to_fp8(
         nonlocal total_count
         if not isinstance(module, torch.nn.Linear) or not filter_re.search(name):
             return module
-        if type(module) == torch.nn.Linear:
+        if type(module) is torch.nn.Linear:
             new_cls = Fp8Linear
-        elif type(module) == LinearKMaskedBias:
+        elif type(module) is LinearKMaskedBias:
             new_cls = Fp8LinearKMaskedBias
         else:
             assert False, str(type(module))

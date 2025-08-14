@@ -6,6 +6,9 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+# TODO(Lionel, 08/25): Remove the linter skip.
+# ruff: noqa
+
 from .dtype import as_torch_dtype
 from .utils import (
     cat_keep_shapes,

@@ -30,7 +30,7 @@ class DINOv3ViTPackage(Package):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [f"{cls.name}/vits16"]
+        return [f"{cls.name}/vits16", f"{cls.name}/vitb16plus", f"{cls.name}/vitb16"]
 
     @classmethod
     def is_supported_model(
@@ -55,8 +55,9 @@ class DINOv3ViTPackage(Package):
             "vitl16plus": backbones.dinov3_vitl16plus,
             "vith16plus": backbones.dinov3_vith16plus,
         }
+        assert isinstance(model_args, dict)
         model = model_to_getter[model_name](weights=model_args["teacher_url"])
-
+        assert isinstance(model, DinoVisionTransformer)
         return model
 
     @classmethod
