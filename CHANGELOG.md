@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.11.0] – 2025-08-15
+
+### Added
+
+- Distillation now supports DINOv3 as a teacher (experimental).
+
+### Changed
+
 - LightlyTrain now infers the best number of epochs based on the chosen method, dataset size and batch size.
 
 ### Deprecated
