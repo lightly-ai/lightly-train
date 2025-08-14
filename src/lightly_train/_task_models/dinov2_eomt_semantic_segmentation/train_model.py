@@ -39,7 +39,6 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
-from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
@@ -48,13 +47,6 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Default comes from ADE20K dataset:
     # 20210 images / batch size 16 * 31 epochs ~= 40k steps.
     default_steps: ClassVar[int] = 40_000
-
-    train_transform_cls: ClassVar[type[TaskTransform]] = (
-        DINOv2SemanticSegmentationTrainTransform
-    )
-    val_transform_cls: ClassVar[type[TaskTransform]] = (
-        DINOv2SemanticSegmentationValTransform
-    )
 
     backbone_weights: PathLike | None = None
     drop_path_rate: float = 0.0

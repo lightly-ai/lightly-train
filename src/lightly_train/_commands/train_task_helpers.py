@@ -318,20 +318,6 @@ def get_train_model_cls(model_name: str) -> type[TrainModel]:
     raise ValueError(f"Unsupported model name '{model_name}'.")
 
 
-def get_train_model_args_cls(
-    model_name: str, model_args: dict[str, Any] | TrainModelArgs | None
-) -> type[TrainModelArgs]:
-    if isinstance(model_args, TrainModelArgs):
-        return model_args.__class__
-
-    # TODO(Guarin, 08/25): Properly handle model name and args linking.
-    for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
-        if train_model_cls.is_supported_model(model_name):
-            return train_model_cls.train_model_args_cls
-
-    raise ValueError(f"Unsupported model name '{model_name}'.")
-
-
 def get_train_model_args(
     model_args: dict[str, Any] | TrainModelArgs | None,
     model_args_cls: type[TrainModelArgs],
