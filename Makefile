@@ -110,6 +110,11 @@ add-header:
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
 		-E py
+	
+	# Apply the DINOv3 license header to the DINOv3 derived files
+	licenseheaders -t dev_tools/dinov3_licenseheader.tmpl \
+		-d src/lightly_train/_models/dinov3_vit \
+		-E py
 
 
 ### Testing
