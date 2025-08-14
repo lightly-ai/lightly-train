@@ -35,8 +35,8 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model im
     DINOv2EoMTSemanticSegmentationTrain,
 )
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
-    DINOv2SemanticSegmentationTrainTransformArgs,
-    DINOv2SemanticSegmentationValTransformArgs,
+    DINOv2EoMTSemanticSegmentationTrainTransformArgs,
+    DINOv2EoMTSemanticSegmentationValTransformArgs,
 )
 from lightly_train._task_models.train_model import (
     TrainModel,
@@ -190,8 +190,8 @@ def get_transform_args(
             "`ignore_index` is only supported for semantic segmentation tasks."
         )
 
-    train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls()
-    val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls()
+    train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
+    val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls
 
     if ignore_index is None:
         return (
@@ -202,11 +202,11 @@ def get_transform_args(
     # This is for mypy, since `ignore_index` is currently not in all the transform_args.
     assert issubclass(
         train_transform_args_cls,
-        DINOv2SemanticSegmentationTrainTransformArgs,
+        DINOv2EoMTSemanticSegmentationTrainTransformArgs,
     )
     assert issubclass(
         val_transform_args_cls,
-        DINOv2SemanticSegmentationValTransformArgs,
+        DINOv2EoMTSemanticSegmentationValTransformArgs,
     )
     return train_transform_args_cls(ignore_index=ignore_index), val_transform_args_cls(
         ignore_index=ignore_index
@@ -319,7 +319,7 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
 
 def get_train_model_cls(model_name: str) -> type[TrainModel]:
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
-        if train_model_cls.is_supported_model(model_name):
+        if train_model_cls.task_model_cls.is_supported_model(model_name):
             return train_model_cls
     raise ValueError(f"Unsupported model name '{model_name}'.")
 

@@ -141,7 +141,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
                 "more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html"
             )
 
-        if model_name.endswith(f"-{cls.model_suffix}"):
+        if not model_name.endswith(f"-{cls.model_suffix}"):
             raise_invalid_name()
 
         backbone_name = model_name[: -len(f"-{cls.model_suffix}")]

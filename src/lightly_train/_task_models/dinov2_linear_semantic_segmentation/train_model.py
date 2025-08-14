@@ -64,7 +64,7 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
 
 class DINOv2LinearSemanticSegmentationTrain(TrainModel):
     task = "semantic_segmentation"
-    model_arg_cls = DINOv2LinearSemanticSegmentationTrainArgs
+    train_model_args_cls = DINOv2LinearSemanticSegmentationTrainArgs
     task_model_cls = DINOv2LinearSemanticSegmentation
     train_transform_cls = DINOv2LinearSemanticSegmentationTrainTransform
     val_transform_cls = DINOv2LinearSemanticSegmentationValTransform
