@@ -1,10 +1,8 @@
 #
-# Copyright (c) Lightly AG and affiliates.
-# All rights reserved.
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-#
+# This software may be used and distributed in accordance with
+# the terms of the DINOv3 License Agreement.#
 
 from typing import Union
 
