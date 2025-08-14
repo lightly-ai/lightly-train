@@ -39,8 +39,20 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
-def get_teacher(teacher_name: str, teacher_weights: str | Path | None = None) -> Module:
-    wrapped_model = package_helpers.get_wrapped_model(model=teacher_name)
+def get_teacher(
+    teacher_name: str,
+    teacher_weights: str | Path | None = None,
+    method_args: DistillationV2Args | None = None,
+) -> Module:
+    model_args = None
+    if method_args is not None:
+        model_args = {
+            "teacher_url": method_args.teacher_url,
+        }
+
+    wrapped_model = package_helpers.get_wrapped_model(
+        model=teacher_name, model_args=model_args
+    )
     teacher_embedding_model = wrapped_model.get_model()
     assert isinstance(teacher_embedding_model, Module)
 
@@ -71,6 +83,9 @@ class DistillationV2Args(MethodArgs):
 
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None
+
+    # Optional teacher url.
+    teacher_url: str | None = None
 
     # Number of projection layers in the projection head.
     n_projection_layers: int = 1
@@ -148,7 +163,7 @@ class DistillationV2(Method):
         )
         # Get the teacher model.
         self.teacher_embedding_model = get_teacher(
-            method_args.teacher, method_args.teacher_weights
+            method_args.teacher, method_args.teacher_weights, method_args
         )
         self.teacher_embedding_dim = (
             method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim
