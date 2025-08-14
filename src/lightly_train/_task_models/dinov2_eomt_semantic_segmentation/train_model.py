@@ -252,7 +252,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
 
     @classmethod
     def is_supported_model(cls, model_name: str) -> bool:
-        return "-eomt" in model_name
+        return model_name.endswith("-eomt")
 
     def get_task_model(self) -> DINOv2EoMTSemanticSegmentation:
         return self.model
