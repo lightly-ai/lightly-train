@@ -8,7 +8,7 @@ from typing import Callable, List, Optional
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from dinov3.utils import cat_keep_shapes, uncat_with_shapes
+from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import cat_keep_shapes, uncat_with_shapes
 
 
 class ListForwardMixin(object):

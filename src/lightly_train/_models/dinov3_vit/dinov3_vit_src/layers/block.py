@@ -8,11 +8,11 @@ from typing import Callable, List, Optional
 import torch
 from torch import Tensor, nn
 
-from dinov3.utils import cat_keep_shapes, uncat_with_shapes
+from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import cat_keep_shapes, uncat_with_shapes
 
-from .attention import CausalSelfAttention, SelfAttention
-from .ffn_layers import Mlp
-from .layer_scale import LayerScale  # , DropPath
+from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.attention import CausalSelfAttention, SelfAttention
+from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.ffn_layers import Mlp
+from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.layer_scale import LayerScale  # , DropPath
 
 torch._dynamo.config.automatic_dynamic_shapes = False
 torch._dynamo.config.accumulated_cache_size_limit = 1024

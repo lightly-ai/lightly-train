@@ -7,8 +7,8 @@ import re
 
 import torch
 
-from dinov3.layers.attention import LinearKMaskedBias
-from dinov3.utils import named_replace
+from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.attention import LinearKMaskedBias
+from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import named_replace
 
 # avoid division by zero when calculating scale
 EPS = 1e-12
