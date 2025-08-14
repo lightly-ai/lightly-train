@@ -320,10 +320,7 @@ def get_train_model_args_cls(
     if isinstance(model_args, TrainModelArgs):
         return model_args.__class__
 
-    # # TODO(Guarin, 08/25): Properly handle model name and args linking.
-    # if model_name.endswith("-eomt"):
-    #     return DINOv2EoMTSemanticSegmentationTrainArgs
-
+    # TODO(Guarin, 08/25): Properly handle model name and args linking.
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
         if train_model_cls.is_supported_model(model_name):
             return train_model_cls.train_model_args_cls
