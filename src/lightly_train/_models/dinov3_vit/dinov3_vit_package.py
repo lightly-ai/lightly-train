@@ -49,7 +49,7 @@ class DINOv3ViTPackage(Package):
         """
         model_to_getter = {
             "vits16": backbones.dinov3_vits16,
-            "vitb16plus": backbones.dinov3_vits16plus,
+            "vits16plus": backbones.dinov3_vits16plus,
             "vitb16": backbones.dinov3_vitb16,
             "vitl16": backbones.dinov3_vitl16,
             "vitl16plus": backbones.dinov3_vitl16plus,
