@@ -11,8 +11,8 @@ import torch
 import torch.nn.init
 from torch import Tensor, nn
 
-from dinov3.layers import LayerScale, Mlp, PatchEmbed, RMSNorm, RopePositionEmbedding, SelfAttentionBlock, SwiGLUFFN
-from dinov3.utils import named_apply
+from lightly_train._models.dinov3_vit.dinov3_vit_src.layers import LayerScale, Mlp, PatchEmbed, RMSNorm, RopePositionEmbedding, SelfAttentionBlock, SwiGLUFFN
+from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import named_apply
 
 logger = logging.getLogger("dinov3")
 
