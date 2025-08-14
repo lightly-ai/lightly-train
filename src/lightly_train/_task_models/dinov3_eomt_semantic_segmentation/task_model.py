@@ -290,7 +290,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
     def forward_train(
         self, x: Tensor, return_logits_per_layer: bool
     ) -> tuple[list[Tensor], list[Tensor]]:
-        B, _, H, W = x.shape
+        _, _, H, W = x.shape
         patch_size = self.backbone.patch_size
         grid_size = (H // patch_size, W // patch_size)
 
@@ -347,7 +347,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                     attn_mask[
                         :,
                         : self.num_queries,
-                        self.num_queries + 1 + 4 :,
+                        # + 1 class token + register tokens
+                        self.num_queries + 1 + self.backbone.n_storage_tokens :,
                     ] = interpolated > 0
                     attn_mask = self._disable_attn_mask(
                         attn_mask=attn_mask,
@@ -490,8 +491,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         class_logits = self.class_head(q)
 
-        # num queries + 1 class token + 4 register tokens
-        x = x[:, self.num_queries + 1 + 4 :, :]
+        # num queries + 1 class token + register tokens
+        x = x[:, self.num_queries + 1 + self.backbone.n_storage_tokens :, :]
         x = x.transpose(1, 2).reshape(x.shape[0], -1, *grid_size)
 
         mask_logits = torch.einsum(
@@ -515,7 +516,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             attn_mask[
                 :,
                 : self.num_queries,
-                self.num_queries + 1 + 4 :,
+                self.num_queries + 1 + self.backbone.n_storage_tokens :,
             ][random_queries] = True
 
         return attn_mask
