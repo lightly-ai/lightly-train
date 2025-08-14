@@ -187,23 +187,27 @@ def get_transform_args(
             "`ignore_index` is only supported for semantic segmentation tasks."
         )
 
+    train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls()
+    val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls()
+
     if ignore_index is None:
         return (
-            train_model_cls.train_transform_args_cls(),
-            train_model_cls.val_transform_args_cls(),
+            train_transform_args_cls(),
+            val_transform_args_cls(),
         )
+
     # This is for mypy, since `ignore_index` is currently not in all the transform_args.
     assert issubclass(
-        train_model_cls.train_transform_args_cls,
+        train_transform_args_cls,
         DINOv2SemanticSegmentationTrainTransformArgs,
     )
     assert issubclass(
-        train_model_cls.val_transform_args_cls,
+        val_transform_args_cls,
         DINOv2SemanticSegmentationValTransformArgs,
     )
-    return train_model_cls.train_transform_args_cls(
+    return train_transform_args_cls(ignore_index=ignore_index), val_transform_args_cls(
         ignore_index=ignore_index
-    ), train_model_cls.val_transform_args_cls(ignore_index=ignore_index)
+    )
 
 
 def get_train_transform(
