@@ -80,14 +80,16 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
     def resolve_auto(self, total_steps: int, model_name: str) -> None:
         if self.num_joint_blocks == "auto":
-            match = re.match(r"(dinov2(?:_vit)?)/(vit[slbg]).*", model_name)
+            match = re.match(
+                r"(dinov2(?:_vit)?)/(?P<model_size>vit[slbg]).*", model_name
+            )
             if match is None:
                 raise ValueError(
                     f"Unknown model name '{model_name}', "
                     "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
                     "for all supported models."
                 )
-            model_size = match.group(1)
+            model_size = match.group("model_size")
             self.num_joint_blocks = {
                 "vits": 3,
                 "vitb": 3,
