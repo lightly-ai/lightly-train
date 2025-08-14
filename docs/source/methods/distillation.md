@@ -25,6 +25,26 @@ if __name__ == "__main__":
     )
 ````
 
+### 🔥 Experimental: Try Distillation from [DINOv3](https://ai.meta.com/dinov3/) 🔥
+Downloading DINOv3 checkpoints currently requires to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/). Shortly thereafter you will receive an email with the download links, which you can pass to the `method_args` in the training script:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train(
+        out="out/my_experiment", 
+        data="my_data_dir",
+        model="torchvision/resnet18",
+        method="distillation",
+        method_args={
+            "teacher": "dinov3/vitb16",
+            "teacher_weights": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
+        }
+    )
+```
+We currently tested it with `"dinov3/vits16"`, `"dinov3/vits16-plus"` and `"dinov3/vitb16"`.
+
 ````{tab} Command Line
 ```bash
 lightly-train train out=out/my_experiment data=my_data_dir model="torchvision/resnet18" method="distillation"
