@@ -54,7 +54,7 @@ lightly_train.train(
   ...,
   method="distillation",
   method_args={
-    "teacher": "dinov2_vit/vitb14",
+    "teacher": "dinov2/vitb14",
     "teacher_weights": "out/dinov2/exported_models/exported_last.pt", # pretrained `dinov2_vit/vitb14` weights 
   }
 )
