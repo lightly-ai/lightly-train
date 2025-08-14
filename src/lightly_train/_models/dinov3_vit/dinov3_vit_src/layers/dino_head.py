@@ -1,7 +1,8 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
+# # Copyright (c) Meta Platforms, Inc. and affiliates.
+# #
+# # This software may be used and distributed in accordance with
+# # the terms of the DINOv3 License Agreement.#
 
 import torch
 import torch.nn as nn
@@ -50,7 +51,9 @@ class DINOHead(nn.Module):
         return x
 
 
-def _build_mlp(nlayers, in_dim, bottleneck_dim, hidden_dim=None, use_bn=False, bias=True):
+def _build_mlp(
+    nlayers, in_dim, bottleneck_dim, hidden_dim=None, use_bn=False, bias=True
+):
     if nlayers == 1:
         return nn.Linear(in_dim, bottleneck_dim, bias=bias)
     else:

@@ -1,13 +1,16 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
+# # Copyright (c) Meta Platforms, Inc. and affiliates.
+# #
+# # This software may be used and distributed in accordance with
+# # the terms of the DINOv3 License Agreement.#
 
 import re
 
 import torch
 
-from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.attention import LinearKMaskedBias
+from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.attention import (
+    LinearKMaskedBias,
+)
 from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import named_replace
 
 # avoid division by zero when calculating scale
@@ -96,7 +99,9 @@ class Fp8LinearKMaskedBias(LinearKMaskedBias):
         return out
 
 
-def convert_linears_to_fp8(root_module: torch.nn.Module, *, filter: str) -> torch.nn.Module:
+def convert_linears_to_fp8(
+    root_module: torch.nn.Module, *, filter: str
+) -> torch.nn.Module:
     filter_re = re.compile(filter)
     total_count = 0
 
@@ -117,7 +122,8 @@ def convert_linears_to_fp8(root_module: torch.nn.Module, *, filter: str) -> torc
             # switch back to cuBLAS, it artificially requires dims to be
             # multiples of 16.
             raise RuntimeError(
-                "fp8 requires all dimensions to be multiples of 64 " "(consider using ffn_layer=swiglu64 or higher)"
+                "fp8 requires all dimensions to be multiples of 64 "
+                "(consider using ffn_layer=swiglu64 or higher)"
             )
         new_module = new_cls(
             in_features=module.in_features,

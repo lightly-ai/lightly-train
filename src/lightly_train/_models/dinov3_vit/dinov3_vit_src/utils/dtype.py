@@ -1,7 +1,8 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
+# # Copyright (c) Meta Platforms, Inc. and affiliates.
+# #
+# # This software may be used and distributed in accordance with
+# # the terms of the DINOv3 License Agreement.#
 
 from typing import Dict, Union
 
@@ -31,5 +32,7 @@ def as_torch_dtype(dtype: TypeSpec) -> torch.dtype:
         return dtype
     if isinstance(dtype, str):
         dtype = np.dtype(dtype)
-    assert isinstance(dtype, np.dtype), f"Expected an instance of nunpy dtype, got {type(dtype)}"
+    assert isinstance(dtype, np.dtype), (
+        f"Expected an instance of nunpy dtype, got {type(dtype)}"
+    )
     return _NUMPY_TO_TORCH_DTYPE[dtype]

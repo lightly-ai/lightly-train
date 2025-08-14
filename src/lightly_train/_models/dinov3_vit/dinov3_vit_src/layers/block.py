@@ -1,18 +1,26 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
+# # Copyright (c) Meta Platforms, Inc. and affiliates.
+# #
+# # This software may be used and distributed in accordance with
+# # the terms of the DINOv3 License Agreement.#
 
 from typing import Callable, List, Optional
 
 import torch
 from torch import Tensor, nn
 
-from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import cat_keep_shapes, uncat_with_shapes
-
-from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.attention import CausalSelfAttention, SelfAttention
+from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.attention import (
+    CausalSelfAttention,
+    SelfAttention,
+)
 from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.ffn_layers import Mlp
-from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.layer_scale import LayerScale  # , DropPath
+from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.layer_scale import (
+    LayerScale,
+)  # , DropPath
+from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import (
+    cat_keep_shapes,
+    uncat_with_shapes,
+)
 
 torch._dynamo.config.automatic_dynamic_shapes = False
 torch._dynamo.config.accumulated_cache_size_limit = 1024
@@ -51,7 +59,11 @@ class SelfAttentionBlock(nn.Module):
             mask_k_bias=mask_k_bias,
             device=device,
         )
-        self.ls1 = LayerScale(dim, init_values=init_values, device=device) if init_values else nn.Identity()
+        self.ls1 = (
+            LayerScale(dim, init_values=init_values, device=device)
+            if init_values
+            else nn.Identity()
+        )
 
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * ffn_ratio)
@@ -63,12 +75,18 @@ class SelfAttentionBlock(nn.Module):
             bias=ffn_bias,
             device=device,
         )
-        self.ls2 = LayerScale(dim, init_values=init_values, device=device) if init_values else nn.Identity()
+        self.ls2 = (
+            LayerScale(dim, init_values=init_values, device=device)
+            if init_values
+            else nn.Identity()
+        )
 
         self.sample_drop_ratio = drop_path
 
     @staticmethod
-    def _maybe_index_rope(rope: tuple[Tensor, Tensor] | None, indices: Tensor) -> tuple[Tensor, Tensor] | None:
+    def _maybe_index_rope(
+        rope: tuple[Tensor, Tensor] | None, indices: Tensor
+    ) -> tuple[Tensor, Tensor] | None:
         if rope is None:
             return None
 
@@ -130,19 +148,27 @@ class SelfAttentionBlock(nn.Module):
         related to concat ops.
         """
         b_list = [x.shape[0] for x in x_list]
-        sample_subset_sizes = [max(int(b * (1 - self.sample_drop_ratio)), 1) for b in b_list]
-        residual_scale_factors = [b / sample_subset_size for b, sample_subset_size in zip(b_list, sample_subset_sizes)]
+        sample_subset_sizes = [
+            max(int(b * (1 - self.sample_drop_ratio)), 1) for b in b_list
+        ]
+        residual_scale_factors = [
+            b / sample_subset_size
+            for b, sample_subset_size in zip(b_list, sample_subset_sizes)
+        ]
 
         if self.training and self.sample_drop_ratio > 0.0:
             indices_1_list = [
                 (torch.randperm(b, device=x.device))[:sample_subset_size]
                 for x, b, sample_subset_size in zip(x_list, b_list, sample_subset_sizes)
             ]
-            x_subset_1_list = [x[indices_1] for x, indices_1 in zip(x_list, indices_1_list)]
+            x_subset_1_list = [
+                x[indices_1] for x, indices_1 in zip(x_list, indices_1_list)
+            ]
 
             if rope_list is not None:
                 rope_subset_list = [
-                    self._maybe_index_rope(rope, indices_1) for rope, indices_1 in zip(rope_list, indices_1_list)
+                    self._maybe_index_rope(rope, indices_1)
+                    for rope, indices_1 in zip(rope_list, indices_1_list)
                 ]
             else:
                 rope_subset_list = rope_list
@@ -168,7 +194,9 @@ class SelfAttentionBlock(nn.Module):
                 (torch.randperm(b, device=x.device))[:sample_subset_size]
                 for x, b, sample_subset_size in zip(x_list, b_list, sample_subset_sizes)
             ]
-            x_subset_2_list = [x[indices_2] for x, indices_2 in zip(x_attn_list, indices_2_list)]
+            x_subset_2_list = [
+                x[indices_2] for x, indices_2 in zip(x_attn_list, indices_2_list)
+            ]
             flattened, shapes, num_tokens = cat_keep_shapes(x_subset_2_list)
             norm2_flat = self.norm2(flattened)
             norm2_list = uncat_with_shapes(norm2_flat, shapes, num_tokens)
@@ -228,9 +256,15 @@ class CausalSelfAttentionBlock(nn.Module):
 
         self.dim = dim
         self.is_causal = is_causal
-        self.ls1 = LayerScale(dim, init_values=ls_init_value) if ls_init_value else nn.Identity()
+        self.ls1 = (
+            LayerScale(dim, init_values=ls_init_value)
+            if ls_init_value
+            else nn.Identity()
+        )
         self.attention_norm = norm_layer(dim)
-        self.attention = CausalSelfAttention(dim, num_heads, attn_drop=dropout_prob, proj_drop=dropout_prob)
+        self.attention = CausalSelfAttention(
+            dim, num_heads, attn_drop=dropout_prob, proj_drop=dropout_prob
+        )
 
         self.ffn_norm = norm_layer(dim)
         ffn_hidden_dim = int(dim * ffn_ratio)
@@ -241,7 +275,11 @@ class CausalSelfAttentionBlock(nn.Module):
             act_layer=act_layer,
         )
 
-        self.ls2 = LayerScale(dim, init_values=ls_init_value) if ls_init_value else nn.Identity()
+        self.ls2 = (
+            LayerScale(dim, init_values=ls_init_value)
+            if ls_init_value
+            else nn.Identity()
+        )
 
     def init_weights(
         self,
@@ -263,7 +301,6 @@ class CausalSelfAttentionBlock(nn.Module):
         self,
         x: torch.Tensor,
     ):
-
         x_attn = x + self.ls1(self.attention(self.attention_norm(x), self.is_causal))
         x_ffn = x_attn + self.ls2(self.feed_forward(self.ffn_norm(x_attn)))
         return x_ffn

@@ -1,15 +1,20 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
+# # Copyright (c) Meta Platforms, Inc. and affiliates.
+# #
+# # This software may be used and distributed in accordance with
+# # the terms of the DINOv3 License Agreement.#
 
 import math
 from typing import List, Tuple
 
 import torch
 import torch.nn.functional as F
-from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import cat_keep_shapes, uncat_with_shapes
 from torch import Tensor, nn
+
+from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import (
+    cat_keep_shapes,
+    uncat_with_shapes,
+)
 
 
 # RoPE-related functions:
@@ -33,10 +38,16 @@ class LinearKMaskedBias(nn.Linear):
         o = self.out_features
         assert o % 3 == 0
         if self.bias is not None:
-            self.register_buffer("bias_mask", torch.full_like(self.bias, fill_value=math.nan))
+            self.register_buffer(
+                "bias_mask", torch.full_like(self.bias, fill_value=math.nan)
+            )
 
     def forward(self, input: Tensor) -> Tensor:
-        masked_bias = self.bias * self.bias_mask.to(self.bias.dtype) if self.bias is not None else None
+        masked_bias = (
+            self.bias * self.bias_mask.to(self.bias.dtype)
+            if self.bias is not None
+            else None
+        )
         return F.linear(input, self.weight, masked_bias)
 
 
@@ -63,7 +74,9 @@ class SelfAttention(nn.Module):
         self.proj = nn.Linear(dim, dim, bias=proj_bias, device=device)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    def apply_rope(self, q: Tensor, k: Tensor, rope: Tensor | Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
+    def apply_rope(
+        self, q: Tensor, k: Tensor, rope: Tensor | Tuple[Tensor, Tensor]
+    ) -> Tuple[Tensor, Tensor]:
         # All operations will use the dtype of rope, the output is cast back to the dtype of q and k
         q_dtype = q.dtype
         k_dtype = k.dtype
@@ -140,7 +153,10 @@ class CausalSelfAttention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def init_weights(
-        self, init_attn_std: float | None = None, init_proj_std: float | None = None, factor: float = 1.0
+        self,
+        init_attn_std: float | None = None,
+        init_proj_std: float | None = None,
+        factor: float = 1.0,
     ) -> None:
         init_attn_std = init_attn_std or (self.dim**-0.5)
         init_proj_std = init_proj_std or init_attn_std * factor
@@ -157,7 +173,12 @@ class CausalSelfAttention(nn.Module):
         q, k, v = torch.unbind(qkv, 2)
         q, k, v = [t.transpose(1, 2) for t in [q, k, v]]
         x = torch.nn.functional.scaled_dot_product_attention(
-            q, k, v, attn_mask=None, dropout_p=self.attn_drop if self.training else 0, is_causal=is_causal
+            q,
+            k,
+            v,
+            attn_mask=None,
+            dropout_p=self.attn_drop if self.training else 0,
+            is_causal=is_causal,
         )
         x = x.transpose(1, 2).contiguous().view(B, N, C)
         x = self.proj_drop(self.proj(x))

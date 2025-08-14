@@ -1,7 +1,8 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
+# # Copyright (c) Meta Platforms, Inc. and affiliates.
+# #
+# # This software may be used and distributed in accordance with
+# # the terms of the DINOv3 License Agreement.#
 
 import logging
 from typing import Callable
@@ -11,7 +12,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import xformers.ops as xops
 
-from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import named_apply, named_replace
+from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import (
+    named_apply,
+    named_replace,
+)
 
 logger = logging.getLogger("dinov3")
 
@@ -39,12 +43,16 @@ class LinearW24(torch.nn.Linear):
             gradient="ste",
             backend="cusparselt",
         )
-        return F.linear(input, w_sparse, self.bias,)[
-            :dim0
-        ].unflatten(dim=0, sizes=input_shape[:-1])
+        return F.linear(
+            input,
+            w_sparse,
+            self.bias,
+        )[:dim0].unflatten(dim=0, sizes=input_shape[:-1])
 
 
-def replace_linears_with_sparse_linear(root_module: nn.Module, *, filter_fn: Callable[[str], bool]) -> nn.Module:
+def replace_linears_with_sparse_linear(
+    root_module: nn.Module, *, filter_fn: Callable[[str], bool]
+) -> nn.Module:
     total_count = 0
 
     def replace(module: nn.Module, name: str) -> nn.Module:

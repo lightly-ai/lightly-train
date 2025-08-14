@@ -1,19 +1,22 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
+# # Copyright (c) Meta Platforms, Inc. and affiliates.
+# #
+# # This software may be used and distributed in accordance with
+# # the terms of the DINOv3 License Agreement.#
 
 import logging
 from pathlib import Path
-
 from typing import Union
 
 import torch
 import torch.nn as nn
 
-from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.fp8_linear import convert_linears_to_fp8
-
-from lightly_train._models.dinov3_vit.dinov3_vit_src.models import vision_transformer as vits
+from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.fp8_linear import (
+    convert_linears_to_fp8,
+)
+from lightly_train._models.dinov3_vit.dinov3_vit_src.models import (
+    vision_transformer as vits,
+)
 
 logger = logging.getLogger("dinov3")
 

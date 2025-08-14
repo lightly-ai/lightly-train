@@ -38,6 +38,9 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms imp
     DINOv2EoMTSemanticSegmentationTrainTransformArgs,
     DINOv2EoMTSemanticSegmentationValTransformArgs,
 )
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
+    DINOv3EoMTSemanticSegmentationTrain,
+)
 from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
@@ -56,6 +59,7 @@ logger = logging.getLogger(__name__)
 
 TASK_TRAIN_MODEL_CLASSES = [
     DINOv2EoMTSemanticSegmentationTrain,
+    DINOv3EoMTSemanticSegmentationTrain,
 ]
 
 
