@@ -29,6 +29,11 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scheduler impo
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model import (
     DINOv2EoMTSemanticSegmentation,
 )
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
+    DINOv2SemanticSegmentationTrainTransform,
+    DINOv2SemanticSegmentationValTransform,
+    DINOv2SemanticSegmentationValTransformArgs,
+)
 from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
@@ -116,12 +121,24 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
 
 class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
+    task: ClassVar[str] = "semantic_segmentation"
+    train_model_args_cls: ClassVar[type[DINOv2EoMTSemanticSegmentationTrainArgs]] = (
+        DINOv2EoMTSemanticSegmentationTrainArgs
+    )
+    train_transform_cls: ClassVar[type[DINOv2SemanticSegmentationTrainTransform]] = (
+        DINOv2SemanticSegmentationTrainTransform
+    )
+    val_transform_cls: ClassVar[type[DINOv2SemanticSegmentationValTransform]] = (
+        DINOv2SemanticSegmentationValTransform
+    )
+
     def __init__(
         self,
         *,
         model_name: str,
         model_args: DINOv2EoMTSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
+        val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
@@ -141,13 +158,13 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
 
         self.model = DINOv2EoMTSemanticSegmentation(
             # TODO(Guarin, 10/25): Make configurable and pass all args.
-            # We probably don't want to instantiate the model here. Either we pass it
-            # from the outside or we use a setup function (might be useful for FSDP).
             model_name=model_name,
             classes=data_args.included_classes,
             class_ignore_index=(
                 data_args.ignore_index if data_args.ignore_classes else None
             ),
+            image_size=val_transform_args.image_size,
+            image_normalize=val_transform_args.normalize.model_dump(),
             num_queries=model_args.num_queries,
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
@@ -155,6 +172,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 "drop_path_rate": model_args.drop_path_rate,
             },
         )
+
         self.criterion = MaskClassificationLoss(
             num_points=model_args.loss_num_points,
             oversample_ratio=model_args.loss_oversample_ratio,
@@ -216,6 +234,10 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 for _ in range(num_joint_blocks + 1)
             ]
         )
+
+    @classmethod
+    def is_supported_model(cls, model_name: str) -> bool:
+        return model_name.endswith("-eomt")
 
     def get_task_model(self) -> DINOv2EoMTSemanticSegmentation:
         return self.model

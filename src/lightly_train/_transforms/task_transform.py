@@ -27,5 +27,9 @@ class TaskTransform:
     def __init__(self, transform_args: TaskTransformArgs):
         self.transform_args = transform_args
 
+    @staticmethod
+    def transform_args_cls() -> type[TaskTransformArgs]:
+        return TaskTransformArgs
+
     def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:
         raise NotImplementedError()
