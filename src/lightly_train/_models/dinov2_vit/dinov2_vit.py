@@ -67,6 +67,10 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
 
 def update_blocks_student_to_teacher(blocks: ModuleList) -> None:
     for block in blocks:
+        # For FSDP the blocks are grouped in chunks to reduce the peak
+        # memory usage after un-sharding. The chunking makes it more
+        # complicated to access the individual blocks as a consequence,
+        # chunks are padded with Identity layers.
         assert isinstance(block, Block) or isinstance(block, Identity)
         if isinstance(block, Identity):
             continue
