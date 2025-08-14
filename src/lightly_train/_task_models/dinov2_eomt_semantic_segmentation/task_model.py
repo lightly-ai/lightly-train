@@ -20,6 +20,7 @@ from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
+from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Attention
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
@@ -35,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 
 class DINOv2EoMTSemanticSegmentation(TaskModel):
+    model_suffix = "eomt"
+
     def __init__(
         self,
         *,
@@ -81,12 +84,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 Additional arguments to pass to the DINOv2 backbone.
         """
         super().__init__(locals(), ignore_args={"backbone_weights"})
-        if not model_name.endswith("-eomt"):
-            raise ValueError(
-                f"Model name must end with '-eomt', got '{model_name}' instead."
-            )
-
-        self.model_name = model_name
+        parsed_name = self.parse_model_name(model_name=model_name)
+        self.model_name = parsed_name["model_name"]
         self.classes = classes
         self.class_ignore_index = class_ignore_index
         self.image_size = image_size
@@ -116,9 +115,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             args.update(backbone_args)
 
         # Get the backbone.
-        backbone_name = self.model_name[: -len("-eomt")]
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
-            model_name=backbone_name,
+            model_name=parsed_name["backbone_name"],
             model_args=args,
         )
         embed_dim = self.backbone.embed_dim
@@ -165,6 +163,58 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         self.register_buffer(
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
+
+    @classmethod
+    def list_model_names(cls) -> list[str]:
+        return [
+            f"{name}-{cls.model_suffix}"
+            for name in DINOV2_VIT_PACKAGE.list_model_names()
+        ]
+
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        try:
+            cls.parse_model_name(model_name=model)
+        except ValueError:
+            return False
+        else:
+            return True
+
+    @classmethod
+    def parse_model_name(cls, model_name: str) -> dict[str, str]:
+        def raise_invalid_name() -> None:
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available "
+                f"models are: {cls.list_model_names()}. See the documentation for "
+                "more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html"
+            )
+
+        if not model_name.endswith(f"-{cls.model_suffix}"):
+            raise_invalid_name()
+
+        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
+
+        try:
+            package_name, backbone_name = package_helpers.parse_model_name(
+                backbone_name
+            )
+        except ValueError:
+            raise_invalid_name()
+
+        if package_name != DINOV2_VIT_PACKAGE.name:
+            raise_invalid_name()
+
+        try:
+            backbone_name = DINOV2_VIT_PACKAGE.parse_model_name(
+                model_name=backbone_name
+            )
+        except ValueError:
+            raise_invalid_name()
+
+        return {
+            "model_name": f"{DINOV2_VIT_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "backbone_name": backbone_name,
+        }
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:

@@ -30,9 +30,9 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model imp
     DINOv2EoMTSemanticSegmentation,
 )
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
-    DINOv2SemanticSegmentationTrainTransform,
-    DINOv2SemanticSegmentationValTransform,
-    DINOv2SemanticSegmentationValTransformArgs,
+    DINOv2EoMTSemanticSegmentationTrainTransform,
+    DINOv2EoMTSemanticSegmentationValTransform,
+    DINOv2EoMTSemanticSegmentationValTransformArgs,
 )
 from lightly_train._task_models.train_model import (
     TaskStepResult,
@@ -121,16 +121,11 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
 
 class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
-    task: ClassVar[str] = "semantic_segmentation"
-    train_model_args_cls: ClassVar[type[DINOv2EoMTSemanticSegmentationTrainArgs]] = (
-        DINOv2EoMTSemanticSegmentationTrainArgs
-    )
-    train_transform_cls: ClassVar[type[DINOv2SemanticSegmentationTrainTransform]] = (
-        DINOv2SemanticSegmentationTrainTransform
-    )
-    val_transform_cls: ClassVar[type[DINOv2SemanticSegmentationValTransform]] = (
-        DINOv2SemanticSegmentationValTransform
-    )
+    task = "semantic_segmentation"
+    train_model_args_cls = DINOv2EoMTSemanticSegmentationTrainArgs
+    task_model_cls = DINOv2EoMTSemanticSegmentation
+    train_transform_cls = DINOv2EoMTSemanticSegmentationTrainTransform
+    val_transform_cls = DINOv2EoMTSemanticSegmentationValTransform
 
     def __init__(
         self,
@@ -138,7 +133,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         model_name: str,
         model_args: DINOv2EoMTSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
-        val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
+        val_transform_args: DINOv2EoMTSemanticSegmentationValTransformArgs,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
@@ -234,10 +229,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 for _ in range(num_joint_blocks + 1)
             ]
         )
-
-    @classmethod
-    def is_supported_model(cls, model_name: str) -> bool:
-        return model_name.endswith("-eomt")
 
     def get_task_model(self) -> DINOv2EoMTSemanticSegmentation:
         return self.model
