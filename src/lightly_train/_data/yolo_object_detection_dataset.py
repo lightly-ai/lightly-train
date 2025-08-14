@@ -20,6 +20,22 @@ from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import ImageFilename, ObjectDetectionDatasetItem
 
 
+class YoloObjectDetectionDatasetArgs(PydanticConfig):
+    path: Path
+    train: Path
+    val: Path
+    test: Path | None
+    names: dict[int, str]
+
+    @pydantic.field_validator("train", "val", mode="after")
+    def validate_paths(cls, v: Path) -> Path:
+        if "images" not in str(v):
+            raise ValueError(f"Expected path to include 'images', got {v}.")
+        if len(str(v).split("/")) != 2:
+            raise ValueError(f"Expected subdirectories of depth 2 from root, got {v}.")
+        return v
+
+
 class YoloObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
     def __init__(
         self,
@@ -116,19 +132,3 @@ class YoloObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
             bboxes=bboxes_,
             classes=class_labels_,
         )
-
-
-class YoloObjectDetectionDatasetArgs(PydanticConfig):
-    path: Path
-    train: Path
-    val: Path
-    test: Path | None
-    names: dict[int, str]
-
-    @pydantic.field_validator("train", "val", mode="after")
-    def validate_paths(cls, v: Path) -> Path:
-        if "images" not in str(v):
-            raise ValueError(f"Expected path to include 'images', got {v}.")
-        if len(str(v).split("/")) != 2:
-            raise ValueError(f"Expected subdirectories of depth 2 from root, got {v}.")
-        return v
