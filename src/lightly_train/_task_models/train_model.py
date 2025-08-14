@@ -18,6 +18,7 @@ from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._task_models.task_model import TaskModel
+from lightly_train._transforms.task_transform import TaskTransform
 
 
 class TrainModelArgs(PydanticConfig):
@@ -38,6 +39,11 @@ class TrainModel(Module):
     It also implements the train and validation steps.
     """
 
+    task: ClassVar[str]
+    train_model_args_cls: ClassVar[type[TrainModelArgs]]
+    train_transform_cls: ClassVar[type[TaskTransform]]
+    val_transform_cls: ClassVar[type[TaskTransform]]
+
     # NOTE(Guarin, 07/25): We use the same method names as for LightningModule as
     # those methods are automatically handled by Fabric. Methods with different
     # names that are called within a Fabric context will raise an error if they have
@@ -50,6 +56,10 @@ class TrainModel(Module):
     # - test_step
     # - predict_step
     # See: https://github.com/Lightning-AI/pytorch-lightning/blob/95f16c12fe23664ffa5198a43266f715717c6f45/src/lightning/fabric/wrappers.py#L47-L48
+
+    @classmethod
+    def is_supported_model(cls, model_name: str) -> bool:
+        raise NotImplementedError()
 
     def training_step(self, fabric: Fabric, batch, step: int) -> TaskStepResult:  # type: ignore[no-untyped-def]
         # Forward pass for training step.
