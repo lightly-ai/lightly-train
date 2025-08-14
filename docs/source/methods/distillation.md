@@ -45,6 +45,22 @@ Our distillation method directly applies a mean squared error (MSE) loss between
 The following are the default method arguments for distillation. To learn how you can
 override these settings, see {ref}`method-args`.
 
+````{note}
+Starting from **LightlyTrain 0.9.0**, an optional `teacher_weights` argument can be used in `method_args` to allow loading pretrained DINOv2 teacher weights for distillation methods:
+```python
+import lightly_train
+
+lightly_train.train(
+  ...,
+  method="distillation",
+  method_args={
+    "teacher": "dinov2_vit/vitb14",
+    "teacher_weights": "out/dinov2/exported_models/exported_last.pt", # pretrained `dinov2_vit/vitb14` weights 
+  }
+)
+```
+````
+
 ````{dropdown} Default Method Arguments
 ```{include} _auto/distillation_method_args.md
 ```
