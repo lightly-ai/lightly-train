@@ -41,6 +41,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         model_name: str,
         classes: dict[int, str],
         class_ignore_index: int | None,
+        image_size: tuple[int, int],
+        image_normalize: dict[str, float],
         num_queries: int,
         num_joint_blocks: int,
         backbone_weights: PathLike | None = None,
@@ -58,6 +60,14 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 The class ID assigned to pixels that do not belong to any of the
                 classes in `classes`. If None, the model will not ignore any classes and
                 always assign a class to each pixel.
+            image_size:
+                The size of the input images.
+            image_normalize:
+                A dict containing the mean and standard deviation for normalizing
+                the input images. The dict must contain the keys "mean" and "std".
+                Example: {"mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]}.
+                This is used to normalize the input images before passing them to the
+                model.
             num_queries:
                 The number of query tokens to use in the model. This is the number of
                 individual segments that the model will predict.
@@ -79,6 +89,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         self.model_name = model_name
         self.classes = classes
         self.class_ignore_index = class_ignore_index
+        self.image_size = image_size
+        self.image_normalize = image_normalize
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -178,13 +190,14 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             self.eval()
 
         # Load image
-        x = file_helpers.as_image_tensor(image)
+        device = next(self.parameters()).device
+        x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
         # TODO(Guarin, 07/25): Save mean and std in the model.
         x = transforms_functional.normalize(
-            x, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+            x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
         # Resize shorter edge to 518
         # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
