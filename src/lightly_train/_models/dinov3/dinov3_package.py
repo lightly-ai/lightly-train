@@ -53,6 +53,26 @@ class DINOv3Package(Package):
         return isinstance(model, DinoVisionTransformer)
 
     @classmethod
+    def parse_model_name(cls, model_name: str) -> str:
+        # Replace "_" with "-" for backwards compatibility.
+        # - "vitb14_pretrained" -> "vitb14-pretrained"
+        # - "_vittest14_pretrained" -> "_vittest14-pretrained"
+        # We keep leading underscores for private test models.
+        if model_name:
+            model_name = model_name[0] + model_name[1:].replace("_", "-")
+        # Replace "-pretrain" with "-pretrained" suffix for backwards compatibility.
+        if model_name.endswith("-pretrain"):
+            model_name = model_name[: -len("-pretrain")]
+        # model_info = VIT_MODELS.get(model_name)
+        # if model_info is None:
+        #     raise ValueError(
+        #         f"Unknown model: {model_name} available models are: {cls.list_model_names()}"
+        #     )
+        # # Map to original model name if current name is an alias.
+        # model_name = model_info.get("alias_for", model_name)
+        return model_name
+
+    @classmethod
     def get_model(
         cls, model_name: str, model_args: dict[str, Any] | None = None
     ) -> DinoVisionTransformer:

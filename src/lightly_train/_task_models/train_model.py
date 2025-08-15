@@ -41,6 +41,7 @@ class TrainModel(Module):
 
     task: ClassVar[str]
     train_model_args_cls: ClassVar[type[TrainModelArgs]]
+    task_model_cls: ClassVar[type[TaskModel]]
     train_transform_cls: ClassVar[type[TaskTransform]]
     val_transform_cls: ClassVar[type[TaskTransform]]
 

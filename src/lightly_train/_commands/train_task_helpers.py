@@ -34,9 +34,8 @@ from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
-    DINOv2EoMTSemanticSegmentationTrainTransformArgs,
-    DINOv2EoMTSemanticSegmentationValTransformArgs,
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
+    DINOv3EoMTSemanticSegmentationTrain,
 )
 from lightly_train._task_models.train_model import (
     TrainModel,
@@ -54,8 +53,9 @@ from lightly_train.types import (
 logger = logging.getLogger(__name__)
 
 
-TASK_TRAIN_MODEL_CLASSES = [
+TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv2EoMTSemanticSegmentationTrain,
+    DINOv3EoMTSemanticSegmentationTrain,
 ]
 
 
@@ -199,16 +199,7 @@ def get_transform_args(
             val_transform_args_cls(),
         )
 
-    # This is for mypy, since `ignore_index` is currently not in all the transform_args.
-    assert issubclass(
-        train_transform_args_cls,
-        DINOv2EoMTSemanticSegmentationTrainTransformArgs,
-    )
-    assert issubclass(
-        val_transform_args_cls,
-        DINOv2EoMTSemanticSegmentationValTransformArgs,
-    )
-    return train_transform_args_cls(ignore_index=ignore_index), val_transform_args_cls(
+    return train_transform_args_cls(ignore_index=ignore_index), val_transform_args_cls(  # type: ignore[call-arg]
         ignore_index=ignore_index
     )
 
