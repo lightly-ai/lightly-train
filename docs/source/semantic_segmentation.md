@@ -3,7 +3,7 @@
 # Semantic Segmentation
 
 ```{note}
-🔥 **New**: LightlyTrain now supports training **DINOv3** and DINOv2 models for semantic segmentation with the `train_semantic_segmentation` function! The method is based on the
+🔥 **New**: LightlyTrain now supports training **[DINOv3](#-use-eomt-with-dinov3-)** and DINOv2 models for semantic segmentation with the `train_semantic_segmentation` function! The method is based on the
 state-of-the-art segmentation model [EoMT](https://arxiv.org/abs/2503.19108) by
 Kerssies et al. and reaches 58.4% mIoU on the ADE20k dataset with DINOv2 weights.
 ```
@@ -114,6 +114,7 @@ if __name__ == "__main__":
 ```
 ````
 
+See [here](#dinov3-models) for the list of available DINOv3 models.
 
 (semantic-segmentation-output)=
 
@@ -236,6 +237,8 @@ following models are available:
 - `dinov3/vitl16plus-eomt`
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
+
+All DINOv3 models are [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
 
 ### DINOv2 Models
 
