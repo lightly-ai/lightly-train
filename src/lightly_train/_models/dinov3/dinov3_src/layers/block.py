@@ -24,14 +24,6 @@ from lightly_train._models.dinov3.dinov3_src.utils import (
     uncat_with_shapes,
 )
 
-try:
-    from torch._dynamo import config
-except ImportError:
-    pass
-else:
-    config.automatic_dynamic_shapes = False
-    config.accumulated_cache_size_limit = 1024
-
 
 class SelfAttentionBlock(nn.Module):
     def __init__(

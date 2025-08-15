@@ -97,6 +97,9 @@ class DinoVisionTransformer(nn.Module):
         **ignored_kwargs,
     ):
         super().__init__()
+        torch._dynamo.config.automatic_dynamic_shapes = False
+        torch._dynamo.config.accumulated_cache_size_limit = 1024
+
         if len(ignored_kwargs) > 0:
             logger.warning(f"Ignored kwargs: {ignored_kwargs}")
         del ignored_kwargs
