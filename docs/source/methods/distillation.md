@@ -25,6 +25,8 @@ if __name__ == "__main__":
     )
 ````
 
+(methods-distillation-dinov3)=
+
 ### 🔥 Experimental: Try Distillation from [DINOv3](https://ai.meta.com/dinov3/) 🔥
 
 Downloading DINOv3 checkpoints currently requires to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/). Shortly thereafter you will receive an email with the download links, which you can pass to the `method_args` in the training script:
