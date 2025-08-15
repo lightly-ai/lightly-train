@@ -43,7 +43,8 @@ if __name__ == "__main__":
         method="distillation",
         method_args={
             "teacher": "dinov3/vits16",
-            "teacher_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>", # Replace with your own url
+            # Replace with your own url
+            "teacher_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
         }
     )
 ```
