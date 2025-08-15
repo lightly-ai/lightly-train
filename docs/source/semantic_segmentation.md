@@ -78,7 +78,6 @@ ID as defined in the `classes` dictionary in the dataset.
 
 To fine-tune EoMT from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script.
 
-
 ````{tab} Python
 ```python
 import lightly_train
@@ -229,7 +228,7 @@ The `model` argument defines the model used for semantic segmentation training. 
 following models are available:
 
 ### DINOv3 Models
-  
+
 - `dinov3/vits16-eomt`
 - `dinov3/vits16plus-eomt`
 - `dinov3/vitb16-eomt`
