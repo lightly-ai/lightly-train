@@ -22,13 +22,24 @@ from lightly_train._models.package import Package
 
 logger = logging.getLogger(__name__)
 
+MODEL_NAME_TO_GETTER = {
+    "vits16": backbones.dinov3_vits16,
+    "vits16plus": backbones.dinov3_vits16plus,
+    "vitb16": backbones.dinov3_vitb16,
+    "vitl16": backbones.dinov3_vitl16,
+    "vitl16plus": backbones.dinov3_vitl16plus,
+    "vith16plus": backbones.dinov3_vith16plus,
+}
+
 
 class DINOv3ViTPackage(Package):
     name = "dinov3"
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [f"{cls.name}/vits16", f"{cls.name}/vitb16plus", f"{cls.name}/vitb16"]
+        return [
+            f"{cls.name}/{model_name}" for model_name in MODEL_NAME_TO_GETTER.keys()
+        ]
 
     @classmethod
     def is_supported_model(
@@ -45,16 +56,8 @@ class DINOv3ViTPackage(Package):
         """
         Get a DINOv3 ViT model by name. Here the student version is build.
         """
-        model_to_getter = {
-            "vits16": backbones.dinov3_vits16,
-            "vits16plus": backbones.dinov3_vits16plus,
-            "vitb16": backbones.dinov3_vitb16,
-            "vitl16": backbones.dinov3_vitl16,
-            "vitl16plus": backbones.dinov3_vitl16plus,
-            "vith16plus": backbones.dinov3_vith16plus,
-        }
         assert isinstance(model_args, dict)
-        model = model_to_getter[model_name](weights=model_args["teacher_url"])
+        model = MODEL_NAME_TO_GETTER[model_name](weights=model_args["teacher_url"])
         assert isinstance(model, DinoVisionTransformer)
         return model
 
