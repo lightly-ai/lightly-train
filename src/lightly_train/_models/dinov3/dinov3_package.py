@@ -105,4 +105,4 @@ class DINOv3Package(Package):
 
 # Create singleton instance of the package. The singleton should be used whenever
 # possible.
-DINOV3_VIT_PACKAGE = DINOv3Package()
+DINOV3_PACKAGE = DINOv3Package()
