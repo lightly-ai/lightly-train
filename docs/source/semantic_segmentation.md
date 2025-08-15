@@ -20,7 +20,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov2/vits14-eomt", 
+        model="dinov2/vitl14-eomt", 
         data={
             "train": {
                 "images": "my_data_dir/train/images",   # Path to training images
