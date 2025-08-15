@@ -29,6 +29,7 @@ MODEL_NAME_TO_GETTER = {
     "vitl16": backbones.dinov3_vitl16,
     "vitl16plus": backbones.dinov3_vitl16plus,
     "vith16plus": backbones.dinov3_vith16plus,
+    "vit7b16": backbones.dinov3_vit7b16,
 }
 
 
