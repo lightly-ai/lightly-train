@@ -7,4 +7,4 @@
 #
 from __future__ import annotations
 
-DINOV3_BASE_URL = "https://dl.fbaipublicfiles.com/dinov3"
+# ...existing code...

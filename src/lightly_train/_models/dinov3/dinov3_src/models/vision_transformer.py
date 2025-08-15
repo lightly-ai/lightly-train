@@ -6,6 +6,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from __future__ import annotations
+
 import logging
 from functools import partial
 from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
