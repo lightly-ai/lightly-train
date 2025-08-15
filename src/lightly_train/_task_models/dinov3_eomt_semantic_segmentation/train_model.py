@@ -100,6 +100,8 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
                 "vitl": 4,
                 "vitg": 5,
                 "vith": 5,
+                # TODO: Verify the number of blocks. EoMT has an experiment with a
+                # model of comparable size.
                 "vit7b": 5,
             }[model_size]
 

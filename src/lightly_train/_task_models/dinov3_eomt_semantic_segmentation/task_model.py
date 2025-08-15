@@ -256,6 +256,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # Resize shorter edge to 518
         # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
         # model.
+        # TODO(Guarin, 07/25): Check if we should change default to 512.
         x = transforms_functional.resize(x, size=[518])  # (C, H, W) -> (C, H', W')
         x = x.unsqueeze(0)  # (1, C, H', W')
 
@@ -291,14 +292,14 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         patch_size = self.backbone.patch_size
         grid_size = (H // patch_size, W // patch_size)
 
-        x, rope = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
+        x, image_size = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
         mask_logits_per_layer, class_logits_per_layer = [], []
         for i, block in enumerate(self.backbone.blocks):
             attn_mask = None
 
             rope_sincos: tuple[Tensor, Tensor] | None = None
             if self.backbone.rope_embed is not None:
-                rope_sincos = self.backbone.rope_embed(H=rope[0], W=rope[1])  # type: ignore
+                rope_sincos = self.backbone.rope_embed(H=image_size[0], W=image_size[1])  # type: ignore
 
             if i == len(self.backbone.blocks) - self.num_joint_blocks:
                 # Prepend query tokens.
@@ -354,6 +355,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                         ],
                     )
 
+            # TODO(Guarin, 08/25): Double check if sample_drop_ratio > 0 sometimes.
+            # This is usually not the case in EoMT but should be verified.
             x = x + block.ls1(
                 self._attn(block.attn, block.norm1(x), rope=rope_sincos, mask=attn_mask)
             )
@@ -484,6 +487,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         return logits
 
     def _predict(self, x: Tensor, grid_size: tuple[int, int]) -> tuple[Tensor, Tensor]:
+        # TODO(Guarin, 08/25): Investigate if having different norms for queries and
+        # patch tokens is beneficial.
         q = x[:, : self.num_queries, :]
 
         class_logits = self.class_head(q)
