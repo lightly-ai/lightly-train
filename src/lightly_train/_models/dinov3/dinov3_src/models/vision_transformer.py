@@ -1,8 +1,10 @@
 #
-# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 
 import logging
 from functools import partial
@@ -12,7 +14,7 @@ import torch
 import torch.nn.init
 from torch import Tensor, nn
 
-from lightly_train._models.dinov3_vit.dinov3_vit_src.layers import (
+from lightly_train._models.dinov3.dinov3_src.layers import (
     LayerScale,
     Mlp,
     PatchEmbed,
@@ -21,7 +23,7 @@ from lightly_train._models.dinov3_vit.dinov3_vit_src.layers import (
     SelfAttentionBlock,
     SwiGLUFFN,
 )
-from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import named_apply
+from lightly_train._models.dinov3.dinov3_src.utils import named_apply
 
 logger = logging.getLogger("dinov3")
 

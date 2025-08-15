@@ -1,17 +1,19 @@
 #
-# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 from __future__ import annotations
 
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Identity, Module, ModuleList
 
-from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.block import (
+from lightly_train._models.dinov3.dinov3_src.layers.block import (
     SelfAttentionBlock,
 )
-from lightly_train._models.dinov3_vit.dinov3_vit_src.models.vision_transformer import (
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
 from lightly_train._models.model_wrapper import (

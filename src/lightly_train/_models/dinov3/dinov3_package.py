@@ -1,8 +1,10 @@
 #
-# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
 #
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 from __future__ import annotations
 
 import logging
@@ -12,11 +14,11 @@ from typing import Any
 import torch
 
 from lightly_train._models import log_usage_example
-from lightly_train._models.dinov3_vit.dinov3_vit import DINOv3ViTModelWrapper
-from lightly_train._models.dinov3_vit.dinov3_vit_src.hub import backbones
-from lightly_train._models.dinov3_vit.dinov3_vit_src.models.vision_transformer import (
+from lightly_train._models.dinov3.dinov3_src.hub import backbones
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 
@@ -33,7 +35,7 @@ MODEL_NAME_TO_GETTER = {
 }
 
 
-class DINOv3ViTPackage(Package):
+class DINOv3Package(Package):
     name = "dinov3"
 
     @classmethod
@@ -103,4 +105,4 @@ class DINOv3ViTPackage(Package):
 
 # Create singleton instance of the package. The singleton should be used whenever
 # possible.
-DINOV3_VIT_PACKAGE = DINOv3ViTPackage()
+DINOV3_VIT_PACKAGE = DINOv3Package()
