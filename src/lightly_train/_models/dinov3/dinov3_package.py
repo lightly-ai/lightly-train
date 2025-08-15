@@ -80,7 +80,7 @@ class DINOv3Package(Package):
 
         if not cls.is_supported_model(model):
             raise ValueError(
-                f"DINOv3ViTPackage cannot export model of type {type(model)}. "
+                f"DINOv3Package cannot export model of type {type(model)}. "
                 "The model must be a ModelWrapper or a DinoVisionTransformer."
             )
 
@@ -88,11 +88,11 @@ class DINOv3Package(Package):
 
         if log_example:
             log_message_code = [
-                "from lightly_train._models.dinov3_vit.dinov3_vit_package import DINOv3ViTPackage",
+                "from lightly_train._models.dinov3.dinov3_package import DINOv3Package",
                 "import torch",
                 "",
                 "# Load the pretrained model",
-                "model = DINOv3ViTPackage.get_model('dinov3/<vitXX>') # Replace with the model name used in train",
+                "model = DINOv3Package.get_model('dinov3/<vitXX>') # Replace with the model name used in train",
                 f"model.load_state_dict(torch.load('{out}', weights_only=True))",
                 "",
                 "# Finetune or evaluate the model",
