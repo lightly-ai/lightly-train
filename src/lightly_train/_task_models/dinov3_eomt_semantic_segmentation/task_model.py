@@ -21,11 +21,11 @@ from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
-from lightly_train._models.dinov3_vit.dinov3_vit_package import DINOV3_VIT_PACKAGE
-from lightly_train._models.dinov3_vit.dinov3_vit_src.layers.attention import (
+from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
+from lightly_train._models.dinov3.dinov3_src.layers.attention import (
     SelfAttention,
 )
-from lightly_train._models.dinov3_vit.dinov3_vit_src.models.vision_transformer import (
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.scale_block import (
@@ -122,7 +122,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             args.update(backbone_args)
 
         # Get the backbone.
-        self.backbone: DinoVisionTransformer = DINOV3_VIT_PACKAGE.get_model(
+        self.backbone: DinoVisionTransformer = DINOV3_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=args,
         )
@@ -174,8 +174,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [
-            f"{name}-{cls.model_suffix}"
-            for name in DINOV3_VIT_PACKAGE.list_model_names()
+            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
         ]
 
     @classmethod
@@ -208,18 +207,16 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         except ValueError:
             raise_invalid_name()
 
-        if package_name != DINOV3_VIT_PACKAGE.name:
+        if package_name != DINOV3_PACKAGE.name:
             raise_invalid_name()
 
         try:
-            backbone_name = DINOV3_VIT_PACKAGE.parse_model_name(
-                model_name=backbone_name
-            )
+            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
         except ValueError:
             raise_invalid_name()
 
         return {
-            "model_name": f"{DINOV3_VIT_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
         }
 
