@@ -44,6 +44,7 @@ def get_teacher(
     teacher_weights: str | Path | None = None,
     method_args: DistillationV2Args | None = None,
 ) -> Module:
+    # TODO (Lionel, 08/25): Make it such that we can properly pass this argument through the method_args.
     model_args = None
     if "dinov3" in teacher_name and method_args is not None:
         model_args = {
