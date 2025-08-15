@@ -1,8 +1,10 @@
 #
-# # Copyright (c) Meta Platforms, Inc. and affiliates.
-# #
-# # This software may be used and distributed in accordance with
-# # the terms of the DINOv3 License Agreement.#
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This software may be used and distributed in accordance with
+# the terms of the DINOv3 License Agreement.#
+
+from __future__ import annotations
 
 import logging
 from functools import partial
@@ -12,7 +14,7 @@ import torch
 import torch.nn.init
 from torch import Tensor, nn
 
-from lightly_train._models.dinov3_vit.dinov3_vit_src.layers import (
+from lightly_train._models.dinov3.dinov3_src.layers import (
     LayerScale,
     Mlp,
     PatchEmbed,
@@ -21,7 +23,7 @@ from lightly_train._models.dinov3_vit.dinov3_vit_src.layers import (
     SelfAttentionBlock,
     SwiGLUFFN,
 )
-from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import named_apply
+from lightly_train._models.dinov3.dinov3_src.utils import named_apply
 
 logger = logging.getLogger("dinov3")
 
@@ -95,6 +97,9 @@ class DinoVisionTransformer(nn.Module):
         **ignored_kwargs,
     ):
         super().__init__()
+        torch._dynamo.config.automatic_dynamic_shapes = False
+        torch._dynamo.config.accumulated_cache_size_limit = 1024
+
         if len(ignored_kwargs) > 0:
             logger.warning(f"Ignored kwargs: {ignored_kwargs}")
         del ignored_kwargs

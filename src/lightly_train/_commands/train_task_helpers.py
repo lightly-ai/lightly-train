@@ -199,6 +199,7 @@ def get_transform_args(
             val_transform_args_cls(),
         )
 
+    # This is for mypy, since `ignore_index` is currently not in all the transform_args.
     return train_transform_args_cls(ignore_index=ignore_index), val_transform_args_cls(
         ignore_index=ignore_index
     )

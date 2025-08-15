@@ -1,15 +1,15 @@
 #
-# # Copyright (c) Meta Platforms, Inc. and affiliates.
-# #
-# # This software may be used and distributed in accordance with
-# # the terms of the DINOv3 License Agreement.#
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This software may be used and distributed in accordance with
+# the terms of the DINOv3 License Agreement.#
 
 from typing import Callable, List, Optional
 
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from lightly_train._models.dinov3_vit.dinov3_vit_src.utils import (
+from lightly_train._models.dinov3.dinov3_src.utils import (
     cat_keep_shapes,
     uncat_with_shapes,
 )

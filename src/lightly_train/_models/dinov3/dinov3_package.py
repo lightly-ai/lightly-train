@@ -12,23 +12,35 @@ from typing import Any
 import torch
 
 from lightly_train._models import log_usage_example
-from lightly_train._models.dinov3_vit.dinov3_vit import DINOv3ViTModelWrapper
-from lightly_train._models.dinov3_vit.dinov3_vit_src.hub import backbones
-from lightly_train._models.dinov3_vit.dinov3_vit_src.models.vision_transformer import (
+from lightly_train._models.dinov3.dinov3_src.hub import backbones
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 
 logger = logging.getLogger(__name__)
 
+MODEL_NAME_TO_GETTER = {
+    "vits16": backbones.dinov3_vits16,
+    "vits16plus": backbones.dinov3_vits16plus,
+    "vitb16": backbones.dinov3_vitb16,
+    "vitl16": backbones.dinov3_vitl16,
+    "vitl16plus": backbones.dinov3_vitl16plus,
+    "vith16plus": backbones.dinov3_vith16plus,
+    "vit7b16": backbones.dinov3_vit7b16,
+}
 
-class DINOv3ViTPackage(Package):
+
+class DINOv3Package(Package):
     name = "dinov3"
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [f"{cls.name}/vits16", f"{cls.name}/vitb16plus", f"{cls.name}/vitb16"]
+        return [
+            f"{cls.name}/{model_name}" for model_name in MODEL_NAME_TO_GETTER.keys()
+        ]
 
     @classmethod
     def is_supported_model(
@@ -65,16 +77,8 @@ class DINOv3ViTPackage(Package):
         """
         Get a DINOv3 ViT model by name. Here the student version is build.
         """
-        model_to_getter = {
-            "vits16": backbones.dinov3_vits16,
-            "vits16plus": backbones.dinov3_vits16plus,
-            "vitb16": backbones.dinov3_vitb16,
-            "vitl16": backbones.dinov3_vitl16,
-            "vitl16plus": backbones.dinov3_vitl16plus,
-            "vith16plus": backbones.dinov3_vith16plus,
-        }
         assert isinstance(model_args, dict)
-        model = model_to_getter[model_name](weights=model_args["teacher_url"])
+        model = MODEL_NAME_TO_GETTER[model_name](weights=model_args["teacher_url"])
         assert isinstance(model, DinoVisionTransformer)
         return model
 
@@ -94,7 +98,7 @@ class DINOv3ViTPackage(Package):
 
         if not cls.is_supported_model(model):
             raise ValueError(
-                f"DINOv3ViTPackage cannot export model of type {type(model)}. "
+                f"DINOv3Package cannot export model of type {type(model)}. "
                 "The model must be a ModelWrapper or a DinoVisionTransformer."
             )
 
@@ -102,11 +106,11 @@ class DINOv3ViTPackage(Package):
 
         if log_example:
             log_message_code = [
-                "from lightly_train._models.dinov3_vit.dinov3_vit_package import DINOv3ViTPackage",
+                "from lightly_train._models.dinov3.dinov3_package import DINOv3Package",
                 "import torch",
                 "",
                 "# Load the pretrained model",
-                "model = DINOv3ViTPackage.get_model('dinov3/<vitXX>') # Replace with the model name used in train",
+                "model = DINOv3Package.get_model('dinov3/<vitXX>') # Replace with the model name used in train",
                 f"model.load_state_dict(torch.load('{out}', weights_only=True))",
                 "",
                 "# Finetune or evaluate the model",
@@ -119,4 +123,4 @@ class DINOv3ViTPackage(Package):
 
 # Create singleton instance of the package. The singleton should be used whenever
 # possible.
-DINOV3_VIT_PACKAGE = DINOv3ViTPackage()
+DINOV3_PACKAGE = DINOv3Package()
