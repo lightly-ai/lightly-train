@@ -25,7 +25,7 @@ a wide range of model architectures and use cases out of the box.
 
 ## News
 
-- \[[0.11.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-10-0)\] - 2025-08-15: 🚀 You can now [distill](https://docs.lightly.ai/train/stable/methods/distillation.html) from [DINOv3](https://ai.meta.com/dinov3/) (experimental 🔬) --> Try it out [HERE](https://docs.lightly.ai/train/stable/methods/distillation.html)! 🚀
+- \[[0.11.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-11-0)\] - 2025-08-15: 🚀 **Pretrain your own model using our [distillation](https://docs.lightly.ai/train/stable/methods/distillation.html) method** and **fine-tune state-of-the-art semantic segmentation models** with **[DINOv3](https://ai.meta.com/dinov3/) weights (experimental 🔬)**! 🚀
 - \[[0.10.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-10-0)\] - 2025-08-04:
   🔥 **Train state-of-the-art semantic segmentation models** with our new
   [**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html)

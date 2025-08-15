@@ -21,9 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.11.0] – 2025-08-15
 
+🚀 **New: Pretrain your own model using distillation** and **fine-tune state-of-the-art semantic segmentation models** with **DINOv3 weights**! 🚀
+
 ### Added
 
-- Distillation now supports DINOv3 as a teacher (experimental).
+- Distillation now supports DINOv3 pretraied weights as teacher (experimental).
+- Semantic Segmentation now supports DINOv3 pretrained weights as EoMT backbone (experimental).
 
 ### Changed
 
@@ -40,8 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.10.0] - 2025-08-04
 
 🔥 **New: Train state-of-the-art semantic segmentation models** with our new
-[**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
-fine-tuning method! 🔥
+[**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html) fine-tuning method! 🔥
 
 ### Added
 
