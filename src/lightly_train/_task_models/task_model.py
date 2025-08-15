@@ -23,6 +23,8 @@ class TaskModel(Module):
     on Fabric or Lightning modules.
     """
 
+    model_suffix: str
+
     def __init__(self, init_args: dict[str, Any], ignore_args: set[str] | None = None):
         """
         Args:

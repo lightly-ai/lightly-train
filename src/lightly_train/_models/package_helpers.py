@@ -78,7 +78,7 @@ def get_wrapped_model(
 
     package: Package
     if isinstance(model, str):
-        package_name, model_name = _parse_model_name(model)
+        package_name, model_name = parse_model_name(model)
         package = get_package(package_name)
         model = package.get_model(model_name, model_args=model_args)
     else:
@@ -128,7 +128,7 @@ def get_package_from_model(
         return CUSTOM_PACKAGE
 
 
-def _parse_model_name(model: str) -> tuple[str, str]:
+def parse_model_name(model: str) -> tuple[str, str]:
     parts = model.split("/")
     if len(parts) != 2:
         raise ValueError(
