@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Literal, Sequence
 
 import pydantic
+import torch
 from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
@@ -111,9 +112,15 @@ class YoloObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
             }
         )
 
+        print(
+            type(transformed["image"]),
+            type(transformed["bboxes"]),
+            type(transformed["class_labels"]),
+        )
+
         image = transformed["image"]
-        bboxes = transformed["bboxes"]
-        class_labels = transformed["class_labels"].long()
+        bboxes = torch.from_numpy(transformed["bboxes"]).float()
+        class_labels = torch.from_numpy(transformed["class_labels"]).long()
 
         return ObjectDetectionDatasetItem(
             image_path=str(image_path),

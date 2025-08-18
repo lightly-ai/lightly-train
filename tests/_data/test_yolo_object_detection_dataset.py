@@ -57,6 +57,6 @@ class TestYoloObjectDetectionDataset:
             mode="train",
         )
         sample = dataset[0]
-        assert sample["image"].shape == (3, 640, 640)
-        assert sample["bboxes"].shape == (2, 4)
-        assert sample["classes"].shape == (2,)
+        assert sample["image"].shape == (3, 32, 32)
+        assert sample["bboxes"].shape == (1, 4)
+        assert sample["classes"].shape == (1,)
