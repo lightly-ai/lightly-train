@@ -192,7 +192,7 @@ def test_dinov2_vits14_eomt_onnx_export(
     onnx_path = tmp_path / "model.onnx"
     validation_input = torch.randn(batch_size, 3, height, width).cpu()
     expected_outputs = model(validation_input)
-    # We use  orch.testing.assert_close to check if the model outputs the same as when we run the exported
+    # We use  torch.testing.assert_close to check if the model outputs the same as when we run the exported
     # onnx file with onnxruntime. Unfortunately the default tolerances are too strict so we specify our own.
     rtol = 1e-3
     atol = 1e-5
