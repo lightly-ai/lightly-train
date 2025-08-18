@@ -177,7 +177,7 @@ def test_dinov2_vits14_eomt_onnx_export(
     batch_size: int,
     height: int,
     width: int,
-    dinov2_vits14_eomt_checkpoint,
+    dinov2_vits14_eomt_checkpoint: Path,
     tmp_path: Path,
 ) -> None:
     import onnx
