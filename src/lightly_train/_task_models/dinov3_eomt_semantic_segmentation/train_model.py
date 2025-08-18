@@ -55,6 +55,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int | Literal["auto"] = "auto"
+    num_frozen_blocks: int = 0
 
     # Loss terms
     loss_num_points: int = 12544
@@ -484,13 +485,22 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                         is_block = True
                 if is_block or block_i == 0:
                     lr *= self.model_args.llrd ** (backbone_blocks - 1 - block_i)
-                backbone_param_groups.append(
-                    {"params": [param], "lr": lr, "name": name}
-                )
+                group = {"params": [param], "lr": lr, "weight_decay": self.model_args.weight_decay, "name": name}
+                backbone_param_groups.append(group)
             else:
-                other_param_groups.append(
-                    {"params": [param], "lr": self.model_args.lr, "name": name}
-                )
+                group = {"params": [param], "lr": self.model_args.lr, "weight_decay": self.model_args.weight_decay, "name": name}
+                other_param_groups.append(group)
+            # Exclude norm/bias/token parameters from weight decay.
+            if (
+                name.endswith("bias")
+                or name.endswith("cls_token")
+                or name.endswith("storage_tokens")
+                or name.endswith("mask_token")
+                or "norm" in name
+                or "gamma" in name
+                or "fourier_w" in name
+            ):
+                group["weight_decay"] = 0.0
 
         # TODO(Guarin, 07/25): Added this to reduce number of logged lr/wd values.
         # Might want to revisit this. Maybe we can make it nicer based on block names?
@@ -504,7 +514,8 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                 if not current_group:
                     current_group = group
                     grouped.append(current_group)
-                elif group["lr"] != current_group["lr"]:
+                # TODO(Guarin, 08/25): Optimize this to reduce number of groups.
+                elif any(group[k] != current_group[k] for k in ["lr", "weight_decay"]):
                     assert last_group is not None
                     current_group["name"] = (
                         f"{current_group['name']}-{last_group['name']}"
@@ -533,6 +544,12 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         self.train()
+        if self.model_args.num_frozen_blocks > 0:
+            # Freeze the first num_frozen_blocks blocks.
+            for block in self.model.backbone.blocks[: self.model_args.num_frozen_blocks]:
+                block.eval()
+                for param in block.parameters():
+                    param.requires_grad = False
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         fabric.clip_gradients(

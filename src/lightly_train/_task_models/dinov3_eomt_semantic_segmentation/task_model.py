@@ -256,7 +256,6 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # Resize shorter edge to 512
         # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
         # model.
-        # TODO(Guarin, 07/25): Check if we should change default to 512.
         x = transforms_functional.resize(x, size=[512])  # (C, H, W) -> (C, H', W')
         x = x.unsqueeze(0)  # (1, C, H', W')
 
@@ -362,9 +361,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             )
             x = x + block.ls2(block.mlp(block.norm2(x)))
 
-        mask_logits, class_logits = self._predict(
-            self.backbone.norm(x), grid_size=grid_size
-        )
+        x = self.backbone.norm(x)
+        mask_logits, class_logits = self._predict(x, grid_size=grid_size)
         mask_logits_per_layer.append(mask_logits)
         class_logits_per_layer.append(class_logits)
 

@@ -54,6 +54,7 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int | Literal["auto"] = "auto"
+    num_frozen_blocks: int = 0
 
     # Loss terms
     loss_num_points: int = 12544
@@ -530,6 +531,13 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         self.train()
+        if self.model_args.num_frozen_blocks > 0:
+            # Freeze the first num_frozen_blocks blocks.
+            for block in self.model.backbone.blocks[: self.model_args.num_frozen_blocks]:
+                block.eval()
+                for param in block.parameters():
+                    param.requires_grad = False
+
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         fabric.clip_gradients(

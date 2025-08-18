@@ -518,25 +518,18 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     # TODO(Guarin, 07/25): Add support for attention masks directly to Attention class?
     def _attn(self, module: Attention, x: Tensor, mask: Tensor | None) -> Tensor:
         # This mirrors DINOv2 Attention forward but with mask support.
-        B, N, C = x.shape
+        qkv = module.qkv(x)
+        B, N, _ = qkv.shape
+        C = module.qkv.in_features
 
-        qkv = (
-            module.qkv(x)
-            .reshape(B, N, 3, module.num_heads, C // module.num_heads)
-            .permute(2, 0, 3, 1, 4)
-        )
-        q, k, v = qkv[0] * module.scale, qkv[1], qkv[2]
-
+        qkv = qkv.reshape(B, N, 3, module.num_heads, C // module.num_heads)
+        q, k, v = torch.unbind(qkv, 2)
+        q, k, v = [t.transpose(1, 2) for t in [q, k, v]]
         if mask is not None:
             mask = mask[:, None, ...].expand(-1, module.num_heads, -1, -1)
-
-        attn = q @ k.transpose(-2, -1)
-        if mask is not None:
-            attn = attn.masked_fill(~mask, float("-inf"))
-        attn = attn.softmax(dim=-1)
-        attn = module.attn_drop(attn)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask)
+        x = x.transpose(1, 2)
+        x = x.reshape([B, N, C])
         x = module.proj(x)
         x = module.proj_drop(x)
         return x

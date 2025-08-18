@@ -79,8 +79,6 @@ class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
     """
     Defines default transform arguments for semantic segmentation training with DINOv3.
     """
-
-    # TODO(Guarin, 08/25): Check if we should change default to 512.
     image_size: tuple[int, int] = (512, 512)
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs = Field(default_factory=RandomFlipArgs)
