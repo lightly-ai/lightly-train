@@ -12,6 +12,10 @@ that achieves higher accuracy and trains up to 3x faster. The previous version i
 
 ## Use Distillation in LightlyTrain
 
+You could distill from a pretrained **DINOv3 (see below)** or DINOv2 teacher model to a student model of any architecture.
+
+The default teacher model is `dinov2/vitb14-noreg`, which is a ViT-B/14 model without register pretrained by Meta.
+
 ````{tab} Python
 ```python
 import lightly_train
@@ -29,7 +33,7 @@ if __name__ == "__main__":
 
 ### 🔥 Distillation from DINOv3 🔥
 
-To distill from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script.
+To distill from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script as shown below.
 
 ````{tab} Python
 ```python
@@ -56,7 +60,7 @@ lightly-train train out=out/my_experiment data=my_data_dir model="torchvision/re
 ```
 ````
 
-The following models are supported:
+The following models for `teacher` are supported:
 
 - `dinov3/vits16`
 - `dinov3/vits16plus`
@@ -65,6 +69,39 @@ The following models are supported:
 - `dinov3/vitl16plus`
 - `dinov3/vith16plus`
 - `dinov3/vit7b16`
+
+(methods-distillation-dinov2-pretrain)=
+
+### Pretrain and Distill Your Own DINOv2 Weights
+
+LightlyTrain also supports [DINOv2 pretraining](https://docs.lightly.ai/train/stable/methods/dinov2.html), which can help you adjust the DINOv2 weights to your own domain data. Starting from **LightlyTrain 0.9.0**, after pretraining a ViT with DINOv2, you can distill your own pretrained model to your target model architecture with the distillation method. This is done by setting an optional `teacher_weights` argument in `method_args`.
+
+The following example shows how to pretrain a ViT-B/14 model with DINOv2 and then distill the pretrained model to a ResNet-18 student model.
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    # Pretrain a DINOv2 ViT-L/14 model.
+    lightly_train.train(
+        out="out/my_dinov2_pretrain_experiment",
+        data="my_dinov2_pretrain_data_dir",
+        model="dinov2/vitl14",
+        method="dinov2",
+    )
+
+    # Distill the pretrained DINOv2 model to a ResNet-18 student model.
+    lightly_train.train(
+        out="out/my_distillation_pretrain_experiment",
+        data="my_distillation_pretrain_data_dir",
+        model="torchvision/resnet18",
+        method="distillation",
+        method_args={
+            "teacher": "dinov2/vitl14",
+            "teacher_weights": "out/my_dinov2_pretrain_experiment/exported_models/exported_last.pt", # pretrained `dinov2/vitl14` weights 
+        }
+    )
+```
 
 ## What's under the Hood
 
@@ -80,22 +117,6 @@ Our distillation method directly applies a mean squared error (MSE) loss between
 
 The following are the default method arguments for distillation. To learn how you can
 override these settings, see {ref}`method-args`.
-
-````{note}
-Starting from **LightlyTrain 0.9.0**, an optional `teacher_weights` argument can be used in `method_args` to allow loading pretrained DINOv2 teacher weights for distillation methods:
-```python
-import lightly_train
-
-lightly_train.train(
-  ...,
-  method="distillation",
-  method_args={
-    "teacher": "dinov2/vitb14",
-    "teacher_weights": "out/dinov2/exported_models/exported_last.pt", # pretrained `dinov2/vitb14` weights 
-  }
-)
-```
-````
 
 ````{dropdown} Default Method Arguments
 ```{include} _auto/distillation_method_args.md
