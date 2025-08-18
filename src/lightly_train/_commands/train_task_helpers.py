@@ -62,11 +62,6 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
 ]
 
 
-TASK_TRAIN_MODEL_CLASSES = [
-    DINOv2EoMTSemanticSegmentationTrain,
-]
-
-
 def get_out_dir(
     fabric: Fabric,
     out: PathLike,
