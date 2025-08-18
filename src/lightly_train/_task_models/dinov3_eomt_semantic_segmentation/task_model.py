@@ -253,11 +253,11 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
-        # Resize shorter edge to 518
+        # Resize shorter edge to 512
         # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
         # model.
         # TODO(Guarin, 07/25): Check if we should change default to 512.
-        x = transforms_functional.resize(x, size=[518])  # (C, H, W) -> (C, H', W')
+        x = transforms_functional.resize(x, size=[512])  # (C, H, W) -> (C, H', W')
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)

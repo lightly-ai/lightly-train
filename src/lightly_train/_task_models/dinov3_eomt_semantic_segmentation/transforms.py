@@ -46,13 +46,13 @@ class DINOv3EoMTSemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
 
 
 class DINOv3EoMTSemanticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
-    max_size: list[int] = [518]
+    max_size: list[int] = [512]
     prob: float = 1.0
 
 
 class DINOv3EoMTSemanticSegmentationRandomCropArgs(RandomCropArgs):
-    height: int = 518
-    width: int = 518
+    height: int = 512
+    width: int = 512
     pad_if_needed: bool = True
     pad_position: str = "center"
     fill: int = 0
@@ -60,8 +60,8 @@ class DINOv3EoMTSemanticSegmentationRandomCropArgs(RandomCropArgs):
 
 
 class DINOv3EoMTSemanticSegmentationCenterCropArgs(CenterCropArgs):
-    height: int = 518
-    width: int = 518
+    height: int = 512
+    width: int = 512
     pad_if_needed: bool = True
     pad_position: str = "center"
     fill: int = 0
@@ -69,7 +69,7 @@ class DINOv3EoMTSemanticSegmentationCenterCropArgs(CenterCropArgs):
 
 
 class DINOv3EoMTSemanticSegmentationLongestMaxSizeArgs(LongestMaxSizeArgs):
-    max_size: int = 518
+    max_size: int = 512
     prob: float = 1.0
 
 
@@ -81,7 +81,7 @@ class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
     """
 
     # TODO(Guarin, 08/25): Check if we should change default to 512.
-    image_size: tuple[int, int] = (518, 518)
+    image_size: tuple[int, int] = (512, 512)
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs = Field(default_factory=RandomFlipArgs)
     color_jitter: DINOv3EoMTSemanticSegmentationColorJitterArgs = Field(
@@ -103,7 +103,7 @@ class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
     Defines default transform arguments for semantic segmentation validation with DINOv3.
     """
 
-    image_size: tuple[int, int] = (518, 518)
+    image_size: tuple[int, int] = (512, 512)
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs | None = None
     color_jitter: ColorJitterArgs | None = None
