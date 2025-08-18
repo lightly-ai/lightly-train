@@ -109,9 +109,7 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
                 str(onnx_out), providers=["CPUExecutionProvider"]
             )
             ort_inputs = {"input": dummy_input.cpu().numpy()}
-            onnx_masks, onnx_logits = ort_session.run(
-                ["masks", "logits"], ort_inputs
-            )
+            onnx_masks, onnx_logits = ort_session.run(["masks", "logits"], ort_inputs)
             assert onnx_masks.shape == (1, 224, 224)
             assert onnx_logits.shape == (1, 2, 224, 224)
 
