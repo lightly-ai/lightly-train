@@ -12,9 +12,7 @@ that achieves higher accuracy and trains up to 3x faster. The previous version i
 
 ## Use Distillation in LightlyTrain
 
-You could distill from a pretrained **DINOv3 (see below)** or DINOv2 teacher model to a student model of any architecture.
-
-The default teacher model is `dinov2/vitb14-noreg`, which is a ViT-B/14 model without register pretrained by Meta.
+Follow the code below to distill the knowledge of the default DINOv2 ViT-B/14 teacher model into your model architecture. The example uses a `torchvision/resnet18` model as the student:
 
 ````{tab} Python
 ```python
@@ -38,7 +36,7 @@ lightly-train train out=out/my_experiment data=my_data_dir model="torchvision/re
 
 (methods-distillation-dinov3)=
 
-### 🔥 Distillation from DINOv3 🔥
+### 🔥 Distill from DINOv3 🔥
 
 To distill from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script as shown below.
 
@@ -53,23 +51,13 @@ if __name__ == "__main__":
         model="torchvision/resnet18",
         method="distillation",
         method_args={
-            "teacher": "dinov3/vits16",
+            "teacher": "dinov3/vitb16",
             # Replace with your own url
-            "teacher_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
+            "teacher_url": "https://dinov3.llamameta.net/dinov3_vitb16/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth<SOME-KEY>",
         }
     )
 ```
 ````
-
-The following models for `teacher` are supported:
-
-- `dinov3/vits16`
-- `dinov3/vits16plus`
-- `dinov3/vitb16`
-- `dinov3/vitl16`
-- `dinov3/vitl16plus`
-- `dinov3/vith16plus`
-- `dinov3/vit7b16`
 
 (methods-distillation-dinov2-pretrain)=
 
@@ -84,11 +72,11 @@ The following example shows how to pretrain a ViT-B/14 model with DINOv2 and the
 import lightly_train
 
 if __name__ == "__main__":
-    # Pretrain a DINOv2 ViT-L/14 model.
+    # Pretrain a DINOv2 ViT-B/14 model.
     lightly_train.train(
         out="out/my_dinov2_pretrain_experiment",
         data="my_dinov2_pretrain_data_dir",
-        model="dinov2/vitl14",
+        model="dinov2/vitb14",
         method="dinov2",
     )
 
@@ -99,12 +87,53 @@ if __name__ == "__main__":
         model="torchvision/resnet18",
         method="distillation",
         method_args={
-            "teacher": "dinov2/vitl14",
-            "teacher_weights": "out/my_dinov2_pretrain_experiment/exported_models/exported_last.pt", # pretrained `dinov2/vitl14` weights 
+            "teacher": "dinov2/vitb14",
+            "teacher_weights": "out/my_dinov2_pretrain_experiment/exported_models/exported_last.pt", # pretrained `dinov2/vitb14` weights 
         }
     )
 ```
 ````
+
+(methods-distillation-supported-models)=
+
+### Supported Teacher Models
+
+The following models for `teacher` are supported:
+
+- DINOv3
+  - `dinov3/vits16`
+  - `dinov3/vits16plus`
+  - `dinov3/vitb16`
+  - `dinov3/vitl16`
+  - `dinov3/vitl16plus`
+  - `dinov3/vith16plus`
+  - `dinov3/vit7b16`
+- DINOv2
+  - `dinov2/vits14`
+  - `dinov2/vitb14`
+  - `dinov2/vitl14`
+  - `dinov2/vitg14`
+  - `dinov2/vits14-noreg`
+  - `dinov2/vitb14-noreg`
+  - `dinov2/vitl14-noreg`
+  - `dinov2/vitg14-noreg`
+  - `dinov2/vits14-notpretrained`
+  - `dinov2/vitb14-notpretrained`
+  - `dinov2/vitl14-notpretrained`
+  - `dinov2/vitg14-notpretrained`
+  - `dinov2/vits14-noreg-notpretrained`
+  - `dinov2/vitb14-noreg-notpretrained`
+  - `dinov2/vitl14-noreg-notpretrained`
+  - `dinov2/vitg14-noreg-notpretrained`
+  - `dinov2/vits14-pretrained`
+  - `dinov2/vitb14-pretrained`
+  - `dinov2/vitl14-pretrained`
+  - `dinov2/vitg14-pretrained`
+  - `dinov2/vits14-noreg-pretrained`
+  - `dinov2/vitb14-noreg-pretrained`
+  - `dinov2/vitl14-noreg-pretrained`
+  - `dinov2/vitg14-noreg-pretrained`
+
 
 ## What's under the Hood
 
