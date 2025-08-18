@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix ONNX export for DINOv2 segmentation task.
+
 ### Security
 
 ## [0.11.0] - 2025-08-15
