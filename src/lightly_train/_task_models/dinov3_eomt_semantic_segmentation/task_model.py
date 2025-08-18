@@ -21,12 +21,14 @@ from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
-from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Attention
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
+from lightly_train._models.dinov3.dinov3_src.layers.attention import (
+    SelfAttention,
+)
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
 )
 from lightly_train._task_models.task_model import TaskModel
@@ -35,7 +37,7 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-class DINOv2EoMTSemanticSegmentation(TaskModel):
+class DINOv3EoMTSemanticSegmentation(TaskModel):
     model_suffix = "eomt"
 
     def __init__(
@@ -48,6 +50,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         image_normalize: dict[str, float],
         num_queries: int,
         num_joint_blocks: int,
+        backbone_url: str,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
@@ -78,12 +81,15 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 The number of blocks that process the query tokens and image tokens
                 jointly.
             backbone_weights:
-                The path to the DINOv2 backbone weights. The weights must be exported
+                The path to the DINOv3 backbone weights. The weights must be exported
                 using LightlyTrain.
+            backbone_url:
+                The URL to the DINOv3 backbone weights. This is used to download the
+                weights.
             backbone_args:
-                Additional arguments to pass to the DINOv2 backbone.
+                Additional arguments to pass to the DINOv3 backbone.
         """
-        super().__init__(locals(), ignore_args={"backbone_weights"})
+        super().__init__(locals(), ignore_args={"backbone_weights", "backbone_url"})
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
@@ -110,12 +116,13 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # Disable drop path by default.
         args = {
             "drop_path_rate": 0.0,
+            "teacher_url": backbone_url,
         }
         if backbone_args is not None:
             args.update(backbone_args)
 
         # Get the backbone.
-        self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
+        self.backbone: DinoVisionTransformer = DINOV3_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=args,
         )
@@ -167,8 +174,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [
-            f"{name}-{cls.model_suffix}"
-            for name in DINOV2_VIT_PACKAGE.list_model_names()
+            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
         ]
 
     @classmethod
@@ -201,18 +207,16 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         except ValueError:
             raise_invalid_name()
 
-        if package_name != DINOV2_VIT_PACKAGE.name:
+        if package_name != DINOV3_PACKAGE.name:
             raise_invalid_name()
 
         try:
-            backbone_name = DINOV2_VIT_PACKAGE.parse_model_name(
-                model_name=backbone_name
-            )
+            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
         except ValueError:
             raise_invalid_name()
 
         return {
-            "model_name": f"{DINOV2_VIT_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
         }
 
@@ -252,6 +256,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # Resize shorter edge to 518
         # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
         # model.
+        # TODO(Guarin, 07/25): Check if we should change default to 512.
         x = transforms_functional.resize(x, size=[518])  # (C, H, W) -> (C, H', W')
         x = x.unsqueeze(0)  # (1, C, H', W')
 
@@ -287,11 +292,14 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         patch_size = self.backbone.patch_size
         grid_size = (H // patch_size, W // patch_size)
 
-        x = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
+        x, image_size = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
         mask_logits_per_layer, class_logits_per_layer = [], []
-
         for i, block in enumerate(self.backbone.blocks):
             attn_mask = None
+
+            rope_sincos: tuple[Tensor, Tensor] | None = None
+            if self.backbone.rope_embed is not None:
+                rope_sincos = self.backbone.rope_embed(H=image_size[0], W=image_size[1])  # type: ignore
 
             if i == len(self.backbone.blocks) - self.num_joint_blocks:
                 # Prepend query tokens.
@@ -337,7 +345,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                     attn_mask[
                         :,
                         : self.num_queries,
-                        self.num_queries + 1 + self.backbone.num_register_tokens :,
+                        # + 1 class token + register tokens
+                        self.num_queries + 1 + self.backbone.n_storage_tokens :,
                     ] = interpolated > 0
                     attn_mask = self._disable_attn_mask(
                         attn_mask=attn_mask,
@@ -346,15 +355,12 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                         ],
                     )
 
-            # This mirrors forward of DINOv2 Block.
-            if self.training and block.sample_drop_ratio > 0:
-                x = x + block.drop_path1(
-                    block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))
-                )
-                x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x))))
-            else:
-                x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))
-                x = x + block.ls2(block.mlp(block.norm2(x)))
+            # TODO(Guarin, 08/25): Double check if sample_drop_ratio > 0 sometimes.
+            # This is usually not the case in EoMT but should be verified.
+            x = x + block.ls1(
+                self._attn(block.attn, block.norm1(x), rope=rope_sincos, mask=attn_mask)
+            )
+            x = x + block.ls2(block.mlp(block.norm2(x)))
 
         mask_logits, class_logits = self._predict(
             self.backbone.norm(x), grid_size=grid_size
@@ -481,12 +487,14 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         return logits
 
     def _predict(self, x: Tensor, grid_size: tuple[int, int]) -> tuple[Tensor, Tensor]:
+        # TODO(Guarin, 08/25): Investigate if having different norms for queries and
+        # patch tokens is beneficial.
         q = x[:, : self.num_queries, :]
 
         class_logits = self.class_head(q)
 
-        # num queries + 1 class token + num register tokens
-        x = x[:, self.num_queries + 1 + self.backbone.num_register_tokens :, :]
+        # num queries + 1 class token + register tokens
+        x = x[:, self.num_queries + 1 + self.backbone.n_storage_tokens :, :]
         x = x.transpose(1, 2).reshape(x.shape[0], -1, *grid_size)
 
         mask_logits = torch.einsum(
@@ -496,7 +504,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         return mask_logits, class_logits
 
     # TODO(Guarin, 07/25): No need for attention mask handling in this module. Move it
-    # to DINOv2SemanticSegmentationTrain.
+    # to DINOv3SemanticSegmentationTrain.
     @torch.compiler.disable  # type: ignore[misc]
     def _disable_attn_mask(self, attn_mask: Tensor, prob: Tensor) -> Tensor:
         # prob is a scalar tensor.
@@ -510,33 +518,34 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             attn_mask[
                 :,
                 : self.num_queries,
-                self.num_queries + 1 + self.backbone.num_register_tokens :,
+                self.num_queries + 1 + self.backbone.n_storage_tokens :,
             ][random_queries] = True
 
         return attn_mask
 
     # TODO(Guarin, 07/25): Add support for attention masks directly to Attention class?
-    def _attn(self, module: Attention, x: Tensor, mask: Tensor | None) -> Tensor:
-        # This mirrors DINOv2 Attention forward but with mask support.
-        B, N, C = x.shape
+    def _attn(
+        self,
+        module: SelfAttention,
+        x: Tensor,
+        rope: Tensor | tuple[Tensor, Tensor] | None,
+        mask: Tensor | None,
+    ) -> Tensor:
+        # This mirrors DINOv3 Attention forward but with mask support.
+        qkv = module.qkv(x)
+        B, N, _ = qkv.shape
+        C = module.qkv.in_features
 
-        qkv = (
-            module.qkv(x)
-            .reshape(B, N, 3, module.num_heads, C // module.num_heads)
-            .permute(2, 0, 3, 1, 4)
-        )
-        q, k, v = qkv[0] * module.scale, qkv[1], qkv[2]
-
+        qkv = qkv.reshape(B, N, 3, module.num_heads, C // module.num_heads)
+        q, k, v = torch.unbind(qkv, 2)
+        q, k, v = [t.transpose(1, 2) for t in [q, k, v]]
+        if rope is not None:
+            q, k = module.apply_rope(q, k, rope)
         if mask is not None:
             mask = mask[:, None, ...].expand(-1, module.num_heads, -1, -1)
-
-        attn = q @ k.transpose(-2, -1)
-        if mask is not None:
-            attn = attn.masked_fill(~mask, float("-inf"))
-        attn = attn.softmax(dim=-1)
-        attn = module.attn_drop(attn)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask)
+        x = x.transpose(1, 2)
+        x = x.reshape([B, N, C])
         x = module.proj(x)
         x = module.proj_drop(x)
         return x

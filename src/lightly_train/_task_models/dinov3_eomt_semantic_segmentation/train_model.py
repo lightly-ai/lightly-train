@@ -23,16 +23,16 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scheduler import (
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model import (
-    DINOv2EoMTSemanticSegmentation,
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model import (
+    DINOv3EoMTSemanticSegmentation,
 )
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
-    DINOv2EoMTSemanticSegmentationTrainTransform,
-    DINOv2EoMTSemanticSegmentationValTransform,
-    DINOv2EoMTSemanticSegmentationValTransformArgs,
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.transforms import (
+    DINOv3EoMTSemanticSegmentationTrainTransform,
+    DINOv3EoMTSemanticSegmentationValTransform,
+    DINOv3EoMTSemanticSegmentationValTransformArgs,
 )
 from lightly_train._task_models.train_model import (
     TaskStepResult,
@@ -42,13 +42,14 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
-class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
+class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from ADE20K dataset:
     # 20210 images / batch size 16 * 31 epochs ~= 40k steps.
     default_steps: ClassVar[int] = 40_000
 
     backbone_weights: PathLike | None = None
+    backbone_url: str = ""
     drop_path_rate: float = 0.0
     num_queries: int = 100  # Default for ADE20K
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
@@ -85,9 +86,7 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
     def resolve_auto(self, total_steps: int, model_name: str) -> None:
         if self.num_joint_blocks == "auto":
-            match = re.match(
-                r"(dinov2(?:_vit)?)/(?P<model_size>vit[slbg]).*", model_name
-            )
+            match = re.match(r"dinov3/(?P<model_size>vit(s|l|b|g|h|7b)).*", model_name)
             if match is None:
                 raise ValueError(
                     f"Unknown model name '{model_name}', "
@@ -100,6 +99,10 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
                 "vitb": 3,
                 "vitl": 4,
                 "vitg": 5,
+                "vith": 5,
+                # TODO: Verify the number of blocks. EoMT has an experiment with a
+                # model of comparable size.
+                "vit7b": 5,
             }[model_size]
 
         # Infer the number of training phases from the number of joint blocks.
@@ -120,20 +123,20 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
         assert len(self.attn_mask_annealing_steps_end) == self.num_joint_blocks
 
 
-class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
+class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
     task = "semantic_segmentation"
-    train_model_args_cls = DINOv2EoMTSemanticSegmentationTrainArgs
-    task_model_cls = DINOv2EoMTSemanticSegmentation
-    train_transform_cls = DINOv2EoMTSemanticSegmentationTrainTransform
-    val_transform_cls = DINOv2EoMTSemanticSegmentationValTransform
+    train_model_args_cls = DINOv3EoMTSemanticSegmentationTrainArgs
+    task_model_cls = DINOv3EoMTSemanticSegmentation
+    train_transform_cls = DINOv3EoMTSemanticSegmentationTrainTransform
+    val_transform_cls = DINOv3EoMTSemanticSegmentationValTransform
 
     def __init__(
         self,
         *,
         model_name: str,
-        model_args: DINOv2EoMTSemanticSegmentationTrainArgs,
+        model_args: DINOv3EoMTSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
-        val_transform_args: DINOv2EoMTSemanticSegmentationValTransformArgs,
+        val_transform_args: DINOv3EoMTSemanticSegmentationValTransformArgs,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
@@ -144,15 +147,14 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
 
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependeny.
-        from lightly_train._task_models.dinov2_eomt_semantic_segmentation.mask_loss import (
+        from lightly_train._task_models.dinov3_eomt_semantic_segmentation.mask_loss import (
             MaskClassificationLoss,
         )
 
         self.model_args = model_args
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
 
-        self.model = DINOv2EoMTSemanticSegmentation(
-            # TODO(Guarin, 10/25): Make configurable and pass all args.
+        self.model = DINOv3EoMTSemanticSegmentation(
             model_name=model_name,
             classes=data_args.included_classes,
             class_ignore_index=(
@@ -163,6 +165,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             num_queries=model_args.num_queries,
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
+            backbone_url=model_args.backbone_url,
             backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
             },
@@ -230,7 +233,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             ]
         )
 
-    def get_task_model(self) -> DINOv2EoMTSemanticSegmentation:
+    def get_task_model(self) -> DINOv3EoMTSemanticSegmentation:
         return self.model
 
     def training_step(
