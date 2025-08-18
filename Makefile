@@ -86,6 +86,7 @@ add-header:
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
+		-x src/lightly_train/_models/dinov3/dinov3_src \
 		-E py
 	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
@@ -113,7 +114,7 @@ add-header:
 	
 	# Apply the DINOv3 license header to the DINOv3 derived files
 	licenseheaders -t dev_tools/dinov3_licenseheader.tmpl \
-		-d src/lightly_train/_models/dinov3_vit \
+		-d src/lightly_train/_models/dinov3/dinov3_src \
 		-E py
 
 

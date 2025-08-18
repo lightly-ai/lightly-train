@@ -3,10 +3,9 @@
 # Semantic Segmentation
 
 ```{note}
-🔥 **New**: LightlyTrain now supports training DINOv2 models for semantic segmentation
-with the `train_semantic_segmentation` function! The method is based on the
+🔥 **New**: LightlyTrain now supports training **[DINOv3](#-use-eomt-with-dinov3-)** and DINOv2 models for semantic segmentation with the `train_semantic_segmentation` function! The method is based on the
 state-of-the-art segmentation model [EoMT](https://arxiv.org/abs/2503.19108) by
-Kerssies et al. and reaches 58.4% mIoU on the ADE20K dataset.
+Kerssies et al. and reaches 58.4% mIoU on the ADE20k dataset with DINOv2 weights.
 ```
 
 Training a semantic segmentation model with LightlyTrain is straightforward and
@@ -21,7 +20,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov2/vitl14-eomt",
+        model="dinov2/vitl14-eomt", 
         data={
             "train": {
                 "images": "my_data_dir/train/images",   # Path to training images
@@ -72,6 +71,49 @@ plt.imshow(image_with_masks.permute(1, 2, 0))
 
 The predicted masks have shape `(height, width)` and each value corresponds to a class
 ID as defined in the `classes` dictionary in the dataset.
+
+(semantic-segmentation-eomt-dinov3)=
+
+## 🔥 Use EoMT with DINOv3 🔥
+
+To fine-tune EoMT from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script.
+
+````{tab} Python
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vits16-eomt",
+        model_args={
+            # Replace with your own url
+            "backbone_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
+        },
+        data={
+            "train": {
+                "images": "my_data_dir/train/images",   # Path to training images
+                "masks": "my_data_dir/train/masks",     # Path to training masks
+            },
+            "val": {
+                "images": "my_data_dir/val/images",     # Path to validation images
+                "masks": "my_data_dir/val/masks",       # Path to validation masks
+            },
+            "classes": {                                # Classes in the dataset                    
+                0: "background",
+                1: "car",
+                2: "bicycle",
+                # ...
+            },
+            # Optional, classes that are in the dataset but should be ignored during
+            # training.
+            "ignore_classes": [0], 
+        },
+    )
+```
+````
+
+See [here](#dinov3-models) for the list of available DINOv3 models.
 
 (semantic-segmentation-output)=
 
@@ -184,6 +226,20 @@ like to ignore some classes during training, you specify their class IDs in the
 
 The `model` argument defines the model used for semantic segmentation training. The
 following models are available:
+
+### DINOv3 Models
+
+- `dinov3/vits16-eomt`
+- `dinov3/vits16plus-eomt`
+- `dinov3/vitb16-eomt`
+- `dinov3/vitl16-eomt`
+- `dinov3/vitl16plus-eomt`
+- `dinov3/vith16plus-eomt`
+- `dinov3/vit7b16-eomt`
+
+All DINOv3 models are [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+
+### DINOv2 Models
 
 - `dinov2/vits14-eomt`
 - `dinov2/vitb14-eomt`

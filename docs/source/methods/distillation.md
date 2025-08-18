@@ -25,10 +25,46 @@ if __name__ == "__main__":
     )
 ````
 
+(methods-distillation-dinov3)=
+
+### 🔥 Distillation from DINOv3 🔥
+
+To distill from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script.
+
+````{tab} Python
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train(
+        out="out/my_experiment", 
+        data="my_data_dir",
+        model="torchvision/resnet18",
+        method="distillation",
+        method_args={
+            "teacher": "dinov3/vits16",
+            # Replace with your own url
+            "teacher_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
+        }
+    )
+```
+````
+
 ````{tab} Command Line
 ```bash
 lightly-train train out=out/my_experiment data=my_data_dir model="torchvision/resnet18" method="distillation"
+```
 ````
+
+The following models are supported:
+
+- `dinov3/vits16`
+- `dinov3/vits16plus`
+- `dinov3/vitb16`
+- `dinov3/vitl16`
+- `dinov3/vitl16plus`
+- `dinov3/vith16plus`
+- `dinov3/vit7b16`
 
 ## What's under the Hood
 
