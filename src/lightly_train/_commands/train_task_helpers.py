@@ -23,7 +23,6 @@ from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._configs import validate
 from lightly_train._data.mask_semantic_segmentation_dataset import (
-    MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
 )
@@ -34,21 +33,30 @@ from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
-    DINOv2EoMTSemanticSegmentationTrainArgs,
 )
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
-    DINOv2SemanticSegmentationTrainTransformArgs,
-    DINOv2SemanticSegmentationValTransformArgs,
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
+    DINOv3EoMTSemanticSegmentationTrain,
 )
 from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
-from lightly_train._transforms.task_transform import TaskTransform, TaskTransformArgs
-from lightly_train.types import PathLike, TaskDatasetItem
+from lightly_train._transforms.task_transform import TaskTransform, TaskTransformArgs, TaskTransformArgs
+from lightly_train.types import (
+    MaskSemanticSegmentationBatch,
+    MaskSemanticSegmentationDatasetItem,
+    PathLike,
+    TaskDatasetItem,
+)
 
 logger = logging.getLogger(__name__)
+
+
+TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
+    DINOv2EoMTSemanticSegmentationTrain,
+    DINOv3EoMTSemanticSegmentationTrain,
+]
 
 
 TASK_TRAIN_MODEL_CLASSES = [
@@ -187,8 +195,8 @@ def get_transform_args(
             "`ignore_index` is only supported for semantic segmentation tasks."
         )
 
-    train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls()
-    val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls()
+    train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
+    val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls
 
     if ignore_index is None:
         return (
@@ -196,16 +204,7 @@ def get_transform_args(
             val_transform_args_cls(),
         )
 
-    # This is for mypy, since `ignore_index` is currently not in all the transform_args.
-    assert issubclass(
-        train_transform_args_cls,
-        DINOv2SemanticSegmentationTrainTransformArgs,
-    )
-    assert issubclass(
-        val_transform_args_cls,
-        DINOv2SemanticSegmentationValTransformArgs,
-    )
-    return train_transform_args_cls(ignore_index=ignore_index), val_transform_args_cls(
+    return train_transform_args_cls(ignore_index=ignore_index), val_transform_args_cls(  # type: ignore[call-arg]
         ignore_index=ignore_index
     )
 
@@ -235,19 +234,22 @@ def get_dataset(
     )
 
 
-def collate_fn(batch: list[dict[str, Any]], split: str) -> dict[str, Any]:
+# TODO(Guarin, 08/25): Move this function to the _data module.
+def collate_fn(
+    batch: list[MaskSemanticSegmentationDatasetItem], split: str
+) -> MaskSemanticSegmentationBatch:
     # Prepare the batch without any stacking.
-    out: dict[str, Any] = {
-        "image_paths": [item["image_path"] for item in batch],
-        "image": [item["image"] for item in batch],
-        "mask": [item["mask"] for item in batch],
-        "target": [item["target"] for item in batch],
-    }
+    images = [item["image"] for item in batch]
+    masks = [item["mask"] for item in batch]
 
-    # During training images and masks all have the same shape.
-    if split == "train":
-        out["image"] = torch.stack(out["image"])
-        out["mask"] = torch.stack(out["mask"])
+    out: MaskSemanticSegmentationBatch = {
+        "image_path": [item["image_path"] for item in batch],
+        # Stack images during training as they all have the same shape.
+        # During validation every image can have a different shape.
+        "image": torch.stack(images) if split == "train" else images,
+        "mask": torch.stack(masks) if split == "train" else masks,
+        "binary_masks": [item["binary_masks"] for item in batch],
+    }
 
     return out
 
@@ -313,7 +315,7 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
 
 def get_train_model_cls(model_name: str) -> type[TrainModel]:
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
-        if train_model_cls.is_supported_model(model_name):
+        if train_model_cls.task_model_cls.is_supported_model(model_name):
             return train_model_cls
     raise ValueError(f"Unsupported model name '{model_name}'.")
 
@@ -330,30 +332,6 @@ def get_train_model_args(
     args = validate.pydantic_model_validate(model_args_cls, model_args)
     args.resolve_auto(total_steps=total_steps, model_name=model_name)
     return args
-
-
-def get_train_model(
-    model_name: str,
-    model_args: TrainModelArgs,
-    data_args: MaskSemanticSegmentationDataArgs,
-    val_transform_args: TaskTransformArgs,
-) -> TrainModel:
-    package_name, model_name = model_name.split("/", maxsplit=1)
-    if package_name == "dinov2_vit":  # For backwards compatibility
-        package_name = "dinov2"
-    if package_name != "dinov2":
-        raise ValueError(
-            f"Unsupported model '{model_name}'. Only 'dinov2' models are supported."
-        )
-    assert isinstance(model_args, DINOv2EoMTSemanticSegmentationTrainArgs)
-    assert isinstance(val_transform_args, DINOv2SemanticSegmentationValTransformArgs)
-
-    return DINOv2EoMTSemanticSegmentationTrain(
-        model_args=model_args,
-        model_name=model_name,
-        data_args=data_args,
-        val_transform_args=val_transform_args,
-    )
 
 
 def log_step(

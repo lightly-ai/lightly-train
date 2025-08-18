@@ -140,7 +140,8 @@ ignore_missing_imports = true
  
 [[tool.mypy.overrides]]
 module = [
-    "lightly_train._models.dinov2_vit.dinov2_vit_src.*"
+    "lightly_train._models.dinov2_vit.dinov2_vit_src.*",
+    "lightly_train._models.dinov3.dinov3_src.*",
 ]
 ignore_errors = true
 
