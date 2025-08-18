@@ -92,7 +92,6 @@ class DinoVisionTransformer(nn.Module):
         ffn_layer="mlp",
         block_chunks=1,
         num_register_tokens=0,
-        interpolate_antialias=False,
         interpolate_offset=0.1,
     ):
         """
@@ -117,7 +116,6 @@ class DinoVisionTransformer(nn.Module):
             ffn_layer (str): "mlp", "swiglu", "swiglufused" or "identity"
             block_chunks: (int) split block sequence into block_chunks units for FSDP wrap
             num_register_tokens: (int) number of extra cls tokens (so-called "registers")
-            interpolate_antialias: (str) flag to apply anti-aliasing when interpolating positional embeddings
             interpolate_offset: (float) work-around offset to apply when interpolating positional embeddings
         """
         check_xformers()
@@ -132,7 +130,6 @@ class DinoVisionTransformer(nn.Module):
         self.num_heads = num_heads
         self.patch_size = patch_size
         self.num_register_tokens = num_register_tokens
-        self.interpolate_antialias = interpolate_antialias
         self.interpolate_offset = interpolate_offset
 
         self.patch_embed = embed_layer(
@@ -247,8 +244,7 @@ class DinoVisionTransformer(nn.Module):
             kwargs["size"] = (w0, h0)
         patch_pos_embed = nn.functional.interpolate(
             patch_pos_embed.reshape(1, M, M, dim).permute(0, 3, 1, 2),
-            mode="bicubic",
-            antialias=self.interpolate_antialias,
+            mode="bilinear",
             **kwargs,
         )
         assert (w0, h0) == patch_pos_embed.shape[-2:]

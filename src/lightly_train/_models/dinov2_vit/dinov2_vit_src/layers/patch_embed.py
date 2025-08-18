@@ -81,8 +81,10 @@ class PatchEmbed(nn.Module):
 
         if new_H != H or new_W != W:
             # Resize image to nearest valid resolution
+            # NOTE: Due to a bug, image sizes that are not a multiple of the patch size do not work so this
+            #   branch is never triggered anyway.
             x = F.interpolate(
-                x, size=(new_H, new_W), mode="bicubic", align_corners=False
+                x, size=(new_H, new_W), mode="bilinear", align_corners=False
             )
             H, W = new_H, new_W
 

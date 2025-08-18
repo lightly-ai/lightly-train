@@ -58,13 +58,13 @@ def _export_task(
         format:
             Format to save the model in.
         batch_size:
-            Batch size for the dummy input tensor used for exporting the model.
+            Batch size of the input tensor.
         num_channels:
-            Number of channels in the dummy input tensor.
+            Number of channels in input tensor.
         height:
-            Height of the dummy input tensor.
+            Height of the input tensor.
         width:
-            Width of the dummy input tensor.
+            Width of the input tensor.
         overwrite:
             Overwrite the output file if it already exists.
         format_args:
@@ -98,7 +98,11 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
     if config.format == "onnx":
         dummy_input = torch.randn(
-            1, config.num_channels, config.height, config.width, requires_grad=False
+            config.batch_size,
+            config.num_channels,
+            config.height,
+            config.width,
+            requires_grad=False,
         )
         logger.info(f"Exporting ONNX model to '{out_path}'")
         torch.onnx.export(
@@ -107,11 +111,6 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             out_path,
             input_names=["input"],
             output_names=["masks", "logits"],
-            dynamic_axes={
-                "input": {0: "batch_size", 2: "height", 3: "width"},
-                "masks": {0: "batch_size", 1: "height", 2: "width"},
-                "logits": {0: "batch_size", 2: "height", 3: "width"},
-            },
             **config.format_args if config.format_args else {},
         )
     else:
