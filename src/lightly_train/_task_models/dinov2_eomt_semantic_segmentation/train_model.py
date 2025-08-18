@@ -34,11 +34,6 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms imp
     DINOv2EoMTSemanticSegmentationValTransform,
     DINOv2EoMTSemanticSegmentationValTransformArgs,
 )
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
-    DINOv2SemanticSegmentationTrainTransform,
-    DINOv2SemanticSegmentationValTransform,
-    DINOv2SemanticSegmentationValTransformArgs,
-)
 from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
@@ -132,17 +127,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     train_transform_cls = DINOv2EoMTSemanticSegmentationTrainTransform
     val_transform_cls = DINOv2EoMTSemanticSegmentationValTransform
 
-    task: ClassVar[str] = "semantic_segmentation"
-    train_model_args_cls: ClassVar[type[DINOv2EoMTSemanticSegmentationTrainArgs]] = (
-        DINOv2EoMTSemanticSegmentationTrainArgs
-    )
-    train_transform_cls: ClassVar[type[DINOv2SemanticSegmentationTrainTransform]] = (
-        DINOv2SemanticSegmentationTrainTransform
-    )
-    val_transform_cls: ClassVar[type[DINOv2SemanticSegmentationValTransform]] = (
-        DINOv2SemanticSegmentationValTransform
-    )
-
     def __init__(
         self,
         *,
@@ -174,8 +158,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             class_ignore_index=(
                 data_args.ignore_index if data_args.ignore_classes else None
             ),
-            image_size=val_transform_args.image_size,
-            image_normalize=val_transform_args.normalize.model_dump(),
             image_size=val_transform_args.image_size,
             image_normalize=val_transform_args.normalize.model_dump(),
             num_queries=model_args.num_queries,

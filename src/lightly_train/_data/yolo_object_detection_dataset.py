@@ -111,15 +111,13 @@ class YoloObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
             }
         )
 
-        print(type(image_), type(bboxes_), type(class_labels_))  # Debugging line
-
-        image_ = transformed["image"]
-        bboxes_ = transformed["bboxes"]
-        class_labels_ = transformed["class_labels"].long()
+        image = transformed["image"]
+        bboxes = transformed["bboxes"]
+        class_labels = transformed["class_labels"].long()
 
         return ObjectDetectionDatasetItem(
             image_path=image_path,
-            image=image_,
-            bboxes=bboxes_,
-            classes=class_labels_,
+            image=image,
+            bboxes=bboxes,
+            classes=class_labels,
         )

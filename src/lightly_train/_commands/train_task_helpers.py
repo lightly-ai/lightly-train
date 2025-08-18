@@ -42,7 +42,10 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
-from lightly_train._transforms.task_transform import TaskTransform, TaskTransformArgs, TaskTransformArgs
+from lightly_train._transforms.task_transform import (
+    TaskTransform,
+    TaskTransformArgs,
+)
 from lightly_train.types import (
     MaskSemanticSegmentationBatch,
     MaskSemanticSegmentationDatasetItem,

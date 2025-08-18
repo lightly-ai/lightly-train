@@ -19,7 +19,6 @@ from torch.optim.optimizer import Optimizer
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._transforms.task_transform import TaskTransform
-from lightly_train._transforms.task_transform import TaskTransform
 
 
 class TrainModelArgs(PydanticConfig):
