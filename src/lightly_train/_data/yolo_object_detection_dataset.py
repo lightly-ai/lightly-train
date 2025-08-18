@@ -116,7 +116,7 @@ class YoloObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
         class_labels = transformed["class_labels"].long()
 
         return ObjectDetectionDatasetItem(
-            image_path=image_path,
+            image_path=str(image_path),
             image=image,
             bboxes=bboxes,
             classes=class_labels,

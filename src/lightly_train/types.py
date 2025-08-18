@@ -97,7 +97,7 @@ class MaskSemanticSegmentationBatch(TypedDict):
 
 
 class ObjectDetectionDatasetItem(TypedDict):
-    image_path: PathLike
+    image_path: ImageFilename
     image: Tensor
     bboxes: Tensor  # Of shape (n_boxes, 4) with (x_center, y_center, w, h) coordinates.
     classes: Tensor  # Of shape (n_boxes,) with class labels.
