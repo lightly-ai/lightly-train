@@ -43,6 +43,8 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         backbone_freeze: bool,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        image_size: tuple[int, int],
+        image_normalize: dict[str, float],
     ) -> None:
         """
         Args:
@@ -61,6 +63,10 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
                 using LightlyTrain.
             backbone_args:
                 Additional arguments to pass to the DINOv2 backbone.
+            image_size:
+                The size to resize images to during inference. Default is (518, 518).
+            image_normalize:
+                The normalization parameters for images. Default uses ImageNet stats.
         """
         super().__init__(locals(), ignore_args={"backbone_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
@@ -69,6 +75,8 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         self.classes = classes
         self.class_ignore_index = class_ignore_index
         self.backbone_freeze = backbone_freeze
+        self.image_size = image_size
+        self.image_normalize = image_normalize
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -196,14 +204,13 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         image_h, image_w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
-        # TODO(Guarin, 07/25): Save mean and std in the model.
         x = transforms_functional.normalize(
-            x, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+            x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
-        # Resize shorter edge to 518
-        # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
-        # model.
-        x = transforms_functional.resize(x, size=[518])  # (C, H, W) -> (C, H', W')
+        # Resize to configured image size
+        x = transforms_functional.resize(
+            x, size=list(self.image_size)
+        )  # (C, H, W) -> (C, H', W')
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         logits = self._forward_logits(x)  # (1, K|K+1, H', W'), K=num_classes

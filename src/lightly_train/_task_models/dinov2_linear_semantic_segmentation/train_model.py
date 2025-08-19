@@ -28,6 +28,7 @@ from lightly_train._task_models.dinov2_linear_semantic_segmentation.task_model i
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.transforms import (
     DINOv2LinearSemanticSegmentationTrainTransform,
     DINOv2LinearSemanticSegmentationValTransform,
+    DINOv2LinearSemanticSegmentationValTransformArgs,
 )
 from lightly_train._task_models.train_model import (
     TaskStepResult,
@@ -75,6 +76,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         model_name: str,
         model_args: DINOv2LinearSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
+        val_transform_args: DINOv2LinearSemanticSegmentationValTransformArgs,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
@@ -95,6 +97,8 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
             },
+            image_size=val_transform_args.image_size,
+            image_normalize=val_transform_args.normalize.model_dump(),
         )
         self.criterion = CrossEntropyLoss(ignore_index=data_args.ignore_index)
 
@@ -170,7 +174,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
         )
 
-        loss = torch.tensor(0)
+        loss = torch.tensor(0.0, device=crop_logits.device)
         for image_logits, image_mask in zip(logits, masks):
             image_logits = image_logits.unsqueeze(0)  # Add batch dimension.
             image_mask = image_mask.unsqueeze(0)  # Add batch dimension.

@@ -34,6 +34,9 @@ from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
+from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
+    DINOv2LinearSemanticSegmentationTrain,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
 )
@@ -56,6 +59,7 @@ logger = logging.getLogger(__name__)
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
+    DINOv2LinearSemanticSegmentationTrain,
 ]
 
 
