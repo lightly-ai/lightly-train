@@ -58,8 +58,8 @@ logger = logging.getLogger(__name__)
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv2EoMTSemanticSegmentationTrain,
-    DINOv3EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
+    DINOv3EoMTSemanticSegmentationTrain,
 ]
 
 
