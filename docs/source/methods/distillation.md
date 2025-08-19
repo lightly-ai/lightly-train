@@ -63,9 +63,9 @@ if __name__ == "__main__":
 
 ### Pretrain and Distill Your Own DINOv2 Weights
 
-LightlyTrain also supports [DINOv2 pretraining](https://docs.lightly.ai/train/stable/methods/dinov2.html), which can help you adjust the DINOv2 weights to your own domain data. Starting from **LightlyTrain 0.9.0**, after pretraining a ViT with DINOv2, you can distill your own pretrained model to your target model architecture with the distillation method. This is done by setting an optional `teacher_weights` argument in `method_args`.
+LightlyTrain also supports [DINOv2 pretraining](#methods-dinov2), which can help you adjust the DINOv2 weights to your own domain data. Starting from **LightlyTrain 0.9.0**, after pretraining a ViT with DINOv2, you can distill your own pretrained model to your target model architecture with the distillation method. This is done by setting an optional `teacher_weights` argument in `method_args`.
 
-The following example shows how to pretrain a ViT-B/14 model with DINOv2 and then distill the pretrained model to a ResNet-18 student model. Check out the [DINOv2 pretraining documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html) for more details on how to pretrain a DINOv2 model.
+The following example shows how to pretrain a ViT-B/14 model with DINOv2 and then distill the pretrained model to a ResNet-18 student model. Check out the [DINOv2 pretraining documentation](#methods-dinov2) for more details on how to pretrain a DINOv2 model.
 
 ````{tab} Python
 ```python
