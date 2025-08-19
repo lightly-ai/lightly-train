@@ -11,8 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- LightlyTrain now infers the best number of epochs based on the chosen method, dataset size and batch size.
-
 ### Deprecated
 
 ### Removed
@@ -21,11 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.11.0] - 2025-08-15
+
+🚀 **New DINOv3 Support:** Pretrain your own model with [distillation](https://docs.lightly.ai/train/stable/methods/distillation.html#methods-distillation-dinov3) from DINOv3 weights. Or fine-tune our SOTA [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) with a DINOv3 backbone! 🚀
+
+### Added
+
+- Distillation now supports [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/methods/distillation.html#methods-distillation-dinov3) as teacher.
+- Semantic Segmentation now supports [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) as EoMT backbone.
+
+### Changed
+
+- LightlyTrain now infers the best number of epochs based on the chosen method, dataset size and batch size.
+
 ## [0.10.0] - 2025-08-04
 
 🔥 **New: Train state-of-the-art semantic segmentation models** with our new
-[**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
-fine-tuning method! 🔥
+[**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html) fine-tuning method! 🔥
 
 ### Added
 

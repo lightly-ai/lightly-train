@@ -12,9 +12,9 @@
 from __future__ import annotations
 
 import pathlib
-from typing import NotRequired, TypedDict
 
 from omegaconf import OmegaConf
+from typing_extensions import NotRequired, TypedDict
 
 
 class _Model(TypedDict):

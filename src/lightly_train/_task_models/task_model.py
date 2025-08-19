@@ -48,6 +48,10 @@ class TaskModel(Module):
             )
         self._init_args = {k: v for k, v in init_args.items() if k not in ignore_args}
 
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        raise NotImplementedError()
+
     @property
     def init_args(self) -> dict[str, Any]:
         """Returns the arguments used to initialize the model.
