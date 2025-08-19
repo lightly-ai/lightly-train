@@ -145,8 +145,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         def raise_invalid_name() -> None:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
-                f"models are: {cls.list_model_names()}. See the documentation for "
-                "more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html"
+                f"models are: {cls.list_model_names()}."
             )
 
         if not model_name.endswith(f"-{cls.model_suffix}"):
