@@ -234,21 +234,22 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_model_cls=train_model_cls, val_transform_args=val_transform_args
     )
 
-    # TODO: multiple mmap filepaths or a single file?
     with common_helpers.get_dataset_temp_mmap_path(
         data=config.data.train.images
-    ) as mmap_filepath:
+    ) as train_mmap_filepath, common_helpers.get_dataset_temp_mmap_path(
+        data=config.data.val.images
+    ) as val_mmap_filepath:
         train_dataset = helpers.get_dataset(
             fabric=fabric,
             dataset_args=config.data.get_train_args(),
             transform=train_transform,
-            mmap_filepath=mmap_filepath,
+            mmap_filepath=train_mmap_filepath,
         )
         val_dataset = helpers.get_dataset(
             fabric=fabric,
             dataset_args=config.data.get_val_args(),
             transform=val_transform,
-            mmap_filepath=mmap_filepath,
+            mmap_filepath=val_mmap_filepath,
         )
         logger.info(
             f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}"
