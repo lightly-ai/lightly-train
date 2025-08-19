@@ -40,9 +40,8 @@ from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
-    # Default comes from ADE20K dataset:
-    # 20210 images / batch size 16 * 31 epochs ~= 40k steps.
-    default_steps: ClassVar[int] = 40_000
+    # Default comes from PVOC12
+    default_steps: ClassVar[int] = 80_000
 
     backbone_freeze: bool = True
     backbone_weights: PathLike | None = None
