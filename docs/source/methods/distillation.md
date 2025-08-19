@@ -113,26 +113,6 @@ The following models for `teacher` are supported:
   - `dinov2/vitb14`
   - `dinov2/vitl14`
   - `dinov2/vitg14`
-  - `dinov2/vits14-noreg`
-  - `dinov2/vitb14-noreg`
-  - `dinov2/vitl14-noreg`
-  - `dinov2/vitg14-noreg`
-  - `dinov2/vits14-notpretrained`
-  - `dinov2/vitb14-notpretrained`
-  - `dinov2/vitl14-notpretrained`
-  - `dinov2/vitg14-notpretrained`
-  - `dinov2/vits14-noreg-notpretrained`
-  - `dinov2/vitb14-noreg-notpretrained`
-  - `dinov2/vitl14-noreg-notpretrained`
-  - `dinov2/vitg14-noreg-notpretrained`
-  - `dinov2/vits14-pretrained`
-  - `dinov2/vitb14-pretrained`
-  - `dinov2/vitl14-pretrained`
-  - `dinov2/vitg14-pretrained`
-  - `dinov2/vits14-noreg-pretrained`
-  - `dinov2/vitb14-noreg-pretrained`
-  - `dinov2/vitl14-noreg-pretrained`
-  - `dinov2/vitg14-noreg-pretrained`
 
 ## What's under the Hood
 
