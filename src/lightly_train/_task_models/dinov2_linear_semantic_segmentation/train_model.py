@@ -136,6 +136,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         images = batch["image"]
         assert isinstance(images, Tensor), "Images must be a single tensor for training"
         masks = batch["mask"]
+        assert isinstance(masks, Tensor), "Masks must be a single tensor for training"
 
         logits = self.model.forward_train(images)
         if self.model.class_ignore_index is not None:
