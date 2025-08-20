@@ -372,13 +372,11 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""
-        param_names = {name for name, _ in self.named_parameters()}
         new_state_dict = {}
         for name, param in state_dict.items():
             if name.startswith("model."):
                 name = name[len("model.") :]
-                if name in param_names:
-                    new_state_dict[name] = param
+                new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)
 
     def freeze_backbone(self) -> None:
