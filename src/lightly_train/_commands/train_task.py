@@ -234,10 +234,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_model_cls=train_model_cls, val_transform_args=val_transform_args
     )
 
-    with common_helpers.get_dataset_temp_mmap_path(
-        data=config.data.train.images
-    ) as train_mmap_filepath, common_helpers.get_dataset_temp_mmap_path(
-        data=config.data.val.images
+    with helpers.get_dataset_temp_mmap_path(
+        fabric=fabric, data=config.data.train.images
+    ) as train_mmap_filepath, helpers.get_dataset_temp_mmap_path(
+        fabric=fabric, data=config.data.val.images
     ) as val_mmap_filepath:
         train_dataset = helpers.get_dataset(
             fabric=fabric,
