@@ -4,7 +4,6 @@ import pytest
 from lightning_utilities.core.imports import RequirementCache
 
 import torch
-from pytorch_lightning import LightningModule
 
 import lightly_train
 
