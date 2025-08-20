@@ -197,6 +197,8 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         params, params_no_weight_decay = get_weight_decay_parameters([self])
+        params = [p for p in params if p.requires_grad]
+        params_no_weight_decay = [p for p in params_no_weight_decay if p.requires_grad]
         optimizer = AdamW(
             params=[
                 {"name": "params", "params": params},
