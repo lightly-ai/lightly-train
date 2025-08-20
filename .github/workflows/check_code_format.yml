@@ -51,7 +51,7 @@ jobs:
         # We should remove it once RFDETR improves their dependency spec since it causes a lot of overhead on the CI.
         uses: jwlawson/actions-setup-cmake@v2
         with:
-          cmake-version: '3.22.x'
+          cmake-version: '3.31'
       - name: Checkout Code
         uses: actions/checkout@v4
       - name: Set Up uv

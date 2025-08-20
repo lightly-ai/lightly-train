@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add support for DINOv2 linear semantic segmentation models. You can train them with
+  `model="dinov2/vits14-linear"` in the `train_semantic_segmentation` command. Those
+  models are trained with a linear head on top of a frozen backbone and are useful
+  to evaluate the quality of pretrained DINOv2 models.
+
 ### Changed
 
 ### Deprecated

@@ -378,6 +378,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             class_logits_per_layer,
         )
 
+    # TODO(Guarin, 08/25): Move tile/until as functions to a separate utility module.
     def tile(
         self, images: list[Tensor] | Tensor
     ) -> tuple[list[Tensor], list[tuple[int, int, int, bool]]]:
