@@ -23,6 +23,7 @@ import torch.nn as nn
 from lightning_utilities.core.imports import RequirementCache
 from torch.nn.init import trunc_normal_
 
+from lightly_train._commands.export_task import is_in_precalculate_for_onnx_export
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
     MemEffAttention,
     Mlp,
@@ -92,6 +93,7 @@ class DinoVisionTransformer(nn.Module):
         ffn_layer="mlp",
         block_chunks=1,
         num_register_tokens=0,
+        interpolate_antialias=False,
         interpolate_offset=0.1,
     ):
         """
@@ -115,6 +117,7 @@ class DinoVisionTransformer(nn.Module):
             block_fn (nn.Module): transformer block class
             ffn_layer (str): "mlp", "swiglu", "swiglufused" or "identity"
             block_chunks: (int) split block sequence into block_chunks units for FSDP wrap
+            interpolate_antialias: (str) flag to apply anti-aliasing when interpolating positional embeddings
             num_register_tokens: (int) number of extra cls tokens (so-called "registers")
             interpolate_offset: (float) work-around offset to apply when interpolating positional embeddings
         """
@@ -130,6 +133,7 @@ class DinoVisionTransformer(nn.Module):
         self.num_heads = num_heads
         self.patch_size = patch_size
         self.num_register_tokens = num_register_tokens
+        self.interpolate_antialias = interpolate_antialias
         self.interpolate_offset = interpolate_offset
 
         self.patch_embed = embed_layer(
@@ -144,6 +148,7 @@ class DinoVisionTransformer(nn.Module):
         self.pos_embed = nn.Parameter(
             torch.zeros(1, num_patches + self.num_tokens, embed_dim)
         )
+        self.precalculated_pos_embed = None
         assert num_register_tokens >= 0
         self.register_tokens = (
             nn.Parameter(torch.zeros(1, num_register_tokens, embed_dim))
@@ -219,39 +224,56 @@ class DinoVisionTransformer(nn.Module):
         named_apply(init_weights_vit_timm, self)
 
     def interpolate_pos_encoding(self, x, w, h):
+        if torch.onnx.is_in_onnx_export():
+            if is_in_precalculate_for_onnx_export():
+                raise ValueError(
+                    "The context manager precalculate_for_onnx_export must be used before exporting to ONNX."
+                )
+            if self.precalculated_pos_embed is None:
+                raise ValueError(
+                    "Positional embeddings must be initialized before exporting to ONNX."
+                    "Call your model inside precalculate_for_onnx_export context manager with the same inputs before exporting."
+                )
+            return self.precalculated_pos_embed
+
         previous_dtype = x.dtype
         npatch = x.shape[1] - 1
         N = self.pos_embed.shape[1] - 1
         if npatch == N and w == h:
-            return self.pos_embed
-        pos_embed = self.pos_embed.float()
-        class_pos_embed = pos_embed[:, 0]
-        patch_pos_embed = pos_embed[:, 1:]
-        dim = x.shape[-1]
-        w0 = w // self.patch_size
-        h0 = h // self.patch_size
-        M = int(math.sqrt(N))  # Recover the number of patches in each dimension
-        assert N == M * M
-        kwargs = {}
-        if self.interpolate_offset:
-            # Historical kludge: add a small number to avoid floating point error in the interpolation, see https://github.com/facebookresearch/dino/issues/8
-            # Note: still needed for backward-compatibility, the underlying operators are using both output size and scale factors
-            sx = float(w0 + self.interpolate_offset) / M
-            sy = float(h0 + self.interpolate_offset) / M
-            kwargs["scale_factor"] = (sx, sy)
+            result = self.pos_embed.to(previous_dtype)
         else:
-            # Simply specify an output size instead of a scale factor
-            kwargs["size"] = (w0, h0)
-        patch_pos_embed = nn.functional.interpolate(
-            patch_pos_embed.reshape(1, M, M, dim).permute(0, 3, 1, 2),
-            mode="bilinear",
-            **kwargs,
-        )
-        assert (w0, h0) == patch_pos_embed.shape[-2:]
-        patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
-        return torch.cat((class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1).to(
-            previous_dtype
-        )
+            pos_embed = self.pos_embed.float()
+            class_pos_embed = pos_embed[:, 0]
+            patch_pos_embed = pos_embed[:, 1:]
+            dim = x.shape[-1]
+            w0 = w // self.patch_size
+            h0 = h // self.patch_size
+            M = int(math.sqrt(N))  # Recover the number of patches in each dimension
+            assert N == M * M
+            kwargs = {}
+            if self.interpolate_offset:
+                # Historical kludge: add a small number to avoid floating point error in the interpolation, see https://github.com/facebookresearch/dino/issues/8
+                # Note: still needed for backward-compatibility, the underlying operators are using both output size and scale factors
+                sx = float(w0 + self.interpolate_offset) / M
+                sy = float(h0 + self.interpolate_offset) / M
+                kwargs["scale_factor"] = (sx, sy)
+            else:
+                # Simply specify an output size instead of a scale factor
+                kwargs["size"] = (w0, h0)
+            patch_pos_embed = nn.functional.interpolate(
+                patch_pos_embed.reshape(1, M, M, dim).permute(0, 3, 1, 2),
+                mode="bicubic",
+                antialias=self.interpolate_antialias,
+                **kwargs,
+            )
+            assert (w0, h0) == patch_pos_embed.shape[-2:]
+            patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
+            result = torch.cat(
+                (class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1
+            ).to(previous_dtype)
+        if is_in_precalculate_for_onnx_export():
+            self.precalculated_pos_embed = nn.Parameter(result)
+        return result
 
     def prepare_tokens_with_masks(self, x, masks=None):
         # TODO(Thomas, 07/25): Fix swapped h and w.

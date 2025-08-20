@@ -7,7 +7,10 @@
 #
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import logging
+from collections.abc import Generator
 from typing import Any, Literal
 
 import torch
@@ -20,6 +23,24 @@ from lightly_train._task_models import task_model_helpers
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
+
+
+_PRECALCULATE_FOR_ONNX_EXPORT = contextvars.ContextVar(
+    "PRECALCULATE_FOR_ONNX_EXPORT", default=False
+)
+
+
+def is_in_precalculate_for_onnx_export() -> bool:
+    return _PRECALCULATE_FOR_ONNX_EXPORT.get()
+
+
+@contextlib.contextmanager
+def precalculate_for_onnx_export() -> Generator[None, Any, None]:
+    token = _PRECALCULATE_FOR_ONNX_EXPORT.set(True)
+    try:
+        yield
+    finally:
+        _PRECALCULATE_FOR_ONNX_EXPORT.reset(token)
 
 
 def export_onnx(
@@ -104,6 +125,8 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             config.width,
             requires_grad=False,
         )
+        with precalculate_for_onnx_export():
+            task_model(dummy_input)
         logger.info(f"Exporting ONNX model to '{out_path}'")
         torch.onnx.export(
             task_model,
