@@ -117,8 +117,8 @@ class DinoVisionTransformer(nn.Module):
             block_fn (nn.Module): transformer block class
             ffn_layer (str): "mlp", "swiglu", "swiglufused" or "identity"
             block_chunks: (int) split block sequence into block_chunks units for FSDP wrap
-            interpolate_antialias: (str) flag to apply anti-aliasing when interpolating positional embeddings
             num_register_tokens: (int) number of extra cls tokens (so-called "registers")
+            interpolate_antialias: (str) flag to apply anti-aliasing when interpolating positional embeddings
             interpolate_offset: (float) work-around offset to apply when interpolating positional embeddings
         """
         check_xformers()
