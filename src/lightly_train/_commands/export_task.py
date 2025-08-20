@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import logging
-from collections.abc import Generator
+from collections.abc import Iterator
 from typing import Any, Literal
 
 import torch
@@ -35,7 +35,7 @@ def is_in_precalculate_for_onnx_export() -> bool:
 
 
 @contextlib.contextmanager
-def precalculate_for_onnx_export() -> Generator[None, Any, None]:
+def precalculate_for_onnx_export() -> Iterator[None]:
     token = _PRECALCULATE_FOR_ONNX_EXPORT.set(True)
     try:
         yield
