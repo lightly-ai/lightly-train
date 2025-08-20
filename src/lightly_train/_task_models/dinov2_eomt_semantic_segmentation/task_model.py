@@ -108,16 +108,16 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         )
 
         # Disable drop path by default.
-        args = {
+        backbone_model_args = {
             "drop_path_rate": 0.0,
         }
         if backbone_args is not None:
-            args.update(backbone_args)
+            backbone_model_args.update(backbone_args)
 
         # Get the backbone.
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
-            model_args=args,
+            model_args=backbone_model_args,
         )
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
@@ -571,11 +571,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""
-        param_names = {name for name, _ in self.named_parameters()}
         new_state_dict = {}
         for name, param in state_dict.items():
             if name.startswith("model."):
                 name = name[len("model.") :]
-                if name in param_names:
-                    new_state_dict[name] = param
+                new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)
