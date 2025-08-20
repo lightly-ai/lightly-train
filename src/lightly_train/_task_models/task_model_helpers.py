@@ -34,7 +34,7 @@ def load_model_from_checkpoint(
         The loaded model.
     """
     checkpoint = common_helpers.get_checkpoint_path(checkpoint=checkpoint)
-    ckpt = torch.load(checkpoint, weights_only=False)
+    ckpt = torch.load(checkpoint, weights_only=False, map_location=device)
 
     # Import the model class dynamically
     module_path, class_name = ckpt["model_class_path"].rsplit(".", 1)
