@@ -240,31 +240,25 @@ def get_dataset_mmap_filenames(
             mmap_filepath=mmap_filepath
         )
 
-    with fabric.rank_zero_first():
-        memory_mapped_sequence.write_filenames_to_file(
-            filenames=filenames,
-            mmap_filepath=mmap_filepath,
-        )
-
-    # Check if the output directory is on a shared filesystem. We can only check this
-    # after global rank zero has created the directory.
+    # Check if the output directory is on a shared filesystem.
     try:
         is_shared_filesystem = fabric_utilities.is_shared_filesystem(
-            strategy=fabric.strategy, path=mmap_filepath
+            strategy=fabric.strategy, path=mmap_filepath.parent
         )
     except FileNotFoundError:
-        # Clearly not a shared filesystem because we just created the directory.
+        # Clearly not a shared filesystem because we just created the parent directory.
         is_shared_filesystem = False
 
     # If the filesystem is not shared we have to create the output directory on every
     # node individually.
-    if not is_shared_filesystem:
-        with fabric.rank_zero_first(local=True):
-            if fabric.local_rank == 0 and fabric.global_rank != 0:
-                memory_mapped_sequence.write_filenames_to_file(
-                    filenames=filenames,
-                    mmap_filepath=mmap_filepath,
-                )
+    with fabric.rank_zero_first():
+        if (fabric.global_rank == 0) or (
+            not is_shared_filesystem and fabric.local_rank == 0
+        ):
+            memory_mapped_sequence.write_filenames_to_file(
+                filenames=filenames,
+                mmap_filepath=mmap_filepath,
+            )
 
     # Return memory-mapped filenames from file.
     return memory_mapped_sequence.memory_mapped_sequence_from_file(
