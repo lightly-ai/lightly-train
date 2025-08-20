@@ -1,15 +1,13 @@
+import sys
 from pathlib import Path
 
 import pytest
-from lightning_utilities.core.imports import RequirementCache
-
 import torch
+from lightning_utilities.core.imports import RequirementCache
 
 import lightly_train
 
 from .. import helpers
-
-import sys
 
 
 @pytest.fixture(scope="module")
