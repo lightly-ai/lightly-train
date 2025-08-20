@@ -50,7 +50,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         image_normalize: dict[str, float],
         num_queries: int,
         num_joint_blocks: int,
-        backbone_url: str,
+        backbone_url: str | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
@@ -114,10 +114,11 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         )
 
         # Disable drop path by default.
-        args = {
+        args: dict[str, Any] = {
             "drop_path_rate": 0.0,
-            "teacher_url": backbone_url,
         }
+        if backbone_url is not None:
+            args["weights"] = backbone_url
         if backbone_args is not None:
             args.update(backbone_args)
 
