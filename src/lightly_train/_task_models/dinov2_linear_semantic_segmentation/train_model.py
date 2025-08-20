@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import torch
 from lightly.models.utils import get_weight_decay_parameters
@@ -196,18 +196,19 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         return TaskStepResult(loss=loss, log_dict=log_dict)
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
-        params, params_no_weight_decay = get_weight_decay_parameters([self])
-        params = [p for p in params if p.requires_grad]
-        params_no_weight_decay = [p for p in params_no_weight_decay if p.requires_grad]
+        params_wd, params_no_wd = get_weight_decay_parameters([self])
+        params_wd = [p for p in params_wd if p.requires_grad]
+        params_no_wd = [p for p in params_no_wd if p.requires_grad]
+        params: list[dict[str, Any]] = [
+            {"name": "params", "params": params_wd},
+            {
+                "name": "no_weight_decay",
+                "params": params_no_wd,
+                "weight_decay": 0.0,
+            },
+        ]
         optimizer = AdamW(
-            params=[
-                {"name": "params", "params": params},
-                {
-                    "name": "no_weight_decay",
-                    "params": params_no_weight_decay,
-                    "weight_decay": 0.0,
-                },
-            ],
+            params=params,
             lr=self.model_args.lr,
             weight_decay=self.model_args.weight_decay,
         )
