@@ -27,6 +27,8 @@ from lightly_train._methods.distillation.distillation_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.lars_args import LARSArgs
@@ -44,8 +46,9 @@ logger = logging.getLogger(__name__)
 
 def get_teacher(teacher_name: str, teacher_weights: str | Path | None = None) -> Module:
     wrapped_model = package_helpers.get_wrapped_model(model=teacher_name)
+    assert isinstance(wrapped_model, (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper))
+    wrapped_model.make_teacher()
     teacher_embedding_model = wrapped_model.get_model()
-    assert isinstance(teacher_embedding_model, Module)
 
     # If a path to the teacher weights is provided, load them.
     if teacher_weights is not None:

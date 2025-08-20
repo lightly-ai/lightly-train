@@ -50,7 +50,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
-    drop_path_rate: float = 0.0
+
     num_queries: int = 100  # Default for ADE20K
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
@@ -166,9 +166,6 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
-            backbone_args={
-                "drop_path_rate": model_args.drop_path_rate,
-            },
         )
 
         self.criterion = MaskClassificationLoss(

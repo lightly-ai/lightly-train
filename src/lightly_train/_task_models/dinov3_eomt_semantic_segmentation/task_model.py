@@ -50,7 +50,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         image_normalize: dict[str, float],
         num_queries: int,
         num_joint_blocks: int,
-        backbone_url: str,
+        backbone_url: str | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
@@ -113,18 +113,23 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             persistent=False,  # No need to save it in the state dict.
         )
 
-        # Disable drop path by default.
-        args = {
-            "drop_path_rate": 0.0,
-            "teacher_url": backbone_url,
-        }
+        # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
+        # set by DINOv3.
+        backbone_model_args: dict[str, Any] = {}
+        if backbone_url is not None:
+            backbone_model_args["weights"] = backbone_url
+        else:
+            # Set pretrained to false when loading the model for inference. This skips
+            # loading the pretrained weights from Meta as we'll be loading weights with
+            # load_train_state_dict instead.
+            backbone_model_args["pretrained"] = False
         if backbone_args is not None:
-            args.update(backbone_args)
+            backbone_model_args.update(backbone_args)
 
         # Get the backbone.
         self.backbone: DinoVisionTransformer = DINOV3_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
-            model_args=args,
+            model_args=backbone_model_args,
         )
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
@@ -579,11 +584,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""
-        param_names = {name for name, _ in self.named_parameters()}
         new_state_dict = {}
         for name, param in state_dict.items():
             if name.startswith("model."):
                 name = name[len("model.") :]
-                if name in param_names:
-                    new_state_dict[name] = param
+                new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)
