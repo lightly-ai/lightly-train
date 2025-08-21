@@ -283,14 +283,12 @@ def get_dataset_temp_mmap_path(
     try:
         # Delete the file if it already exists from a previous run.
         if not reuse_file and (fabric.local_rank == 0):
-            _unlink_and_ignore(mmap_filepath)
+            _unlink_and_ignore(mmap_filepath_broadcasted)
 
-        yield mmap_filepath
+        yield mmap_filepath_broadcasted
     finally:
         if not reuse_file and (fabric.local_rank == 0):
-            _unlink_and_ignore(mmap_filepath)
-
-    yield mmap_filepath_broadcasted
+            _unlink_and_ignore(mmap_filepath_broadcasted)
 
 
 def get_dataset_mmap_filenames(
