@@ -12,11 +12,12 @@ import hashlib
 import json
 import logging
 import os
+import sys
 import time
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Sequence, Sized, TypeVar
+from typing import Any, Generator, Iterable, Literal, Sequence, Sized, TypeVar, IO
 
 import torch
 from pytorch_lightning.accelerators.accelerator import Accelerator
@@ -408,12 +409,22 @@ def get_dataset_temp_mmap_path(
             _decrement_and_cleanup_if_zero(mmap_filepath, ref_count_filepath)
 
 
-def _increment_ref_count(ref_file: Path) -> None:
-    import fcntl
+def _acquire_file_lock(file_handle: IO[Any]) -> None:
+    """Acquire an exclusive file lock in a cross-platform way."""
+    if sys.platform == "win32":
+        import msvcrt
 
+        msvcrt.locking(file_handle.fileno(), msvcrt.LK_NBLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(file_handle.fileno(), fcntl.LOCK_EX)
+
+
+def _increment_ref_count(ref_file: Path) -> None:
     ref_file.touch()
     with open(ref_file, "r+") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        _acquire_file_lock(f)
         count = int(f.read() or "0")
         f.seek(0)
         f.write(str(count + 1))
@@ -421,11 +432,9 @@ def _increment_ref_count(ref_file: Path) -> None:
 
 
 def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
-    import fcntl
-
     try:
         with open(ref_file, "r+") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            _acquire_file_lock(f)
             count = int(f.read() or "1") - 1
             if count <= 0:
                 _unlink_and_ignore(mmap_file)
