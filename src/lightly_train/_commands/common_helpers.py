@@ -17,7 +17,7 @@ import time
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Sequence, Sized, TypeVar, IO
+from typing import IO, Any, Generator, Iterable, Literal, Sequence, Sized, TypeVar
 
 import torch
 from pytorch_lightning.accelerators.accelerator import Accelerator

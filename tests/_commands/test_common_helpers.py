@@ -540,11 +540,200 @@ def test_get_num_workers__slurm(
     )
 
 
-def test_get_dataset_temp_mmap_path(tmp_path: Path) -> None:
-    with common_helpers.get_dataset_temp_mmap_path(data=tmp_path) as mmap_path:
-        mmap_path.touch()
-    # Make sure file is deleted after exiting the context manager.
+def test_acquire_file_lock(tmp_path: Path) -> None:
+    """Test that file locking works on both Windows and Unix."""
+    test_file = tmp_path / "lock_test.txt"
+    test_file.write_text("test")
+
+    # Should not raise an exception on any platform
+    with open(test_file, "r+") as f:
+        common_helpers._acquire_file_lock(f)
+        content = f.read()
+        assert content == "test"
+
+
+@pytest.mark.parametrize(
+    "initial_count,expected_count", [(None, "1"), ("", "1"), ("5", "6")]
+)
+def test_increment_ref_count(
+    tmp_path: Path, initial_count: str | None, expected_count: str
+) -> None:
+    ref_file = tmp_path / "test.ref_count"
+    if initial_count is not None:
+        ref_file.write_text(initial_count)
+
+    common_helpers._increment_ref_count(ref_file)
+
+    assert ref_file.read_text() == expected_count
+
+
+@pytest.mark.parametrize(
+    "initial_count,should_cleanup", [("3", False), ("1", True), ("0", True), ("", True)]
+)
+def test_decrement_and_cleanup(
+    tmp_path: Path, initial_count: str, should_cleanup: bool
+) -> None:
+    mmap_file = tmp_path / "test.mmap"
+    ref_file = tmp_path / "test.ref_count"
+
+    mmap_file.touch()
+    ref_file.write_text(initial_count)
+
+    common_helpers._decrement_and_cleanup_if_zero(mmap_file, ref_file)
+
+    if should_cleanup:
+        assert not ref_file.exists()
+        assert not mmap_file.exists()
+    else:
+        assert ref_file.exists()
+        assert mmap_file.exists()
+        assert ref_file.read_text() == str(int(initial_count) - 1)
+
+
+def test_decrement_missing_files(tmp_path: Path) -> None:
+    # Should not raise exceptions for missing files
+    common_helpers._decrement_and_cleanup_if_zero(
+        tmp_path / "missing.mmap", tmp_path / "missing.ref"
+    )
+
+
+def test_file_locking_concurrent_increments(tmp_path: Path) -> None:
+    """Test that file locking prevents race conditions."""
+    import concurrent.futures
+
+    ref_file = tmp_path / "test.ref_count"
+    num_increments = 10
+
+    def increment_worker() -> None:
+        common_helpers._increment_ref_count(ref_file)
+
+    # Run multiple increments concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(increment_worker) for _ in range(num_increments)]
+        concurrent.futures.wait(futures)
+
+    # Verify final count is correct
+    assert ref_file.read_text() == str(num_increments)
+
+
+@pytest.mark.parametrize(
+    "initial_count,num_decrements,should_cleanup",
+    [
+        (10, 3, False),  # 10 - 3 = 7, no cleanup
+        (5, 5, True),  # 5 - 5 = 0, cleanup
+        (3, 8, True),  # 3 - 8 < 0, cleanup
+        (1, 1, True),  # 1 - 1 = 0, cleanup
+    ],
+)
+def test_file_locking_concurrent_decrements(
+    tmp_path: Path, initial_count: int, num_decrements: int, should_cleanup: bool
+) -> None:
+    """Test concurrent decrements with various scenarios."""
+    import concurrent.futures
+
+    mmap_file = tmp_path / "test.mmap"
+    ref_file = tmp_path / "test.ref_count"
+
+    mmap_file.touch()
+    ref_file.write_text(str(initial_count))
+
+    def decrement_worker() -> None:
+        common_helpers._decrement_and_cleanup_if_zero(mmap_file, ref_file)
+
+    # Run decrements concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(decrement_worker) for _ in range(num_decrements)]
+        concurrent.futures.wait(futures)
+
+    if should_cleanup:
+        # Files should be cleaned up when count reaches zero
+        assert not ref_file.exists()
+        assert not mmap_file.exists()
+    else:
+        # Files should still exist with correct remaining count
+        assert ref_file.exists()
+        assert mmap_file.exists()
+        expected_count = initial_count - num_decrements
+        assert ref_file.read_text() == str(expected_count)
+
+
+@pytest.mark.parametrize(
+    "initial_count,num_increments,num_decrements,should_cleanup",
+    [
+        (5, 3, 2, False),  # 5 + 3 - 2 = 6, no cleanup
+        (2, 4, 3, False),  # 2 + 4 - 3 = 3, no cleanup
+        (3, 2, 5, True),  # 3 + 2 - 5 = 0, cleanup
+        (1, 3, 4, True),  # 1 + 3 - 4 = 0, cleanup
+        (2, 1, 4, True),  # 2 + 1 - 4 < 0, cleanup
+    ],
+)
+def test_file_locking_mixed_operations(
+    tmp_path: Path,
+    initial_count: int,
+    num_increments: int,
+    num_decrements: int,
+    should_cleanup: bool,
+) -> None:
+    """Test concurrent increments and decrements with various scenarios."""
+    import concurrent.futures
+
+    mmap_file = tmp_path / "test.mmap"
+    ref_file = tmp_path / "test.ref_count"
+
+    mmap_file.touch()
+    ref_file.write_text(str(initial_count))
+
+    def increment_worker() -> None:
+        common_helpers._increment_ref_count(ref_file)
+
+    def decrement_worker() -> None:
+        common_helpers._decrement_and_cleanup_if_zero(mmap_file, ref_file)
+
+    # Run mixed operations concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = []
+        futures.extend(
+            [executor.submit(increment_worker) for _ in range(num_increments)]
+        )
+        futures.extend(
+            [executor.submit(decrement_worker) for _ in range(num_decrements)]
+        )
+        concurrent.futures.wait(futures)
+
+    if should_cleanup:
+        # Files should be cleaned up when final count <= 0
+        assert not ref_file.exists()
+        assert not mmap_file.exists()
+    else:
+        # Files should still exist with correct final count
+        assert ref_file.exists()
+        assert mmap_file.exists()
+        expected_count = initial_count + num_increments - num_decrements
+        assert ref_file.read_text() == str(expected_count)
+
+
+def test_get_dataset_temp_mmap_path__reference_counting(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Test that reference counting works correctly in the context manager."""
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_path)})
+    mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
+
+    # Mock the environment to not reuse files
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_MMAP_REUSE_FILE": "0"})
+
+    data_path = tmp_path / "data"
+
+    with common_helpers.get_dataset_temp_mmap_path(data=data_path) as mmap_path:
+        ref_count_path = mmap_path.with_suffix(".ref_count")
+
+        # Reference count file should exist and have count 1
+        assert ref_count_path.exists()
+        assert ref_count_path.read_text() == "1"
+
+    # After context manager exits, files should be cleaned up
     assert not mmap_path.exists()
+    assert not ref_count_path.exists()
 
 
 def test_get_dataset_temp_mmap_path__rank(
