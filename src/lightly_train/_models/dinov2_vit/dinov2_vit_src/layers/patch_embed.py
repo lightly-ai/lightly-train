@@ -80,6 +80,7 @@ class PatchEmbed(nn.Module):
         new_W = math.ceil(W / patch_W) * patch_W
 
         if new_H != H or new_W != W:
+            # Resize image to nearest valid resolution
             x = F.interpolate(
                 x, size=(new_H, new_W), mode="bicubic", align_corners=False
             )

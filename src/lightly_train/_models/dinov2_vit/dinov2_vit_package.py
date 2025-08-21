@@ -111,6 +111,7 @@ class DINOv2ViTPackage(Package):
             ffn_bias=cfg.student.ffn_bias,
             num_register_tokens=cfg.student.num_register_tokens,
             interpolate_offset=cfg.student.interpolate_offset,
+            interpolate_antialias=cfg.student.interpolate_antialias,
             drop_path_rate=cfg.student.drop_path_rate,
             drop_path_uniform=cfg.student.drop_path_uniform,
         )
