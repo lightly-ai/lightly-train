@@ -712,30 +712,6 @@ def test_file_locking_mixed_operations(
         assert ref_file.read_text() == str(expected_count)
 
 
-def test_get_dataset_temp_mmap_path__reference_counting(
-    tmp_path: Path, mocker: MockerFixture
-) -> None:
-    """Test that reference counting works correctly in the context manager."""
-    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_path)})
-    mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
-
-    # Mock the environment to not reuse files
-    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_MMAP_REUSE_FILE": "0"})
-
-    data_path = tmp_path / "data"
-
-    with common_helpers.get_dataset_temp_mmap_path(data=data_path) as mmap_path:
-        ref_count_path = mmap_path.with_suffix(".ref_count")
-
-        # Reference count file should exist and have count 1
-        assert ref_count_path.exists()
-        assert ref_count_path.read_text() == "1"
-
-    # After context manager exits, files should be cleaned up
-    assert not mmap_path.exists()
-    assert not ref_count_path.exists()
-
-
 def test_get_dataset_temp_mmap_path__rank(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
@@ -750,6 +726,50 @@ def test_get_dataset_temp_mmap_path__rank(
         pass
 
     assert mmap_path_rank0 == mmap_path_rank1
+
+
+def test_get_dataset_temp_mmap_path__concurrent_context_managers(
+    tmp_path: Path,
+) -> None:
+    """Test that concurrent context managers handle reference counting correctly."""
+    import concurrent.futures
+    import threading
+
+    data_path = tmp_path / "data"
+    results = []
+
+    def context_manager_worker() -> None:
+        with common_helpers.get_dataset_temp_mmap_path(data=data_path) as mmap_path:
+            ref_count_path = mmap_path.with_suffix(".ref_count")
+
+            # Read current reference count
+            if ref_count_path.exists():
+                count = int(ref_count_path.read_text())
+                results.append(count)
+
+            # Simulate some work inside the context
+            threading.Event().wait(timeout=0.01)
+
+    # Run 5 concurrent context managers
+    num_concurrent = 5
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_concurrent) as executor:
+        futures = [
+            executor.submit(context_manager_worker) for _ in range(num_concurrent)
+        ]
+        concurrent.futures.wait(futures)
+
+    # Verify that reference counts were tracked correctly
+    # All counts should be between 1 and num_concurrent
+    assert len(results) == num_concurrent
+    assert all(1 <= count <= num_concurrent for count in results)
+
+    # After all context managers exit, files should be cleaned up
+    data_hash = common_helpers.get_sha256(f"{data_path}-0")
+    mmap_path = (cache.get_data_cache_dir() / data_hash).with_suffix(".mmap")
+    ref_count_path = mmap_path.with_suffix(".ref_count")
+
+    assert not mmap_path.exists()
+    assert not ref_count_path.exists()
 
 
 def test_get_dataset_mmap_filenames__rank0(tmp_path: Path) -> None:
