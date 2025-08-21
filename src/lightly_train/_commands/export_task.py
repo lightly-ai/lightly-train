@@ -36,6 +36,18 @@ def is_in_precalculate_for_onnx_export() -> bool:
 
 @contextlib.contextmanager
 def precalculate_for_onnx_export() -> Iterator[None]:
+    """
+    For certain models we want to precalculate some values and store them in the model before
+    exporting the model to ONNX. In order to avoid having to pass that options through all methods we have
+    this context manager. Therefore, one should call
+    ```
+    with precalculate_for_onnx_export():
+        model(example_input)
+    ```
+    before running `torch.onnx.export(model, example_input)`.
+    In the relevant part of the model we can check if we are in this context with
+    `is_in_precalculate_for_onnx_export()`.
+    """
     token = _PRECALCULATE_FOR_ONNX_EXPORT.set(True)
     try:
         yield

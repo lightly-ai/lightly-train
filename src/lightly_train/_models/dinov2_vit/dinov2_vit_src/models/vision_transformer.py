@@ -224,6 +224,10 @@ class DinoVisionTransformer(nn.Module):
         named_apply(init_weights_vit_timm, self)
 
     def interpolate_pos_encoding(self, x, w, h):
+        # When exporting torch.nn.functional.interpolate with antialias=True to ONNX the resulting ONNX model
+        # does the antialiasing calculations slightly different. In order to avoid different results we calculate
+        # the scaled positional encoding during the export and cache it in the model. Note that this only works
+        # if the image size is fixed for the ONNX model.
         if torch.onnx.is_in_onnx_export():
             if is_in_precalculate_for_onnx_export():
                 raise ValueError(
