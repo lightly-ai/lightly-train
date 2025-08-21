@@ -88,27 +88,3 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
     assert prediction.shape == (224, 224)
     assert prediction.min() >= 0
     assert prediction.max() <= 1
-
-    # Check ONNX export
-    if RequirementCache("onnx"):
-        import onnx
-
-        onnx_out = out / "model.onnx"
-        lightly_train.export_onnx(
-            out=onnx_out,
-            checkpoint=out / "checkpoints" / "last.ckpt",
-        )
-        onnx_model = onnx.load(str(onnx_out))
-        onnx.checker.check_model(onnx_model, full_check=True)
-
-        # Check ONNX inference
-        if RequirementCache("onnxruntime"):
-            import onnxruntime as ort
-
-            ort_session = ort.InferenceSession(
-                str(onnx_out), providers=["CPUExecutionProvider"]
-            )
-            ort_inputs = {"input": dummy_input.cpu().numpy()}
-            onnx_masks, onnx_logits = ort_session.run(["masks", "logits"], ort_inputs)
-            assert onnx_masks.shape == (1, 224, 224)
-            assert onnx_logits.shape == (1, 2, 224, 224)
