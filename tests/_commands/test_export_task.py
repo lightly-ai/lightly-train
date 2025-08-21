@@ -71,53 +71,56 @@ onnx_export_testset = [
     (4, 266, 28),
 ]
 
+# Unfortunately we cannot run these tests with Python 3.8 as some of the image transformations during preprocessing
+# do not work there.
+if sys.version_info > (3, 8):
 
-@pytest.mark.parametrize("batch_size,height,width", onnx_export_testset)
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-def test_onnx_export(
-    batch_size: int,
-    height: int,
-    width: int,
-    dinov2_vits14_eomt_checkpoint: Path,
-    tmp_path: Path,
-) -> None:
-    import onnx
-    import onnxruntime as ort
-
-    # arrange
-    model = lightly_train.load_model_from_checkpoint(
-        dinov2_vits14_eomt_checkpoint, device="cpu"
+    @pytest.mark.parametrize("batch_size,height,width", onnx_export_testset)
+    @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+    @pytest.mark.skipif(
+        not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
     )
-    onnx_path = tmp_path / "model.onnx"
-    validation_input = torch.randn(batch_size, 3, height, width).cpu()
-    expected_outputs = model(validation_input)
-    # We use  torch.testing.assert_close to check if the model outputs the same as when we run the exported
-    # onnx file with onnxruntime. Unfortunately the default tolerances are too strict so we specify our own.
-    rtol = 1e-3
-    atol = 1e-5
+    def test_onnx_export(
+        batch_size: int,
+        height: int,
+        width: int,
+        dinov2_vits14_eomt_checkpoint: Path,
+        tmp_path: Path,
+    ) -> None:
+        import onnx
+        import onnxruntime as ort
 
-    # act
-    lightly_train.export_onnx(
-        out=onnx_path,
-        checkpoint=dinov2_vits14_eomt_checkpoint,
-        height=height,
-        width=width,
-        batch_size=batch_size,
-        overwrite=True,
-    )
+        # arrange
+        model = lightly_train.load_model_from_checkpoint(
+            dinov2_vits14_eomt_checkpoint, device="cpu"
+        )
+        onnx_path = tmp_path / "model.onnx"
+        validation_input = torch.randn(batch_size, 3, height, width).cpu()
+        expected_outputs = model(validation_input)
+        # We use  torch.testing.assert_close to check if the model outputs the same as when we run the exported
+        # onnx file with onnxruntime. Unfortunately the default tolerances are too strict so we specify our own.
+        rtol = 1e-3
+        atol = 1e-5
 
-    # assert
-    assert onnx_path.exists()
-    onnx.checker.check_model(onnx_path, full_check=True)
+        # act
+        lightly_train.export_onnx(
+            out=onnx_path,
+            checkpoint=dinov2_vits14_eomt_checkpoint,
+            height=height,
+            width=width,
+            batch_size=batch_size,
+            overwrite=True,
+        )
 
-    session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
-    ort_in = {"input": validation_input.numpy()}
-    ort_outputs = session.run(["masks", "logits"], ort_in)
-    ort_outputs = [torch.from_numpy(y).cpu() for y in ort_outputs]
+        # assert
+        assert onnx_path.exists()
+        onnx.checker.check_model(onnx_path, full_check=True)
 
-    assert len(ort_outputs) == len(expected_outputs)
-    for ort_y, expected_y in zip(ort_outputs, expected_outputs):
-        torch.testing.assert_close(ort_y, expected_y, rtol=rtol, atol=atol)
+        session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
+        ort_in = {"input": validation_input.numpy()}
+        ort_outputs = session.run(["masks", "logits"], ort_in)
+        ort_outputs = [torch.from_numpy(y).cpu() for y in ort_outputs]
+
+        assert len(ort_outputs) == len(expected_outputs)
+        for ort_y, expected_y in zip(ort_outputs, expected_outputs):
+            torch.testing.assert_close(ort_y, expected_y, rtol=rtol, atol=atol)
