@@ -7,12 +7,14 @@
 #
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import logging
 from functools import partial
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Generator, Iterable, Literal
 
 import torch
 from lightning_fabric import Fabric
@@ -22,6 +24,9 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._configs import validate
+from lightly_train._data import cache
+from lightly_train._data._serialize import memory_mapped_sequence
+from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
@@ -222,14 +227,129 @@ def get_val_transform(
     return train_model_cls.val_transform_cls(transform_args=val_transform_args)
 
 
+def get_sha256(value: Any) -> str:
+    """Get the SHA256 hash of a value."""
+    return hashlib.sha256(str(value).encode()).hexdigest()
+
+
+def _unlink_and_ignore(path: Path) -> None:
+    """Unlink a file and ignore the error if it fails.
+
+    Errors can happen if we do not have permission to access the file.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+@contextlib.contextmanager
+def get_dataset_temp_mmap_path(
+    fabric: Fabric,
+    data: PathLike,
+) -> Generator[Path, Any, Any]:
+    """Generate file in temporary directory to be used for memory-mapping the dataset.
+
+    Use the same file on all ranks across all nodes, unless the filesystem is not shared.
+    """
+
+    mmap_filepath = (cache.get_data_cache_dir() / get_sha256(data)).with_suffix(".mmap")
+    mmap_filepath_broadcasted = Path(fabric.broadcast(str(mmap_filepath)))
+    mmap_dirpath_broadcasted = mmap_filepath_broadcasted.parent
+
+    # Create the output directory if it doesn't exist.
+    with fabric.rank_zero_first():
+        if fabric.global_rank == 0:
+            mmap_dirpath_broadcasted.mkdir(parents=True, exist_ok=True)
+
+    # Check if the mmap directory is on a shared filesystem. We can only check this
+    # after global rank zero has created the directory.
+    try:
+        is_shared_filesystem = fabric_utilities.is_shared_filesystem(
+            strategy=fabric.strategy, path=mmap_dirpath_broadcasted
+        )
+    except FileNotFoundError:
+        # Clearly not a shared filesystem because we just created the directory.
+        is_shared_filesystem = False
+
+    # If the filesystem is not shared we have to create the mmap file on every
+    # node individually.
+    if not is_shared_filesystem:
+        with fabric.rank_zero_first(local=True):
+            if fabric.local_rank == 0 and fabric.global_rank != 0:
+                mmap_dirpath_broadcasted.mkdir(parents=True, exist_ok=True)
+
+    reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
+    try:
+        # Delete the file if it already exists from a previous run.
+        if not reuse_file and (fabric.local_rank == 0):
+            _unlink_and_ignore(mmap_filepath_broadcasted)
+
+        yield mmap_filepath_broadcasted
+    finally:
+        if not reuse_file and (fabric.local_rank == 0):
+            _unlink_and_ignore(mmap_filepath_broadcasted)
+
+
+def get_dataset_mmap_filenames(
+    fabric: Fabric,
+    filenames: Iterable[str],
+    mmap_filepath: Path,
+) -> MemoryMappedSequence[str]:
+    """Returns memory-mapped filenames shared across all ranks.
+
+    Filenames are written to mmap_filepath by rank zero and read by all ranks.
+    """
+
+    # If the file already exists and we are allowed to reuse it, return it.
+    if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
+        logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
+        return memory_mapped_sequence.memory_mapped_sequence_from_file(
+            mmap_filepath=mmap_filepath
+        )
+
+    # Check if the mmap file is on a shared filesystem.
+    try:
+        is_shared_filesystem = fabric_utilities.is_shared_filesystem(
+            strategy=fabric.strategy, path=mmap_filepath.parent
+        )
+    except FileNotFoundError:
+        # Clearly not a shared filesystem because we just created the parent directory.
+        is_shared_filesystem = False
+
+    # If the filesystem is not shared we have to create the mmap file on every
+    # node individually.
+    with fabric.rank_zero_first(local=True):
+        if (fabric.global_rank == 0) or (
+            not is_shared_filesystem and fabric.local_rank == 0
+        ):
+            memory_mapped_sequence.write_filenames_to_file(
+                filenames=filenames,
+                mmap_filepath=mmap_filepath,
+            )
+
+    # Return memory-mapped filenames from file.
+    return memory_mapped_sequence.memory_mapped_sequence_from_file(
+        mmap_filepath=mmap_filepath
+    )
+
+
 def get_dataset(
-    dataset_args: MaskSemanticSegmentationDatasetArgs, transform: TaskTransform
+    fabric: Fabric,
+    dataset_args: MaskSemanticSegmentationDatasetArgs,
+    transform: TaskTransform,
+    mmap_filepath: Path,
 ) -> MaskSemanticSegmentationDataset:
-    # TODO(Guarin, 07/25): MMAP filenames.
     filenames = list(dataset_args.list_image_filenames())
     dataset_cls = dataset_args.get_dataset_cls()
     return dataset_cls(
-        dataset_args=dataset_args, image_filenames=filenames, transform=transform
+        dataset_args=dataset_args,
+        image_filenames=get_dataset_mmap_filenames(
+            fabric=fabric,
+            filenames=filenames,
+            mmap_filepath=mmap_filepath,
+        ),
+        transform=transform,
     )
 
 
