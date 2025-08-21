@@ -391,18 +391,51 @@ def get_dataset_temp_mmap_path(
     """
     out_hash = get_sha256(f"{data}-{distributed_helpers.get_node_rank() or 0}")
     mmap_filepath = (cache.get_data_cache_dir() / out_hash).with_suffix(".mmap")
-    mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
+    ref_count_filepath = mmap_filepath.with_suffix(".ref_count")
 
+    mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
     reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
+
     try:
-        # Delete the file if it already exists from a previous run.
+        # Increment reference count atomically
         if not reuse_file and distributed_helpers.is_local_rank_zero():
-            _unlink_and_ignore(mmap_filepath)
+            _increment_ref_count(ref_count_filepath)
 
         yield mmap_filepath
     finally:
+        # Decrement reference count and cleanup if zero
         if not reuse_file and distributed_helpers.is_local_rank_zero():
-            _unlink_and_ignore(mmap_filepath)
+            _decrement_and_cleanup_if_zero(mmap_filepath, ref_count_filepath)
+
+
+def _increment_ref_count(ref_file: Path) -> None:
+    import fcntl
+
+    ref_file.touch()
+    with open(ref_file, "r+") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        count = int(f.read() or "0")
+        f.seek(0)
+        f.write(str(count + 1))
+        f.truncate()
+
+
+def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
+    import fcntl
+
+    try:
+        with open(ref_file, "r+") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            count = int(f.read() or "1") - 1
+            if count <= 0:
+                _unlink_and_ignore(mmap_file)
+                _unlink_and_ignore(ref_file)
+            else:
+                f.seek(0)
+                f.write(str(count))
+                f.truncate()
+    except (FileNotFoundError, OSError):
+        pass  # Another process already cleaned up
 
 
 def get_dataset_mmap_filenames(
