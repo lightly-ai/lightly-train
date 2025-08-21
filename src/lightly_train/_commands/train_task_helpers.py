@@ -232,6 +232,17 @@ def get_sha256(value: Any) -> str:
     return hashlib.sha256(str(value).encode()).hexdigest()
 
 
+def _unlink_and_ignore(path: Path) -> None:
+    """Unlink a file and ignore the error if it fails.
+
+    Errors can happen if we do not have permission to access the file.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 @contextlib.contextmanager
 def get_dataset_temp_mmap_path(
     fabric: Fabric,
@@ -268,6 +279,17 @@ def get_dataset_temp_mmap_path(
             if fabric.local_rank == 0 and fabric.global_rank != 0:
                 mmap_dirpath_broadcasted.mkdir(parents=True, exist_ok=True)
 
+    reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
+    try:
+        # Delete the file if it already exists from a previous run.
+        if not reuse_file and (fabric.local_rank == 0):
+            _unlink_and_ignore(mmap_filepath)
+
+        yield mmap_filepath
+    finally:
+        if not reuse_file and (fabric.local_rank == 0):
+            _unlink_and_ignore(mmap_filepath)
+
     yield mmap_filepath_broadcasted
 
 
@@ -299,7 +321,7 @@ def get_dataset_mmap_filenames(
 
     # If the filesystem is not shared we have to create the mmap file on every
     # node individually.
-    with fabric.rank_zero_first():
+    with fabric.rank_zero_first(local=True):
         if (fabric.global_rank == 0) or (
             not is_shared_filesystem and fabric.local_rank == 0
         ):
