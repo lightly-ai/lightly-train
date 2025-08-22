@@ -173,9 +173,11 @@ def open_yolo_label_numpy(label_path: Path) -> tuple[NDArrayBBoxes, NDArrayClass
     classes = []
     with open(label_path, "r") as f:
         for line in f.readlines():
-            class_id, x_center, y_center, width, height = (
-                float(x) for x in line.strip().split()
-            )
+            line = line.strip()
+            # Skip empty lines.
+            if not line:
+                continue
+            class_id, x_center, y_center, width, height = (float(x) for x in line.split())
             bboxes.append([x_center, y_center, width, height])
             classes.append(int(class_id))
     return np.array(bboxes), np.array(classes)
