@@ -413,8 +413,20 @@ def _acquire_file_lock(file_handle: IO[Any]) -> None:
     """Acquire an exclusive file lock in a cross-platform way."""
     if sys.platform == "win32":
         import msvcrt
+        import time
 
-        msvcrt.locking(file_handle.fileno(), msvcrt.LK_NBLCK, 1)
+        # Use blocking lock with retry for Windows compatibility
+        max_retries = 50
+        retry_delay = 0.01  # 10ms
+
+        for attempt in range(max_retries):
+            try:
+                msvcrt.locking(file_handle.fileno(), msvcrt.LK_NBLCK, 1)
+                return
+            except OSError:
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(retry_delay)
     else:
         import fcntl
 
