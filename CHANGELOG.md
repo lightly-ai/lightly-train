@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add support for DINOv2 linear semantic segmentation models. You can train them with
+  `model="dinov2/vits14-linear"` in the `train_semantic_segmentation` command. Those
+  models are trained with a linear head on top of a frozen backbone and are useful
+  to evaluate the quality of pretrained DINOv2 models.
+
 ### Changed
 
 ### Deprecated
@@ -17,9 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix ONNX export for DINOv2 segmentation task.
+
 ### Security
 
-## [0.11.0] – 2025-08-15
+## [0.11.0] - 2025-08-15
 
 🚀 **New DINOv3 Support:** Pretrain your own model with [distillation](https://docs.lightly.ai/train/stable/methods/distillation.html#methods-distillation-dinov3) from DINOv3 weights. Or fine-tune our SOTA [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) with a DINOv3 backbone! 🚀
 

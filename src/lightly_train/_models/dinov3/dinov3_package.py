@@ -79,9 +79,8 @@ class DINOv3Package(Package):
         """
         Get a DINOv3 ViT model by name. Here the student version is build.
         """
-        assert isinstance(model_args, dict)
-        # TODO (Lionel, 08/25): Properly propagate the model_args.
-        model = MODEL_NAME_TO_GETTER[model_name](weights=model_args["teacher_url"])
+        model_args = {} if model_args is None else model_args
+        model = MODEL_NAME_TO_GETTER[model_name](**model_args)
         assert isinstance(model, DinoVisionTransformer)
         return model
 

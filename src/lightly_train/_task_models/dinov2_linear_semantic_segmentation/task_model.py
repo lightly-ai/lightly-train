@@ -15,19 +15,15 @@ from typing import Any
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torch.nn import GELU, Embedding, Linear, Sequential
+from torch.nn import Linear
 from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Attention
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
-)
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
-    ScaleBlock,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
@@ -35,8 +31,8 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-class DINOv2EoMTSemanticSegmentation(TaskModel):
-    model_suffix = "eomt"
+class DINOv2LinearSemanticSegmentation(TaskModel):
+    model_suffix = "linear"
 
     def __init__(
         self,
@@ -44,17 +40,16 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         model_name: str,
         classes: dict[int, str],
         class_ignore_index: int | None,
-        image_size: tuple[int, int],
-        image_normalize: dict[str, float],
-        num_queries: int,
-        num_joint_blocks: int,
+        backbone_freeze: bool,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        image_size: tuple[int, int],
+        image_normalize: dict[str, float],
     ) -> None:
         """
         Args:
             model_name:
-                The model name. For example "vits14-eomt".
+                The model name. For example "dinov2/vits14-linear".
             classes:
                 A dict mapping the class ID to the class name. The dict must only
                 contain the classes that the model should predict. It must NOT contain
@@ -63,31 +58,23 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 The class ID assigned to pixels that do not belong to any of the
                 classes in `classes`. If None, the model will not ignore any classes and
                 always assign a class to each pixel.
-            image_size:
-                The size of the input images.
-            image_normalize:
-                A dict containing the mean and standard deviation for normalizing
-                the input images. The dict must contain the keys "mean" and "std".
-                Example: {"mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]}.
-                This is used to normalize the input images before passing them to the
-                model.
-            num_queries:
-                The number of query tokens to use in the model. This is the number of
-                individual segments that the model will predict.
-            num_joint_blocks:
-                The number of blocks that process the query tokens and image tokens
-                jointly.
             backbone_weights:
                 The path to the DINOv2 backbone weights. The weights must be exported
                 using LightlyTrain.
             backbone_args:
                 Additional arguments to pass to the DINOv2 backbone.
+            image_size:
+                The size to resize images to during inference. Default is (518, 518).
+            image_normalize:
+                The normalization parameters for images. Default uses ImageNet stats.
         """
         super().__init__(locals(), ignore_args={"backbone_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
+
         self.model_name = parsed_name["model_name"]
         self.classes = classes
         self.class_ignore_index = class_ignore_index
+        self.backbone_freeze = backbone_freeze
         self.image_size = image_size
         self.image_normalize = image_normalize
 
@@ -108,16 +95,16 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         )
 
         # Disable drop path by default.
-        backbone_model_args = {
+        args = {
             "drop_path_rate": 0.0,
         }
         if backbone_args is not None:
-            backbone_model_args.update(backbone_args)
+            args.update(backbone_args)
 
         # Get the backbone.
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
-            model_args=backbone_model_args,
+            model_args=args,
         )
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
@@ -132,37 +119,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         if backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
-        if len(self.backbone.blocks) < num_joint_blocks:
-            raise ValueError(
-                f"num_joint_blocks ({num_joint_blocks}) cannot be larger than the "
-                f"number of blocks in the backbone ({len(self.backbone.blocks)})."
-            )
+        if self.backbone_freeze:
+            self.freeze_backbone()
 
-        ### EoMT Specific parameters.
-        self.num_queries = num_queries
-        # Number of blocks that process queries and image tokens jointly.
-        self.num_joint_blocks = num_joint_blocks
-        self.queries = Embedding(num_queries, embed_dim)
-        self.class_head = Linear(embed_dim, len(self.classes) + 1)
-        self.mask_head = Sequential(
-            Linear(embed_dim, embed_dim),
-            GELU(),
-            Linear(embed_dim, embed_dim),
-            GELU(),
-            Linear(embed_dim, embed_dim),
-        )
-
-        num_upscale = max(1, math.ceil(math.log2(self.patch_size)) - 2)
-        self.upscale = Sequential(
-            *[ScaleBlock(embed_dim) for _ in range(num_upscale)],
-        )
-
-        # TODO(Guarin, 07/25): Move all attention mask handling to the train module.
-        # Attention mask prob can be passed as argument to forward_train. No need to
-        # store it as a parameter here.
-        self.register_buffer(
-            "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
-        )
+        self.head = Linear(embed_dim, len(self.internal_class_to_class))
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -185,8 +145,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         def raise_invalid_name() -> None:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
-                f"models are: {cls.list_model_names()}. See the documentation for "
-                "more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html"
+                f"models are: {cls.list_model_names()}."
             )
 
         if not model_name.endswith(f"-{cls.model_suffix}"):
@@ -240,132 +199,55 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             self.eval()
 
         # Load image
-        device = next(self.parameters()).device
-        x = file_helpers.as_image_tensor(image).to(device)
+        x = file_helpers.as_image_tensor(image)
         image_h, image_w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
-        # TODO(Guarin, 07/25): Save mean and std in the model.
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
-        # Resize shorter edge to 518
-        # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
-        # model.
-        x = transforms_functional.resize(x, size=[518])  # (C, H, W) -> (C, H', W')
+        # Resize to configured image size
+        x = transforms_functional.resize(
+            x, size=list(self.image_size)
+        )  # (C, H, W) -> (C, H', W')
         x = x.unsqueeze(0)  # (1, C, H', W')
 
-        logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
-        if self.class_ignore_index is None:
-            # Restrict logits to known classes only.
-            logits = logits[:, :-1]  # (1, K, H', W')
-        logits = F.interpolate(
-            logits, size=(image_h, image_w), mode="bilinear"
-        )  # (1, K|K+1, H, W)
+        logits = self._forward_logits(x)  # (1, K|K+1, H', W'), K=num_classes
+        # (1, K|K+1, H, W)
+        logits = F.interpolate(logits, size=(image_h, image_w), mode="bilinear")
 
         masks = logits.argmax(dim=1)  # (1, H, W)
-        # Map internal class IDs to class IDs.
         masks = self.internal_class_to_class[masks]  # (1, H, W)
         return masks[0]
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         # Function used for ONNX export
-        logits = self._forward_logits(x)  # (B, C, H, W)
-        if self.class_ignore_index is None:
-            # Restrict logits to known classes only.
-            logits = logits[:, :-1]
+        logits = self._forward_logits(x)  # (B, K, H, W)
         masks = logits.argmax(dim=1)  # (B, H, W)
-        # Map internal class IDs to class IDs.
         masks = self.internal_class_to_class[masks]
         return masks, logits
 
-    # TODO(Guarin, 07/25): Refactor to take attn_mask_probs as input.
-    def forward_train(
-        self, x: Tensor, return_logits_per_layer: bool
-    ) -> tuple[list[Tensor], list[Tensor]]:
-        _, _, H, W = x.shape
-        patch_size = self.backbone.patch_size
-        grid_size = (H // patch_size, W // patch_size)
+    def forward_train(self, x: Tensor) -> Tensor:
+        B, _, H, W = x.shape
 
-        x = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
-        mask_logits_per_layer, class_logits_per_layer = [], []
+        # Get the patch tokens -> (B, N, D) where N = H_patch * W_patch.
+        patch_tokens = self.backbone(x, is_training=True)["x_norm_patchtokens"]
 
-        for i, block in enumerate(self.backbone.blocks):
-            attn_mask = None
+        # Classify the patch tokens -> (B, N, K|K+1), K=num_classes
+        logits: Tensor = self.head(patch_tokens)
 
-            if i == len(self.backbone.blocks) - self.num_joint_blocks:
-                # Prepend query tokens.
-                x = torch.cat(
-                    (self.queries.weight[None, :, :].expand(x.shape[0], -1, -1), x),
-                    dim=1,
-                )
+        # Reshape back to (B, K|K+1, H_patch, W_patch).
+        H_patch = H // self.patch_size
+        W_patch = W // self.patch_size
+        logits = logits.permute(0, 2, 1).reshape(B, -1, H_patch, W_patch)
 
-            if (
-                return_logits_per_layer
-                and i >= len(self.backbone.blocks) - self.num_joint_blocks
-            ):
-                mask_logits, class_logits = self._predict(
-                    self.backbone.norm(x), grid_size=grid_size
-                )
-                mask_logits_per_layer.append(mask_logits)
-                class_logits_per_layer.append(class_logits)
-
-                # NOTE(Guarin, 08/25): This is different from the original EoMT code.
-                # The original code also applies the attention mask during validation.
-                # This results is higher reported validation mIoU during training.
-                # As attention masking is disabled towards the end of training, the
-                # mIoU values converge to the same values whether the attention mask
-                # is applied or not. We disable the attention mask as this is also
-                # what happens during inference. This way our validation mIoU reflects
-                # actual inference performance.
-                if self.training:
-                    attn_mask = torch.ones(
-                        x.shape[0],
-                        x.shape[1],
-                        x.shape[1],
-                        dtype=torch.bool,
-                        device=x.device,
-                    )
-                    interpolated = F.interpolate(
-                        input=mask_logits,
-                        size=grid_size,
-                        mode="bilinear",
-                    )
-                    interpolated = interpolated.view(
-                        interpolated.size(0), interpolated.size(1), -1
-                    )
-                    attn_mask[
-                        :,
-                        : self.num_queries,
-                        self.num_queries + 1 + self.backbone.num_register_tokens :,
-                    ] = interpolated > 0
-                    attn_mask = self._disable_attn_mask(
-                        attn_mask=attn_mask,
-                        prob=self.attn_mask_probs[
-                            i - len(self.backbone.blocks) + self.num_joint_blocks
-                        ],
-                    )
-
-            # This mirrors forward of DINOv2 Block.
-            if self.training and block.sample_drop_ratio > 0:
-                x = x + block.drop_path1(
-                    block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))
-                )
-                x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x))))
-            else:
-                x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))
-                x = x + block.ls2(block.mlp(block.norm2(x)))
-
-        mask_logits, class_logits = self._predict(
-            self.backbone.norm(x), grid_size=grid_size
+        # Up-sample to match original image/mask resolution.
+        # (B, K|K+1, H, W)
+        logits = F.interpolate(
+            logits, size=(H, W), mode="bilinear", align_corners=False
         )
-        mask_logits_per_layer.append(mask_logits)
-        class_logits_per_layer.append(class_logits)
 
-        return (
-            mask_logits_per_layer,
-            class_logits_per_layer,
-        )
+        return logits
 
     # TODO(Guarin, 08/25): Move tile/until as functions to a separate utility module.
     def tile(
@@ -440,19 +322,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             for logit_sum, logit_count in zip(logit_sums, logit_counts)
         ]
 
-    def to_per_pixel_logits_semantic(
-        self, mask_logits: Tensor, class_logits: Tensor
-    ) -> Tensor:
-        return torch.einsum(
-            "bqhw, bqc -> bchw",
-            mask_logits.sigmoid(),
-            # NOTE(Guarin, 07/25): This is different from the original EoMT code as we
-            # keep the logits of the last class whereas EoMT discards them. We discard
-            # them later in the `validation_step` function and keep them here for
-            # `predict` to work correctly.
-            class_logits.softmax(dim=-1),
-        )
-
     def _forward_logits(self, x: Tensor) -> Tensor:
         """Forward pass that returns the logits of the last layer. Intended for
         inference."""
@@ -465,82 +334,15 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         crop_h, crop_w = crops.shape[-2:]
 
         # Forward pass.
-        # Only the logits of the last layer are returned.
-        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
-            crops, return_logits_per_layer=False
-        )
-        mask_logits = mask_logits_per_layer[-1]
-        class_logits = class_logits_per_layer[-1]
+        crop_logits = self.forward_train(crops)
 
         # Interpolate and untile.
-        mask_logits = F.interpolate(mask_logits, (crop_h, crop_w), mode="bilinear")
-        crop_logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
+        crop_logits = F.interpolate(crop_logits, (crop_h, crop_w), mode="bilinear")
         logits_list = self.untile(
             crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
         )
         logits = torch.stack(logits_list)  # (B, C, H, W)
         return logits
-
-    def _predict(self, x: Tensor, grid_size: tuple[int, int]) -> tuple[Tensor, Tensor]:
-        q = x[:, : self.num_queries, :]
-
-        class_logits = self.class_head(q)
-
-        # num queries + 1 class token + num register tokens
-        x = x[:, self.num_queries + 1 + self.backbone.num_register_tokens :, :]
-        x = x.transpose(1, 2).reshape(x.shape[0], -1, *grid_size)
-
-        mask_logits = torch.einsum(
-            "bqc, bchw -> bqhw", self.mask_head(q), self.upscale(x)
-        )
-
-        return mask_logits, class_logits
-
-    # TODO(Guarin, 07/25): No need for attention mask handling in this module. Move it
-    # to DINOv2SemanticSegmentationTrain.
-    @torch.compiler.disable  # type: ignore[misc]
-    def _disable_attn_mask(self, attn_mask: Tensor, prob: Tensor) -> Tensor:
-        # prob is a scalar tensor.
-        if prob < 1:
-            random_queries = (
-                torch.rand(
-                    attn_mask.shape[0], self.num_queries, device=attn_mask.device
-                )
-                > prob
-            )
-            attn_mask[
-                :,
-                : self.num_queries,
-                self.num_queries + 1 + self.backbone.num_register_tokens :,
-            ][random_queries] = True
-
-        return attn_mask
-
-    # TODO(Guarin, 07/25): Add support for attention masks directly to Attention class?
-    def _attn(self, module: Attention, x: Tensor, mask: Tensor | None) -> Tensor:
-        # This mirrors DINOv2 Attention forward but with mask support.
-        B, N, C = x.shape
-
-        qkv = (
-            module.qkv(x)
-            .reshape(B, N, 3, module.num_heads, C // module.num_heads)
-            .permute(2, 0, 3, 1, 4)
-        )
-        q, k, v = qkv[0] * module.scale, qkv[1], qkv[2]
-
-        if mask is not None:
-            mask = mask[:, None, ...].expand(-1, module.num_heads, -1, -1)
-
-        attn = q @ k.transpose(-2, -1)
-        if mask is not None:
-            attn = attn.masked_fill(~mask, float("-inf"))
-        attn = attn.softmax(dim=-1)
-        attn = module.attn_drop(attn)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-        x = module.proj(x)
-        x = module.proj_drop(x)
-        return x
 
     def load_backbone_weights(self, path: PathLike) -> None:
         """
@@ -577,3 +379,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 name = name[len("model.") :]
                 new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)
+
+    def freeze_backbone(self) -> None:
+        self.backbone.eval()
+        for param in self.backbone.parameters():
+            param.requires_grad = False

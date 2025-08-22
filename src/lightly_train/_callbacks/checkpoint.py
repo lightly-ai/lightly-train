@@ -27,11 +27,17 @@ logger = logging.getLogger(__name__)
 
 
 class ModelCheckpointArgs(PydanticConfig):
-    filename: str | None = None
-    save_last: bool = True
+    auto_insert_metric_name: bool = True
     enable_version_counter: bool = False
-    save_top_k: int = 1
     every_n_epochs: int | None = None
+    every_n_train_steps: int | None = None
+    filename: str | None = None
+    mode: str = "min"
+    monitor: str | None = None
+    save_last: bool = True
+    save_on_train_epoch_end: bool | None = None
+    save_top_k: int = 1
+    save_weights_only: bool = False
 
 
 class ModelCheckpoint(_ModelCheckpoint):

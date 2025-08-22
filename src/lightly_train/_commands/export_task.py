@@ -7,7 +7,10 @@
 #
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import logging
+from collections.abc import Iterator
 from typing import Any, Literal
 
 import torch
@@ -20,6 +23,36 @@ from lightly_train._task_models import task_model_helpers
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
+
+
+_PRECALCULATE_FOR_ONNX_EXPORT = contextvars.ContextVar(
+    "PRECALCULATE_FOR_ONNX_EXPORT", default=False
+)
+
+
+def is_in_precalculate_for_onnx_export() -> bool:
+    return _PRECALCULATE_FOR_ONNX_EXPORT.get()
+
+
+@contextlib.contextmanager
+def precalculate_for_onnx_export() -> Iterator[None]:
+    """
+    For certain models we want to precalculate some values and store them in the model before
+    exporting the model to ONNX. In order to avoid having to pass that options through all methods we have
+    this context manager. Therefore, one should call
+    ```
+    with precalculate_for_onnx_export():
+        model(example_input)
+    ```
+    before running `torch.onnx.export(model, example_input)`.
+    In the relevant part of the model we can check if we are in this context with
+    `is_in_precalculate_for_onnx_export()`.
+    """
+    token = _PRECALCULATE_FOR_ONNX_EXPORT.set(True)
+    try:
+        yield
+    finally:
+        _PRECALCULATE_FOR_ONNX_EXPORT.reset(token)
 
 
 def export_onnx(
@@ -58,13 +91,13 @@ def _export_task(
         format:
             Format to save the model in.
         batch_size:
-            Batch size for the dummy input tensor used for exporting the model.
+            Batch size of the input tensor.
         num_channels:
-            Number of channels in the dummy input tensor.
+            Number of channels in input tensor.
         height:
-            Height of the dummy input tensor.
+            Height of the input tensor.
         width:
-            Width of the dummy input tensor.
+            Width of the input tensor.
         overwrite:
             Overwrite the output file if it already exists.
         format_args:
@@ -98,8 +131,14 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
     if config.format == "onnx":
         dummy_input = torch.randn(
-            1, config.num_channels, config.height, config.width, requires_grad=False
+            config.batch_size,
+            config.num_channels,
+            config.height,
+            config.width,
+            requires_grad=False,
         )
+        with precalculate_for_onnx_export():
+            task_model(dummy_input)
         logger.info(f"Exporting ONNX model to '{out_path}'")
         torch.onnx.export(
             task_model,
@@ -107,11 +146,6 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             out_path,
             input_names=["input"],
             output_names=["masks", "logits"],
-            dynamic_axes={
-                "input": {0: "batch_size", 2: "height", 3: "width"},
-                "masks": {0: "batch_size", 1: "height", 2: "width"},
-                "logits": {0: "batch_size", 2: "height", 3: "width"},
-            },
             **config.format_args if config.format_args else {},
         )
     else:
