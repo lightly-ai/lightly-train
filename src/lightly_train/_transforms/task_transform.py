@@ -12,7 +12,7 @@ from typing import TypedDict
 import numpy as np
 from albumentations import BboxParams
 from numpy.typing import NDArray
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from torch import Tensor
 from typing_extensions import NotRequired
 
@@ -41,8 +41,7 @@ class TaskTransformArgs(PydanticConfig):
         ),
     )
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class TaskTransform:
