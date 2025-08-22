@@ -29,6 +29,8 @@ from .. import helpers
 
 
 class DummyTransform(TaskTransform):
+    transform_args_cls = TaskTransformArgs
+
     def __init__(self, transform_args: TaskTransformArgs):
         super().__init__(transform_args=transform_args)
         self.transform = A.Compose(
