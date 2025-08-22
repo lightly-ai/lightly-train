@@ -180,4 +180,4 @@ def open_yolo_label_numpy(label_path: Path) -> tuple[NDArrayBBoxes, NDArrayClass
             class_id, x_center, y_center, width, height = (float(x) for x in line.split())
             bboxes.append([x_center, y_center, width, height])
             classes.append(int(class_id))
-    return np.array(bboxes), np.array(classes)
+    return np.array(bboxes, dtype=np.float64), np.array(classes, dtype=np.int64)
