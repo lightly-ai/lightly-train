@@ -48,7 +48,9 @@ def dinov2_vits14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> P
                 1: "car",
             },
         },
-        model="dinov2/_vittest14-eomt",
+        model="dinov2/vits14-eomt",
+        # The operator 'aten::upsample_bicubic2d.out' raises a NotImplementedError
+        # on macOS with MPS backend.
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
