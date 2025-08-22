@@ -10,8 +10,8 @@ from pathlib import Path
 import albumentations as A
 
 from lightly_train._data.yolo_object_detection_dataset import (
-    YoloObjectDetectionDataset,
-    YoloObjectDetectionDatasetArgs,
+    YOLOObjectDetectionDataArgs,
+    YOLOObjectDetectionDataset,
 )
 from lightly_train._transforms.task_transform import (
     TaskTransform,
@@ -43,20 +43,35 @@ class DummyTransform(TaskTransform):
 class TestYoloObjectDetectionDataset:
     def test__split_first(self, tmp_path: Path) -> None:
         create_yolo_dataset(tmp_path=tmp_path, split_first=True)
-        names = {0: "class_0", 1: "class_1"}
-        args = YoloObjectDetectionDatasetArgs(
+
+        args = YOLOObjectDetectionDataArgs(
             path=tmp_path,
             train=Path("train/images"),
             val=Path("val/images"),
-            names=names,
+            names={0: "class_0", 1: "class_1"},
         )
-        dataset = YoloObjectDetectionDataset(
-            dataset_args=args,
+
+        train_args = args.get_train_args()
+        val_args = args.get_val_args()
+
+        train_dataset = YOLOObjectDetectionDataset(
+            dataset_args=train_args,
             transform=DummyTransform(TaskTransformArgs()),
             image_filenames=["0.png", "1.png"],
-            mode="train",
         )
-        sample = dataset[0]
+
+        val_dataset = YOLOObjectDetectionDataset(
+            dataset_args=val_args,
+            transform=DummyTransform(TaskTransformArgs()),
+            image_filenames=["0.png", "1.png"],
+        )
+
+        sample = train_dataset[0]
+        assert sample["image"].shape == (3, 32, 32)
+        assert sample["bboxes"].shape == (1, 4)
+        assert sample["classes"].shape == (1,)
+
+        sample = val_dataset[0]
         assert sample["image"].shape == (3, 32, 32)
         assert sample["bboxes"].shape == (1, 4)
         assert sample["classes"].shape == (1,)
