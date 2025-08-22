@@ -413,20 +413,8 @@ def _acquire_file_lock(file_handle: IO[Any]) -> None:
     """Acquire an exclusive file lock in a cross-platform way."""
     if sys.platform == "win32":
         import msvcrt
-        import time
 
-        # Use blocking lock with retry for Windows compatibility
-        max_retries = 50
-        retry_delay = 0.01  # 10ms
-
-        for attempt in range(max_retries):
-            try:
-                msvcrt.locking(file_handle.fileno(), msvcrt.LK_NBLCK, 1)
-                return
-            except OSError:
-                if attempt == max_retries - 1:
-                    raise
-                time.sleep(retry_delay)
+        msvcrt.locking(file_handle.fileno(), msvcrt.LK_LOCK, 1)
     else:
         import fcntl
 
@@ -449,6 +437,8 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
             _acquire_file_lock(f)
             count = int(f.read() or "1") - 1
             if count <= 0:
+                # On Windows, close the file before unlinking to avoid lock issues
+                f.close()
                 _unlink_and_ignore(mmap_file)
                 _unlink_and_ignore(ref_file)
             else:
