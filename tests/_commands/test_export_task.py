@@ -52,7 +52,7 @@ def dinov2_vits14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> P
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=1,
     )
 
