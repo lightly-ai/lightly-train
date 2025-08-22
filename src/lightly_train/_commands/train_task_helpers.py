@@ -11,11 +11,10 @@ import contextlib
 import hashlib
 import json
 import logging
-import sys
 from functools import partial
 from json import JSONEncoder
 from pathlib import Path
-from typing import IO, Any, Generator, Iterable, Literal
+from typing import Any, Generator, Iterable, Literal
 
 import torch
 from lightning_fabric import Fabric
@@ -233,6 +232,17 @@ def get_sha256(value: Any) -> str:
     return hashlib.sha256(str(value).encode()).hexdigest()
 
 
+def _unlink_and_ignore(path: Path) -> None:
+    """Unlink a file and ignore the error if it fails.
+
+    Errors can happen if we do not have permission to access the file.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 @contextlib.contextmanager
 def get_dataset_temp_mmap_path(
     fabric: Fabric,
@@ -270,68 +280,15 @@ def get_dataset_temp_mmap_path(
                 mmap_dirpath_broadcasted.mkdir(parents=True, exist_ok=True)
 
     reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
-    ref_count_filepath = mmap_filepath_broadcasted.with_suffix(".ref_count")
-
     try:
         # Delete the file if it already exists from a previous run.
         if not reuse_file and (fabric.local_rank == 0):
-            _increment_ref_count(ref_count_filepath)
+            _unlink_and_ignore(mmap_filepath_broadcasted)
 
         yield mmap_filepath_broadcasted
     finally:
         if not reuse_file and (fabric.local_rank == 0):
-            _decrement_and_cleanup_if_zero(
-                mmap_filepath_broadcasted, ref_count_filepath
-            )
-
-
-def _acquire_file_lock(file_handle: IO[Any]) -> None:
-    """Acquire an exclusive file lock in a cross-platform way."""
-    if sys.platform == "win32":
-        import msvcrt
-
-        msvcrt.locking(file_handle.fileno(), msvcrt.LK_NBLCK, 1)
-    else:
-        import fcntl
-
-        fcntl.flock(file_handle.fileno(), fcntl.LOCK_EX)
-
-
-def _unlink_and_ignore(path: Path) -> None:
-    """Unlink a file and ignore the error if it fails.
-
-    Errors can happen if we do not have permission to access the file.
-    """
-    try:
-        path.unlink(missing_ok=True)
-    except OSError:
-        pass
-
-
-def _increment_ref_count(ref_file: Path) -> None:
-    ref_file.touch()
-    with open(ref_file, "r+") as f:
-        _acquire_file_lock(f)
-        count = int(f.read() or "0")
-        f.seek(0)
-        f.write(str(count + 1))
-        f.truncate()
-
-
-def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
-    try:
-        with open(ref_file, "r+") as f:
-            _acquire_file_lock(f)
-            count = int(f.read() or "1") - 1
-            if count <= 0:
-                _unlink_and_ignore(mmap_file)
-                _unlink_and_ignore(ref_file)
-            else:
-                f.seek(0)
-                f.write(str(count))
-                f.truncate()
-    except (FileNotFoundError, OSError):
-        pass  # Another process already cleaned up
+            _unlink_and_ignore(mmap_filepath_broadcasted)
 
 
 def get_dataset_mmap_filenames(
