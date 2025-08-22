@@ -271,7 +271,7 @@ def get_dataset_temp_mmap_path(
 
     reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
     ref_count_filepath = mmap_filepath_broadcasted.with_suffix(".ref_count")
-    
+
     try:
         # Delete the file if it already exists from a previous run.
         if not reuse_file and (fabric.local_rank == 0):
@@ -280,7 +280,9 @@ def get_dataset_temp_mmap_path(
         yield mmap_filepath_broadcasted
     finally:
         if not reuse_file and (fabric.local_rank == 0):
-            _decrement_and_cleanup_if_zero(mmap_filepath_broadcasted, ref_count_filepath)
+            _decrement_and_cleanup_if_zero(
+                mmap_filepath_broadcasted, ref_count_filepath
+            )
 
 
 def _acquire_file_lock(file_handle: IO[Any]) -> None:

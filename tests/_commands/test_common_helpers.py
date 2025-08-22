@@ -737,8 +737,11 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
 
     data_path = tmp_path / "data"
     results = []
+    num_concurrent = 5
+    barrier = threading.Barrier(num_concurrent)
 
     def context_manager_worker() -> None:
+        barrier.wait()  # All threads start file operations simultaneously
         with common_helpers.get_dataset_temp_mmap_path(data=data_path) as mmap_path:
             ref_count_path = mmap_path.with_suffix(".ref_count")
 
@@ -747,11 +750,10 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
                 count = int(ref_count_path.read_text())
                 results.append(count)
 
-            # Simulate some work inside the context
-            threading.Event().wait(timeout=0.01)
+            # Simulate longer work to increase overlap window
+            threading.Event().wait(timeout=0.1)
 
     # Run 5 concurrent context managers
-    num_concurrent = 5
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_concurrent) as executor:
         futures = [
             executor.submit(context_manager_worker) for _ in range(num_concurrent)
