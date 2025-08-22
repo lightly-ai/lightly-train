@@ -50,7 +50,10 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
-from lightly_train._transforms.task_transform import TaskTransform, TaskTransformArgs
+from lightly_train._transforms.task_transform import (
+    TaskTransform,
+    TaskTransformArgs,
+)
 from lightly_train.types import (
     MaskSemanticSegmentationBatch,
     MaskSemanticSegmentationDatasetItem,
@@ -192,25 +195,42 @@ def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
 
 def get_transform_args(
     train_model_cls: type[TrainModel],
+    transform_args: dict[str, Any] | None,
     ignore_index: int | None,
 ) -> tuple[TaskTransformArgs, TaskTransformArgs]:
     if train_model_cls.task != "semantic_segmentation" and ignore_index is not None:
         raise ValueError(
             "`ignore_index` is only supported for semantic segmentation tasks."
         )
+    transform_args = {} if transform_args is None else transform_args
+    if ignore_index is not None:
+        transform_args["ignore_index"] = ignore_index
 
     train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
     val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls
+    train_transform_args: TaskTransformArgs
+    val_transform_args: TaskTransformArgs
 
-    if ignore_index is None:
-        return (
-            train_transform_args_cls(),
-            val_transform_args_cls(),
-        )
-
-    return train_transform_args_cls(ignore_index=ignore_index), val_transform_args_cls(  # type: ignore[call-arg]
-        ignore_index=ignore_index
+    train_transform_args = validate.pydantic_model_validate(
+        train_transform_args_cls, transform_args
     )
+    train_transform_args.resolve_auto()
+
+    val_transform_args = validate.pydantic_model_validate(
+        val_transform_args_cls,
+        train_transform_args.model_dump(
+            include={"image_size": True, "normalize": True, "ignore_index": True}
+        ),
+    )
+    val_transform_args.resolve_auto()
+
+    logger.debug(
+        f"Resolved train transform args {pretty_format_args(train_transform_args.model_dump())}"
+    )
+    logger.debug(
+        f"Resolved val transform args {pretty_format_args(val_transform_args.model_dump())}"
+    )
+    return train_transform_args, val_transform_args
 
 
 def get_train_transform(
