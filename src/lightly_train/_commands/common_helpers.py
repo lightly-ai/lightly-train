@@ -433,18 +433,20 @@ def _increment_ref_count(ref_file: Path) -> None:
 
 def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
     try:
+        should_cleanup = False
         with open(ref_file, "r+") as f:
             _acquire_file_lock(f)
             count = int(f.read() or "1") - 1
             if count <= 0:
                 # On Windows, close the file before unlinking to avoid lock issues
-                f.close()
-                _unlink_and_ignore(mmap_file)
-                _unlink_and_ignore(ref_file)
+                should_cleanup = True
             else:
                 f.seek(0)
                 f.write(str(count))
                 f.truncate()
+        if should_cleanup:
+            _unlink_and_ignore(ref_file)
+            _unlink_and_ignore(mmap_file)
     except (FileNotFoundError, OSError):
         pass  # Another process already cleaned up
 
