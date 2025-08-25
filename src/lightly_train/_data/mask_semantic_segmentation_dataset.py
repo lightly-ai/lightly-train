@@ -230,16 +230,65 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
-    ignore_index: int
+    ignore_index: int = -100
 
+    # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
+    # sure if it makes sense to have this in dataset args.
+    def list_image_filenames(self) -> Iterable[ImageFilename]:
+        for image_filename in file_helpers.list_image_filenames(
+            image_dir=self.image_dir
+        ):
+            if (self.mask_dir / image_filename).with_suffix(".png").exists():
+                yield image_filename
+
+    @staticmethod
+    def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:
+        return MaskSemanticSegmentationDataset
+
+
+class SplitArgs(PydanticConfig):
+    images: PathLike
+    masks: PathLike
+
+
+class MaskSemanticSegmentationDataArgs(TaskDataArgs):
+    train: SplitArgs
+    val: SplitArgs
+    classes: dict[int, str | ClassInfo]
+    ignore_classes: set[int] | None = Field(default=None, strict=False)
+    check_empty_targets: bool = True
+
+    # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
+    # sure if it makes sense to have this in dataset args.
+    def list_image_filenames(self) -> Iterable[ImageFilename]:
+        for image_filename in file_helpers.list_image_filenames(
+            image_dir=self.image_dir
+        ):
+            if (self.mask_dir / image_filename).with_suffix(".png").exists():
+                yield image_filename
+
+    @staticmethod
+    def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:
+        return MaskSemanticSegmentationDataset
+
+
+class SplitArgs(PydanticConfig):
+    images: PathLike
+    masks: PathLike
+
+
+class MaskSemanticSegmentationDataArgs(TaskDataArgs):
+    train: SplitArgs
+    val: SplitArgs
+    classes: dict[int, str | ClassInfo]
+    ignore_classes: set[int] | None = Field(default=None, strict=False)
+    check_empty_targets: bool = True
+    
     @field_validator("classes", mode="before")
     @classmethod
     def validate_classes(
-        cls, classes: dict[int, str | dict[str, str | list[int]]] | None
-    ) -> dict[int, str | ClassInfo] | None:
-        if classes is None:
-            return classes
-
+        cls, classes: dict[int, str | dict[str, str | list[int]]]
+    ) -> dict[int, str | ClassInfo]:
         result: dict[int, str | ClassInfo] = {}
         all_mapped_values: set[int] = set()
         class_keys = set(classes.keys())
@@ -269,32 +318,6 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
 
         return result
 
-    # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
-    # sure if it makes sense to have this in dataset args.
-    def list_image_filenames(self) -> Iterable[ImageFilename]:
-        for image_filename in file_helpers.list_image_filenames(
-            image_dir=self.image_dir
-        ):
-            if (self.mask_dir / image_filename).with_suffix(".png").exists():
-                yield image_filename
-
-    @staticmethod
-    def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:
-        return MaskSemanticSegmentationDataset
-
-
-class SplitArgs(PydanticConfig):
-    images: PathLike
-    masks: PathLike
-
-
-class MaskSemanticSegmentationDataArgs(TaskDataArgs):
-    ignore_index: ClassVar[int] = -100
-    train: SplitArgs
-    val: SplitArgs
-    classes: dict[int, str | ClassInfo]
-    ignore_classes: set[int] | None = Field(default=None, strict=False)
-    check_empty_targets: bool = True
 
     @property
     def included_classes(self) -> dict[int, str]:
