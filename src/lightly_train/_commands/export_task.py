@@ -13,7 +13,6 @@ import logging
 from collections.abc import Iterator
 from typing import Any, Literal
 
-import onnxruntime as ort
 import torch
 from torch import distributed
 
@@ -162,6 +161,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
         if config.verify:
             logger.info("Verifying ONNX model")
             import onnx
+            import onnxruntime as ort
 
             onnx.checker.check_model(out_path, full_check=True)
 
