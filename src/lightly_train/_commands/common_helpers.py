@@ -435,7 +435,6 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
         if should_cleanup:
             _unlink_and_ignore(ref_file)
             _unlink_and_ignore(mmap_file)
-            _unlink_and_ignore(lock_file)  # Clean up the lock file too
     except (FileNotFoundError, OSError):
         pass  # Another process already cleaned up
 
