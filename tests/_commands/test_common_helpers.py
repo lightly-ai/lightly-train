@@ -585,12 +585,22 @@ def test_decrement_missing_files(tmp_path: Path) -> None:
     )
 
 
-def test_file_locking_concurrent_increments(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "num_increments",
+    [
+        1,  # Single increment
+        5,  # Small concurrency
+        10,  # Medium concurrency
+        20,  # High concurrency
+    ],
+)
+def test_file_locking_concurrent_increments(
+    tmp_path: Path, num_increments: int
+) -> None:
     """Test that file locking prevents race conditions."""
     import concurrent.futures
 
     ref_file = tmp_path / "test.ref_count"
-    num_increments = 10
 
     def increment_worker() -> None:
         common_helpers._increment_ref_count(ref_file)
@@ -664,6 +674,7 @@ def test_file_locking_mixed_operations(
 ) -> None:
     """Test concurrent increments and decrements with various scenarios."""
     import concurrent.futures
+    import threading
 
     mmap_file = tmp_path / "test.mmap"
     ref_file = tmp_path / "test.ref_count"
@@ -671,10 +682,15 @@ def test_file_locking_mixed_operations(
     mmap_file.touch()
     ref_file.write_text(str(initial_count))
 
+    total_workers = num_increments + num_decrements
+    barrier = threading.Barrier(total_workers)
+
     def increment_worker() -> None:
+        barrier.wait()  # All threads start simultaneously
         common_helpers._increment_ref_count(ref_file)
 
     def decrement_worker() -> None:
+        barrier.wait()  # All threads start simultaneously
         common_helpers._decrement_and_cleanup_if_zero(mmap_file, ref_file)
 
     # Run mixed operations concurrently
@@ -727,6 +743,7 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
     results = []
     num_concurrent = 5
     barrier = threading.Barrier(num_concurrent)
+    read_barrier = threading.Barrier(num_concurrent)
 
     def context_manager_worker() -> None:
         barrier.wait()  # All threads start file operations simultaneously
@@ -738,20 +755,24 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
                 count = int(ref_count_path.read_text())
                 results.append(count)
 
-            # Simulate longer work to increase overlap window
-            threading.Event().wait(timeout=0.1)
+            # Wait for all threads to finish reading before any can exit
+            # This is needed for Python 3.8 timing robustness
+            read_barrier.wait()
 
     # Run 5 concurrent context managers
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_concurrent) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = [
             executor.submit(context_manager_worker) for _ in range(num_concurrent)
         ]
         concurrent.futures.wait(futures)
 
     # Verify that reference counts were tracked correctly
-    # All counts should be between 1 and num_concurrent
-    assert len(results) == num_concurrent
-    assert all(1 <= count <= num_concurrent for count in results)
+    assert len(results) == num_concurrent, (
+        f"Expected {num_concurrent} results, got {len(results)}: {results}"
+    )
+    assert all(1 <= count <= num_concurrent for count in results), (
+        f"Invalid counts: {results}"
+    )
 
     # After all context managers exit, files should be cleaned up
     data_hash = common_helpers.get_sha256(f"{data_path}-0")
