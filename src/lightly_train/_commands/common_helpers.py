@@ -438,9 +438,13 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
 
         if should_cleanup:
             _unlink_and_ignore(ref_file)
-            _unlink_and_ignore(mmap_file)
+            if not Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
+                # Remove mmap file only if we are not reusing it
+                _unlink_and_ignore(mmap_file)
     except (FileNotFoundError, OSError):
         pass  # Another process already cleaned up
+    finally:
+        _unlink_and_ignore(lock_file)
 
 
 def get_dataset_mmap_filenames(
