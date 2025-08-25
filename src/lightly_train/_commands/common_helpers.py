@@ -12,14 +12,14 @@ import hashlib
 import json
 import logging
 import os
-import sys
 import time
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import IO, Any, Generator, Iterable, Literal, Sequence, Sized, TypeVar
+from typing import Any, Generator, Iterable, Literal, Sequence, Sized, TypeVar
 
 import torch
+from filelock import FileLock
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
 from pytorch_lightning.accelerators.cuda import CUDAAccelerator
@@ -408,62 +408,34 @@ def get_dataset_temp_mmap_path(
             _decrement_and_cleanup_if_zero(mmap_filepath, ref_count_filepath)
 
 
-def _acquire_file_lock(file_handle: IO[Any]) -> None:
-    """Acquire an exclusive file lock in a cross-platform way."""
-    if sys.platform == "win32":
-        import msvcrt
-
-        msvcrt.locking(file_handle.fileno(), msvcrt.LK_LOCK, 1)
-    else:
-        import fcntl
-
-        fcntl.flock(file_handle.fileno(), fcntl.LOCK_EX)
-
-
-def _release_file_lock(file_handle: IO[Any]) -> None:
-    """Release an exclusive file lock in a cross-platform way."""
-    if sys.platform == "win32":
-        import msvcrt
-
-        msvcrt.locking(file_handle.fileno(), msvcrt.LK_UNLCK, 1)
-    else:
-        import fcntl
-
-        fcntl.flock(file_handle.fileno(), fcntl.LOCK_UN)
-
-
 def _increment_ref_count(ref_file: Path) -> None:
     ref_file.touch()
-    with open(ref_file, "r+") as f:
-        try:
-            _acquire_file_lock(f)
+    lock_file = ref_file.with_suffix(".lock")
+    with FileLock(lock_file):
+        with open(ref_file, "r+") as f:
             count = int(f.read() or "0")
             f.seek(0)
             f.write(str(count + 1))
             f.truncate()
-        finally:
-            _release_file_lock(f)
 
 
 def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
     try:
         should_cleanup = False
-        with open(ref_file, "r+") as f:
-            try:
-                _acquire_file_lock(f)
+        lock_file = ref_file.with_suffix(".lock")
+        with FileLock(lock_file):
+            with open(ref_file, "r+") as f:
                 count = int(f.read() or "1") - 1
                 if count <= 0:
-                    # On Windows, close the file before unlinking to avoid lock issues
                     should_cleanup = True
                 else:
                     f.seek(0)
                     f.write(str(count))
                     f.truncate()
-            finally:
-                _release_file_lock(f)
         if should_cleanup:
             _unlink_and_ignore(ref_file)
             _unlink_and_ignore(mmap_file)
+            _unlink_and_ignore(lock_file)  # Clean up the lock file too
     except (FileNotFoundError, OSError):
         pass  # Another process already cleaned up
 

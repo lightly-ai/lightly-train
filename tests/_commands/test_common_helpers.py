@@ -540,18 +540,6 @@ def test_get_num_workers__slurm(
     )
 
 
-def test_acquire_file_lock(tmp_path: Path) -> None:
-    """Test that file locking works on both Windows and Unix."""
-    test_file = tmp_path / "lock_test.txt"
-    test_file.write_text("test")
-
-    # Should not raise an exception on any platform
-    with open(test_file, "r+") as f:
-        common_helpers._acquire_file_lock(f)
-        content = f.read()
-        assert content == "test"
-
-
 @pytest.mark.parametrize(
     "initial_count,expected_count", [(None, "1"), ("", "1"), ("5", "6")]
 )
