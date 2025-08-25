@@ -465,7 +465,9 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
     except (FileNotFoundError, OSError):
         pass  # Another process already cleaned up
     finally:
-        _unlink_and_ignore(lock_file)
+        # Clean up lock file if ref_file no longer exists (cleanup completed)
+        if not ref_file.exists():
+            _unlink_and_ignore(lock_file)
 
 
 def get_dataset_mmap_filenames(

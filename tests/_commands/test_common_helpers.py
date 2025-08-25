@@ -668,16 +668,17 @@ def test_file_locking_concurrent_decrements(
         futures = [executor.submit(decrement_worker) for _ in range(num_decrements)]
         concurrent.futures.wait(futures)
 
-    assert not lock_file.exists()
     if should_cleanup:
         # Files should be cleaned up when count reaches zero
         assert not ref_file.exists()
         assert not mmap_file.exists()
+        assert not lock_file.exists()
 
     else:
         # Files should still exist with correct remaining count
         assert ref_file.exists()
         assert mmap_file.exists()
+        assert lock_file.exists()
         expected_count = initial_count - num_decrements
         assert ref_file.read_text() == str(expected_count)
 
