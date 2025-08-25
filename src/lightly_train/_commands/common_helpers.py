@@ -395,17 +395,16 @@ def get_dataset_temp_mmap_path(
     ref_count_filepath = mmap_filepath.with_suffix(".ref_count")
 
     mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
-    reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
 
     try:
         # Increment reference count atomically
-        if not reuse_file and distributed_helpers.is_local_rank_zero():
+        if distributed_helpers.is_local_rank_zero():
             _increment_ref_count(ref_count_filepath)
 
         yield mmap_filepath
     finally:
         # Decrement reference count and cleanup if zero
-        if not reuse_file and distributed_helpers.is_local_rank_zero():
+        if distributed_helpers.is_local_rank_zero():
             _decrement_and_cleanup_if_zero(mmap_filepath, ref_count_filepath)
 
 
@@ -421,29 +420,47 @@ def _acquire_file_lock(file_handle: IO[Any]) -> None:
         fcntl.flock(file_handle.fileno(), fcntl.LOCK_EX)
 
 
+def _release_file_lock(file_handle: IO[Any]) -> None:
+    """Release an exclusive file lock in a cross-platform way."""
+    if sys.platform == "win32":
+        import msvcrt
+
+        msvcrt.locking(file_handle.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(file_handle.fileno(), fcntl.LOCK_UN)
+
+
 def _increment_ref_count(ref_file: Path) -> None:
     ref_file.touch()
     with open(ref_file, "r+") as f:
-        _acquire_file_lock(f)
-        count = int(f.read() or "0")
-        f.seek(0)
-        f.write(str(count + 1))
-        f.truncate()
+        try:
+            _acquire_file_lock(f)
+            count = int(f.read() or "0")
+            f.seek(0)
+            f.write(str(count + 1))
+            f.truncate()
+        finally:
+            _release_file_lock(f)
 
 
 def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
     try:
         should_cleanup = False
         with open(ref_file, "r+") as f:
-            _acquire_file_lock(f)
-            count = int(f.read() or "1") - 1
-            if count <= 0:
-                # On Windows, close the file before unlinking to avoid lock issues
-                should_cleanup = True
-            else:
-                f.seek(0)
-                f.write(str(count))
-                f.truncate()
+            try:
+                _acquire_file_lock(f)
+                count = int(f.read() or "1") - 1
+                if count <= 0:
+                    # On Windows, close the file before unlinking to avoid lock issues
+                    should_cleanup = True
+                else:
+                    f.seek(0)
+                    f.write(str(count))
+                    f.truncate()
+            finally:
+                _release_file_lock(f)
         if should_cleanup:
             _unlink_and_ignore(ref_file)
             _unlink_and_ignore(mmap_file)
