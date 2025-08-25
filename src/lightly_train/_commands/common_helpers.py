@@ -411,27 +411,51 @@ def get_dataset_temp_mmap_path(
 def _increment_ref_count(ref_file: Path) -> None:
     ref_file.touch()
     lock_file = ref_file.with_suffix(".lock")
-    with FileLock(lock_file):
-        with open(ref_file, "r+") as f:
-            count = int(f.read() or "0")
-            f.seek(0)
-            f.write(str(count + 1))
-            f.truncate()
+
+    # Retry logic for Python 3.8 robustness
+    max_retries = 10
+    for attempt in range(max_retries):
+        try:
+            with FileLock(lock_file):
+                with open(ref_file, "r+") as f:
+                    count = int(f.read() or "0")
+                    f.seek(0)
+                    f.write(str(count + 1))
+                    f.truncate()
+                break
+        except (OSError, ValueError):
+            if attempt == max_retries - 1:
+                raise
+            # Brief delay before retry, especially helpful on Python 3.8
+            time.sleep(0.001 * (attempt + 1))
 
 
 def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
     try:
         should_cleanup = False
         lock_file = ref_file.with_suffix(".lock")
-        with FileLock(lock_file):
-            with open(ref_file, "r+") as f:
-                count = int(f.read() or "1") - 1
-                if count <= 0:
-                    should_cleanup = True
-                else:
-                    f.seek(0)
-                    f.write(str(count))
-                    f.truncate()
+
+        # Retry logic for Python 3.8 robustness
+        max_retries = 10
+        for attempt in range(max_retries):
+            try:
+                with FileLock(lock_file):
+                    with open(ref_file, "r+") as f:
+                        count = int(f.read() or "1") - 1
+                        if count <= 0:
+                            should_cleanup = True
+                        else:
+                            f.seek(0)
+                            f.write(str(count))
+                            f.truncate()
+                    break
+            except (OSError, ValueError):
+                if attempt == max_retries - 1:
+                    # If we still can't access the file after retries, assume cleanup happened
+                    break
+                # Brief delay before retry, especially helpful on Python 3.8
+                time.sleep(0.001 * (attempt + 1))
+
         if should_cleanup:
             _unlink_and_ignore(ref_file)
             _unlink_and_ignore(mmap_file)
