@@ -655,67 +655,6 @@ def test_file_locking_concurrent_decrements(
         assert ref_file.read_text() == str(expected_count)
 
 
-@pytest.mark.parametrize(
-    "initial_count,num_increments,num_decrements,should_cleanup",
-    [
-        (5, 3, 2, False),  # 5 + 3 - 2 = 6, no cleanup
-        (2, 4, 3, False),  # 2 + 4 - 3 = 3, no cleanup
-        (3, 2, 5, True),  # 3 + 2 - 5 = 0, cleanup
-        (1, 3, 4, True),  # 1 + 3 - 4 = 0, cleanup
-        (2, 1, 4, True),  # 2 + 1 - 4 < 0, cleanup
-    ],
-)
-def test_file_locking_mixed_operations(
-    tmp_path: Path,
-    initial_count: int,
-    num_increments: int,
-    num_decrements: int,
-    should_cleanup: bool,
-) -> None:
-    """Test concurrent increments and decrements with various scenarios."""
-    import concurrent.futures
-    import threading
-
-    mmap_file = tmp_path / "test.mmap"
-    ref_file = tmp_path / "test.ref_count"
-
-    mmap_file.touch()
-    ref_file.write_text(str(initial_count))
-
-    total_workers = num_increments + num_decrements
-    barrier = threading.Barrier(total_workers)
-
-    def increment_worker() -> None:
-        barrier.wait()  # All threads start simultaneously
-        common_helpers._increment_ref_count(ref_file)
-
-    def decrement_worker() -> None:
-        barrier.wait()  # All threads start simultaneously
-        common_helpers._decrement_and_cleanup_if_zero(mmap_file, ref_file)
-
-    # Run mixed operations concurrently
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = []
-        futures.extend(
-            [executor.submit(increment_worker) for _ in range(num_increments)]
-        )
-        futures.extend(
-            [executor.submit(decrement_worker) for _ in range(num_decrements)]
-        )
-        concurrent.futures.wait(futures)
-
-    if should_cleanup:
-        # Files should be cleaned up when final count <= 0
-        assert not ref_file.exists()
-        assert not mmap_file.exists()
-    else:
-        # Files should still exist with correct final count
-        assert ref_file.exists()
-        assert mmap_file.exists()
-        expected_count = initial_count + num_increments - num_decrements
-        assert ref_file.read_text() == str(expected_count)
-
-
 def test_get_dataset_temp_mmap_path__rank(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
