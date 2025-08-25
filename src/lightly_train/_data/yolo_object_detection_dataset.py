@@ -10,10 +10,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, Sequence
 
+import numpy as np
 import pydantic
 import torch
 from torch.utils.data import Dataset
-import numpy as np
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
