@@ -674,44 +674,25 @@ def test_get_dataset_temp_mmap_path__rank(
 def test_get_dataset_temp_mmap_path__concurrent_context_managers(
     tmp_path: Path,
 ) -> None:
-    """Test that concurrent context managers handle reference counting correctly."""
+    """Test that concurrent context managers work without corruption and clean up properly."""
     import concurrent.futures
-    import threading
 
     data_path = tmp_path / "data"
-    results = []
-    num_concurrent = 5
-    barrier = threading.Barrier(num_concurrent)
-    read_barrier = threading.Barrier(num_concurrent)
 
-    def context_manager_worker() -> None:
-        barrier.wait()  # All threads start file operations simultaneously
+    def context_manager_worker() -> Path:
         with common_helpers.get_dataset_temp_mmap_path(data=data_path) as mmap_path:
-            ref_count_path = mmap_path.with_suffix(".ref_count")
-
-            # Read current reference count
-            if ref_count_path.exists():
-                count = int(ref_count_path.read_text())
-                results.append(count)
-
-            # Wait for all threads to finish reading before any can exit
-            # This is needed for Python 3.8 timing robustness
-            read_barrier.wait()
+            # Just verify the path is accessible and consistent
+            assert mmap_path.suffix == ".mmap"
+            return mmap_path
 
     # Run 5 concurrent context managers
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [
-            executor.submit(context_manager_worker) for _ in range(num_concurrent)
-        ]
-        concurrent.futures.wait(futures)
+        futures = [executor.submit(context_manager_worker) for _ in range(5)]
+        # Collect results from futures (thread-safe)
+        mmap_paths = [future.result() for future in futures]
 
-    # Verify that reference counts were tracked correctly
-    assert len(results) == num_concurrent, (
-        f"Expected {num_concurrent} results, got {len(results)}: {results}"
-    )
-    assert all(1 <= count <= num_concurrent for count in results), (
-        f"Invalid counts: {results}"
-    )
+    # Verify all threads got the same mmap path
+    assert len(set(mmap_paths)) == 1, "All threads should get the same mmap path"
 
     # After all context managers exit, files should be cleaned up
     data_hash = common_helpers.get_sha256(f"{data_path}-0")

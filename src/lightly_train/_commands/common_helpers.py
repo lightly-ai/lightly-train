@@ -409,7 +409,6 @@ def get_dataset_temp_mmap_path(
 
 
 def _increment_ref_count(ref_file: Path) -> None:
-    ref_file.touch()
     lock_file = ref_file.with_suffix(".lock")
 
     # Retry logic for Python 3.8 robustness
@@ -417,6 +416,8 @@ def _increment_ref_count(ref_file: Path) -> None:
     for attempt in range(max_retries):
         try:
             with FileLock(lock_file):
+                # Ensure file exists within the lock to avoid race conditions
+                ref_file.touch()
                 with open(ref_file, "r+") as f:
                     count = int(f.read() or "0")
                     f.seek(0)
