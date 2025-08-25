@@ -14,7 +14,7 @@ from typing import ClassVar, Literal
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from pydantic import Field
+from pydantic import BaseModel, Field, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -29,6 +29,11 @@ from lightly_train.types import (
     MaskSemanticSegmentationDatasetItem,
     PathLike,
 )
+
+
+class ClassInfo(BaseModel):
+    name: str
+    values: list[int]
 
 
 class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
@@ -91,12 +96,11 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
     def get_class_mapping(self) -> dict[int, int]:
         # Verify the classes are set (for mypy).
-        assert self.args.classes is not None, (
-            "Segmentation dataset classes must be set."
-        )
+        input_classes = self.args.classes
+        assert input_classes is not None, "Segmentation dataset classes must be set."
 
         # Set original classes.
-        original_classes = self.args.classes.keys()
+        original_classes = input_classes.keys()
 
         # Set the ignore classes.
         ignore_classes: set[int]
@@ -110,11 +114,21 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         class_counter = 0
         for original_class in original_classes:
             if original_class not in ignore_classes:
-                # Re-map the class.
-                class_mapping[original_class] = class_counter
+                original_classes_to_map = input_classes[original_class]
+
+                # If the class is a string, simple re-mapping.
+                if isinstance(original_classes_to_map, str):
+                    class_mapping[original_class] = class_counter
+
+                # If the class is a ClassInfo, map each values to the current class counter.
+                if isinstance(original_classes_to_map, ClassInfo):
+                    for original_class_to_map in original_classes_to_map.values:
+                        if original_class_to_map not in ignore_classes:
+                            class_mapping[original_class_to_map] = class_counter
 
                 # Update the class counter.
                 class_counter += 1
+
         return class_mapping
 
     def __len__(self) -> int:
@@ -212,11 +226,48 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
     mask_dir: Path
-    classes: dict[int, str] | None = None
+    classes: dict[int, str | ClassInfo] | None = None
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
     ignore_index: int
+
+    @field_validator("classes", mode="before")
+    @classmethod
+    def validate_classes(
+        cls, classes: dict[int, str | dict[str, str | list[int]]] | None
+    ) -> dict[int, str | ClassInfo] | None:
+        if classes is None:
+            return classes
+
+        result: dict[int, str | ClassInfo] = {}
+        all_mapped_values: set[int] = set()
+        class_keys = set(classes.keys())
+
+        for class_id, class_info in classes.items():
+            if isinstance(class_info, str):
+                result[class_id] = class_info
+            else:
+                # Let Pydantic validate the structure and types
+                class_info_obj = ClassInfo.model_validate(class_info)
+                result[class_id] = class_info_obj
+
+                # Check for overlapping values across different class mappings
+                for value in class_info_obj.values:
+                    if value in all_mapped_values:
+                        raise ValueError(
+                            f"Class value {value} appears in multiple class mappings. "
+                            f"Each class value can only be mapped to one target class."
+                        )
+                    # Check if the value conflicts with any class key (including self-reference)
+                    if value in class_keys:
+                        raise ValueError(
+                            f"Class value {value} in ClassInfo for class {class_id} conflicts "
+                            f"with class key {value}. Class keys cannot appear as values in ClassInfo instances."
+                        )
+                    all_mapped_values.add(value)
+
+        return result
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
@@ -241,15 +292,26 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ignore_index: ClassVar[int] = -100
     train: SplitArgs
     val: SplitArgs
-    classes: dict[int, str]
+    classes: dict[int, str | ClassInfo]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
 
     @property
     def included_classes(self) -> dict[int, str]:
-        """Returns classes that are not ignored."""
+        """Returns classes that are not ignored but with the name after mapping."""
         ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
-        return {k: v for k, v in self.classes.items() if k not in ignore_classes}
+        result = {}
+        for original_class, class_name_or_info in self.classes.items():
+            if original_class not in ignore_classes:
+                # Extract the name from complex class definitions
+                if isinstance(class_name_or_info, str):
+                    result[original_class] = class_name_or_info
+                else:
+                    # v is ClassInfo, get the "name" field
+                    for original_class_to_map in class_name_or_info.values:
+                        if original_class_to_map not in ignore_classes:
+                            result[original_class_to_map] = class_name_or_info.name
+        return result
 
     @property
     def num_included_classes(self) -> int:
