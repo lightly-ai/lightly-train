@@ -13,6 +13,7 @@ from typing import Literal, Sequence
 import pydantic
 import torch
 from torch.utils.data import Dataset
+import numpy as np
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
@@ -66,6 +67,11 @@ class YOLOObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
         )
 
         image = transformed["image"]
+        # Some albumentations versions return lists of tuples instead of arrays.
+        if isinstance(transformed["bboxes"], list):
+            transformed["bboxes"] = np.array(transformed["bboxes"])
+        if isinstance(transformed["class_labels"], list):
+            transformed["class_labels"] = np.array(transformed["class_labels"])
         bboxes = torch.from_numpy(transformed["bboxes"]).float()
         class_labels = torch.from_numpy(transformed["class_labels"]).long()
 
