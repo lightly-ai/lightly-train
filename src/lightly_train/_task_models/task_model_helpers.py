@@ -33,6 +33,7 @@ def load_model_from_checkpoint(
     Returns:
         The loaded model.
     """
+    device = _resolve_device(device)
     checkpoint = common_helpers.get_checkpoint_path(checkpoint=checkpoint)
     ckpt = torch.load(checkpoint, weights_only=False, map_location=device)
 
@@ -46,7 +47,6 @@ def load_model_from_checkpoint(
     model.load_train_state_dict(state_dict=ckpt["train_model"])
     model.eval()
 
-    device = _resolve_device(device)
     model = model.to(device)
     return model
 
