@@ -47,8 +47,8 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self.valid_classes = np.array(list(self.class_mapping.keys()))
 
         # Optionally filter image filenames corresponding to empty targets.
-        if dataset_args.check_empty_targets:
-            self.filter_empty_targets()
+        #  if dataset_args.check_empty_targets:
+        #     self.filter_empty_targets()
 
     def is_mask_valid(self, mask: NDArray[np.uint8]) -> bool:
         # Get unique values in the mask.
@@ -57,28 +57,28 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Check if at least one value in the mask is in the valid classes.
         return bool(np.isin(unique_values, self.valid_classes).any())
 
-    def filter_empty_targets(self) -> None:
-        # TODO(Thomas, 07/25): Move the filtering outside of the dataset for compatibility
-        # with mmapped files and speed.
-        # Instantiate new list of file names
-        new_image_filenames = []
+    # def filter_empty_targets(self) -> None:
+    #     # TODO(Thomas, 07/25): Move the filtering outside of the dataset for compatibility
+    #     # with mmapped files and speed.
+    #     # Instantiate new list of file names
+    #     new_image_filenames = []
 
-        # Populate the new lists with file names corresponding to valid targets.
-        for filename in self.image_filenames:
-            filepath = (self.args.mask_dir / filename).with_suffix(".png")
+    #     # Populate the new lists with file names corresponding to valid targets.
+    #     for filename in self.image_filenames:
+    #         filepath = (self.args.mask_dir / filename).with_suffix(".png")
 
-            mask = file_helpers.open_image_numpy(image_path=filepath, mode="MASK")
-            if self.is_mask_valid(mask):
-                new_image_filenames.append(filename)
+    #         mask = file_helpers.open_image_numpy(image_path=filepath, mode="MASK")
+    #         if self.is_mask_valid(mask):
+    #             new_image_filenames.append(filename)
 
-        # Display the number of filtered files.
-        # TODO(Thomas, 07/25): Change the print to logging once the function is moved
-        # outside of the dataset.
-        n_filtered_files = len(self) - len(new_image_filenames)
-        print(f"Filtered {n_filtered_files} invalid masks out of {len(self)}.")
+    #     # Display the number of filtered files.
+    #     # TODO(Thomas, 07/25): Change the print to logging once the function is moved
+    #     # outside of the dataset.
+    #     n_filtered_files = len(self) - len(new_image_filenames)
+    #     print(f"Filtered {n_filtered_files} invalid masks out of {len(self)}.")
 
-        # Update the list of valid files.
-        self.image_filenames = new_image_filenames
+    #     # Update the list of valid files.
+    #     self.image_filenames = new_image_filenames
 
     def get_class_mapping(self) -> dict[int, int]:
         # Verify the classes are set (for mypy).
@@ -132,7 +132,9 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             img_labels.append(self.class_mapping[class_id])
 
         binary_masks: BinaryMasksDict = {
-            "masks": torch.stack(img_masks),
+            "masks": torch.stack(img_masks)
+            if img_masks
+            else mask.new_zeros(size=(0, *mask.shape), dtype=torch.bool),
             "labels": mask.new_tensor(img_labels, dtype=torch.long),
         }
         return binary_masks
@@ -164,22 +166,24 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             f"Shape mismatch: image shape is {image.shape[:2]} while mask shape is {mask.shape}."
         )
 
-        # Re-do the augmentation until the mask is valid.
-        mask_is_valid = False
-        for _ in range(20):
-            # (H, W, C) -> (C, H, W)
-            transformed = self.transform({"image": image, "mask": mask})
-            mask_is_valid = self.is_mask_valid(transformed["mask"].numpy())
-            if mask_is_valid:
-                break
+        transformed = self.transform({"image": image, "mask": mask})
 
-        # Raise an error if the mask is still empty.
-        if not mask_is_valid:
-            raise RuntimeError(
-                "Failed to obtain a valid mask after 20 augmentation retries. "
-                "Consider enabling `check_empty_targets=True` in the data arguments to "
-                "filter out such samples before training."
-            )
+        # Re-do the augmentation until the mask is valid.
+        # mask_is_valid = False
+        # for _ in range(20):
+        #     # (H, W, C) -> (C, H, W)
+        #     transformed = self.transform({"image": image, "mask": mask})
+        #     mask_is_valid = self.is_mask_valid(transformed["mask"].numpy())
+        #     if mask_is_valid:
+        #         break
+
+        # # Raise an error if the mask is still empty.
+        # if not mask_is_valid:
+        #     raise RuntimeError(
+        #         "Failed to obtain a valid mask after 20 augmentation retries. "
+        #         "Consider enabling `check_empty_targets=True` in the data arguments to "
+        #         "filter out such samples before training."
+        #     )
 
         # Get binary masks.
         # TODO(Thomas, 07/25): Make this optional.
@@ -204,7 +208,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     classes: dict[int, str] | None = None
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
-    check_empty_targets: bool = True
+    # check_empty_targets: bool = True
     ignore_index: int
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
@@ -232,7 +236,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     val: SplitArgs
     classes: dict[int, str]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
-    check_empty_targets: bool = True
+    # check_empty_targets: bool = True
 
     @property
     def included_classes(self) -> dict[int, str]:
@@ -254,7 +258,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             mask_dir=Path(self.train.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
-            check_empty_targets=self.check_empty_targets,
+            # check_empty_targets=self.check_empty_targets,
             ignore_index=self.ignore_index,
         )
 
@@ -266,6 +270,6 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             mask_dir=Path(self.val.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
-            check_empty_targets=self.check_empty_targets,
+            # check_empty_targets=self.check_empty_targets,
             ignore_index=self.ignore_index,
         )
