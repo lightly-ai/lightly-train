@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import numpy as np
 import torch
@@ -21,6 +21,7 @@ from torch.utils.data import Dataset
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._env import Env
 from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import (
     BinaryMasksDict,
@@ -45,6 +46,14 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Get the class mapping.
         self.class_mapping = self.get_class_mapping()
         self.valid_classes = np.array(list(self.class_mapping.keys()))
+
+        image_mode = Env.LIGHTLY_TRAIN_IMAGE_MODE.value
+        if image_mode not in ("RGB", "UNCHANGED"):
+            raise ValueError(
+                f'Invalid image mode: {Env.LIGHTLY_TRAIN_IMAGE_MODE.name}="{image_mode}". '
+                "Supported modes are 'RGB' and 'UNCHANGED'."
+            )
+        self.image_mode: Literal["RGB", "UNCHANGED"] = image_mode  # type: ignore[assignment]
 
         # Optionally filter image filenames corresponding to empty targets.
         if dataset_args.check_empty_targets:
@@ -156,7 +165,9 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         mask_path = (self.args.mask_dir / image_filename).with_suffix(".png")
 
         # Load the image and the mask.
-        image = file_helpers.open_image_numpy(image_path=image_path, mode="RGB")
+        image = file_helpers.open_image_numpy(
+            image_path=image_path, mode=self.image_mode
+        )
         mask = file_helpers.open_image_numpy(image_path=mask_path, mode="MASK")
 
         # Verify that the mask and the image have the same shape.
