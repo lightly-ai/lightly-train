@@ -49,3 +49,12 @@ def test_open_image_numpy(
     else:
         pil_spy.assert_called_once()
         torch_spy.assert_not_called()
+
+def test_open_image_numpy__mask(tmp_path: Path) -> None:
+    image_path = tmp_path / "image.png"
+    helpers.create_image(path=image_path, height=32, width=32, mode="L")
+
+    result = file_helpers.open_image_numpy(image_path=image_path, mode="MASK")
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (32, 32)
+    assert result.dtype == np.uint8
