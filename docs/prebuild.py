@@ -8,6 +8,9 @@ from re import Match
 
 from lightly_train._commands import common_helpers, train_helpers, train_task_helpers
 from lightly_train._commands.train_task_helpers import TASK_TRAIN_MODEL_CLASSES
+from lightly_train._data.mask_semantic_segmentation_dataset import (
+    MaskSemanticSegmentationDataArgs,
+)
 from lightly_train._methods import method_helpers
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
     DINOv2LinearSemanticSegmentationTrain,
@@ -92,7 +95,7 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
         if train_model_cls in {DINOv2LinearSemanticSegmentationTrain}:
             continue
         train_transform_args = train_model_cls.train_transform_cls.transform_args_cls(
-            ignore_index=-100
+            ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
         )
         args = train_task_helpers.pretty_format_args(train_transform_args.model_dump())
         name = train_model_cls.__name__.lower()

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 import torch
@@ -204,7 +205,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
-    ignore_index: int = -100
+    ignore_index: int
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
@@ -226,6 +227,7 @@ class SplitArgs(PydanticConfig):
 
 
 class MaskSemanticSegmentationDataArgs(TaskDataArgs):
+    ignore_index: ClassVar[int] = -100
     train: SplitArgs
     val: SplitArgs
     classes: dict[int, str]
@@ -241,10 +243,6 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     @property
     def num_included_classes(self) -> int:
         return len(self.included_classes)
-
-    @property
-    def ignore_index(self) -> int:
-        return -100
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if this makes sense to have in data args.
