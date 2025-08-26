@@ -33,7 +33,7 @@ from lightly_train.types import (
 
 class ClassInfo(BaseModel):
     name: str
-    values: list[int]
+    values: set[int] = Field(strict=False)
 
 
 class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
@@ -99,9 +99,6 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         input_classes = self.args.classes
         assert input_classes is not None, "Segmentation dataset classes must be set."
 
-        # Set original classes.
-        original_classes = input_classes.keys()
-
         # Set the ignore classes.
         ignore_classes: set[int]
         if self.args.ignore_classes is None:
@@ -111,23 +108,10 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Iterate over the classes and populate the class_mapppings.
         class_mapping = {}
-        class_counter = 0
-        for original_class in original_classes:
-            if original_class not in ignore_classes:
-                original_classes_to_map = input_classes[original_class]
-
-                # If the class is a string, simple re-mapping.
-                if isinstance(original_classes_to_map, str):
-                    class_mapping[original_class] = class_counter
-
-                # If the class is a ClassInfo, map each values to the current class counter.
-                if isinstance(original_classes_to_map, ClassInfo):
-                    for original_class_to_map in original_classes_to_map.values:
-                        if original_class_to_map not in ignore_classes:
-                            class_mapping[original_class_to_map] = class_counter
-
-                # Update the class counter.
-                class_counter += 1
+        for class_counter, class_info in enumerate(input_classes.values()):
+            for class_to_map in class_info.values:
+                if class_to_map not in ignore_classes:
+                    class_mapping[class_to_map] = class_counter
 
         return class_mapping
 
@@ -226,7 +210,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
     mask_dir: Path
-    classes: dict[int, str | ClassInfo] | None = None
+    classes: dict[int, ClassInfo] | None = None
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
@@ -254,52 +238,25 @@ class SplitArgs(PydanticConfig):
 class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     train: SplitArgs
     val: SplitArgs
-    classes: dict[int, str | ClassInfo]
+    classes: dict[int, ClassInfo]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
 
-    # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
-    # sure if it makes sense to have this in dataset args.
-    def list_image_filenames(self) -> Iterable[ImageFilename]:
-        for image_filename in file_helpers.list_image_filenames(
-            image_dir=self.image_dir
-        ):
-            if (self.mask_dir / image_filename).with_suffix(".png").exists():
-                yield image_filename
-
-    @staticmethod
-    def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:
-        return MaskSemanticSegmentationDataset
-
-
-class SplitArgs(PydanticConfig):
-    images: PathLike
-    masks: PathLike
-
-
-class MaskSemanticSegmentationDataArgs(TaskDataArgs):
-    train: SplitArgs
-    val: SplitArgs
-    classes: dict[int, str | ClassInfo]
-    ignore_classes: set[int] | None = Field(default=None, strict=False)
-    check_empty_targets: bool = True
-    
     @field_validator("classes", mode="before")
     @classmethod
     def validate_classes(
         cls, classes: dict[int, str | dict[str, str | list[int]]]
-    ) -> dict[int, str | ClassInfo]:
-        result: dict[int, str | ClassInfo] = {}
+    ) -> dict[int, ClassInfo]:
+        result: dict[int, ClassInfo] = {}
         all_mapped_values: set[int] = set()
         class_keys = set(classes.keys())
 
         for class_id, class_info in classes.items():
             if isinstance(class_info, str):
-                result[class_id] = class_info
+                result[class_id] = ClassInfo(name=class_info, values=set(class_id))
             else:
                 # Let Pydantic validate the structure and types
                 class_info_obj = ClassInfo.model_validate(class_info)
-                result[class_id] = class_info_obj
 
                 # Check for overlapping values across different class mappings
                 for value in class_info_obj.values:
@@ -308,16 +265,17 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                             f"Class value {value} appears in multiple class mappings. "
                             f"Each class value can only be mapped to one target class."
                         )
-                    # Check if the value conflicts with any class key (including self-reference)
-                    if value in class_keys:
+                    # Check if the value conflicts with any class key
+                    if (value in class_keys) and (value != class_id):
                         raise ValueError(
                             f"Class value {value} in ClassInfo for class {class_id} conflicts "
                             f"with class key {value}. Class keys cannot appear as values in ClassInfo instances."
                         )
                     all_mapped_values.add(value)
 
-        return result
+                result[class_id] = class_info_obj
 
+        return result
 
     @property
     def included_classes(self) -> dict[int, str]:
