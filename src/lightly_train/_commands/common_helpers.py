@@ -431,7 +431,7 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
                 f.seek(0)
                 f.write(str(count))
                 f.truncate()
-                
+
                 if count <= 0 and not Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
                     # Remove mmap file only if we are not reusing it and count is zero
                     _unlink_and_ignore(mmap_file)
