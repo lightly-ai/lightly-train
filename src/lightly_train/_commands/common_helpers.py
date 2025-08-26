@@ -441,6 +441,7 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
 
 
 def get_dataset_mmap_filenames(
+    out_dir: Path,
     filenames: Iterable[str],
     mmap_filepath: Path,
 ) -> MemoryMappedSequence[str]:
@@ -455,7 +456,7 @@ def get_dataset_mmap_filenames(
             mmap_filepath=mmap_filepath
         )
 
-    tmp_path = mmap_filepath.with_suffix(".temp")
+    tmp_path = mmap_filepath.with_suffix(f".{get_sha256(out_dir.resolve())}.temp")
     try:
         if distributed_helpers.is_local_rank_zero():
             # Save filenames to temporary file. Create the final file only once rank zero has
@@ -498,6 +499,7 @@ def get_dataset(
     data: PathLike | Sequence[PathLike] | Dataset[DatasetItem],
     transform: Transform,
     mmap_filepath: Path | None,
+    out_dir: Path,
 ) -> Dataset[DatasetItem]:
     if isinstance(data, Dataset):
         logger.debug("Using provided dataset.")
@@ -525,6 +527,7 @@ def get_dataset(
         return ImageDataset(
             image_dir=data,
             image_filenames=get_dataset_mmap_filenames(
+                out_dir=out_dir,
                 filenames=filenames,
                 mmap_filepath=mmap_filepath,
             ),
@@ -550,6 +553,7 @@ def get_dataset(
         return ImageDataset(
             image_dir=None,
             image_filenames=get_dataset_mmap_filenames(
+                out_dir=out_dir,
                 filenames=filenames,
                 mmap_filepath=mmap_filepath,
             ),

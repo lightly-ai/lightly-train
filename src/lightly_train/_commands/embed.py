@@ -135,6 +135,7 @@ def embed_from_config(config: EmbedConfig) -> None:
             data=config.data,
             transform=transform,
             mmap_filepath=mmap_filepath,
+            out_dir=out_path,
         )
         dataloader = _get_dataloader(
             dataset=dataset,

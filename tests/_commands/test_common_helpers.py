@@ -726,6 +726,7 @@ def test_get_dataset_mmap_filenames__rank0(tmp_path: Path) -> None:
     filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
     mmap_filepath = tmp_path / "test.mmap"
     mmap_filenames = common_helpers.get_dataset_mmap_filenames(
+        out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
@@ -741,6 +742,7 @@ def test_get_dataset_mmap_filenames__rank(
     # Simulate calling the function from rank 0
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
     mmap_filenames_rank0 = common_helpers.get_dataset_mmap_filenames(
+        out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
@@ -748,6 +750,7 @@ def test_get_dataset_mmap_filenames__rank(
     # Simulate calling the function from rank 1
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
     mmap_filenames_rank1 = common_helpers.get_dataset_mmap_filenames(
+        out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
@@ -767,6 +770,7 @@ def test_get_dataset_mmap_filenames__rank_error(
     # Simulate calling the function from rank 0.
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
     common_helpers.get_dataset_mmap_filenames(
+        out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath_rank0,
     )
@@ -777,6 +781,7 @@ def test_get_dataset_mmap_filenames__rank_error(
     )
     with pytest.raises(RuntimeError, match="Rank 1: Timeout after 0.1 seconds"):
         common_helpers.get_dataset_mmap_filenames(
+            out_dir=tmp_path,
             filenames=filenames,
             mmap_filepath=mmap_filepath_rank1,
         )
@@ -791,6 +796,7 @@ def test_get_dataset_mmap_filenames__reuse(
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_MMAP_REUSE_FILE": "1"})
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_path)})
     mmap_filenames_first = common_helpers.get_dataset_mmap_filenames(
+        out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
@@ -799,6 +805,7 @@ def test_get_dataset_mmap_filenames__reuse(
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
     with caplog.at_level(logging.WARNING):
         mmap_filenames_reused = common_helpers.get_dataset_mmap_filenames(
+            out_dir=tmp_path,
             filenames=filenames,
             mmap_filepath=mmap_filepath,
         )
@@ -814,6 +821,7 @@ def test_get_dataset__path(tmp_path: Path) -> None:
         data=tmp_path,
         transform=ToTensorV2(),
         mmap_filepath=mmap_filepath,
+        out_dir=tmp_path,
     )
 
 
@@ -823,6 +831,7 @@ def test_get_dataset__path__nonexisting(tmp_path: Path) -> None:
             data=tmp_path / "nonexisting",
             transform=ToTensorV2(),
             mmap_filepath=None,
+            out_dir=tmp_path,
         )
 
 
@@ -834,6 +843,7 @@ def test_get_dataset__path__nondir(tmp_path: Path) -> None:
             data=file,
             transform=ToTensorV2(),
             mmap_filepath=None,
+            out_dir=tmp_path,
         )
 
 
@@ -843,6 +853,7 @@ def test_get_dataset__path__empty(tmp_path: Path) -> None:
             data=tmp_path,
             transform=ToTensorV2(),
             mmap_filepath=None,
+            out_dir=tmp_path,
         )
 
 
@@ -865,6 +876,7 @@ def test_get_dataset__dirs_and_files(tmp_path: Path) -> None:
         ],
         transform=ToTensorV2(),
         mmap_filepath=mmap_filepath,
+        out_dir=tmp_path,
     )
 
 
@@ -874,6 +886,7 @@ def test_get_dataset__dataset() -> None:
         data=dataset,
         transform=ToTensorV2(),
         mmap_filepath=None,
+        out_dir=Path("/tmp"),
     )
     assert dataset == dataset_1
 
