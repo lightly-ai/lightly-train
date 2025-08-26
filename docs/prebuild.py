@@ -97,12 +97,24 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
         train_transform_args = train_model_cls.train_transform_cls.transform_args_cls(
             ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
         )
-        args = train_task_helpers.pretty_format_args(train_transform_args.model_dump())
+        val_transform_args = train_model_cls.val_transform_cls.transform_args_cls(
+            ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
+        )
+        train_args = train_task_helpers.pretty_format_args(
+            train_transform_args.model_dump()
+        )
+        val_args = train_task_helpers.pretty_format_args(
+            val_transform_args.model_dump()
+        )
         name = train_model_cls.__name__.lower()
         # write to file
         with open(dest_dir / f"{name}_train_transform_args.md", "w") as f:
             f.write("```json\n")
-            f.write(args + "\n")
+            f.write(train_args + "\n")
+            f.write("```\n")
+        with open(dest_dir / f"{name}_val_transform_args.md", "w") as f:
+            f.write("```json\n")
+            f.write(val_args + "\n")
             f.write("```\n")
 
 
