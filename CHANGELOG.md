@@ -23,7 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
   to customize the image augmentations used during training and validation.
 - Add support for the channel drop transform in the `train_semantic_segmentation` command.
- 
 
 ### Changed
 
