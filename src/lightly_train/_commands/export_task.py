@@ -130,12 +130,15 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
     if config.format == "onnx":
+        # Get the device of the model to ensure dummy input is on the same device
+        model_device = next(task_model.parameters()).device
         dummy_input = torch.randn(
             config.batch_size,
             config.num_channels,
             config.height,
             config.width,
             requires_grad=False,
+            device=model_device,
         )
         with precalculate_for_onnx_export():
             task_model(dummy_input)

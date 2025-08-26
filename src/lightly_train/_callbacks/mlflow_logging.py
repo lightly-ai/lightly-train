@@ -29,11 +29,12 @@ class MLFlowLogging(Callback):
                     run_id=logger.run_id,
                 )
                 self.system_monitor.start()  # type: ignore[no-untyped-call]
-                logger.experiment.log_artifact(
-                    run_id=logger.run_id,
-                    local_path=trainer.default_root_dir + "/train.log",
-                    artifact_path="logs",
-                )
+                with open(trainer.default_root_dir + "/train.log", "r") as _f:
+                    logger.experiment.log_text(
+                        run_id=logger.run_id,
+                        text=_f.read(),
+                        artifact_file="logs/train-start.log",
+                    )
                 break
 
     def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
@@ -41,9 +42,10 @@ class MLFlowLogging(Callback):
             self.system_monitor.finish()  # type: ignore[no-untyped-call]
         for logger in trainer.loggers:
             if isinstance(logger, MLFlowLogger):
-                logger.experiment.log_artifact(
-                    run_id=logger.run_id,
-                    local_path=trainer.default_root_dir + "/train.log",
-                    artifact_path="logs",
-                )
+                with open(trainer.default_root_dir + "/train.log", "r") as _f:
+                    logger.experiment.log_text(
+                        run_id=logger.run_id,
+                        text=_f.read(),
+                        artifact_file="logs/train-end.log",
+                    )
                 break
