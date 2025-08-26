@@ -50,6 +50,7 @@ def test_open_image_numpy(
         pil_spy.assert_called_once()
         torch_spy.assert_not_called()
 
+
 def test_open_image_numpy__mask(tmp_path: Path) -> None:
     image_path = tmp_path / "image.png"
     helpers.create_image(path=image_path, height=32, width=32, mode="L")
