@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 
 from lightly_train._transforms.semantic_segmentation_transform import (
@@ -14,10 +16,8 @@ from lightly_train._transforms.semantic_segmentation_transform import (
     SemanticSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
-    CenterCropArgs,
     ChannelDropArgs,
     ColorJitterArgs,
-    LongestMaxSizeArgs,
     NormalizeArgs,
     RandomCropArgs,
     RandomFlipArgs,
@@ -52,25 +52,11 @@ class DINOv2LinearSemanticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
 
 
 class DINOv2LinearSemanticSegmentationRandomCropArgs(RandomCropArgs):
-    height: int = 518
-    width: int = 518
+    height: int | Literal["auto"] = "auto"
+    width: int | Literal["auto"] = "auto"
     pad_if_needed: bool = True
     pad_position: str = "center"
     fill: int = 0
-    prob: float = 1.0
-
-
-class DINOv2LinearSemanticSegmentationCenterCropArgs(CenterCropArgs):
-    height: int = 518
-    width: int = 518
-    pad_if_needed: bool = True
-    pad_position: str = "center"
-    fill: int = 0
-    prob: float = 1.0
-
-
-class DINOv2LinearSemanticSegmentationLongestMaxSizeArgs(LongestMaxSizeArgs):
-    max_size: int = 518
     prob: float = 1.0
 
 
@@ -95,8 +81,6 @@ class DINOv2LinearSemanticSegmentationTrainTransformArgs(
     random_crop: RandomCropArgs = Field(
         default_factory=DINOv2LinearSemanticSegmentationRandomCropArgs
     )
-    longest_max_size: LongestMaxSizeArgs | None = None
-    center_crop: CenterCropArgs | None = None
 
 
 class DINOv2LinearSemanticSegmentationValTransformArgs(
@@ -116,23 +100,11 @@ class DINOv2LinearSemanticSegmentationValTransformArgs(
         default_factory=DINOv2LinearSemanticSegmentationSmallestMaxSizeArgs
     )
     random_crop: RandomCropArgs | None = None
-    longest_max_size: LongestMaxSizeArgs | None = None
-    center_crop: CenterCropArgs | None = None
 
 
 class DINOv2LinearSemanticSegmentationTrainTransform(SemanticSegmentationTransform):
     transform_args_cls = DINOv2LinearSemanticSegmentationTrainTransformArgs
 
-    def __init__(
-        self, transform_args: DINOv2LinearSemanticSegmentationTrainTransformArgs
-    ) -> None:
-        super().__init__(transform_args=transform_args)
-
 
 class DINOv2LinearSemanticSegmentationValTransform(SemanticSegmentationTransform):
     transform_args_cls = DINOv2LinearSemanticSegmentationValTransformArgs
-
-    def __init__(
-        self, transform_args: DINOv2LinearSemanticSegmentationValTransformArgs
-    ) -> None:
-        super().__init__(transform_args=transform_args)
