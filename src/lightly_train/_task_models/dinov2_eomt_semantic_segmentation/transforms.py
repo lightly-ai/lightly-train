@@ -16,6 +16,7 @@ from lightly_train._transforms.semantic_segmentation_transform import (
     SemanticSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
+    ChannelDropArgs,
     ColorJitterArgs,
     NormalizeArgs,
     RandomCropArgs,
@@ -67,6 +68,7 @@ class DINOv2EoMTSemanticSegmentationTrainTransformArgs(
     """
 
     image_size: tuple[int, int] = (518, 518)
+    channel_drop: ChannelDropArgs | None = None
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs = Field(default_factory=RandomFlipArgs)
     color_jitter: DINOv2EoMTSemanticSegmentationColorJitterArgs = Field(
@@ -87,6 +89,7 @@ class DINOv2EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
     """
 
     image_size: tuple[int, int] = (518, 518)
+    channel_drop: ChannelDropArgs | None = None
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs | None = None
     color_jitter: ColorJitterArgs | None = None
