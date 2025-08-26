@@ -106,12 +106,28 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         else:
             ignore_classes = self.args.ignore_classes
 
-        # Iterate over the classes and populate the class_mapppings.
+        # Iterate over the classes and populate the class_mappings.
         class_mapping = {}
-        for class_counter, class_info in enumerate(input_classes.values()):
-            for class_to_map in class_info.values:
-                if class_to_map not in ignore_classes:
-                    class_mapping[class_to_map] = class_counter
+        training_class_counter = 0
+
+        for class_key, class_info in input_classes.items():
+            # Skip if the class key itself is in ignore_classes
+            if class_key in ignore_classes:
+                continue
+
+            # Check if this ClassInfo has any non-ignored values
+            has_included_classes = any(
+                val not in ignore_classes for val in class_info.values
+            )
+
+            if has_included_classes:
+                # Map all non-ignored values to the current training class
+                for class_to_map in class_info.values:
+                    if class_to_map not in ignore_classes:
+                        class_mapping[class_to_map] = training_class_counter
+
+                # Only increment when we actually used this training class
+                training_class_counter += 1
 
         return class_mapping
 
@@ -214,7 +230,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
-    ignore_index: int = -100
+    ignore_index: int
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
@@ -236,6 +252,7 @@ class SplitArgs(PydanticConfig):
 
 
 class MaskSemanticSegmentationDataArgs(TaskDataArgs):
+    ignore_index: ClassVar[int] = -100
     train: SplitArgs
     val: SplitArgs
     classes: dict[int, ClassInfo]

@@ -319,9 +319,10 @@ class TestMaskSemanticSegmentationDataset:
                 {
                     1: ClassInfo(name="vehicle", values={1, 2, 3}),
                     4: ClassInfo(name="ignore_me", values={4}),
+                    5: ClassInfo(name="person", values={5}),
                 },
                 {4},
-                {1: 0, 2: 0, 3: 0},
+                {1: 0, 2: 0, 3: 0, 5: 1},
             ),
             # Test ignoring a class that's in values list
             (
@@ -331,6 +332,16 @@ class TestMaskSemanticSegmentationDataset:
                 },
                 {4},
                 {1: 0, 2: 0, 3: 0, 5: 1},
+            ),
+            # Test ignoring multiple classes that are both in keys and values
+            (
+                {
+                    0: ClassInfo(name="background", values={0, 5}),
+                    1: ClassInfo(name="vehicle", values={1, 2, 3, 4}),
+                    7: ClassInfo(name="person", values={7}),
+                },
+                {0, 4, 6},  # ignore non-existing class should also work
+                {1: 0, 2: 0, 3: 0, 7: 1},
             ),
         ],
     )
