@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import albumentations as A
 import pytest
@@ -15,8 +16,11 @@ import torch
 from torch import Tensor
 
 from lightly_train._data.mask_semantic_segmentation_dataset import (
+    ClassInfo,
+    MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
+    SplitArgs,
 )
 from lightly_train._transforms.task_transform import (
     TaskTransform,
@@ -46,6 +50,174 @@ class DummyTransform(TaskTransform):
         return output
 
 
+class TestMaskSemanticSegmentationDataArgs:
+    @pytest.mark.parametrize(
+        "classes_input, expected_checks",
+        [
+            # Test with all dict input (overlapping values)
+            (
+                {
+                    0: {"name": "background", "values": [0, 5]},
+                    1: {"name": "vehicle", "values": [1, 2, 3]},
+                },
+                {
+                    0: ("background", [0, 5]),
+                    1: ("vehicle", [1, 2, 3]),
+                },
+            ),
+            # Test with all dict input (non-overlapping values)
+            (
+                {
+                    0: {"name": "background", "values": [4]},
+                    5: {"name": "vehicle", "values": [1, 2, 3]},
+                },
+                {
+                    0: ("background", [4]),
+                    5: ("vehicle", [1, 2, 3]),
+                },
+            ),
+            # Test with all string input
+            (
+                {
+                    0: "background",
+                    1: "vehicle",
+                },
+                {
+                    0: ("background", [0]),
+                    1: ("vehicle", [1]),
+                },
+            ),
+            # Test with mixed input
+            (
+                {
+                    0: "background",
+                    1: {"name": "vehicle", "values": [1, 2, 3]},
+                },
+                {
+                    0: ("background", [0]),
+                    1: ("vehicle", [1, 2, 3]),
+                },
+            ),
+        ],
+    )
+    def test_validate_classes(
+        self,
+        classes_input: dict[int, str | dict[str, str | list[int]]],
+        expected_checks: dict[int, tuple[str, list[int]]],
+        tmp_path: Path,
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes=classes_input,  # type: ignore[arg-type]
+        )
+
+        # Check that all inputs were converted to ClassInfo objects
+        assert set(dataset_args.classes.keys()) == set(expected_checks.keys()), (
+            "Class IDs don't match"
+        )
+
+        # Check that names and values match expected
+        for class_id, (expected_name, expected_values) in expected_checks.items():
+            class_info = dataset_args.classes[class_id]
+            assert isinstance(class_info, ClassInfo)
+            assert class_info.name == expected_name
+            assert class_info.values == set(expected_values)
+
+    @pytest.mark.parametrize(
+        "invalid_classes",
+        [
+            # Invalid ClassInfo structure
+            {0: {"invalid": "structure"}},
+            # Invalid values type in ClassInfo
+            {0: {"name": "background", "values": "0"}},
+        ],
+    )
+    def test_validate_classes__invalid_input(
+        self, invalid_classes: dict[int, Any], tmp_path: Path
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        # Test that invalid input raises validation error
+        with pytest.raises(ValueError):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images=image_dir, masks=mask_dir),
+                val=SplitArgs(images=image_dir, masks=mask_dir),
+                classes=invalid_classes,
+            )
+
+    def test_validate_classes__mapping_to_multiple_class_labels(
+        self, tmp_path: Path
+    ) -> None:
+        """Test that overlapping values in different ClassInfo instances raise validation error."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        # Test that overlapping values in ClassInfo instances raise error
+        classes_with_multiple_mapping = {
+            0: {"name": "background", "values": [0, 1, 2]},
+            5: {
+                "name": "vehicle",
+                "values": [2, 3, 4],
+            },  # Value 2 is mapped to both background and vehicle
+        }
+
+        with pytest.raises(
+            ValueError, match="Class value 2 appears in multiple class mappings"
+        ):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images=image_dir, masks=mask_dir),
+                val=SplitArgs(images=image_dir, masks=mask_dir),
+                classes=classes_with_multiple_mapping,  # type: ignore[arg-type]
+            )
+
+    def test_validate_classes__mapping_to_existing_keys(self, tmp_path: Path) -> None:
+        """Test that class keys cannot appear as values in ClassInfo instances."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        # Test that class keys appearing in ClassInfo values raise error
+        classes_with_existing_keys = {
+            0: {"name": "background", "values": [1, 2, 3]},
+            10: {"name": "person", "values": [7, 8, 0]},  # Value 0 conflicts with key 0
+        }
+
+        with pytest.raises(
+            ValueError,
+            match="Class value 0 in ClassInfo for class 10 conflicts with class key 0",
+        ):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images=image_dir, masks=mask_dir),
+                val=SplitArgs(images=image_dir, masks=mask_dir),
+                classes=classes_with_existing_keys,  # type: ignore[arg-type]
+            )
+
+    def test_included_classes(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        classes = {
+            0: "background",
+            1: {"name": "vehicle", "values": [1, 2, 3]},
+            4: "person",
+        }
+        ignore_classes = {1, 4}  # Ignore vehicle class key and person
+        expected_included = {0: "background"}
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes=classes,  # type: ignore[arg-type]
+            ignore_classes=ignore_classes,
+        )
+
+        assert dataset_args.included_classes == expected_included
+
+
 class TestMaskSemanticSegmentationDataset:
     @pytest.mark.parametrize(
         "num_classes, expected_mask_dtype, ignore_index",
@@ -71,7 +243,10 @@ class TestMaskSemanticSegmentationDataset:
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir=mask_dir,
-            classes={0: "background", 1: "object"},
+            classes={
+                0: ClassInfo(name="background", values={0}),
+                1: ClassInfo(name="object", values={1}),
+            },
             ignore_index=ignore_index,
         )
         transform = DummyTransform(transform_args=TaskTransformArgs())
@@ -105,3 +280,87 @@ class TestMaskSemanticSegmentationDataset:
             str(image_dir / "image0.jpg"),
             str(image_dir / "image1.jpg"),
         ]
+
+    def test_get_class_mapping(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        image_filenames = ["image0.jpg"]
+        mask_filenames = ["image0.png"]
+        helpers.create_images(image_dir, files=image_filenames)
+        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
+
+        classes = {
+            0: ClassInfo(name="background", values={0, 5}),
+            1: ClassInfo(name="vehicle", values={1, 2, 3}),
+        }
+        expected_mapping = {0: 0, 5: 0, 1: 1, 2: 1, 3: 1}
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir=mask_dir,
+            classes=classes,
+            check_empty_targets=False,
+            ignore_index=-100,
+        )
+        transform = DummyTransform(transform_args=TaskTransformArgs())
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_filenames=list(dataset_args.list_image_filenames()),
+            transform=transform,
+        )
+
+        assert dataset.class_mapping == expected_mapping
+
+    @pytest.mark.parametrize(
+        "classes, ignore_classes, expected_mapping",
+        [
+            # Test ignoring a class key
+            (
+                {
+                    1: ClassInfo(name="vehicle", values={1, 2, 3}),
+                    4: ClassInfo(name="ignore_me", values={4}),
+                },
+                {4},
+                {1: 0, 2: 0, 3: 0},
+            ),
+            # Test ignoring a class that's in values list
+            (
+                {
+                    1: ClassInfo(name="vehicle", values={1, 2, 3, 4}),
+                    5: ClassInfo(name="person", values={5}),
+                },
+                {4},
+                {1: 0, 2: 0, 3: 0, 5: 1},
+            ),
+        ],
+    )
+    def test_get_class_mapping_with_ignore_classes(
+        self,
+        classes: dict[int, ClassInfo],
+        ignore_classes: set[int],
+        expected_mapping: dict[int, int],
+        tmp_path: Path,
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        image_filenames = ["image0.jpg"]
+        mask_filenames = ["image0.png"]
+        helpers.create_images(image_dir, files=image_filenames)
+        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir=mask_dir,
+            classes=classes,
+            ignore_classes=ignore_classes,
+            check_empty_targets=False,
+            ignore_index=-100,
+        )
+        transform = DummyTransform(transform_args=TaskTransformArgs())
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_filenames=list(dataset_args.list_image_filenames()),
+            transform=transform,
+        )
+
+        assert dataset.class_mapping == expected_mapping
