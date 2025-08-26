@@ -569,11 +569,10 @@ def test_decrement_and_cleanup(
 
     common_helpers._decrement_and_cleanup_if_zero(mmap_file, ref_file)
 
+    # Check if mmap file is deleted or not
     if should_cleanup:
-        assert not ref_file.exists()
         assert not mmap_file.exists()
     else:
-        assert ref_file.exists()
         assert mmap_file.exists()
         assert ref_file.read_text() == str(int(initial_count) - 1)
 
@@ -589,7 +588,6 @@ def test_decrement_and_cleanup__reuse(tmp_path: Path, mocker: MockerFixture) -> 
     """Test that LIGHTLY_TRAIN_MMAP_REUSE_FILE affects mmap file cleanup."""
     mmap_file = tmp_path / "test.mmap"
     ref_file = tmp_path / "test.ref_count"
-    lock_file = ref_file.with_suffix(".lock")
 
     mmap_file.touch()
     ref_file.write_text("1")  # Set to 1 so decrement will trigger cleanup
@@ -599,11 +597,8 @@ def test_decrement_and_cleanup__reuse(tmp_path: Path, mocker: MockerFixture) -> 
 
     common_helpers._decrement_and_cleanup_if_zero(mmap_file, ref_file)
 
-    # Lock file should always be cleaned up
-    assert not lock_file.exists()
-
-    # Ref file should always be cleaned up when count reaches zero
-    assert not ref_file.exists()
+    # Ref and lock files should not be deleted
+    assert ref_file.exists()
 
     # When reuse is enabled, mmap file should NOT be deleted
     assert mmap_file.exists()
@@ -655,7 +650,6 @@ def test_file_locking_concurrent_decrements(
 
     mmap_file = tmp_path / "test.mmap"
     ref_file = mmap_file.with_suffix(".ref_count")
-    lock_file = ref_file.with_suffix(".lock")
 
     mmap_file.touch()
     ref_file.write_text(str(initial_count))
@@ -668,17 +662,16 @@ def test_file_locking_concurrent_decrements(
         futures = [executor.submit(decrement_worker) for _ in range(num_decrements)]
         concurrent.futures.wait(futures)
 
+    # Ref and lock files should not be deleted
+    assert ref_file.exists()
+
+    # Check if mmap file is deleted or not
     if should_cleanup:
-        # Files should be cleaned up when count reaches zero
-        assert not ref_file.exists()
         assert not mmap_file.exists()
-        assert not lock_file.exists()
 
     else:
-        # Files should still exist with correct remaining count
-        assert ref_file.exists()
         assert mmap_file.exists()
-        assert lock_file.exists()
+
         expected_count = initial_count - num_decrements
         assert ref_file.read_text() == str(expected_count)
 
@@ -722,15 +715,11 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
     # Verify all threads got the same mmap path
     assert len(set(mmap_paths)) == 1, "All threads should get the same mmap path"
 
-    # After all context managers exit, files should be cleaned up
     data_hash = common_helpers.get_sha256(f"{data_path}-0")
     mmap_path = (cache.get_data_cache_dir() / data_hash).with_suffix(".mmap")
-    ref_count_path = mmap_path.with_suffix(".ref_count")
-    lockfile_path = ref_count_path.with_suffix(".lock")
 
+    # After all context managers exit, the mmap file should be cleaned up
     assert not mmap_path.exists()
-    assert not ref_count_path.exists()
-    assert not lockfile_path.exists()
 
 
 def test_get_dataset_mmap_filenames__rank0(tmp_path: Path) -> None:
