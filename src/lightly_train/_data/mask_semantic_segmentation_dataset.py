@@ -245,7 +245,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     @field_validator("classes", mode="before")
     @classmethod
     def validate_classes(
-        cls, classes: dict[int, str | dict[str, str | list[int]]]
+        cls, classes: dict[int, str | dict[str, str | Sequence[int]]]
     ) -> dict[int, ClassInfo]:
         result: dict[int, ClassInfo] = {}
         all_mapped_values: set[int] = set()
@@ -253,7 +253,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
 
         for class_id, class_info in classes.items():
             if isinstance(class_info, str):
-                result[class_id] = ClassInfo(name=class_info, values=set(class_id))
+                result[class_id] = ClassInfo(name=class_info, values={class_id})
             else:
                 # Let Pydantic validate the structure and types
                 class_info_obj = ClassInfo.model_validate(class_info)
@@ -281,17 +281,12 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def included_classes(self) -> dict[int, str]:
         """Returns classes that are not ignored but with the name after mapping."""
         ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+
         result = {}
-        for original_class, class_name_or_info in self.classes.items():
-            if original_class not in ignore_classes:
-                # Extract the name from complex class definitions
-                if isinstance(class_name_or_info, str):
-                    result[original_class] = class_name_or_info
-                else:
-                    # v is ClassInfo, get the "name" field
-                    for original_class_to_map in class_name_or_info.values:
-                        if original_class_to_map not in ignore_classes:
-                            result[original_class_to_map] = class_name_or_info.name
+        for class_id, class_info in self.classes.items():
+            if class_id not in ignore_classes:
+                result[class_id] = class_info.name
+
         return result
 
     @property
