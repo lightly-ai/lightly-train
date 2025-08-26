@@ -414,6 +414,28 @@ if __name__ == "__main__":
     )
 ```
 
+`````{dropdown} EoMT DINOv2 Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/dinov2eomtsemanticsegmentationtrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} _auto/dinov2eomtsemanticsegmentationtrain_val_transform_args.md
+```
+````
+`````
+
+`````{dropdown} EoMT DINOv3 Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/dinov3eomtsemanticsegmentationtrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} _auto/dinov3eomtsemanticsegmentationtrain_val_transform_args.md
+```
+````
+`````
+
 In case you need different parameters for training and validation, you can pass an
 optional `val` dictionary to `transform_args` to override the validation parameters:
 
@@ -429,13 +451,3 @@ transform_args={
     }
 }
 ```
-
-````{dropdown} EoMT DINOv2 Default Train Transform Arguments
-```{include} _auto/dinov2eomtsemanticsegmentationtrain_train_transform_args.md
-```
-````
-
-````{dropdown} EoMT DINOv3 Default Train Transform Arguments
-```{include} _auto/dinov3eomtsemanticsegmentationtrain_train_transform_args.md
-```
-````
