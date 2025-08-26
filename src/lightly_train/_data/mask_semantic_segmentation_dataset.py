@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Literal
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import numpy as np
 import torch
