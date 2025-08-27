@@ -7,7 +7,6 @@
 #
 from __future__ import annotations
 
-import warnings
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import ClassVar, Literal
@@ -15,7 +14,7 @@ from typing import ClassVar, Literal
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, TypeAdapter, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -98,7 +97,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
     def get_class_mapping(self) -> dict[int, int]:
         all_new_classes = set(self.args.classes.keys())
         ignore_classes = self.args.ignore_classes
-        included_classes = (
+        included_classes = sorted(
             all_new_classes - ignore_classes if ignore_classes else all_new_classes
         )
 
@@ -239,118 +238,74 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def validate_classes(
         cls, classes: dict[int, str | dict[str, str | Sequence[int]]]
     ) -> dict[int, ClassInfo]:
-        new_classes = set(classes.keys())
-        all_class_names: set[str] = set()
-        all_class_values: set[int] = set()
-        result: dict[int, ClassInfo] = {}
+        # Let Pydantic validate the structure and types
+        classes_validated = TypeAdapter(dict[int, str | ClassInfo]).validate_python(
+            classes
+        )
 
-        for class_id, class_info in classes.items():
+        # Convert to ClassInfo objects
+        class_infos: dict[int, ClassInfo] = {}
+        for class_id, class_info in classes_validated.items():
             if isinstance(class_info, str):
-                # Check for duplicate class names
-                class_name = class_info
-                if class_name in all_class_names:
-                    raise ValueError(
-                        f"Invalid class mapping: Class name '{class_name}' appears in multiple class definitions. "
-                        f"Each class name must be unique."
-                    )
-
-                all_class_names.add(class_name)
-                result[class_id] = ClassInfo(name=class_name, values={class_id})
+                class_infos[class_id] = ClassInfo(name=class_info, values={class_id})
             else:
-                # Let Pydantic validate the structure and types
-                class_info_obj = ClassInfo.model_validate(class_info)
+                class_infos[class_id] = ClassInfo.model_validate(class_info)
 
-                # Check for duplicate class names
-                class_name = class_info_obj.name
-                if class_name in all_class_names:
+        # Check the class mappings for validity.
+        new_classes = set(class_infos.keys())
+        class_names: set[str] = set()
+        class_values: set[int] = set()
+
+        for class_id, class_info in class_infos.items():
+            # Check for duplicate class names
+            class_name = class_info.name
+            if class_name in class_names:
+                raise ValueError(
+                    f"Invalid class mapping: Class name '{class_name}' appears in multiple class definitions. "
+                    f"Each class name must be unique."
+                )
+            class_names.add(class_name)
+
+            for value in class_info.values:
+                # Check for multiple values across different class mappings
+                if value in class_values:
                     raise ValueError(
-                        f"Invalid class mapping: Class name '{class_name}' appears in multiple class definitions. "
-                        f"Each class name must be unique."
+                        f"Invalid class mapping: Class {value} appears in multiple class definitions. "
+                        f"Each old class value can only mapped to one new class.\n\n"
+                        f"INCORRECT (class {value} is duplicated):\n"
+                        f"classes = {{\n"
+                        f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
+                        f"  254: {{'name': 'background-254', 'values': [0, 1, 2]}}  # <- class [0, 1, 2] conflict with class 255\n"
+                        f"}}\n\n"
+                        f"CORRECT (each set of class values belongs to only one class):\n"
+                        f"classes = {{\n"
+                        f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
+                        f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # <- unique values\n"
+                        f"}}"
                     )
-                all_class_names.add(class_name)
+                # Check if a class key appears as a value to be mapped
+                if (value in new_classes) and (value != class_id):
+                    raise ValueError(
+                        f"Invalid class mapping: Class {value} exists as a new class label and also appears in the values to be mapped to a different class {class_id}. "
+                        f"Class keys cannot appear as values to be mapped.\n\n"
+                        f"INCORRECT (class {value} conflicts with class key {value}):\n"
+                        f"classes = {{\n"
+                        f"  255: {{'name': 'background', 'values': [0, 1, 2]}},\n"
+                        f"  0: 'class 0'  # <- class key 0 conflicts with class 0 above\n"
+                        f"}}\n\n"
+                        f"classes = {{\n"
+                        f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
+                        f"  0: {{'name': 'background-0', 'values': [3, 4, 5]}}  # <- class key 0 conflicts with class 0 above\n"
+                        f"}}"
+                        f"CORRECT (class keys don't appear as values):\n"
+                        f"classes = {{\n"
+                        f"  255: {{'name': 'background', 'values': [0, 1, 2]}},\n"
+                        f"  10: 'class 10'  # <- class key 10 does not conflict with any value\n"
+                        f"}}"
+                    )
+                class_values.add(value)
 
-                # Check for overlapping values across different class mappings
-                for value in class_info_obj.values:
-                    if value in all_class_values:
-                        raise ValueError(
-                            f"Invalid class mapping: Class {value} appears in multiple class definitions. "
-                            f"Each old class value can only mapped to one new class.\n\n"
-                            f"INCORRECT (class {value} is duplicated):\n"
-                            f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                            f"  254: {{'name': 'background-254', 'values': [0, 1, 2]}}  # ← class [0, 1, 2] conflict with class 255\n"
-                            f"}}\n\n"
-                            f"CORRECT (each set of class values belongs to only one class):\n"
-                            f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                            f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # ← unique values\n"
-                            f"}}"
-                        )
-                    # Check if the value conflicts with any class key
-                    if (value in new_classes) and (value != class_id):
-                        raise ValueError(
-                            f"Invalid class mapping: Class {value} exists as a new class label and also appears in the values to be mapped to a different class {class_id}. "
-                            f"Class keys cannot appear as values to be mapped.\n\n"
-                            f"INCORRECT (class {value} conflicts with class key {value}):\n"
-                            f"classes = {{\n"
-                            f"  255: {{'name': 'background', 'values': [0, 1, 2]}},\n"
-                            f"  0: 'class 0'  # ← class key 0 conflicts with class 0 above\n"
-                            f"}}\n\n"
-                            f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                            f"  0: {{'name': 'background-0', 'values': [3, 4, 5]}}  # ← class key 0 conflicts with class 0 above\n"
-                            f"}}"
-                            f"CORRECT (class keys don't appear as values):\n"
-                            f"classes = {{\n"
-                            f"  255: {{'name': 'background', 'values': [0, 1, 2]}},\n"
-                            f"  10: 'class 10'  # ← class key 10 does not conflict with any value\n"
-                            f"}}"
-                        )
-                    all_class_values.add(value)
-
-                result[class_id] = class_info_obj
-
-        return result
-
-    @field_validator("ignore_classes", mode="after")
-    @classmethod
-    def validate_ignore_classes(
-        cls, ignore_classes: set[int] | None, info: ValidationInfo
-    ) -> set[int] | None:
-        if ignore_classes is None:
-            return ignore_classes
-
-        # Get classes from the validation context
-        classes = info.data.get("classes", {})
-        defined_class_keys = set(classes.keys())
-        invalid_ignore_classes = ignore_classes - defined_class_keys
-
-        if invalid_ignore_classes:
-            warnings.warn(
-                f"Invalid ignore_classes found: {sorted(invalid_ignore_classes)}. "
-                f"These values are not in the classes after mapping: {sorted(defined_class_keys)}. "
-                f"We only ignore the classes as the keys of the `classes` dict, i.e., classes after mapping. "
-                f"Anything that does not appear in the keys will not be considered during training. "
-                f"If you intended to ignore the original class values before mapping, you can map them to the same ignore class key in `classes` and ignore that key here.\n\n"
-                f"Example:\n"
-                f"INCORRECT (ignoring unmapped class 5):\n"
-                f"classes = {{\n"
-                f"  0: {{'name': 'background', 'values': [0, 1, 2]}},\n"
-                f"  6: {{'name': 'foreground', 'values': [3, 4, 5]}}\n"
-                f"}}\n"
-                f"ignore_classes = [1, 3]  # ← class 1 and 3 not in class keys\n\n"
-                f"CORRECT (map class 5 to ignore class first):\n"
-                f"classes = {{\n"
-                f"  0: {{'name': 'background', 'values': [0, 2]}},\n"
-                f"  6: {{'name': 'foreground', 'values': [4, 5]}},\n"
-                f"  999: {{'name': 'ignore', 'values': [1, 3]}}  # ← map class 1 and 3 to ignore class 999\n"
-                f"}}\n"
-                f"ignore_classes = [999]  # ← ignore the mapped class 999",
-                UserWarning,
-                stacklevel=4,
-            )
-
-        return ignore_classes
+        return class_infos
 
     @property
     def included_classes(self) -> dict[int, str]:

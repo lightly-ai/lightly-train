@@ -243,6 +243,51 @@ def create_videos(
         )
 
 
+def create_normalized_yolo_labels(labels_dir: Path, image_paths: list[Path]) -> None:
+    for image_path in image_paths:
+        label_path = labels_dir / f"{image_path.stem}.txt"
+        with open(label_path, "w") as f:
+            f.write("2 0.375 0.5 0.25 0.5\n")
+
+
+def create_yolo_dataset(tmp_path: Path, split_first: bool) -> None:
+    """Create a minimal YOLO object detection dataset.
+
+    Args:
+        split_first: If set to True, the dataset will have the "train" and "val"
+            directories at the top level, and the "images" and "labels" directories
+            will be nested within them. If set to False, "images" and "labels" will be
+            at the top.
+    """
+    # Define directories.
+    if split_first:
+        train_images = tmp_path / "train" / "images"
+        val_images = tmp_path / "val" / "images"
+        train_labels = tmp_path / "train" / "labels"
+        val_labels = tmp_path / "val" / "labels"
+    else:
+        train_images = tmp_path / "images" / "train"
+        val_images = tmp_path / "images" / "val"
+        train_labels = tmp_path / "labels" / "train"
+        val_labels = tmp_path / "labels" / "val"
+
+    # Create directories.
+    for dir in [train_images, val_images, train_labels, val_labels]:
+        dir.mkdir(parents=True, exist_ok=True)
+
+    # Create images.
+    create_images(image_dir=train_images, files=2)
+    create_images(image_dir=val_images, files=2)
+
+    # Create labels.
+    create_normalized_yolo_labels(
+        labels_dir=train_labels, image_paths=list(train_images.glob("*.png"))
+    )
+    create_normalized_yolo_labels(
+        labels_dir=val_labels, image_paths=list(val_images.glob("*.png"))
+    )
+
+
 def assert_same_params(
     a: type[PydanticConfig] | Callable,  # type: ignore[type-arg]
     b: type[PydanticConfig] | Callable,  # type: ignore[type-arg]

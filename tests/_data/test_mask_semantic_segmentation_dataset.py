@@ -246,33 +246,6 @@ class TestMaskSemanticSegmentationDataArgs:
                 classes=classes_with_duplicate_names,  # type: ignore[arg-type]
             )
 
-    def test_validate_ignore_classes(self) -> None:
-        """Test that warnings are raised for invalid ignore_classes."""
-        # Test case 1: ignoring class that's in values list but not in keys
-        with pytest.warns(UserWarning, match=r"Invalid ignore_classes found: \[4\]"):
-            MaskSemanticSegmentationDataArgs(
-                train=SplitArgs(images="/tmp", masks="/tmp"),
-                val=SplitArgs(images="/tmp", masks="/tmp"),
-                classes={
-                    1: ClassInfo(name="vehicle", values={1, 2, 3, 4}),
-                    5: ClassInfo(name="person", values={5}),
-                },
-                ignore_classes={4},  # 4 is in values but not in keys
-            )
-
-        # Test case 2: ignoring multiple classes that are not in keys
-        with pytest.warns(UserWarning, match=r"Invalid ignore_classes found: \[4, 6\]"):
-            MaskSemanticSegmentationDataArgs(
-                train=SplitArgs(images="/tmp", masks="/tmp"),
-                val=SplitArgs(images="/tmp", masks="/tmp"),
-                classes={
-                    0: ClassInfo(name="background", values={0, 5}),
-                    1: ClassInfo(name="vehicle", values={1, 2, 3, 4}),
-                    7: ClassInfo(name="person", values={7}),
-                },
-                ignore_classes={0, 4, 6},  # 4 and 6 are not in keys
-            )
-
     def test_included_classes(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
