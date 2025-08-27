@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import warnings
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import ClassVar, Literal
@@ -14,7 +15,7 @@ from typing import ClassVar, Literal
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -95,39 +96,13 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self.image_filenames = new_image_filenames
 
     def get_class_mapping(self) -> dict[int, int]:
-        # Verify the classes are set (for mypy).
-        input_classes = self.args.classes
-        assert input_classes is not None, "Segmentation dataset classes must be set."
+        all_new_classes = set(self.args.classes.keys())
+        ignore_classes = self.args.ignore_classes
+        included_classes = (
+            all_new_classes - ignore_classes if ignore_classes else all_new_classes
+        )
 
-        # Set the ignore classes.
-        ignore_classes: set[int]
-        if self.args.ignore_classes is None:
-            ignore_classes = set()
-        else:
-            ignore_classes = self.args.ignore_classes
-
-        # Iterate over the classes and populate the class_mappings.
-        class_mapping = {}
-        training_class_counter = 0
-
-        for class_key, class_info in input_classes.items():
-            # Skip if the class key itself is in ignore_classes
-            if class_key in ignore_classes:
-                continue
-
-            # Check if this ClassInfo has any non-ignored values
-            has_included_classes = any(
-                val not in ignore_classes for val in class_info.values
-            )
-
-            if has_included_classes:
-                # Map all non-ignored values to the current training class
-                for class_to_map in class_info.values:
-                    if class_to_map not in ignore_classes:
-                        class_mapping[class_to_map] = training_class_counter
-
-                # Only increment when we actually used this training class
-                training_class_counter += 1
+        class_mapping = {class_id: i for i, class_id in enumerate(included_classes)}
 
         return class_mapping
 
@@ -226,7 +201,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
     mask_dir: Path
-    classes: dict[int, ClassInfo] | None = None
+    classes: dict[int, ClassInfo]
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
@@ -264,39 +239,122 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def validate_classes(
         cls, classes: dict[int, str | dict[str, str | Sequence[int]]]
     ) -> dict[int, ClassInfo]:
+        new_classes = set(classes.keys())
+        all_class_names: set[str] = set()
+        all_class_values: set[int] = set()
         result: dict[int, ClassInfo] = {}
-        all_mapped_values: set[int] = set()
-        class_keys = set(classes.keys())
 
         for class_id, class_info in classes.items():
             if isinstance(class_info, str):
-                result[class_id] = ClassInfo(name=class_info, values={class_id})
+                # Check for duplicate class names
+                class_name = class_info
+                if class_name in all_class_names:
+                    raise ValueError(
+                        f"Invalid class mapping: Class name '{class_name}' appears in multiple class definitions. "
+                        f"Each class name must be unique."
+                    )
+
+                all_class_names.add(class_name)
+                result[class_id] = ClassInfo(name=class_name, values={class_id})
             else:
                 # Let Pydantic validate the structure and types
                 class_info_obj = ClassInfo.model_validate(class_info)
 
+                # Check for duplicate class names
+                class_name = class_info_obj.name
+                if class_name in all_class_names:
+                    raise ValueError(
+                        f"Invalid class mapping: Class name '{class_name}' appears in multiple class definitions. "
+                        f"Each class name must be unique."
+                    )
+                all_class_names.add(class_name)
+
                 # Check for overlapping values across different class mappings
                 for value in class_info_obj.values:
-                    if value in all_mapped_values:
+                    if value in all_class_values:
                         raise ValueError(
-                            f"Class value {value} appears in multiple class mappings. "
-                            f"Each class value can only be mapped to one target class."
+                            f"Invalid class mapping: Class {value} appears in multiple class definitions. "
+                            f"Each old class value can only mapped to one new class.\n\n"
+                            f"INCORRECT (class {value} is duplicated):\n"
+                            f"classes = {{\n"
+                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
+                            f"  254: {{'name': 'background-254', 'values': [0, 1, 2]}}  # ← class [0, 1, 2] conflict with class 255\n"
+                            f"}}\n\n"
+                            f"CORRECT (each set of class values belongs to only one class):\n"
+                            f"classes = {{\n"
+                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
+                            f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # ← unique values\n"
+                            f"}}"
                         )
                     # Check if the value conflicts with any class key
-                    if (value in class_keys) and (value != class_id):
+                    if (value in new_classes) and (value != class_id):
                         raise ValueError(
-                            f"Class value {value} in ClassInfo for class {class_id} conflicts "
-                            f"with class key {value}. Class keys cannot appear as values in ClassInfo instances."
+                            f"Invalid class mapping: Class {value} exists as a new class label and also appears in the values to be mapped to a different class {class_id}. "
+                            f"Class keys cannot appear as values to be mapped.\n\n"
+                            f"INCORRECT (class {value} conflicts with class key {value}):\n"
+                            f"classes = {{\n"
+                            f"  255: {{'name': 'background', 'values': [0, 1, 2]}},\n"
+                            f"  0: 'class 0'  # ← class key 0 conflicts with class 0 above\n"
+                            f"}}\n\n"
+                            f"classes = {{\n"
+                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
+                            f"  0: {{'name': 'background-0', 'values': [3, 4, 5]}}  # ← class key 0 conflicts with class 0 above\n"
+                            f"}}"
+                            f"CORRECT (class keys don't appear as values):\n"
+                            f"classes = {{\n"
+                            f"  255: {{'name': 'background', 'values': [0, 1, 2]}},\n"
+                            f"  10: 'class 10'  # ← class key 10 does not conflict with any value\n"
+                            f"}}"
                         )
-                    all_mapped_values.add(value)
+                    all_class_values.add(value)
 
                 result[class_id] = class_info_obj
 
         return result
 
+    @field_validator("ignore_classes", mode="after")
+    @classmethod
+    def validate_ignore_classes(
+        cls, ignore_classes: set[int] | None, info: ValidationInfo
+    ) -> set[int] | None:
+        if ignore_classes is None:
+            return ignore_classes
+
+        # Get classes from the validation context
+        classes = info.data.get("classes", {})
+        defined_class_keys = set(classes.keys())
+        invalid_ignore_classes = ignore_classes - defined_class_keys
+
+        if invalid_ignore_classes:
+            warnings.warn(
+                f"Invalid ignore_classes found: {sorted(invalid_ignore_classes)}. "
+                f"These values are not in the classes after mapping: {sorted(defined_class_keys)}. "
+                f"We only ignore the classes as the keys of the `classes` dict, i.e., classes after mapping. "
+                f"Anything that does not appear in the keys will not be considered during training. "
+                f"If you intended to ignore the original class values before mapping, you can map them to the same ignore class key in `classes` and ignore that key here.\n\n"
+                f"Example:\n"
+                f"INCORRECT (ignoring unmapped class 5):\n"
+                f"classes = {{\n"
+                f"  0: {{'name': 'background', 'values': [0, 1, 2]}},\n"
+                f"  6: {{'name': 'foreground', 'values': [3, 4, 5]}}\n"
+                f"}}\n"
+                f"ignore_classes = [1, 3]  # ← class 1 and 3 not in class keys\n\n"
+                f"CORRECT (map class 5 to ignore class first):\n"
+                f"classes = {{\n"
+                f"  0: {{'name': 'background', 'values': [0, 2]}},\n"
+                f"  6: {{'name': 'foreground', 'values': [4, 5]}},\n"
+                f"  999: {{'name': 'ignore', 'values': [1, 3]}}  # ← map class 1 and 3 to ignore class 999\n"
+                f"}}\n"
+                f"ignore_classes = [999]  # ← ignore the mapped class 999",
+                UserWarning,
+                stacklevel=4,
+            )
+
+        return ignore_classes
+
     @property
     def included_classes(self) -> dict[int, str]:
-        """Returns classes that are not ignored but with the name after mapping."""
+        """Returns classes (AFTER mapping) that are not ignored with the name."""
         ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
 
         result = {}

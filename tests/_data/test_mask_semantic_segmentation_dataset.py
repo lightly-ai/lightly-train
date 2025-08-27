@@ -167,7 +167,8 @@ class TestMaskSemanticSegmentationDataArgs:
         }
 
         with pytest.raises(
-            ValueError, match="Class value 2 appears in multiple class mappings"
+            ValueError,
+            match="Invalid class mapping: Class 2 appears in multiple class definitions. ",
         ):
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
@@ -176,7 +177,7 @@ class TestMaskSemanticSegmentationDataArgs:
             )
 
     def test_validate_classes__mapping_to_existing_keys(self, tmp_path: Path) -> None:
-        """Test that class keys cannot appear as values in ClassInfo instances."""
+        """Test that new classes cannot appear as values to be mapped to a different class."""
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
 
@@ -188,12 +189,88 @@ class TestMaskSemanticSegmentationDataArgs:
 
         with pytest.raises(
             ValueError,
-            match="Class value 0 in ClassInfo for class 10 conflicts with class key 0",
+            match="Class 0 exists as a new class label and also appears in the values to be mapped to a different class 10. ",
         ):
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
                 classes=classes_with_existing_keys,  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.parametrize(
+        "classes_with_duplicate_names, duplicate_name",
+        [
+            # Test with dict input having duplicate names
+            (
+                {
+                    0: {"name": "background", "values": [0, 1]},
+                    5: {"name": "background", "values": [5, 6]},
+                },
+                "background",
+            ),
+            # Test with string input having duplicate names
+            (
+                {
+                    0: "vehicle",
+                    1: "vehicle",
+                },
+                "vehicle",
+            ),
+            # Test with mixed input having duplicate names
+            (
+                {
+                    0: "person",
+                    1: {"name": "person", "values": [1, 2]},
+                },
+                "person",
+            ),
+        ],
+    )
+    def test_validate_classes__duplicate_class_names(
+        self,
+        classes_with_duplicate_names: dict[int, str | dict[str, str | list[int]]],
+        duplicate_name: str,
+        tmp_path: Path,
+    ) -> None:
+        """Test that duplicate class names raise validation error."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        with pytest.raises(
+            ValueError,
+            match=f"Invalid class mapping: Class name '{duplicate_name}' appears in multiple class definitions",
+        ):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images=image_dir, masks=mask_dir),
+                val=SplitArgs(images=image_dir, masks=mask_dir),
+                classes=classes_with_duplicate_names,  # type: ignore[arg-type]
+            )
+
+    def test_validate_ignore_classes(self) -> None:
+        """Test that warnings are raised for invalid ignore_classes."""
+        # Test case 1: ignoring class that's in values list but not in keys
+        with pytest.warns(UserWarning, match=r"Invalid ignore_classes found: \[4\]"):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images="/tmp", masks="/tmp"),
+                val=SplitArgs(images="/tmp", masks="/tmp"),
+                classes={
+                    1: ClassInfo(name="vehicle", values={1, 2, 3, 4}),
+                    5: ClassInfo(name="person", values={5}),
+                },
+                ignore_classes={4},  # 4 is in values but not in keys
+            )
+
+        # Test case 2: ignoring multiple classes that are not in keys
+        with pytest.warns(UserWarning, match=r"Invalid ignore_classes found: \[4, 6\]"):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images="/tmp", masks="/tmp"),
+                val=SplitArgs(images="/tmp", masks="/tmp"),
+                classes={
+                    0: ClassInfo(name="background", values={0, 5}),
+                    1: ClassInfo(name="vehicle", values={1, 2, 3, 4}),
+                    7: ClassInfo(name="person", values={7}),
+                },
+                ignore_classes={0, 4, 6},  # 4 and 6 are not in keys
             )
 
     def test_included_classes(self, tmp_path: Path) -> None:
@@ -293,7 +370,7 @@ class TestMaskSemanticSegmentationDataset:
             0: ClassInfo(name="background", values={0, 5}),
             1: ClassInfo(name="vehicle", values={1, 2, 3}),
         }
-        expected_mapping = {0: 0, 5: 0, 1: 1, 2: 1, 3: 1}
+        expected_mapping = {0: 0, 1: 1}
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
@@ -311,53 +388,21 @@ class TestMaskSemanticSegmentationDataset:
 
         assert dataset.class_mapping == expected_mapping
 
-    @pytest.mark.parametrize(
-        "classes, ignore_classes, expected_mapping",
-        [
-            # Test ignoring a class key
-            (
-                {
-                    1: ClassInfo(name="vehicle", values={1, 2, 3}),
-                    4: ClassInfo(name="ignore_me", values={4}),
-                    5: ClassInfo(name="person", values={5}),
-                },
-                {4},
-                {1: 0, 2: 0, 3: 0, 5: 1},
-            ),
-            # Test ignoring a class that's in values list
-            (
-                {
-                    1: ClassInfo(name="vehicle", values={1, 2, 3, 4}),
-                    5: ClassInfo(name="person", values={5}),
-                },
-                {4},
-                {1: 0, 2: 0, 3: 0, 5: 1},
-            ),
-            # Test ignoring multiple classes that are both in keys and values
-            (
-                {
-                    0: ClassInfo(name="background", values={0, 5}),
-                    1: ClassInfo(name="vehicle", values={1, 2, 3, 4}),
-                    7: ClassInfo(name="person", values={7}),
-                },
-                {0, 4, 6},  # ignore non-existing class should also work
-                {1: 0, 2: 0, 3: 0, 7: 1},
-            ),
-        ],
-    )
-    def test_get_class_mapping_with_ignore_classes(
-        self,
-        classes: dict[int, ClassInfo],
-        ignore_classes: set[int],
-        expected_mapping: dict[int, int],
-        tmp_path: Path,
-    ) -> None:
+    def test_get_class_mapping__ignore_classes(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
         mask_filenames = ["image0.png"]
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
+
+        classes = {
+            1: ClassInfo(name="vehicle", values={1, 2, 3}),
+            4: ClassInfo(name="ignore_me", values={4}),
+            5: ClassInfo(name="person", values={5}),
+        }
+        ignore_classes = {4}
+        expected_mapping = {1: 0, 5: 1}
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
