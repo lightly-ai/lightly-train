@@ -31,6 +31,9 @@ class TaskTransformArgs(PydanticConfig):
         ),
     )
 
+    def resolve_auto(self) -> None:
+        pass
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
