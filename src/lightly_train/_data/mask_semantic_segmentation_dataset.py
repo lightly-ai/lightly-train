@@ -239,9 +239,9 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         cls, classes: dict[int, str | dict[str, str | Sequence[int]]]
     ) -> dict[int, ClassInfo]:
         # Let Pydantic validate the structure and types
-        classes_validated = TypeAdapter(dict[int, Union[str, ClassInfo]]).validate_python(
-            classes
-        )
+        classes_validated = TypeAdapter(
+            Dict[int, Union[str, ClassInfo]]
+        ).validate_python(classes)
 
         # Convert to ClassInfo objects
         class_infos: dict[int, ClassInfo] = {}
