@@ -179,7 +179,7 @@ class PrettyFormatArgsJSONEncoder(JSONEncoder):
             for o in obj:
                 # Check if the object is already JSON-serializable
                 try:
-                    json.dumps(o)  # Test if it's directly serializable
+                    json.dumps(o, cls=self.__class__)  # Test with the same encoder class
                     result.append(o)  # Use the object directly
                 except (TypeError, ValueError):
                     result.append(self.default(o))  # Apply custom formatting
