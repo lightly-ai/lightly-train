@@ -14,7 +14,7 @@ from typing import ClassVar, Dict, Literal, Union
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from pydantic import BaseModel, Field, TypeAdapter, field_validator
+from pydantic import Field, TypeAdapter, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -31,7 +31,7 @@ from lightly_train.types import (
 )
 
 
-class ClassInfo(BaseModel):
+class ClassInfo(PydanticConfig):
     name: str
     values: set[int] = Field(strict=False)
 
@@ -249,10 +249,9 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             if isinstance(class_info, str):
                 class_infos[class_id] = ClassInfo(name=class_info, values={class_id})
             else:
-                class_infos[class_id] = ClassInfo.model_validate(class_info)
+                class_infos[class_id] = class_info
 
         # Check the class mappings for validity.
-        new_classes = set(class_infos.keys())
         class_values: set[int] = set()
 
         for class_id, class_info in class_infos.items():
@@ -271,26 +270,6 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                         f"classes = {{\n"
                         f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
                         f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # <- unique values\n"
-                        f"}}"
-                    )
-                # Check if a class key appears as a value to be mapped
-                if (value in new_classes) and (value != class_id):
-                    raise ValueError(
-                        f"Invalid class mapping: Class {value} exists as a new class label and also appears in the values to be mapped to a different class {class_id}. "
-                        f"Class keys cannot appear as values to be mapped.\n\n"
-                        f"INCORRECT (class {value} conflicts with class key {value}):\n"
-                        f"classes = {{\n"
-                        f"  255: {{'name': 'background', 'values': [0, 1, 2]}},\n"
-                        f"  0: 'class 0'  # <- class key 0 conflicts with class 0 above\n"
-                        f"}}\n\n"
-                        f"classes = {{\n"
-                        f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                        f"  0: {{'name': 'background-0', 'values': [3, 4, 5]}}  # <- class key 0 conflicts with class 0 above\n"
-                        f"}}"
-                        f"CORRECT (class keys don't appear as values):\n"
-                        f"classes = {{\n"
-                        f"  255: {{'name': 'background', 'values': [0, 1, 2]}},\n"
-                        f"  10: 'class 10'  # <- class key 10 does not conflict with any value\n"
                         f"}}"
                     )
                 class_values.add(value)

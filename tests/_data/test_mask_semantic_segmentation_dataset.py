@@ -158,7 +158,7 @@ class TestMaskSemanticSegmentationDataArgs:
         mask_dir = tmp_path / "masks"
 
         # Test that overlapping values in ClassInfo instances raise error
-        classes_with_multiple_mapping = {
+        classes_with_all_mappings = {
             0: {"name": "background", "values": [0, 1, 2]},
             5: {
                 "name": "vehicle",
@@ -173,28 +173,23 @@ class TestMaskSemanticSegmentationDataArgs:
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=classes_with_multiple_mapping,  # type: ignore[arg-type]
+                classes=classes_with_all_mappings,  # type: ignore[arg-type]
             )
 
-    def test_validate_classes__mapping_to_existing_keys(self, tmp_path: Path) -> None:
-        """Test that new classes cannot appear as values to be mapped to a different class."""
-        image_dir = tmp_path / "images"
-        mask_dir = tmp_path / "masks"
-
-        # Test that class keys appearing in ClassInfo values raise error
-        classes_with_existing_keys = {
-            0: {"name": "background", "values": [1, 2, 3]},
-            10: {"name": "person", "values": [7, 8, 0]},  # Value 0 conflicts with key 0
+        # Test that overlapping values in ClassInfo instances raise error
+        classes_with_partial_mappings = {
+            0: {"name": "background", "values": [0, 1, 2]},
+            1: "vehicle",  # Implicitly maps to {1}, Value 1 is mapped to both background and vehicle
         }
 
         with pytest.raises(
             ValueError,
-            match="Class 0 exists as a new class label and also appears in the values to be mapped to a different class 10. ",
+            match="Invalid class mapping: Class 1 appears in multiple class definitions. ",
         ):
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=classes_with_existing_keys,  # type: ignore[arg-type]
+                classes=classes_with_partial_mappings,  # type: ignore[arg-type]
             )
 
     def test_included_classes(self, tmp_path: Path) -> None:
