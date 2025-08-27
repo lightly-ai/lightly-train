@@ -7,21 +7,26 @@
 #
 from __future__ import annotations
 
-from typing import Dict
+from typing import Any, TypedDict
 
-import numpy as np
-from numpy.typing import NDArray
-from torch import Tensor
+from pydantic import ConfigDict
 
 from lightly_train._configs.config import PydanticConfig
 
-TaskTransformInput = Dict[str, NDArray[np.uint8]]
-TaskTransformOutput = Dict[str, Tensor]
+
+class TaskTransformInput(TypedDict):
+    pass
+
+
+class TaskTransformOutput(TypedDict):
+    pass
 
 
 class TaskTransformArgs(PydanticConfig):
     def resolve_auto(self) -> None:
         pass
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class TaskTransform:
@@ -35,5 +40,5 @@ class TaskTransform:
             )
         self.transform_args = transform_args
 
-    def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:
+    def __call__(self, input: Any) -> Any:
         raise NotImplementedError()
