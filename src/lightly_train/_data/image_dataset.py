@@ -54,7 +54,7 @@ class ImageDataset(Dataset[DatasetItem]):
 
         if self.mask_dir:
             maskname = Path(filename).with_suffix(".png")
-            mask = file_helpers.open_image_numpy(self.mask_dir / maskname, mode="L")
+            mask = file_helpers.open_image_numpy(self.mask_dir / maskname, mode="MASK")
             input["mask"] = mask
 
         # (H, W, C) -> (C, H, W)
