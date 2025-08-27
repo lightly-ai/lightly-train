@@ -175,7 +175,15 @@ class PrettyFormatArgsJSONEncoder(JSONEncoder):
         if isinstance(obj, Path):
             return str(obj)
         if isinstance(obj, set):
-            return sorted([self.default(o) for o in obj])
+            result = []
+            for o in obj:
+                # Check if the object is already JSON-serializable
+                try:
+                    json.dumps(o)  # Test if it's directly serializable
+                    result.append(o)  # Use the object directly
+                except (TypeError, ValueError):
+                    result.append(self.default(o))  # Apply custom formatting
+            return sorted(result)
         try:
             return super().default(obj)
         except TypeError:

@@ -253,19 +253,9 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
 
         # Check the class mappings for validity.
         new_classes = set(class_infos.keys())
-        class_names: set[str] = set()
         class_values: set[int] = set()
 
         for class_id, class_info in class_infos.items():
-            # Check for duplicate class names
-            class_name = class_info.name
-            if class_name in class_names:
-                raise ValueError(
-                    f"Invalid class mapping: Class name '{class_name}' appears in multiple class definitions. "
-                    f"Each class name must be unique."
-                )
-            class_names.add(class_name)
-
             for value in class_info.values:
                 # Check for multiple values across different class mappings
                 if value in class_values:
