@@ -33,22 +33,14 @@ class YOLOObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
         self.image_filenames = image_filenames
         self.transform = transform
 
-        self._image_dir, self._label_dir = (
-            dataset_args.image_dir,
-            dataset_args.label_dir,
-        )
-
     def __len__(self) -> int:
         return len(self.image_filenames)
 
     def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
-        assert self._image_dir is not None
-        assert self._label_dir is not None
-
         # Load the image.
         image_filename = self.image_filenames[index]
-        image_path = self._image_dir / Path(image_filename)
-        label_path = self._label_dir / Path(image_filename).with_suffix(".txt")
+        image_path = self.args.image_dir / Path(image_filename)
+        label_path = self.args.label_dir / Path(image_filename).with_suffix(".txt")
 
         if not image_path.exists():
             raise FileNotFoundError(f"Image file {image_path} does not exist.")
@@ -93,8 +85,8 @@ class YOLOObjectDetectionDataArgs(PydanticConfig):
 
     @pydantic.field_validator("train", "val", mode="after")
     def validate_paths(cls, v: Path) -> Path:
-        if "images" not in str(v):
-            raise ValueError(f"Expected path to include 'images', got {v}.")
+        if "images" not in v.parts:
+            raise ValueError(f"Expected path to include 'images' directory, got {v}.")
         if len(v.parts) != 2:
             raise ValueError(f"Expected subdirectories of depth 2 from root, got {v}.")
         return v

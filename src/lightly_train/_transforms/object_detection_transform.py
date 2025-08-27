@@ -5,12 +5,30 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from typing import NotRequired
+
+import numpy as np
+from numpy.typing import NDArray
+from torch import Tensor
+
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
     TaskTransformInput,
     TaskTransformOutput,
 )
+
+
+class ObjectDetectionTransformInput(TaskTransformInput):
+    image: NDArray[np.uint8]
+    bboxes: NotRequired[NDArray[np.float64]]
+    class_labels: NotRequired[NDArray[np.int64]]
+
+
+class ObjectDetectionTransformOutput(TaskTransformOutput):
+    image: Tensor
+    bboxes: NotRequired[Tensor]
+    class_labels: NotRequired[Tensor]
 
 
 class ObjectDetectionTransformArgs(TaskTransformArgs):
@@ -20,5 +38,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
 class ObjectDetectionTransform(TaskTransform):
     transform_args_cls = ObjectDetectionTransformArgs
 
-    def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:  # type: ignore[empty-body]
+    def __call__(  # type: ignore[empty-body]
+        self, input: ObjectDetectionTransformInput
+    ) -> ObjectDetectionTransformOutput:
         pass

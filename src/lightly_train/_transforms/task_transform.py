@@ -7,30 +7,20 @@
 #
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
-import numpy as np
 from albumentations import BboxParams
-from numpy.typing import NDArray
 from pydantic import ConfigDict, Field
-from torch import Tensor
-from typing_extensions import NotRequired
 
 from lightly_train._configs.config import PydanticConfig
 
 
 class TaskTransformInput(TypedDict):
-    image: NDArray[np.uint8]
-    mask: NotRequired[NDArray[np.uint8]]
-    bboxes: NotRequired[NDArray[np.float64]]
-    class_labels: NotRequired[NDArray[np.int64]]
+    pass
 
 
 class TaskTransformOutput(TypedDict):
-    image: Tensor
-    mask: NotRequired[Tensor]
-    bboxes: NotRequired[Tensor]
-    class_labels: NotRequired[Tensor]
+    pass
 
 
 class TaskTransformArgs(PydanticConfig):
@@ -50,5 +40,5 @@ class TaskTransform:
     def __init__(self, transform_args: TaskTransformArgs):
         self.transform_args = transform_args
 
-    def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:
+    def __call__(self, input: Any) -> Any:
         raise NotImplementedError()
