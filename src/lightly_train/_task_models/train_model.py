@@ -58,10 +58,6 @@ class TrainModel(Module):
     # - predict_step
     # See: https://github.com/Lightning-AI/pytorch-lightning/blob/95f16c12fe23664ffa5198a43266f715717c6f45/src/lightning/fabric/wrappers.py#L47-L48
 
-    @classmethod
-    def is_supported_model(cls, model_name: str) -> bool:
-        raise NotImplementedError()
-
     def training_step(self, fabric: Fabric, batch, step: int) -> TaskStepResult:  # type: ignore[no-untyped-def]
         # Forward pass for training step.
         # Return dictionary with loss and metrics for logging.

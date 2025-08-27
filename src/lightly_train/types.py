@@ -23,6 +23,8 @@ PackageModel = Any
 
 # Types for the new transforms.
 NDArrayImage = NDArray[np.uint8]
+NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
+NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
 
 
 class TransformInput(TypedDict):
@@ -92,6 +94,13 @@ class MaskSemanticSegmentationBatch(TypedDict):
     # Tensor with shape (batch_size, H, W) or list of Tensors with shape (H, W).
     mask: Tensor | list[Tensor]
     binary_masks: list[BinaryMasksDict]  # On dict per image.
+
+
+class ObjectDetectionDatasetItem(TypedDict):
+    image_path: ImageFilename
+    image: Tensor
+    bboxes: Tensor  # Of shape (n_boxes, 4) with (x_center, y_center, w, h) coordinates.
+    classes: Tensor  # Of shape (n_boxes,) with class labels.
 
 
 # Replaces torch.optim.optimizer.ParamsT
