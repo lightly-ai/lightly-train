@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import numpy as np
+from albumentations import BboxParams
 from numpy.typing import NDArray
+from pydantic import Field
 from torch import Tensor
 from typing_extensions import NotRequired
 
@@ -33,7 +35,12 @@ class ObjectDetectionTransformOutput(TaskTransformOutput):
 
 
 class ObjectDetectionTransformArgs(TaskTransformArgs):
-    pass
+    # We use the YOLO format internally for now.
+    bbox_params: BboxParams = Field(
+        default_factory=lambda: BboxParams(
+            format="yolo", label_fields=["class_labels"]
+        ),
+    )
 
 
 class ObjectDetectionTransform(TaskTransform):

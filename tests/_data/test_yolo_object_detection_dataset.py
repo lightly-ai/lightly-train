@@ -34,7 +34,7 @@ class DummyTransform(ObjectDetectionTransform):
                 A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
                 A.pytorch.transforms.ToTensorV2(),
             ],
-            bbox_params=self.transform_args.bbox_params,
+            bbox_params=transform_args.bbox_params,
         )
 
     def __call__(

@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-from albumentations import BboxParams
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict
 
 from lightly_train._configs.config import PydanticConfig
 
@@ -24,13 +23,6 @@ class TaskTransformOutput(TypedDict):
 
 
 class TaskTransformArgs(PydanticConfig):
-    # We use the YOLO format internally for now.
-    bbox_params: BboxParams = Field(
-        default_factory=lambda: BboxParams(
-            format="yolo", label_fields=["class_labels"]
-        ),
-    )
-
     def resolve_auto(self) -> None:
         pass
 
