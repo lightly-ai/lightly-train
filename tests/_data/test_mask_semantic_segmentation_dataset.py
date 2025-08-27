@@ -71,7 +71,7 @@ class TestMaskSemanticSegmentationDataset:
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir=mask_dir,
-            classes={0: "background", 1: "object"},
+            classes={i: f"class_{i}" for i in range(num_classes)},
             ignore_index=ignore_index,
         )
         transform = DummyTransform(transform_args=TaskTransformArgs())

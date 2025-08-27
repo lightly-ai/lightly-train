@@ -64,7 +64,6 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         unique_values = np.unique(mask)
 
         # Check if at least one value in the mask is in the valid classes.
-        print("unique/vavlid", unique_values, self.valid_classes)
         return bool(np.isin(unique_values, self.valid_classes).any())
 
     def filter_empty_targets(self) -> None:
