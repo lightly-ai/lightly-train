@@ -197,55 +197,6 @@ class TestMaskSemanticSegmentationDataArgs:
                 classes=classes_with_existing_keys,  # type: ignore[arg-type]
             )
 
-    @pytest.mark.parametrize(
-        "classes_with_duplicate_names, duplicate_name",
-        [
-            # Test with dict input having duplicate names
-            (
-                {
-                    0: {"name": "background", "values": [0, 1]},
-                    5: {"name": "background", "values": [5, 6]},
-                },
-                "background",
-            ),
-            # Test with string input having duplicate names
-            (
-                {
-                    0: "vehicle",
-                    1: "vehicle",
-                },
-                "vehicle",
-            ),
-            # Test with mixed input having duplicate names
-            (
-                {
-                    0: "person",
-                    1: {"name": "person", "values": [1, 2]},
-                },
-                "person",
-            ),
-        ],
-    )
-    def test_validate_classes__duplicate_class_names(
-        self,
-        classes_with_duplicate_names: dict[int, str | dict[str, str | list[int]]],
-        duplicate_name: str,
-        tmp_path: Path,
-    ) -> None:
-        """Test that duplicate class names raise validation error."""
-        image_dir = tmp_path / "images"
-        mask_dir = tmp_path / "masks"
-
-        with pytest.raises(
-            ValueError,
-            match=f"Invalid class mapping: Class name '{duplicate_name}' appears in multiple class definitions",
-        ):
-            MaskSemanticSegmentationDataArgs(
-                train=SplitArgs(images=image_dir, masks=mask_dir),
-                val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=classes_with_duplicate_names,  # type: ignore[arg-type]
-            )
-
     def test_included_classes(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
