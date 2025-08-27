@@ -87,8 +87,6 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
     def validate_paths(cls, v: Path) -> Path:
         if "images" not in v.parts:
             raise ValueError(f"Expected path to include 'images' directory, got {v}.")
-        if len(v.parts) != 2:
-            raise ValueError(f"Expected subdirectories of depth 2 from root, got {v}.")
         return v
 
     def get_train_args(
@@ -133,9 +131,18 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
         val_img_dir = path / val
         test_img_dir = path / test if test else None
 
-        train_label_path = Path(str(train).replace("images", "labels"))
-        val_label_path = Path(str(val).replace("images", "labels"))
-        test_label_path = Path(str(test).replace("images", "labels")) if test else None
+        def _replace_first_images_with_labels(path: Path) -> Path:
+            """Replaces only the first occurrence of 'images' with 'labels' in a Path."""
+            parts = list(path.parts)
+            for i, part in enumerate(parts):
+                if part == "images":
+                    parts[i] = "labels"
+                    break
+            return Path(*parts)
+
+        train_label_path = _replace_first_images_with_labels(train)
+        val_label_path = _replace_first_images_with_labels(val)
+        test_label_path = _replace_first_images_with_labels(test) if test else None
 
         train_label_dir = path / train_label_path
         val_label_dir = path / val_label_path
