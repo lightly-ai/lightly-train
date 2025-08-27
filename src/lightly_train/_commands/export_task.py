@@ -167,7 +167,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
 
             x = torch.rand_like(dummy_input)
             session = ort.InferenceSession(out_path)
-            input_feed = {input_name: x.numpy()}
+            input_feed = {input_name: x.cpu().numpy()}
             outputs_onnx = session.run(output_names=output_names, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
 
