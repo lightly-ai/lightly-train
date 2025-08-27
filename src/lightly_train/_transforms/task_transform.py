@@ -21,11 +21,6 @@ class TaskTransformInput(TypedDict):
 
 class TaskTransformOutput(TypedDict):
     pass
-  
- 
-class TaskTransformArgs(PydanticConfig):
-    def resolve_auto(self) -> None:
-        pass
 
 
 class TaskTransformArgs(PydanticConfig):
