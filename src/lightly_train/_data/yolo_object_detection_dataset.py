@@ -75,7 +75,7 @@ class YOLOObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
         )
 
 
-class YOLOObjectDetectionDataArgs(PydanticConfig):
+class YOLOObjectDetectionDataArgs(TaskDataArgs):
     # TODO: (Lionel, 08/25): Handle test set.
     path: PathLike
     train: PathLike
@@ -151,7 +151,7 @@ class YOLOObjectDetectionDataArgs(PydanticConfig):
             raise ValueError(f"Unknown mode: {mode}")
 
 
-class YOLOObjectDetectionDatasetArgs(TaskDataArgs):
+class YOLOObjectDetectionDatasetArgs(PydanticConfig):
     image_dir: Path
     label_dir: Path
     classes: dict[int, str]
