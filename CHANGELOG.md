@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `model="dinov2/vits14-linear"` in the `train_semantic_segmentation` command. Those
   models are trained with a linear head on top of a frozen backbone and are useful
   to evaluate the quality of pretrained DINOv2 models.
+- Make fine-tune transform arguments configurable in the `train_semantic_segmentation`
+  command. You can now use the `transform_args` argument like this
+  ```python
+  transform_args={
+    "image_size": (height, width),
+    "normalize": {"mean": (r, g, b), "std": (r, g, b)},
+  }
+  ```
+  to customize the image augmentations used during training and validation.
+- Add support for the channel drop transform in the `train_semantic_segmentation` command.
 
 ### Changed
 

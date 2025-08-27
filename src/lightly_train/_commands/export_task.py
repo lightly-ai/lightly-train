@@ -63,6 +63,7 @@ def export_onnx(
     num_channels: int = 3,
     height: int = 224,
     width: int = 224,
+    verify: bool = True,
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
 ) -> None:
@@ -78,6 +79,7 @@ def _export_task(
     num_channels: int = 3,
     height: int = 224,
     width: int = 224,
+    verify: bool = True,
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
 ) -> None:
@@ -98,6 +100,8 @@ def _export_task(
             Height of the input tensor.
         width:
             Width of the input tensor.
+        verify:
+            Check the exported model for errors.
         overwrite:
             Overwrite the output file if it already exists.
         format_args:
@@ -130,13 +134,18 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
     if config.format == "onnx":
+        # Get the device of the model to ensure dummy input is on the same device
+        model_device = next(task_model.parameters()).device
         dummy_input = torch.randn(
             config.batch_size,
             config.num_channels,
             config.height,
             config.width,
             requires_grad=False,
+            device=model_device,
         )
+        input_name = "input"
+        output_names = ["masks", "logits"]
         with precalculate_for_onnx_export():
             task_model(dummy_input)
         logger.info(f"Exporting ONNX model to '{out_path}'")
@@ -144,10 +153,49 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             task_model,
             (dummy_input,),
             out_path,
-            input_names=["input"],
-            output_names=["masks", "logits"],
+            input_names=[input_name],
+            output_names=output_names,
             **config.format_args if config.format_args else {},
         )
+
+        if config.verify:
+            logger.info("Verifying ONNX model")
+            import onnx
+            import onnxruntime as ort
+
+            onnx.checker.check_model(out_path, full_check=True)
+
+            x = torch.rand_like(dummy_input)
+            session = ort.InferenceSession(out_path)
+            input_feed = {input_name: x.cpu().numpy()}
+            outputs_onnx = session.run(output_names=output_names, input_feed=input_feed)
+            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
+
+            outputs_model = task_model(x)
+
+            if len(outputs_onnx) != len(outputs_model):
+                raise AssertionError(
+                    f"Number of onnx outputs should be {len(outputs_model)} but is {len(outputs_onnx)}"
+                )
+            for output_onnx, output_model, output_name in zip(
+                outputs_onnx, outputs_model, output_names
+            ):
+                # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                torch.testing.assert_close(
+                    output_onnx,
+                    output_model,
+                    msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
+                    equal_nan=True,
+                    check_device=False,
+                    check_dtype=False,
+                    check_layout=False,
+                    atol=5e-3,
+                    rtol=1e-1,
+                )
+
+        logger.info(f"Successfully exported ONNX model to '{out_path}'")
+
     else:
         raise ValueError(
             f"Unsupported format: {config.format}. Supported formats: 'onnx'."
@@ -162,6 +210,7 @@ class ExportTaskConfig(PydanticConfig):
     num_channels: int = 3
     height: int = 224
     width: int = 224
+    verify: bool = True
     overwrite: bool = False
     format_args: dict[str, Any] | None = (
         None  # TODO(Yutong, 07/25): use Pydantic models for format_args if needed

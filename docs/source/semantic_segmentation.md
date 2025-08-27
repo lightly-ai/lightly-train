@@ -367,3 +367,87 @@ if __name__ == "__main__":
     )
 ```
 ````
+
+(semantic-segmentation-transform-arguments)=
+
+## Default Image Transform Arguments
+
+The following are the default train transform arguments for EoMT. The validation
+arguments are automatically inferred from the train arguments. Specifically the
+image size and normalization are shared between train and validation.
+
+You can configure the image size and normalization like this:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt",
+        data={
+            "train": {
+                "images": "my_data_dir/train/images",   # Path to training images
+                "masks": "my_data_dir/train/masks",     # Path to training masks
+            },
+            "val": {
+                "images": "my_data_dir/val/images",     # Path to validation images
+                "masks": "my_data_dir/val/masks",       # Path to validation masks
+            },
+            "classes": {                                # Classes in the dataset                    
+                0: "background",
+                1: "car",
+                2: "bicycle",
+                # ...
+            },
+            # Optional, classes that are in the dataset but should be ignored during
+            # training.
+            "ignore_classes": [0], 
+        },
+        transform_args={
+            "image_size": (518, 518), # (height, width)
+            "normalize": {
+                "mean": [0.485, 0.456, 0.406],
+                "std": [0.229, 0.224, 0.225],
+            },
+        },
+    )
+```
+
+`````{dropdown} EoMT DINOv2 Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/dinov2eomtsemanticsegmentationtrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} _auto/dinov2eomtsemanticsegmentationtrain_val_transform_args.md
+```
+````
+`````
+
+`````{dropdown} EoMT DINOv3 Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/dinov3eomtsemanticsegmentationtrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} _auto/dinov3eomtsemanticsegmentationtrain_val_transform_args.md
+```
+````
+`````
+
+In case you need different parameters for training and validation, you can pass an
+optional `val` dictionary to `transform_args` to override the validation parameters:
+
+```python
+transform_args={
+    "image_size": (518, 518), # (height, width)
+    "normalize": {
+        "mean": [0.485, 0.456, 0.406],
+        "std": [0.229, 0.224, 0.225],
+    },
+    "val": {    # Override validation parameters
+        "image_size": (512, 512), # (height, width)
+    }
+}
+```

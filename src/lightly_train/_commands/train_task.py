@@ -55,6 +55,7 @@ def train_semantic_segmentation(
     seed: int | None = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -129,6 +130,10 @@ def train_semantic_segmentation(
             for more information.
         model_args:
             Model training arguments. Either None or a dictionary of model arguments.
+        transform_args:
+            Transform arguments. Either None or a dictionary of transform arguments.
+            The image size and normalization parameters can be set with
+            ``transform_args={"image_size": (height, width), "normalize": {"mean": (r, g, b), "std": (r, g, b)}}``
         loader_args:
             Arguments for the PyTorch DataLoader. Should only be used in special cases
             as default values are automatically set. Prefer to use the `batch_size` and
@@ -161,6 +166,7 @@ def _train_task(
     seed: int | None = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -223,9 +229,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     train_model_cls = helpers.get_train_model_cls(
         model_name=config.model,
     )
-    # TODO(Guarin, 07/25): Allow passing transform args.
+
     train_transform_args, val_transform_args = helpers.get_transform_args(
-        train_model_cls=train_model_cls, ignore_index=config.data.ignore_index
+        train_model_cls=train_model_cls,
+        transform_args=config.transform_args,
+        ignore_index=config.data.ignore_index,
     )
     train_transform = helpers.get_train_transform(
         train_model_cls=train_model_cls, train_transform_args=train_transform_args
@@ -462,6 +470,7 @@ class TrainTaskConfig(PydanticConfig):
     seed: int | None = 0
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
     model_args: dict[str, Any] | TrainModelArgs | None = None
+    transform_args: dict[str, Any] | None = None
     loader_args: dict[str, Any] | None = None
     save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
 

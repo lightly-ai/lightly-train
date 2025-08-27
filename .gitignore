@@ -137,6 +137,7 @@ instance/
 # Sphinx documentation
 docs/_build/
 docs/source/changelog.md
+docs/**/_auto/
 
 # PyBuilder
 .pybuilder/

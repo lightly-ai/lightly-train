@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import (
+    Literal,
     Type,
     TypeVar,
 )
@@ -23,7 +24,7 @@ from lightly_train.types import TransformInput, TransformOutput
 
 class ChannelDropArgs(PydanticConfig):
     num_channels_keep: int
-    weight_drop: tuple[float, ...]
+    weight_drop: tuple[float, ...] = Field(strict=False)
 
 
 class RandomResizeArgs(PydanticConfig):
@@ -130,31 +131,28 @@ class ScaleJitterArgs(PydanticConfig):
 
 
 class SmallestMaxSizeArgs(PydanticConfig):
-    max_size: int | list[int]  # Maximum size of the smallest side of the image.
+    # Maximum size of the smallest side of the image.
+    max_size: int | list[int] | Literal["auto"]
     prob: float
 
-
-class LongestMaxSizeArgs(PydanticConfig):
-    max_size: int | list[int]  # Maximum size of the longest side of the image.
-    prob: float
+    def resolve_auto(self, height: int, width: int) -> None:
+        if self.max_size == "auto":
+            self.max_size = min(height, width)
 
 
 class RandomCropArgs(PydanticConfig):
-    height: int
-    width: int
+    height: int | Literal["auto"]
+    width: int | Literal["auto"]
     pad_position: str
-    pad_if_needed: bool = False  # Pad if crop size exceeds image size.
+    pad_if_needed: bool  # Pad if crop size exceeds image size.
     fill: tuple[float, ...] | float  # Padding value for images.
-    prob: float = 1.0  # Probability to apply RandomCrop.
+    prob: float  # Probability to apply RandomCrop.
 
-
-class CenterCropArgs(PydanticConfig):
-    height: int
-    width: int
-    pad_position: str
-    pad_if_needed: bool = False  # Pad if crop size exceeds image size.
-    fill: tuple[float, ...] | float  # Padding value for images.
-    prob: float = 1.0  # Probability to apply RandomCrop.
+    def resolve_auto(self, height: int, width: int) -> None:
+        if self.height == "auto":
+            self.height = height
+        if self.width == "auto":
+            self.width = width
 
 
 class MethodTransformArgs(PydanticConfig):

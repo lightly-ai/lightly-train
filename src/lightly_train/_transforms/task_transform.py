@@ -21,6 +21,11 @@ class TaskTransformInput(TypedDict):
 
 class TaskTransformOutput(TypedDict):
     pass
+  
+ 
+class TaskTransformArgs(PydanticConfig):
+    def resolve_auto(self) -> None:
+        pass
 
 
 class TaskTransformArgs(PydanticConfig):
@@ -38,6 +43,11 @@ class TaskTransform:
     transform_args_cls: type[TaskTransformArgs]
 
     def __init__(self, transform_args: TaskTransformArgs):
+        if not isinstance(transform_args, self.transform_args_cls):
+            raise TypeError(
+                f"transform_args must be of type {self.transform_args_cls.__name__}, "
+                f"got {type(transform_args).__name__} instead."
+            )
         self.transform_args = transform_args
 
     def __call__(self, input: Any) -> Any:
