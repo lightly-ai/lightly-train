@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import ClassVar, Literal
+from typing import ClassVar, Dict, Literal, Union
 
 import numpy as np
 import torch
@@ -239,7 +239,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         cls, classes: dict[int, str | dict[str, str | Sequence[int]]]
     ) -> dict[int, ClassInfo]:
         # Let Pydantic validate the structure and types
-        classes_validated = TypeAdapter(dict[int, str | ClassInfo]).validate_python(
+        classes_validated = TypeAdapter(dict[int, Union[str, ClassInfo]]).validate_python(
             classes
         )
 
