@@ -7,11 +7,10 @@
 #
 from __future__ import annotations
 
-from typing import NotRequired
-
 import numpy as np
 from numpy.typing import NDArray
 from torch import Tensor
+from typing_extensions import NotRequired
 
 from lightly_train._transforms.task_transform import (
     TaskTransform,

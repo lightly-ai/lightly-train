@@ -8,8 +8,6 @@
 
 from __future__ import annotations
 
-from typing import NotRequired
-
 import numpy as np
 from albumentations import (
     BasicTransform,
@@ -25,6 +23,7 @@ from albumentations import (
 from albumentations.pytorch import ToTensorV2
 from numpy.typing import NDArray
 from torch import Tensor
+from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.task_transform import (
