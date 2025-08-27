@@ -84,7 +84,8 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
     names: dict[int, str]
 
     @pydantic.field_validator("train", "val", mode="after")
-    def validate_paths(cls, v: Path) -> Path:
+    def validate_paths(cls, v: PathLike) -> Path:
+        v = Path(v)
         if "images" not in v.parts:
             raise ValueError(f"Expected path to include 'images' directory, got {v}.")
         return v
