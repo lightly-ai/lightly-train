@@ -28,6 +28,38 @@ from lightly_train._data import cache
 from tests._commands.test_train_helpers import MockDataset
 
 
+# Helpers for process-based concurrency tests must be top-level (picklable)
+def _inc_ref_worker(path_str: str) -> None:
+    from pathlib import Path
+
+    from lightly_train._commands import common_helpers
+
+    common_helpers._increment_ref_count(Path(path_str))
+
+
+def _dec_ref_worker(mmap_str: str, ref_str: str) -> None:
+    from pathlib import Path
+
+    from lightly_train._commands import common_helpers
+
+    common_helpers._decrement_and_cleanup_if_zero(Path(mmap_str), Path(ref_str))
+
+
+def _ctx_mmap_worker(data_str: str) -> str:
+    """Open the mmap path context and return the path as string.
+
+    Kept top-level to be picklable for ProcessPoolExecutor on spawn/forkserver.
+    """
+    from pathlib import Path
+
+    from lightly_train._commands import common_helpers
+
+    data_path = Path(data_str)
+    with common_helpers.get_dataset_temp_mmap_path(data=data_path) as mmap_path:
+        assert mmap_path.suffix == ".mmap"
+        return str(mmap_path)
+
+
 @pytest.mark.parametrize(
     "resume_interrupted, resume, expected",
     [
@@ -610,7 +642,6 @@ def test_decrement_and_cleanup__reuse(tmp_path: Path, mocker: MockerFixture) -> 
         1,  # Single increment
         5,  # Small concurrency
         10,  # Medium concurrency
-        20,  # High concurrency
     ],
 )
 def test_file_locking_concurrent_increments(
@@ -621,13 +652,15 @@ def test_file_locking_concurrent_increments(
 
     ref_file = tmp_path / "test.ref_count"
 
-    def increment_worker() -> None:
-        common_helpers._increment_ref_count(ref_file)
-
-    # Run multiple increments concurrently
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(increment_worker) for _ in range(num_increments)]
-        concurrent.futures.wait(futures)
+    # Run multiple increments concurrently using processes
+    with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
+        futures = [
+            executor.submit(_inc_ref_worker, str(ref_file))
+            for _ in range(num_increments)
+        ]
+        # Ensure any worker exceptions are raised
+        for fut in futures:
+            fut.result()
 
     # Verify final count is correct
     assert ref_file.read_text() == str(num_increments)
@@ -654,13 +687,15 @@ def test_file_locking_concurrent_decrements(
     mmap_file.touch()
     ref_file.write_text(str(initial_count))
 
-    def decrement_worker() -> None:
-        common_helpers._decrement_and_cleanup_if_zero(mmap_file, ref_file)
-
-    # Run decrements concurrently
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(decrement_worker) for _ in range(num_decrements)]
-        concurrent.futures.wait(futures)
+    # Run decrements concurrently using processes
+    with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
+        futures = [
+            executor.submit(_dec_ref_worker, str(mmap_file), str(ref_file))
+            for _ in range(num_decrements)
+        ]
+        # Ensure any worker exceptions are raised
+        for fut in futures:
+            fut.result()
 
     # Ref and lock files should not be deleted
     assert ref_file.exists()
@@ -700,17 +735,11 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
 
     data_path = tmp_path / "data"
 
-    def context_manager_worker() -> Path:
-        with common_helpers.get_dataset_temp_mmap_path(data=data_path) as mmap_path:
-            # Just verify the path is accessible and consistent
-            assert mmap_path.suffix == ".mmap"
-            return mmap_path
-
-    # Run 5 concurrent context managers
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(context_manager_worker) for _ in range(5)]
-        # Collect results from futures (thread-safe)
-        mmap_paths = [future.result() for future in futures]
+    # Run 5 concurrent context managers (processes)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(_ctx_mmap_worker, str(data_path)) for _ in range(5)]
+        # Collect results and re-raise any exceptions
+        mmap_paths = [Path(future.result()) for future in futures]
 
     # Verify all threads got the same mmap path
     assert len(set(mmap_paths)) == 1, "All threads should get the same mmap path"

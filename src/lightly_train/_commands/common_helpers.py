@@ -411,7 +411,7 @@ def get_dataset_temp_mmap_path(
 def _increment_ref_count(ref_file: Path) -> None:
     lock_file = ref_file.with_suffix(".lock")
 
-    with FileLock(lock_file).acquire(timeout=300):
+    with FileLock(lock_file, timeout=300):
         # Ensure file exists within the lock to avoid race conditions
         ref_file.touch()
         with open(ref_file, "r+") as f:
@@ -425,7 +425,7 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
     try:
         lock_file = ref_file.with_suffix(".lock")
 
-        with FileLock(lock_file).acquire(timeout=300):
+        with FileLock(lock_file, timeout=300):
             with open(ref_file, "r+") as f:
                 count = int(f.read() or "1") - 1
                 f.seek(0)
