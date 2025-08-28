@@ -295,6 +295,7 @@ def train_from_config(config: TrainConfig) -> None:
             data=config.data,
             transform=transform_instance,
             mmap_filepath=mmap_filepath,
+            out_dir=out_dir,
         )
         dataset_size = train_helpers.get_dataset_size(dataset=dataset)
         config.epochs = train_helpers.get_epochs(
