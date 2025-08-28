@@ -98,9 +98,11 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             img_labels.append(self.class_mapping[class_id])
 
         binary_masks: BinaryMasksDict = {
-            "masks": torch.stack(img_masks)
-            if img_masks
-            else mask.new_zeros(size=(0, *mask.shape), dtype=torch.bool),
+            "masks": (
+                torch.stack(img_masks)
+                if img_masks
+                else mask.new_zeros(size=(0, *mask.shape), dtype=torch.bool)
+            ),
             "labels": mask.new_tensor(img_labels, dtype=torch.long),
         }
         return binary_masks
