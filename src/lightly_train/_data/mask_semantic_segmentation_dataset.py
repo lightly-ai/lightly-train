@@ -11,9 +11,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import ClassVar
 
-import numpy as np
 import torch
-from numpy.typing import NDArray
 from pydantic import Field
 from torch import Tensor
 from torch.utils.data import Dataset
@@ -44,48 +42,13 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Get the class mapping.
         self.class_mapping = self.get_class_mapping()
-        self.valid_classes = np.array(list(self.class_mapping.keys()))
+        self.valid_classes = torch.tensor(list(self.class_mapping.keys()))
 
-        # Optionally filter image filenames corresponding to empty targets.
-        #  if dataset_args.check_empty_targets:
-        #     self.filter_empty_targets()
-
-    def is_mask_valid(self, mask: NDArray[np.uint8]) -> bool:
-        # Get unique values in the mask.
-        unique_values = np.unique(mask)
-
+    def is_mask_valid(self, mask: torch.tensor) -> bool:
         # Check if at least one value in the mask is in the valid classes.
-        return bool(np.isin(unique_values, self.valid_classes).any())
-
-    # def filter_empty_targets(self) -> None:
-    #     # TODO(Thomas, 07/25): Move the filtering outside of the dataset for compatibility
-    #     # with mmapped files and speed.
-    #     # Instantiate new list of file names
-    #     new_image_filenames = []
-
-    #     # Populate the new lists with file names corresponding to valid targets.
-    #     for filename in self.image_filenames:
-    #         filepath = (self.args.mask_dir / filename).with_suffix(".png")
-
-    #         mask = file_helpers.open_image_numpy(image_path=filepath, mode="MASK")
-    #         if self.is_mask_valid(mask):
-    #             new_image_filenames.append(filename)
-
-    #     # Display the number of filtered files.
-    #     # TODO(Thomas, 07/25): Change the print to logging once the function is moved
-    #     # outside of the dataset.
-    #     n_filtered_files = len(self) - len(new_image_filenames)
-    #     print(f"Filtered {n_filtered_files} invalid masks out of {len(self)}.")
-
-    #     # Update the list of valid files.
-    #     self.image_filenames = new_image_filenames
+        return torch.isin(mask.unique(), self.valid_classes).any()
 
     def get_class_mapping(self) -> dict[int, int]:
-        # Verify the classes are set (for mypy).
-        assert self.args.classes is not None, (
-            "Segmentation dataset classes must be set."
-        )
-
         # Set original classes.
         original_classes = self.args.classes.keys()
 
@@ -122,7 +85,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Iterate over the labels present in the mask.
         for class_id in class_ids:
             # Check if the class id is the valid classes.
-            if class_id not in self.valid_classes:
+            if class_id not in self.class_mapping:
                 continue
 
             # Create binary mask for the class.
@@ -166,24 +129,14 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             f"Shape mismatch: image shape is {image.shape[:2]} while mask shape is {mask.shape}."
         )
 
-        transformed = self.transform({"image": image, "mask": mask})
-
-        # Re-do the augmentation until the mask is valid.
-        # mask_is_valid = False
-        # for _ in range(20):
-        #     # (H, W, C) -> (C, H, W)
-        #     transformed = self.transform({"image": image, "mask": mask})
-        #     mask_is_valid = self.is_mask_valid(transformed["mask"].numpy())
-        #     if mask_is_valid:
-        #         break
-
-        # # Raise an error if the mask is still empty.
-        # if not mask_is_valid:
-        #     raise RuntimeError(
-        #         "Failed to obtain a valid mask after 20 augmentation retries. "
-        #         "Consider enabling `check_empty_targets=True` in the data arguments to "
-        #         "filter out such samples before training."
-        #     )
+        # Try to find an augmentation that contains a valid mask. This increases the
+        # probability for a good training signal. If no valid mask is found we still
+        # return the last transformed mask and proceed with training.
+        for _ in range(20):
+            # (H, W, C) -> (C, H, W)
+            transformed = self.transform({"image": image, "mask": mask})
+            if self.is_mask_valid(transformed["mask"]):
+                break
 
         # Get binary masks.
         # TODO(Thomas, 07/25): Make this optional.
@@ -205,10 +158,9 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
     mask_dir: Path
-    classes: dict[int, str] | None = None
+    classes: dict[int, str]
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
-    # check_empty_targets: bool = True
     ignore_index: int
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
@@ -236,7 +188,6 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     val: SplitArgs
     classes: dict[int, str]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
-    # check_empty_targets: bool = True
 
     @property
     def included_classes(self) -> dict[int, str]:
@@ -258,7 +209,6 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             mask_dir=Path(self.train.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
-            # check_empty_targets=self.check_empty_targets,
             ignore_index=self.ignore_index,
         )
 
@@ -270,6 +220,5 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             mask_dir=Path(self.val.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
-            # check_empty_targets=self.check_empty_targets,
             ignore_index=self.ignore_index,
         )
