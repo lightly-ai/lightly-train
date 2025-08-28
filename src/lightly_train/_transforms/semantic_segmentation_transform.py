@@ -21,6 +21,9 @@ from albumentations import (
     SmallestMaxSize,
 )
 from albumentations.pytorch import ToTensorV2
+from numpy.typing import NDArray
+from torch import Tensor
+from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.task_transform import (
@@ -37,6 +40,16 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
+
+
+class SemanticSegmentationTransformInput(TaskTransformInput):
+    image: NDArray[np.uint8]
+    mask: NotRequired[NDArray[np.uint8]]
+
+
+class SemanticSegmentationTransformOutput(TaskTransformOutput):
+    image: Tensor
+    mask: NotRequired[Tensor]
 
 
 class SemanticSegmentationTransformArgs(TaskTransformArgs):
@@ -145,6 +158,8 @@ class SemanticSegmentationTransform(TaskTransform):
         # Create the final transform.
         self.transform = Compose(transform, additional_targets={"mask": "mask"})
 
-    def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:
+    def __call__(
+        self, input: SemanticSegmentationTransformInput
+    ) -> SemanticSegmentationTransformOutput:
         transformed = self.transform(image=input["image"], mask=input["mask"])
         return {"image": transformed["image"], "mask": transformed["mask"]}
