@@ -398,14 +398,12 @@ def get_dataset_temp_mmap_path(
 
     try:
         # Increment reference count atomically
-        if distributed_helpers.is_local_rank_zero():
-            _increment_ref_count(ref_count_filepath)
+        _increment_ref_count(ref_count_filepath)
 
         yield mmap_filepath
     finally:
         # Decrement reference count and cleanup if zero
-        if distributed_helpers.is_local_rank_zero():
-            _decrement_and_cleanup_if_zero(mmap_filepath, ref_count_filepath)
+        _decrement_and_cleanup_if_zero(mmap_filepath, ref_count_filepath)
 
 
 def _increment_ref_count(ref_file: Path) -> None:
@@ -427,7 +425,7 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
 
         with FileLock(lock_file, timeout=300):
             with open(ref_file, "r+") as f:
-                count = int(f.read() or "1") - 1
+                count = max(0, int(f.read() or "1") - 1)
                 f.seek(0)
                 f.write(str(count))
                 f.truncate()

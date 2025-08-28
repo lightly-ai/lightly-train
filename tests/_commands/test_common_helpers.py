@@ -606,7 +606,7 @@ def test_decrement_and_cleanup(
         assert not mmap_file.exists()
     else:
         assert mmap_file.exists()
-        assert ref_file.read_text() == str(int(initial_count) - 1)
+        assert ref_file.read_text() == str(max(0, int(initial_count) - 1))
 
 
 def test_decrement_missing_files(tmp_path: Path) -> None:
@@ -671,7 +671,7 @@ def test_file_locking_concurrent_increments(
     [
         (10, 3, False),  # 10 - 3 = 7, no cleanup
         (5, 5, True),  # 5 - 5 = 0, cleanup
-        (3, 8, True),  # 3 - 8 < 0, cleanup
+        (3, 8, True),  # 3 - 8 = 0, cleanup
         (1, 1, True),  # 1 - 1 = 0, cleanup
     ],
 )
@@ -707,7 +707,7 @@ def test_file_locking_concurrent_decrements(
     else:
         assert mmap_file.exists()
 
-        expected_count = initial_count - num_decrements
+        expected_count = max(0, initial_count - num_decrements)
         assert ref_file.read_text() == str(expected_count)
 
 
@@ -741,14 +741,11 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
         # Collect results and re-raise any exceptions
         mmap_paths = [Path(future.result()) for future in futures]
 
-    # Verify all threads got the same mmap path
-    assert len(set(mmap_paths)) == 1, "All threads should get the same mmap path"
-
-    data_hash = common_helpers.get_sha256(f"{data_path}-0")
-    mmap_path = (cache.get_data_cache_dir() / data_hash).with_suffix(".mmap")
+    # Verify all processes got the same mmap path
+    assert len(set(mmap_paths)) == 1, "All processes should get the same mmap path"
 
     # After all context managers exit, the mmap file should be cleaned up
-    assert not mmap_path.exists()
+    assert not mmap_paths[0].exists()
 
 
 def test_get_dataset_mmap_filenames__rank0(tmp_path: Path) -> None:

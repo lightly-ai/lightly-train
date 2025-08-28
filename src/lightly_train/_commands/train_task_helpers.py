@@ -316,16 +316,14 @@ def get_dataset_temp_mmap_path(
 
     try:
         # Increment reference count atomically
-        if fabric.local_rank == 0:
-            _increment_ref_count(ref_count_filepath_broadcasted)
+        _increment_ref_count(ref_count_filepath_broadcasted)
 
         yield mmap_filepath_broadcasted
     finally:
         # Decrement reference count and cleanup if zero
-        if fabric.local_rank == 0:
-            _decrement_and_cleanup_if_zero(
-                mmap_filepath_broadcasted, ref_count_filepath_broadcasted
-            )
+        _decrement_and_cleanup_if_zero(
+            mmap_filepath_broadcasted, ref_count_filepath_broadcasted
+        )
 
 
 def _increment_ref_count(ref_file: Path) -> None:
@@ -347,7 +345,7 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
 
         with FileLock(lock_file, timeout=300):
             with open(ref_file, "r+") as f:
-                count = int(f.read() or "1") - 1
+                count = max(0, int(f.read() or "1") - 1)
                 f.seek(0)
                 f.write(str(count))
                 f.truncate()
