@@ -5,11 +5,10 @@ All notable changes to Lightly**Train** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.11.1] - 2025-08-28
 
 ### Added
 
-- The `data` argument in the `train_semantic_segmentation` command now supports mapping multiple classes into one class in the `classes` entry.
 - Add support for DINOv2 linear semantic segmentation models. You can train them with
   `model="dinov2/vits14-linear"` in the `train_semantic_segmentation` command. Those
   models are trained with a linear head on top of a frozen backbone and are useful
@@ -18,22 +17,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command. You can now use the `transform_args` argument like this
   ```python
   transform_args={
-    "image_size": (height, width),
-    "normalize": {"mean": (r, g, b), "std": (r, g, b)},
+    "image_size": (448, 448), # (height, width)
+    "normalize": {"mean": (0.0, 0.0, 0.0), "std": (0.5, 0.5, 0.5)}, # (r, g, b) channels
   }
   ```
-  to customize the image augmentations used during training and validation.
+  to customize the image augmentations used during training and validation. See the
+  [semantic segmentation documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#default-image-transform-arguments)
+  for more information.
 - Add support for the channel drop transform in the `train_semantic_segmentation` command.
-
-### Changed
-
-### Deprecated
-
-### Removed
+- Add support for mapping multiple classes into a single class for semantic segmentation
+  datasets. You can now use a dictionary in the `classes` entry of the
+  `data` argument in the `train_semantic_segmentation` command like this:
+  ```python
+  data={
+    "classes": {
+      0: {"name": "background", "values": [0, 255]}, # Map classes 0 and 255 to class 0
+      1: {"name": "class 1", "values": [1]},
+      2: "class 2",  # Still supported. Equivalent to {"name": "class 2", "values": [2]}
+    },
+  }
+  ```
 
 ### Fixed
 
-- Fix ONNX export for DINOv2 segmentation task.
+- Models loaded with `load_model_from_checkpoint` are now automatically moved to the
+  correct device.
+- Loading EoMT models with `load_model_from_checkpoint` no longer raises a missing
+  key error.
+- Fix MLFlow logging on AzureML.
 
 ### Security
 
