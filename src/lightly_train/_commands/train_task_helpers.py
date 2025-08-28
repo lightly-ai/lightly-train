@@ -175,7 +175,7 @@ class PrettyFormatArgsJSONEncoder(JSONEncoder):
         if isinstance(obj, Path):
             return str(obj)
         if isinstance(obj, set):
-            return sorted(obj)
+            return sorted(list(obj))
         try:
             return super().default(obj)
         except TypeError:
