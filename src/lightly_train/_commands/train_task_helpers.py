@@ -175,9 +175,9 @@ class PrettyFormatArgsJSONEncoder(JSONEncoder):
         if isinstance(obj, Path):
             return str(obj)
         if isinstance(obj, set):
-            return sorted(list(obj))
+            return sorted(obj)
         try:
-            return super().default(obj)
+            return self.default(obj)
         except TypeError:
             # Return class name for objects that cannot be serialized
             return obj.__class__.__name__

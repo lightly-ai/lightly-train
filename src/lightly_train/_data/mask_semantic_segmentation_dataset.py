@@ -14,7 +14,7 @@ from typing import ClassVar, Dict, Literal, Union
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from pydantic import Field, TypeAdapter, field_validator
+from pydantic import Field, TypeAdapter, field_serializer, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -34,6 +34,10 @@ from lightly_train.types import (
 class ClassInfo(PydanticConfig):
     name: str
     values: set[int] = Field(strict=False)
+
+    @field_serializer("values")
+    def serialize_values(self, values: set[int]) -> list[int]:
+        return sorted(values)
 
 
 class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
@@ -95,15 +99,15 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self.image_filenames = new_image_filenames
 
     def get_class_mapping(self) -> dict[int, int]:
-        all_new_classes = set(self.args.classes.keys())
-        ignore_classes = self.args.ignore_classes
-        included_classes = sorted(
-            all_new_classes - ignore_classes if ignore_classes else all_new_classes
-        )
-
-        class_mapping = {class_id: i for i, class_id in enumerate(included_classes)}
-
-        return class_mapping
+        ignore_classes = self.args.ignore_classes or set()
+        return {
+            class_id: i
+            for i, class_id in enumerate(
+                class_id
+                for class_id in self.args.classes.keys()
+                if class_id not in ignore_classes
+            )
+        }
 
     def __len__(self) -> int:
         return len(self.image_filenames)
@@ -206,6 +210,10 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     check_empty_targets: bool = True
     ignore_index: int
 
+    @field_serializer("ignore_classes")
+    def serialize_ignore_classes(self, values: set[int] | None) -> list[int] | None:
+        return sorted(values) if values is not None else None
+
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
     def list_image_filenames(self) -> Iterable[ImageFilename]:
@@ -232,6 +240,10 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     classes: dict[int, ClassInfo]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     check_empty_targets: bool = True
+
+    @field_serializer("ignore_classes")
+    def serialize_ignore_classes(self, values: set[int] | None) -> list[int] | None:
+        return sorted(values) if values is not None else None
 
     @field_validator("classes", mode="before")
     @classmethod
