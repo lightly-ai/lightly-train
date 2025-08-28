@@ -60,7 +60,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
     def is_mask_valid(self, mask: Tensor) -> bool:
         # Check if at least one value in the mask is in the valid classes.
-        unique_classes: Tensor = mask.unique()
+        unique_classes: Tensor = mask.unique()  # type: ignore[no-untyped-call]
         return bool(torch.isin(unique_classes, self.valid_classes).any())
 
     def get_class_mapping(self) -> dict[int, int]:
