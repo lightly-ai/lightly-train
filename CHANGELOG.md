@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed issue where segmentation fine-tuning could fail when encountering masks containing
+  only unknown classes.
+
 ### Security
 
 ## [0.11.1] - 2025-08-28

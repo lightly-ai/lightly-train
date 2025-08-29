@@ -295,7 +295,6 @@ class TestMaskSemanticSegmentationDataset:
             image_dir=image_dir,
             mask_dir=mask_dir,
             classes=classes,
-            check_empty_targets=False,
             ignore_index=-100,
         )
         transform = DummyTransform(transform_args=TaskTransformArgs())
@@ -328,7 +327,6 @@ class TestMaskSemanticSegmentationDataset:
             mask_dir=mask_dir,
             classes=classes,
             ignore_classes=ignore_classes,
-            check_empty_targets=False,
             ignore_index=-100,
         )
         transform = DummyTransform(transform_args=TaskTransformArgs())
