@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import ClassVar, Dict, Iterable, Union
+from typing import Any, ClassVar, Dict, Iterable, Union
 
 import torch
 from pydantic import Field, TypeAdapter, field_validator
@@ -29,9 +29,61 @@ from lightly_train.types import (
 )
 
 
-class ClassInfo(PydanticConfig):
+class LabelsClassInfo(PydanticConfig):
     name: str
-    values: set[int] = Field(strict=False)
+    labels: set[int] = Field(alias="values")
+
+    @field_validator("labels", mode="before")
+    @classmethod
+    def normalize_labels(cls, v: set[int] | list[int]) -> set[int]:
+        # Case for a single label: 0 -> {0}
+        if isinstance(v, set):
+            return v
+        # List of labels: [0, 1, 2] -> {0, 1, 2}
+        if isinstance(v, list):
+            return set(v)
+        else:
+            raise ValueError(f"Expected int or list of ints, got {type(v)}")
+
+
+# TODO: invalid color tuples
+class ColorsClassInfo(PydanticConfig):
+    name: str
+    colors: set[tuple[int, ...]] = Field(alias="values")
+
+    @field_validator("colors", mode="before")
+    @classmethod
+    def normalize_colors(
+        cls, v: tuple[int, ...] | list[tuple[int, ...]]
+    ) -> set[tuple[int, ...]]:
+        # Case for a single color tuple: (0, 0, 0) -> {(0, 0, 0)}
+        if isinstance(v, tuple):
+            return {v}
+        # List of color tuples: [(0, 0, 0), (255, 255, 255)] -> {(0, 0, 0), (255, 255, 255)}
+        elif isinstance(v, list):
+            return set(v)
+        else:
+            raise ValueError(f"Expected tuple or list of tuples, got {type(v)}")
+
+    @field_validator("colors", mode="after")
+    @classmethod
+    def validate_rgb_colors(cls, colors: set[tuple[int, ...]]) -> set[tuple[int, ...]]:
+        # Validate that each color is a valid RGB tuple with channels in [0, 255].
+        for color in colors:
+            if len(color) != 3:
+                raise ValueError(
+                    f"Invalid RGB color values: {color}. Values must be integers between 0 and 255."
+                )
+            r, g, b = color
+            for channel in (r, g, b):
+                if not isinstance(channel, int) or not (0 <= channel <= 255):
+                    raise ValueError(
+                        f"Invalid RGB color values: {color}. Values must be integers between 0 and 255."
+                    )
+        return colors
+
+
+ClassInfo = Union[ColorsClassInfo, LabelsClassInfo]
 
 
 class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
@@ -222,43 +274,71 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     @field_validator("classes", mode="before")
     @classmethod
     def validate_classes(
-        cls, classes: dict[int, str | dict[str, str | Sequence[int]]]
+        cls, classes: dict[int, str | dict[str, Any]]
     ) -> dict[int, ClassInfo]:
-        # Let Pydantic validate the structure and types
         classes_validated = TypeAdapter(
-            Dict[int, Union[str, ClassInfo]]
+            Dict[int, Union[str, LabelsClassInfo, ColorsClassInfo]]
         ).validate_python(classes)
 
-        # Convert to ClassInfo objects
+        # Convert to ClassInfo objects and perform consistency checks.
         class_infos: dict[int, ClassInfo] = {}
+        class_types: set[type] = set()
+        class_labels: set[int] = set()
+        class_colors: set[tuple[int, ...]] = set()
+
         for class_id, class_info in classes_validated.items():
             if isinstance(class_info, str):
-                class_infos[class_id] = ClassInfo(name=class_info, values={class_id})
+                class_info = LabelsClassInfo(name=class_info, values={class_id})
+
+            # Check for inconsistent class types early
+            class_types.add(type(class_info))
+            if len(class_types) > 1:
+                raise ValueError(
+                    "All classes must be consistently either LabelsClassInfo or ColorsClassInfo. Mixing types is not allowed."
+                )
+
+            if isinstance(class_info, LabelsClassInfo):
+                for label in class_info.labels:
+                    # Check for multiple labels across different class mappings
+                    if label in class_labels:
+                        raise ValueError(
+                            f"Invalid class mapping: Class label {label} appears in multiple class definitions. "
+                            f"Each old class label can only mapped to one new class.\n\n"
+                            f"INCORRECT (class label {label} is duplicated):\n"
+                            f"classes = {{\n"
+                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
+                            f"  254: {{'name': 'background-254', 'values': [0, 1, 2]}}  # <- class [0, 1, 2] conflict with class 255\n"
+                            f"}}\n\n"
+                            f"CORRECT (each set of class values belongs to only one class):\n"
+                            f"classes = {{\n"
+                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
+                            f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # <- unique values\n"
+                            f"}}"
+                        )
+                    class_labels.add(label)
+            elif isinstance(class_info, ColorsClassInfo):
+                for color in class_info.colors:
+                    # Check for multiple colors across different class mappings
+                    if color in class_colors:
+                        raise ValueError(
+                            f"Invalid class mapping: Class color {color} appears in multiple class definitions. "
+                            f"Each RGB color in the mask can only be mapped to one new class.\n\n"
+                            f"INCORRECT (color color {color} is duplicated):\n"
+                            f"classes = {{\n"
+                            f"  0: {{'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            f"  1: {{'name': 'road', 'values': [(0, 0, 0), (128, 128, 128)]}}  # <- color (0, 0, 0) conflict with class 0\n"
+                            f"}}\n\n"
+                            f"CORRECT (each RGB color belongs to only one class):\n"
+                            f"classes = {{\n"
+                            f"  0: {{'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            f"  1: {{'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}}  # <- unique colors\n"
+                            f"}}"
+                        )
+                    class_colors.add(color)
             else:
-                class_infos[class_id] = class_info
+                pass
 
-        # Check the class mappings for validity.
-        class_values: set[int] = set()
-
-        for class_id, class_info in class_infos.items():
-            for value in class_info.values:
-                # Check for multiple values across different class mappings
-                if value in class_values:
-                    raise ValueError(
-                        f"Invalid class mapping: Class {value} appears in multiple class definitions. "
-                        f"Each old class value can only mapped to one new class.\n\n"
-                        f"INCORRECT (class {value} is duplicated):\n"
-                        f"classes = {{\n"
-                        f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                        f"  254: {{'name': 'background-254', 'values': [0, 1, 2]}}  # <- class [0, 1, 2] conflict with class 255\n"
-                        f"}}\n\n"
-                        f"CORRECT (each set of class values belongs to only one class):\n"
-                        f"classes = {{\n"
-                        f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                        f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # <- unique values\n"
-                        f"}}"
-                    )
-                class_values.add(value)
+            class_infos[class_id] = class_info
 
         return class_infos
 
