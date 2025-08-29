@@ -28,6 +28,38 @@ from lightly_train._data import cache
 from tests._commands.test_train_helpers import MockDataset
 
 
+# Helpers for process-based concurrency tests must be top-level (picklable)
+def _inc_ref_worker(path_str: str) -> None:
+    from pathlib import Path
+
+    from lightly_train._commands import common_helpers
+
+    common_helpers._increment_ref_count(Path(path_str))
+
+
+def _dec_ref_worker(mmap_str: str, ref_str: str) -> None:
+    from pathlib import Path
+
+    from lightly_train._commands import common_helpers
+
+    common_helpers._decrement_and_cleanup_if_zero(Path(mmap_str), Path(ref_str))
+
+
+def _ctx_mmap_worker(data_str: str) -> str:
+    """Open the mmap path context and return the path as string.
+
+    Kept top-level to be picklable for ProcessPoolExecutor on spawn/forkserver.
+    """
+    from pathlib import Path
+
+    from lightly_train._commands import common_helpers
+
+    data_path = Path(data_str)
+    with common_helpers.get_dataset_temp_mmap_path(data=data_path) as mmap_path:
+        assert mmap_path.suffix == ".mmap"
+        return str(mmap_path)
+
+
 @pytest.mark.parametrize(
     "resume_interrupted, resume, expected",
     [
@@ -540,11 +572,143 @@ def test_get_num_workers__slurm(
     )
 
 
-def test_get_dataset_temp_mmap_path(tmp_path: Path) -> None:
-    with common_helpers.get_dataset_temp_mmap_path(data=tmp_path) as mmap_path:
-        mmap_path.touch()
-    # Make sure file is deleted after exiting the context manager.
-    assert not mmap_path.exists()
+@pytest.mark.parametrize(
+    "initial_count,expected_count", [(None, "1"), ("", "1"), ("5", "6")]
+)
+def test_increment_ref_count(
+    tmp_path: Path, initial_count: str | None, expected_count: str
+) -> None:
+    ref_file = tmp_path / "test.ref_count"
+    if initial_count is not None:
+        ref_file.write_text(initial_count)
+
+    common_helpers._increment_ref_count(ref_file)
+
+    assert ref_file.read_text() == expected_count
+
+
+@pytest.mark.parametrize(
+    "initial_count,should_cleanup", [("3", False), ("1", True), ("0", True), ("", True)]
+)
+def test_decrement_and_cleanup(
+    tmp_path: Path, initial_count: str, should_cleanup: bool
+) -> None:
+    mmap_file = tmp_path / "test.mmap"
+    ref_file = tmp_path / "test.ref_count"
+
+    mmap_file.touch()
+    ref_file.write_text(initial_count)
+
+    common_helpers._decrement_and_cleanup_if_zero(mmap_file, ref_file)
+
+    # Check if mmap file is deleted or not
+    if should_cleanup:
+        assert not mmap_file.exists()
+    else:
+        assert mmap_file.exists()
+        assert ref_file.read_text() == str(max(0, int(initial_count) - 1))
+
+
+def test_decrement_missing_files(tmp_path: Path) -> None:
+    # Should not raise exceptions for missing files
+    common_helpers._decrement_and_cleanup_if_zero(
+        tmp_path / "missing.mmap", tmp_path / "missing.ref"
+    )
+
+
+def test_decrement_and_cleanup__reuse(tmp_path: Path, mocker: MockerFixture) -> None:
+    """Test that LIGHTLY_TRAIN_MMAP_REUSE_FILE affects mmap file cleanup."""
+    mmap_file = tmp_path / "test.mmap"
+    ref_file = tmp_path / "test.ref_count"
+
+    mmap_file.touch()
+    ref_file.write_text("1")  # Set to 1 so decrement will trigger cleanup
+
+    # Mock the environment variable
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_MMAP_REUSE_FILE": "1"})
+
+    common_helpers._decrement_and_cleanup_if_zero(mmap_file, ref_file)
+
+    # Ref and lock files should not be deleted
+    assert ref_file.exists()
+
+    # When reuse is enabled, mmap file should NOT be deleted
+    assert mmap_file.exists()
+
+
+@pytest.mark.parametrize(
+    "num_increments",
+    [
+        1,  # Single increment
+        5,  # Small concurrency
+        10,  # Medium concurrency
+    ],
+)
+def test_file_locking_concurrent_increments(
+    tmp_path: Path, num_increments: int
+) -> None:
+    """Test that file locking prevents race conditions."""
+    import concurrent.futures
+
+    ref_file = tmp_path / "test.ref_count"
+
+    # Run multiple increments concurrently using processes
+    with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
+        futures = [
+            executor.submit(_inc_ref_worker, str(ref_file))
+            for _ in range(num_increments)
+        ]
+        # Ensure any worker exceptions are raised
+        for fut in futures:
+            fut.result()
+
+    # Verify final count is correct
+    assert ref_file.read_text() == str(num_increments)
+
+
+@pytest.mark.parametrize(
+    "initial_count,num_decrements,should_cleanup",
+    [
+        (10, 3, False),  # 10 - 3 = 7, no cleanup
+        (5, 5, True),  # 5 - 5 = 0, cleanup
+        (3, 8, True),  # 3 - 8 = 0, cleanup
+        (1, 1, True),  # 1 - 1 = 0, cleanup
+    ],
+)
+def test_file_locking_concurrent_decrements(
+    tmp_path: Path, initial_count: int, num_decrements: int, should_cleanup: bool
+) -> None:
+    """Test concurrent decrements with various scenarios."""
+    import concurrent.futures
+
+    mmap_file = tmp_path / "test.mmap"
+    ref_file = mmap_file.with_suffix(".ref_count")
+
+    mmap_file.touch()
+    ref_file.write_text(str(initial_count))
+
+    # Run decrements concurrently using processes
+    with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
+        futures = [
+            executor.submit(_dec_ref_worker, str(mmap_file), str(ref_file))
+            for _ in range(num_decrements)
+        ]
+        # Ensure any worker exceptions are raised
+        for fut in futures:
+            fut.result()
+
+    # Ref and lock files should not be deleted
+    assert ref_file.exists()
+
+    # Check if mmap file is deleted or not
+    if should_cleanup:
+        assert not mmap_file.exists()
+
+    else:
+        assert mmap_file.exists()
+
+        expected_count = max(0, initial_count - num_decrements)
+        assert ref_file.read_text() == str(expected_count)
 
 
 def test_get_dataset_temp_mmap_path__rank(
@@ -563,10 +727,32 @@ def test_get_dataset_temp_mmap_path__rank(
     assert mmap_path_rank0 == mmap_path_rank1
 
 
+def test_get_dataset_temp_mmap_path__concurrent_context_managers(
+    tmp_path: Path,
+) -> None:
+    """Test that concurrent context managers work without corruption and clean up properly."""
+    import concurrent.futures
+
+    data_path = tmp_path / "data"
+
+    # Run 5 concurrent context managers (processes)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(_ctx_mmap_worker, str(data_path)) for _ in range(5)]
+        # Collect results and re-raise any exceptions
+        mmap_paths = [Path(future.result()) for future in futures]
+
+    # Verify all processes got the same mmap path
+    assert len(set(mmap_paths)) == 1, "All processes should get the same mmap path"
+
+    # After all context managers exit, the mmap file should be cleaned up
+    assert not mmap_paths[0].exists()
+
+
 def test_get_dataset_mmap_filenames__rank0(tmp_path: Path) -> None:
     filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
     mmap_filepath = tmp_path / "test.mmap"
     mmap_filenames = common_helpers.get_dataset_mmap_filenames(
+        out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
@@ -582,6 +768,7 @@ def test_get_dataset_mmap_filenames__rank(
     # Simulate calling the function from rank 0
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
     mmap_filenames_rank0 = common_helpers.get_dataset_mmap_filenames(
+        out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
@@ -589,6 +776,7 @@ def test_get_dataset_mmap_filenames__rank(
     # Simulate calling the function from rank 1
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
     mmap_filenames_rank1 = common_helpers.get_dataset_mmap_filenames(
+        out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
@@ -608,6 +796,7 @@ def test_get_dataset_mmap_filenames__rank_error(
     # Simulate calling the function from rank 0.
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
     common_helpers.get_dataset_mmap_filenames(
+        out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath_rank0,
     )
@@ -618,6 +807,7 @@ def test_get_dataset_mmap_filenames__rank_error(
     )
     with pytest.raises(RuntimeError, match="Rank 1: Timeout after 0.1 seconds"):
         common_helpers.get_dataset_mmap_filenames(
+            out_dir=tmp_path,
             filenames=filenames,
             mmap_filepath=mmap_filepath_rank1,
         )
@@ -632,6 +822,7 @@ def test_get_dataset_mmap_filenames__reuse(
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_MMAP_REUSE_FILE": "1"})
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_path)})
     mmap_filenames_first = common_helpers.get_dataset_mmap_filenames(
+        out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
@@ -640,6 +831,7 @@ def test_get_dataset_mmap_filenames__reuse(
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
     with caplog.at_level(logging.WARNING):
         mmap_filenames_reused = common_helpers.get_dataset_mmap_filenames(
+            out_dir=tmp_path,
             filenames=filenames,
             mmap_filepath=mmap_filepath,
         )
@@ -655,6 +847,7 @@ def test_get_dataset__path(tmp_path: Path) -> None:
         data=tmp_path,
         transform=ToTensorV2(),
         mmap_filepath=mmap_filepath,
+        out_dir=tmp_path,
     )
 
 
@@ -664,6 +857,7 @@ def test_get_dataset__path__nonexisting(tmp_path: Path) -> None:
             data=tmp_path / "nonexisting",
             transform=ToTensorV2(),
             mmap_filepath=None,
+            out_dir=tmp_path,
         )
 
 
@@ -675,6 +869,7 @@ def test_get_dataset__path__nondir(tmp_path: Path) -> None:
             data=file,
             transform=ToTensorV2(),
             mmap_filepath=None,
+            out_dir=tmp_path,
         )
 
 
@@ -684,6 +879,7 @@ def test_get_dataset__path__empty(tmp_path: Path) -> None:
             data=tmp_path,
             transform=ToTensorV2(),
             mmap_filepath=None,
+            out_dir=tmp_path,
         )
 
 
@@ -706,6 +902,7 @@ def test_get_dataset__dirs_and_files(tmp_path: Path) -> None:
         ],
         transform=ToTensorV2(),
         mmap_filepath=mmap_filepath,
+        out_dir=tmp_path,
     )
 
 
@@ -715,6 +912,7 @@ def test_get_dataset__dataset() -> None:
         data=dataset,
         transform=ToTensorV2(),
         mmap_filepath=None,
+        out_dir=Path("/tmp"),
     )
     assert dataset == dataset_1
 

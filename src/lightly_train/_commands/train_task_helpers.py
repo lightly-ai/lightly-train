@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Generator, Iterable, Literal
 
 import torch
+from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
@@ -289,6 +290,7 @@ def get_dataset_temp_mmap_path(
     mmap_filepath = (cache.get_data_cache_dir() / get_sha256(data)).with_suffix(".mmap")
     mmap_filepath_broadcasted = Path(fabric.broadcast(str(mmap_filepath)))
     mmap_dirpath_broadcasted = mmap_filepath_broadcasted.parent
+    ref_count_filepath_broadcasted = mmap_filepath.with_suffix(".ref_count")
 
     # Create the output directory if it doesn't exist.
     with fabric.rank_zero_first():
@@ -312,16 +314,48 @@ def get_dataset_temp_mmap_path(
             if fabric.local_rank == 0 and fabric.global_rank != 0:
                 mmap_dirpath_broadcasted.mkdir(parents=True, exist_ok=True)
 
-    reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
     try:
-        # Delete the file if it already exists from a previous run.
-        if not reuse_file and (fabric.local_rank == 0):
-            _unlink_and_ignore(mmap_filepath_broadcasted)
+        # Increment reference count atomically
+        _increment_ref_count(ref_count_filepath_broadcasted)
 
         yield mmap_filepath_broadcasted
     finally:
-        if not reuse_file and (fabric.local_rank == 0):
-            _unlink_and_ignore(mmap_filepath_broadcasted)
+        # Decrement reference count and cleanup if zero
+        _decrement_and_cleanup_if_zero(
+            mmap_filepath_broadcasted, ref_count_filepath_broadcasted
+        )
+
+
+def _increment_ref_count(ref_file: Path) -> None:
+    lock_file = ref_file.with_suffix(".lock")
+
+    with FileLock(lock_file, timeout=300):
+        # Ensure file exists within the lock to avoid race conditions
+        ref_file.touch()
+        with open(ref_file, "r+") as f:
+            count = int(f.read() or "0")
+            f.seek(0)
+            f.write(str(count + 1))
+            f.truncate()
+
+
+def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
+    try:
+        lock_file = ref_file.with_suffix(".lock")
+
+        with FileLock(lock_file, timeout=300):
+            with open(ref_file, "r+") as f:
+                count = max(0, int(f.read() or "1") - 1)
+                f.seek(0)
+                f.write(str(count))
+                f.truncate()
+
+                if count <= 0 and not Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
+                    # Remove mmap file only if we are not reusing it and count is zero
+                    _unlink_and_ignore(mmap_file)
+
+    except (FileNotFoundError, OSError):
+        pass  # Another process already cleaned up
 
 
 def get_dataset_mmap_filenames(
