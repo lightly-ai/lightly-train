@@ -44,8 +44,14 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
-def get_teacher(teacher_name: str, teacher_weights: str | Path | None = None) -> Module:
-    wrapped_model = package_helpers.get_wrapped_model(model=teacher_name)
+def get_teacher(teacher_name: str, teacher_weights: str | Path | None = None,  method_args: DistillationArgs | None = None,) -> Module:
+    model_args: dict[str, Any] = {}
+    if "dinov3" in teacher_name and method_args is not None:
+        model_args["weights"] = method_args.teacher_url
+
+    wrapped_model = package_helpers.get_wrapped_model(
+        model=teacher_name, model_args=model_args
+    )
     assert isinstance(wrapped_model, (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper))
     wrapped_model.make_teacher()
     teacher_embedding_model = wrapped_model.get_model()
@@ -80,6 +86,7 @@ class DistillationArgs(MethodArgs):
 
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None
+    teacher_url: str | None = None
 
     # Scaling method for the learning rate.
     lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
@@ -144,7 +151,7 @@ class Distillation(Method):
         )
         # Get the teacher model.
         self.teacher_embedding_model = get_teacher(
-            method_args.teacher, method_args.teacher_weights
+            teacher_name=method_args.teacher, teacher_weights=method_args.teacher_weights, method_args=method_args,
         )
 
         # Store the student model.
