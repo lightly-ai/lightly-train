@@ -235,10 +235,10 @@ class ConvNeXt(nn.Module):
     ) -> List[Dict[str, Tensor]]:
         output = []
         for x, masks in zip(x_list, masks_list):
-            h, w = x.shape[-2:]
             for i in range(4):
                 x = self.downsample_layers[i](x)
                 x = self.stages[i](x)
+            H, W = x.shape[-2:]
             x_pool = x.mean([-2, -1])  # global average pooling, (N, C, H, W) -> (N, C)
             x = torch.flatten(x, 2).transpose(1, 2)
 
@@ -251,6 +251,7 @@ class ConvNeXt(nn.Module):
                     "x_norm_patchtokens": x_norm[:, self.n_storage_tokens + 1 :],
                     "x_prenorm": x,
                     "masks": masks,
+                    "x_norm_patchtokens_hw": (H, W),
                 }
             )
 
