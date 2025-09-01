@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Add `half` flat to ONNX export task to export with float16 precision.
+- Add `half` flag to ONNX export task to export with float16 precision.
 
 ### Deprecated
 
