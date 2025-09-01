@@ -63,6 +63,7 @@ def export_onnx(
     num_channels: int = 3,
     height: int = 224,
     width: int = 224,
+    half: bool = False,
     verify: bool = True,
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
@@ -79,6 +80,7 @@ def _export_task(
     num_channels: int = 3,
     height: int = 224,
     width: int = 224,
+    half: bool = False,
     verify: bool = True,
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
@@ -100,6 +102,8 @@ def _export_task(
             Height of the input tensor.
         width:
             Width of the input tensor.
+        half:
+            Export the model with float16 precision.
         verify:
             Check the exported model for errors.
         overwrite:
@@ -130,12 +134,16 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
         checkpoint=checkpoint_path
     )
     task_model.eval()
+    if config.half:
+        task_model.half()
 
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
     if config.format == "onnx":
         # Get the device of the model to ensure dummy input is on the same device
         model_device = next(task_model.parameters()).device
+        onnx_dtype = torch.float16 if config.half else torch.float32
+
         dummy_input = torch.randn(
             config.batch_size,
             config.num_channels,
@@ -143,6 +151,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             config.width,
             requires_grad=False,
             device=model_device,
+            dtype=onnx_dtype,
         )
         input_name = "input"
         output_names = ["masks", "logits"]
@@ -165,13 +174,19 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
 
             onnx.checker.check_model(out_path, full_check=True)
 
-            x = torch.rand_like(dummy_input)
+            # Always run the reference input in float32 and on cpu for consistency
+            x_model = torch.rand_like(dummy_input, dtype=torch.float32, device="cpu")
+            x_onnx = x_model.half() if config.half else x_model
+
             session = ort.InferenceSession(out_path)
-            input_feed = {input_name: x.cpu().numpy()}
+            input_feed = {input_name: x_onnx.numpy()}
             outputs_onnx = session.run(output_names=output_names, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
 
-            outputs_model = task_model(x)
+            task_model = task_model_helpers.load_model_from_checkpoint(
+                checkpoint=checkpoint_path, device="cpu"
+            )
+            outputs_model = task_model(x_model)
 
             if len(outputs_onnx) != len(outputs_model):
                 raise AssertionError(
@@ -210,6 +225,7 @@ class ExportTaskConfig(PydanticConfig):
     num_channels: int = 3
     height: int = 224
     width: int = 224
+    half: bool = False
     verify: bool = True
     overwrite: bool = False
     format_args: dict[str, Any] | None = (
