@@ -127,6 +127,15 @@ def test_onnx_export(
         torch.testing.assert_close(ort_y, expected_y, rtol=rtol, atol=atol)
 
 
+@pytest.mark.parametrize("batch_size,height,width", onnx_export_testset)
+@pytest.mark.skipif(
+    sys.version_info < (3, 9),
+    reason="Requires Python 3.9 or higher for image preprocessing.",
+)
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
 def test_onnx_export__height_not_patch_size_multiple_fails(
     dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
 ):
@@ -156,6 +165,15 @@ def test_onnx_export__height_not_patch_size_multiple_fails(
         )
 
 
+@pytest.mark.parametrize("batch_size,height,width", onnx_export_testset)
+@pytest.mark.skipif(
+    sys.version_info < (3, 9),
+    reason="Requires Python 3.9 or higher for image preprocessing.",
+)
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
 def test_onnx_export__width_not_patch_size_multiple_fails(
     dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
 ):
