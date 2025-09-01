@@ -11,7 +11,7 @@ import contextlib
 import contextvars
 import logging
 from abc import abstractmethod
-from collections.abc import Iterator, Container, Mapping, Sequence
+from collections.abc import Container, Iterator, Mapping, Sequence
 from enum import Enum
 from typing import Any, Literal, Protocol, Tuple, runtime_checkable
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import math
 import os
-from collections.abc import Sequence, Mapping, Container
+from collections.abc import Container, Sequence
 from typing import Any, Tuple
 
 import torch
@@ -21,7 +21,7 @@ from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import override
 
-from lightly_train._commands.export_task import ONNXPrecision, ONNXExportable
+from lightly_train._commands.export_task import ONNXExportable, ONNXPrecision
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
