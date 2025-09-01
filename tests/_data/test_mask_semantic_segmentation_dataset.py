@@ -233,12 +233,15 @@ class TestMaskSemanticSegmentationDataset:
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg", "image1.jpg"]
         mask_filenames = ["image0.png", "image1.png"]
+
+        mask_file = "{image_path.parent.parent}/masks/{image_path.stem}.png"
+
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=num_classes)
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir=mask_dir,
+            mask_file=mask_file,
             classes={
                 i: ClassInfo(name=f"class_{i}", values={i}) for i in range(num_classes)
             },
@@ -247,7 +250,7 @@ class TestMaskSemanticSegmentationDataset:
         transform = DummyTransform(transform_args=TaskTransformArgs())
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
-            image_filenames=list(dataset_args.list_image_filenames()),
+            image_and_mask_filepaths=list(dataset_args.list_image_and_mask_filepaths()),
             transform=transform,
         )
 
@@ -281,6 +284,9 @@ class TestMaskSemanticSegmentationDataset:
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
         mask_filenames = ["image0.png"]
+
+        mask_file = "{image_path.parent.parent}/masks/{image_path.stem}.png"
+
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
 
@@ -292,14 +298,14 @@ class TestMaskSemanticSegmentationDataset:
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir=mask_dir,
+            mask_file=mask_file,
             classes=classes,
             ignore_index=-100,
         )
         transform = DummyTransform(transform_args=TaskTransformArgs())
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
-            image_filenames=list(dataset_args.list_image_filenames()),
+            image_and_mask_filepaths=list(dataset_args.list_image_and_mask_filepaths()),
             transform=transform,
         )
 
@@ -310,6 +316,9 @@ class TestMaskSemanticSegmentationDataset:
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
         mask_filenames = ["image0.png"]
+
+        mask_file = "{image_path.parent.parent}/masks/{image_path.stem}.png"
+
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
 
@@ -323,7 +332,7 @@ class TestMaskSemanticSegmentationDataset:
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir=mask_dir,
+            mask_file=mask_file,
             classes=classes,
             ignore_classes=ignore_classes,
             ignore_index=-100,
@@ -331,7 +340,7 @@ class TestMaskSemanticSegmentationDataset:
         transform = DummyTransform(transform_args=TaskTransformArgs())
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
-            image_filenames=list(dataset_args.list_image_filenames()),
+            image_and_mask_filepaths=list(dataset_args.list_image_and_mask_filepaths()),
             transform=transform,
         )
 

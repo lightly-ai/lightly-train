@@ -24,7 +24,6 @@ from lightly_train._env import Env
 from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import (
     BinaryMasksDict,
-    ImageFilename,
     MaskSemanticSegmentationDatasetItem,
     PathLike,
 )
@@ -39,11 +38,11 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
     def __init__(
         self,
         dataset_args: MaskSemanticSegmentationDatasetArgs,
-        image_filenames: Sequence[ImageFilename],
+        image_and_mask_filepaths: Sequence[tuple[Path, Path]],
         transform: TaskTransform,
     ):
         self.args = dataset_args
-        self.image_filenames = image_filenames
+        self.image_and_mask_filepaths = image_and_mask_filepaths
         self.transform = transform
         self.ignore_index = dataset_args.ignore_index
 
@@ -83,7 +82,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         }
 
     def __len__(self) -> int:
-        return len(self.image_filenames)
+        return len(self.image_and_mask_filepaths)
 
     def get_binary_masks(self, mask: Tensor) -> BinaryMasksDict:
         # This follows logic from:
@@ -129,9 +128,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         return lut[mask.to(torch.long)]
 
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
-        image_filename = self.image_filenames[index]
-        image_path = self.args.image_dir / image_filename
-        mask_path = (self.args.mask_dir / image_filename).with_suffix(".png")
+        image_path, mask_path = self.image_and_mask_filepaths[index]
 
         # Load the image and the mask.
         image = file_helpers.open_image_numpy(
@@ -172,7 +169,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
 class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
-    mask_dir: Path
+    mask_file: str
     classes: dict[int, ClassInfo]
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
@@ -180,12 +177,18 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
-    def list_image_filenames(self) -> Iterable[ImageFilename]:
-        for image_filename in file_helpers.list_image_filenames(
-            image_dir=self.image_dir
+    def list_image_and_mask_filepaths(self) -> Iterable[tuple[Path, Path]]:
+        for image_filepath in file_helpers.list_image_files(
+            imgs_and_dirs=[self.image_dir]
         ):
-            if (self.mask_dir / image_filename).with_suffix(".png").exists():
-                yield image_filename
+            mask_filepath = Path(
+                self.mask_file.format(
+                    image_path=image_filepath,
+                )
+            )
+
+            if mask_filepath.exists():
+                yield image_filepath, mask_filepath
 
     @staticmethod
     def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:
@@ -270,7 +273,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ) -> MaskSemanticSegmentationDatasetArgs:
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
-            mask_dir=Path(self.train.masks),
+            mask_file=str(self.train.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
@@ -281,7 +284,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ) -> MaskSemanticSegmentationDatasetArgs:
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.val.images),
-            mask_dir=Path(self.val.masks),
+            mask_file=str(self.val.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,

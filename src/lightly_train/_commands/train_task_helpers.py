@@ -360,7 +360,7 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
 
 def get_dataset_mmap_filenames(
     fabric: Fabric,
-    filenames: Iterable[str],
+    filenames: Iterable[tuple[Path, Path]],
     mmap_filepath: Path,
 ) -> MemoryMappedSequence[str]:
     """Returns memory-mapped filenames shared across all ranks.
@@ -391,7 +391,7 @@ def get_dataset_mmap_filenames(
             not is_shared_filesystem and fabric.local_rank == 0
         ):
             memory_mapped_sequence.write_filenames_to_file(
-                filenames=filenames,
+                filenames=filenames,  # type: ignore[arg-type]
                 mmap_filepath=mmap_filepath,
             )
 
@@ -407,13 +407,13 @@ def get_dataset(
     transform: TaskTransform,
     mmap_filepath: Path,
 ) -> MaskSemanticSegmentationDataset:
-    filenames = list(dataset_args.list_image_filenames())
+    image_and_mask_filepaths = list(dataset_args.list_image_and_mask_filepaths())
     dataset_cls = dataset_args.get_dataset_cls()
     return dataset_cls(
         dataset_args=dataset_args,
-        image_filenames=get_dataset_mmap_filenames(
+        image_and_mask_filepaths=get_dataset_mmap_filenames(  # type: ignore[arg-type]
             fabric=fabric,
-            filenames=filenames,
+            filenames=image_and_mask_filepaths,
             mmap_filepath=mmap_filepath,
         ),
         transform=transform,
