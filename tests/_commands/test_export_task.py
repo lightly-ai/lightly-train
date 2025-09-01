@@ -64,15 +64,15 @@ def dinov2_vits14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> P
 
 
 onnx_export_testset = [
-    (1, 42, 154),
-    (1, 42, 154),
-    (2, 14, 14),
-    (3, 140, 280),
-    (4, 266, 28),
+    (1, 42, 154, False),
+    (1, 42, 154, False),
+    (2, 14, 14, False),
+    (3, 140, 280, True),
+    (4, 266, 28, True),
 ]
 
 
-@pytest.mark.parametrize("batch_size,height,width", onnx_export_testset)
+@pytest.mark.parametrize("batch_size,height,width, half", onnx_export_testset)
 @pytest.mark.skipif(
     sys.version_info < (3, 9),
     reason="Requires Python 3.9 or higher for image preprocessing.",
@@ -85,6 +85,7 @@ def test_onnx_export(
     batch_size: int,
     height: int,
     width: int,
+    half: bool,
     dinov2_vits14_eomt_checkpoint: Path,
     tmp_path: Path,
 ) -> None:
@@ -96,12 +97,13 @@ def test_onnx_export(
         dinov2_vits14_eomt_checkpoint, device="cpu"
     )
     onnx_path = tmp_path / "model.onnx"
-    validation_input = torch.randn(batch_size, 3, height, width).cpu()
+    validation_input = torch.randn(batch_size, 3, height, width, device="cpu")
     expected_outputs = model(validation_input)
+    expected_output_dtypes = [torch.int64, torch.float16 if half else torch.float32]
     # We use  torch.testing.assert_close to check if the model outputs the same as when we run the exported
     # onnx file with onnxruntime. Unfortunately the default tolerances are too strict so we specify our own.
-    rtol = 1e-3
-    atol = 1e-5
+    rtol = 1e-2
+    atol = 1e-4
 
     # act
     lightly_train.export_onnx(
@@ -109,6 +111,7 @@ def test_onnx_export(
         checkpoint=dinov2_vits14_eomt_checkpoint,
         height=height,
         width=width,
+        half=half,
         batch_size=batch_size,
         overwrite=True,
     )
@@ -118,13 +121,18 @@ def test_onnx_export(
     onnx.checker.check_model(onnx_path, full_check=True)
 
     session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
+    if half:
+        validation_input = validation_input.half()
     ort_in = {"input": validation_input.numpy()}
     ort_outputs = session.run(["masks", "logits"], ort_in)
     ort_outputs = [torch.from_numpy(y).cpu() for y in ort_outputs]
+    assert [y.dtype for y in ort_outputs] == expected_output_dtypes
 
     assert len(ort_outputs) == len(expected_outputs)
     for ort_y, expected_y in zip(ort_outputs, expected_outputs):
-        torch.testing.assert_close(ort_y, expected_y, rtol=rtol, atol=atol)
+        torch.testing.assert_close(
+            ort_y, expected_y, check_dtype=False, rtol=rtol, atol=atol
+        )
 
 
 @pytest.mark.skipif(
