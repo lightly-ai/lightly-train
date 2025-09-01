@@ -134,6 +134,15 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
     if config.format == "onnx":
+        # The DinoVisionTransformer _predict method currently raises a RuntimeException when the image size is not
+        # divisible by the patch size. This only occurs during ONNX export as otherwise we interpolate the input
+        # image to the correct size.
+        patch_size = task_model.backbone.patch_size
+        if not (config.height % patch_size == 0 and config.width % patch_size == 0):
+            raise ValueError(
+                f"Height {config.height} and width {config.width} must be a multiple of patch size {patch_size}."
+            )
+
         # Get the device of the model to ensure dummy input is on the same device
         model_device = next(task_model.parameters()).device
         dummy_input = torch.randn(
