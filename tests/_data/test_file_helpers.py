@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from numpy.typing import DTypeLike
 from pytest_mock import MockerFixture
 
 from lightly_train._data import file_helpers
@@ -52,11 +53,29 @@ def test_open_image_numpy(
         torch_spy.assert_not_called()
 
 
-def test_open_image_numpy__mask(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "dtype, expected_dtype, mode, max_value",
+    [(np.uint8, np.uint8, "L", 255), (np.uint16, np.int32, "I;16", 65535)],
+)
+def test_open_image_numpy__mask(
+    tmp_path: Path,
+    dtype: DTypeLike,
+    expected_dtype: DTypeLike,
+    mode: str,
+    max_value: int,
+) -> None:
     image_path = tmp_path / "image.png"
-    helpers.create_image(path=image_path, height=32, width=32, mode="L")
+    helpers.create_image(
+        path=image_path,
+        height=32,
+        width=32,
+        mode=mode,
+        max_value=max_value,
+        dtype=dtype,
+        num_channels=0,
+    )
 
     result = file_helpers.open_image_numpy(image_path=image_path, mode=ImageMode.MASK)
     assert isinstance(result, np.ndarray)
     assert result.shape == (32, 32)
-    assert result.dtype == np.uint8
+    assert result.dtype == expected_dtype

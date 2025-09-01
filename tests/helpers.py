@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import typing_extensions
 from albumentations.pytorch.transforms import ToTensorV2
+from numpy.typing import DTypeLike
 from PIL import Image
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Conv2d, Module
@@ -155,10 +156,18 @@ def get_checkpoint(
 
 
 def create_image(
-    path: Path, height: int = 128, width: int = 128, mode: str = "RGB"
+    path: Path,
+    height: int = 128,
+    width: int = 128,
+    mode: str = "RGB",
+    dtype: DTypeLike = np.uint8,
+    min_value: int = 0,
+    max_value: int = 255,
+    num_channels: int = 3,
 ) -> None:
-    img_np = np.random.uniform(0, 255, size=(width, height, 3))
-    img = Image.fromarray(img_np.astype(np.uint8)).convert(mode=mode)
+    size = (width, height, num_channels) if num_channels > 0 else (width, height)
+    img_np = np.random.uniform(min_value, max_value, size=size)
+    img = Image.fromarray(img_np.astype(dtype), mode=mode)
     path.parent.mkdir(parents=True, exist_ok=True)
     img.save(path)
 
