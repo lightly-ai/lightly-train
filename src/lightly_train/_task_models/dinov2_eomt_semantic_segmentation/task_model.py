@@ -10,7 +10,8 @@ from __future__ import annotations
 import logging
 import math
 import os
-from typing import Any
+from collections.abc import Sequence, Mapping, Container
+from typing import Any, Tuple
 
 import torch
 from PIL.Image import Image as PILImage
@@ -18,7 +19,9 @@ from torch import Tensor
 from torch.nn import GELU, Embedding, Linear, Sequential
 from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
+from typing_extensions import override
 
+from lightly_train._commands.export_task import ONNXPrecision, ONNXExportable
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
@@ -587,3 +590,56 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 name = name[len("model.") :]
                 new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)
+
+    @override
+    def onnx_opset_versions(self) -> Tuple[int, int | None]:
+        # TODO verify if 12 is really the lower bound here
+        return (12, None)
+
+    @override
+    def onnx_precisions(self) -> Container[ONNXPrecision]:
+        return ONNXExportable.onnx_precisions(self)
+
+    @override
+    def verify_torch_onnx_export_kwargs(self, **kwargs: dict[str, Any]) -> None:
+        if kwargs.get("dynamo", True):
+            raise ValueError(
+                f"Dynamo is not supported for ONNX export with{self.__class__.__name__} model."
+            )
+        return
+
+    @override
+    def setup_onnx_model(
+        self, *, checkpoint: PathLike, precision: ONNXPrecision
+    ) -> torch.nn.Module:
+        return ONNXExportable.setup_onnx_model(
+            self, checkpoint=checkpoint, precision=precision
+        )
+
+    @override
+    def setup_validation_model(self, *, checkpoint: PathLike) -> torch.nn.Module:
+        return ONNXExportable.setup_validation_model(self, checkpoint=checkpoint)
+
+    @override
+    def make_onnx_export_inputs(
+        self,
+        *,
+        precision: ONNXPrecision,
+        device: torch.device,
+        batch_size: int,
+        num_channels: int,
+        height: int,
+        width: int,
+    ) -> dict[str, torch.Tensor]:
+        del self
+        dtype = torch.float16 if precision == ONNXPrecision.FP16 else torch.float32
+        return {
+            "input": torch.rand(
+                batch_size, num_channels, height, width, dtype=dtype, device=device
+            )
+        }
+
+    @override
+    def onnx_output_names(self) -> Sequence[str]:
+        del self
+        return ["masks", "logits"]
