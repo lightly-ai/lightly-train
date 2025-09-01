@@ -72,7 +72,7 @@ onnx_export_testset = [
 ]
 
 
-@pytest.mark.parametrize("batch_size,height,width, half", onnx_export_testset)
+@pytest.mark.parametrize("batch_size,height,width,half", onnx_export_testset)
 @pytest.mark.skipif(
     sys.version_info < (3, 9),
     reason="Requires Python 3.9 or higher for image preprocessing.",
