@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import os
+from enum import Enum
 from pathlib import Path
-from typing import Iterable, Literal, Sequence
+from typing import Iterable, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -27,6 +28,12 @@ from lightly_train.types import (
     NDArrayImage,
     PathLike,
 )
+
+
+class ImageMode(Enum):
+    RGB = "RGB"
+    UNCHANGED = "UNCHANGED"
+    MASK = "MASK"
 
 
 def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
@@ -126,7 +133,7 @@ def open_image_tensor(image_path: Path) -> Tensor:
 
 def open_image_numpy(
     image_path: Path,
-    mode: Literal["RGB", "UNCHANGED", "MASK"] = "RGB",
+    mode: ImageMode = ImageMode.RGB,
 ) -> NDArrayImage:
     """Returns image as (H, W, C) or (H, W) numpy array."""
     image_np: NDArray[np.uint8]
@@ -154,21 +161,21 @@ def open_image_numpy(
 
 def _open_image_numpy__with_torch(
     image_path: Path,
-    mode: Literal["RGB", "UNCHANGED", "MASK"] = "RGB",
+    mode: ImageMode = ImageMode.RGB,
 ) -> NDArrayImage:
     image_np: NDArrayImage
     mode_torch = {
-        "RGB": ImageReadMode.RGB,
-        "UNCHANGED": ImageReadMode.UNCHANGED,
-        "MASK": ImageReadMode.UNCHANGED,
+        ImageMode.RGB: ImageReadMode.RGB,
+        ImageMode.UNCHANGED: ImageReadMode.UNCHANGED,
+        ImageMode.MASK: ImageReadMode.UNCHANGED,
     }[mode]
     image_torch = io.read_image(str(image_path), mode=mode_torch)
     image_torch = image_torch.permute(1, 2, 0)
-    if image_torch.shape[2] == 1 and mode == "RGB":
+    if image_torch.shape[2] == 1 and mode == ImageMode.RGB:
         # Convert single-channel grayscale to 3-channel RGB.
         # (H, W, 1) -> (H, W, 3)
         image_torch = image_torch.repeat(1, 1, 3)
-    if image_torch.shape[2] == 1 and mode == "MASK":
+    if image_torch.shape[2] == 1 and mode == ImageMode.MASK:
         # Squeeze channel dimension for single-channel masks.
         # (H, W, 1) -> (H, W)
         image_torch = image_torch.squeeze(2)
@@ -178,13 +185,13 @@ def _open_image_numpy__with_torch(
 
 def _open_image_numpy__with_pil(
     image_path: Path,
-    mode: Literal["RGB", "UNCHANGED", "MASK"] = "RGB",
+    mode: ImageMode = ImageMode.RGB,
 ) -> NDArrayImage:
     image_np: NDArrayImage
     convert_mode = {
-        "RGB": "RGB",
-        "UNCHANGED": None,
-        "MASK": None,
+        ImageMode.RGB: "RGB",
+        ImageMode.UNCHANGED: None,
+        ImageMode.MASK: None,
     }[mode]
     image = Image.open(image_path)
     if convert_mode is not None:

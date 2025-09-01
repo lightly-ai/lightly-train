@@ -14,6 +14,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from lightly_train._data import file_helpers
+from lightly_train._data.file_helpers import ImageMode
 
 from .. import helpers
 
@@ -39,7 +40,7 @@ def test_open_image_numpy(
     torch_spy = mocker.spy(file_helpers, "_open_image_numpy__with_torch")
     pil_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pil")
 
-    result = file_helpers.open_image_numpy(image_path=image_path, mode="RGB")
+    result = file_helpers.open_image_numpy(image_path=image_path, mode=ImageMode.RGB)
     assert isinstance(result, np.ndarray)
     assert result.shape == (32, 32, 3)
 
@@ -55,7 +56,7 @@ def test_open_image_numpy__mask(tmp_path: Path) -> None:
     image_path = tmp_path / "image.png"
     helpers.create_image(path=image_path, height=32, width=32, mode="L")
 
-    result = file_helpers.open_image_numpy(image_path=image_path, mode="MASK")
+    result = file_helpers.open_image_numpy(image_path=image_path, mode=ImageMode.MASK)
     assert isinstance(result, np.ndarray)
     assert result.shape == (32, 32)
     assert result.dtype == np.uint8

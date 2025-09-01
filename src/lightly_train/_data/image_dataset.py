@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Sequence
 
 from PIL import ImageFile
 from torch.utils.data import Dataset
 
 from lightly_train._data import file_helpers
+from lightly_train._data.file_helpers import ImageMode
 from lightly_train._env import Env
 from lightly_train.types import DatasetItem, ImageFilename, Transform, TransformInput
 
@@ -33,13 +34,13 @@ class ImageDataset(Dataset[DatasetItem]):
         self.mask_dir = mask_dir
         self.transform = transform
 
-        image_mode = Env.LIGHTLY_TRAIN_IMAGE_MODE.value
-        if image_mode not in ("RGB", "UNCHANGED"):
+        try:
+            self.image_mode = ImageMode(Env.LIGHTLY_TRAIN_IMAGE_MODE.value)
+        except ValueError:
             raise ValueError(
-                f'Invalid image mode: {Env.LIGHTLY_TRAIN_IMAGE_MODE.name}="{image_mode}". '
+                f'Invalid image mode: {Env.LIGHTLY_TRAIN_IMAGE_MODE.name}="{Env.LIGHTLY_TRAIN_IMAGE_MODE.value}". '
                 "Supported modes are 'RGB' and 'UNCHANGED'."
             )
-        self.image_mode: Literal["RGB", "UNCHANGED"] = image_mode  # type: ignore[assignment]
 
     def __getitem__(self, idx: int) -> DatasetItem:
         filename = self.image_filenames[idx]
@@ -54,7 +55,9 @@ class ImageDataset(Dataset[DatasetItem]):
 
         if self.mask_dir:
             maskname = Path(filename).with_suffix(".png")
-            mask = file_helpers.open_image_numpy(self.mask_dir / maskname, mode="MASK")
+            mask = file_helpers.open_image_numpy(
+                self.mask_dir / maskname, mode=ImageMode.MASK
+            )
             input["mask"] = mask
 
         # (H, W, C) -> (C, H, W)
