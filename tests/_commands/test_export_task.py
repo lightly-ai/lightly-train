@@ -127,7 +127,7 @@ def test_onnx_export(
         torch.testing.assert_close(ort_y, expected_y, rtol=rtol, atol=atol)
 
 
-def test_onnx_export_height_not_patch_size_multiple_fails(
+def test_onnx_export__height_not_patch_size_multiple_fails(
     dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
 ):
     # arrange
@@ -156,7 +156,7 @@ def test_onnx_export_height_not_patch_size_multiple_fails(
         )
 
 
-def test_onnx_export_width_not_patch_size_multiple_fails(
+def test_onnx_export__width_not_patch_size_multiple_fails(
     dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
 ):
     # arrange
