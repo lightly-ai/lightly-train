@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import ClassVar, Dict, Literal, Union
+from typing import ClassVar, Dict, Union
 
 import torch
 from pydantic import Field, TypeAdapter, field_validator
@@ -18,6 +18,7 @@ from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
+from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._env import Env
 from lightly_train._transforms.task_transform import TaskTransform
@@ -56,7 +57,14 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
                 f'Invalid image mode: {Env.LIGHTLY_TRAIN_IMAGE_MODE.name}="{image_mode}". '
                 "Supported modes are 'RGB' and 'UNCHANGED'."
             )
-        self.image_mode: Literal["RGB", "UNCHANGED"] = image_mode  # type: ignore[assignment]
+        # Convert string to enum value
+        if image_mode == "RGB":
+            self.image_mode = ImageMode.RGB
+        elif image_mode == "UNCHANGED":
+            self.image_mode = ImageMode.UNCHANGED
+        else:
+            # This should not happen due to the check above, but added for type safety
+            raise ValueError(f"Unexpected image mode: {image_mode}")
 
     def is_mask_valid(self, mask: Tensor) -> bool:
         # Check if at least one value in the mask is in the valid classes.
@@ -129,7 +137,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         image = file_helpers.open_image_numpy(
             image_path=image_path, mode=self.image_mode
         )
-        mask = file_helpers.open_image_numpy(image_path=mask_path, mode="MASK")
+        mask = file_helpers.open_image_numpy(image_path=mask_path, mode=ImageMode.MASK)
 
         # Verify that the mask and the image have the same shape.
         assert image.shape[:2] == mask.shape, (

@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import os
+from enum import Enum
 from pathlib import Path
-from typing import Iterable, Literal, Sequence
+from typing import Iterable, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -27,6 +28,12 @@ from lightly_train.types import (
     NDArrayImage,
     PathLike,
 )
+
+
+class ImageMode(Enum):
+    RGB = "RGB"
+    UNCHANGED = "UNCHANGED"
+    MASK = "MASK"
 
 
 def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
@@ -99,9 +106,7 @@ def _get_image_filepaths(image_dir: Path) -> Iterable[Path]:
                 yield fpath
 
 
-def _torchvision_supported_image_extensions() -> set[str]:
-    # See https://pytorch.org/vision/0.18/generated/torchvision.io.read_image.html
-    return {"jpg", "jpeg", "png"}
+_TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
 def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
@@ -118,7 +123,7 @@ def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
 def open_image_tensor(image_path: Path) -> Tensor:
     """Returns image as (C, H, W) tensor."""
     image: Tensor
-    if image_path.suffix.lower() in _torchvision_supported_image_extensions():
+    if image_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         image = io.read_image(str(image_path), mode=ImageReadMode.RGB)
         return image
     else:
@@ -128,31 +133,18 @@ def open_image_tensor(image_path: Path) -> Tensor:
 
 def open_image_numpy(
     image_path: Path,
-    mode: Literal["RGB", "L", "UNCHANGED", "MASK"] = "RGB",
+    mode: ImageMode = ImageMode.RGB,
 ) -> NDArrayImage:
-    """Returns image as (H, W, C) numpy array."""
+    """Returns image as (H, W, C) or (H, W) numpy array."""
     image_np: NDArray[np.uint8]
-    if image_path.suffix.lower() in _torchvision_supported_image_extensions():
-        mode_torch = {
-            "RGB": ImageReadMode.RGB,
-            "L": ImageReadMode.GRAY,
-            "UNCHANGED": ImageReadMode.UNCHANGED,
-            "MASK": ImageReadMode.GRAY,
-        }[mode]
-        image_torch = io.read_image(str(image_path), mode=mode_torch)
-        image_torch = image_torch.permute(1, 2, 0)
-        image_np = image_torch.numpy()
+    if image_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+        try:
+            image_np = _open_image_numpy__with_torch(image_path=image_path, mode=mode)
+        except RuntimeError:
+            # RuntimeError can happen for truncated images. Fall back to PIL.
+            image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
     else:
-        convert_mode = {
-            "RGB": "RGB",
-            "L": "L",
-            "UNCHANGED": None,
-            "MASK": None,
-        }[mode]
-        image = Image.open(image_path)
-        if convert_mode is not None:
-            image = image.convert(convert_mode)
-        image_np = np.array(image)
+        image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
     dtype = image_np.dtype
     if np.issubdtype(dtype, np.unsignedinteger) and dtype != np.uint8:
         # Convert uint16, uint32, uint64 to signed integer type because torch has only
@@ -164,6 +156,47 @@ def open_image_numpy(
             "uint64": np.int64,  # int128 is not supported by numpy and torch.
         }[dtype_str]
         image_np = image_np.astype(target_dtype)
+    return image_np
+
+
+def _open_image_numpy__with_torch(
+    image_path: Path,
+    mode: ImageMode = ImageMode.RGB,
+) -> NDArrayImage:
+    image_np: NDArrayImage
+    mode_torch = {
+        ImageMode.RGB: ImageReadMode.RGB,
+        ImageMode.UNCHANGED: ImageReadMode.UNCHANGED,
+        ImageMode.MASK: ImageReadMode.UNCHANGED,
+    }[mode]
+    image_torch = io.read_image(str(image_path), mode=mode_torch)
+    image_torch = image_torch.permute(1, 2, 0)
+    if image_torch.shape[2] == 1 and mode == ImageMode.RGB:
+        # Convert single-channel grayscale to 3-channel RGB.
+        # (H, W, 1) -> (H, W, 3)
+        image_torch = image_torch.repeat(1, 1, 3)
+    if image_torch.shape[2] == 1 and mode == ImageMode.MASK:
+        # Squeeze channel dimension for single-channel masks.
+        # (H, W, 1) -> (H, W)
+        image_torch = image_torch.squeeze(2)
+    image_np = image_torch.numpy()
+    return image_np
+
+
+def _open_image_numpy__with_pil(
+    image_path: Path,
+    mode: ImageMode = ImageMode.RGB,
+) -> NDArrayImage:
+    image_np: NDArrayImage
+    convert_mode = {
+        ImageMode.RGB: "RGB",
+        ImageMode.UNCHANGED: None,
+        ImageMode.MASK: None,
+    }[mode]
+    image = Image.open(image_path)
+    if convert_mode is not None:
+        image = image.convert(convert_mode)
+    image_np = np.array(image)
     return image_np
 
 

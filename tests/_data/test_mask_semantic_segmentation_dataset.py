@@ -240,8 +240,7 @@ class TestMaskSemanticSegmentationDataset:
             image_dir=image_dir,
             mask_dir=mask_dir,
             classes={
-                0: ClassInfo(name="background", values={0}),
-                1: ClassInfo(name="object", values={1}),
+                i: ClassInfo(name=f"class_{i}", values={i}) for i in range(num_classes)
             },
             ignore_index=ignore_index,
         )

@@ -149,7 +149,9 @@ class TestImageDataset:
     def test___getitem____mode(self, tmp_path: Path, mode: str, extension: str) -> None:
         filenames = [ImageFilename(f"image1.{extension}")]
         image_dir = tmp_path / "images"
-        _create_images(base_path=image_dir, filenames=filenames, mode=mode)
+        _create_images(
+            base_path=image_dir, filenames=filenames, mode=None, convert_mode=mode
+        )
         dataset = ImageDataset(
             image_dir=image_dir,
             image_filenames=filenames,
@@ -186,7 +188,9 @@ class TestImageDataset:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         _create_images(base_path=image_dir, filenames=img_filenames)
-        _create_images(base_path=mask_dir, filenames=mask_filenames, mode="L")
+        _create_images(
+            base_path=mask_dir, filenames=mask_filenames, mode="L", num_channels=0
+        )
         dataset = ImageDataset(
             image_dir=image_dir,
             image_filenames=img_filenames,
@@ -373,12 +377,22 @@ def test_list_image_filenames__extensions(extension: str, tmp_path: Path) -> Non
 
 
 def _create_images(
-    base_path: Path, filenames: Iterable[str], mode: str = "RGB"
+    base_path: Path,
+    filenames: Iterable[str],
+    mode: str | None = "RGB",
+    convert_mode: str | None = None,
+    num_channels: int = 3,
 ) -> list[Path]:
     """Create images in the given directory with the given filenames and return their
     paths.
     """
     helpers.create_images(
-        image_dir=base_path, files=filenames, height=32, width=32, mode=mode
+        image_dir=base_path,
+        files=filenames,
+        height=32,
+        width=32,
+        mode=mode,
+        convert_mode=convert_mode,
+        num_channels=num_channels,
     )
     return [base_path / filename for filename in filenames]
