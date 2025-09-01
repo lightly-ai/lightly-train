@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import ClassVar, Dict, Union
@@ -169,11 +170,19 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
 class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
-    mask_file: str
+    mask_dir_or_file: str
     classes: dict[int, ClassInfo]
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     ignore_index: int
+
+    @field_validator("mask_dir_or_file", mode="before")
+    @classmethod
+    def validate_mask_dir_or_file(cls, v: str) -> str:
+        if not bool(re.search(r"\{[^}]+\}", v)):  # mask_dir_or_file is a directory
+            return f"{v}/{{image_path.stem}}.png"
+        else:  # mask_dir_or_file is a format string
+            return v
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
@@ -182,7 +191,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
             imgs_and_dirs=[self.image_dir]
         ):
             mask_filepath = Path(
-                self.mask_file.format(
+                self.mask_dir_or_file.format(
                     image_path=image_filepath,
                 )
             )
@@ -273,7 +282,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ) -> MaskSemanticSegmentationDatasetArgs:
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
-            mask_file=str(self.train.masks),
+            mask_dir_or_file=str(self.train.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
@@ -284,7 +293,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ) -> MaskSemanticSegmentationDatasetArgs:
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.val.images),
-            mask_file=str(self.val.masks),
+            mask_dir_or_file=str(self.val.masks),
             classes=self.classes,
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
