@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Supported using custom mask names for the inputs in semantic segmentation.
+
 ### Deprecated
 
 ### Removed
