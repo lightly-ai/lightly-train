@@ -104,7 +104,7 @@ class TestMaskSemanticSegmentationDataArgs:
     )
     def test_validate_class_labels(
         self,
-        classes_input: dict[int, str | dict[str, str | list[int]]],
+        classes_input: dict[int, Any],
         expected_checks: dict[int, tuple[str, list[int]]],
         tmp_path: Path,
     ) -> None:
@@ -114,7 +114,7 @@ class TestMaskSemanticSegmentationDataArgs:
         dataset_args = MaskSemanticSegmentationDataArgs(
             train=SplitArgs(images=image_dir, masks=mask_dir),
             val=SplitArgs(images=image_dir, masks=mask_dir),
-            classes=classes_input,  # type: ignore[arg-type]
+            classes=classes_input,
         )
 
         # Check that all inputs were converted to ClassInfo objects
@@ -169,9 +169,7 @@ class TestMaskSemanticSegmentationDataArgs:
     )
     def test_validate_class_rgb_colors(
         self,
-        classes_input: dict[
-            int, dict[str, str | tuple[int, int, int] | list[tuple[int, int, int]]]
-        ],
+        classes_input: dict[int, Any],
         expected_checks: dict[int, tuple[str, list[tuple[int, int, int]]]],
         tmp_path: Path,
     ) -> None:
@@ -181,7 +179,7 @@ class TestMaskSemanticSegmentationDataArgs:
         dataset_args = MaskSemanticSegmentationDataArgs(
             train=SplitArgs(images=image_dir, masks=mask_dir),
             val=SplitArgs(images=image_dir, masks=mask_dir),
-            classes=classes_input,  # type: ignore[arg-type]
+            classes=classes_input,
         )
 
         # Check that all inputs were converted to ClassInfo objects
@@ -206,7 +204,7 @@ class TestMaskSemanticSegmentationDataArgs:
         ],
     )
     def test_validate_class__invalid_inputs_labels(
-        self, invalid_classes: dict[int, str | dict[str, Any]], tmp_path: Path
+        self, invalid_classes: dict[int, Any], tmp_path: Path
     ) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
@@ -216,7 +214,7 @@ class TestMaskSemanticSegmentationDataArgs:
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=invalid_classes,  # type: ignore[arg-type]
+                classes=invalid_classes,
             )
 
     @pytest.mark.parametrize(
@@ -235,7 +233,7 @@ class TestMaskSemanticSegmentationDataArgs:
         ],
     )
     def test_validate_class__invalid_inputs_mixed_types(
-        self, mixed_classes: dict[int, str | dict[str, Any]], tmp_path: Path
+        self, mixed_classes: dict[int, Any], tmp_path: Path
     ) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
@@ -248,7 +246,7 @@ class TestMaskSemanticSegmentationDataArgs:
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=mixed_classes,  # type: ignore[arg-type]
+                classes=mixed_classes,
             )
 
     @pytest.mark.parametrize(
@@ -275,7 +273,7 @@ class TestMaskSemanticSegmentationDataArgs:
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=classes,  # type: ignore[arg-type]
+                classes=classes,
             )
 
     @pytest.mark.parametrize(
@@ -315,7 +313,7 @@ class TestMaskSemanticSegmentationDataArgs:
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=classes,  # type: ignore[arg-type]
+                classes=classes,
             )
 
     @pytest.mark.parametrize(
@@ -364,7 +362,7 @@ class TestMaskSemanticSegmentationDataArgs:
         dataset_args = MaskSemanticSegmentationDataArgs(
             train=SplitArgs(images=image_dir, masks=mask_dir),
             val=SplitArgs(images=image_dir, masks=mask_dir),
-            classes=classes,  # type: ignore[arg-type]
+            classes=classes,
             ignore_classes=ignore_classes,
         )
 
