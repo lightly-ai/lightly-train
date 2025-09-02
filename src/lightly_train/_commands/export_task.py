@@ -148,8 +148,6 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
         checkpoint=checkpoint_path
     )
     task_model.eval()
-    if config.half:
-        task_model.half()
 
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
@@ -248,6 +246,7 @@ class ExportTaskConfig(PydanticConfig):
     batch_size: int = 1
     num_channels: int = 3
     height: int = 224
+    width: int = 224
     precision: OnnxPrecision = OnnxPrecision.F32_TRUE
     verify: bool = True
     overwrite: bool = False
