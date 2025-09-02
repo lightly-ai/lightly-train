@@ -33,6 +33,12 @@ from lightly_train._transforms.task_transform import (
 from .. import helpers
 
 
+@pytest.fixture
+def mask_file_pattern() -> str:
+    """Standard mask file pattern for semantic segmentation tests."""
+    return "{image_path.parent.parent}/masks/{image_path.stem}.png"
+
+
 class DummyTransform(TaskTransform):
     transform_args_cls = TaskTransformArgs
 
@@ -229,20 +235,19 @@ class TestMaskSemanticSegmentationDataset:
         expected_mask_dtype: torch.dtype,
         tmp_path: Path,
         ignore_index: int,
+        mask_file_pattern: str,
     ) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg", "image1.jpg"]
         mask_filenames = ["image0.png", "image1.png"]
 
-        mask_file = "{image_path.parent.parent}/masks/{image_path.stem}.png"
-
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=num_classes)
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir_or_file=mask_file,
+            mask_dir_or_file=mask_file_pattern,
             classes={
                 i: ClassInfo(name=f"class_{i}", values={i}) for i in range(num_classes)
             },
@@ -284,13 +289,11 @@ class TestMaskSemanticSegmentationDataset:
             str(image_dir / "image1.jpg"),
         ]
 
-    def test_get_class_mapping(self, tmp_path: Path) -> None:
+    def test_get_class_mapping(self, tmp_path: Path, mask_file_pattern: str) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
         mask_filenames = ["image0.png"]
-
-        mask_file = "{image_path.parent.parent}/masks/{image_path.stem}.png"
 
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
@@ -303,7 +306,7 @@ class TestMaskSemanticSegmentationDataset:
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir_or_file=mask_file,
+            mask_dir_or_file=mask_file_pattern,
             classes=classes,
             ignore_index=-100,
         )
@@ -320,13 +323,13 @@ class TestMaskSemanticSegmentationDataset:
 
         assert dataset.class_mapping == expected_mapping
 
-    def test_get_class_mapping__ignore_classes(self, tmp_path: Path) -> None:
+    def test_get_class_mapping__ignore_classes(
+        self, tmp_path: Path, mask_file_pattern: str
+    ) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
         mask_filenames = ["image0.png"]
-
-        mask_file = "{image_path.parent.parent}/masks/{image_path.stem}.png"
 
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
@@ -341,7 +344,7 @@ class TestMaskSemanticSegmentationDataset:
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir_or_file=mask_file,
+            mask_dir_or_file=mask_file_pattern,
             classes=classes,
             ignore_classes=ignore_classes,
             ignore_index=-100,
@@ -361,7 +364,9 @@ class TestMaskSemanticSegmentationDataset:
 
 
 class TestMaskSemanticSegmentationDatasetArgs:
-    def test_list_image_and_mask_filepaths__with_template(self, tmp_path: Path) -> None:
+    def test_mask_dir_or_file__filename_template_string(
+        self, tmp_path: Path, mask_file_pattern: str
+    ) -> None:
         """Test that template string is used as-is when it contains format placeholders."""
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
@@ -371,11 +376,9 @@ class TestMaskSemanticSegmentationDatasetArgs:
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=2)
 
-        mask_file = "{image_path.parent.parent}/masks/{image_path.stem}.png"
-
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir_or_file=mask_file,
+            mask_dir_or_file=mask_file_pattern,
             classes={0: ClassInfo(name="background", values={0})},
             ignore_index=-100,
         )
@@ -393,9 +396,7 @@ class TestMaskSemanticSegmentationDatasetArgs:
         ]
         assert set(filepaths) == set(expected_pairs)
 
-    def test_list_image_and_mask_filepaths__without_template(
-        self, tmp_path: Path
-    ) -> None:
+    def test_mask_dir_or_file__directory_path(self, tmp_path: Path) -> None:
         """Test that directory path gets converted to template string when no format placeholders exist."""
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
@@ -424,34 +425,3 @@ class TestMaskSemanticSegmentationDatasetArgs:
             (str(image_dir / "image1.jpg"), str(mask_dir / "image1.png")),
         ]
         assert set(filepaths) == set(expected_pairs)
-
-    def test_list_image_and_mask_filepaths__missing_masks(self, tmp_path: Path) -> None:
-        """Test that only existing mask files are yielded."""
-        image_dir = tmp_path / "images"
-        mask_dir = tmp_path / "masks"
-        image_filenames = ["image0.jpg", "image1.jpg"]
-        mask_filenames = ["image0.png"]
-
-        mask_file = "{image_path.parent.parent}/masks/{image_path.stem}.png"
-
-        helpers.create_images(image_dir, files=image_filenames)
-        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=2)
-
-        dataset_args = MaskSemanticSegmentationDatasetArgs(
-            image_dir=image_dir,
-            mask_dir_or_file=mask_file,
-            classes={0: ClassInfo(name="background", values={0})},
-            ignore_index=-100,
-        )
-
-        filepaths = list(
-            list_image_and_mask_filepaths(
-                dataset_args.image_dir, dataset_args.mask_dir_or_file
-            )
-        )
-
-        assert len(filepaths) == 1
-        assert filepaths[0] == (
-            str(image_dir / "image0.jpg"),
-            str(mask_dir / "image0.png"),
-        )

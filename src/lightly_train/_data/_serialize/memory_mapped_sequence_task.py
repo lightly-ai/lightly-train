@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Generic, Iterable, Sequence, TypeVar, overload
+from typing import Any, Generic, Iterable, Sequence, Tuple, TypeVar, overload
 
 import pyarrow as pa  # type: ignore
 from pyarrow import Table, ipc
@@ -20,18 +20,18 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def write_filenames_to_file(
-    filenames: Iterable[tuple[str, ...]],
+def write_filepaths_to_file(
+    filepaths: Iterable[tuple[str, ...]],
     mmap_filepath: Path,
     column_names: list[str],
     chunk_size: int = 10_000,
 ) -> None:
-    """Writes the filenamess to a file for memory mapping."""
+    """Writes the filepaths to a file for memory mapping."""
     if chunk_size <= 0:
         raise ValueError(f"Invalid `chunk_size` {chunk_size} must be positive!")
-    logger.debug(f"Writing filenames to '{mmap_filepath}' (chunk_size={chunk_size})")
+    logger.debug(f"Writing filepaths to '{mmap_filepath}' (chunk_size={chunk_size})")
     _stream_write_table_to_file(
-        items=filenames,
+        items=filepaths,
         mmap_filepath=mmap_filepath,
         chunk_size=chunk_size,
         column_names=column_names,
@@ -48,7 +48,7 @@ def memory_mapped_sequence_from_file(
     return MemoryMappedSequenceTask(path=mmap_filepath, columns=column_names)
 
 
-class MemoryMappedSequenceTask(Sequence[tuple[T, ...]], Generic[T]):
+class MemoryMappedSequenceTask(Sequence[Tuple[T, ...]], Generic[T]):
     """A memory mapped sequence built around PyArrow's memory mapped tables.
 
     A memory mapped sequence does not store its items in RAM but loads the data from disk.

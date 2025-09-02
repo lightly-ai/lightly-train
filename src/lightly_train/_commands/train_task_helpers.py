@@ -371,19 +371,19 @@ def list_image_and_mask_filepaths(
         )
 
         if mask_filepath.exists():
-            yield image_filepath.as_posix(), mask_filepath.as_posix()
+            yield str(image_filepath), str(mask_filepath)
         else:
             logger.warning(
                 f"Mask file '{mask_filepath}' for image '{image_filepath}' does not exist."
             )
 
 
-def get_dataset_mmap_filenames(
+def get_dataset_mmap_file(
     fabric: Fabric,
     filepaths: Iterable[tuple[str, ...]],
     mmap_filepath: Path,
 ) -> MemoryMappedSequenceTask[str]:
-    """Returns memory-mapped filenames shared across all ranks.
+    """Returns memory-mapped filepaths shared across all ranks.
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
     """
@@ -393,7 +393,7 @@ def get_dataset_mmap_filenames(
         logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
         return memory_mapped_sequence_task.memory_mapped_sequence_from_file(
             mmap_filepath=mmap_filepath,
-            column_names=["image_filenames", "mask_filenames"],
+            column_names=["image_filepaths", "mask_filepaths"],
         )
 
     # Check if the mmap file is on a shared filesystem.
@@ -411,16 +411,16 @@ def get_dataset_mmap_filenames(
         if (fabric.global_rank == 0) or (
             not is_shared_filesystem and fabric.local_rank == 0
         ):
-            memory_mapped_sequence_task.write_filenames_to_file(
-                filenames=filepaths,
+            memory_mapped_sequence_task.write_filepaths_to_file(
+                filepaths=filepaths,
                 mmap_filepath=mmap_filepath,
-                column_names=["image_filenames", "mask_filenames"],
+                column_names=["image_filepaths", "mask_filepaths"],
             )
 
-    # Return memory-mapped filenames from file.
+    # Return memory-mapped filepaths from file.
     return memory_mapped_sequence_task.memory_mapped_sequence_from_file(
         mmap_filepath=mmap_filepath,
-        column_names=["image_filenames", "mask_filenames"],
+        column_names=["image_filepaths", "mask_filepaths"],
     )
 
 
@@ -438,7 +438,7 @@ def get_dataset(
     dataset_cls = dataset_args.get_dataset_cls()
     return dataset_cls(
         dataset_args=dataset_args,
-        image_and_mask_filepaths=get_dataset_mmap_filenames(
+        image_and_mask_filepaths=get_dataset_mmap_file(
             fabric=fabric,
             filepaths=image_and_mask_filepaths,
             mmap_filepath=mmap_filepath,
