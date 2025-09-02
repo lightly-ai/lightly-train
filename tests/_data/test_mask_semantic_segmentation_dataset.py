@@ -15,6 +15,7 @@ import pytest
 import torch
 from torch import Tensor
 
+from lightly_train._commands.train_task_helpers import list_image_and_mask_filepaths
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     ClassInfo,
     MaskSemanticSegmentationDataArgs,
@@ -250,7 +251,11 @@ class TestMaskSemanticSegmentationDataset:
         transform = DummyTransform(transform_args=TaskTransformArgs())
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
-            image_and_mask_filepaths=list(dataset_args.list_image_and_mask_filepaths()),
+            image_and_mask_filepaths=list(
+                list_image_and_mask_filepaths(
+                    dataset_args.image_dir, dataset_args.mask_dir_or_file
+                )
+            ),
             transform=transform,
         )
 
@@ -305,7 +310,11 @@ class TestMaskSemanticSegmentationDataset:
         transform = DummyTransform(transform_args=TaskTransformArgs())
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
-            image_and_mask_filepaths=list(dataset_args.list_image_and_mask_filepaths()),
+            image_and_mask_filepaths=list(
+                list_image_and_mask_filepaths(
+                    dataset_args.image_dir, dataset_args.mask_dir_or_file
+                )
+            ),
             transform=transform,
         )
 
@@ -340,7 +349,11 @@ class TestMaskSemanticSegmentationDataset:
         transform = DummyTransform(transform_args=TaskTransformArgs())
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
-            image_and_mask_filepaths=list(dataset_args.list_image_and_mask_filepaths()),
+            image_and_mask_filepaths=list(
+                list_image_and_mask_filepaths(
+                    dataset_args.image_dir, dataset_args.mask_dir_or_file
+                )
+            ),
             transform=transform,
         )
 
@@ -367,7 +380,11 @@ class TestMaskSemanticSegmentationDatasetArgs:
             ignore_index=-100,
         )
 
-        filepaths = list(dataset_args.list_image_and_mask_filepaths())
+        filepaths = list(
+            list_image_and_mask_filepaths(
+                dataset_args.image_dir, dataset_args.mask_dir_or_file
+            )
+        )
 
         assert len(filepaths) == 2
         expected_pairs = [
@@ -395,7 +412,11 @@ class TestMaskSemanticSegmentationDatasetArgs:
             ignore_index=-100,
         )
 
-        filepaths = list(dataset_args.list_image_and_mask_filepaths())
+        filepaths = list(
+            list_image_and_mask_filepaths(
+                dataset_args.image_dir, dataset_args.mask_dir_or_file
+            )
+        )
 
         assert len(filepaths) == 2
         expected_pairs = [
@@ -423,7 +444,11 @@ class TestMaskSemanticSegmentationDatasetArgs:
             ignore_index=-100,
         )
 
-        filepaths = list(dataset_args.list_image_and_mask_filepaths())
+        filepaths = list(
+            list_image_and_mask_filepaths(
+                dataset_args.image_dir, dataset_args.mask_dir_or_file
+            )
+        )
 
         assert len(filepaths) == 1
         assert filepaths[0] == (

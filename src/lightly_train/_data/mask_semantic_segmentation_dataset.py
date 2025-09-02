@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import ClassVar, Dict, Union
 
@@ -193,21 +193,6 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
             return f"{v}/{{image_path.stem}}.png"
         else:  # mask_dir_or_file is a format string
             return v
-
-    # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
-    # sure if it makes sense to have this in dataset args.
-    def list_image_and_mask_filepaths(self) -> Iterable[tuple[str, str]]:
-        for image_filepath in file_helpers.list_image_files(
-            imgs_and_dirs=[self.image_dir]
-        ):
-            mask_filepath = Path(
-                self.mask_dir_or_file.format(
-                    image_path=image_filepath,
-                )
-            )
-
-            if mask_filepath.exists():
-                yield image_filepath.as_posix(), mask_filepath.as_posix()
 
     @staticmethod
     def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:
