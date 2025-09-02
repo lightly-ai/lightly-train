@@ -161,10 +161,11 @@ def _stream_write_table_to_file(
         for item in items:
             for chunk, value in zip(chunks, item):
                 chunk.append(value)
-            if len(chunk) == chunk_size:
+            if len(chunks[0]) == chunk_size:
                 writer.write_table(pa.table(data=chunks, names=column_names))
-                chunk.clear()
-        if len(chunk) > 0:
+                for chunk in chunks:
+                    chunk.clear()
+        if len(chunks[0]) > 0:
             writer.write_table(pa.table(data=chunks, names=column_names))
 
 
