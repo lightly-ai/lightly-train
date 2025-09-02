@@ -717,13 +717,19 @@ def test_get_dataset_temp_mmap_path__rank(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
     # Simulate calling the function from rank 0
+    data = tmp_path / "data"
+    out = tmp_path / "out"
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
-    with common_helpers.get_dataset_temp_mmap_path(data=tmp_path) as mmap_path_rank0:
+    with common_helpers.get_dataset_temp_mmap_path(
+        data=data, out=out
+    ) as mmap_path_rank0:
         pass
 
     # Simulate calling the function from rank 1
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
-    with common_helpers.get_dataset_temp_mmap_path(data=tmp_path) as mmap_path_rank1:
+    with common_helpers.get_dataset_temp_mmap_path(
+        data=data, out=out
+    ) as mmap_path_rank1:
         pass
 
     assert mmap_path_rank0 == mmap_path_rank1
