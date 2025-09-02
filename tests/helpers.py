@@ -228,6 +228,45 @@ def create_masks(
         )
 
 
+def create_rgb_mask(
+    path: Path,
+    height: int = 128,
+    width: int = 128,
+    colors: Iterable[tuple[int, ...]] | None = None,
+    dtype: DTypeLike = np.uint8,
+) -> None:
+    if colors is not None:
+        palette = np.array(list(colors), dtype=np.uint8)
+        idx = np.random.randint(0, len(palette), size=(height, width))
+        mask_np = palette[idx]
+    else:
+        mask_np = np.random.randint(0, 256, size=(height, width, 3), dtype=np.uint8)
+    img = Image.fromarray(mask_np.astype(dtype), mode="RGB")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(path)
+
+
+def create_rgb_masks(
+    mask_dir: Path,
+    files: int | Iterable[str] = 10,
+    height: int = 128,
+    width: int = 128,
+    colors: Iterable[tuple[int, ...]] | None = None,
+    dtype: DTypeLike = np.uint8,
+) -> None:
+    mask_dir.mkdir(parents=True, exist_ok=True)
+    if isinstance(files, int):
+        files = [f"{i}.png" for i in range(files)]
+    for filename in files:
+        create_rgb_mask(
+            path=mask_dir / filename,
+            height=height,
+            width=width,
+            colors=colors,
+            dtype=dtype,
+        )
+
+
 def create_video(video_path: Path, n_frames: int = 10) -> None:
     extract_video_frames.assert_ffmpeg_is_installed()
     frame_dir = video_path.parent / video_path.stem

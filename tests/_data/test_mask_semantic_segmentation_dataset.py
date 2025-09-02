@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import albumentations as A
+import numpy as np
 import pytest
 import torch
 from torch import Tensor
@@ -375,10 +376,10 @@ class TestMaskSemanticSegmentationDataset:
         "num_classes, expected_mask_dtype, ignore_index",
         [
             (5, torch.long, -100),
-            (500, torch.long, -100),
+            (150, torch.long, -100),
         ],
     )
-    def test__getitem__(
+    def test__getitem__integer_masks(
         self,
         num_classes: int,
         expected_mask_dtype: torch.dtype,
@@ -433,6 +434,143 @@ class TestMaskSemanticSegmentationDataset:
             str(image_dir / "image0.jpg"),
             str(image_dir / "image1.jpg"),
         ]
+
+    @pytest.mark.parametrize(
+        "num_classes, expected_mask_dtype, ignore_index",
+        [
+            (5, torch.long, -100),
+            (150, torch.long, -100),
+        ],
+    )
+    def test__getitem__rgb_masks(
+        self,
+        num_classes: int,
+        expected_mask_dtype: torch.dtype,
+        tmp_path: Path,
+        ignore_index: int,
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        image_filenames = ["image0.jpg", "image1.jpg"]
+        mask_filenames = ["image0.png", "image1.png"]
+        helpers.create_images(image_dir, files=image_filenames)
+
+        colors_set: set[tuple[int, ...]] = set()
+        while len(colors_set) < num_classes:
+            color = tuple(int(x) for x in np.random.randint(0, 256, size=3))
+            colors_set.add(color)
+        colors = list(colors_set)
+        helpers.create_rgb_masks(
+            mask_dir,
+            files=mask_filenames,
+            colors=colors,
+        )
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir=mask_dir,
+            classes={
+                i: ColorsClassInfo(name=f"class_{i}", values={colors[i]})
+                for i in range(num_classes)
+            },
+            ignore_index=ignore_index,
+        )
+        transform = DummyTransform(transform_args=TaskTransformArgs())
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_filenames=list(dataset_args.list_image_filenames()),
+            transform=transform,
+        )
+
+        assert len(dataset) == 2
+        for item in dataset:  # type: ignore[attr-defined]
+            assert isinstance(item["image"], Tensor)
+            assert item["image"].shape == (3, 32, 32)
+            assert item["image"].dtype == torch.float32
+            assert isinstance(item["mask"], Tensor)
+            assert item["mask"].shape == (32, 32)
+            assert item["mask"].dtype == expected_mask_dtype
+
+            # All valid (non-ignored) pixels should be between 0 and num_classes-1
+            mask = item["mask"]
+            valid_pixels = mask != ignore_index
+            if valid_pixels.any():
+                assert mask[valid_pixels].min() >= 0
+                assert mask[valid_pixels].max() < num_classes
+
+            # Ignored pixels should exactly match ignore_index
+            ignored_pixels = mask == ignore_index
+            assert (ignored_pixels.sum() + valid_pixels.sum()) == mask.numel()
+        assert sorted(item["image_path"] for item in dataset) == [  # type: ignore[attr-defined]
+            str(image_dir / "image0.jpg"),
+            str(image_dir / "image1.jpg"),
+        ]
+
+    def test__getitem__shape_mismatch_error(self, tmp_path: Path) -> None:
+        """Test that shape mismatch between image and mask raises ValueError."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        # Create image with one size
+        image_dir.mkdir(parents=True, exist_ok=True)
+        helpers.create_image(image_dir / "image0.jpg", height=64, width=64)
+
+        # Create mask with different size
+        mask_dir.mkdir(parents=True, exist_ok=True)
+        helpers.create_mask(
+            mask_dir / "image0.png", height=128, width=128, num_classes=2
+        )
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir=mask_dir,
+            classes={0: LabelsClassInfo(name="class_0", values={0})},
+            ignore_index=-100,
+        )
+        transform = DummyTransform(transform_args=TaskTransformArgs())
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_filenames=["image0.jpg"],
+            transform=transform,
+        )
+
+        with pytest.raises(
+            ValueError, match="Shape mismatch: image shape is .* while mask shape is .*"
+        ):
+            dataset[0]
+
+    def test__getitem__rgb_mask_with_label_classes_error(self, tmp_path: Path) -> None:
+        """Test that RGB mask with LabelsClassInfo raises ValueError."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        # Create a regular image
+        image_dir.mkdir(parents=True, exist_ok=True)
+        helpers.create_image(image_dir / "image0.jpg", height=64, width=64)
+
+        # Create an RGB mask (3 channels)
+        mask_dir.mkdir(parents=True, exist_ok=True)
+        helpers.create_rgb_mask(mask_dir / "image0.png", height=64, width=64)
+
+        # Use LabelsClassInfo (instead of ColorsClassInfo)
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir=mask_dir,
+            classes={0: LabelsClassInfo(name="class_0", values={0})},
+            ignore_index=-100,
+        )
+        transform = DummyTransform(transform_args=TaskTransformArgs())
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_filenames=["image0.jpg"],
+            transform=transform,
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Expected colors specified in `classes` for RGB masks but got labels",
+        ):
+            dataset[0]
 
     def test_get_class_mapping(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"

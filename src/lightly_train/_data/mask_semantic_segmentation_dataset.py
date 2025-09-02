@@ -11,10 +11,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Dict, Iterable, Union
 
+import numpy as np
 import torch
 from pydantic import Field, TypeAdapter, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
+from typing_extensions import TypeGuard
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
@@ -25,6 +27,7 @@ from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import (
     BinaryMasksDict,
     MaskSemanticSegmentationDatasetItem,
+    NDArrayImage,
     PathLike,
 )
 
@@ -36,17 +39,16 @@ class LabelsClassInfo(PydanticConfig):
     @field_validator("labels", mode="before")
     @classmethod
     def normalize_labels(cls, v: set[int] | list[int]) -> set[int]:
-        # Case for a single label: 0 -> {0}
+        # Case for a single label or a set of labels: 0 -> {0} or {0, 1, 2} -> {0, 1, 2}
         if isinstance(v, set):
             return v
         # List of labels: [0, 1, 2] -> {0, 1, 2}
-        if isinstance(v, list):
+        elif isinstance(v, list):
             return set(v)
         else:
             raise ValueError(f"Expected int or list of ints, got {type(v)}")
 
 
-# TODO: invalid color tuples
 class ColorsClassInfo(PydanticConfig):
     name: str
     colors: set[tuple[int, ...]] = Field(alias="values")
@@ -54,7 +56,7 @@ class ColorsClassInfo(PydanticConfig):
     @field_validator("colors", mode="before")
     @classmethod
     def normalize_colors(
-        cls, v: tuple[int, ...] | list[tuple[int, ...]]
+        cls, v: tuple[int, ...] | list[tuple[int, ...]] | set[tuple[int, ...]]
     ) -> set[tuple[int, ...]]:
         # Case for a single color tuple: (0, 0, 0) -> {(0, 0, 0)}
         if isinstance(v, tuple):
@@ -62,6 +64,9 @@ class ColorsClassInfo(PydanticConfig):
         # List of color tuples: [(0, 0, 0), (255, 255, 255)] -> {(0, 0, 0), (255, 255, 255)}
         elif isinstance(v, list):
             return set(v)
+        # Set of color tuples: {(0, 0, 0), (255, 255, 255)} -> {(0, 0, 0), (255, 255, 255)}
+        elif isinstance(v, set):
+            return v
         else:
             raise ValueError(f"Expected tuple or list of tuples, got {type(v)}")
 
@@ -84,6 +89,19 @@ class ColorsClassInfo(PydanticConfig):
 
 
 ClassInfo = Union[ColorsClassInfo, LabelsClassInfo]
+
+
+def _are_colors_classes(
+    classes: dict[int, ClassInfo],
+) -> TypeGuard[dict[int, ColorsClassInfo]]:
+    """TypeGuard ensuring all class infos are ColorsClassInfo.
+
+    This allows mypy to narrow `classes` to `dict[int, ColorsClassInfo]` within
+    the True-branch.
+    """
+    return all(
+        isinstance(class_info, ColorsClassInfo) for class_info in classes.values()
+    )
 
 
 class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
@@ -179,6 +197,25 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Use LUT to remap efficiently
         return lut[mask.to(torch.long)]
 
+    def _map_rgb_masks_to_integer_masks(
+        self, rgb_mask: NDArrayImage, class_infos: dict[int, ColorsClassInfo]
+    ) -> NDArrayImage:
+        """Map RGB mask to single channel mask using class labels from ColorsClassInfo."""
+        # Initialize single channel mask with ignore_index
+
+        invalid_index = self.valid_classes.max().item() + 1
+        single_channel_mask = np.full(rgb_mask.shape[:2], invalid_index, dtype=np.uint8)
+
+        # Map each RGB color to its corresponding class label
+        for class_id, class_info in class_infos.items():
+            for color in class_info.colors:
+                # Find pixels that match this color
+                mask = np.all(rgb_mask == color, axis=2)
+                # Assign class_id to matching pixels
+                single_channel_mask[mask] = class_id
+
+        return single_channel_mask
+
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
         row = self.filepaths[index]
 
@@ -194,9 +231,34 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         )
 
         # Verify that the mask and the image have the same shape.
-        assert image.shape[:2] == mask.shape, (
-            f"Shape mismatch: image shape is {image.shape[:2]} while mask shape is {mask.shape}."
-        )
+        if image.shape[:2] != mask.shape[:2]:
+            raise ValueError(
+                f"Shape mismatch: image shape is {image.shape[:2]} while mask shape is {mask.shape}."
+            )
+
+        # Local alias to enable type narrowing with TypeGuard
+        classes = self.args.classes
+
+        # Check that if the mask is RGB, then the class info must be ColorsClassInfo
+        if len(mask.shape) == 3 and mask.shape[2] == 3:
+            if not _are_colors_classes(classes):
+                raise ValueError(
+                    "Expected colors specified in `classes` for RGB masks but got labels. "
+                    "For RGB masks, you have to specify the colors that correspond to each class.\n\n"
+                    "The RGB colors should be provided as a tuple (not a list!) to `values`:\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'values': (0, 0, 0)},\n"
+                    "  1: {'name': 'road', 'values': (128, 128, 128)}\n"
+                    "}\n\n"
+                    "Mapping multiple colors to a single class also by providing a list of tuples:\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]},\n"
+                    "  1: {'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}\n"
+                    "}"
+                )
+
+            # Map RGB mask to single channel mask using class labels
+            mask = self._map_rgb_masks_to_integer_masks(mask, classes)
 
         # Try to find an augmentation that contains a valid mask. This increases the
         # probability for a good training signal. If no valid mask is found we still
@@ -213,8 +275,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Mark pixels to ignore in the masks.
         # TODO(Thomas, 07/25): Make this optional.
-        transformed_mask = transformed["mask"]
-        transformed_mask = self.remap_mask(transformed_mask)
+        transformed_mask = self.remap_mask(transformed["mask"])
 
         return {
             "image_path": str(image_path),  # Str for torch dataloader compatibility.
