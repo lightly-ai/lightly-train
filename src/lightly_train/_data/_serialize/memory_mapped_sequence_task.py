@@ -158,14 +158,17 @@ def _stream_write_table_to_file(
     schema = pa.schema([(name, pa.string()) for name in column_names])
     with ipc.new_file(sink=str(mmap_filepath.resolve()), schema=schema) as writer:
         chunks: list[list[str]] = list([] for _ in column_names)
-        for item in items:
+
+        for item_count, item in enumerate(items, 1):
             for chunk, value in zip(chunks, item):
                 chunk.append(value)
-            if len(chunks[0]) == chunk_size:
+
+            if item_count % chunk_size == 0:
                 writer.write_table(pa.table(data=chunks, names=column_names))
                 for chunk in chunks:
                     chunk.clear()
-        if len(chunks[0]) > 0:
+
+        if any(chunks):  # Check if any chunk has remaining data
             writer.write_table(pa.table(data=chunks, names=column_names))
 
 

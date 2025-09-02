@@ -84,7 +84,7 @@ class TestMemoryMappedSequenceTask:
         assert sequence[:] == copy[:]
 
 
-@pytest.mark.parametrize("chunk_size", [1, 2, 10_000])
+@pytest.mark.parametrize("chunk_size", [1, 2, 3, 10_000])
 def test_write_filenames_to_file(chunk_size: int, tmp_path: Path) -> None:
     column_names = ["image_filenames", "mask_filenames"]
     memory_mapped_sequence_task.write_filenames_to_file(
