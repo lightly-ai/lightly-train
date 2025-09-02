@@ -11,6 +11,7 @@ import contextlib
 import contextvars
 import logging
 from collections.abc import Iterator
+from enum import Enum
 from typing import Any, Literal
 
 import torch
@@ -55,6 +56,17 @@ def precalculate_for_onnx_export() -> Iterator[None]:
         _PRECALCULATE_FOR_ONNX_EXPORT.reset(token)
 
 
+class OnnxPrecision(str, Enum):
+    F16_TRUE = "16-true"
+    F32_TRUE = "32-true"
+
+    def torch(self) -> torch.dtype:
+        if self == OnnxPrecision.F32_TRUE:
+            return torch.float32
+        if self == OnnxPrecision.F16_TRUE:
+            return torch.float16
+
+
 def export_onnx(
     *,
     out: PathLike,
@@ -63,7 +75,7 @@ def export_onnx(
     num_channels: int = 3,
     height: int = 224,
     width: int = 224,
-    half: bool = False,
+    precision: OnnxPrecision = OnnxPrecision.F32_TRUE,
     verify: bool = True,
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
@@ -80,7 +92,7 @@ def _export_task(
     num_channels: int = 3,
     height: int = 224,
     width: int = 224,
-    half: bool = False,
+    precision: OnnxPrecision = OnnxPrecision.F32_TRUE,
     verify: bool = True,
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
@@ -102,8 +114,8 @@ def _export_task(
             Height of the input tensor.
         width:
             Width of the input tensor.
-        half:
-            Export the model with float16 precision.
+        precision:
+            OnnxPrecision.F32_TRUE for float32 precision or OnnxPrecision.F16_TRUE for float16 precision.
         verify:
             Check the exported model for errors.
         overwrite:
@@ -134,8 +146,6 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
         checkpoint=checkpoint_path
     )
     task_model.eval()
-    if config.half:
-        task_model.half()
 
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
@@ -151,7 +161,8 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
 
         # Get the device of the model to ensure dummy input is on the same device
         model_device = next(task_model.parameters()).device
-        onnx_dtype = torch.float16 if config.half else torch.float32
+        onnx_dtype = config.precision.torch()
+        task_model.to(onnx_dtype)
 
         dummy_input = torch.randn(
             config.batch_size,
@@ -185,7 +196,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
 
             # Always run the reference input in float32 and on cpu for consistency
             x_model = torch.rand_like(dummy_input, dtype=torch.float32, device="cpu")
-            x_onnx = x_model.half() if config.half else x_model
+            x_onnx = x_model.to(onnx_dtype)
 
             session = ort.InferenceSession(out_path)
             input_feed = {input_name: x_onnx.numpy()}
@@ -234,7 +245,7 @@ class ExportTaskConfig(PydanticConfig):
     num_channels: int = 3
     height: int = 224
     width: int = 224
-    half: bool = False
+    precision: OnnxPrecision = OnnxPrecision.F32_TRUE
     verify: bool = True
     overwrite: bool = False
     format_args: dict[str, Any] | None = (
