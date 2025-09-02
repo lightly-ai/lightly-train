@@ -19,6 +19,9 @@ from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
+from lightly_train._data._serialize.memory_mapped_sequence_task import (
+    MemoryMappedSequenceTask,
+)
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._env import Env
@@ -39,11 +42,14 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
     def __init__(
         self,
         dataset_args: MaskSemanticSegmentationDatasetArgs,
-        image_and_mask_filepaths: Sequence[tuple[Path, Path]],
+        image_and_mask_filepaths: Sequence[tuple[str, str]]
+        | MemoryMappedSequenceTask[str],
         transform: TaskTransform,
     ):
         self.args = dataset_args
-        self.image_and_mask_filepaths = image_and_mask_filepaths
+        self.image_and_mask_filepaths: (
+            Sequence[tuple[str, str]] | MemoryMappedSequenceTask[str]
+        ) = image_and_mask_filepaths
         self.transform = transform
         self.ignore_index = dataset_args.ignore_index
 
@@ -129,13 +135,17 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         return lut[mask.to(torch.long)]
 
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
-        image_path, mask_path = self.image_and_mask_filepaths[index]
+        row = self.image_and_mask_filepaths[index]
+        image_path = row[0]
+        mask_path = row[1]
 
         # Load the image and the mask.
         image = file_helpers.open_image_numpy(
-            image_path=image_path, mode=self.image_mode
+            image_path=Path(image_path), mode=self.image_mode
         )
-        mask = file_helpers.open_image_numpy(image_path=mask_path, mode=ImageMode.MASK)
+        mask = file_helpers.open_image_numpy(
+            image_path=Path(mask_path), mode=ImageMode.MASK
+        )
 
         # Verify that the mask and the image have the same shape.
         assert image.shape[:2] == mask.shape, (
@@ -186,7 +196,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if it makes sense to have this in dataset args.
-    def list_image_and_mask_filepaths(self) -> Iterable[tuple[Path, Path]]:
+    def list_image_and_mask_filepaths(self) -> Iterable[tuple[str, str]]:
         for image_filepath in file_helpers.list_image_files(
             imgs_and_dirs=[self.image_dir]
         ):
@@ -197,7 +207,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
             )
 
             if mask_filepath.exists():
-                yield image_filepath, mask_filepath
+                yield image_filepath.as_posix(), mask_filepath.as_posix()
 
     @staticmethod
     def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:

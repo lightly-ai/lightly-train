@@ -371,8 +371,8 @@ class TestMaskSemanticSegmentationDatasetArgs:
 
         assert len(filepaths) == 2
         expected_pairs = [
-            (image_dir / "image0.jpg", mask_dir / "image0.png"),
-            (image_dir / "image1.jpg", mask_dir / "image1.png"),
+            (str(image_dir / "image0.jpg"), str(mask_dir / "image0.png")),
+            (str(image_dir / "image1.jpg"), str(mask_dir / "image1.png")),
         ]
         assert set(filepaths) == set(expected_pairs)
 
@@ -399,8 +399,8 @@ class TestMaskSemanticSegmentationDatasetArgs:
 
         assert len(filepaths) == 2
         expected_pairs = [
-            (image_dir / "image0.jpg", mask_dir / "image0.png"),
-            (image_dir / "image1.jpg", mask_dir / "image1.png"),
+            (str(image_dir / "image0.jpg"), str(mask_dir / "image0.png")),
+            (str(image_dir / "image1.jpg"), str(mask_dir / "image1.png")),
         ]
         assert set(filepaths) == set(expected_pairs)
 
@@ -426,4 +426,7 @@ class TestMaskSemanticSegmentationDatasetArgs:
         filepaths = list(dataset_args.list_image_and_mask_filepaths())
 
         assert len(filepaths) == 1
-        assert filepaths[0] == (image_dir / "image0.jpg", mask_dir / "image0.png")
+        assert filepaths[0] == (
+            str(image_dir / "image0.jpg"),
+            str(mask_dir / "image0.png"),
+        )

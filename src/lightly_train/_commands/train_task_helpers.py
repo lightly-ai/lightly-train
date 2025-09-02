@@ -26,8 +26,10 @@ from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._configs import validate
 from lightly_train._data import cache
-from lightly_train._data._serialize import memory_mapped_sequence
-from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
+from lightly_train._data._serialize import memory_mapped_sequence_task
+from lightly_train._data._serialize.memory_mapped_sequence_task import (
+    MemoryMappedSequenceTask,
+)
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
@@ -360,9 +362,9 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
 
 def get_dataset_mmap_filenames(
     fabric: Fabric,
-    filenames: Iterable[tuple[Path, Path]],
+    filepaths: Iterable[tuple[str, ...]],
     mmap_filepath: Path,
-) -> MemoryMappedSequence[str]:
+) -> MemoryMappedSequenceTask[str]:
     """Returns memory-mapped filenames shared across all ranks.
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
@@ -371,8 +373,9 @@ def get_dataset_mmap_filenames(
     # If the file already exists and we are allowed to reuse it, return it.
     if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
         logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
-        return memory_mapped_sequence.memory_mapped_sequence_from_file(
-            mmap_filepath=mmap_filepath
+        return memory_mapped_sequence_task.memory_mapped_sequence_from_file(
+            mmap_filepath=mmap_filepath,
+            column_names=["image_filenames", "mask_filenames"],
         )
 
     # Check if the mmap file is on a shared filesystem.
@@ -390,14 +393,16 @@ def get_dataset_mmap_filenames(
         if (fabric.global_rank == 0) or (
             not is_shared_filesystem and fabric.local_rank == 0
         ):
-            memory_mapped_sequence.write_filenames_to_file(
-                filenames=filenames,  # type: ignore[arg-type]
+            memory_mapped_sequence_task.write_filenames_to_file(
+                filenames=filepaths,
                 mmap_filepath=mmap_filepath,
+                column_names=["image_filenames", "mask_filenames"],
             )
 
     # Return memory-mapped filenames from file.
-    return memory_mapped_sequence.memory_mapped_sequence_from_file(
-        mmap_filepath=mmap_filepath
+    return memory_mapped_sequence_task.memory_mapped_sequence_from_file(
+        mmap_filepath=mmap_filepath,
+        column_names=["image_filenames", "mask_filenames"],
     )
 
 
@@ -411,9 +416,9 @@ def get_dataset(
     dataset_cls = dataset_args.get_dataset_cls()
     return dataset_cls(
         dataset_args=dataset_args,
-        image_and_mask_filepaths=get_dataset_mmap_filenames(  # type: ignore[arg-type]
+        image_and_mask_filepaths=get_dataset_mmap_filenames(
             fabric=fabric,
-            filenames=image_and_mask_filepaths,
+            filepaths=image_and_mask_filepaths,
             mmap_filepath=mmap_filepath,
         ),
         transform=transform,
