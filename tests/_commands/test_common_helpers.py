@@ -45,7 +45,7 @@ def _dec_ref_worker(mmap_str: str, ref_str: str) -> None:
     common_helpers._decrement_and_cleanup_if_zero(Path(mmap_str), Path(ref_str))
 
 
-def _ctx_mmap_worker(data_str: str) -> str:
+def _ctx_mmap_worker(data_str: str, out_str: str) -> str:
     """Open the mmap path context and return the path as string.
 
     Kept top-level to be picklable for ProcessPoolExecutor on spawn/forkserver.
@@ -55,7 +55,9 @@ def _ctx_mmap_worker(data_str: str) -> str:
     from lightly_train._commands import common_helpers
 
     data_path = Path(data_str)
-    with common_helpers.get_dataset_temp_mmap_path(data=data_path) as mmap_path:
+    with common_helpers.get_dataset_temp_mmap_path(
+        data=data_path, out=out_str
+    ) as mmap_path:
         assert mmap_path.suffix == ".mmap"
         return str(mmap_path)
 
@@ -734,10 +736,14 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
     import concurrent.futures
 
     data_path = tmp_path / "data"
+    out_path = tmp_path / "out"
 
     # Run 5 concurrent context managers (processes)
     with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(_ctx_mmap_worker, str(data_path)) for _ in range(5)]
+        futures = [
+            executor.submit(_ctx_mmap_worker, str(data_path), str(out_path))
+            for _ in range(5)
+        ]
         # Collect results and re-raise any exceptions
         mmap_paths = [Path(future.result()) for future in futures]
 

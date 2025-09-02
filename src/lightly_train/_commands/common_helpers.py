@@ -371,13 +371,14 @@ def _get_package(model: Module) -> BasePackage:
 @contextlib.contextmanager
 def get_dataset_temp_mmap_path(
     data: PathLike | Sequence[PathLike],
+    out: PathLike,
 ) -> Generator[Path, Any, Any]:
-    """Generate file in temporary directory to be used for memory-mapping the dataset.
+    """Generate file in the cache directory to be used for memory-mapping the dataset.
 
-    Creates a unique filename for the memory-mapped file based on the data arg.
-    We use the data arg as a deterministic value that is consistent across all ranks
-    on the same node. Additionally, we can cache the file if required, since the hash
-    directly reflects the used config.
+    Creates a unique filename for the memory-mapped file based on the `out` or `data`
+    arguments. We use those arguments as they are consistent across all ranks on the
+    same node for the same run. Additionally, we can cache the file if required, since
+    the hash directly reflects the used config.
 
     We need a deterministic value from "outside" at this point in the code as the
     code might already be running on multiple processes depending on how it was
@@ -390,11 +391,41 @@ def get_dataset_temp_mmap_path(
     The filename is different on each node. This is necessary to avoid multiple
     processes writing to the same file in case the nodes use a shared filesystem.
     """
-    out_hash = get_sha256(f"{data}-{distributed_helpers.get_node_rank() or 0}")
-    mmap_filepath = (cache.get_data_cache_dir() / out_hash).with_suffix(".mmap")
+    if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
+        # Use data as identifier to share the mmap file across multiple runs.
+        # NOTE(Guarin, 09/25): Hash of data might be slow if data is a long list of
+        # filenames or directories.
+        identifier = f"{data}-{distributed_helpers.get_node_rank() or 0}"
+    else:
+        # Use out as identifier to create a unique mmap file for each run. We assume
+        # that only one run is using a specific out directory at a time.
+        out = Path(out).resolve()
+        identifier = f"{out}-{distributed_helpers.get_node_rank() or 0}"
+
+    mmap_filepath = (cache.get_data_cache_dir() / get_sha256(identifier)).with_suffix(
+        ".mmap"
+    )
     ref_count_filepath = mmap_filepath.with_suffix(".ref_count")
 
     mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
+
+    if (
+        not Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
+        and mmap_filepath.exists()
+        and distributed_helpers.is_local_rank_zero()
+    ):
+        # We have to crash in this case because we cannot guarantee that the other
+        # processes from the current run didn't already read from the existing mmap
+        # file which could lead to inconsistent data between processes.
+        # This can only happen with PyTorch Lightning but not with Lightning Fabric.
+        raise RuntimeError(
+            f"Detected multiple runs using output directory '{out}'! This error can "
+            "also happen if a previous run crashed and did not shut down properly. "
+            "If no other run is using this output directory, please go ahead and "
+            "delete the following leftover files:\n "
+            f" - {mmap_filepath}\n"
+            f" - {ref_count_filepath}\n"
+        )
 
     try:
         # Increment reference count atomically
@@ -485,7 +516,8 @@ def get_dataset_mmap_filenames(
                     )
                 time.sleep(0.2)
     finally:
-        _unlink_and_ignore(tmp_path)
+        if distributed_helpers.is_local_rank_zero():
+            _unlink_and_ignore(tmp_path)
 
     # Return memory-mapped filenames from file.
     return memory_mapped_sequence.memory_mapped_sequence_from_file(
