@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Any, Literal
@@ -416,7 +415,6 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
     """
     Assert that train_helpers.load_state_dict is called when a checkpoint is provided.
     """
-    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_CACHE_DIR": str(tmp_path / "cache")})
     out = tmp_path / "out"
     data = tmp_path / "data"
     # Use 12 images to make sure that we have at least 3 batches. We need 3 batches for

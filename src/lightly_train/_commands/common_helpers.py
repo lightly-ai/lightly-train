@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+import sys
 import time
 import warnings
 from enum import Enum
@@ -418,14 +419,34 @@ def get_dataset_temp_mmap_path(
         # processes from the current run didn't already read from the existing mmap
         # file which could lead to inconsistent data between processes.
         # This can only happen with PyTorch Lightning but not with Lightning Fabric.
-        raise RuntimeError(
-            f"Detected multiple runs using output directory '{out}'! This error can "
-            "also happen if a previous run crashed and did not shut down properly. "
-            "If no other run is using this output directory, please go ahead and "
-            "delete the following leftover files:\n "
-            f" - {mmap_filepath}\n"
-            f" - {ref_count_filepath}\n"
-        )
+        if sys.platform.startswith("win"):
+            # On windows we sometimes cannot delete mmap files with _unlink_and_ignore
+            # due to a "[WinError 5] Access is denied: ..." error. This is probably due
+            # to a file-handle that is not released yet. In that case we show a warning
+            # instead of raising an error.
+            logger.warning(
+                f"Detected multiple runs using output directory '{out}'! This warning "
+                "can also happen if a previous run did not shut down properly. If no "
+                "other run is using this output directory concurrently and you didn't "
+                "modify any files in the `data` directory you can ignore this warning. "
+                "If another run is using this output directory concurrently, the "
+                "results might get corrupted, in that case please restart the run with "
+                "a different output directory. "
+                "If the files in `data` were modified since the last run, please "
+                "re-run with a new output directory or delete the following leftover "
+                "files:\n "
+                "   - {mmap_filepath}\n"
+                "   - {ref_count_filepath}\n"
+            )
+        else:
+            raise RuntimeError(
+                f"Detected multiple runs using output directory '{out}' concurrently! "
+                "This error can also happen if a previous run crashed and did not shut "
+                "down properly. If no other run is using this output directory, please go "
+                "ahead and delete the following leftover files:\n "
+                f" - {mmap_filepath}\n"
+                f" - {ref_count_filepath}\n"
+            )
 
     try:
         # Increment reference count atomically
@@ -602,8 +623,7 @@ def _unlink_and_ignore(path: Path) -> None:
     """
     try:
         path.unlink(missing_ok=True)
-    except OSError as ex:
-        logger.debug(f"Could not delete file '{path}': {ex}")
+    except OSError:
         pass
 
 

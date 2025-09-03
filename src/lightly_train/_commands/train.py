@@ -412,11 +412,6 @@ def train_from_config(config: TrainConfig) -> None:
             train_dataloaders=dataloader,
             ckpt_path="last" if config.resume_interrupted else None,
         )
-        del dataloader
-        del dataset
-        import gc
-
-        gc.collect()
 
     if config.epochs == 0:
         logger.info("No training epochs specified. Saving model and exiting.")
