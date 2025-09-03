@@ -409,10 +409,15 @@ def get_dataset_mmap_file(
         if (fabric.global_rank == 0) or (
             not is_shared_filesystem and fabric.local_rank == 0
         ):
-            memory_mapped_sequence_task.write_items_to_file(
-                items=items,
-                mmap_filepath=mmap_filepath,
-            )
+            try:
+                memory_mapped_sequence_task.write_items_to_file(
+                    items=items,
+                    mmap_filepath=mmap_filepath,
+                )
+            except ValueError as e:
+                # Surface empty-sequence errors at this call site for clearer traces
+                # while preserving the original message.
+                raise ValueError(str(e)) from None
 
     # Return memory-mapped filepaths from file.
     return memory_mapped_sequence_task.memory_mapped_sequence_from_file(

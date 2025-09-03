@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+from itertools import chain
 from pathlib import Path
 from typing import Any, Generic, Iterable, Mapping, Sequence, TypeVar, overload
 
@@ -33,8 +34,20 @@ def write_items_to_file(
         raise ValueError(f"Invalid `chunk_size` {chunk_size} must be positive!")
     logger.debug(f"Writing filepaths to '{mmap_filepath}' (chunk_size={chunk_size})")
 
+    it = iter(items)
+    try:
+        first_item = next(it)
+    except StopIteration:
+        raise ValueError(
+            "The memory-mapped sequence is empty because no valid entries are found. Please check your input data."
+        ) from None
+
+    schema = pa.schema(
+        [(name, _infer_type(first_item[name])) for name in list(first_item.keys())]
+    )
     _stream_write_table_to_file(
-        items=items,
+        items=chain([first_item], it),
+        schema=schema,
         mmap_filepath=mmap_filepath,
         chunk_size=chunk_size,
     )
@@ -148,48 +161,31 @@ class MemoryMappedSequenceTask(Sequence[T[V]], Generic[V]):
         MemoryMappedSequenceTask.__init__(self, path=path, columns=columns)
 
 
+def _infer_type(value: Primitive) -> pa.DataType:
+    # Fallback to string for any unexpected type.
+    ArrowTypes = {
+        bool: pa.bool_(),
+        float: pa.float64(),
+        int: pa.int64(),
+        str: pa.string(),
+    }
+
+    return ArrowTypes.get(type(value), pa.string())
+
+
 def _stream_write_table_to_file(
     items: Iterable[Mapping[str, Primitive]],
+    schema: pa.Schema,
     mmap_filepath: Path,
     chunk_size: int = 10_000,
 ) -> None:
-    def _infer_type(value: Primitive) -> pa.DataType:
-        if isinstance(value, bool):
-            return pa.bool_()
-        if isinstance(value, int):
-            return pa.int64()
-        if isinstance(value, float):
-            return pa.float64()
-        return pa.string()
-
-    it = iter(items)
-    try:
-        first = dict(next(it))
-    except StopIteration:
-        # Create an empty file with no rows and no columns
-        with ipc.new_file(
-            sink=str(mmap_filepath.resolve()), schema=pa.schema([])
-        ) as writer:
-            pass
-        return
-
-    column_names = list(first.keys())
-    schema = pa.schema([(name, _infer_type(first[name])) for name in column_names])
-
+    column_names = schema.names
     with ipc.new_file(sink=str(mmap_filepath.resolve()), schema=schema) as writer:
         chunks: list[list[Primitive]] = list([] for _ in column_names)
 
-        def _append_item(item: dict[str, Primitive]) -> None:
+        for item_count, item in enumerate(items, 1):
             for chunk, name in zip(chunks, column_names):
                 chunk.append(item[name])
-
-        item_count = 0
-        _append_item(first)
-        item_count += 1
-
-        for item in it:
-            _append_item(dict(item))
-            item_count += 1
 
             if item_count % chunk_size == 0:
                 writer.write_table(pa.table(data=chunks, names=column_names))
