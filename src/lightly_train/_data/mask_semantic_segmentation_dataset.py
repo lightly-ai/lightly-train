@@ -7,10 +7,9 @@
 #
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from pathlib import Path
-from typing import ClassVar, Dict, Union
+from typing import ClassVar, Dict, Iterable, Union
 
 import torch
 from pydantic import Field, TypeAdapter, field_validator
@@ -42,14 +41,13 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
     def __init__(
         self,
         dataset_args: MaskSemanticSegmentationDatasetArgs,
-        image_and_mask_filepaths: Sequence[tuple[str, str]]
-        | MemoryMappedSequenceTask[str],
+        image_info: Sequence[tuple[str, str]] | MemoryMappedSequenceTask[str],
         transform: TaskTransform,
     ):
         self.args = dataset_args
-        self.image_and_mask_filepaths: (
-            Sequence[tuple[str, str]] | MemoryMappedSequenceTask[str]
-        ) = image_and_mask_filepaths
+        self.filepaths: Sequence[tuple[str, str]] | MemoryMappedSequenceTask[str] = (
+            image_info
+        )
         self.transform = transform
         self.ignore_index = dataset_args.ignore_index
 
@@ -89,7 +87,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         }
 
     def __len__(self) -> int:
-        return len(self.image_and_mask_filepaths)
+        return len(self.filepaths)
 
     def get_binary_masks(self, mask: Tensor) -> BinaryMasksDict:
         # This follows logic from:
@@ -135,7 +133,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         return lut[mask.to(torch.long)]
 
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
-        row = self.image_and_mask_filepaths[index]
+        row = self.filepaths[index]
         image_path = row[0]
         mask_path = row[1]
 
@@ -186,13 +184,31 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     ignore_index: int
 
-    @field_validator("mask_dir_or_file", mode="before")
-    @classmethod
-    def validate_mask_dir_or_file(cls, v: str) -> str:
-        if not bool(re.search(r"\{[^}]+\}", v)):  # mask_dir_or_file is a directory
-            return f"{v}/{{image_path.stem}}.png"
-        else:  # mask_dir_or_file is a format string
-            return v
+    # @field_validator("mask_dir_or_file", mode="before")
+    # @classmethod
+    # def validate_mask_dir_or_file(cls, v: str) -> str:
+    #     if not bool(re.search(r"\{[^}]+\}", v)):  # mask_dir_or_file is a directory
+    #         return f"{v}/{{image_path.stem}}.png"
+    #     else:  # mask_dir_or_file is a format string
+    #         return v
+
+    def list_image_info(self) -> Iterable[tuple[str, str]]:
+        for image_filepath in file_helpers.list_image_files(
+            imgs_and_dirs=[self.image_dir]
+        ):
+            if Path(self.mask_dir_or_file).is_dir():
+                mask_filepath = self.mask_dir_or_file / image_filepath.relative_to(
+                    self.image_dir
+                ).with_suffix(".png")
+            else:
+                mask_filepath = Path(
+                    self.mask_dir_or_file.format(
+                        image_path=image_filepath,
+                    )
+                )
+
+            if mask_filepath.exists():
+                yield str(image_filepath), str(mask_filepath)
 
     @staticmethod
     def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:

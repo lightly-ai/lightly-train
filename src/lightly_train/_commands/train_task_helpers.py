@@ -25,7 +25,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._configs import validate
-from lightly_train._data import cache, file_helpers
+from lightly_train._data import cache
 from lightly_train._data._serialize import memory_mapped_sequence_task
 from lightly_train._data._serialize.memory_mapped_sequence_task import (
     MemoryMappedSequenceTask,
@@ -360,24 +360,6 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
         pass  # Another process already cleaned up
 
 
-def list_image_and_mask_filepaths(
-    image_dir: Path, mask_file: str
-) -> Iterable[tuple[str, str]]:
-    for image_filepath in file_helpers.list_image_files(imgs_and_dirs=[image_dir]):
-        mask_filepath = Path(
-            mask_file.format(
-                image_path=image_filepath,
-            )
-        )
-
-        if mask_filepath.exists():
-            yield str(image_filepath), str(mask_filepath)
-        else:
-            logger.warning(
-                f"Mask file '{mask_filepath}' for image '{image_filepath}' does not exist."
-            )
-
-
 def get_dataset_mmap_file(
     fabric: Fabric,
     filepaths: Iterable[tuple[str, ...]],
@@ -430,17 +412,14 @@ def get_dataset(
     transform: TaskTransform,
     mmap_filepath: Path,
 ) -> MaskSemanticSegmentationDataset:
-    image_and_mask_filepaths = list(
-        list_image_and_mask_filepaths(
-            image_dir=dataset_args.image_dir, mask_file=dataset_args.mask_dir_or_file
-        )
-    )
+    image_info = dataset_args.list_image_info()
+
     dataset_cls = dataset_args.get_dataset_cls()
     return dataset_cls(
         dataset_args=dataset_args,
-        image_and_mask_filepaths=get_dataset_mmap_file(
+        image_info=get_dataset_mmap_file(
             fabric=fabric,
-            filepaths=image_and_mask_filepaths,
+            filepaths=image_info,
             mmap_filepath=mmap_filepath,
         ),
         transform=transform,
