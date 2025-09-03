@@ -20,8 +20,8 @@ class TestMemoryMappedSequenceTask:
         image_dir.mkdir()
         mask_dir.mkdir()
 
-        memory_mapped_sequence_task.write_filepaths_to_file(
-            filepaths=[
+        memory_mapped_sequence_task.write_items_to_file(
+            items=[
                 (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
                 (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
                 (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
@@ -55,8 +55,8 @@ class TestMemoryMappedSequenceTask:
         image_dir.mkdir()
         mask_dir.mkdir()
 
-        memory_mapped_sequence_task.write_filepaths_to_file(
-            filepaths=[
+        memory_mapped_sequence_task.write_items_to_file(
+            items=[
                 (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
                 (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
                 (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
@@ -89,8 +89,8 @@ class TestMemoryMappedSequenceTask:
         image_dir.mkdir()
         mask_dir.mkdir()
 
-        memory_mapped_sequence_task.write_filepaths_to_file(
-            filepaths=[
+        memory_mapped_sequence_task.write_items_to_file(
+            items=[
                 (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
                 (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
                 (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
@@ -109,15 +109,15 @@ class TestMemoryMappedSequenceTask:
 
 
 @pytest.mark.parametrize("chunk_size", [1, 2, 3, 10_000])
-def test_write_filepaths_to_file(chunk_size: int, tmp_path: Path) -> None:
+def test_write_items_to_file(chunk_size: int, tmp_path: Path) -> None:
     image_dir = tmp_path / "images"
     mask_dir = tmp_path / "masks"
     image_dir.mkdir()
     mask_dir.mkdir()
 
     column_names = ["image_filepaths", "mask_filepaths"]
-    memory_mapped_sequence_task.write_filepaths_to_file(
-        filepaths=[
+    memory_mapped_sequence_task.write_items_to_file(
+        items=[
             (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
             (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
             (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
@@ -142,9 +142,7 @@ def test_write_filepaths_to_file(chunk_size: int, tmp_path: Path) -> None:
     "chunk_size",
     [0, -1],
 )
-def test_write_filepaths_to_file__invalid_chunks(
-    chunk_size: int, tmp_path: Path
-) -> None:
+def test_write_items_to_file__invalid_chunks(chunk_size: int, tmp_path: Path) -> None:
     image_dir = tmp_path / "images"
     mask_dir = tmp_path / "masks"
     image_dir.mkdir()
@@ -153,8 +151,8 @@ def test_write_filepaths_to_file__invalid_chunks(
     with pytest.raises(
         ValueError, match=f"Invalid `chunk_size` {chunk_size} must be positive!"
     ):
-        memory_mapped_sequence_task.write_filepaths_to_file(
-            filepaths=[
+        memory_mapped_sequence_task.write_items_to_file(
+            items=[
                 (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
                 (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
                 (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),

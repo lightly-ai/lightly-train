@@ -18,9 +18,6 @@ from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
-from lightly_train._data._serialize.memory_mapped_sequence_task import (
-    MemoryMappedSequenceTask,
-)
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._env import Env
@@ -41,13 +38,11 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
     def __init__(
         self,
         dataset_args: MaskSemanticSegmentationDatasetArgs,
-        image_info: Sequence[tuple[str, str]] | MemoryMappedSequenceTask[str],
+        image_info: Sequence[dict[str, str]],
         transform: TaskTransform,
     ):
         self.args = dataset_args
-        self.filepaths: Sequence[tuple[str, str]] | MemoryMappedSequenceTask[str] = (
-            image_info
-        )
+        self.filepaths = image_info
         self.transform = transform
         self.ignore_index = dataset_args.ignore_index
 
@@ -134,8 +129,9 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
         row = self.filepaths[index]
-        image_path = row[0]
-        mask_path = row[1]
+
+        image_path = row["image_filepaths"]
+        mask_path = row["mask_filepaths"]
 
         # Load the image and the mask.
         image = file_helpers.open_image_numpy(
@@ -184,15 +180,7 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     ignore_index: int
 
-    # @field_validator("mask_dir_or_file", mode="before")
-    # @classmethod
-    # def validate_mask_dir_or_file(cls, v: str) -> str:
-    #     if not bool(re.search(r"\{[^}]+\}", v)):  # mask_dir_or_file is a directory
-    #         return f"{v}/{{image_path.stem}}.png"
-    #     else:  # mask_dir_or_file is a format string
-    #         return v
-
-    def list_image_info(self) -> Iterable[tuple[str, str]]:
+    def list_image_info(self) -> Iterable[dict[str, str]]:
         for image_filepath in file_helpers.list_image_files(
             imgs_and_dirs=[self.image_dir]
         ):
@@ -208,7 +196,10 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
                 )
 
             if mask_filepath.exists():
-                yield str(image_filepath), str(mask_filepath)
+                yield {
+                    "image_filepaths": str(image_filepath),
+                    "mask_filepaths": str(mask_filepath),
+                }
 
     @staticmethod
     def get_dataset_cls() -> type[MaskSemanticSegmentationDataset]:

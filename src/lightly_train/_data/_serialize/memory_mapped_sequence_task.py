@@ -10,45 +10,49 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Generic, Iterable, Sequence, Tuple, TypeVar, overload
+from typing import Any, Generic, Iterable, Mapping, Sequence, TypeVar, overload
 
 import pyarrow as pa  # type: ignore
 from pyarrow import Table, ipc
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
+
+Primitive = bool | int | float | str
+V = TypeVar("V", covariant=True)
+T = dict[str, V]
 
 
-def write_filepaths_to_file(
-    filepaths: Iterable[tuple[str, ...]],
+def write_items_to_file(
+    items: Iterable[Mapping[str, Primitive]],
     mmap_filepath: Path,
-    column_names: list[str],
     chunk_size: int = 10_000,
 ) -> None:
-    """Writes the filepaths to a file for memory mapping."""
+    """Writes the filepaths to a file for memory dict."""
     if chunk_size <= 0:
         raise ValueError(f"Invalid `chunk_size` {chunk_size} must be positive!")
     logger.debug(f"Writing filepaths to '{mmap_filepath}' (chunk_size={chunk_size})")
+
     _stream_write_table_to_file(
-        items=filepaths,
+        items=items,
         mmap_filepath=mmap_filepath,
         chunk_size=chunk_size,
-        column_names=column_names,
     )
 
 
 def memory_mapped_sequence_from_file(
-    mmap_filepath: Path, column_names: list[str]
-) -> MemoryMappedSequenceTask[str]:
+    mmap_filepath: Path,
+) -> MemoryMappedSequenceTask[Primitive]:
     table = _mmap_table_from_file(mmap_filepath=mmap_filepath)
-    logger.debug(
-        f"Creating memory mapped sequence with {table.num_rows} '{column_names}'."
-    )
+
+    num_rows = table.num_rows
+    column_names = table.column_names
+
+    logger.debug(f"Creating memory mapped sequence with {num_rows} '{column_names}'.")
     return MemoryMappedSequenceTask(path=mmap_filepath, columns=column_names)
 
 
-class MemoryMappedSequenceTask(Sequence[Tuple[T, ...]], Generic[T]):
+class MemoryMappedSequenceTask(Sequence[T[V]], Generic[V]):
     """A memory mapped sequence built around PyArrow's memory mapped tables.
 
     A memory mapped sequence does not store its items in RAM but loads the data from disk.
@@ -105,26 +109,24 @@ class MemoryMappedSequenceTask(Sequence[Tuple[T, ...]], Generic[T]):
         return num_rows
 
     @overload
-    def __getitem__(self, index: int) -> tuple[T, ...]: ...
+    def __getitem__(self, index: int) -> T[V]: ...
 
     @overload
-    def __getitem__(self, index: slice) -> Sequence[tuple[T, ...]]: ...
+    def __getitem__(self, index: slice) -> Sequence[T[V]]: ...
 
-    def __getitem__(
-        self, index: int | slice
-    ) -> tuple[T, ...] | Sequence[tuple[T, ...]]:
+    def __getitem__(self, index: int | slice) -> T[V] | Sequence[T[V]]:
         if isinstance(index, int):
-            row_dict: list[dict[str, T]] = (
+            rows_dict: list[T[V]] = (
                 self.table().select(self._columns).slice(index, 1).to_pylist()
             )
-            # Each row is a tuple of values corresponding to the requested columns.
-            return tuple(row_dict[0][col] for col in self._columns)
+            # Each row is a dict of values corresponding to the requested columns.
+            return rows_dict[0]
         else:
             start, stop, step = index.indices(len(self))
 
             if step == 1:
                 # Contiguous slice - use slice() method (much faster)
-                rows_dict: list[dict[str, T]] = (
+                rows_dict = (
                     self.table()
                     .select(self._columns)
                     .slice(start, stop - start)
@@ -135,10 +137,7 @@ class MemoryMappedSequenceTask(Sequence[Tuple[T, ...]], Generic[T]):
                 indices = list(range(start, stop, step))
                 rows_dict = self.table().select(self._columns).take(indices).to_pylist()
 
-            items: Sequence[tuple[T, ...]] = [
-                tuple(row_dict[col] for col in self._columns) for row_dict in rows_dict
-            ]
-            return items
+            return rows_dict
 
     def __getstate__(self) -> dict[str, Any]:
         return {"path": self._path, "columns": self._columns}
@@ -150,18 +149,47 @@ class MemoryMappedSequenceTask(Sequence[Tuple[T, ...]], Generic[T]):
 
 
 def _stream_write_table_to_file(
-    items: Iterable[tuple[str, ...]],
+    items: Iterable[Mapping[str, Primitive]],
     mmap_filepath: Path,
-    column_names: list[str],
     chunk_size: int = 10_000,
 ) -> None:
-    schema = pa.schema([(name, pa.string()) for name in column_names])
-    with ipc.new_file(sink=str(mmap_filepath.resolve()), schema=schema) as writer:
-        chunks: list[list[str]] = list([] for _ in column_names)
+    def _infer_type(value: Primitive) -> pa.DataType:
+        if isinstance(value, bool):
+            return pa.bool_()
+        if isinstance(value, int):
+            return pa.int64()
+        if isinstance(value, float):
+            return pa.float64()
+        return pa.string()
 
-        for item_count, item in enumerate(items, 1):
-            for chunk, value in zip(chunks, item):
-                chunk.append(value)
+    it = iter(items)
+    try:
+        first = dict(next(it))
+    except StopIteration:
+        # Create an empty file with no rows and no columns
+        with ipc.new_file(
+            sink=str(mmap_filepath.resolve()), schema=pa.schema([])
+        ) as writer:
+            pass
+        return
+
+    column_names = list(first.keys())
+    schema = pa.schema([(name, _infer_type(first[name])) for name in column_names])
+
+    with ipc.new_file(sink=str(mmap_filepath.resolve()), schema=schema) as writer:
+        chunks: list[list[Primitive]] = list([] for _ in column_names)
+
+        def _append_item(item: dict[str, Primitive]) -> None:
+            for chunk, name in zip(chunks, column_names):
+                chunk.append(item[name])
+
+        item_count = 0
+        _append_item(first)
+        item_count += 1
+
+        for item in it:
+            _append_item(dict(item))
+            item_count += 1
 
             if item_count % chunk_size == 0:
                 writer.write_table(pa.table(data=chunks, names=column_names))

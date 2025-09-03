@@ -14,7 +14,7 @@ import logging
 from functools import partial
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal
+from typing import Any, Generator, Iterable, Literal, Mapping, overload
 
 import torch
 from filelock import FileLock
@@ -29,6 +29,7 @@ from lightly_train._data import cache
 from lightly_train._data._serialize import memory_mapped_sequence_task
 from lightly_train._data._serialize.memory_mapped_sequence_task import (
     MemoryMappedSequenceTask,
+    Primitive,
 )
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataset,
@@ -360,11 +361,27 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
         pass  # Another process already cleaned up
 
 
+@overload
 def get_dataset_mmap_file(
     fabric: Fabric,
-    filepaths: Iterable[tuple[str, ...]],
+    items: Iterable[Mapping[str, str]],
     mmap_filepath: Path,
-) -> MemoryMappedSequenceTask[str]:
+) -> MemoryMappedSequenceTask[str]: ...
+
+
+@overload
+def get_dataset_mmap_file(
+    fabric: Fabric,
+    items: Iterable[Mapping[str, Primitive]],
+    mmap_filepath: Path,
+) -> MemoryMappedSequenceTask[Primitive]: ...
+
+
+def get_dataset_mmap_file(
+    fabric: Fabric,
+    items: Iterable[Mapping[str, Primitive]],
+    mmap_filepath: Path,
+) -> MemoryMappedSequenceTask[Primitive]:
     """Returns memory-mapped filepaths shared across all ranks.
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
@@ -375,7 +392,6 @@ def get_dataset_mmap_file(
         logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
         return memory_mapped_sequence_task.memory_mapped_sequence_from_file(
             mmap_filepath=mmap_filepath,
-            column_names=["image_filepaths", "mask_filepaths"],
         )
 
     # Check if the mmap file is on a shared filesystem.
@@ -393,16 +409,14 @@ def get_dataset_mmap_file(
         if (fabric.global_rank == 0) or (
             not is_shared_filesystem and fabric.local_rank == 0
         ):
-            memory_mapped_sequence_task.write_filepaths_to_file(
-                filepaths=filepaths,
+            memory_mapped_sequence_task.write_items_to_file(
+                items=items,
                 mmap_filepath=mmap_filepath,
-                column_names=["image_filepaths", "mask_filepaths"],
             )
 
     # Return memory-mapped filepaths from file.
     return memory_mapped_sequence_task.memory_mapped_sequence_from_file(
         mmap_filepath=mmap_filepath,
-        column_names=["image_filepaths", "mask_filepaths"],
     )
 
 
@@ -419,7 +433,7 @@ def get_dataset(
         dataset_args=dataset_args,
         image_info=get_dataset_mmap_file(
             fabric=fabric,
-            filepaths=image_info,
+            items=image_info,
             mmap_filepath=mmap_filepath,
         ),
         transform=transform,
