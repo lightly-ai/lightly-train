@@ -363,10 +363,23 @@ class TestMaskSemanticSegmentationDatasetArgs:
 
         assert len(filepaths) == 2
         expected_pairs = [
-            (str(image_dir / "image0.jpg"), str(mask_dir / "image0.png")),
-            (str(image_dir / "image1.jpg"), str(mask_dir / "image1.png")),
+            {
+                "image_filepaths": str(image_dir / "image0.jpg"),
+                "mask_filepaths": str(mask_dir / "image0.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image1.jpg"),
+                "mask_filepaths": str(mask_dir / "image1.png"),
+            },
         ]
-        assert set(filepaths) == set(expected_pairs)
+        # Convert to tuples for comparison since dicts are not hashable
+        filepaths_tuples = [
+            (fp["image_filepaths"], fp["mask_filepaths"]) for fp in filepaths
+        ]
+        expected_tuples = [
+            (ep["image_filepaths"], ep["mask_filepaths"]) for ep in expected_pairs
+        ]
+        assert set(filepaths_tuples) == set(expected_tuples)
 
     def test_mask_dir_or_file__directory_path(self, tmp_path: Path) -> None:
         """Test that directory path gets converted to template string when no format placeholders exist."""
@@ -389,7 +402,20 @@ class TestMaskSemanticSegmentationDatasetArgs:
 
         assert len(filepaths) == 2
         expected_pairs = [
-            (str(image_dir / "image0.jpg"), str(mask_dir / "image0.png")),
-            (str(image_dir / "image1.jpg"), str(mask_dir / "image1.png")),
+            {
+                "image_filepaths": str(image_dir / "image0.jpg"),
+                "mask_filepaths": str(mask_dir / "image0.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image1.jpg"),
+                "mask_filepaths": str(mask_dir / "image1.png"),
+            },
         ]
-        assert set(filepaths) == set(expected_pairs)
+        # Convert to tuples for comparison since dicts are not hashable
+        filepaths_tuples = [
+            (fp["image_filepaths"], fp["mask_filepaths"]) for fp in filepaths
+        ]
+        expected_tuples = [
+            (ep["image_filepaths"], ep["mask_filepaths"]) for ep in expected_pairs
+        ]
+        assert set(filepaths_tuples) == set(expected_tuples)

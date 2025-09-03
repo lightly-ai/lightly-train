@@ -22,30 +22,37 @@ class TestMemoryMappedSequenceTask:
 
         memory_mapped_sequence_task.write_items_to_file(
             items=[
-                (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
-                (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
-                (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
+                {
+                    "image_filepaths": str(image_dir / "image1.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask1.png"),
+                },
+                {
+                    "image_filepaths": str(image_dir / "image2.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask2.png"),
+                },
+                {
+                    "image_filepaths": str(image_dir / "image3.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask3.png"),
+                },
             ],
             mmap_filepath=tmp_path / "test.arrow",
-            column_names=["image_filepaths", "mask_filepaths"],
         )
         sequence = memory_mapped_sequence_task.memory_mapped_sequence_from_file(
             mmap_filepath=tmp_path / "test.arrow",
-            column_names=["image_filepaths", "mask_filepaths"],
         )
         assert len(sequence) == 3
-        assert sequence[0] == (
-            str(image_dir / "image1.jpg"),
-            str(mask_dir / "mask1.png"),
-        )
-        assert sequence[1] == (
-            str(image_dir / "image2.jpg"),
-            str(mask_dir / "mask2.png"),
-        )
-        assert sequence[2] == (
-            str(image_dir / "image3.jpg"),
-            str(mask_dir / "mask3.png"),
-        )
+        assert sequence[0] == {
+            "image_filepaths": str(image_dir / "image1.jpg"),
+            "mask_filepaths": str(mask_dir / "mask1.png"),
+        }
+        assert sequence[1] == {
+            "image_filepaths": str(image_dir / "image2.jpg"),
+            "mask_filepaths": str(mask_dir / "mask2.png"),
+        }
+        assert sequence[2] == {
+            "image_filepaths": str(image_dir / "image3.jpg"),
+            "mask_filepaths": str(mask_dir / "mask3.png"),
+        }
         with pytest.raises(IndexError, match="list index out of range"):
             sequence[3]
 
@@ -57,30 +64,58 @@ class TestMemoryMappedSequenceTask:
 
         memory_mapped_sequence_task.write_items_to_file(
             items=[
-                (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
-                (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
-                (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
+                {
+                    "image_filepaths": str(image_dir / "image1.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask1.png"),
+                },
+                {
+                    "image_filepaths": str(image_dir / "image2.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask2.png"),
+                },
+                {
+                    "image_filepaths": str(image_dir / "image3.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask3.png"),
+                },
             ],
             mmap_filepath=tmp_path / "test.arrow",
-            column_names=["image_filepaths", "mask_filepaths"],
         )
         sequence = memory_mapped_sequence_task.memory_mapped_sequence_from_file(
             mmap_filepath=tmp_path / "test.arrow",
-            column_names=["image_filepaths", "mask_filepaths"],
         )
         assert len(sequence) == 3
         assert sequence[0:2] == [
-            (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
-            (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
+            {
+                "image_filepaths": str(image_dir / "image1.jpg"),
+                "mask_filepaths": str(mask_dir / "mask1.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image2.jpg"),
+                "mask_filepaths": str(mask_dir / "mask2.png"),
+            },
         ]
         assert sequence[1:3] == [
-            (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
-            (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
+            {
+                "image_filepaths": str(image_dir / "image2.jpg"),
+                "mask_filepaths": str(mask_dir / "mask2.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image3.jpg"),
+                "mask_filepaths": str(mask_dir / "mask3.png"),
+            },
         ]
         assert sequence[0:100] == [
-            (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
-            (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
-            (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
+            {
+                "image_filepaths": str(image_dir / "image1.jpg"),
+                "mask_filepaths": str(mask_dir / "mask1.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image2.jpg"),
+                "mask_filepaths": str(mask_dir / "mask2.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image3.jpg"),
+                "mask_filepaths": str(mask_dir / "mask3.png"),
+            },
         ]
 
     def test_pickle(self, tmp_path: Path) -> None:
@@ -91,16 +126,23 @@ class TestMemoryMappedSequenceTask:
 
         memory_mapped_sequence_task.write_items_to_file(
             items=[
-                (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
-                (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
-                (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
+                {
+                    "image_filepaths": str(image_dir / "image1.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask1.png"),
+                },
+                {
+                    "image_filepaths": str(image_dir / "image2.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask2.png"),
+                },
+                {
+                    "image_filepaths": str(image_dir / "image3.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask3.png"),
+                },
             ],
             mmap_filepath=tmp_path / "test.arrow",
-            column_names=["image_filepaths", "mask_filepaths"],
         )
         sequence = memory_mapped_sequence_task.memory_mapped_sequence_from_file(
             mmap_filepath=tmp_path / "test.arrow",
-            column_names=["image_filepaths", "mask_filepaths"],
         )
         assert len(sequence) == 3
         copy = pickle.loads(pickle.dumps(sequence))
@@ -115,26 +157,41 @@ def test_write_items_to_file(chunk_size: int, tmp_path: Path) -> None:
     image_dir.mkdir()
     mask_dir.mkdir()
 
-    column_names = ["image_filepaths", "mask_filepaths"]
     memory_mapped_sequence_task.write_items_to_file(
         items=[
-            (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
-            (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
-            (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
+            {
+                "image_filepaths": str(image_dir / "image1.jpg"),
+                "mask_filepaths": str(mask_dir / "mask1.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image2.jpg"),
+                "mask_filepaths": str(mask_dir / "mask2.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image3.jpg"),
+                "mask_filepaths": str(mask_dir / "mask3.png"),
+            },
         ],
         mmap_filepath=tmp_path / "test.arrow",
         chunk_size=chunk_size,
-        column_names=column_names,
     )
     sequence = memory_mapped_sequence_task.memory_mapped_sequence_from_file(
         mmap_filepath=tmp_path / "test.arrow",
-        column_names=column_names,
     )
     assert len(sequence) == 3
     assert sequence[:] == [
-        (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
-        (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
-        (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
+        {
+            "image_filepaths": str(image_dir / "image1.jpg"),
+            "mask_filepaths": str(mask_dir / "mask1.png"),
+        },
+        {
+            "image_filepaths": str(image_dir / "image2.jpg"),
+            "mask_filepaths": str(mask_dir / "mask2.png"),
+        },
+        {
+            "image_filepaths": str(image_dir / "image3.jpg"),
+            "mask_filepaths": str(mask_dir / "mask3.png"),
+        },
     ]
 
 
@@ -153,11 +210,19 @@ def test_write_items_to_file__invalid_chunks(chunk_size: int, tmp_path: Path) ->
     ):
         memory_mapped_sequence_task.write_items_to_file(
             items=[
-                (str(image_dir / "image1.jpg"), str(mask_dir / "mask1.png")),
-                (str(image_dir / "image2.jpg"), str(mask_dir / "mask2.png")),
-                (str(image_dir / "image3.jpg"), str(mask_dir / "mask3.png")),
+                {
+                    "image_filepaths": str(image_dir / "image1.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask1.png"),
+                },
+                {
+                    "image_filepaths": str(image_dir / "image2.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask2.png"),
+                },
+                {
+                    "image_filepaths": str(image_dir / "image3.jpg"),
+                    "mask_filepaths": str(mask_dir / "mask3.png"),
+                },
             ],
             mmap_filepath=tmp_path / "test.arrow",
             chunk_size=chunk_size,
-            column_names=["image_filepaths", "mask_filepaths"],
         )
