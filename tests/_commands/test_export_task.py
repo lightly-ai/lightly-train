@@ -112,7 +112,7 @@ def test_onnx_export(
         checkpoint=dinov2_vits14_eomt_checkpoint,
         height=height,
         width=width,
-        precision=precision,
+        precision=precision.value,
         batch_size=batch_size,
         overwrite=True,
     )
