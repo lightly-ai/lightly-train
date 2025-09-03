@@ -11,7 +11,17 @@ import logging
 import os
 from itertools import chain
 from pathlib import Path
-from typing import Any, Generic, Iterable, Mapping, Sequence, TypeVar, overload
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    Iterable,
+    Mapping,
+    Sequence,
+    TypeVar,
+    Union,
+    overload,
+)
 
 import pyarrow as pa  # type: ignore
 from pyarrow import Table, ipc
@@ -19,9 +29,9 @@ from pyarrow import Table, ipc
 logger = logging.getLogger(__name__)
 
 
-Primitive = bool | int | float | str
+Primitive = Union[bool, int, float, str]
 V = TypeVar("V", covariant=True)
-T = dict[str, V]
+T = Dict[str, V]
 
 
 def write_items_to_file(
