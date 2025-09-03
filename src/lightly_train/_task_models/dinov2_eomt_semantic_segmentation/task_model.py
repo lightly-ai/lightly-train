@@ -418,10 +418,15 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # Initialize the tensors containing the final predictions.
         for size in image_sizes:
             logit_sums.append(
-                torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
+                crop_logits.new_zeros(
+                    (crop_logits.shape[1], *size),
+                )
             )
             logit_counts.append(
-                torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
+                torch.zeros_like(
+                    logit_sums[-1],
+                    dtype=torch.int32,
+                )
             )
 
         for crop_index, (image_index, start, end, is_tall) in enumerate(origins):
