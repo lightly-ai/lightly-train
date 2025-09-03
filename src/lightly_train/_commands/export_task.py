@@ -123,7 +123,8 @@ def _export_task(
         format_args:
             Format specific arguments. Eg. "dynamic" for onnx and int8 precision for tensorrt.
     """
-    kwargs = locals() | dict(precision=OnnxPrecision(precision))  # Necessary for MyPy
+    kwargs = locals()
+    kwargs.update(precision=OnnxPrecision(precision))  # Necessary for MyPy
     config = ExportTaskConfig(**kwargs)
     _export_task_from_config(config=config)
 
