@@ -602,7 +602,8 @@ def _unlink_and_ignore(path: Path) -> None:
     """
     try:
         path.unlink(missing_ok=True)
-    except OSError:
+    except OSError as ex:
+        logger.debug(f"Could not delete file '{path}': {ex}")
         pass
 
 
