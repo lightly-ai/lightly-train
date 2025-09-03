@@ -125,3 +125,77 @@ def test_onnx_export(
     assert len(ort_outputs) == len(expected_outputs)
     for ort_y, expected_y in zip(ort_outputs, expected_outputs):
         torch.testing.assert_close(ort_y, expected_y, rtol=rtol, atol=atol)
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 9),
+    reason="Requires Python 3.9 or higher for image preprocessing.",
+)
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_onnx_export__height_not_patch_size_multiple_fails(
+    dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
+) -> None:
+    # arrange
+    model = lightly_train.load_model_from_checkpoint(
+        dinov2_vits14_eomt_checkpoint, device="cpu"
+    )
+    onnx_path = tmp_path / "model.onnx"
+    patch_size = model.backbone.patch_size
+    height = patch_size - 1
+    width = patch_size
+
+    # act
+    with pytest.raises(
+        ValueError,
+        match=(
+            f"Height {height} and width {width} must be a multiple of patch size {patch_size}."
+        ),
+    ):
+        lightly_train.export_onnx(
+            out=onnx_path,
+            checkpoint=dinov2_vits14_eomt_checkpoint,
+            height=height,
+            width=width,
+            batch_size=1,
+            overwrite=True,
+        )
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 9),
+    reason="Requires Python 3.9 or higher for image preprocessing.",
+)
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_onnx_export__width_not_patch_size_multiple_fails(
+    dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
+) -> None:
+    # arrange
+    model = lightly_train.load_model_from_checkpoint(
+        dinov2_vits14_eomt_checkpoint, device="cpu"
+    )
+    onnx_path = tmp_path / "model.onnx"
+    patch_size = model.backbone.patch_size
+    height = patch_size
+    width = patch_size - 1
+
+    # act
+    with pytest.raises(
+        ValueError,
+        match=(
+            f"Height {height} and width {width} must be a multiple of patch size {patch_size}."
+        ),
+    ):
+        lightly_train.export_onnx(
+            out=onnx_path,
+            checkpoint=dinov2_vits14_eomt_checkpoint,
+            height=height,
+            width=width,
+            batch_size=1,
+            overwrite=True,
+        )
