@@ -44,20 +44,8 @@ def write_items_to_file(
         raise ValueError(f"Invalid `chunk_size` {chunk_size} must be positive!")
     logger.debug(f"Writing filepaths to '{mmap_filepath}' (chunk_size={chunk_size})")
 
-    it = iter(items)
-    try:
-        first_item = next(it)
-    except StopIteration:
-        raise ValueError(
-            "The memory-mapped sequence is empty because no valid entries are found. Please check your input data."
-        ) from None
-
-    schema = pa.schema(
-        [(name, _infer_type(first_item[name])) for name in list(first_item.keys())]
-    )
     _stream_write_table_to_file(
-        items=chain([first_item], it),
-        schema=schema,
+        items=items,
         mmap_filepath=mmap_filepath,
         chunk_size=chunk_size,
     )
@@ -185,15 +173,27 @@ def _infer_type(value: Primitive) -> pa.DataType:
 
 def _stream_write_table_to_file(
     items: Iterable[Mapping[str, Primitive]],
-    schema: pa.Schema,
     mmap_filepath: Path,
     chunk_size: int = 10_000,
 ) -> None:
-    column_names = schema.names
+    it = iter(items)
+    try:
+        first_item = next(it)
+    except StopIteration:
+        # Create an empty file with no rows and no columns
+        with ipc.new_file(
+            sink=str(mmap_filepath.resolve()), schema=pa.schema([])
+        ) as writer:
+            pass
+        return
+
+    column_names = list(first_item.keys())
+    schema = pa.schema([(name, _infer_type(first_item[name])) for name in column_names])
+
     with ipc.new_file(sink=str(mmap_filepath.resolve()), schema=schema) as writer:
         chunks: list[list[Primitive]] = list([] for _ in column_names)
 
-        for item_count, item in enumerate(items, 1):
+        for item_count, item in enumerate(chain([first_item], it), 1):
             for chunk, name in zip(chunks, column_names):
                 chunk.append(item[name])
 
