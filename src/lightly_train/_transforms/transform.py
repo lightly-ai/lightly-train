@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import (
     Literal,
@@ -19,7 +20,10 @@ from lightly.transforms.utils import IMAGENET_NORMALIZE
 from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._configs.validate import no_auto
 from lightly_train.types import TransformInput, TransformOutput
+
+logger = logging.getLogger(__name__)
 
 
 class ChannelDropArgs(PydanticConfig):
@@ -160,6 +164,7 @@ class MethodTransformArgs(PydanticConfig):
     # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
     image_size: tuple[int, int]
     channel_drop: ChannelDropArgs | None
+    num_channels: int | Literal["auto"]
     random_resize: RandomResizeArgs | None
     random_flip: RandomFlipArgs | None
     random_rotation: RandomRotationArgs | None
@@ -168,6 +173,50 @@ class MethodTransformArgs(PydanticConfig):
     normalize: NormalizeArgs
     gaussian_blur: GaussianBlurArgs | None
     solarize: SolarizeArgs | None
+
+    def resolve_auto(self) -> None:
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                self.num_channels = 3
+
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(num_channels=self.num_channels)
+
+    def resolve_incompatible(self) -> None:
+        if self.color_jitter is not None and no_auto(self.num_channels) != 3:
+            logger.debug(
+                "Disabling color jitter transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.color_jitter = None
+        if self.random_gray_scale is not None and no_auto(self.num_channels) != 3:
+            logger.debug(
+                "Disabling random gray scale transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.random_gray_scale = None
+        if self.solarize is not None and no_auto(self.num_channels) != 3:
+            logger.debug(
+                "Disabling solarize transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.solarize = None
+        if len(self.normalize.mean) != no_auto(self.num_channels):
+            # Nothing we can do here. Better raise an error.
+            raise ValueError(
+                f"Length of mean {len(self.normalize.mean)} in normalization transform "
+                f"does not match num_channels {self.num_channels}."
+            )
+        if len(self.normalize.std) != no_auto(self.num_channels):
+            # Nothing we can do here. Better raise an error.
+            raise ValueError(
+                f"Length of std {len(self.normalize.std)} in normalization transform "
+                f"does not match num_channels {self.num_channels}."
+            )
 
 
 _T = TypeVar("_T", covariant=True)

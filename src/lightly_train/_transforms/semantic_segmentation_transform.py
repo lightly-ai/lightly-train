@@ -72,17 +72,17 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
     random_crop: RandomCropArgs | None
 
     def resolve_auto(self) -> None:
-        height, width = self.image_size
-        for field_name in self.__class__.model_fields:
-            field = getattr(self, field_name)
-            if hasattr(field, "resolve_auto"):
-                field.resolve_auto(height=height, width=width)
-
         if self.num_channels == "auto":
             if self.channel_drop is not None:
                 self.num_channels = self.channel_drop.num_channels_keep
             else:
                 self.num_channels = 3
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
 
     def resolve_incompatible(self) -> None:
         if self.color_jitter is not None and no_auto(self.num_channels) != 3:

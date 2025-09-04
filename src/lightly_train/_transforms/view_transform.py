@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+import logging
+
 import cv2
 from albumentations import (
     BasicTransform,
@@ -23,8 +25,10 @@ from albumentations import (
 )
 from albumentations.pytorch.transforms import ToTensorV2
 from lightning_utilities.core.imports import RequirementCache
+from typing_extensions import Literal
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -39,12 +43,15 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import TransformInput, TransformOutputSingleView
 
+logger = logging.getLogger(__name__)
+
 ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_22 = RequirementCache("albumentations>=1.4.22")
 
 
 class ViewTransformArgs(PydanticConfig):
     channel_drop: ChannelDropArgs | None
+    num_channels: int | Literal["auto"]
     random_resized_crop: RandomResizedCropArgs  # only its .scale attribute can be None
     random_flip: RandomFlipArgs | None
     random_rotation: RandomRotationArgs | None
@@ -53,6 +60,42 @@ class ViewTransformArgs(PydanticConfig):
     gaussian_blur: GaussianBlurArgs | None
     solarize: SolarizeArgs | None
     normalize: NormalizeArgs
+
+    def resolve_auto(self, num_channels: int) -> None:
+        if self.num_channels == "auto":
+            self.num_channels = num_channels
+
+    def resolve_incompatible(self) -> None:
+        if self.color_jitter is not None and no_auto(self.num_channels) != 3:
+            logger.debug(
+                "Disabling color jitter transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.color_jitter = None
+        if self.random_gray_scale is not None and no_auto(self.num_channels) != 3:
+            logger.debug(
+                "Disabling random gray scale transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.random_gray_scale = None
+        if self.solarize is not None and no_auto(self.num_channels) != 3:
+            logger.debug(
+                "Disabling solarize transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.solarize = None
+        if len(self.normalize.mean) != no_auto(self.num_channels):
+            # Nothing we can do here. Better raise an error.
+            raise ValueError(
+                f"Length of mean {len(self.normalize.mean)} in normalization transform "
+                f"does not match num_channels {self.num_channels}."
+            )
+        if len(self.normalize.std) != no_auto(self.num_channels):
+            # Nothing we can do here. Better raise an error.
+            raise ValueError(
+                f"Length of std {len(self.normalize.std)} in normalization transform "
+                f"does not match num_channels {self.num_channels}."
+            )
 
 
 def _get_RandomResizedCrop(
