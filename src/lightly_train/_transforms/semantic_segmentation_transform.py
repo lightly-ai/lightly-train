@@ -76,7 +76,7 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
             if self.channel_drop is not None:
                 self.num_channels = self.channel_drop.num_channels_keep
             else:
-                self.num_channels = 3
+                self.num_channels = len(self.normalize.mean)
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
@@ -85,25 +85,37 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
                 field.resolve_auto(height=height, width=width)
 
     def resolve_incompatible(self) -> None:
+        # Adjust normalization mean and std to match num_channels.
+        if len(self.normalize.mean) != no_auto(self.num_channels):
+            logger.debug(
+                "Adjusting mean of normalize transform to match num_channels. "
+                f"num_channels is {self.num_channels} but "
+                f"normalize.mean has length {len(self.normalize.mean)}."
+            )
+            # Repeat the values until they match num_channels.
+            self.normalize.mean = tuple(
+                self.normalize.mean[i % len(self.normalize.mean)]
+                for i in range(no_auto(self.num_channels))
+            )
+        if len(self.normalize.std) != no_auto(self.num_channels):
+            logger.debug(
+                "Adjusting std of normalize transform to match num_channels. "
+                f"num_channels is {self.num_channels} but "
+                f"normalize.std has length {len(self.normalize.std)}."
+            )
+            # Repeat the values until they match num_channels.
+            self.normalize.std = tuple(
+                self.normalize.std[i % len(self.normalize.std)]
+                for i in range(no_auto(self.num_channels))
+            )
+
+        # Disable color jitter if necessary.
         if self.color_jitter is not None and no_auto(self.num_channels) != 3:
-            # Disable color jitter as it only works with 3-channel images.
             logger.debug(
                 "Disabling color jitter transform as it only supports 3-channel "
                 f"images but num_channels is {self.num_channels}."
             )
             self.color_jitter = None
-        if len(self.normalize.mean) != no_auto(self.num_channels):
-            # Nothing we can do here. Better raise an error.
-            raise ValueError(
-                f"Length of mean {len(self.normalize.mean)} in normalization transform "
-                f"does not match num_channels {self.num_channels}."
-            )
-        if len(self.normalize.std) != no_auto(self.num_channels):
-            # Nothing we can do here. Better raise an error.
-            raise ValueError(
-                f"Length of std {len(self.normalize.std)} in normalization transform "
-                f"does not match num_channels {self.num_channels}."
-            )
 
 
 class SemanticSegmentationTransform(TaskTransform):

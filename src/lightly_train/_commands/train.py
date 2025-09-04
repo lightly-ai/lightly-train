@@ -295,7 +295,7 @@ def train_from_config(config: TrainConfig) -> None:
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform_instance,
-            num_channels=no_auto(config.transform_args.num_channels),
+            num_channels=no_auto(transform_instance.transform_args.num_channels),
             mmap_filepath=mmap_filepath,
             out_dir=out_dir,
         )
