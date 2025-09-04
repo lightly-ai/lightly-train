@@ -311,7 +311,9 @@ def train_from_config(config: TrainConfig) -> None:
             epochs=config.epochs,
         )
         wrapped_model = package_helpers.get_wrapped_model(
-            model=config.model, model_args=config.model_args
+            model=config.model,
+            model_args=config.model_args,
+            num_input_channels=no_auto(transform_instance.transform_args.num_channels),
         )
         embedding_model = train_helpers.get_embedding_model(
             wrapped_model=wrapped_model, embed_dim=config.embed_dim
@@ -399,6 +401,7 @@ def train_from_config(config: TrainConfig) -> None:
             optimizer_args=config.optim_args,
             embedding_model=embedding_model,
             global_batch_size=config.batch_size,
+            num_input_channels=no_auto(transform_instance.transform_args.num_channels),
         )
         train_helpers.load_checkpoint(
             checkpoint=config.checkpoint,

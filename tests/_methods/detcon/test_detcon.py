@@ -136,6 +136,7 @@ class TestDetConS:
             optimizer_args=DetConSSGDArgs(),
             embedding_model=emb_model,
             global_batch_size=b,
+            num_input_channels=3,
         )
 
         out = detcons.training_step_impl(batch, 0)
@@ -164,6 +165,7 @@ class TestDetConB:
             optimizer_args=DetConBSGDArgs(),
             embedding_model=emb_model,
             global_batch_size=b,
+            num_input_channels=3,
         )
         out = detconb.training_step_impl(batch, 0)
         assert out.loss.shape == Size([])

@@ -146,7 +146,9 @@ def test_get_embedding_model(
     if model_name.startswith("timm/"):
         pytest.importorskip("timm")
     x = torch.rand(1, 3, 224, 224)
-    model = package_helpers.get_wrapped_model(model_name, model_args=model_args)
+    model = package_helpers.get_wrapped_model(
+        model_name, model_args=model_args, num_input_channels=3
+    )
     embedding_model = train_helpers.get_embedding_model(model, embed_dim=embed_dim)
     embedding = embedding_model.forward(x)
     assert embedding.shape == (1, embedding_model.embed_dim, 1, 1)
@@ -355,6 +357,7 @@ def test_get_method() -> None:
         optimizer_args=AdamWArgs(),
         embedding_model=embedding_model,
         global_batch_size=1,
+        num_input_channels=3,
     )
     assert isinstance(method, SimCLR)
     assert method.method_args.temperature == 0.2

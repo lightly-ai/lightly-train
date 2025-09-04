@@ -332,6 +332,7 @@ def get_method(
     optimizer_args: OptimizerArgs,
     embedding_model: EmbeddingModel,
     global_batch_size: int,
+    num_input_channels: int,
 ) -> Method:
     logger.debug(f"Getting method for '{method_cls.__name__}'")
     return method_cls(
@@ -339,6 +340,7 @@ def get_method(
         optimizer_args=optimizer_args,
         embedding_model=embedding_model,
         global_batch_size=global_batch_size,
+        num_input_channels=num_input_channels,
     )
 
 
