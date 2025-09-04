@@ -14,7 +14,6 @@ from collections.abc import Iterator
 from enum import Enum
 from typing import Any, Literal
 
-import onnxslim
 import torch
 from torch import distributed
 
@@ -195,6 +194,8 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
         )
 
         if config.simplify:
+            import onnxslim
+
             # We skip constant folding as this currently increases the model size by quite a lot.
             # If we refactor the untile method we might be able to add constant folding.
             onnxslim.slim(
