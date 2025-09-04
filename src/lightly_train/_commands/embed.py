@@ -111,10 +111,9 @@ def embed_from_config(config: EmbedConfig) -> None:
     checkpoint_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
     writer = writer_helpers.get_writer(format=format, filepath=out_path)
     checkpoint_instance = _get_checkpoint(checkpoint=checkpoint_path)
-    normalize_args = checkpoint_instance.lightly_train.normalize_args
     transform = _get_transform(
         image_size=config.image_size,
-        normalize_args=normalize_args,
+        normalize_args=checkpoint_instance.lightly_train.normalize_args,
     )
     num_workers = common_helpers.get_num_workers(
         num_workers=config.num_workers, num_devices_per_node=1
