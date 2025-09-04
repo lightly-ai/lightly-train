@@ -14,7 +14,7 @@ import logging
 from functools import partial
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Mapping, overload
+from typing import Any, Generator, Iterable, Literal, Mapping
 
 import torch
 from filelock import FileLock
@@ -361,22 +361,6 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
         pass  # Another process already cleaned up
 
 
-@overload
-def get_dataset_mmap_file(
-    fabric: Fabric,
-    items: Iterable[Mapping[str, str]],
-    mmap_filepath: Path,
-) -> MemoryMappedSequenceTask[str]: ...
-
-
-@overload
-def get_dataset_mmap_file(
-    fabric: Fabric,
-    items: Iterable[Mapping[str, Primitive]],
-    mmap_filepath: Path,
-) -> MemoryMappedSequenceTask[Primitive]: ...
-
-
 def get_dataset_mmap_file(
     fabric: Fabric,
     items: Iterable[Mapping[str, Primitive]],
@@ -390,9 +374,7 @@ def get_dataset_mmap_file(
     # If the file already exists and we are allowed to reuse it, return it.
     if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
         logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
-        return memory_mapped_sequence_task.memory_mapped_sequence_from_file(
-            mmap_filepath=mmap_filepath,
-        )
+        return MemoryMappedSequenceTask.from_file(mmap_filepath=mmap_filepath)
 
     # Check if the mmap file is on a shared filesystem.
     try:
@@ -414,10 +396,7 @@ def get_dataset_mmap_file(
                 mmap_filepath=mmap_filepath,
             )
 
-    # Return memory-mapped filepaths from file.
-    return memory_mapped_sequence_task.memory_mapped_sequence_from_file(
-        mmap_filepath=mmap_filepath,
-    )
+    return MemoryMappedSequenceTask.from_file(mmap_filepath=mmap_filepath)
 
 
 def get_dataset(

@@ -19,7 +19,6 @@ from typing import (
     Mapping,
     Sequence,
     TypeVar,
-    Union,
     overload,
 )
 
@@ -28,10 +27,8 @@ from pyarrow import Table, ipc
 
 logger = logging.getLogger(__name__)
 
-
-Primitive = Union[bool, int, float, str]
-V = TypeVar("V", covariant=True)
-T = Dict[str, V]
+Primitive = TypeVar("Primitive", bool, int, float, str)
+T = Dict[str, Primitive]
 
 
 def write_items_to_file(
@@ -63,7 +60,7 @@ def memory_mapped_sequence_from_file(
     return MemoryMappedSequenceTask(path=mmap_filepath, columns=column_names)
 
 
-class MemoryMappedSequenceTask(Sequence[T[V]], Generic[V]):
+class MemoryMappedSequenceTask(Sequence[T[Primitive]], Generic[Primitive]):
     """A memory mapped sequence built around PyArrow's memory mapped tables.
 
     A memory mapped sequence does not store its items in RAM but loads the data from disk.
@@ -120,14 +117,16 @@ class MemoryMappedSequenceTask(Sequence[T[V]], Generic[V]):
         return num_rows
 
     @overload
-    def __getitem__(self, index: int) -> T[V]: ...
+    def __getitem__(self, index: int) -> T[Primitive]: ...
 
     @overload
-    def __getitem__(self, index: slice) -> Sequence[T[V]]: ...
+    def __getitem__(self, index: slice) -> Sequence[T[Primitive]]: ...
 
-    def __getitem__(self, index: int | slice) -> T[V] | Sequence[T[V]]:
+    def __getitem__(
+        self, index: int | slice
+    ) -> T[Primitive] | Sequence[T[Primitive]]:
         if isinstance(index, int):
-            rows_dict: list[T[V]] = (
+            rows_dict: list[T[Primitive]] = (
                 self.table().select(self._columns).slice(index, 1).to_pylist()
             )
             # Each row is a dict of values corresponding to the requested columns.
@@ -157,6 +156,20 @@ class MemoryMappedSequenceTask(Sequence[T[V]], Generic[V]):
         columns = state["columns"]
         path = state["path"]
         MemoryMappedSequenceTask.__init__(self, path=path, columns=columns)
+
+    @classmethod
+    def from_file(
+        cls: type[MemoryMappedSequenceTask[Primitive]], mmap_filepath: Path
+    ) -> MemoryMappedSequenceTask[Primitive]:
+        table = _mmap_table_from_file(mmap_filepath=mmap_filepath)
+
+        num_rows = table.num_rows
+        column_names = table.column_names
+
+        logger.debug(
+            f"Creating memory mapped sequence with {num_rows} '{column_names}'."
+        )
+        return MemoryMappedSequenceTask(path=mmap_filepath, columns=column_names)
 
 
 def _infer_type(value: Primitive) -> pa.DataType:

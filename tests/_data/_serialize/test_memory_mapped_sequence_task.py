@@ -11,6 +11,9 @@ from pathlib import Path
 import pytest
 
 from lightly_train._data._serialize import memory_mapped_sequence_task
+from lightly_train._data._serialize.memory_mapped_sequence_task import (
+    MemoryMappedSequenceTask,
+)
 
 
 class TestMemoryMappedSequenceTask:
@@ -37,7 +40,7 @@ class TestMemoryMappedSequenceTask:
             ],
             mmap_filepath=tmp_path / "test.arrow",
         )
-        sequence = memory_mapped_sequence_task.memory_mapped_sequence_from_file(
+        sequence = MemoryMappedSequenceTask[str].from_file(
             mmap_filepath=tmp_path / "test.arrow",
         )
         assert len(sequence) == 3
@@ -79,7 +82,7 @@ class TestMemoryMappedSequenceTask:
             ],
             mmap_filepath=tmp_path / "test.arrow",
         )
-        sequence = memory_mapped_sequence_task.memory_mapped_sequence_from_file(
+        sequence = MemoryMappedSequenceTask[str].from_file(
             mmap_filepath=tmp_path / "test.arrow",
         )
         assert len(sequence) == 3
@@ -141,7 +144,7 @@ class TestMemoryMappedSequenceTask:
             ],
             mmap_filepath=tmp_path / "test.arrow",
         )
-        sequence = memory_mapped_sequence_task.memory_mapped_sequence_from_file(
+        sequence = MemoryMappedSequenceTask[str].from_file(
             mmap_filepath=tmp_path / "test.arrow",
         )
         assert len(sequence) == 3
@@ -175,7 +178,7 @@ def test_write_items_to_file(chunk_size: int, tmp_path: Path) -> None:
         mmap_filepath=tmp_path / "test.arrow",
         chunk_size=chunk_size,
     )
-    sequence = memory_mapped_sequence_task.memory_mapped_sequence_from_file(
+    sequence = MemoryMappedSequenceTask[str].from_file(
         mmap_filepath=tmp_path / "test.arrow",
     )
     assert len(sequence) == 3
