@@ -6,6 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 from pathlib import Path
+from typing import Any
 
 import pytest
 from lightning_utilities.core.imports import RequirementCache
@@ -36,15 +37,27 @@ is_self_hosted_docker_runner = "GH_RUNNER_NAME" in os.environ
         "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
     ),
 )
-def test_train_semantic_segmentation(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "model_name, model_args",
+    [
+        # Reduce number of joint blocks _vittest14.
+        ("dinov2/_vittest14-eomt", {"num_joint_blocks": 1}),
+        ("dinov2/_vittest14-linear", {}),
+    ],
+)
+@pytest.mark.parametrize("num_channels", [3, 4])
+def test_train_semantic_segmentation(
+    tmp_path: Path, model_name: str, model_args: dict[str, Any], num_channels: int
+) -> None:
     out = tmp_path / "out"
     train_images = tmp_path / "train_images"
     train_masks = tmp_path / "train_masks"
     val_images = tmp_path / "val_images"
     val_masks = tmp_path / "val_masks"
-    helpers.create_images(train_images)
+    mode = "RGB" if num_channels == 3 else "RGBA"
+    helpers.create_images(train_images, num_channels=num_channels, mode=mode)
     helpers.create_masks(train_masks)
-    helpers.create_images(val_images)
+    helpers.create_images(val_images, num_channels=num_channels, mode=mode)
     helpers.create_masks(val_masks)
 
     lightly_train.train_semantic_segmentation(
@@ -63,10 +76,8 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
                 1: "car",
             },
         },
-        model="dinov2/_vittest14-eomt",
-        model_args={
-            "num_joint_blocks": 1,  # Reduce joint blocks for _vittest14
-        },
+        model=model_name,
+        model_args=model_args,
         # The operator 'aten::upsample_bicubic2d.out' raises a NotImplementedError
         # on macOS with MPS backend.
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
@@ -74,6 +85,9 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
         batch_size=2,
         num_workers=2,
         steps=2,
+        transform_args={
+            "num_channels": num_channels,
+        },
     )
     assert out.exists()
     assert out.is_dir()
@@ -83,7 +97,7 @@ def test_train_semantic_segmentation(tmp_path: Path) -> None:
         checkpoint=out / "checkpoints" / "last.ckpt"
     )
     # Check forward pass
-    dummy_input = torch.randn(1, 3, 224, 224)
+    dummy_input = torch.randn(1, num_channels, 224, 224)
     prediction = model.predict(dummy_input[0])
     assert prediction.shape == (224, 224)
     assert prediction.min() >= 0
