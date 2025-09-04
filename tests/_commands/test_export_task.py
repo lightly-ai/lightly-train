@@ -86,6 +86,7 @@ onnx_export_testset = [
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
+@pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export(
     batch_size: int,
     height: int,
@@ -151,6 +152,7 @@ def test_onnx_export(
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
+@pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export__height_not_patch_size_multiple_fails(
     dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:
@@ -192,6 +194,7 @@ def test_onnx_export__height_not_patch_size_multiple_fails(
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
+@pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export__width_not_patch_size_multiple_fails(
     dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:
