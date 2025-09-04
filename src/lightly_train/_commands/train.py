@@ -288,7 +288,8 @@ def train_from_config(config: TrainConfig) -> None:
     with common_helpers.verify_out_dir_equal_on_all_local_ranks(
         out=out_dir
     ), common_helpers.get_dataset_temp_mmap_path(
-        data=config.data
+        data=config.data,
+        out=out_dir,
     ) as mmap_filepath, _float32_matmul_precision.float32_matmul_precision(
         float32_matmul_precision=config.float32_matmul_precision
     ):
@@ -416,6 +417,7 @@ def train_from_config(config: TrainConfig) -> None:
             train_dataloaders=dataloader,
             ckpt_path="last" if config.resume_interrupted else None,
         )
+
     if config.epochs == 0:
         logger.info("No training epochs specified. Saving model and exiting.")
         trainer_instance.save_checkpoint(out_dir / "checkpoints" / "last.ckpt")
