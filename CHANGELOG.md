@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add support for using custom mask names for the inputs in semantic segmentation.
 - Add `precision` flag to ONNX export task to specify if we export with float16 or float32 precision.
 
 ### Deprecated

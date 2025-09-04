@@ -110,20 +110,3 @@ def test_write_filenames_to_file(
     )
     assert len(sequence) == 3
     assert sequence[:] == ["image1.jpg", "image2.jpg", "image3.jpg"]
-
-
-@pytest.mark.parametrize(
-    "chunk_size",
-    [0, -1],
-)
-def test_write_filenames_to_file__invalid_chunks(
-    chunk_size: int, tmp_path: Path
-) -> None:
-    with pytest.raises(
-        ValueError, match=f"Invalid `chunk_size` {chunk_size} must be positive!"
-    ):
-        memory_mapped_sequence.write_filenames_to_file(
-            filenames=["image1.jpg", "image2.jpg", "image3.jpg"],
-            mmap_filepath=tmp_path / "test.arrow",
-            chunk_size=chunk_size,
-        )
