@@ -60,9 +60,15 @@ def get_transform_args(
     if transform_args is None:
         # We need to typeignore here because a MethodTransformArgs might not have
         # defaults for all fields, while its children do.
-        return transform_args_cls()  # type: ignore[call-arg]
+        transform_args = transform_args_cls()  # type: ignore[call-arg]
+    else:
+        transform_args = validate.pydantic_model_validate(
+            transform_args_cls, transform_args
+        )
 
-    return validate.pydantic_model_validate(transform_args_cls, transform_args)
+    transform_args.resolve_auto()
+    transform_args.resolve_incompatible()
+    return transform_args
 
 
 def get_transform(

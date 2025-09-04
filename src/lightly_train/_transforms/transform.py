@@ -181,11 +181,6 @@ class MethodTransformArgs(PydanticConfig):
             else:
                 self.num_channels = 3
 
-        for field_name in self.__class__.model_fields:
-            field = getattr(self, field_name)
-            if hasattr(field, "resolve_auto"):
-                field.resolve_auto(num_channels=self.num_channels)
-
     def resolve_incompatible(self) -> None:
         if self.color_jitter is not None and no_auto(self.num_channels) != 3:
             logger.debug(

@@ -22,20 +22,24 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDatasetArgs,
     SplitArgs,
 )
-from lightly_train._transforms.task_transform import (
-    TaskTransform,
-    TaskTransformArgs,
-    TaskTransformInput,
-    TaskTransformOutput,
+from lightly_train._transforms.semantic_segmentation_transform import (
+    SemanticSegmentationTransform,
+    SemanticSegmentationTransformArgs,
+    SemanticSegmentationTransformInput,
+    SemanticSegmentationTransformOutput,
 )
+from lightly_train._transforms.task_transform import (
+    TaskTransformArgs,
+)
+from lightly_train._transforms.transform import NormalizeArgs
 
 from .. import helpers
 
 
-class DummyTransform(TaskTransform):
-    transform_args_cls = TaskTransformArgs
+class DummyTransform(SemanticSegmentationTransform):
+    transform_args_cls = SemanticSegmentationTransformArgs
 
-    def __init__(self, transform_args: TaskTransformArgs):
+    def __init__(self, transform_args: SemanticSegmentationTransformArgs):
         super().__init__(transform_args=transform_args)
         self.transform = A.Compose(
             [
@@ -45,8 +49,10 @@ class DummyTransform(TaskTransform):
             ]
         )
 
-    def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:
-        output: TaskTransformOutput = self.transform(**input)
+    def __call__(
+        self, input: SemanticSegmentationTransformInput
+    ) -> SemanticSegmentationTransformOutput:
+        output: SemanticSegmentationTransformOutput = self.transform(**input)
         return output
 
 
@@ -244,7 +250,20 @@ class TestMaskSemanticSegmentationDataset:
             },
             ignore_index=ignore_index,
         )
-        transform = DummyTransform(transform_args=TaskTransformArgs())
+        transform = DummyTransform(
+            transform_args=SemanticSegmentationTransformArgs(
+                ignore_index=-100,
+                image_size=(32, 32),
+                channel_drop=None,
+                num_channels=3,
+                normalize=NormalizeArgs(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+                random_flip=None,
+                color_jitter=None,
+                scale_jitter=None,
+                smallest_max_size=None,
+                random_crop=None,
+            )
+        )
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
             image_filenames=list(dataset_args.list_image_filenames()),

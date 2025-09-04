@@ -51,6 +51,9 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
+from lightly_train._transforms.semantic_segmentation_transform import (
+    SemanticSegmentationTransform,
+)
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -416,6 +419,8 @@ def get_dataset(
 ) -> MaskSemanticSegmentationDataset:
     filenames = list(dataset_args.list_image_filenames())
     dataset_cls = dataset_args.get_dataset_cls()
+    # TODO(Guarin, 08/25): Relax this when we add object detection.
+    assert isinstance(transform, SemanticSegmentationTransform)
     return dataset_cls(
         dataset_args=dataset_args,
         image_filenames=get_dataset_mmap_filenames(
