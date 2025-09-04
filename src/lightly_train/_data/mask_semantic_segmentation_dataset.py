@@ -38,13 +38,16 @@ class LabelsClassInfo(PydanticConfig):
 
     @field_validator("labels", mode="before")
     @classmethod
-    def normalize_labels(cls, v: set[int] | list[int]) -> set[int]:
+    def normalize_labels(cls, v: set[int] | list[int] | int) -> set[int]:
         # Case for a single label or a set of labels: 0 -> {0} or {0, 1, 2} -> {0, 1, 2}
         if isinstance(v, set):
             return v
         # List of labels: [0, 1, 2] -> {0, 1, 2}
         elif isinstance(v, list):
             return set(v)
+        # Single label: 0 -> {0}
+        elif isinstance(v, int):
+            return {v}
         else:
             raise ValueError(f"Expected int or list of ints, got {type(v)}")
 
@@ -384,7 +387,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                         raise ValueError(
                             f"Invalid class mapping: Class color {color} appears in multiple class definitions. "
                             f"Each RGB color in the mask can only be mapped to one new class.\n\n"
-                            f"INCORRECT (color color {color} is duplicated):\n"
+                            f"INCORRECT (RGB color {color} is duplicated):\n"
                             f"classes = {{\n"
                             f"  0: {{'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
                             f"  1: {{'name': 'road', 'values': [(0, 0, 0), (128, 128, 128)]}}  # <- color (0, 0, 0) conflict with class 0\n"
