@@ -6,10 +6,15 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import Callable, Tuple, Union
 
 from torch import Tensor, nn
+
+from lightly_train._models import _model_helpers
+
+logger = logging.getLogger(__name__)
 
 
 def make_2tuple(x):
@@ -65,6 +70,9 @@ class PatchEmbed(nn.Module):
             in_chans, embed_dim, kernel_size=patch_HW, stride=patch_HW
         )
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
+        self.register_load_state_dict_pre_hook(
+            _model_helpers.patch_embed_adjust_input_channels_hook
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         _, _, H, W = x.shape
