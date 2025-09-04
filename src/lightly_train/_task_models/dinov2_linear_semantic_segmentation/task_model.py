@@ -42,8 +42,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         class_ignore_index: int | None,
         backbone_freeze: bool,
         image_size: tuple[int, int],
-        image_normalize: dict[str, float],
-        num_input_channels: int,
+        image_normalize: dict[str, tuple[float, ...]],
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
@@ -63,8 +62,6 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
                 The size to resize images to during inference. Default is (518, 518).
             image_normalize:
                 The normalization parameters for images. Default uses ImageNet stats.
-            num_input_channels:
-                The number of channels in the input images.
             backbone_weights:
                 The path to the DINOv2 backbone weights. The weights must be exported
                 using LightlyTrain.
@@ -80,7 +77,6 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         self.backbone_freeze = backbone_freeze
         self.image_size = image_size
         self.image_normalize = image_normalize
-        self.num_input_channels = num_input_channels
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -101,7 +97,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         # Disable drop path by default.
         args = {
             "drop_path_rate": 0.0,
-            "in_chans": self.num_input_channels,
+            "in_chans": len(self.image_normalize["mean"]),
         }
         if backbone_args is not None:
             args.update(backbone_args)

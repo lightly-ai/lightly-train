@@ -846,6 +846,7 @@ def test_get_dataset__path(tmp_path: Path) -> None:
     _ = common_helpers.get_dataset(
         data=tmp_path,
         transform=ToTensorV2(),
+        num_channels=3,
         mmap_filepath=mmap_filepath,
         out_dir=tmp_path,
     )
@@ -856,6 +857,7 @@ def test_get_dataset__path__nonexisting(tmp_path: Path) -> None:
         common_helpers.get_dataset(
             data=tmp_path / "nonexisting",
             transform=ToTensorV2(),
+            num_channels=3,
             mmap_filepath=None,
             out_dir=tmp_path,
         )
@@ -868,6 +870,7 @@ def test_get_dataset__path__nondir(tmp_path: Path) -> None:
         common_helpers.get_dataset(
             data=file,
             transform=ToTensorV2(),
+            num_channels=3,
             mmap_filepath=None,
             out_dir=tmp_path,
         )
@@ -878,6 +881,7 @@ def test_get_dataset__path__empty(tmp_path: Path) -> None:
         common_helpers.get_dataset(
             data=tmp_path,
             transform=ToTensorV2(),
+            num_channels=3,
             mmap_filepath=None,
             out_dir=tmp_path,
         )
@@ -901,6 +905,7 @@ def test_get_dataset__dirs_and_files(tmp_path: Path) -> None:
             img_dir,
         ],
         transform=ToTensorV2(),
+        num_channels=3,
         mmap_filepath=mmap_filepath,
         out_dir=tmp_path,
     )
@@ -911,6 +916,7 @@ def test_get_dataset__dataset() -> None:
     dataset_1 = common_helpers.get_dataset(
         data=dataset,
         transform=ToTensorV2(),
+        num_channels=3,
         mmap_filepath=None,
         out_dir=Path("/tmp"),
     )

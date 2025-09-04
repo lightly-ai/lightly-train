@@ -496,6 +496,7 @@ def get_dataset_mmap_filenames(
 def get_dataset(
     data: PathLike | Sequence[PathLike] | Dataset[DatasetItem],
     transform: Transform,
+    num_channels: int,
     mmap_filepath: Path | None,
     out_dir: Path,
 ) -> Dataset[DatasetItem]:
@@ -530,6 +531,7 @@ def get_dataset(
                 mmap_filepath=mmap_filepath,
             ),
             transform=transform,
+            num_channels=num_channels,
             mask_dir=Path(mask_dir) if mask_dir is not None else None,
         )
 
@@ -556,6 +558,7 @@ def get_dataset(
                 mmap_filepath=mmap_filepath,
             ),
             transform=transform,
+            num_channels=num_channels,
         )
     else:
         raise ValueError(

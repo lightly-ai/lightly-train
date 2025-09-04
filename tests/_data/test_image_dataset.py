@@ -118,6 +118,7 @@ class TestImageDataset:
             image_dir=flat_image_dir,
             image_filenames=filenames,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         assert len(dataset) == 2
         for i in range(2):
@@ -156,6 +157,7 @@ class TestImageDataset:
             image_dir=image_dir,
             image_filenames=filenames,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         image = dataset[0]["views"][0]
         assert isinstance(image, Tensor)
@@ -177,6 +179,7 @@ class TestImageDataset:
             image_dir=image_dir,
             image_filenames=filenames,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         image = dataset[0]["views"][0]
         assert isinstance(image, Tensor)
@@ -196,6 +199,7 @@ class TestImageDataset:
             image_filenames=img_filenames,
             mask_dir=mask_dir,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         item: DatasetItem = dataset[0]
         print(f"{item=}")
@@ -217,6 +221,7 @@ class TestImageDataset:
             image_dir=flat_image_dir,
             image_filenames=filenames,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         assert len(dataset) == 2
         dataloader = DataLoader(

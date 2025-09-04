@@ -30,6 +30,7 @@ from lightly_train._commands import _warnings, common_helpers, train_helpers
 from lightly_train._commands.common_helpers import ModelFormat
 from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._configs.validate import no_auto
 from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.logger_args import LoggerArgs
 from lightly_train._methods import method_helpers
@@ -294,6 +295,7 @@ def train_from_config(config: TrainConfig) -> None:
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform_instance,
+            num_channels=no_auto(config.transform_args.num_channels),
             mmap_filepath=mmap_filepath,
             out_dir=out_dir,
         )
