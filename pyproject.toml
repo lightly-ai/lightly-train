@@ -104,7 +104,7 @@ onnxruntime = [
     "onnxruntime>=1.21.0",
 ] # inference engines
 onnxslim = [
-    "onnxslim>=1.65.0",
+    "onnxslim>=1.1.65",
 ]
 [project.scripts]
 lightly-train = "lightly_train._cli:_cli_entrypoint"
