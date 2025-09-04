@@ -8,6 +8,9 @@
 
 from __future__ import annotations
 
+import logging
+from typing import Literal
+
 import numpy as np
 from albumentations import (
     BasicTransform,
@@ -26,6 +29,7 @@ from torch import Tensor
 from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
+from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -33,6 +37,7 @@ from lightly_train._transforms.task_transform import (
     TaskTransformOutput,
 )
 from lightly_train._transforms.transform import (
+    ChannelDropArgs,
     ColorJitterArgs,
     NormalizeArgs,
     RandomCropArgs,
@@ -40,6 +45,8 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SemanticSegmentationTransformInput(TaskTransformInput):
@@ -55,6 +62,8 @@ class SemanticSegmentationTransformOutput(TaskTransformOutput):
 class SemanticSegmentationTransformArgs(TaskTransformArgs):
     ignore_index: int
     image_size: tuple[int, int]
+    channel_drop: ChannelDropArgs | None
+    num_channels: int | Literal["auto"]
     normalize: NormalizeArgs
     random_flip: RandomFlipArgs | None
     color_jitter: ColorJitterArgs | None
@@ -69,6 +78,33 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
             if hasattr(field, "resolve_auto"):
                 field.resolve_auto(height=height, width=width)
 
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                self.num_channels = 3
+
+    def resolve_incompatible(self) -> None:
+        if self.color_jitter is not None and no_auto(self.num_channels) != 3:
+            # Disable color jitter as it only works with 3-channel images.
+            logger.debug(
+                "Disabling color jitter transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.color_jitter = None
+        if len(self.normalize.mean) != no_auto(self.num_channels):
+            # Nothing we can do here. Better raise an error.
+            raise ValueError(
+                f"Length of mean {len(self.normalize.mean)} in normalization transform "
+                f"does not match num_channels {self.num_channels}."
+            )
+        if len(self.normalize.std) != no_auto(self.num_channels):
+            # Nothing we can do here. Better raise an error.
+            raise ValueError(
+                f"Length of std {len(self.normalize.std)} in normalization transform "
+                f"does not match num_channels {self.num_channels}."
+            )
+
 
 class SemanticSegmentationTransform(TaskTransform):
     transform_args_cls: type[SemanticSegmentationTransformArgs]
@@ -78,6 +114,14 @@ class SemanticSegmentationTransform(TaskTransform):
 
         # Initialize the list of transforms to apply.
         transform: list[BasicTransform] = []
+
+        if transform_args.channel_drop is not None:
+            transform += [
+                ChannelDrop(
+                    num_channels_keep=transform_args.channel_drop.num_channels_keep,
+                    weight_drop=transform_args.channel_drop.weight_drop,
+                )
+            ]
 
         if transform_args.scale_jitter is not None:
             # This follows recommendation on how to replace torchvision ScaleJitter with

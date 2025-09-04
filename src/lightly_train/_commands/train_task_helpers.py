@@ -226,10 +226,16 @@ def get_transform_args(
         train_transform_args_cls, transform_args
     )
     train_transform_args.resolve_auto()
+    train_transform_args.resolve_incompatible()
 
     # Take defaults from train transform.
     val_args_dict = train_transform_args.model_dump(
-        include={"image_size": True, "normalize": True, "ignore_index": True}
+        include={
+            "image_size": True,
+            "normalize": True,
+            "ignore_index": True,
+            "num_channels": True,
+        }
     )
     # Overwrite with user provided val args.
     val_args_dict.update(val_args)
@@ -237,6 +243,7 @@ def get_transform_args(
         val_transform_args_cls, val_args_dict
     )
     val_transform_args.resolve_auto()
+    val_transform_args.resolve_incompatible()
 
     logger.debug(
         f"Resolved train transform args {pretty_format_args(train_transform_args.model_dump())}"

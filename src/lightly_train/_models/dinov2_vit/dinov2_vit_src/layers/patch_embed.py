@@ -9,12 +9,20 @@
 #   https://github.com/facebookresearch/dino/blob/master/vision_transformer.py
 #   https://github.com/rwightman/pytorch-image-models/tree/master/timm/layers/patch_embed.py
 
-import math
-from typing import Callable, Optional, Tuple, Union
+# Modifications Copyright 2025 Lightly AG:
+# - Modified load_state_dict to handle different number of input channels
 
+
+import logging
+import math
+from typing import Any, Callable, Optional, Tuple, Union
+
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
+
+logger = logging.getLogger(__name__)
 
 
 def make_2tuple(x):
@@ -71,6 +79,8 @@ class PatchEmbed(nn.Module):
         )
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
+        self.register_load_state_dict_pre_hook(_adjust_input_channels)
+
     def forward(self, x: Tensor) -> Tuple[Tensor, int, int]:
         _, _, H, W = x.shape
         patch_H, patch_W = self.patch_size
@@ -113,3 +123,43 @@ class PatchEmbed(nn.Module):
         if self.norm is not None:
             flops += Ho * Wo * self.embed_dim
         return flops
+
+
+def _adjust_input_channels(
+    module: PatchEmbed,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """Hook to adjust the number of channels in the state dict to the number of
+    channels in the module.
+    """
+
+    proj_weight_key = f"{prefix}proj.weight"
+    proj_weight = state_dict[proj_weight_key]
+    weights_in_chans = proj_weight.shape[1]
+    if weights_in_chans > module.in_chans:
+        # Drop last channels
+        logger.info(
+            f"Loading pretrained weights with {weights_in_chans} input channels, "
+            f"but model has {module.in_chans} input channels. Keeping only the "
+            f"first {module.in_chans} channels of the pretrained weights."
+        )
+        proj_weight = proj_weight[:, : module.in_chans, :, :]
+    elif weights_in_chans < module.in_chans:
+        # Repeat channels to initialize extra channels
+        logger.info(
+            f"Loading pretrained weights with {weights_in_chans} input channels, "
+            f"but model has {module.in_chans} input channels. Repeating the "
+            "channels of the pretrained weights to initialize the extra "
+            "channels."
+        )
+        repeat_times = module.in_chans // weights_in_chans
+        remainder = module.in_chans % weights_in_chans
+        proj_weight = proj_weight.repeat(1, repeat_times, 1, 1)
+        if remainder > 0:
+            proj_weight = torch.cat(
+                [proj_weight, proj_weight[:, :remainder, :, :]], dim=1
+            )
+    state_dict[proj_weight_key] = proj_weight

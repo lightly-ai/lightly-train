@@ -35,7 +35,11 @@ class ImageDataset(Dataset[DatasetItem]):
         self.transform = transform
 
         try:
-            self.image_mode = ImageMode(Env.LIGHTLY_TRAIN_IMAGE_MODE.value)
+            self.image_mode = (
+                ImageMode.RGB
+                if Env.LIGHTLY_TRAIN_IMAGE_MODE.value is None
+                else ImageMode(Env.LIGHTLY_TRAIN_IMAGE_MODE.value)
+            )
         except ValueError:
             raise ValueError(
                 f'Invalid image mode: {Env.LIGHTLY_TRAIN_IMAGE_MODE.name}="{Env.LIGHTLY_TRAIN_IMAGE_MODE.value}". '

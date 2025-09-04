@@ -19,6 +19,7 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
@@ -98,6 +99,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             },
             image_size=val_transform_args.image_size,
             image_normalize=val_transform_args.normalize.model_dump(),
+            num_input_channels=no_auto(val_transform_args.num_channels),
         )
         self.criterion = CrossEntropyLoss(ignore_index=data_args.ignore_index)
 

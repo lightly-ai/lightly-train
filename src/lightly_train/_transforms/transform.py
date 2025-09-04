@@ -92,7 +92,7 @@ class SolarizeArgs(PydanticConfig):
 class NormalizeArgs(PydanticConfig):
     # Strict is set to False because OmegaConf does not support parsing tuples from the
     # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
-    mean: tuple[float, float, float] = Field(
+    mean: tuple[float, ...] = Field(
         default=(
             IMAGENET_NORMALIZE["mean"][0],
             IMAGENET_NORMALIZE["mean"][1],
@@ -100,7 +100,7 @@ class NormalizeArgs(PydanticConfig):
         ),
         strict=False,
     )
-    std: tuple[float, float, float] = Field(
+    std: tuple[float, ...] = Field(
         default=(
             IMAGENET_NORMALIZE["std"][0],
             IMAGENET_NORMALIZE["std"][1],

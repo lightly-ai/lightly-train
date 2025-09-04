@@ -166,6 +166,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
             },
+            num_input_channels=no_auto(val_transform_args.num_channels),
         )
 
         self.criterion = MaskClassificationLoss(

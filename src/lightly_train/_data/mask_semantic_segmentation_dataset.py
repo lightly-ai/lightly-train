@@ -21,7 +21,10 @@ from lightly_train._data import file_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._env import Env
-from lightly_train._transforms.task_transform import TaskTransform
+from lightly_train._transforms.semantic_segmentation_transform import (
+    SemanticSegmentationTransform,
+    SemanticSegmentationTransformArgs,
+)
 from lightly_train.types import (
     BinaryMasksDict,
     ImageFilename,
@@ -40,7 +43,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self,
         dataset_args: MaskSemanticSegmentationDatasetArgs,
         image_filenames: Sequence[ImageFilename],
-        transform: TaskTransform,
+        transform: SemanticSegmentationTransform,
     ):
         self.args = dataset_args
         self.image_filenames = image_filenames
@@ -51,20 +54,27 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self.class_mapping = self.get_class_mapping()
         self.valid_classes = torch.tensor(list(self.class_mapping.keys()))
 
-        image_mode = Env.LIGHTLY_TRAIN_IMAGE_MODE.value
-        if image_mode not in ("RGB", "UNCHANGED"):
-            raise ValueError(
-                f'Invalid image mode: {Env.LIGHTLY_TRAIN_IMAGE_MODE.name}="{image_mode}". '
-                "Supported modes are 'RGB' and 'UNCHANGED'."
+        transform_args = transform.transform_args
+        assert isinstance(transform_args, SemanticSegmentationTransformArgs)
+
+        image_mode = (
+            None
+            if Env.LIGHTLY_TRAIN_IMAGE_MODE.value is None
+            else ImageMode(Env.LIGHTLY_TRAIN_IMAGE_MODE.value)
+        )
+        if image_mode is None:
+            image_mode = (
+                ImageMode.RGB
+                if transform_args.num_channels == 3
+                else ImageMode.UNCHANGED
             )
-        # Convert string to enum value
-        if image_mode == "RGB":
-            self.image_mode = ImageMode.RGB
-        elif image_mode == "UNCHANGED":
-            self.image_mode = ImageMode.UNCHANGED
-        else:
-            # This should not happen due to the check above, but added for type safety
-            raise ValueError(f"Unexpected image mode: {image_mode}")
+
+        if image_mode not in (ImageMode.RGB, ImageMode.UNCHANGED):
+            raise ValueError(
+                f"Invalid image mode: '{image_mode}'. "
+                f"Supported modes are '{[ImageMode.RGB.value, ImageMode.UNCHANGED.value]}'."
+            )
+        self.image_mode = image_mode
 
     def is_mask_valid(self, mask: Tensor) -> bool:
         # Check if at least one value in the mask is in the valid classes.

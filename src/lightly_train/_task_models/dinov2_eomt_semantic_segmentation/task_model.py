@@ -45,9 +45,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         classes: dict[int, str],
         class_ignore_index: int | None,
         image_size: tuple[int, int],
-        image_normalize: dict[str, float],
+        image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
         num_joint_blocks: int,
+        num_input_channels: int,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
@@ -77,6 +78,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             num_joint_blocks:
                 The number of blocks that process the query tokens and image tokens
                 jointly.
+            num_input_channels:
+                The number of input channels in the input images.
             backbone_weights:
                 The path to the DINOv2 backbone weights. The weights must be exported
                 using LightlyTrain.
@@ -90,6 +93,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         self.class_ignore_index = class_ignore_index
         self.image_size = image_size
         self.image_normalize = image_normalize
+        self.num_input_channels = num_input_channels
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -110,6 +114,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # Disable drop path by default.
         backbone_model_args = {
             "drop_path_rate": 0.0,
+            "in_chans": num_input_channels,
         }
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
