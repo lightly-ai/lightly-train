@@ -4,6 +4,9 @@
 # This software may be used and distributed in accordance with
 # the terms of the DINOv3 License Agreement.#
 
+# Modifications Copyright 2025 Lightly AG:
+# - Modified load_state_dict to handle different number of input channels
+
 from __future__ import annotations
 
 import logging
