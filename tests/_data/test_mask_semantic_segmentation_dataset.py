@@ -203,7 +203,7 @@ class TestMaskSemanticSegmentationDataArgs:
             {0: {"name": "background", "values": "0"}},
         ],
     )
-    def test_validate_class__invalid_inputs_labels(
+    def test_validate_class__invalid_inputs(
         self, invalid_classes: dict[int, Any], tmp_path: Path
     ) -> None:
         image_dir = tmp_path / "images"
@@ -369,6 +369,86 @@ class TestMaskSemanticSegmentationDataArgs:
         assert dataset_args.included_classes == expected_included
 
 
+class TestMaskSemanticSegmentationDatasetArgs:
+    def test_mask_dir_or_file__filename_template_string(self, tmp_path: Path) -> None:
+        """Test that template string is used as-is when it contains format placeholders."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        image_filenames = ["image0.jpg", "image1.jpg"]
+        mask_filenames = ["image0.png", "image1.png"]
+
+        helpers.create_images(image_dir, files=image_filenames)
+        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=1)
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
+            classes={0: LabelsClassInfo(name="background", values={0})},
+            ignore_index=-100,
+        )
+
+        filepaths = list(dataset_args.list_image_info())
+
+        assert len(filepaths) == 2
+        expected_pairs = [
+            {
+                "image_filepaths": str(image_dir / "image0.jpg"),
+                "mask_filepaths": str(mask_dir / "image0.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image1.jpg"),
+                "mask_filepaths": str(mask_dir / "image1.png"),
+            },
+        ]
+        # Convert to tuples for comparison since dicts are not hashable
+        filepaths_tuples = [
+            (fp["image_filepaths"], fp["mask_filepaths"]) for fp in filepaths
+        ]
+        expected_tuples = [
+            (ep["image_filepaths"], ep["mask_filepaths"]) for ep in expected_pairs
+        ]
+        assert set(filepaths_tuples) == set(expected_tuples)
+
+    def test_mask_dir_or_file__directory_path(self, tmp_path: Path) -> None:
+        """Test that directory path gets converted to template string when no format placeholders exist."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        image_filenames = ["image0.jpg", "image1.jpg"]
+        mask_filenames = ["image0.png", "image1.png"]
+
+        helpers.create_images(image_dir, files=image_filenames)
+        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=1)
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir_or_file=str(mask_dir),
+            classes={0: LabelsClassInfo(name="background", values={0})},
+            ignore_index=-100,
+        )
+
+        filepaths = list(dataset_args.list_image_info())
+
+        assert len(filepaths) == 2
+        expected_pairs = [
+            {
+                "image_filepaths": str(image_dir / "image0.jpg"),
+                "mask_filepaths": str(mask_dir / "image0.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image1.jpg"),
+                "mask_filepaths": str(mask_dir / "image1.png"),
+            },
+        ]
+        # Convert to tuples for comparison since dicts are not hashable
+        filepaths_tuples = [
+            (fp["image_filepaths"], fp["mask_filepaths"]) for fp in filepaths
+        ]
+        expected_tuples = [
+            (ep["image_filepaths"], ep["mask_filepaths"]) for ep in expected_pairs
+        ]
+        assert set(filepaths_tuples) == set(expected_tuples)
+
+
 class TestMaskSemanticSegmentationDataset:
     @pytest.mark.parametrize(
         "num_classes, expected_mask_dtype, ignore_index",
@@ -466,7 +546,7 @@ class TestMaskSemanticSegmentationDataset:
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir=mask_dir,
+            mask_dir_or_file=str(mask_dir),
             classes={
                 i: ColorsClassInfo(name=f"class_{i}", values={colors[i]})
                 for i in range(num_classes)
@@ -476,7 +556,7 @@ class TestMaskSemanticSegmentationDataset:
         transform = DummyTransform(transform_args=TaskTransformArgs())
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
-            image_filenames=list(dataset_args.list_image_filenames()),
+            image_info=list(dataset_args.list_image_info()),
             transform=transform,
         )
 
@@ -516,19 +596,19 @@ class TestMaskSemanticSegmentationDataset:
         # Create mask with different size
         mask_dir.mkdir(parents=True, exist_ok=True)
         helpers.create_mask(
-            mask_dir / "image0.png", height=128, width=128, num_classes=2
+            mask_dir / "image0.png", height=128, width=128, num_classes=1
         )
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir=mask_dir,
+            mask_dir_or_file=str(mask_dir),
             classes={0: LabelsClassInfo(name="class_0", values={0})},
             ignore_index=-100,
         )
         transform = DummyTransform(transform_args=TaskTransformArgs())
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
-            image_filenames=["image0.jpg"],
+            image_info=list(dataset_args.list_image_info()),
             transform=transform,
         )
 
@@ -553,14 +633,14 @@ class TestMaskSemanticSegmentationDataset:
         # Use LabelsClassInfo (instead of ColorsClassInfo)
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir=mask_dir,
+            mask_dir_or_file=str(mask_dir),
             classes={0: LabelsClassInfo(name="class_0", values={0})},
             ignore_index=-100,
         )
         transform = DummyTransform(transform_args=TaskTransformArgs())
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
-            image_filenames=["image0.jpg"],
+            image_info=list(dataset_args.list_image_info()),
             transform=transform,
         )
 
@@ -570,7 +650,7 @@ class TestMaskSemanticSegmentationDataset:
         ):
             dataset[0]
 
-    def test_get_class_mapping(self, tmp_path: Path) -> None:
+    def test_get_class_mapping__labels(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
@@ -587,7 +667,7 @@ class TestMaskSemanticSegmentationDataset:
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
+            mask_dir_or_file=str(mask_dir),
             classes=classes,
             ignore_index=-100,
         )
@@ -600,7 +680,7 @@ class TestMaskSemanticSegmentationDataset:
 
         assert dataset.class_mapping == expected_mapping
 
-    def test_get_class_mapping__ignore_classes(self, tmp_path: Path) -> None:
+    def test_get_class_mapping__ignore_classes__labels(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
@@ -619,7 +699,7 @@ class TestMaskSemanticSegmentationDataset:
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
+            mask_dir_or_file=str(mask_dir),
             classes=classes,
             ignore_classes=ignore_classes,
             ignore_index=-100,
@@ -633,82 +713,68 @@ class TestMaskSemanticSegmentationDataset:
 
         assert dataset.class_mapping == expected_mapping
 
-
-class TestMaskSemanticSegmentationDatasetArgs:
-    def test_mask_dir_or_file__filename_template_string(self, tmp_path: Path) -> None:
-        """Test that template string is used as-is when it contains format placeholders."""
+    def test_get_class_mapping__colors(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
-        image_filenames = ["image0.jpg", "image1.jpg"]
-        mask_filenames = ["image0.png", "image1.png"]
+        image_filenames = ["image0.jpg"]
+        mask_filenames = ["image0.png"]
 
         helpers.create_images(image_dir, files=image_filenames)
-        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=2)
+        # Define a small color palette used in RGB masks.
+        palette = [(0, 0, 0), (128, 128, 128)]
+        helpers.create_rgb_masks(mask_dir, files=mask_filenames, colors=palette)
 
-        dataset_args = MaskSemanticSegmentationDatasetArgs(
-            image_dir=image_dir,
-            mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
-            classes={0: ClassInfo(name="background", values={0})},
-            ignore_index=-100,
-        )
-
-        filepaths = list(dataset_args.list_image_info())
-
-        assert len(filepaths) == 2
-        expected_pairs = [
-            {
-                "image_filepaths": str(image_dir / "image0.jpg"),
-                "mask_filepaths": str(mask_dir / "image0.png"),
-            },
-            {
-                "image_filepaths": str(image_dir / "image1.jpg"),
-                "mask_filepaths": str(mask_dir / "image1.png"),
-            },
-        ]
-        # Convert to tuples for comparison since dicts are not hashable
-        filepaths_tuples = [
-            (fp["image_filepaths"], fp["mask_filepaths"]) for fp in filepaths
-        ]
-        expected_tuples = [
-            (ep["image_filepaths"], ep["mask_filepaths"]) for ep in expected_pairs
-        ]
-        assert set(filepaths_tuples) == set(expected_tuples)
-
-    def test_mask_dir_or_file__directory_path(self, tmp_path: Path) -> None:
-        """Test that directory path gets converted to template string when no format placeholders exist."""
-        image_dir = tmp_path / "images"
-        mask_dir = tmp_path / "masks"
-        image_filenames = ["image0.jpg", "image1.jpg"]
-        mask_filenames = ["image0.png", "image1.png"]
-
-        helpers.create_images(image_dir, files=image_filenames)
-        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=2)
+        classes: dict[int, LabelsClassInfo | ColorsClassInfo] = {
+            0: ColorsClassInfo(name="background", values={(0, 0, 0)}),
+            1: ColorsClassInfo(name="road", values={(128, 128, 128)}),
+        }
+        expected_mapping = {0: 0, 1: 1}
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file=str(mask_dir),
-            classes={0: ClassInfo(name="background", values={0})},
+            classes=classes,
             ignore_index=-100,
         )
+        transform = DummyTransform(transform_args=TaskTransformArgs())
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_info=list(dataset_args.list_image_info()),
+            transform=transform,
+        )
 
-        filepaths = list(dataset_args.list_image_info())
+        assert dataset.class_mapping == expected_mapping
 
-        assert len(filepaths) == 2
-        expected_pairs = [
-            {
-                "image_filepaths": str(image_dir / "image0.jpg"),
-                "mask_filepaths": str(mask_dir / "image0.png"),
-            },
-            {
-                "image_filepaths": str(image_dir / "image1.jpg"),
-                "mask_filepaths": str(mask_dir / "image1.png"),
-            },
-        ]
-        # Convert to tuples for comparison since dicts are not hashable
-        filepaths_tuples = [
-            (fp["image_filepaths"], fp["mask_filepaths"]) for fp in filepaths
-        ]
-        expected_tuples = [
-            (ep["image_filepaths"], ep["mask_filepaths"]) for ep in expected_pairs
-        ]
-        assert set(filepaths_tuples) == set(expected_tuples)
+    def test_get_class_mapping__ignore_classes__colors(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        image_filenames = ["image0.jpg"]
+        mask_filenames = ["image0.png"]
+
+        helpers.create_images(image_dir, files=image_filenames)
+        palette = [(0, 0, 0), (128, 128, 128), (255, 0, 0)]
+        helpers.create_rgb_masks(mask_dir, files=mask_filenames, colors=palette)
+
+        classes: dict[int, LabelsClassInfo | ColorsClassInfo] = {
+            1: ColorsClassInfo(name="road", values={(128, 128, 128)}),
+            4: ColorsClassInfo(name="ignore_me", values={(255, 0, 0)}),
+            5: ColorsClassInfo(name="person", values={(0, 0, 0)}),
+        }
+        ignore_classes = {4}
+        expected_mapping = {1: 0, 5: 1}
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir_or_file=str(mask_dir),
+            classes=classes,
+            ignore_classes=ignore_classes,
+            ignore_index=-100,
+        )
+        transform = DummyTransform(transform_args=TaskTransformArgs())
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_info=list(dataset_args.list_image_info()),
+            transform=transform,
+        )
+
+        assert dataset.class_mapping == expected_mapping
