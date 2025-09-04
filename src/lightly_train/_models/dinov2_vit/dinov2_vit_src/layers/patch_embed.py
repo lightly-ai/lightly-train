@@ -13,7 +13,6 @@
 # - Modified load_state_dict to handle different number of input channels
 
 
-import logging
 import math
 from typing import Callable, Optional, Tuple, Union
 
@@ -22,8 +21,6 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from lightly_train._models import _model_helpers
-
-logger = logging.getLogger(__name__)
 
 
 def make_2tuple(x):

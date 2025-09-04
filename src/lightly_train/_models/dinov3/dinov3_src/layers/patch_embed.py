@@ -9,15 +9,12 @@
 
 from __future__ import annotations
 
-import logging
 import math
 from typing import Callable, Tuple, Union
 
 from torch import Tensor, nn
 
 from lightly_train._models import _model_helpers
-
-logger = logging.getLogger(__name__)
 
 
 def make_2tuple(x):
