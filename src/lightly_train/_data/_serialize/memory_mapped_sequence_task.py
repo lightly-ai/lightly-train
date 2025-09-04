@@ -48,18 +48,6 @@ def write_items_to_file(
     )
 
 
-def memory_mapped_sequence_from_file(
-    mmap_filepath: Path,
-) -> MemoryMappedSequenceTask[Primitive]:
-    table = _mmap_table_from_file(mmap_filepath=mmap_filepath)
-
-    num_rows = table.num_rows
-    column_names = table.column_names
-
-    logger.debug(f"Creating memory mapped sequence with {num_rows} '{column_names}'.")
-    return MemoryMappedSequenceTask(path=mmap_filepath, columns=column_names)
-
-
 class MemoryMappedSequenceTask(Sequence[T[Primitive]], Generic[Primitive]):
     """A memory mapped sequence built around PyArrow's memory mapped tables.
 
@@ -122,9 +110,7 @@ class MemoryMappedSequenceTask(Sequence[T[Primitive]], Generic[Primitive]):
     @overload
     def __getitem__(self, index: slice) -> Sequence[T[Primitive]]: ...
 
-    def __getitem__(
-        self, index: int | slice
-    ) -> T[Primitive] | Sequence[T[Primitive]]:
+    def __getitem__(self, index: int | slice) -> T[Primitive] | Sequence[T[Primitive]]:
         if isinstance(index, int):
             rows_dict: list[T[Primitive]] = (
                 self.table().select(self._columns).slice(index, 1).to_pylist()
@@ -169,7 +155,7 @@ class MemoryMappedSequenceTask(Sequence[T[Primitive]], Generic[Primitive]):
         logger.debug(
             f"Creating memory mapped sequence with {num_rows} '{column_names}'."
         )
-        return MemoryMappedSequenceTask(path=mmap_filepath, columns=column_names)
+        return cls(path=mmap_filepath, columns=column_names)
 
 
 def _infer_type(value: Primitive) -> pa.DataType:
