@@ -134,7 +134,7 @@ def embed_from_config(config: EmbedConfig) -> None:
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform,
-            num_channels=len(normalize_args.mean),
+            num_channels=len(checkpoint_instance.lightly_train.normalize_args.mean),
             mmap_filepath=mmap_filepath,
             out_dir=out_path,
         )
