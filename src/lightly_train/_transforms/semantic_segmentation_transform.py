@@ -119,7 +119,9 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
 
 
 class SemanticSegmentationTransform(TaskTransform):
-    transform_args_cls: type[SemanticSegmentationTransformArgs]
+    transform_args_cls: type[SemanticSegmentationTransformArgs] = (
+        SemanticSegmentationTransformArgs
+    )
 
     def __init__(self, transform_args: SemanticSegmentationTransformArgs) -> None:
         super().__init__(transform_args)
