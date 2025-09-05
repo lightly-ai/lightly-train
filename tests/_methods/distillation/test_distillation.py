@@ -202,6 +202,7 @@ class TestDistillation:
             optimizer_args=DistillationLARSArgs(),
             embedding_model=EmbeddingModel(wrapped_model=DummyCustomModel()),
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
         mock_get_teacher_model.assert_called_once()
 
@@ -253,6 +254,7 @@ class TestDistillation:
             optimizer_args=DistillationLARSArgs(),
             embedding_model=EmbeddingModel(wrapped_model=DummyCustomModel()),
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
         mock_get_teacher_model.assert_called_once()
 
@@ -318,6 +320,7 @@ class TestDistillation:
             optimizer_args=DistillationLARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
 
     def test_load_state_dict_ignores_missing_teacher_keys(
@@ -353,6 +356,7 @@ class TestDistillation:
             optimizer_args=DistillationLARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
         mock_get_teacher.assert_called_once()
 
@@ -403,6 +407,7 @@ class TestDistillation:
             optimizer_args=DistillationLARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
         mock_get_teacher.assert_called_once()
 
@@ -454,6 +459,7 @@ class TestDistillation:
             optimizer_args=DistillationLARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
         mock_get_teacher.assert_called_once()
 
@@ -529,6 +535,7 @@ class TestDistillation:
             optimizer_args=DistillationLARSArgs(lr=base_lr),
             embedding_model=student_model,
             global_batch_size=global_batch_size,
+            num_input_channels=3,
         )
 
         # Mock trainer attributes needed by configure_optimizers.

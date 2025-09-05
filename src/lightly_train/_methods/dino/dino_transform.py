@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
@@ -99,6 +101,7 @@ class DINOTransformArgs(MethodTransformArgs):
     # https://github.com/facebookresearch/dino#resnet-50-and-other-convnets-trainings
     image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
     channel_drop: ChannelDropArgs | None = None
+    num_channels: int | Literal["auto"] = "auto"
     random_resize: DINORandomResizeArgs | None = Field(
         default_factory=DINORandomResizeArgs
     )

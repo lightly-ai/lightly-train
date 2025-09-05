@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import (
     Literal,
@@ -19,7 +20,10 @@ from lightly.transforms.utils import IMAGENET_NORMALIZE
 from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._configs.validate import no_auto
 from lightly_train.types import TransformInput, TransformOutput
+
+logger = logging.getLogger(__name__)
 
 
 class ChannelDropArgs(PydanticConfig):
@@ -92,7 +96,7 @@ class SolarizeArgs(PydanticConfig):
 class NormalizeArgs(PydanticConfig):
     # Strict is set to False because OmegaConf does not support parsing tuples from the
     # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
-    mean: tuple[float, float, float] = Field(
+    mean: tuple[float, ...] = Field(
         default=(
             IMAGENET_NORMALIZE["mean"][0],
             IMAGENET_NORMALIZE["mean"][1],
@@ -100,7 +104,7 @@ class NormalizeArgs(PydanticConfig):
         ),
         strict=False,
     )
-    std: tuple[float, float, float] = Field(
+    std: tuple[float, ...] = Field(
         default=(
             IMAGENET_NORMALIZE["std"][0],
             IMAGENET_NORMALIZE["std"][1],
@@ -160,6 +164,7 @@ class MethodTransformArgs(PydanticConfig):
     # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
     image_size: tuple[int, int]
     channel_drop: ChannelDropArgs | None
+    num_channels: int | Literal["auto"]
     random_resize: RandomResizeArgs | None
     random_flip: RandomFlipArgs | None
     random_rotation: RandomRotationArgs | None
@@ -168,6 +173,58 @@ class MethodTransformArgs(PydanticConfig):
     normalize: NormalizeArgs
     gaussian_blur: GaussianBlurArgs | None
     solarize: SolarizeArgs | None
+
+    def resolve_auto(self) -> None:
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                self.num_channels = len(self.normalize.mean)
+
+    def resolve_incompatible(self) -> None:
+        # Adjust normalization mean and std to match num_channels.
+        if len(self.normalize.mean) != no_auto(self.num_channels):
+            logger.debug(
+                "Adjusting mean of normalize transform to match num_channels. "
+                f"num_channels is {self.num_channels} but "
+                f"normalize.mean has length {len(self.normalize.mean)}."
+            )
+            # Repeat the values until they match num_channels.
+            self.normalize.mean = tuple(
+                self.normalize.mean[i % len(self.normalize.mean)]
+                for i in range(no_auto(self.num_channels))
+            )
+        if len(self.normalize.std) != no_auto(self.num_channels):
+            logger.debug(
+                "Adjusting std of normalize transform to match num_channels. "
+                f"num_channels is {self.num_channels} but "
+                f"normalize.std has length {len(self.normalize.std)}."
+            )
+            # Repeat the values until they match num_channels.
+            self.normalize.std = tuple(
+                self.normalize.std[i % len(self.normalize.std)]
+                for i in range(no_auto(self.num_channels))
+            )
+
+        # Disable transforms if necessary.
+        if self.color_jitter is not None and no_auto(self.num_channels) != 3:
+            logger.debug(
+                "Disabling color jitter transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.color_jitter = None
+        if self.random_gray_scale is not None and no_auto(self.num_channels) != 3:
+            logger.debug(
+                "Disabling random gray scale transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.random_gray_scale = None
+        if self.solarize is not None and no_auto(self.num_channels) != 3:
+            logger.debug(
+                "Disabling solarize transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.solarize = None
 
 
 _T = TypeVar("_T", covariant=True)

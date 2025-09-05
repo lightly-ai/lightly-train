@@ -27,20 +27,31 @@ class ImageDataset(Dataset[DatasetItem]):
         image_dir: Path | None,
         image_filenames: Sequence[ImageFilename],
         transform: Transform,
+        num_channels: int,
         mask_dir: Path | None = None,
     ):
         self.image_dir = image_dir
         self.image_filenames = image_filenames
         self.mask_dir = mask_dir
         self.transform = transform
+        self.num_channels = num_channels
 
-        try:
-            self.image_mode = ImageMode(Env.LIGHTLY_TRAIN_IMAGE_MODE.value)
-        except ValueError:
-            raise ValueError(
-                f'Invalid image mode: {Env.LIGHTLY_TRAIN_IMAGE_MODE.name}="{Env.LIGHTLY_TRAIN_IMAGE_MODE.value}". '
-                "Supported modes are 'RGB' and 'UNCHANGED'."
+        image_mode = (
+            None
+            if Env.LIGHTLY_TRAIN_IMAGE_MODE.value is None
+            else ImageMode(Env.LIGHTLY_TRAIN_IMAGE_MODE.value)
+        )
+        if image_mode is None:
+            image_mode = (
+                ImageMode.RGB if self.num_channels == 3 else ImageMode.UNCHANGED
             )
+
+        if image_mode not in (ImageMode.RGB, ImageMode.UNCHANGED):
+            raise ValueError(
+                f"Invalid image mode: '{image_mode}'. "
+                f"Supported modes are '{[ImageMode.RGB.value, ImageMode.UNCHANGED.value]}'."
+            )
+        self.image_mode = image_mode
 
     def __getitem__(self, idx: int) -> DatasetItem:
         filename = self.image_filenames[idx]

@@ -9,6 +9,8 @@
 # Note: This file is identical (up to renaming) to src/lightly_train/_methods/distillation/distillation_transform.py
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 
 from lightly_train._transforms.transform import (
@@ -56,6 +58,7 @@ class DistillationV2GaussianBlurArgs(GaussianBlurArgs):
 class DistillationV2TransformArgs(MethodTransformArgs):
     image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
     channel_drop: ChannelDropArgs | None = None
+    num_channels: int | Literal["auto"] = "auto"
     random_resize: DistillationV2RandomResizeArgs | None = Field(
         default_factory=DistillationV2RandomResizeArgs
     )

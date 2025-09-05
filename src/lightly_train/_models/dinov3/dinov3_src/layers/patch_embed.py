@@ -4,12 +4,17 @@
 # This software may be used and distributed in accordance with
 # the terms of the DINOv3 License Agreement.#
 
+# Modifications Copyright 2025 Lightly AG:
+# - Modified load_state_dict to handle different number of input channels
+
 from __future__ import annotations
 
 import math
 from typing import Callable, Tuple, Union
 
 from torch import Tensor, nn
+
+from lightly_train._models import _model_helpers
 
 
 def make_2tuple(x):
@@ -65,6 +70,16 @@ class PatchEmbed(nn.Module):
             in_chans, embed_dim, kernel_size=patch_HW, stride=patch_HW
         )
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
+
+        if hasattr(self, "register_load_state_dict_pre_hook"):
+            self.register_load_state_dict_pre_hook(
+                _model_helpers.patch_embed_adjust_input_channels_hook
+            )
+        else:
+            # Backwards compatibility for PyTorch <= 2.4
+            self._register_load_state_dict_pre_hook(
+                _model_helpers.patch_embed_adjust_input_channels_hook, with_module=True
+            )
 
     def forward(self, x: Tensor) -> Tensor:
         _, _, H, W = x.shape

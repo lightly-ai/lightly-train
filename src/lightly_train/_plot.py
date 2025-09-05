@@ -60,7 +60,7 @@ def plot_example_augmentations(train_batch: Batch, max_examples: int = 10) -> PI
                 :,
                 x_start:x_end,
                 y_start:y_end,
-            ] = image_tensor.cpu()
+            ] = image_tensor[:3].cpu()  # Take only first 3 channels.
 
     # Note: Getting the normalization specific to the method is not trivial,
     # as it depends on the transform. See

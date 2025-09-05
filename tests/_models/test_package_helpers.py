@@ -49,12 +49,16 @@ def test_get_model__rfdetr() -> None:
     pytest.importorskip("rfdetr")
     from rfdetr.detr import RFDETR
 
-    model = package_helpers.get_wrapped_model("rfdetr/rf-detr-base")
+    model = package_helpers.get_wrapped_model(
+        "rfdetr/rf-detr-base", num_input_channels=3
+    )
     assert isinstance(model.get_model(), RFDETR)
 
 
 def test_get_model__torchvision() -> None:
-    model = package_helpers.get_wrapped_model("torchvision/resnet18")
+    model = package_helpers.get_wrapped_model(
+        "torchvision/resnet18", num_input_channels=3
+    )
     assert isinstance(model.get_model(), ResNet)
 
 
@@ -62,7 +66,7 @@ def test_get_model__timm() -> None:
     pytest.importorskip("timm")
     from timm.models.resnet import ResNet
 
-    model = package_helpers.get_wrapped_model("timm/resnet18")
+    model = package_helpers.get_wrapped_model("timm/resnet18", num_input_channels=3)
     assert isinstance(model.get_model(), ResNet)
 
 
@@ -72,7 +76,9 @@ def test_get_model__super_gradients() -> None:
         YoloNAS_S,
     )
 
-    model = package_helpers.get_wrapped_model("super_gradients/yolo_nas_s")
+    model = package_helpers.get_wrapped_model(
+        "super_gradients/yolo_nas_s", num_input_channels=3
+    )
     assert isinstance(model.get_model(), YoloNAS_S)
 
 
@@ -80,13 +86,17 @@ def test_get_model__ultralytics() -> None:
     pytest.importorskip("ultralytics")
     from ultralytics import YOLO
 
-    model = package_helpers.get_wrapped_model("ultralytics/yolov8s.yaml")
+    model = package_helpers.get_wrapped_model(
+        "ultralytics/yolov8s.yaml", num_input_channels=3
+    )
     assert isinstance(model.get_model(), YOLO)
 
 
 def test_get_model_wrapper__timm() -> None:
     pytest.importorskip("timm")
-    wrapped_model = package_helpers.get_wrapped_model("timm/resnet18")
+    wrapped_model = package_helpers.get_wrapped_model(
+        "timm/resnet18", num_input_channels=3
+    )
     model = wrapped_model.get_model()
 
     x = torch.rand(1, 3, 64, 64)

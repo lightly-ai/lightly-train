@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import albumentations as A
 import pytest
 import torch
 from torch import Tensor
@@ -22,32 +21,33 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDatasetArgs,
     SplitArgs,
 )
-from lightly_train._transforms.task_transform import (
-    TaskTransform,
-    TaskTransformArgs,
-    TaskTransformInput,
-    TaskTransformOutput,
+from lightly_train._transforms.semantic_segmentation_transform import (
+    SemanticSegmentationTransform,
+    SemanticSegmentationTransformArgs,
+)
+from lightly_train._transforms.transform import (
+    NormalizeArgs,
+    SmallestMaxSizeArgs,
 )
 
 from .. import helpers
 
 
-class DummyTransform(TaskTransform):
-    transform_args_cls = TaskTransformArgs
-
-    def __init__(self, transform_args: TaskTransformArgs):
-        super().__init__(transform_args=transform_args)
-        self.transform = A.Compose(
-            [
-                A.Resize(32, 32),
-                A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
-                A.pytorch.transforms.ToTensorV2(),
-            ]
+def _dummy_transform() -> SemanticSegmentationTransform:
+    return SemanticSegmentationTransform(
+        SemanticSegmentationTransformArgs(
+            ignore_index=-100,
+            image_size=(32, 32),
+            channel_drop=None,
+            num_channels=3,
+            normalize=NormalizeArgs(),
+            random_flip=None,
+            color_jitter=None,
+            scale_jitter=None,
+            smallest_max_size=SmallestMaxSizeArgs(max_size=32, prob=1.0),
+            random_crop=None,
         )
-
-    def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:
-        output: TaskTransformOutput = self.transform(**input)
-        return output
+    )
 
 
 class TestMaskSemanticSegmentationDataArgs:
@@ -245,7 +245,7 @@ class TestMaskSemanticSegmentationDataset:
             },
             ignore_index=ignore_index,
         )
-        transform = DummyTransform(transform_args=TaskTransformArgs())
+        transform = _dummy_transform()
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
             image_info=list(dataset_args.list_image_info()),
@@ -298,7 +298,7 @@ class TestMaskSemanticSegmentationDataset:
             classes=classes,
             ignore_index=-100,
         )
-        transform = DummyTransform(transform_args=TaskTransformArgs())
+        transform = _dummy_transform()
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
             image_info=list(dataset_args.list_image_info()),
@@ -331,7 +331,7 @@ class TestMaskSemanticSegmentationDataset:
             ignore_classes=ignore_classes,
             ignore_index=-100,
         )
-        transform = DummyTransform(transform_args=TaskTransformArgs())
+        transform = _dummy_transform()
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
             image_info=list(dataset_args.list_image_info()),

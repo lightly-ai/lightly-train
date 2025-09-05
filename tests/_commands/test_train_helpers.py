@@ -74,18 +74,22 @@ class MockDataset(Dataset[DatasetItem]):
 
 
 def test_get_transform__method() -> None:
+    transform_args = SimCLRTransformArgs()
+    transform_args.resolve_auto()
     assert isinstance(
         train_helpers.get_transform(
-            method="simclr", transform_args_resolved=SimCLRTransformArgs()
+            method="simclr", transform_args_resolved=transform_args
         ),
         SimCLRTransform,
     )
 
 
 def test_get_transform__method_and_transform_dict() -> None:
+    transform_args = SimCLRTransformArgs(random_gray_scale=0.42)
+    transform_args.resolve_auto()
     transform = train_helpers.get_transform(
         method="simclr",
-        transform_args_resolved=SimCLRTransformArgs(random_gray_scale=0.42),
+        transform_args_resolved=transform_args,
     )
     assert isinstance(transform, SimCLRTransform)
     assert transform.transform_args.random_gray_scale == 0.42
@@ -146,7 +150,9 @@ def test_get_embedding_model(
     if model_name.startswith("timm/"):
         pytest.importorskip("timm")
     x = torch.rand(1, 3, 224, 224)
-    model = package_helpers.get_wrapped_model(model_name, model_args=model_args)
+    model = package_helpers.get_wrapped_model(
+        model_name, model_args=model_args, num_input_channels=3
+    )
     embedding_model = train_helpers.get_embedding_model(model, embed_dim=embed_dim)
     embedding = embedding_model.forward(x)
     assert embedding.shape == (1, embedding_model.embed_dim, 1, 1)
@@ -355,6 +361,7 @@ def test_get_method() -> None:
         optimizer_args=AdamWArgs(),
         embedding_model=embedding_model,
         global_batch_size=1,
+        num_input_channels=3,
     )
     assert isinstance(method, SimCLR)
     assert method.method_args.temperature == 0.2
@@ -406,9 +413,9 @@ def test_get_epochs(
     "transform_dict, expected_result",
     [
         # Test case for default empty dictionary
-        ({}, SimCLRTransformArgs()),
+        ({}, SimCLRTransformArgs(num_channels=3)),
         # Test case for None input
-        (None, SimCLRTransformArgs()),
+        (None, SimCLRTransformArgs(num_channels=3)),
         # Test case for user config
         (
             {
@@ -417,6 +424,7 @@ def test_get_epochs(
                 "color_jitter": {"brightness": 0.1},
             },
             SimCLRTransformArgs(
+                num_channels=3,
                 normalize=NormalizeArgs(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
                 random_rotation=RandomRotationArgs(prob=0.5, degrees=30),
                 color_jitter=SimCLRColorJitterArgs(brightness=0.1),
@@ -428,7 +436,8 @@ def test_get_epochs(
                 normalize=NormalizeArgs(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
             ),
             SimCLRTransformArgs(
-                normalize=NormalizeArgs(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+                num_channels=3,
+                normalize=NormalizeArgs(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
             ),
         ),
     ],

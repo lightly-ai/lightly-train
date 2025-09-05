@@ -52,7 +52,10 @@ class RFDETRPackage(Package):
 
     @classmethod
     def get_model(
-        cls, model_name: str, model_args: dict[str, Any] | None = None
+        cls,
+        model_name: str,
+        num_input_channels: int = 3,
+        model_args: dict[str, Any] | None = None,
     ) -> RFDETR:
         try:
             from rfdetr import RFDETRBase, RFDETRLarge
@@ -60,6 +63,11 @@ class RFDETRPackage(Package):
         except ImportError:
             raise ValueError(
                 f"Cannot create model '{model_name}' because rfdetr is not installed."
+            )
+        if num_input_channels != 3:
+            raise ValueError(
+                f"RFDETR models only support 3 input channels, but got "
+                f"{num_input_channels}."
             )
 
         args = {} if model_args is None else model_args.copy()
