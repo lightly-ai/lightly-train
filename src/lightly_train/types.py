@@ -22,7 +22,7 @@ from typing_extensions import NotRequired
 PackageModel = Any
 
 # Types for the new transforms.
-NDArrayImage = NDArray[np.uint8]
+NDArrayImage = NDArray[np.uint8 | np.int32 | np.int64]
 NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
 NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
 

@@ -206,8 +206,9 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         """Map RGB mask to single channel mask using class labels from ColorsClassInfo."""
         # Initialize single channel mask with ignore_index
 
-        invalid_index = self.valid_classes.max().item() + 1
-        single_channel_mask = np.full(rgb_mask.shape[:2], invalid_index, dtype=np.uint8)
+        single_channel_mask = np.full(
+            rgb_mask.shape[:2], self.ignore_index, dtype=np.long
+        )
 
         # Map each RGB color to its corresponding class label
         for class_id, class_info in class_infos.items():
