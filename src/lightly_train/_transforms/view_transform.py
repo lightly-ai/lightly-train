@@ -7,8 +7,6 @@
 #
 from __future__ import annotations
 
-import logging
-
 import cv2
 from albumentations import (
     BasicTransform,
@@ -40,8 +38,6 @@ from lightly_train._transforms.transform import (
     SolarizeArgs,
 )
 from lightly_train.types import TransformInput, TransformOutputSingleView
-
-logger = logging.getLogger(__name__)
 
 ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_22 = RequirementCache("albumentations>=1.4.22")
