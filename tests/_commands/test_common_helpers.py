@@ -436,7 +436,7 @@ def test_pretty_format_args__custom_model() -> None:
                     "my_data_dir",
                     "my_data_dir_2",
                     "my_data_dir_3",
-                    "...",
+                    "... 2 more values",
                     "my_data_dir_6",
                 ],
                 "devices": [0, 1],
@@ -463,10 +463,10 @@ def test_pretty_format_args__custom_model() -> None:
                     "my_data_dir",
                     "my_data_dir_2",
                     "my_data_dir_3",
-                    "...",
+                    "... 2 more values",
                     "my_data_dir_6",
                 ],
-                "devices": [0, 1, 2, "...", 7],
+                "devices": [0, 1, 2, "... 4 more values", 7],
             },
         ),
     ],
@@ -474,7 +474,7 @@ def test_pretty_format_args__custom_model() -> None:
 def test_remove_excessive_args__all_keys(
     args: dict[str, Any], expected: dict[str, Any]
 ) -> None:
-    assert common_helpers.remove_excessive_args(args=args) == expected
+    assert common_helpers.remove_excessive_args(args=args, num_elems=5) == expected
 
 
 def test_remove_excessive_args__specific_key() -> None:
@@ -498,13 +498,16 @@ def test_remove_excessive_args__specific_key() -> None:
             "my_data_dir",
             "my_data_dir_2",
             "my_data_dir_3",
-            "...",
+            "... 2 more values",
             "my_data_dir_6",
         ],
         "devices": [0, 1, 2, 3, 4, 5, 6, 7],
     }
     assert (
-        common_helpers.remove_excessive_args(args=args, limit_keys={"data"}) == expected
+        common_helpers.remove_excessive_args(
+            args=args, limit_keys={"data"}, num_elems=5
+        )
+        == expected
     )
 
 
