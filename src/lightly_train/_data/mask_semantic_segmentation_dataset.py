@@ -32,78 +32,51 @@ from lightly_train.types import (
 )
 
 
-class LabelsClassInfo(PydanticConfig):
+class SingleChannelClassInfo(PydanticConfig):
     name: str
     labels: set[int] = Field(alias="values")
 
     @field_validator("labels", mode="before")
     @classmethod
-    def normalize_labels(cls, v: set[int] | list[int] | int) -> set[int]:
-        # Case for a single label or a set of labels: 0 -> {0} or {0, 1, 2} -> {0, 1, 2}
+    def normalize_labels(cls, v: set[int] | list[int]) -> set[int]:
         if isinstance(v, set):
             return v
-        # List of labels: [0, 1, 2] -> {0, 1, 2}
         elif isinstance(v, list):
             return set(v)
-        # Single label: 0 -> {0}
-        elif isinstance(v, int):
-            return {v}
         else:
             raise ValueError(f"Expected int or list of ints, got {type(v)}")
 
 
-class ColorsClassInfo(PydanticConfig):
+class MultiChannelClassInfo(PydanticConfig):
     name: str
-    colors: set[tuple[int, ...]] = Field(alias="values")
+    channels: set[tuple[int, ...]] = Field(alias="values")
 
-    @field_validator("colors", mode="before")
+    @field_validator("channels", mode="before")
     @classmethod
-    def normalize_colors(
-        cls, v: tuple[int, ...] | list[tuple[int, ...]] | set[tuple[int, ...]]
+    def normalize_channels(
+        cls, v: list[tuple[int, ...]] | set[tuple[int, ...]]
     ) -> set[tuple[int, ...]]:
-        # Case for a single color tuple: (0, 0, 0) -> {(0, 0, 0)}
-        if isinstance(v, tuple):
-            return {v}
-        # List of color tuples: [(0, 0, 0), (255, 255, 255)] -> {(0, 0, 0), (255, 255, 255)}
-        elif isinstance(v, list):
+        if isinstance(v, list):
             return set(v)
-        # Set of color tuples: {(0, 0, 0), (255, 255, 255)} -> {(0, 0, 0), (255, 255, 255)}
         elif isinstance(v, set):
             return v
         else:
             raise ValueError(f"Expected tuple or list of tuples, got {type(v)}")
 
-    @field_validator("colors", mode="after")
-    @classmethod
-    def validate_rgb_colors(cls, colors: set[tuple[int, ...]]) -> set[tuple[int, ...]]:
-        # Validate that each color is a valid RGB tuple with channels in [0, 255].
-        for color in colors:
-            if len(color) != 3:
-                raise ValueError(
-                    f"Invalid RGB color values: {color}. Values must be integers between 0 and 255."
-                )
-            r, g, b = color
-            for channel in (r, g, b):
-                if not isinstance(channel, int) or not (0 <= channel <= 255):
-                    raise ValueError(
-                        f"Invalid RGB color values: {color}. Values must be integers between 0 and 255."
-                    )
-        return colors
+
+ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
 
 
-ClassInfo = Union[ColorsClassInfo, LabelsClassInfo]
-
-
-def _are_colors_classes(
+def _are_multi_channel_classes(
     classes: dict[int, ClassInfo],
-) -> TypeGuard[dict[int, ColorsClassInfo]]:
-    """TypeGuard ensuring all class infos are ColorsClassInfo.
+) -> TypeGuard[dict[int, MultiChannelClassInfo]]:
+    """TypeGuard ensuring all class infos are MultiChannelClassInfo.
 
-    This allows mypy to narrow `classes` to `dict[int, ColorsClassInfo]` within
+    This allows mypy to narrow `classes` to `dict[int, MultiChannelClassInfo]` within
     the True-branch.
     """
     return all(
-        isinstance(class_info, ColorsClassInfo) for class_info in classes.values()
+        isinstance(class_info, MultiChannelClassInfo) for class_info in classes.values()
     )
 
 
@@ -200,21 +173,21 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Use LUT to remap efficiently
         return lut[mask.to(torch.long)]
 
-    def _map_rgb_masks_to_integer_masks(
-        self, rgb_mask: NDArrayImage, class_infos: dict[int, ColorsClassInfo]
+    def _map_multi_channel_masks_to_single_channel(
+        self,
+        multi_channel_mask: NDArrayImage,
+        class_infos: dict[int, MultiChannelClassInfo],
     ) -> NDArrayImage:
-        """Map RGB mask to single channel mask using class labels from ColorsClassInfo."""
         # Initialize single channel mask with ignore_index
-
         single_channel_mask = np.full(
-            rgb_mask.shape[:2], self.ignore_index, dtype=np.long
+            multi_channel_mask.shape[:2], self.ignore_index, dtype=np.int_
         )
 
-        # Map each RGB color to its corresponding class label
+        # Map the channels to class ids
         for class_id, class_info in class_infos.items():
-            for color in class_info.colors:
-                # Find pixels that match this color
-                mask = np.all(rgb_mask == color, axis=2)
+            for channel in class_info.channels:
+                # Find pixels that match this value
+                mask = np.all(multi_channel_mask == channel, axis=2)
                 # Assign class_id to matching pixels
                 single_channel_mask[mask] = class_id
 
@@ -243,26 +216,25 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Local alias to enable type narrowing with TypeGuard
         classes = self.args.classes
 
-        # Check that if the mask is RGB, then the class info must be ColorsClassInfo
-        if len(mask.shape) == 3 and mask.shape[2] == 3:
-            if not _are_colors_classes(classes):
+        # Check that if the mask is multi-channel, then the class info must be MultiChannelClassInfo
+        if len(mask.shape) == 3:
+            if not _are_multi_channel_classes(classes):
                 raise ValueError(
-                    "Expected colors specified in `classes` for RGB masks but got labels. "
-                    "For RGB masks, you have to specify the colors that correspond to each class.\n\n"
-                    "The RGB colors should be provided as a tuple (not a list!) to `values`:\n"
+                    "Expected channel values specified in `classes` for multi-channel masks but got labels. "
+                    "For multi-channel masks, you have to specify the channel value that correspond to each class.\n\n"
+                    "The channel values should be provided as a list of tuples to `values`:\n"
                     "classes = {\n"
-                    "  0: {'name': 'background', 'values': (0, 0, 0)},\n"
-                    "  1: {'name': 'road', 'values': (128, 128, 128)}\n"
+                    "  0: {'name': 'background', 'values': [(0, 0, 0)]},\n"
+                    "  1: {'name': 'road', 'values': [(128, 128, 128)]}\n"
                     "}\n\n"
-                    "Mapping multiple colors to a single class also by providing a list of tuples:\n"
                     "classes = {\n"
                     "  0: {'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]},\n"
                     "  1: {'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}\n"
                     "}"
                 )
 
-            # Map RGB mask to single channel mask using class labels
-            mask = self._map_rgb_masks_to_integer_masks(mask, classes)
+            # Map multi-channel mask to single channel mask using class labels
+            mask = self._map_multi_channel_masks_to_single_channel(mask, classes)
 
         # Try to find an augmentation that contains a valid mask. This increases the
         # probability for a good training signal. If no valid mask is found we still
@@ -342,64 +314,80 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         cls, classes: dict[int, str | dict[str, Any]]
     ) -> dict[int, ClassInfo]:
         classes_validated = TypeAdapter(
-            Dict[int, Union[str, LabelsClassInfo, ColorsClassInfo]]
+            Dict[int, Union[str, SingleChannelClassInfo, MultiChannelClassInfo]]
         ).validate_python(classes)
 
         # Convert to ClassInfo objects and perform consistency checks.
         class_infos: dict[int, ClassInfo] = {}
         class_types: set[type] = set()
         class_labels: set[int] = set()
-        class_colors: set[tuple[int, ...]] = set()
+        class_channels: set[tuple[int, ...]] = set()
 
         for class_id, class_info in classes_validated.items():
             if isinstance(class_info, str):
-                class_info = LabelsClassInfo(name=class_info, values={class_id})
+                class_info = SingleChannelClassInfo(name=class_info, values={class_id})
 
             # Check for inconsistent class types early
             class_types.add(type(class_info))
             if len(class_types) > 1:
                 raise ValueError(
-                    "All classes must be consistently either LabelsClassInfo or ColorsClassInfo. Mixing types is not allowed."
+                    "Invalid class mapping: mixed class types detected. "
+                    "All classes must be consistently either integer labels or channel values. Mixing types is not allowed.\n\n"
+                    "INCORRECT (mixing integer labels and channel tuples):\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'values': [0, 1, 2]},\n"
+                    "  1: {'name': 'road', 'values': [(0, 0, 0), (128, 128, 128)]}  # <- mixed types\n"
+                    "}\n\n"
+                    "CORRECT (use only integer labels):\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'values': [0, 1, 2]},\n"
+                    "  1: {'name': 'road', 'values': [3, 4, 5]}\n"
+                    "}\n\n"
+                    "CORRECT (use only channel tuples):\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]},\n"
+                    "  1: {'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}\n"
+                    "}"
                 )
 
-            if isinstance(class_info, LabelsClassInfo):
+            if isinstance(class_info, SingleChannelClassInfo):
                 for label in class_info.labels:
                     # Check for multiple labels across different class mappings
                     if label in class_labels:
                         raise ValueError(
-                            f"Invalid class mapping: Class label {label} appears in multiple class definitions. "
+                            f"Invalid class mapping: class label {label} appears in multiple class definitions. "
                             f"Each old class label can only mapped to one new class.\n\n"
                             f"INCORRECT (class label {label} is duplicated):\n"
                             f"classes = {{\n"
                             f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
                             f"  254: {{'name': 'background-254', 'values': [0, 1, 2]}}  # <- class [0, 1, 2] conflict with class 255\n"
                             f"}}\n\n"
-                            f"CORRECT (each set of class values belongs to only one class):\n"
+                            f"CORRECT (each label value belongs to only one class):\n"
                             f"classes = {{\n"
                             f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
                             f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # <- unique values\n"
                             f"}}"
                         )
                     class_labels.add(label)
-            elif isinstance(class_info, ColorsClassInfo):
-                for color in class_info.colors:
-                    # Check for multiple colors across different class mappings
-                    if color in class_colors:
+            elif isinstance(class_info, MultiChannelClassInfo):
+                for channel in class_info.channels:
+                    # Check for multiple channel values across different class mappings
+                    if channel in class_channels:
                         raise ValueError(
-                            f"Invalid class mapping: Class color {color} appears in multiple class definitions. "
-                            f"Each RGB color in the mask can only be mapped to one new class.\n\n"
-                            f"INCORRECT (RGB color {color} is duplicated):\n"
+                            f"Invalid class mapping: channel value {channel} appears in multiple class definitions. "
+                            f"Each channel value in the mask can only be mapped to one new class.\n\n"
+                            f"INCORRECT (channel value {channel} is duplicated):\n"
                             f"classes = {{\n"
                             f"  0: {{'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
-                            f"  1: {{'name': 'road', 'values': [(0, 0, 0), (128, 128, 128)]}}  # <- color (0, 0, 0) conflict with class 0\n"
+                            f"  1: {{'name': 'road', 'values': [(0, 0, 0), (128, 128, 128)]}}  # <- channel value (0, 0, 0) conflict with class 0\n"
                             f"}}\n\n"
-                            f"CORRECT (each RGB color belongs to only one class):\n"
+                            f"CORRECT (each channel value belongs to only one class):\n"
                             f"classes = {{\n"
                             f"  0: {{'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
-                            f"  1: {{'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}}  # <- unique colors\n"
+                            f"  1: {{'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}}  # <- unique channel values\n"
                             f"}}"
                         )
-                    class_colors.add(color)
+                    class_channels.add(channel)
             else:
                 pass
 

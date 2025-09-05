@@ -17,11 +17,11 @@ import torch
 from torch import Tensor
 
 from lightly_train._data.mask_semantic_segmentation_dataset import (
-    ColorsClassInfo,
-    LabelsClassInfo,
     MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
+    MultiChannelClassInfo,
+    SingleChannelClassInfo,
     SplitArgs,
 )
 from lightly_train._transforms.task_transform import (
@@ -125,36 +125,25 @@ class TestMaskSemanticSegmentationDataArgs:
         # Check that names and values match expected
         for class_id, (expected_name, expected_values) in expected_checks.items():
             class_info = dataset_args.classes[class_id]
-            assert isinstance(class_info, LabelsClassInfo)
+            assert isinstance(class_info, SingleChannelClassInfo)
             assert class_info.name == expected_name
             assert class_info.labels == set(expected_values)
 
     @pytest.mark.parametrize(
         "classes_input, expected_checks",
         [
-            # Test with all RGB colors (single colors)
-            (
-                {
-                    0: {"name": "unlabeled", "values": (0, 0, 0)},
-                    1: {"name": "road", "values": (128, 128, 128)},
-                },
-                {
-                    0: ("unlabeled", [(0, 0, 0)]),
-                    1: ("road", [(128, 128, 128)]),
-                },
-            ),
-            # Test with all RGB colors (multiple colors)
+            # Test with single multi-channel values
             (
                 {
                     0: {"name": "unlabeled", "values": [(0, 0, 0), (255, 255, 255)]},
-                    1: {"name": "road", "values": (128, 128, 128)},
+                    1: {"name": "road", "values": [(128, 128, 128)]},
                 },
                 {
                     0: ("unlabeled", [(0, 0, 0), (255, 255, 255)]),
                     1: ("road", [(128, 128, 128)]),
                 },
             ),
-            # Test with all RGB colors (multiple colors in lists)
+            # Test with multiple multi-channel values
             (
                 {
                     0: {"name": "unlabeled", "values": [(0, 0, 0), (255, 255, 255)]},
@@ -167,7 +156,7 @@ class TestMaskSemanticSegmentationDataArgs:
             ),
         ],
     )
-    def test_validate_class_rgb_colors(
+    def test_validate_class_multi_channel(
         self,
         classes_input: dict[int, Any],
         expected_checks: dict[int, tuple[str, list[tuple[int, int, int]]]],
@@ -188,11 +177,14 @@ class TestMaskSemanticSegmentationDataArgs:
         )
 
         # Check that names and labels match expected
-        for class_id, (expected_name, expected_colors) in expected_checks.items():
+        for class_id, (
+            expected_name,
+            expected_channel_values,
+        ) in expected_checks.items():
             class_info = dataset_args.classes[class_id]
-            assert isinstance(class_info, ColorsClassInfo)
+            assert isinstance(class_info, MultiChannelClassInfo)
             assert class_info.name == expected_name
-            assert class_info.colors == set(expected_colors)
+            assert class_info.channels == set(expected_channel_values)
 
     @pytest.mark.parametrize(
         "invalid_classes",
@@ -220,12 +212,12 @@ class TestMaskSemanticSegmentationDataArgs:
     @pytest.mark.parametrize(
         "mixed_classes",
         [
-            # Mixed RGB colors and class name strings
+            # Mixed multi-channel values and class name strings
             {
                 0: {"name": "unlabeled", "values": [(0, 0, 0), (255, 255, 255)]},
                 1: "road",
             },
-            # Mixed RGB colors and integer field
+            # Mixed multi-channel values and integer labels
             {
                 0: {"name": "unlabeled", "values": [(0, 0, 0), (255, 255, 255)]},
                 1: {"name": "road", "values": [1, 2]},
@@ -241,7 +233,7 @@ class TestMaskSemanticSegmentationDataArgs:
         # Test that mixed class types raise validation error
         with pytest.raises(
             ValueError,
-            match="All classes must be consistently either LabelsClassInfo or ColorsClassInfo",
+            match="Invalid class mapping: mixed class types detected.",
         ):
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
@@ -253,52 +245,25 @@ class TestMaskSemanticSegmentationDataArgs:
         "classes,expected_match",
         [
             (
-                {0: {"name": "background", "values": (256, 0, 0)}},
-                "Invalid RGB color values: \\(256, 0, 0\\). Values must be integers between 0 and 255.",
-            ),
-            (
-                {0: {"name": "background", "values": (-1, 128, 128)}},
-                "Invalid RGB color values: \\(-1, 128, 128\\). Values must be integers between 0 and 255.",
-            ),
-        ],
-    )
-    def test_validate_class__invalid_inputs_colors(
-        self, tmp_path: Path, classes: dict[int, Any], expected_match: str
-    ) -> None:
-        """Test that invalid RGB color values raise validation error."""
-        image_dir = tmp_path / "images"
-        mask_dir = tmp_path / "masks"
-
-        with pytest.raises(ValueError, match=expected_match):
-            MaskSemanticSegmentationDataArgs(
-                train=SplitArgs(images=image_dir, masks=mask_dir),
-                val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=classes,
-            )
-
-    @pytest.mark.parametrize(
-        "classes,expected_match",
-        [
-            (
                 {
                     0: {"name": "background", "values": [0, 1, 2]},
                     5: {"name": "vehicle", "values": [2, 3, 4]},
                 },
-                "Invalid class mapping: Class label 2 appears in multiple class definitions. ",
+                "Invalid class mapping: class label 2 appears in multiple class definitions. ",
             ),
             (
                 {
                     0: {"name": "background", "values": [0, 1, 2]},
                     1: "vehicle",
                 },
-                "Invalid class mapping: Class label 1 appears in multiple class definitions. ",
+                "Invalid class mapping: class label 1 appears in multiple class definitions. ",
             ),
             (
                 {
                     0: {"name": "background", "values": [(0, 0, 0), (128, 128, 128)]},
                     1: {"name": "vehicle", "values": [(128, 128, 128), (255, 0, 0)]},
                 },
-                "Invalid class mapping: Class color \\(128, 128, 128\\) appears in multiple class definitions",
+                "Invalid class mapping: channel value \\(128, 128, 128\\) appears in multiple class definitions",
             ),
         ],
     )
@@ -355,7 +320,7 @@ class TestMaskSemanticSegmentationDataArgs:
         ignore_classes: set[int],
         expected_included: dict[int, str],
     ) -> None:
-        """Test that included_classes property works correctly for both labels and colors."""
+        """Test that included_classes property works correctly for both labels and channel values."""
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
 
@@ -383,7 +348,7 @@ class TestMaskSemanticSegmentationDatasetArgs:
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
-            classes={0: LabelsClassInfo(name="background", values={0})},
+            classes={0: SingleChannelClassInfo(name="background", values={0})},
             ignore_index=-100,
         )
 
@@ -422,7 +387,7 @@ class TestMaskSemanticSegmentationDatasetArgs:
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file=str(mask_dir),
-            classes={0: LabelsClassInfo(name="background", values={0})},
+            classes={0: SingleChannelClassInfo(name="background", values={0})},
             ignore_index=-100,
         )
 
@@ -476,7 +441,7 @@ class TestMaskSemanticSegmentationDataset:
             image_dir=image_dir,
             mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
             classes={
-                i: LabelsClassInfo(name=f"class_{i}", values={i})
+                i: SingleChannelClassInfo(name=f"class_{i}", values={i})
                 for i in range(num_classes)
             },
             ignore_index=ignore_index,
@@ -520,7 +485,7 @@ class TestMaskSemanticSegmentationDataset:
             (150, torch.long, -100),
         ],
     )
-    def test__getitem__rgb_masks(
+    def test__getitem__multi_channel_masks(
         self,
         num_classes: int,
         expected_mask_dtype: torch.dtype,
@@ -533,22 +498,22 @@ class TestMaskSemanticSegmentationDataset:
         mask_filenames = ["image0.png", "image1.png"]
         helpers.create_images(image_dir, files=image_filenames)
 
-        colors_set: set[tuple[int, ...]] = set()
-        while len(colors_set) < num_classes:
-            color = tuple(int(x) for x in np.random.randint(0, 256, size=3))
-            colors_set.add(color)
-        colors = list(colors_set)
-        helpers.create_rgb_masks(
+        channel_values_set: set[tuple[int, ...]] = set()
+        while len(channel_values_set) < num_classes:
+            channel_value = tuple(int(x) for x in np.random.randint(0, 256, size=3))
+            channel_values_set.add(channel_value)
+        channel_values = list(channel_values_set)
+        helpers.create_multi_channel_masks(
             mask_dir,
             files=mask_filenames,
-            colors=colors,
+            values=channel_values,
         )
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file=str(mask_dir),
             classes={
-                i: ColorsClassInfo(name=f"class_{i}", values={colors[i]})
+                i: MultiChannelClassInfo(name=f"class_{i}", values={channel_values[i]})
                 for i in range(num_classes)
             },
             ignore_index=ignore_index,
@@ -585,7 +550,6 @@ class TestMaskSemanticSegmentationDataset:
         ]
 
     def test__getitem__shape_mismatch_error(self, tmp_path: Path) -> None:
-        """Test that shape mismatch between image and mask raises ValueError."""
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
 
@@ -602,7 +566,7 @@ class TestMaskSemanticSegmentationDataset:
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file=str(mask_dir),
-            classes={0: LabelsClassInfo(name="class_0", values={0})},
+            classes={0: SingleChannelClassInfo(name="class_0", values={0})},
             ignore_index=-100,
         )
         transform = DummyTransform(transform_args=TaskTransformArgs())
@@ -617,8 +581,9 @@ class TestMaskSemanticSegmentationDataset:
         ):
             dataset[0]
 
-    def test__getitem__rgb_mask_with_label_classes_error(self, tmp_path: Path) -> None:
-        """Test that RGB mask with LabelsClassInfo raises ValueError."""
+    def test__getitem__multi_channel_mask_with_label_classes_error(
+        self, tmp_path: Path
+    ) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
 
@@ -626,15 +591,15 @@ class TestMaskSemanticSegmentationDataset:
         image_dir.mkdir(parents=True, exist_ok=True)
         helpers.create_image(image_dir / "image0.jpg", height=64, width=64)
 
-        # Create an RGB mask (3 channels)
+        # Create a multi-channel mask (3 channels)
         mask_dir.mkdir(parents=True, exist_ok=True)
-        helpers.create_rgb_mask(mask_dir / "image0.png", height=64, width=64)
+        helpers.create_multi_channel_mask(mask_dir / "image0.png", height=64, width=64)
 
-        # Use LabelsClassInfo (instead of ColorsClassInfo)
+        # Use SingleChannelClassInfo (instead of MultiChannelClassInfo)
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file=str(mask_dir),
-            classes={0: LabelsClassInfo(name="class_0", values={0})},
+            classes={0: SingleChannelClassInfo(name="class_0", values={0})},
             ignore_index=-100,
         )
         transform = DummyTransform(transform_args=TaskTransformArgs())
@@ -646,7 +611,7 @@ class TestMaskSemanticSegmentationDataset:
 
         with pytest.raises(
             ValueError,
-            match="Expected colors specified in `classes` for RGB masks but got labels",
+            match="Expected channel values specified in `classes` for multi-channel masks but got labels",
         ):
             dataset[0]
 
@@ -659,9 +624,9 @@ class TestMaskSemanticSegmentationDataset:
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
 
-        classes: dict[int, LabelsClassInfo | ColorsClassInfo] = {
-            0: LabelsClassInfo(name="background", values={0, 5}),
-            1: LabelsClassInfo(name="vehicle", values={1, 2, 3}),
+        classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
+            0: SingleChannelClassInfo(name="background", values={0, 5}),
+            1: SingleChannelClassInfo(name="vehicle", values={1, 2, 3}),
         }
         expected_mapping = {0: 0, 1: 1}
 
@@ -689,10 +654,10 @@ class TestMaskSemanticSegmentationDataset:
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
 
-        classes: dict[int, LabelsClassInfo | ColorsClassInfo] = {
-            1: LabelsClassInfo(name="vehicle", values={1, 2, 3}),
-            4: LabelsClassInfo(name="ignore_me", values={4}),
-            5: LabelsClassInfo(name="person", values={5}),
+        classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
+            1: SingleChannelClassInfo(name="vehicle", values={1, 2, 3}),
+            4: SingleChannelClassInfo(name="ignore_me", values={4}),
+            5: SingleChannelClassInfo(name="person", values={5}),
         }
         ignore_classes = {4}
         expected_mapping = {1: 0, 5: 1}
@@ -713,20 +678,20 @@ class TestMaskSemanticSegmentationDataset:
 
         assert dataset.class_mapping == expected_mapping
 
-    def test_get_class_mapping__colors(self, tmp_path: Path) -> None:
+    def test_get_class_mapping__multi_channel(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
         mask_filenames = ["image0.png"]
 
         helpers.create_images(image_dir, files=image_filenames)
-        # Define a small color palette used in RGB masks.
-        palette = [(0, 0, 0), (128, 128, 128)]
-        helpers.create_rgb_masks(mask_dir, files=mask_filenames, colors=palette)
+        helpers.create_multi_channel_masks(
+            mask_dir, files=mask_filenames, values=[(0, 0, 0), (128, 128, 128)]
+        )
 
-        classes: dict[int, LabelsClassInfo | ColorsClassInfo] = {
-            0: ColorsClassInfo(name="background", values={(0, 0, 0)}),
-            1: ColorsClassInfo(name="road", values={(128, 128, 128)}),
+        classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
+            0: MultiChannelClassInfo(name="background", values={(0, 0, 0)}),
+            1: MultiChannelClassInfo(name="road", values={(128, 128, 128)}),
         }
         expected_mapping = {0: 0, 1: 1}
 
@@ -745,7 +710,9 @@ class TestMaskSemanticSegmentationDataset:
 
         assert dataset.class_mapping == expected_mapping
 
-    def test_get_class_mapping__ignore_classes__colors(self, tmp_path: Path) -> None:
+    def test_get_class_mapping__ignore_classes__multi_channel(
+        self, tmp_path: Path
+    ) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
@@ -753,12 +720,14 @@ class TestMaskSemanticSegmentationDataset:
 
         helpers.create_images(image_dir, files=image_filenames)
         palette = [(0, 0, 0), (128, 128, 128), (255, 0, 0)]
-        helpers.create_rgb_masks(mask_dir, files=mask_filenames, colors=palette)
+        helpers.create_multi_channel_masks(
+            mask_dir, files=mask_filenames, values=palette
+        )
 
-        classes: dict[int, LabelsClassInfo | ColorsClassInfo] = {
-            1: ColorsClassInfo(name="road", values={(128, 128, 128)}),
-            4: ColorsClassInfo(name="ignore_me", values={(255, 0, 0)}),
-            5: ColorsClassInfo(name="person", values={(0, 0, 0)}),
+        classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
+            1: MultiChannelClassInfo(name="road", values={(128, 128, 128)}),
+            4: MultiChannelClassInfo(name="ignore_me", values={(255, 0, 0)}),
+            5: MultiChannelClassInfo(name="person", values={(0, 0, 0)}),
         }
         ignore_classes = {4}
         expected_mapping = {1: 0, 5: 1}
