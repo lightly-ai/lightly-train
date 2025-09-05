@@ -51,6 +51,7 @@ def get_transform_args(
     logger.debug(f"Getting transform args for method '{method}'.")
     logger.debug(f"Using additional transform arguments {transform_args}.")
     if isinstance(transform_args, MethodTransformArgs):
+        transform_args.resolve_auto()
         return transform_args
 
     method_cls = method_helpers.get_method_cls(method)

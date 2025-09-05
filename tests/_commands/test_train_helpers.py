@@ -74,18 +74,22 @@ class MockDataset(Dataset[DatasetItem]):
 
 
 def test_get_transform__method() -> None:
+    transform_args = SimCLRTransformArgs()
+    transform_args.resolve_auto()
     assert isinstance(
         train_helpers.get_transform(
-            method="simclr", transform_args_resolved=SimCLRTransformArgs()
+            method="simclr", transform_args_resolved=transform_args
         ),
         SimCLRTransform,
     )
 
 
 def test_get_transform__method_and_transform_dict() -> None:
+    transform_args = SimCLRTransformArgs(random_gray_scale=0.42)
+    transform_args.resolve_auto()
     transform = train_helpers.get_transform(
         method="simclr",
-        transform_args_resolved=SimCLRTransformArgs(random_gray_scale=0.42),
+        transform_args_resolved=transform_args,
     )
     assert isinstance(transform, SimCLRTransform)
     assert transform.transform_args.random_gray_scale == 0.42
@@ -409,9 +413,9 @@ def test_get_epochs(
     "transform_dict, expected_result",
     [
         # Test case for default empty dictionary
-        ({}, SimCLRTransformArgs()),
+        ({}, SimCLRTransformArgs(num_channels=3)),
         # Test case for None input
-        (None, SimCLRTransformArgs()),
+        (None, SimCLRTransformArgs(num_channels=3)),
         # Test case for user config
         (
             {
@@ -420,6 +424,7 @@ def test_get_epochs(
                 "color_jitter": {"brightness": 0.1},
             },
             SimCLRTransformArgs(
+                num_channels=3,
                 normalize=NormalizeArgs(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
                 random_rotation=RandomRotationArgs(prob=0.5, degrees=30),
                 color_jitter=SimCLRColorJitterArgs(brightness=0.1),
@@ -431,6 +436,7 @@ def test_get_epochs(
                 normalize=NormalizeArgs(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
             ),
             SimCLRTransformArgs(
+                num_channels=3,
                 normalize=NormalizeArgs(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
             ),
         ),
