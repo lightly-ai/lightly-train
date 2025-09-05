@@ -70,9 +70,16 @@ class PatchEmbed(nn.Module):
             in_chans, embed_dim, kernel_size=patch_HW, stride=patch_HW
         )
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
-        self.register_load_state_dict_pre_hook(
-            _model_helpers.patch_embed_adjust_input_channels_hook
-        )
+
+        if hasattr(self, "register_load_state_dict_pre_hook"):
+            self.register_load_state_dict_pre_hook(
+                _model_helpers.patch_embed_adjust_input_channels_hook
+            )
+        else:
+            # Backwards compatibility for PyTorch <= 2.4
+            self._register_load_state_dict_pre_hook(
+                _model_helpers.patch_embed_adjust_input_channels_hook, with_module=True
+            )
 
     def forward(self, x: Tensor) -> Tensor:
         _, _, H, W = x.shape
