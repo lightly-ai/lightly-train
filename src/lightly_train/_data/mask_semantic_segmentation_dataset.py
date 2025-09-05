@@ -9,12 +9,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import ClassVar, Dict, Iterable, Union
+from typing import Any, ClassVar, Dict, Iterable, Union
 
+import numpy as np
 import torch
 from pydantic import Field, TypeAdapter, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
+from typing_extensions import TypeGuard
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
@@ -25,13 +27,57 @@ from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import (
     BinaryMasksDict,
     MaskSemanticSegmentationDatasetItem,
+    NDArrayImage,
     PathLike,
 )
 
 
-class ClassInfo(PydanticConfig):
+class SingleChannelClassInfo(PydanticConfig):
     name: str
-    values: set[int] = Field(strict=False)
+    labels: set[int] = Field(alias="values")
+
+    @field_validator("labels", mode="before")
+    @classmethod
+    def normalize_labels(cls, v: set[int] | list[int]) -> set[int]:
+        if isinstance(v, set):
+            return v
+        elif isinstance(v, list):
+            return set(v)
+        else:
+            raise ValueError(f"Expected int or list of ints, got {type(v)}")
+
+
+class MultiChannelClassInfo(PydanticConfig):
+    name: str
+    channels: set[tuple[int, ...]] = Field(alias="values")
+
+    @field_validator("channels", mode="before")
+    @classmethod
+    def normalize_channels(
+        cls, v: list[tuple[int, ...]] | set[tuple[int, ...]]
+    ) -> set[tuple[int, ...]]:
+        if isinstance(v, list):
+            return set(v)
+        elif isinstance(v, set):
+            return v
+        else:
+            raise ValueError(f"Expected tuple or list of tuples, got {type(v)}")
+
+
+ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
+
+
+def _are_multi_channel_classes(
+    classes: dict[int, ClassInfo],
+) -> TypeGuard[dict[int, MultiChannelClassInfo]]:
+    """TypeGuard ensuring all class infos are MultiChannelClassInfo.
+
+    This allows mypy to narrow `classes` to `dict[int, MultiChannelClassInfo]` within
+    the True-branch.
+    """
+    return all(
+        isinstance(class_info, MultiChannelClassInfo) for class_info in classes.values()
+    )
 
 
 class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
@@ -127,6 +173,26 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Use LUT to remap efficiently
         return lut[mask.to(torch.long)]
 
+    def _map_multi_channel_masks_to_single_channel(
+        self,
+        multi_channel_mask: NDArrayImage,
+        class_infos: dict[int, MultiChannelClassInfo],
+    ) -> NDArrayImage:
+        # Initialize single channel mask with ignore_index
+        single_channel_mask = np.full(
+            multi_channel_mask.shape[:2], self.ignore_index, dtype=np.int_
+        )
+
+        # Map the channels to class ids
+        for class_id, class_info in class_infos.items():
+            for channel in class_info.channels:
+                # Find pixels that match this value
+                mask = np.all(multi_channel_mask == channel, axis=2)
+                # Assign class_id to matching pixels
+                single_channel_mask[mask] = class_id
+
+        return single_channel_mask
+
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
         row = self.filepaths[index]
 
@@ -142,9 +208,33 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         )
 
         # Verify that the mask and the image have the same shape.
-        assert image.shape[:2] == mask.shape, (
-            f"Shape mismatch: image shape is {image.shape[:2]} while mask shape is {mask.shape}."
-        )
+        if image.shape[:2] != mask.shape[:2]:
+            raise ValueError(
+                f"Shape mismatch: image shape is {image.shape[:2]} while mask shape is {mask.shape}."
+            )
+
+        # Local alias to enable type narrowing with TypeGuard
+        classes = self.args.classes
+
+        # Check that if the mask is multi-channel, then the class info must be MultiChannelClassInfo
+        if len(mask.shape) == 3:
+            if not _are_multi_channel_classes(classes):
+                raise ValueError(
+                    "Expected channel values specified in `classes` for multi-channel masks but got labels. "
+                    "For multi-channel masks, you have to specify the channel value that correspond to each class.\n\n"
+                    "The channel values should be provided as a list of tuples to `values`:\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'values': [(0, 0, 0)]},\n"
+                    "  1: {'name': 'road', 'values': [(128, 128, 128)]}\n"
+                    "}\n\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]},\n"
+                    "  1: {'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}\n"
+                    "}"
+                )
+
+            # Map multi-channel mask to single channel mask using class labels
+            mask = self._map_multi_channel_masks_to_single_channel(mask, classes)
 
         # Try to find an augmentation that contains a valid mask. This increases the
         # probability for a good training signal. If no valid mask is found we still
@@ -161,8 +251,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Mark pixels to ignore in the masks.
         # TODO(Thomas, 07/25): Make this optional.
-        transformed_mask = transformed["mask"]
-        transformed_mask = self.remap_mask(transformed_mask)
+        transformed_mask = self.remap_mask(transformed["mask"])
 
         return {
             "image_path": str(image_path),  # Str for torch dataloader compatibility.
@@ -222,43 +311,87 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     @field_validator("classes", mode="before")
     @classmethod
     def validate_classes(
-        cls, classes: dict[int, str | dict[str, str | Sequence[int]]]
+        cls, classes: dict[int, str | dict[str, Any]]
     ) -> dict[int, ClassInfo]:
-        # Let Pydantic validate the structure and types
         classes_validated = TypeAdapter(
-            Dict[int, Union[str, ClassInfo]]
+            Dict[int, Union[str, SingleChannelClassInfo, MultiChannelClassInfo]]
         ).validate_python(classes)
 
-        # Convert to ClassInfo objects
+        # Convert to ClassInfo objects and perform consistency checks.
         class_infos: dict[int, ClassInfo] = {}
+        class_types: set[type] = set()
+        class_labels: set[int] = set()
+        class_channels: set[tuple[int, ...]] = set()
+
         for class_id, class_info in classes_validated.items():
             if isinstance(class_info, str):
-                class_infos[class_id] = ClassInfo(name=class_info, values={class_id})
+                class_info = SingleChannelClassInfo(name=class_info, values={class_id})
+
+            # Check for inconsistent class types early
+            class_types.add(type(class_info))
+            if len(class_types) > 1:
+                raise ValueError(
+                    "Invalid class mapping: mixed class types detected. "
+                    "All classes must be consistently either integer labels or channel values. Mixing types is not allowed.\n\n"
+                    "INCORRECT (mixing integer labels and channel tuples):\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'values': [0, 1, 2]},\n"
+                    "  1: {'name': 'road', 'values': [(0, 0, 0), (128, 128, 128)]}  # <- mixed types\n"
+                    "}\n\n"
+                    "CORRECT (use only integer labels):\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'values': [0, 1, 2]},\n"
+                    "  1: {'name': 'road', 'values': [3, 4, 5]}\n"
+                    "}\n\n"
+                    "CORRECT (use only channel tuples):\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]},\n"
+                    "  1: {'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}\n"
+                    "}"
+                )
+
+            if isinstance(class_info, SingleChannelClassInfo):
+                for label in class_info.labels:
+                    # Check for multiple labels across different class mappings
+                    if label in class_labels:
+                        raise ValueError(
+                            f"Invalid class mapping: class label {label} appears in multiple class definitions. "
+                            f"Each old class label can only mapped to one new class.\n\n"
+                            f"INCORRECT (class label {label} is duplicated):\n"
+                            f"classes = {{\n"
+                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
+                            f"  254: {{'name': 'background-254', 'values': [0, 1, 2]}}  # <- class [0, 1, 2] conflict with class 255\n"
+                            f"}}\n\n"
+                            f"CORRECT (each label value belongs to only one class):\n"
+                            f"classes = {{\n"
+                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
+                            f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # <- unique values\n"
+                            f"}}"
+                        )
+                    class_labels.add(label)
+            elif isinstance(class_info, MultiChannelClassInfo):
+                for channel in class_info.channels:
+                    # Check for multiple channel values across different class mappings
+                    if channel in class_channels:
+                        raise ValueError(
+                            f"Invalid class mapping: channel value {channel} appears in multiple class definitions. "
+                            f"Each channel value in the mask can only be mapped to one new class.\n\n"
+                            f"INCORRECT (channel value {channel} is duplicated):\n"
+                            f"classes = {{\n"
+                            f"  0: {{'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            f"  1: {{'name': 'road', 'values': [(0, 0, 0), (128, 128, 128)]}}  # <- channel value (0, 0, 0) conflict with class 0\n"
+                            f"}}\n\n"
+                            f"CORRECT (each channel value belongs to only one class):\n"
+                            f"classes = {{\n"
+                            f"  0: {{'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            f"  1: {{'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}}  # <- unique channel values\n"
+                            f"}}"
+                        )
+                    class_channels.add(channel)
             else:
-                class_infos[class_id] = class_info
+                pass
 
-        # Check the class mappings for validity.
-        class_values: set[int] = set()
-
-        for class_id, class_info in class_infos.items():
-            for value in class_info.values:
-                # Check for multiple values across different class mappings
-                if value in class_values:
-                    raise ValueError(
-                        f"Invalid class mapping: Class {value} appears in multiple class definitions. "
-                        f"Each old class value can only mapped to one new class.\n\n"
-                        f"INCORRECT (class {value} is duplicated):\n"
-                        f"classes = {{\n"
-                        f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                        f"  254: {{'name': 'background-254', 'values': [0, 1, 2]}}  # <- class [0, 1, 2] conflict with class 255\n"
-                        f"}}\n\n"
-                        f"CORRECT (each set of class values belongs to only one class):\n"
-                        f"classes = {{\n"
-                        f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                        f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # <- unique values\n"
-                        f"}}"
-                    )
-                class_values.add(value)
+            class_infos[class_id] = class_info
 
         return class_infos
 
