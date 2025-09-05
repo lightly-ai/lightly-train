@@ -437,7 +437,7 @@ def test_get_epochs(
             ),
             SimCLRTransformArgs(
                 num_channels=3,
-                normalize=NormalizeArgs(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+                normalize=NormalizeArgs(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
             ),
         ),
     ],
