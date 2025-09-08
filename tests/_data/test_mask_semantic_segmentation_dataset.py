@@ -250,21 +250,21 @@ class TestMaskSemanticSegmentationDataArgs:
                     0: {"name": "background", "labels": [0, 1, 2]},
                     5: {"name": "vehicle", "labels": [2, 3, 4]},
                 },
-                "Invalid class mapping: class label 2 appears in multiple class definitions. ",
+                "Invalid class mapping: integer label 2 appears in multiple class definitions. ",
             ),
             (
                 {
                     0: {"name": "background", "labels": [0, 1, 2]},
                     1: "vehicle",
                 },
-                "Invalid class mapping: class label 1 appears in multiple class definitions. ",
+                "Invalid class mapping: integer label 1 appears in multiple class definitions. ",
             ),
             (
                 {
                     0: {"name": "background", "labels": [(0, 0, 0), (128, 128, 128)]},
                     1: {"name": "vehicle", "labels": [(128, 128, 128), (255, 0, 0)]},
                 },
-                "Invalid class mapping: channel value \\(128, 128, 128\\) appears in multiple class definitions",
+                "Invalid class mapping: tuple label \\(128, 128, 128\\) appears in multiple class definitions. ",
             ),
         ],
     )
@@ -592,7 +592,8 @@ class TestMaskSemanticSegmentationDataset:
         )
 
         with pytest.raises(
-            ValueError, match="Shape mismatch: image shape is .* while mask shape is .*"
+            ValueError,
+            match="Shape mismatch: image \\(height, width\\) is .* while mask \\(height, width\\) is .*",
         ):
             dataset[0]
 
@@ -626,7 +627,7 @@ class TestMaskSemanticSegmentationDataset:
 
         with pytest.raises(
             ValueError,
-            match="Expected channel values specified in `classes` for multi-channel masks but got labels",
+            match="Expected tuple labels specified in `classes` for multi-channel masks",
         ):
             dataset[0]
 

@@ -16,7 +16,6 @@ import torch
 from pydantic import AliasChoices, Field, TypeAdapter, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
-from typing_extensions import TypeGuard
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
@@ -54,19 +53,6 @@ class MultiChannelClassInfo(PydanticConfig):
 
 
 ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
-
-
-def _are_multi_channel_classes(
-    classes: dict[int, ClassInfo],
-) -> TypeGuard[dict[int, MultiChannelClassInfo]]:
-    """TypeGuard ensuring all class infos are MultiChannelClassInfo.
-
-    This allows mypy to narrow `classes` to `dict[int, MultiChannelClassInfo]` within
-    the True-branch.
-    """
-    return all(
-        isinstance(class_info, MultiChannelClassInfo) for class_info in classes.values()
-    )
 
 
 class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
@@ -223,7 +209,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         # Verify that the mask and the image have the same shape.
         if image.shape[:2] != mask.shape[:2]:
             raise ValueError(
-                f"Shape mismatch: image shape is {image.shape[:2]} while mask shape is {mask.shape}."
+                f"Shape mismatch: image (height, width) is {image.shape[:2]} while mask (height, width) is {mask.shape[:2]}."
             )
 
         # Local alias to enable type narrowing with TypeGuard
@@ -231,19 +217,23 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Check that if the mask is multi-channel, then the class info must be MultiChannelClassInfo
         if len(mask.shape) == 3:
-            if not _are_multi_channel_classes(classes):
+            if not all(
+                isinstance(class_info, MultiChannelClassInfo)
+                for class_info in classes.values()
+            ):
                 raise ValueError(
-                    "Expected channel values specified in `classes` for multi-channel masks but got labels. "
-                    "For multi-channel masks, you have to specify the channel value that correspond to each class.\n\n"
-                    "The channel values should be provided as a list of tuples to `values`:\n"
+                    "Expected tuple labels specified in `classes` for multi-channel masks but got single-channel integer labels. "
+                    "For multi-channel masks, you have to specify the tuple label value of the pixels that correspond to each class id.\n\n"
+                    "The tuple labels must be provided as a list of tuples to `labels`:\n"
                     "classes = {\n"
-                    "  0: {'name': 'background', 'values': [(0, 0, 0)]},\n"
-                    "  1: {'name': 'road', 'values': [(128, 128, 128)]}\n"
+                    "  0: {'name': 'background', 'labels': [(0, 0, 0)]},\n"
+                    "  1: {'name': 'road', 'labels': [(0, 128, 128)]}\n"
                     "}\n\n"
                     "classes = {\n"
-                    "  0: {'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]},\n"
-                    "  1: {'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}\n"
-                    "}"
+                    "  0: {'name': 'background', 'labels': [(0, 0, 0), (255, 255, 255)]},\n"
+                    "  1: {'name': 'road', 'labels': [(0, 128, 128), (64, 64, 64)]}\n"
+                    "}\n\n"
+                    "Note: the key `values` is still accepted as an alias for `labels` for backward compatibility."
                 )
 
         # Map mask labels (single- or multi-channel) to single channel class ids
@@ -344,18 +334,18 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             if len(class_types) > 1:
                 raise ValueError(
                     "Invalid class mapping: mixed class types detected. "
-                    "All classes must be consistently either integer labels or channel values. Mixing types is not allowed.\n\n"
-                    "INCORRECT (mixing integer labels and channel tuples):\n"
+                    "All labels must be consistently either integers for single-channel masks or tuples for multi-channel masks. Mixed types are not allowed.\n\n"
+                    "INCORRECT (mixed integers and tuples):\n"
                     "classes = {\n"
                     "  0: {'name': 'background', 'labels': [0, 1, 2]},\n"
                     "  1: {'name': 'road', 'labels': [(0, 0, 0), (128, 128, 128)]}  # <- mixed types\n"
                     "}\n\n"
-                    "CORRECT (use only integer labels):\n"
+                    "CORRECT (use only integers):\n"
                     "classes = {\n"
                     "  0: {'name': 'background', 'labels': [0, 1, 2]},\n"
                     "  1: {'name': 'road', 'labels': [3, 4, 5]}\n"
                     "}\n\n"
-                    "CORRECT (use only channel tuples):\n"
+                    "CORRECT (use only tuples):\n"
                     "classes = {\n"
                     "  0: {'name': 'background', 'labels': [(0, 0, 0), (255, 255, 255)]},\n"
                     "  1: {'name': 'road', 'labels': [(128, 128, 128), (64, 64, 64)]}\n"
@@ -368,35 +358,35 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                 if label in class_labels:
                     if isinstance(class_info, SingleChannelClassInfo):
                         raise ValueError(
-                            f"Invalid class mapping: class label {label} appears in multiple class definitions. "
-                            f"Each class label can only be mapped to one class.\n\n"
-                            f"INCORRECT (class label {label} is duplicated):\n"
-                            f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'labels': [0, 1, 2]}},\n"
-                            f"  254: {{'name': 'background-254', 'labels': [0, 1, 2]}}  # <- labels [0, 1, 2] conflict with class 255\n"
-                            f"}}\n\n"
-                            f"CORRECT (each label value belongs to only one class):\n"
-                            f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'labels': [0, 1, 2]}},\n"
-                            f"  254: {{'name': 'background-254', 'labels': [3, 4, 5]}}  # <- unique labels\n"
-                            f"}}\n\n"
-                            f"Note: you can also use the key `values` as an alias for `labels`."
+                            f"Invalid class mapping: integer label {label} appears in multiple class definitions. "
+                            "Each integer label in the single-channel masks can only be mapped to one class id.\n\n"
+                            f"INCORRECT (integer label {label} is duplicated):\n"
+                            "classes = {{\n"
+                            "  0: {{'name': 'background', 'labels': [0, 1, 2]}},\n"
+                            "  1: {{'name': 'road', 'labels': [0, 3, 4]}}  # <- integer label 0 conflict with class id 0\n"
+                            "}}\n\n"
+                            "CORRECT (each integer label belongs to only one class id):\n"
+                            "classes = {{\n"
+                            "  0: {{'name': 'background', 'labels': [0, 1, 2]}},\n"
+                            "  1: {{'name': 'road', 'labels': [3, 4, 5]}}  # <- unique integer labels\n"
+                            "}}\n\n"
+                            "Note: you can also use the key `values` as an alias for `labels`."
                         )
                     else:
                         raise ValueError(
-                            f"Invalid class mapping: channel value {label} appears in multiple class definitions. "
-                            f"Each channel value in the mask can only be mapped to one class.\n\n"
-                            f"INCORRECT (channel value {label} is duplicated):\n"
-                            f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'labels': [(0, 0, 0), (255, 255, 255)]}},\n"
-                            f"  254: {{'name': 'background-254', 'labels': [(0, 0, 0), (128, 128, 128)]}}  # <- channel value (0, 0, 0) conflict with class 0\n"
-                            f"}}\n\n"
-                            f"CORRECT (each channel value belongs to only one class):\n"
-                            f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'labels': [(0, 0, 0), (255, 255, 255)]}},\n"
-                            f"  254: {{'name': 'background-254', 'labels': [(128, 128, 128), (64, 64, 64)]}}  # <- unique channel values\n"
-                            f"}}\n\n"
-                            f"Note: the key `values` is still accepted as an alias for `labels`."
+                            f"Invalid class mapping: tuple label {label} appears in multiple class definitions. "
+                            "Each tuple label in the multi-channel masks can only be mapped to one class id.\n\n"
+                            f"INCORRECT (tuple label {label} is duplicated):\n"
+                            "classes = {{\n"
+                            "  0: {{'name': 'background', 'labels': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            "  1: {{'name': 'road', 'labels': [(0, 0, 0), (128, 128, 128)]}}  # <- tuple label (0, 0, 0) conflict with class id 0\n"
+                            "}}\n\n"
+                            "CORRECT (each tuple label belongs to only one class id):\n"
+                            "classes = {{\n"
+                            "  0: {{'name': 'background', 'labels': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            "  1: {{'name': 'road', 'labels': [(128, 128, 128), (64, 64, 64)]}}  # <- unique tuple labels\n"
+                            "}}\n\n"
+                            "Note: the key `values` is still accepted as an alias for `labels`."
                         )
                 class_labels.add(label)
 
