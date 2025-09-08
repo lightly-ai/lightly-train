@@ -163,6 +163,7 @@ class Distillation(Method):
             method_args.teacher,
             num_input_channels=num_input_channels,
             teacher_weights=method_args.teacher_weights,
+            method_args=method_args,
         )
 
         # Store the student model.
