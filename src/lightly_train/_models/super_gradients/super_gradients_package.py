@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 import torch
 from torch.nn import Module
@@ -38,7 +38,9 @@ class SuperGradientsPackage(Package):
 
     # Sadly SuperGradients doesn't expose a common interface for all models. We have to
     # define different feature extractors depending on the model types.
-    _FEATURE_EXTRACTORS: list[type[Union[Module, SuperGradientsModelWrapper]]] = [
+    _FEATURE_EXTRACTORS: list[
+        type[CustomizableDetectorModelWrapper, SegmentationModuleModelWrapper]
+    ] = [
         CustomizableDetectorModelWrapper,
         SegmentationModuleModelWrapper,
     ]
