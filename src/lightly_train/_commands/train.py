@@ -261,7 +261,7 @@ def train_from_config(config: TrainConfig) -> None:
     _logging.set_up_file_logging(out_dir / "train.log")
     _logging.set_up_filters()
     logger.info(
-        f"Args: {common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}"
+        f"Args: {common_helpers.pretty_format_args(args=config.model_dump(), limit_keys={'data'})}"
     )
     logger.info(f"Using output directory '{out_dir}'.")
 
@@ -507,10 +507,12 @@ def log_resolved_config(config: TrainConfig, loggers: list[Logger]) -> None:
     """
     log_string = (
         "Resolved configuration:\n"
-        f"{common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}\n"
+        f"{common_helpers.pretty_format_args(args=config.model_dump(), limit_keys={'data'})}\n"
     )
     logger.info(log_string)
 
-    hyperparams = common_helpers.sanitize_config_dict(config.model_dump())
+    hyperparams = common_helpers.sanitize_config_dict(
+        common_helpers.remove_excessive_args(config.model_dump(), limit_keys={"data"})
+    )
     for logger_instance in loggers:
         logger_instance.log_hyperparams(params=hyperparams)

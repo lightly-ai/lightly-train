@@ -15,9 +15,10 @@ import os
 import sys
 import time
 import warnings
+from collections.abc import Iterable, Sequence, Set, Sized
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Sequence, Sized, TypeVar
+from typing import Any, Generator, Literal, TypeVar
 
 import torch
 from filelock import FileLock
@@ -206,14 +207,23 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
         _unlink_and_ignore(out_tmp)
 
 
-def pretty_format_args(args: dict[str, Any], indent: int = 4) -> str:
+def pretty_format_args(
+    args: dict[str, Any],
+    indent: int = 4,
+    limit: bool = True,
+    limit_keys: Set[str] | None = None,
+    limit_num_elems: int = 10,
+) -> str:
+    if limit:
+        args = remove_excessive_args(
+            args, limit_keys=limit_keys, num_elems=limit_num_elems
+        )
     args = sanitize_config_dict(args)
-
     return json.dumps(args, indent=indent, sort_keys=True)
 
 
 def remove_excessive_args(
-    args: dict[str, Any], limit_keys: set[str] | None = None, num_elems: int = 5
+    args: dict[str, Any], limit_keys: Set[str] | None = None, num_elems: int = 10
 ) -> dict[str, Any]:
     """Limit the number of elements in sequences of a dict to a certain number. This is
     strictly for logging purposes. Does not work with nested structures.
@@ -234,8 +244,14 @@ def remove_excessive_args(
             and not isinstance(args[key], str)
             and len(args[key]) > num_elems
         ):
-            args[key] = type(args[key])(
-                (*args[key][: num_elems - 2], "...", args[key][-1])
+            val = args[key]
+            num_extra_values = len(val) - (num_elems - 1)
+            args[key] = type(val)(
+                (
+                    *val[: num_elems - 2],
+                    f"... {num_extra_values} more values",
+                    val[-1],
+                )
             )
     return args
 
