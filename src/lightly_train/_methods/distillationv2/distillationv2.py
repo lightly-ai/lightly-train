@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 def get_teacher(
     teacher_name: str,
+    num_input_channels: int,
     teacher_weights: str | Path | None = None,
     method_args: DistillationV2Args | None = None,
 ) -> Module:
@@ -51,7 +52,7 @@ def get_teacher(
         model_args["weights"] = method_args.teacher_url
 
     wrapped_model = package_helpers.get_wrapped_model(
-        model=teacher_name, model_args=model_args
+        model=teacher_name, num_input_channels=num_input_channels, model_args=model_args
     )
     assert isinstance(wrapped_model, (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper))
     wrapped_model.make_teacher()
@@ -155,16 +156,21 @@ class DistillationV2(Method):
         optimizer_args: OptimizerArgs,
         embedding_model: EmbeddingModel,
         global_batch_size: int,
+        num_input_channels: int,
     ):
         super().__init__(
             method_args=method_args,
             optimizer_args=optimizer_args,
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
+            num_input_channels=num_input_channels,
         )
         # Get the teacher model.
         self.teacher_embedding_model = get_teacher(
-            method_args.teacher, method_args.teacher_weights, method_args
+            teacher_name=method_args.teacher,
+            num_input_channels=num_input_channels,
+            teacher_weights=method_args.teacher_weights,
+            method_args=method_args,
         )
         self.teacher_embedding_dim = (
             method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim

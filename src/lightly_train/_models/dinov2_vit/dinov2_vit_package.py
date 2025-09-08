@@ -77,7 +77,10 @@ class DINOv2ViTPackage(Package):
 
     @classmethod
     def get_model(
-        cls, model_name: str, model_args: dict[str, Any] | None = None
+        cls,
+        model_name: str,
+        num_input_channels: int = 3,
+        model_args: dict[str, Any] | None = None,
     ) -> DinoVisionTransformer:
         """
         Get a DINOv2 ViT model by name. Here the student version is build.
@@ -114,6 +117,7 @@ class DINOv2ViTPackage(Package):
             interpolate_antialias=cfg.student.interpolate_antialias,
             drop_path_rate=cfg.student.drop_path_rate,
             drop_path_uniform=cfg.student.drop_path_uniform,
+            in_chans=num_input_channels,
         )
         kwargs.update(model_args or {})
 

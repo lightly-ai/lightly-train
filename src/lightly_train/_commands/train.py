@@ -30,6 +30,7 @@ from lightly_train._commands import _warnings, common_helpers, train_helpers
 from lightly_train._commands.common_helpers import ModelFormat
 from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._configs.validate import no_auto
 from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.logger_args import LoggerArgs
 from lightly_train._methods import method_helpers
@@ -295,6 +296,7 @@ def train_from_config(config: TrainConfig) -> None:
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform_instance,
+            num_channels=no_auto(transform_instance.transform_args.num_channels),
             mmap_filepath=mmap_filepath,
             out_dir=out_dir,
         )
@@ -310,7 +312,9 @@ def train_from_config(config: TrainConfig) -> None:
             epochs=config.epochs,
         )
         wrapped_model = package_helpers.get_wrapped_model(
-            model=config.model, model_args=config.model_args
+            model=config.model,
+            model_args=config.model_args,
+            num_input_channels=no_auto(transform_instance.transform_args.num_channels),
         )
         embedding_model = train_helpers.get_embedding_model(
             wrapped_model=wrapped_model, embed_dim=config.embed_dim
@@ -398,6 +402,7 @@ def train_from_config(config: TrainConfig) -> None:
             optimizer_args=config.optim_args,
             embedding_model=embedding_model,
             global_batch_size=config.batch_size,
+            num_input_channels=no_auto(transform_instance.transform_args.num_channels),
         )
         train_helpers.load_checkpoint(
             checkpoint=config.checkpoint,
