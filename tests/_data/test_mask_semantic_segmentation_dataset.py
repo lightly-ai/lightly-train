@@ -34,20 +34,21 @@ from .. import helpers
 
 
 def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
-    return SemanticSegmentationTransform(
-        SemanticSegmentationTransformArgs(
-            ignore_index=-100,
-            image_size=(32, 32),
-            channel_drop=None,
-            num_channels=num_channels,
-            normalize=NormalizeArgs(),
-            random_flip=None,
-            color_jitter=None,
-            scale_jitter=None,
-            smallest_max_size=SmallestMaxSizeArgs(max_size=32, prob=1.0),
-            random_crop=None,
-        )
+    args = SemanticSegmentationTransformArgs(
+        ignore_index=-100,
+        image_size=(32, 32),
+        channel_drop=None,
+        num_channels=num_channels,
+        normalize=NormalizeArgs(),
+        random_flip=None,
+        color_jitter=None,
+        scale_jitter=None,
+        smallest_max_size=SmallestMaxSizeArgs(max_size=32, prob=1.0),
+        random_crop=None,
     )
+    args.resolve_auto()
+    args.resolve_incompatible()
+    return SemanticSegmentationTransform(args)
 
 
 class TestMaskSemanticSegmentationDataArgs:
