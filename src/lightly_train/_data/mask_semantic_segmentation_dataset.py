@@ -13,7 +13,7 @@ from typing import Any, ClassVar, Dict, Iterable, Union
 
 import numpy as np
 import torch
-from pydantic import Field, TypeAdapter, field_validator
+from pydantic import AliasChoices, Field, TypeAdapter, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
 from typing_extensions import TypeGuard
@@ -37,34 +37,20 @@ from lightly_train.types import (
 
 class SingleChannelClassInfo(PydanticConfig):
     name: str
-    labels: set[int] = Field(alias="values")
-
-    @field_validator("labels", mode="before")
-    @classmethod
-    def normalize_labels(cls, v: set[int] | list[int]) -> set[int]:
-        if isinstance(v, set):
-            return v
-        elif isinstance(v, list):
-            return set(v)
-        else:
-            raise ValueError(f"Expected set or list of ints, got {type(v)}")
+    labels: set[int] = Field(
+        validation_alias=AliasChoices("labels", "values"),
+        serialization_alias="labels",
+        strict=False,
+    )
 
 
 class MultiChannelClassInfo(PydanticConfig):
     name: str
-    labels: set[tuple[int, ...]] = Field(alias="values")
-
-    @field_validator("labels", mode="before")
-    @classmethod
-    def normalize_channels(
-        cls, v: set[tuple[int, ...]] | list[tuple[int, ...]]
-    ) -> set[tuple[int, ...]]:
-        if isinstance(v, set):
-            return v
-        elif isinstance(v, list):
-            return set(v)
-        else:
-            raise ValueError(f"Expected set or list of tuple of ints, got {type(v)}")
+    labels: set[tuple[int, ...]] = Field(
+        validation_alias=AliasChoices("labels", "values"),
+        serialization_alias="labels",
+        strict=False,
+    )
 
 
 ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
@@ -192,25 +178,33 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         return mask
 
-    def _map_multi_channel_masks_to_single_channel(
+    def map_mask_labels_to_class_ids(
         self,
-        multi_channel_mask: NDArrayImage,
-        class_infos: dict[int, MultiChannelClassInfo],
+        mask_with_labels: NDArrayImage,
     ) -> NDArrayImage:
-        # Initialize single channel mask with ignore_index
-        single_channel_mask = np.full(
-            multi_channel_mask.shape[:2], self.ignore_index, dtype=np.int_
+        class_infos = self.args.classes
+        # Always compare against a 3D mask: expand (H, W) -> (H, W, 1)
+        mask_with_labels = (
+            mask_with_labels
+            if mask_with_labels.ndim == 3
+            else mask_with_labels[:, :, np.newaxis]
+        )
+        # Initialize output single-channel mask with ignore_index
+        mask_with_class_ids = np.full(
+            mask_with_labels.shape[:2], self.ignore_index, dtype=np.int_
         )
 
-        # Map the channels to class ids
+        # Map labels (ints or tuples) to class ids
         for class_id, class_info in class_infos.items():
-            for channel in class_info.labels:
-                # Find pixels that match this value
-                mask = np.all(multi_channel_mask == channel, axis=2)
+            for label in class_info.labels:
+                # Normalize integer labels to 1-tuple for broadcasting with (H, W, 1)
+                label_tuple = (label,) if isinstance(label, np.int_) else label
+                # Find pixels that match this value across channels
+                label_mask = np.all(mask_with_labels == label_tuple, axis=2)
                 # Assign class_id to matching pixels
-                single_channel_mask[mask] = class_id
+                mask_with_class_ids[label_mask] = class_id
 
-        return single_channel_mask
+        return mask_with_class_ids
 
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
         row = self.filepaths[index]
@@ -252,8 +246,8 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
                     "}"
                 )
 
-            # Map multi-channel mask to single channel mask using class labels
-            mask = self._map_multi_channel_masks_to_single_channel(mask, classes)
+        # Map mask labels (single- or multi-channel) to single channel class ids
+        mask = self.map_mask_labels_to_class_ids(mask)
 
         # Try to find an augmentation that contains a valid mask. This increases the
         # probability for a good training signal. If no valid mask is found we still
@@ -343,7 +337,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
 
         for class_id, class_info in classes_validated.items():
             if isinstance(class_info, str):
-                class_info = SingleChannelClassInfo(name=class_info, values={class_id})
+                class_info = SingleChannelClassInfo(name=class_info, labels={class_id})
 
             # Check for inconsistent class types early
             class_types.add(type(class_info))
@@ -353,19 +347,20 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                     "All classes must be consistently either integer labels or channel values. Mixing types is not allowed.\n\n"
                     "INCORRECT (mixing integer labels and channel tuples):\n"
                     "classes = {\n"
-                    "  0: {'name': 'background', 'values': [0, 1, 2]},\n"
-                    "  1: {'name': 'road', 'values': [(0, 0, 0), (128, 128, 128)]}  # <- mixed types\n"
+                    "  0: {'name': 'background', 'labels': [0, 1, 2]},\n"
+                    "  1: {'name': 'road', 'labels': [(0, 0, 0), (128, 128, 128)]}  # <- mixed types\n"
                     "}\n\n"
                     "CORRECT (use only integer labels):\n"
                     "classes = {\n"
-                    "  0: {'name': 'background', 'values': [0, 1, 2]},\n"
-                    "  1: {'name': 'road', 'values': [3, 4, 5]}\n"
+                    "  0: {'name': 'background', 'labels': [0, 1, 2]},\n"
+                    "  1: {'name': 'road', 'labels': [3, 4, 5]}\n"
                     "}\n\n"
                     "CORRECT (use only channel tuples):\n"
                     "classes = {\n"
-                    "  0: {'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]},\n"
-                    "  1: {'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}\n"
-                    "}"
+                    "  0: {'name': 'background', 'labels': [(0, 0, 0), (255, 255, 255)]},\n"
+                    "  1: {'name': 'road', 'labels': [(128, 128, 128), (64, 64, 64)]}\n"
+                    "}\n\n"
+                    "Note: the key `values` is still accepted as an alias for `labels` for backward compatibility."
                 )
 
             for label in class_info.labels:
@@ -374,17 +369,18 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                     if isinstance(class_info, SingleChannelClassInfo):
                         raise ValueError(
                             f"Invalid class mapping: class label {label} appears in multiple class definitions. "
-                            f"Each class label can only mapped to one class.\n\n"
+                            f"Each class label can only be mapped to one class.\n\n"
                             f"INCORRECT (class label {label} is duplicated):\n"
                             f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                            f"  254: {{'name': 'background-254', 'values': [0, 1, 2]}}  # <- class [0, 1, 2] conflict with class 255\n"
+                            f"  255: {{'name': 'background-255', 'labels': [0, 1, 2]}},\n"
+                            f"  254: {{'name': 'background-254', 'labels': [0, 1, 2]}}  # <- labels [0, 1, 2] conflict with class 255\n"
                             f"}}\n\n"
                             f"CORRECT (each label value belongs to only one class):\n"
                             f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                            f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # <- unique values\n"
-                            f"}}"
+                            f"  255: {{'name': 'background-255', 'labels': [0, 1, 2]}},\n"
+                            f"  254: {{'name': 'background-254', 'labels': [3, 4, 5]}}  # <- unique labels\n"
+                            f"}}\n\n"
+                            f"Note: you can also use the key `values` as an alias for `labels`."
                         )
                     else:
                         raise ValueError(
@@ -392,14 +388,15 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                             f"Each channel value in the mask can only be mapped to one class.\n\n"
                             f"INCORRECT (channel value {label} is duplicated):\n"
                             f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
-                            f"  254: {{'name': 'background-254', 'values': [(0, 0, 0), (128, 128, 128)]}}  # <- channel value (0, 0, 0) conflict with class 0\n"
+                            f"  255: {{'name': 'background-255', 'labels': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            f"  254: {{'name': 'background-254', 'labels': [(0, 0, 0), (128, 128, 128)]}}  # <- channel value (0, 0, 0) conflict with class 0\n"
                             f"}}\n\n"
                             f"CORRECT (each channel value belongs to only one class):\n"
                             f"classes = {{\n"
-                            f"  255: {{'name': 'background-255', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
-                            f"  254: {{'name': 'background-254', 'values': [(128, 128, 128), (64, 64, 64)]}}  # <- unique channel values\n"
-                            f"}}"
+                            f"  255: {{'name': 'background-255', 'labels': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            f"  254: {{'name': 'background-254', 'labels': [(128, 128, 128), (64, 64, 64)]}}  # <- unique channel values\n"
+                            f"}}\n\n"
+                            f"Note: the key `values` is still accepted as an alias for `labels`."
                         )
                 class_labels.add(label)
 

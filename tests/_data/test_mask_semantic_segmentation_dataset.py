@@ -60,8 +60,8 @@ class TestMaskSemanticSegmentationDataArgs:
             # Test with all dict input (overlapping values)
             (
                 {
-                    0: {"name": "background", "values": [0, 5]},
-                    1: {"name": "vehicle", "values": [1, 2, 3]},
+                    0: {"name": "background", "labels": [0, 5]},
+                    1: {"name": "vehicle", "labels": [1, 2, 3]},
                 },
                 {
                     0: ("background", [0, 5]),
@@ -71,8 +71,8 @@ class TestMaskSemanticSegmentationDataArgs:
             # Test with all dict input (non-overlapping values)
             (
                 {
-                    0: {"name": "background", "values": [4]},
-                    5: {"name": "vehicle", "values": [1, 2, 3]},
+                    0: {"name": "background", "labels": [4]},
+                    5: {"name": "vehicle", "labels": [1, 2, 3]},
                 },
                 {
                     0: ("background", [4]),
@@ -94,7 +94,7 @@ class TestMaskSemanticSegmentationDataArgs:
             (
                 {
                     0: "background",
-                    1: {"name": "vehicle", "values": [1, 2, 3]},
+                    1: {"name": "vehicle", "labels": [1, 2, 3]},
                 },
                 {
                     0: ("background", [0]),
@@ -136,8 +136,8 @@ class TestMaskSemanticSegmentationDataArgs:
             # Test with single multi-channel values
             (
                 {
-                    0: {"name": "unlabeled", "values": [(0, 0, 0), (255, 255, 255)]},
-                    1: {"name": "road", "values": [(128, 128, 128)]},
+                    0: {"name": "unlabeled", "labels": [(0, 0, 0), (255, 255, 255)]},
+                    1: {"name": "road", "labels": [(128, 128, 128)]},
                 },
                 {
                     0: ("unlabeled", [(0, 0, 0), (255, 255, 255)]),
@@ -147,8 +147,8 @@ class TestMaskSemanticSegmentationDataArgs:
             # Test with multiple multi-channel values
             (
                 {
-                    0: {"name": "unlabeled", "values": [(0, 0, 0), (255, 255, 255)]},
-                    1: {"name": "road", "values": [(128, 128, 128), (128, 255, 255)]},
+                    0: {"name": "unlabeled", "labels": [(0, 0, 0), (255, 255, 255)]},
+                    1: {"name": "road", "labels": [(128, 128, 128), (128, 255, 255)]},
                 },
                 {
                     0: ("unlabeled", [(0, 0, 0), (255, 255, 255)]),
@@ -193,7 +193,7 @@ class TestMaskSemanticSegmentationDataArgs:
             # Invalid ClassInfo structure
             {0: {"invalid": "structure"}},
             # Invalid values type in ClassInfo
-            {0: {"name": "background", "values": "0"}},
+            {0: {"name": "background", "labels": "0"}},
         ],
     )
     def test_validate_class__invalid_inputs(
@@ -215,13 +215,13 @@ class TestMaskSemanticSegmentationDataArgs:
         [
             # Mixed multi-channel values and class name strings
             {
-                0: {"name": "unlabeled", "values": [(0, 0, 0), (255, 255, 255)]},
+                0: {"name": "unlabeled", "labels": [(0, 0, 0), (255, 255, 255)]},
                 1: "road",
             },
             # Mixed multi-channel values and integer labels
             {
-                0: {"name": "unlabeled", "values": [(0, 0, 0), (255, 255, 255)]},
-                1: {"name": "road", "values": [1, 2]},
+                0: {"name": "unlabeled", "labels": [(0, 0, 0), (255, 255, 255)]},
+                1: {"name": "road", "labels": [1, 2]},
             },
         ],
     )
@@ -247,22 +247,22 @@ class TestMaskSemanticSegmentationDataArgs:
         [
             (
                 {
-                    0: {"name": "background", "values": [0, 1, 2]},
-                    5: {"name": "vehicle", "values": [2, 3, 4]},
+                    0: {"name": "background", "labels": [0, 1, 2]},
+                    5: {"name": "vehicle", "labels": [2, 3, 4]},
                 },
                 "Invalid class mapping: class label 2 appears in multiple class definitions. ",
             ),
             (
                 {
-                    0: {"name": "background", "values": [0, 1, 2]},
+                    0: {"name": "background", "labels": [0, 1, 2]},
                     1: "vehicle",
                 },
                 "Invalid class mapping: class label 1 appears in multiple class definitions. ",
             ),
             (
                 {
-                    0: {"name": "background", "values": [(0, 0, 0), (128, 128, 128)]},
-                    1: {"name": "vehicle", "values": [(128, 128, 128), (255, 0, 0)]},
+                    0: {"name": "background", "labels": [(0, 0, 0), (128, 128, 128)]},
+                    1: {"name": "vehicle", "labels": [(128, 128, 128), (255, 0, 0)]},
                 },
                 "Invalid class mapping: channel value \\(128, 128, 128\\) appears in multiple class definitions",
             ),
@@ -288,7 +288,7 @@ class TestMaskSemanticSegmentationDataArgs:
             (
                 {
                     0: "background",
-                    1: {"name": "vehicle", "values": [1, 2, 3]},
+                    1: {"name": "vehicle", "labels": [1, 2, 3]},
                     4: "person",
                 },
                 {1, 4},
@@ -296,18 +296,18 @@ class TestMaskSemanticSegmentationDataArgs:
             ),
             (
                 {
-                    0: {"name": "background", "values": [(0, 0, 0)]},
-                    1: {"name": "vehicle", "values": [(128, 128, 128)]},
-                    4: {"name": "person", "values": [(255, 255, 255)]},
+                    0: {"name": "background", "labels": [(0, 0, 0)]},
+                    1: {"name": "vehicle", "labels": [(128, 128, 128)]},
+                    4: {"name": "person", "labels": [(255, 255, 255)]},
                 },
                 {1, 4},
                 {0: "background"},
             ),
             (
                 {
-                    0: {"name": "background", "values": [(0, 0, 0), (64, 64, 64)]},
-                    1: {"name": "road", "values": [(128, 128, 128)]},
-                    2: {"name": "vehicle", "values": [(255, 0, 0)]},
+                    0: {"name": "background", "labels": [(0, 0, 0), (64, 64, 64)]},
+                    1: {"name": "road", "labels": [(128, 128, 128)]},
+                    2: {"name": "vehicle", "labels": [(255, 0, 0)]},
                 },
                 {2},
                 {0: "background", 1: "road"},
@@ -349,7 +349,7 @@ class TestMaskSemanticSegmentationDatasetArgs:
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
-            classes={0: SingleChannelClassInfo(name="background", values={0})},
+            classes={0: SingleChannelClassInfo(name="background", labels={0})},
             ignore_index=-100,
         )
 
@@ -388,7 +388,7 @@ class TestMaskSemanticSegmentationDatasetArgs:
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file=str(mask_dir),
-            classes={0: SingleChannelClassInfo(name="background", values={0})},
+            classes={0: SingleChannelClassInfo(name="background", labels={0})},
             ignore_index=-100,
         )
 
@@ -449,7 +449,7 @@ class TestMaskSemanticSegmentationDataset:
             image_dir=image_dir,
             mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
             classes={
-                i: SingleChannelClassInfo(name=f"class_{i}", values={i})
+                i: SingleChannelClassInfo(name=f"class_{i}", labels={i})
                 for i in range(num_classes)
             },
             ignore_index=ignore_index,
@@ -528,7 +528,7 @@ class TestMaskSemanticSegmentationDataset:
             image_dir=image_dir,
             mask_dir_or_file=str(mask_dir),
             classes={
-                i: MultiChannelClassInfo(name=f"class_{i}", values={channel_values[i]})
+                i: MultiChannelClassInfo(name=f"class_{i}", labels={channel_values[i]})
                 for i in range(num_classes)
             },
             ignore_index=ignore_index,
@@ -581,7 +581,7 @@ class TestMaskSemanticSegmentationDataset:
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file=str(mask_dir),
-            classes={0: SingleChannelClassInfo(name="class_0", values={0})},
+            classes={0: SingleChannelClassInfo(name="class_0", labels={0})},
             ignore_index=-100,
         )
         transform = _dummy_transform(num_channels=3)
@@ -614,7 +614,7 @@ class TestMaskSemanticSegmentationDataset:
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file=str(mask_dir),
-            classes={0: SingleChannelClassInfo(name="class_0", values={0})},
+            classes={0: SingleChannelClassInfo(name="class_0", labels={0})},
             ignore_index=-100,
         )
         transform = _dummy_transform(num_channels=3)
@@ -640,8 +640,8 @@ class TestMaskSemanticSegmentationDataset:
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
 
         classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
-            0: SingleChannelClassInfo(name="background", values={0, 5}),
-            1: SingleChannelClassInfo(name="vehicle", values={1, 2, 3}),
+            0: SingleChannelClassInfo(name="background", labels={0, 5}),
+            1: SingleChannelClassInfo(name="vehicle", labels={1, 2, 3}),
         }
         expected_mapping = {0: 0, 1: 1}
 
@@ -670,9 +670,9 @@ class TestMaskSemanticSegmentationDataset:
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
 
         classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
-            1: SingleChannelClassInfo(name="vehicle", values={1, 2, 3}),
-            4: SingleChannelClassInfo(name="ignore_me", values={4}),
-            5: SingleChannelClassInfo(name="person", values={5}),
+            1: SingleChannelClassInfo(name="vehicle", labels={1, 2, 3}),
+            4: SingleChannelClassInfo(name="ignore_me", labels={4}),
+            5: SingleChannelClassInfo(name="person", labels={5}),
         }
         ignore_classes = {4}
         expected_mapping = {1: 0, 5: 1}
@@ -705,8 +705,8 @@ class TestMaskSemanticSegmentationDataset:
         )
 
         classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
-            0: MultiChannelClassInfo(name="background", values={(0, 0, 0)}),
-            1: MultiChannelClassInfo(name="road", values={(128, 128, 128)}),
+            0: MultiChannelClassInfo(name="background", labels={(0, 0, 0)}),
+            1: MultiChannelClassInfo(name="road", labels={(128, 128, 128)}),
         }
         expected_mapping = {0: 0, 1: 1}
 
@@ -740,9 +740,9 @@ class TestMaskSemanticSegmentationDataset:
         )
 
         classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
-            1: MultiChannelClassInfo(name="road", values={(128, 128, 128)}),
-            4: MultiChannelClassInfo(name="ignore_me", values={(255, 0, 0)}),
-            5: MultiChannelClassInfo(name="person", values={(0, 0, 0)}),
+            1: MultiChannelClassInfo(name="road", labels={(128, 128, 128)}),
+            4: MultiChannelClassInfo(name="ignore_me", labels={(255, 0, 0)}),
+            5: MultiChannelClassInfo(name="person", labels={(0, 0, 0)}),
         }
         ignore_classes = {4}
         expected_mapping = {1: 0, 5: 1}
