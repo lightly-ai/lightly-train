@@ -41,6 +41,8 @@ def list_image_filenames_from_iterable(
 ) -> Iterable[ImageFilename]:
     """List image files recursively from the given list of image files and directories.
 
+    Assumes that all given paths exist.
+
     Args:
         imgs_and_dirs: A list of (relative or absolute) paths to image files and
             directories that should be scanned for images.
