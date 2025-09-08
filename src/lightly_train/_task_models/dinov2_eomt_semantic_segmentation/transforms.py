@@ -71,7 +71,7 @@ class DINOv2EoMTSemanticSegmentationTrainTransformArgs(
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
-    random_flip: RandomFlipArgs = Field(default_factory=RandomFlipArgs)
+    random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     color_jitter: DINOv2EoMTSemanticSegmentationColorJitterArgs | None = Field(
         default_factory=DINOv2EoMTSemanticSegmentationColorJitterArgs
     )

@@ -50,22 +50,19 @@ def get_transform_args(
 ) -> MethodTransformArgs:
     logger.debug(f"Getting transform args for method '{method}'.")
     logger.debug(f"Using additional transform arguments {transform_args}.")
-    if isinstance(transform_args, MethodTransformArgs):
-        transform_args.resolve_auto()
-        return transform_args
+    if not isinstance(transform_args, MethodTransformArgs):
+        method_cls = method_helpers.get_method_cls(method)
+        transform_cls = method_cls.transform_cls()
+        transform_args_cls = transform_cls.transform_args_cls()
 
-    method_cls = method_helpers.get_method_cls(method)
-    transform_cls = method_cls.transform_cls()
-    transform_args_cls = transform_cls.transform_args_cls()
-
-    if transform_args is None:
-        # We need to typeignore here because a MethodTransformArgs might not have
-        # defaults for all fields, while its children do.
-        transform_args = transform_args_cls()  # type: ignore[call-arg]
-    else:
-        transform_args = validate.pydantic_model_validate(
-            transform_args_cls, transform_args
-        )
+        if transform_args is None:
+            # We need to typeignore here because a MethodTransformArgs might not have
+            # defaults for all fields, while its children do.
+            transform_args = transform_args_cls()  # type: ignore[call-arg]
+        else:
+            transform_args = validate.pydantic_model_validate(
+                transform_args_cls, transform_args
+            )
 
     transform_args.resolve_auto()
     transform_args.resolve_incompatible()
