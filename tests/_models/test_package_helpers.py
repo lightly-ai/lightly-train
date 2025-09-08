@@ -67,7 +67,9 @@ def test_get_model__timm(num_input_channels: int) -> None:
     pytest.importorskip("timm")
     from timm.models.resnet import ResNet
 
-    model = package_helpers.get_wrapped_model("timm/resnet18", num_input_channels=num_input_channels)
+    model = package_helpers.get_wrapped_model(
+        "timm/resnet18", num_input_channels=num_input_channels
+    )
     assert isinstance(model.get_model(), ResNet)
 
 
