@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from numpy.typing import DTypeLike
-from pytest import MonkeyPatch
+from pytest import LogCaptureFixture, MonkeyPatch
 from pytest_mock import MockerFixture
 
 from lightly_train._data import file_helpers
@@ -99,11 +99,14 @@ def test_list_image_filenames_from_iterable__symlink(tmp_path: Path) -> None:
     )
 
 
-def test_list_image_filenames_from_iterable__empty_dir(tmp_path: Path) -> None:
+def test_list_image_filenames_from_iterable__empty_dir(
+    tmp_path: Path, caplog: LogCaptureFixture
+) -> None:
     empty_dir = tmp_path / "empty_dir"
     empty_dir.mkdir()
-    with pytest.raises(ValueError, match=f"The directory '{empty_dir}' is empty."):
+    with caplog.at_level(level="WARNING"):
         list(file_helpers.list_image_filenames_from_iterable(imgs_and_dirs=[empty_dir]))
+    assert f"The data directory '{empty_dir}' is empty." in caplog.text
 
 
 def test_list_image_filenames_from_iterable__invalid_path(tmp_path: Path) -> None:

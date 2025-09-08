@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Iterable
 from enum import Enum
@@ -28,6 +29,8 @@ from lightly_train.types import (
     NDArrayImage,
     PathLike,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ImageMode(Enum):
@@ -66,7 +69,7 @@ def list_image_filenames_from_iterable(
                 is_empty = False
                 yield ImageFilename(os.path.join(dir_str, image_filename))
             if is_empty:
-                raise ValueError(f"The directory '{img_or_dir}' is empty.")
+                logger.warning(f"The data directory '{img_or_dir}' is empty.")
         else:
             raise ValueError(
                 f"Invalid path: '{img_or_dir}'. It is neither a valid image nor a "
