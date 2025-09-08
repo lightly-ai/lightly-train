@@ -142,7 +142,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         }
         return binary_masks
 
-    def remap_mask(self, mask: torch.Tensor) -> torch.Tensor:
+    def map_class_id_to_internal_class_id(self, mask: torch.Tensor) -> torch.Tensor:
         # Map only non-ignored pixels through the LUT and keep ignored pixels untouched.
         # NOTE: this relies on the fact that all `old_class`es are non-negative.
         ignore = mask == self.ignore_index
@@ -254,7 +254,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Mark pixels to ignore in the masks.
         # TODO(Thomas, 07/25): Make this optional.
-        transformed_mask = self.remap_mask(transformed["mask"])
+        transformed_mask = self.map_class_id_to_internal_class_id(transformed["mask"])
 
         return {
             "image_path": str(image_path),  # Str for torch dataloader compatibility.
