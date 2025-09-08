@@ -54,6 +54,9 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
+from lightly_train._transforms.semantic_segmentation_transform import (
+    SemanticSegmentationTransform,
+)
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -229,10 +232,16 @@ def get_transform_args(
         train_transform_args_cls, transform_args
     )
     train_transform_args.resolve_auto()
+    train_transform_args.resolve_incompatible()
 
     # Take defaults from train transform.
     val_args_dict = train_transform_args.model_dump(
-        include={"image_size": True, "normalize": True, "ignore_index": True}
+        include={
+            "image_size": True,
+            "normalize": True,
+            "ignore_index": True,
+            "num_channels": True,
+        }
     )
     # Overwrite with user provided val args.
     val_args_dict.update(val_args)
@@ -240,6 +249,7 @@ def get_transform_args(
         val_transform_args_cls, val_args_dict
     )
     val_transform_args.resolve_auto()
+    val_transform_args.resolve_incompatible()
 
     logger.debug(
         f"Resolved train transform args {pretty_format_args(train_transform_args.model_dump())}"
@@ -408,6 +418,8 @@ def get_dataset(
     image_info = dataset_args.list_image_info()
 
     dataset_cls = dataset_args.get_dataset_cls()
+    # TODO(Guarin, 08/25): Relax this when we add object detection.
+    assert isinstance(transform, SemanticSegmentationTransform)
     return dataset_cls(
         dataset_args=dataset_args,
         image_info=get_dataset_mmap_file(

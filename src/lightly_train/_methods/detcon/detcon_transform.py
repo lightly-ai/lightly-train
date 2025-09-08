@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
@@ -58,6 +60,7 @@ class DetConSView1TransformArgs(PydanticConfig):
 class DetConSTransformArgs(MethodTransformArgs):
     image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
     channel_drop: ChannelDropArgs | None = None
+    num_channels: int | Literal["auto"] = "auto"
     random_resize: RandomResizeArgs | None = Field(default_factory=RandomResizeArgs)
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     random_rotation: RandomRotationArgs | None = None
@@ -109,6 +112,7 @@ class DetConBView1TransformArgs(PydanticConfig):
 class DetConBTransformArgs(MethodTransformArgs):
     image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
     channel_drop: ChannelDropArgs | None = None
+    num_channels: int | Literal["auto"] = "auto"
     random_resize: RandomResizeArgs | None = Field(default_factory=RandomResizeArgs)
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     random_rotation: RandomRotationArgs | None = None

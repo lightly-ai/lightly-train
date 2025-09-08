@@ -70,9 +70,10 @@ class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
     # TODO(Guarin, 08/25): Check if we should change default to 512.
     image_size: tuple[int, int] = (518, 518)
     channel_drop: ChannelDropArgs | None = None
+    num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
-    random_flip: RandomFlipArgs = Field(default_factory=RandomFlipArgs)
-    color_jitter: DINOv3EoMTSemanticSegmentationColorJitterArgs = Field(
+    random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
+    color_jitter: DINOv3EoMTSemanticSegmentationColorJitterArgs | None = Field(
         default_factory=DINOv3EoMTSemanticSegmentationColorJitterArgs
     )
     scale_jitter: ScaleJitterArgs | None = Field(
@@ -91,6 +92,7 @@ class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
 
     image_size: tuple[int, int] = (518, 518)
     channel_drop: ChannelDropArgs | None = None
+    num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
     random_flip: RandomFlipArgs | None = None
     color_jitter: ColorJitterArgs | None = None

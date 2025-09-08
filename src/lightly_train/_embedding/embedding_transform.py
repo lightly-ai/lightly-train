@@ -21,8 +21,8 @@ class EmbeddingTransform:
     def __init__(
         self,
         image_size: int | tuple[int, int],
-        mean: tuple[float, float, float],
-        std: tuple[float, float, float],
+        mean: tuple[float, ...],
+        std: tuple[float, ...],
     ):
         if isinstance(image_size, int):
             image_size = (image_size, image_size)

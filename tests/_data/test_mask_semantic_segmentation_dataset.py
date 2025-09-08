@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import albumentations as A
 import pytest
 import torch
 from torch import Tensor
@@ -22,32 +21,34 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDatasetArgs,
     SplitArgs,
 )
-from lightly_train._transforms.task_transform import (
-    TaskTransform,
-    TaskTransformArgs,
-    TaskTransformInput,
-    TaskTransformOutput,
+from lightly_train._transforms.semantic_segmentation_transform import (
+    SemanticSegmentationTransform,
+    SemanticSegmentationTransformArgs,
+)
+from lightly_train._transforms.transform import (
+    NormalizeArgs,
+    SmallestMaxSizeArgs,
 )
 
 from .. import helpers
 
 
-class DummyTransform(TaskTransform):
-    transform_args_cls = TaskTransformArgs
-
-    def __init__(self, transform_args: TaskTransformArgs):
-        super().__init__(transform_args=transform_args)
-        self.transform = A.Compose(
-            [
-                A.Resize(32, 32),
-                A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
-                A.pytorch.transforms.ToTensorV2(),
-            ]
-        )
-
-    def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:
-        output: TaskTransformOutput = self.transform(**input)
-        return output
+def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
+    args = SemanticSegmentationTransformArgs(
+        ignore_index=-100,
+        image_size=(32, 32),
+        channel_drop=None,
+        num_channels=num_channels,
+        normalize=NormalizeArgs(),
+        random_flip=None,
+        color_jitter=None,
+        scale_jitter=None,
+        smallest_max_size=SmallestMaxSizeArgs(max_size=32, prob=1.0),
+        random_crop=None,
+    )
+    args.resolve_auto()
+    args.resolve_incompatible()
+    return SemanticSegmentationTransform(args)
 
 
 class TestMaskSemanticSegmentationDataArgs:
@@ -216,25 +217,32 @@ class TestMaskSemanticSegmentationDataArgs:
 
 class TestMaskSemanticSegmentationDataset:
     @pytest.mark.parametrize(
-        "num_classes, expected_mask_dtype, ignore_index",
+        "num_classes, num_channels, expected_mask_dtype, ignore_index",
         [
-            (5, torch.long, -100),
-            (500, torch.long, -100),
+            (5, 3, torch.long, -100),
+            (5, 4, torch.long, -100),
+            (500, 3, torch.long, -100),
         ],
     )
     def test__getitem__(
         self,
         num_classes: int,
+        num_channels: int,
         expected_mask_dtype: torch.dtype,
         tmp_path: Path,
         ignore_index: int,
     ) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
-        image_filenames = ["image0.jpg", "image1.jpg"]
+        image_filenames = ["image0.png", "image1.png"]
         mask_filenames = ["image0.png", "image1.png"]
 
-        helpers.create_images(image_dir, files=image_filenames)
+        helpers.create_images(
+            image_dir,
+            files=image_filenames,
+            num_channels=num_channels,
+            mode="RGB" if num_channels == 3 else "RGBA",
+        )
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=num_classes)
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
@@ -245,7 +253,7 @@ class TestMaskSemanticSegmentationDataset:
             },
             ignore_index=ignore_index,
         )
-        transform = DummyTransform(transform_args=TaskTransformArgs())
+        transform = _dummy_transform(num_channels=num_channels)
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
             image_info=list(dataset_args.list_image_info()),
@@ -255,7 +263,7 @@ class TestMaskSemanticSegmentationDataset:
         assert len(dataset) == 2
         for item in dataset:  # type: ignore[attr-defined]
             assert isinstance(item["image"], Tensor)
-            assert item["image"].shape == (3, 32, 32)
+            assert item["image"].shape == (num_channels, 32, 32)
             assert item["image"].dtype == torch.float32
             assert isinstance(item["mask"], Tensor)
             assert item["mask"].shape == (32, 32)
@@ -273,8 +281,8 @@ class TestMaskSemanticSegmentationDataset:
             ignored_pixels = mask == ignore_index
             assert (ignored_pixels.sum() + valid_pixels.sum()) == mask.numel()
         assert sorted(item["image_path"] for item in dataset) == [  # type: ignore[attr-defined]
-            str(image_dir / "image0.jpg"),
-            str(image_dir / "image1.jpg"),
+            str(image_dir / "image0.png"),
+            str(image_dir / "image1.png"),
         ]
 
     def test_get_class_mapping(self, tmp_path: Path) -> None:
@@ -298,7 +306,7 @@ class TestMaskSemanticSegmentationDataset:
             classes=classes,
             ignore_index=-100,
         )
-        transform = DummyTransform(transform_args=TaskTransformArgs())
+        transform = _dummy_transform()
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
             image_info=list(dataset_args.list_image_info()),
@@ -331,7 +339,7 @@ class TestMaskSemanticSegmentationDataset:
             ignore_classes=ignore_classes,
             ignore_index=-100,
         )
-        transform = DummyTransform(transform_args=TaskTransformArgs())
+        transform = _dummy_transform()
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
             image_info=list(dataset_args.list_image_info()),

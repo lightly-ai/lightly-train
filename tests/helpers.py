@@ -59,12 +59,14 @@ class DummyMethod(Method):
         optimizer_args: OptimizerArgs,
         embedding_model: EmbeddingModel,
         global_batch_size: int,
+        num_input_channels: int = 3,
     ):
         super().__init__(
             method_args=method_args,
             optimizer_args=optimizer_args,
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
+            num_input_channels=num_input_channels,
         )
         self.embedding_model = embedding_model
         self.method_args = method_args
@@ -114,13 +116,16 @@ def get_method(wrapped_model: ModelWrapper) -> Method:
         optimizer_args=AdamWArgs(),
         embedding_model=EmbeddingModel(wrapped_model=wrapped_model),
         global_batch_size=2,
+        num_input_channels=3,
     )
 
 
 def get_method_dinov2() -> DINOv2:
     optim_args = DINOv2AdamWViTArgs()
     dinov2_args = DINOv2Args()
-    wrapped_model = package_helpers.get_wrapped_model(model="dinov2/_vittest14")
+    wrapped_model = package_helpers.get_wrapped_model(
+        model="dinov2/_vittest14", num_input_channels=3
+    )
     dinov2_args.resolve_auto(
         scaling_info=ScalingInfo(dataset_size=1000, epochs=100),
         optimizer_args=optim_args,
@@ -131,6 +136,7 @@ def get_method_dinov2() -> DINOv2:
         optimizer_args=optim_args,
         embedding_model=EmbeddingModel(wrapped_model=wrapped_model),
         global_batch_size=2,
+        num_input_channels=3,
     )
     return dinov2
 
