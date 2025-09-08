@@ -107,8 +107,7 @@ class UltralyticsPackage(Package):
 
     @classmethod
     def get_model_wrapper(cls, model: Module) -> UltralyticsModelWrapper:
-        model: YOLO
-        return UltralyticsModelWrapper(model=model)
+        return UltralyticsModelWrapper(model=model)  # type: ignore
 
     @classmethod
     def export_model(
