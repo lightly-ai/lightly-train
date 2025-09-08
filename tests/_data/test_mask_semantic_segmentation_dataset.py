@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import albumentations as A
 import numpy as np
 import pytest
 import torch
@@ -158,7 +157,7 @@ class TestMaskSemanticSegmentationDataArgs:
             ),
         ],
     )
-    def test_validate_class_multi_channel(
+    def test_validate_class_multi_channel_masks(
         self,
         classes_input: dict[int, Any],
         expected_checks: dict[int, tuple[str, list[tuple[int, int, int]]]],
@@ -488,24 +487,31 @@ class TestMaskSemanticSegmentationDataset:
         ]
 
     @pytest.mark.parametrize(
-        "num_classes, expected_mask_dtype, ignore_index",
+        "num_classes, num_channels, expected_mask_dtype, ignore_index",
         [
-            (5, torch.long, -100),
-            (500, torch.long, -100),
+            (5, 3, torch.long, -100),
+            (5, 4, torch.long, -100),
+            (500, 3, torch.long, -100),
         ],
     )
     def test__getitem__multi_channel_masks(
         self,
         num_classes: int,
+        num_channels: int,
         expected_mask_dtype: torch.dtype,
         tmp_path: Path,
         ignore_index: int,
     ) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
-        image_filenames = ["image0.jpg", "image1.jpg"]
+        image_filenames = ["image0.png", "image1.png"]
         mask_filenames = ["image0.png", "image1.png"]
-        helpers.create_images(image_dir, files=image_filenames)
+        helpers.create_images(
+            image_dir,
+            files=image_filenames,
+            num_channels=num_channels,
+            mode="RGB" if num_channels == 3 else "RGBA",
+        )
 
         channel_values_set: set[tuple[int, ...]] = set()
         while len(channel_values_set) < num_classes:
@@ -527,7 +533,7 @@ class TestMaskSemanticSegmentationDataset:
             },
             ignore_index=ignore_index,
         )
-        transform = _dummy_transform(num_channels=3)
+        transform = _dummy_transform(num_channels=num_channels)
         dataset = MaskSemanticSegmentationDataset(
             dataset_args=dataset_args,
             image_info=list(dataset_args.list_image_info()),
@@ -537,7 +543,7 @@ class TestMaskSemanticSegmentationDataset:
         assert len(dataset) == 2
         for item in dataset:  # type: ignore[attr-defined]
             assert isinstance(item["image"], Tensor)
-            assert item["image"].shape == (3, 32, 32)
+            assert item["image"].shape == (num_channels, 32, 32)
             assert item["image"].dtype == torch.float32
             assert isinstance(item["mask"], Tensor)
             assert item["mask"].shape == (32, 32)
@@ -554,8 +560,8 @@ class TestMaskSemanticSegmentationDataset:
             ignored_pixels = mask == ignore_index
             assert (ignored_pixels.sum() + valid_pixels.sum()) == mask.numel()
         assert sorted(item["image_path"] for item in dataset) == [  # type: ignore[attr-defined]
-            str(image_dir / "image0.jpg"),
-            str(image_dir / "image1.jpg"),
+            str(image_dir / "image0.png"),
+            str(image_dir / "image1.png"),
         ]
 
     def test__getitem__shape_mismatch_error(self, tmp_path: Path) -> None:
@@ -687,7 +693,7 @@ class TestMaskSemanticSegmentationDataset:
 
         assert dataset.class_mapping == expected_mapping
 
-    def test_get_class_mapping__multi_channel(self, tmp_path: Path) -> None:
+    def test_get_class_mapping__multi_channel_masks(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
@@ -719,7 +725,7 @@ class TestMaskSemanticSegmentationDataset:
 
         assert dataset.class_mapping == expected_mapping
 
-    def test_get_class_mapping__ignore_classes__multi_channel(
+    def test_get_class_mapping__ignore_classes__multi_channel_masks(
         self, tmp_path: Path
     ) -> None:
         image_dir = tmp_path / "images"
