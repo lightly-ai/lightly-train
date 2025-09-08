@@ -81,7 +81,9 @@ def dump_transform_args_for_methods(dest_dir: Path) -> None:
         transform_args = train_helpers.get_transform_args(
             method=method, transform_args=None
         )
-        args = common_helpers.pretty_format_args(transform_args.model_dump())
+        args = common_helpers.pretty_format_args(
+            transform_args.model_dump(), limit=False
+        )
         # write to file
         with open(dest_dir / f"{method}_transform_args.md", "w") as f:
             f.write("```json\n")
@@ -101,7 +103,7 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
             ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
         )
         train_args = train_task_helpers.pretty_format_args(
-            train_transform_args.model_dump()
+            train_transform_args.model_dump(),
         )
         val_args = train_task_helpers.pretty_format_args(
             val_transform_args.model_dump()
@@ -125,7 +127,7 @@ def dump_method_args(dest_dir: Path) -> None:
         if method in {"distillationv1", "distillationv2"}:
             continue
         method_args = method_helpers.get_method_cls(method).method_args_cls()()
-        args = common_helpers.pretty_format_args(method_args.model_dump())
+        args = common_helpers.pretty_format_args(method_args.model_dump(), limit=False)
         # write to file
         with open(dest_dir / f"{method}_method_args.md", "w") as f:
             f.write("```json\n")
