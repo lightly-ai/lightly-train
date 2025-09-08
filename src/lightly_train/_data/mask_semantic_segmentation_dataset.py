@@ -161,8 +161,15 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         return binary_masks
 
     def remap_mask(self, mask: torch.Tensor) -> torch.Tensor:
-        # Create a lookup table initialized with ignore_index
-        max_class = int(mask.max().item())
+        # Map only non-ignored pixels through the LUT and keep ignored pixels untouched.
+        # NOTE: this relies on the fact that all `old_class`es are non-negative.
+        ignore = mask == self.ignore_index
+        valid = ~ignore
+
+        if ignore.all():
+            return mask  # entire mask is ignore; nothing to remap
+
+        max_class = int(mask[valid].max().item())
         lut = mask.new_full((max_class + 1,), self.ignore_index, dtype=torch.long)
 
         # Fill in valid mappings
@@ -170,8 +177,10 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             if old_class <= max_class:
                 lut[old_class] = new_class
 
-        # Use LUT to remap efficiently
-        return lut[mask.to(torch.long)]
+        mask = mask.to(torch.long)
+        mask[valid] = lut[mask[valid]]
+
+        return mask
 
     def _map_multi_channel_masks_to_single_channel(
         self,
