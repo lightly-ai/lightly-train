@@ -63,13 +63,15 @@ def list_image_filenames_from_iterable(
             yield ImageFilename(img_or_dir)
         # For dirs we have to make a system call.
         elif os.path.isdir(img_or_dir):
-            is_empty = True
+            contains_images = False
             dir_str = str(img_or_dir)
             for image_filename in _get_image_filenames(image_dir=dir_str):
-                is_empty = False
+                contains_images = True
                 yield ImageFilename(os.path.join(dir_str, image_filename))
-            if is_empty:
-                logger.warning(f"The data directory '{img_or_dir}' is empty.")
+            if not contains_images:
+                logger.warning(
+                    f"The directory '{img_or_dir}' does not contain any images."
+                )
         else:
             raise ValueError(
                 f"Invalid path: '{img_or_dir}'. It is neither a valid image nor a "

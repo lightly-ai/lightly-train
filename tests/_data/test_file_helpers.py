@@ -106,7 +106,7 @@ def test_list_image_filenames_from_iterable__empty_dir(
     empty_dir.mkdir()
     with caplog.at_level(level="WARNING"):
         list(file_helpers.list_image_filenames_from_iterable(imgs_and_dirs=[empty_dir]))
-    assert f"The data directory '{empty_dir}' is empty." in caplog.text
+    assert f"The directory '{empty_dir}' does not contain any images." in caplog.text
 
 
 def test_list_image_filenames_from_iterable__invalid_path(tmp_path: Path) -> None:
