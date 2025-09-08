@@ -60,7 +60,7 @@ jobs:
         id: setup-uv
         with:
           version: 0.6.11
-          enable-cache: true
+          enable-cache: false
           cache-dependency-glob: "**/pyproject.toml"
           python-version: ${{ matrix.python }}
       - name: Set Up Python
