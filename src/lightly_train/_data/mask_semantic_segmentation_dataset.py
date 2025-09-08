@@ -169,16 +169,16 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         mask_with_labels: NDArrayImage,
     ) -> NDArrayImage:
         class_infos = self.args.classes
-
-        # Decouple from any potential Torch-backed storage and ensure contiguous memory.
-        labels = np.array(mask_with_labels, copy=True)
-
         # Always compare against a 3D mask: expand (H, W) -> (H, W, 1)
-        labels = labels if labels.ndim == 3 else labels[:, :, np.newaxis]
-        H, W, C = labels.shape
-
+        mask_with_labels = (
+            mask_with_labels
+            if mask_with_labels.ndim == 3
+            else mask_with_labels[:, :, np.newaxis]
+        )
         # Initialize output single-channel mask with ignore_index
-        mask_with_class_ids = np.full((H, W), self.ignore_index, dtype=np.int_)
+        mask_with_class_ids = np.full(
+            mask_with_labels.shape[:2], self.ignore_index, dtype=np.int_
+        )
 
         # Map labels (ints or tuples) to class ids
         for class_id, class_info in class_infos.items():
@@ -186,7 +186,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
                 # Normalize integer labels to 1-tuple for broadcasting with (H, W, 1)
                 label_tuple = (label,) if isinstance(label, np.int_) else label
                 # Find pixels that match this value across channels
-                label_mask = np.all(labels == label_tuple, axis=2)
+                label_mask = np.all(mask_with_labels == label_tuple, axis=2)
                 # Assign class_id to matching pixels
                 mask_with_class_ids[label_mask] = class_id
 
