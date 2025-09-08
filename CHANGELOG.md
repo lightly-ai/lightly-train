@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add support for using custom mask names for the inputs in semantic segmentation.
 
 ### Changed
-- Speed up logging of datasets with many files.
 
 ### Deprecated
 
@@ -24,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix issue where segmentation fine-tuning could fail when encountering masks containing
   only unknown classes.
 - Fix issue with mmap cache when multiple runs use the same dataset on the same machine.
+- Speed up logging of datasets with many files.
 
 ### Security
 
