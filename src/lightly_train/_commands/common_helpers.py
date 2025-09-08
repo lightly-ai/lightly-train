@@ -223,7 +223,7 @@ def pretty_format_args(
 
 
 def remove_excessive_args(
-    args: dict[str, Any], limit_keys: set[str] | None = None, num_elems: int = 10
+    args: dict[str, Any], limit_keys: Set[str] | None = None, num_elems: int = 10
 ) -> dict[str, Any]:
     """Limit the number of elements in sequences of a dict to a certain number. This is
     strictly for logging purposes. Does not work with nested structures.
