@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Set
 from enum import Enum
 from pathlib import Path
 
@@ -65,7 +65,9 @@ def list_image_filenames_from_iterable(
         elif os.path.isdir(img_or_dir):
             contains_images = False
             dir_str = str(img_or_dir)
-            for image_filename in _get_image_filenames(image_dir=dir_str):
+            for image_filename in _get_image_filenames(
+                image_dir=dir_str, image_extensions=supported_extensions
+            ):
                 contains_images = True
                 yield ImageFilename(os.path.join(dir_str, image_filename))
             if not contains_images:
@@ -101,16 +103,22 @@ def _pil_supported_image_extensions() -> set[str]:
     }
 
 
-def _get_image_filenames(image_dir: PathLike) -> Iterable[str]:
+def _get_image_filenames(
+    image_dir: PathLike, image_extensions: Set[str] | None = None
+) -> Iterable[str]:
     """Returns image filenames relative to image_dir."""
-    supported_extensions = _pil_supported_image_extensions()
+    image_extensions = (
+        _pil_supported_image_extensions()
+        if image_extensions is None
+        else image_extensions
+    )
     for dirpath, _, filenames in os.walk(image_dir, followlinks=True):
         # Make paths relative to image_dir. `dirpath` is absolute.
         parent = os.path.relpath(dirpath, start=image_dir)
         parent = "" if parent == "." else parent
         for file in filenames:
             _, ext = os.path.splitext(file)
-            if ext.lower() in supported_extensions:
+            if ext.lower() in image_extensions:
                 yield os.path.join(parent, file)
 
 
