@@ -171,7 +171,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         class_infos = self.args.classes
 
         # Decouple from any potential Torch-backed storage and ensure contiguous memory.
-        labels = np.array(mask_with_labels, copy=True, order="C")
+        labels = np.array(mask_with_labels, copy=True)
 
         # Always compare against a 3D mask: expand (H, W) -> (H, W, 1)
         labels = labels if labels.ndim == 3 else labels[:, :, np.newaxis]

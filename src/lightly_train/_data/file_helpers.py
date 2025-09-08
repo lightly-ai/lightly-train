@@ -178,12 +178,7 @@ def _open_image_numpy__with_torch(
         # Squeeze channel dimension for single-channel masks.
         # (H, W, 1) -> (H, W)
         image_torch = image_torch.squeeze(2)
-    # Ensure a contiguous tensor before converting to NumPy to avoid
-    # potential issues with strided views and shared storage on Windows.
-    image_torch = image_torch.contiguous()
-    # Detach NumPy array from Torch-managed storage to prevent lifetime
-    # or allocator issues on some platforms (notably Windows).
-    image_np = image_torch.numpy().copy()
+    image_np = image_torch.numpy()
     return image_np
 
 
