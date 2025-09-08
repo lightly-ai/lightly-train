@@ -184,7 +184,7 @@ class TestMaskSemanticSegmentationDataArgs:
             class_info = dataset_args.classes[class_id]
             assert isinstance(class_info, MultiChannelClassInfo)
             assert class_info.name == expected_name
-            assert class_info.channels == set(expected_channel_values)
+            assert class_info.labels == set(expected_channel_values)
 
     @pytest.mark.parametrize(
         "invalid_classes",
@@ -419,7 +419,7 @@ class TestMaskSemanticSegmentationDataset:
         "num_classes, expected_mask_dtype, ignore_index",
         [
             (5, torch.long, -100),
-            (150, torch.long, -100),
+            (500, torch.long, -100),
         ],
     )
     def test__getitem__integer_masks(
@@ -482,7 +482,7 @@ class TestMaskSemanticSegmentationDataset:
         "num_classes, expected_mask_dtype, ignore_index",
         [
             (5, torch.long, -100),
-            (150, torch.long, -100),
+            (500, torch.long, -100),
         ],
     )
     def test__getitem__multi_channel_masks(

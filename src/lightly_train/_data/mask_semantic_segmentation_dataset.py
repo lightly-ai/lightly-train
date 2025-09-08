@@ -44,24 +44,24 @@ class SingleChannelClassInfo(PydanticConfig):
         elif isinstance(v, list):
             return set(v)
         else:
-            raise ValueError(f"Expected int or list of ints, got {type(v)}")
+            raise ValueError(f"Expected set or list of ints, got {type(v)}")
 
 
 class MultiChannelClassInfo(PydanticConfig):
     name: str
-    channels: set[tuple[int, ...]] = Field(alias="values")
+    labels: set[tuple[int, ...]] = Field(alias="values")
 
-    @field_validator("channels", mode="before")
+    @field_validator("labels", mode="before")
     @classmethod
     def normalize_channels(
-        cls, v: list[tuple[int, ...]] | set[tuple[int, ...]]
+        cls, v: set[tuple[int, ...]] | list[tuple[int, ...]]
     ) -> set[tuple[int, ...]]:
-        if isinstance(v, list):
-            return set(v)
-        elif isinstance(v, set):
+        if isinstance(v, set):
             return v
+        elif isinstance(v, list):
+            return set(v)
         else:
-            raise ValueError(f"Expected tuple or list of tuples, got {type(v)}")
+            raise ValueError(f"Expected set or list of tuple of ints, got {type(v)}")
 
 
 ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
@@ -185,7 +185,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Map the channels to class ids
         for class_id, class_info in class_infos.items():
-            for channel in class_info.channels:
+            for channel in class_info.labels:
                 # Find pixels that match this value
                 mask = np.all(multi_channel_mask == channel, axis=2)
                 # Assign class_id to matching pixels
@@ -320,8 +320,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         # Convert to ClassInfo objects and perform consistency checks.
         class_infos: dict[int, ClassInfo] = {}
         class_types: set[type] = set()
-        class_labels: set[int] = set()
-        class_channels: set[tuple[int, ...]] = set()
+        class_labels: set[int | tuple[int, ...]] = set()
 
         for class_id, class_info in classes_validated.items():
             if isinstance(class_info, str):
@@ -350,13 +349,13 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                     "}"
                 )
 
-            if isinstance(class_info, SingleChannelClassInfo):
-                for label in class_info.labels:
-                    # Check for multiple labels across different class mappings
-                    if label in class_labels:
+            for label in class_info.labels:
+                # Check for multiple labels across different class mappings
+                if label in class_labels:
+                    if isinstance(class_info, SingleChannelClassInfo):
                         raise ValueError(
                             f"Invalid class mapping: class label {label} appears in multiple class definitions. "
-                            f"Each old class label can only mapped to one new class.\n\n"
+                            f"Each class label can only mapped to one class.\n\n"
                             f"INCORRECT (class label {label} is duplicated):\n"
                             f"classes = {{\n"
                             f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
@@ -368,28 +367,22 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                             f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # <- unique values\n"
                             f"}}"
                         )
-                    class_labels.add(label)
-            elif isinstance(class_info, MultiChannelClassInfo):
-                for channel in class_info.channels:
-                    # Check for multiple channel values across different class mappings
-                    if channel in class_channels:
+                    else:
                         raise ValueError(
-                            f"Invalid class mapping: channel value {channel} appears in multiple class definitions. "
-                            f"Each channel value in the mask can only be mapped to one new class.\n\n"
-                            f"INCORRECT (channel value {channel} is duplicated):\n"
+                            f"Invalid class mapping: channel value {label} appears in multiple class definitions. "
+                            f"Each channel value in the mask can only be mapped to one class.\n\n"
+                            f"INCORRECT (channel value {label} is duplicated):\n"
                             f"classes = {{\n"
-                            f"  0: {{'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
-                            f"  1: {{'name': 'road', 'values': [(0, 0, 0), (128, 128, 128)]}}  # <- channel value (0, 0, 0) conflict with class 0\n"
+                            f"  255: {{'name': 'background-255', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            f"  254: {{'name': 'background-254', 'values': [(0, 0, 0), (128, 128, 128)]}}  # <- channel value (0, 0, 0) conflict with class 0\n"
                             f"}}\n\n"
                             f"CORRECT (each channel value belongs to only one class):\n"
                             f"classes = {{\n"
-                            f"  0: {{'name': 'background', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
-                            f"  1: {{'name': 'road', 'values': [(128, 128, 128), (64, 64, 64)]}}  # <- unique channel values\n"
+                            f"  255: {{'name': 'background-255', 'values': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            f"  254: {{'name': 'background-254', 'values': [(128, 128, 128), (64, 64, 64)]}}  # <- unique channel values\n"
                             f"}}"
                         )
-                    class_channels.add(channel)
-            else:
-                pass
+                class_labels.add(label)
 
             class_infos[class_id] = class_info
 
