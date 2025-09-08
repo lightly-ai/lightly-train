@@ -15,10 +15,10 @@ import os
 import sys
 import time
 import warnings
-from collections.abc import Iterable, Sequence, Set
+from collections.abc import Iterable, Sequence, Set, Sized
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generator, Literal, Sized, TypeVar
+from typing import Any, Generator, Literal, TypeVar
 
 import torch
 from filelock import FileLock
