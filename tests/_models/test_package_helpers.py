@@ -62,11 +62,12 @@ def test_get_model__torchvision() -> None:
     assert isinstance(model.get_model(), ResNet)
 
 
-def test_get_model__timm() -> None:
+@pytest.mark.parametrize("num_input_channels", [3, 4])
+def test_get_model__timm(num_input_channels: int) -> None:
     pytest.importorskip("timm")
     from timm.models.resnet import ResNet
 
-    model = package_helpers.get_wrapped_model("timm/resnet18", num_input_channels=3)
+    model = package_helpers.get_wrapped_model("timm/resnet18", num_input_channels=num_input_channels)
     assert isinstance(model.get_model(), ResNet)
 
 
