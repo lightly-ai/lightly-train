@@ -29,6 +29,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.11.2] - 2025-09-08
+
+### Added
+
+- Add support for using multi-channel masks for the inputs in semantic segmentation.
+- Add support for training models on multi-channel images with `transform_args={"num_channels": 4}`.
+- Add support for using custom mask names for the inputs in semantic segmentation.
+- Add `precision` flag to ONNX export task to specify if we export with float16 or float32 precision.
+
+### Fixed
+
+- Fix issue where segmentation fine-tuning could fail when encountering masks containing
+  only unknown classes.
+- Fix issue with mmap cache when multiple runs use the same dataset on the same machine.
+- Speed up logging of datasets with many files.
+
 ## [0.11.1] - 2025-08-28
 
 ### Added
