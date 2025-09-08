@@ -574,7 +574,7 @@ def get_dataset(
         # NOTE(Guarin, 01/25): The bottleneck for dataset initialization is filename
         # listing and not the memory mapping. Listing the train set from ImageNet takes
         # about 30 seconds. This is mostly because os.walk is not parallelized.
-        filenames = file_helpers.list_image_filenames(image_dir=data)
+        filenames = file_helpers.list_image_filenames_from_dir(image_dir=data)
         return ImageDataset(
             image_dir=data,
             image_filenames=get_dataset_mmap_filenames(
@@ -587,20 +587,12 @@ def get_dataset(
         )
 
     elif isinstance(data, Sequence):
-        _data: Sequence[Path] = [Path(d).resolve() for d in data]
         if mask_dir is not None:
             raise ValueError(
                 "Mask directory is not supported when multiple directories or files "
                 "are provided."
             )
-
-        for d in _data:
-            if not d.exists():
-                raise ValueError(f"Data directory or file '{d}' does not exist!")
-            elif d.is_dir() and not any(d.iterdir()):
-                raise ValueError(f"Data directory '{d}' is empty!")
-        files = file_helpers.list_image_files(imgs_and_dirs=_data)
-        filenames = file_helpers.list_image_filenames(files=files)
+        filenames = file_helpers.list_image_filenames_from_iterable(imgs_and_dirs=data)
         return ImageDataset(
             image_dir=None,
             image_filenames=get_dataset_mmap_filenames(

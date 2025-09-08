@@ -51,6 +51,53 @@ from lightly_train._scaling import ScalingInfo
 from lightly_train._transforms.transform import MethodTransform, NormalizeArgs
 from lightly_train.types import TransformInput, TransformOutput
 
+SUPPORTED_IMAGE_EXTENSIONS = [
+    ".bmp",
+    ".BMP",
+    ".dib",
+    ".pcx",
+    ".dds",
+    ".ps",
+    ".eps",
+    ".gif",
+    ".GIF",
+    ".png",
+    ".PNG",
+    ".apng",
+    ".jp2",
+    ".j2k",
+    ".jpc",
+    ".jpf",
+    ".jpx",
+    ".j2c",
+    ".icns",
+    ".ico",
+    ".im",
+    ".jfif",
+    ".jpe",
+    ".jpg",
+    ".JPG",
+    ".jpeg",
+    ".JPEG",
+    ".tif",
+    ".TIF",
+    ".tiff",
+    ".TIFF",
+    ".pbm",
+    ".pgm",
+    ".ppm",
+    ".pnm",
+    ".bw",
+    ".rgb",
+    ".rgba",
+    ".sgi",
+    ".tga",
+    ".icb",
+    ".vda",
+    ".vst",
+    ".webp",
+]
+
 
 class DummyMethod(Method):
     def __init__(

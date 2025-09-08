@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from enum import Enum
 from pathlib import Path
-from typing import Iterable, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -36,7 +36,9 @@ class ImageMode(Enum):
     MASK = "MASK"
 
 
-def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
+def list_image_filenames_from_iterable(
+    imgs_and_dirs: Iterable[PathLike],
+) -> Iterable[ImageFilename]:
     """List image files recursively from the given list of image files and directories.
 
     Args:
@@ -44,22 +46,33 @@ def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
             directories that should be scanned for images.
 
     Returns:
-        A list of absolute paths pointing to the image files.
+        An iterable of image filenames starting from the given paths. The given paths
+        are always included in the output filenames.
     """
+    supported_extensions = _pil_supported_image_extensions()
     for img_or_dir in imgs_and_dirs:
-        if img_or_dir.is_file() and (
-            img_or_dir.suffix.lower() in _pil_supported_image_extensions()
-        ):
-            yield img_or_dir.resolve()
-        elif img_or_dir.is_dir():
-            yield from _get_image_filepaths(img_or_dir)
+        _, ext = os.path.splitext(img_or_dir)
+        # Only check image extension. This is faster than checking isfile() because it
+        # does not require a system call.
+        if ext.lower() in supported_extensions:
+            yield ImageFilename(img_or_dir)
+        # For dirs we have to make a system call.
+        elif os.path.isdir(img_or_dir):
+            is_empty = True
+            dir_str = str(img_or_dir)
+            for image_filename in _get_image_filenames(image_dir=dir_str):
+                is_empty = False
+                yield ImageFilename(os.path.join(dir_str, image_filename))
+            if is_empty:
+                raise ValueError(f"The directory '{img_or_dir}' is empty.")
         else:
-            raise ValueError(f"Invalid path: {img_or_dir}")
+            raise ValueError(
+                f"Invalid path: '{img_or_dir}'. It is neither a valid image nor a "
+                f"directory. Valid image extensions are: {supported_extensions}"
+            )
 
 
-def list_image_filenames(
-    *, image_dir: Path | None = None, files: Iterable[Path] | None = None
-) -> Iterable[ImageFilename]:
+def list_image_filenames_from_dir(image_dir: PathLike) -> Iterable[ImageFilename]:
     """List image filenames relative to `image_dir` recursively.
 
     Args:
@@ -67,25 +80,10 @@ def list_image_filenames(
             The root directory to scan for images.
 
     Returns:
-        An iterable of image filenames relative to `image_dir` or absolute paths
-        if `files` is provided.
+        An iterable of image filenames relative to `image_dir`.
     """
-    if (image_dir is not None and files is not None) or (
-        image_dir is None and files is None
-    ):
-        raise ValueError(
-            "Either `image_dir` or `files` must be provided, but not both."
-        )
-    elif files is not None:
-        # NOTE(Jonas 06/2025): drop resolve if complains about performance are raised.
-        return (ImageFilename(str(fpath.resolve())) for fpath in files)
-    elif image_dir is not None:
-        return (
-            ImageFilename(str(fpath.relative_to(image_dir)))
-            for fpath in _get_image_filepaths(image_dir=image_dir)
-        )
-    else:
-        raise ValueError("Either `image_dir` or `files` must be provided.")
+    for filename in _get_image_filenames(image_dir=image_dir):
+        yield ImageFilename(filename)
 
 
 def _pil_supported_image_extensions() -> set[str]:
@@ -96,14 +94,17 @@ def _pil_supported_image_extensions() -> set[str]:
     }
 
 
-def _get_image_filepaths(image_dir: Path) -> Iterable[Path]:
-    extensions = _pil_supported_image_extensions()
-    for root, _, files in os.walk(image_dir, followlinks=True):
-        root_path = Path(root)
-        for file in files:
-            fpath = root_path / file
-            if fpath.suffix.lower() in extensions:
-                yield fpath
+def _get_image_filenames(image_dir: PathLike) -> Iterable[str]:
+    """Returns image filenames relative to image_dir."""
+    supported_extensions = _pil_supported_image_extensions()
+    for dirpath, _, filenames in os.walk(image_dir, followlinks=True):
+        # Make paths relative to image_dir. `dirpath` is absolute.
+        parent = os.path.relpath(dirpath, start=image_dir)
+        parent = "" if parent == "." else parent
+        for file in filenames:
+            _, ext = os.path.splitext(file)
+            if ext.lower() in supported_extensions:
+                yield os.path.join(parent, file)
 
 
 _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
