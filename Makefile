@@ -179,7 +179,7 @@ DOCKER_EXTRAS := --extra mlflow --extra tensorboard --extra timm --extra wandb -
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
-EXCLUDE_NEWER_DATE := "2025-08-07"
+EXCLUDE_NEWER_DATE := "2025-09-07"
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
 # on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
