@@ -13,7 +13,7 @@ from typing import Any, ClassVar, Dict, Iterable, Union
 
 import numpy as np
 import torch
-from pydantic import AliasChoices, Field, TypeAdapter, field_validator
+from pydantic import Field, TypeAdapter, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -36,20 +36,12 @@ from lightly_train.types import (
 
 class SingleChannelClassInfo(PydanticConfig):
     name: str
-    labels: set[int] = Field(
-        validation_alias=AliasChoices("labels", "values"),
-        serialization_alias="labels",
-        strict=False,
-    )
+    labels: set[int] = Field(strict=False)
 
 
 class MultiChannelClassInfo(PydanticConfig):
     name: str
-    labels: set[tuple[int, ...]] = Field(
-        validation_alias=AliasChoices("labels", "values"),
-        serialization_alias="labels",
-        strict=False,
-    )
+    labels: set[tuple[int, ...]] = Field(strict=False)
 
 
 ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
