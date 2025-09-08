@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from pydantic import Field
+from typing_extensions import Literal
 
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -54,6 +55,7 @@ class DistillationGaussianBlurArgs(GaussianBlurArgs):
 class DistillationTransformArgs(MethodTransformArgs):
     image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
     channel_drop: ChannelDropArgs | None = None
+    num_channels: int | Literal["auto"] = "auto"
     random_resize: DistillationRandomResizeArgs | None = Field(
         default_factory=DistillationRandomResizeArgs
     )
