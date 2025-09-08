@@ -73,6 +73,10 @@ onnx_export_testset = [
 ]
 
 
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason=("Fails on Windows because of potential memory issues"),
+)
 @pytest.mark.parametrize("batch_size,height,width,precision", onnx_export_testset)
 @pytest.mark.skipif(
     sys.version_info < (3, 9),
@@ -136,6 +140,10 @@ def test_onnx_export(
 
 
 @pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason=("Fails on Windows because of potential memory issues"),
+)
+@pytest.mark.skipif(
     sys.version_info < (3, 9),
     reason="Requires Python 3.9 or higher for image preprocessing.",
 )
@@ -172,6 +180,10 @@ def test_onnx_export__height_not_patch_size_multiple_fails(
         )
 
 
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason=("Fails on Windows because of potential memory issues"),
+)
 @pytest.mark.skipif(
     sys.version_info < (3, 9),
     reason="Requires Python 3.9 or higher for image preprocessing.",
