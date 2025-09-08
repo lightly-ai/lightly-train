@@ -48,6 +48,7 @@ def setup_dinov2_helper(
         optimizer_args=optimizer_args,
         embedding_model=emb_model,
         global_batch_size=batch_size,
+        num_input_channels=3,
     )
 
     trainer_mock = mocker.Mock()

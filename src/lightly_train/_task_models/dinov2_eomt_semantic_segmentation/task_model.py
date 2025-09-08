@@ -45,7 +45,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         classes: dict[int, str],
         class_ignore_index: int | None,
         image_size: tuple[int, int],
-        image_normalize: dict[str, float],
+        image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
         num_joint_blocks: int,
         backbone_weights: PathLike | None = None,
@@ -110,6 +110,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # Disable drop path by default.
         backbone_model_args = {
             "drop_path_rate": 0.0,
+            "in_chans": len(self.image_normalize["mean"]),
         }
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)

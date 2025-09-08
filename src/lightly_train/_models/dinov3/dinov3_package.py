@@ -74,13 +74,18 @@ class DINOv3Package(Package):
 
     @classmethod
     def get_model(
-        cls, model_name: str, model_args: dict[str, Any] | None = None
+        cls,
+        model_name: str,
+        num_input_channels: int = 3,
+        model_args: dict[str, Any] | None = None,
     ) -> DinoVisionTransformer:
         """
         Get a DINOv3 ViT model by name. Here the student version is build.
         """
-        model_args = {} if model_args is None else model_args
-        model = MODEL_NAME_TO_GETTER[model_name](**model_args)
+        args: dict[str, Any] = {"in_chans": num_input_channels}
+        if model_args is not None:
+            args.update(model_args)
+        model = MODEL_NAME_TO_GETTER[model_name](**args)
         assert isinstance(model, DinoVisionTransformer)
         return model
 

@@ -50,7 +50,10 @@ class Package(BasePackage):
     @classmethod
     @abstractmethod
     def get_model(
-        cls, model_name: str, model_args: dict[str, Any] | None = None
+        cls,
+        model_name: str,
+        num_input_channels: int = 3,
+        model_args: dict[str, Any] | None = None,
     ) -> PackageModel:
         """Get the underlying model of the package by its name."""
         ...
