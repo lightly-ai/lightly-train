@@ -175,7 +175,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Always compare against a 3D mask: expand (H, W) -> (H, W, 1)
         labels = labels if labels.ndim == 3 else labels[:, :, np.newaxis]
-        H, W, _ = labels.shape
+        H, W, C = labels.shape
 
         # Initialize output single-channel mask with ignore_index
         mask_with_class_ids = np.full((H, W), self.ignore_index, dtype=np.int_)
@@ -184,12 +184,9 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         for class_id, class_info in class_infos.items():
             for label in class_info.labels:
                 # Normalize integer labels to 1-tuple for broadcasting with (H, W, 1)
-                if isinstance(label, (int, np.integer)):
-                    label_arr = np.array([int(label)], dtype=labels.dtype)
-                else:
-                    label_arr = np.asarray(label, dtype=labels.dtype)
+                label_tuple = (label,) if isinstance(label, np.int_) else label
                 # Find pixels that match this value across channels
-                label_mask = np.all(labels == label_arr, axis=2)
+                label_mask = np.all(labels == label_tuple, axis=2)
                 # Assign class_id to matching pixels
                 mask_with_class_ids[label_mask] = class_id
 
