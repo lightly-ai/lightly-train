@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add support for training models on multi-channel images with `transform_args={"num_channels": 4}`.
+- Add support for using custom mask names for the inputs in semantic segmentation.
+- Add support for using DINOv3 models as teacher in distillationv1.
+
 ### Changed
 
 ### Deprecated

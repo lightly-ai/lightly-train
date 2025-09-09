@@ -49,7 +49,7 @@ if __name__ == "__main__":
         out="out/my_experiment", 
         data="my_data_dir",
         model="torchvision/resnet18",
-        method="distillation",
+        method="distillationv1",
         method_args={
             "teacher": "dinov3/vitb16",
             # Replace with your own url
