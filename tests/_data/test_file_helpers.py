@@ -37,7 +37,7 @@ def test_list_image_filenames_from_iterable(
     )
     (tmp_path / "not_an_image.txt").touch()
     (tmp_path / "class2" / "not_an_image").touch()
-    filenames = file_helpers.list_image_filepaths_from_iterable(
+    filenames = file_helpers.list_image_filenames_from_iterable(
         imgs_and_dirs=[
             "image1.jpg",  # relative image path
             tmp_path / "image2.jpg",  # absolute image path
@@ -60,7 +60,7 @@ def test_list_image_filenames_from_iterable__extensions(
     tmp_path: Path, extension: str
 ) -> None:
     helpers.create_images(image_dir=tmp_path, files=[f"image{extension}"])
-    filenames = file_helpers.list_image_filepaths_from_iterable(
+    filenames = file_helpers.list_image_filenames_from_iterable(
         imgs_and_dirs=[tmp_path / f"image{extension}"]
     )
     assert list(filenames) == [str(tmp_path / f"image{extension}")]
@@ -81,7 +81,7 @@ def test_list_image_filenames_from_iterable__symlink(tmp_path: Path) -> None:
     (data_dir / "class2").symlink_to(
         tmp_path / "symlinktarget2" / "class2", target_is_directory=True
     )
-    filenames = file_helpers.list_image_filepaths_from_iterable(
+    filenames = file_helpers.list_image_filenames_from_iterable(
         imgs_and_dirs=[
             data_dir / "image1.jpg",
             data_dir / "class1",
@@ -105,7 +105,7 @@ def test_list_image_filenames_from_iterable__empty_dir(
     empty_dir = tmp_path / "empty_dir"
     empty_dir.mkdir()
     with caplog.at_level(level="WARNING"):
-        list(file_helpers.list_image_filepaths_from_iterable(imgs_and_dirs=[empty_dir]))
+        list(file_helpers.list_image_filenames_from_iterable(imgs_and_dirs=[empty_dir]))
     assert f"The directory '{empty_dir}' does not contain any images." in caplog.text
 
 
@@ -116,7 +116,7 @@ def test_list_image_filenames_from_iterable__invalid_path(tmp_path: Path) -> Non
         match="Invalid path: '.*invalid_path'.",
     ):
         list(
-            file_helpers.list_image_filepaths_from_iterable(
+            file_helpers.list_image_filenames_from_iterable(
                 imgs_and_dirs=[invalid_path]
             )
         )

@@ -609,7 +609,7 @@ def get_dataset(
                 "Mask directory is not supported when multiple directories or files "
                 "are provided."
             )
-        filenames = file_helpers.list_image_filepaths_from_iterable(imgs_and_dirs=data)
+        filenames = file_helpers.list_image_filenames_from_iterable(imgs_and_dirs=data)
         return ImageDataset(
             image_dir=None,
             image_filenames=get_dataset_mmap_file(
