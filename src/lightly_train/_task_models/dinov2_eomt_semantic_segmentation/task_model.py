@@ -532,18 +532,20 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             .reshape(B, N, 3, module.num_heads, C // module.num_heads)
             .permute(2, 0, 3, 1, 4)
         )
-        q, k, v = qkv[0] * module.scale, qkv[1], qkv[2]
+        q, k, v = qkv[0], qkv[1], qkv[2]
 
-        if mask is not None:
-            mask = mask[:, None, ...].expand(-1, module.num_heads, -1, -1)
+        x = F.scaled_dot_product_attention(
+            query=q,
+            key=k,
+            value=v,
+            attn_mask=mask,
+            scale=module.scale,
+            dropout_p=module.attn_drop.p,
+        )  # B x num_heads x N x (C // num_heads)
 
-        attn = q @ k.transpose(-2, -1)
-        if mask is not None:
-            attn = attn.masked_fill(~mask, float("-inf"))
-        attn = attn.softmax(dim=-1)
-        attn = module.attn_drop(attn)
+        x = x.transpose(1, 2)
+        x = x.reshape(B, N, C)
 
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = module.proj(x)
         x = module.proj_drop(x)
         return x
