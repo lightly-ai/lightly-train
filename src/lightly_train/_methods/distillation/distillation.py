@@ -48,9 +48,14 @@ def get_teacher(
     teacher_name: str,
     num_input_channels: int,
     teacher_weights: str | Path | None = None,
+    method_args: DistillationArgs | None = None,
 ) -> Module:
+    model_args: dict[str, Any] = {}
+    if "dinov3" in teacher_name and method_args is not None:
+        model_args["weights"] = method_args.teacher_url
+
     wrapped_model = package_helpers.get_wrapped_model(
-        model=teacher_name, num_input_channels=num_input_channels
+        model=teacher_name, num_input_channels=num_input_channels, model_args=model_args
     )
     assert isinstance(wrapped_model, (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper))
     wrapped_model.make_teacher()
@@ -86,6 +91,9 @@ class DistillationArgs(MethodArgs):
 
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None
+
+    # Optional teacher url.
+    teacher_url: str | None = None
 
     # Scaling method for the learning rate.
     lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
@@ -155,6 +163,7 @@ class Distillation(Method):
             method_args.teacher,
             num_input_channels=num_input_channels,
             teacher_weights=method_args.teacher_weights,
+            method_args=method_args,
         )
 
         # Store the student model.
