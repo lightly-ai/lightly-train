@@ -49,8 +49,8 @@ def test_list_image_filenames_from_iterable(
         [
             "image1.jpg",
             str(tmp_path / "image2.jpg"),
-            "class1/image1.jpg",
-            str(tmp_path / "class2/image2.jpg"),
+            str(Path("class1") / "image1.jpg"),
+            str(tmp_path / "class2" / "image2.jpg"),
         ]
     )
 
@@ -92,9 +92,9 @@ def test_list_image_filenames_from_iterable__symlink(tmp_path: Path) -> None:
     assert sorted(filenames) == sorted(
         [
             str(data_dir / "image1.jpg"),
-            str(data_dir / "class1/image1.jpg"),
+            str(data_dir / "class1" / "image1.jpg"),
             str(data_dir / "image2.jpg"),
-            str(data_dir / "class2/image2.jpg"),
+            str(data_dir / "class2" / "image2.jpg"),
         ]
     )
 
@@ -135,7 +135,11 @@ def test_list_image_filenames_from_dir(tmp_path: Path) -> None:
     (tmp_path / "class2" / "not_an_image").touch()
     filenames = file_helpers.list_image_filenames_from_dir(image_dir=tmp_path)
     assert sorted(filenames) == sorted(
-        ["image1.jpg", "class1/image1.jpg", "class2/image2.jpg"]
+        [
+            "image1.jpg",
+            str(Path("class1") / "image1.jpg"),
+            str(Path("class2") / "image2.jpg"),
+        ]
     )
 
 
@@ -167,9 +171,9 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
     assert sorted(filenames) == sorted(
         [
             "image1.jpg",
-            "class1/image1.jpg",
+            str(Path("class1") / "image1.jpg"),
             "image2.jpg",
-            "class2/image2.jpg",
+            str(Path("class2") / "image2.jpg"),
         ]
     )
 
