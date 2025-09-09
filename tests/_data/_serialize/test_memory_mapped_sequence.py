@@ -20,8 +20,6 @@ class TestMemoryMappedSequence:
     def test_index(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
-        image_dir.mkdir()
-        mask_dir.mkdir()
 
         memory_mapped_sequence.write_items_to_file(
             items=[
