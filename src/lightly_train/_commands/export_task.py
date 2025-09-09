@@ -194,7 +194,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
         )
 
         if config.simplify:
-            import onnxslim  # ignore [import-not-found]
+            import onnxslim  # type: ignore [import-not-found]
 
             # We skip constant folding as this currently increases the model size by quite a lot.
             # If we refactor the untile method we might be able to add constant folding.
