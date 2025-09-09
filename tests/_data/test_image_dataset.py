@@ -63,12 +63,22 @@ def nested_image_dir(tmp_path: Path) -> Path:
 
 
 class TestImageDataset:
-    def test___getitem__(self, flat_image_dir: Path) -> None:
-        filenames = [ImageFilename("image1.jpg"), ImageFilename("image2.jpg")]
+    @pytest.mark.parametrize("num_channels", [3, 4])
+    def test___getitem__(self, tmp_path: Path, num_channels: int) -> None:
+        helpers.create_images(
+            tmp_path,
+            files=["image1.png", "image2.png"],
+            height=32,
+            width=32,
+            num_channels=num_channels,
+            mode="RGB" if num_channels == 3 else "RGBA",
+        )
+        filenames = [ImageFilename("image1.png"), ImageFilename("image2.png")]
         dataset = ImageDataset(
-            image_dir=flat_image_dir,
+            image_dir=tmp_path,
             image_filenames=filenames,
             transform=DummyMethodTransform(),
+            num_channels=num_channels,
         )
         assert len(dataset) == 2
         for i in range(2):
@@ -78,7 +88,7 @@ class TestImageDataset:
             assert isinstance(item["views"], list)
             assert len(item["views"]) == 1
             assert isinstance(item["views"][0], Tensor)
-            assert item["views"][0].shape == (3, 32, 32)
+            assert item["views"][0].shape == (num_channels, 32, 32)
             assert "mask" not in item
 
     @pytest.mark.parametrize(
@@ -107,6 +117,7 @@ class TestImageDataset:
             image_dir=image_dir,
             image_filenames=filenames,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         image = dataset[0]["views"][0]
         assert isinstance(image, Tensor)
@@ -128,6 +139,7 @@ class TestImageDataset:
             image_dir=image_dir,
             image_filenames=filenames,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         image = dataset[0]["views"][0]
         assert isinstance(image, Tensor)
@@ -147,6 +159,7 @@ class TestImageDataset:
             image_filenames=img_filenames,
             mask_dir=mask_dir,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         item: DatasetItem = dataset[0]
         print(f"{item=}")
@@ -168,6 +181,7 @@ class TestImageDataset:
             image_dir=flat_image_dir,
             image_filenames=filenames,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         assert len(dataset) == 2
         dataloader = DataLoader(

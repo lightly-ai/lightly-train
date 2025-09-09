@@ -8,6 +8,9 @@
 
 from __future__ import annotations
 
+import logging
+from typing import Literal
+
 import numpy as np
 from albumentations import (
     BasicTransform,
@@ -21,11 +24,11 @@ from albumentations import (
     SmallestMaxSize,
 )
 from albumentations.pytorch import ToTensorV2
-from numpy.typing import NDArray
 from torch import Tensor
 from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
+from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -33,6 +36,7 @@ from lightly_train._transforms.task_transform import (
     TaskTransformOutput,
 )
 from lightly_train._transforms.transform import (
+    ChannelDropArgs,
     ColorJitterArgs,
     NormalizeArgs,
     RandomCropArgs,
@@ -40,11 +44,14 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
+from lightly_train.types import NDArrayImage
+
+logger = logging.getLogger(__name__)
 
 
 class SemanticSegmentationTransformInput(TaskTransformInput):
-    image: NDArray[np.uint8]
-    mask: NotRequired[NDArray[np.uint8]]
+    image: NDArrayImage
+    mask: NotRequired[NDArrayImage]
 
 
 class SemanticSegmentationTransformOutput(TaskTransformOutput):
@@ -55,6 +62,8 @@ class SemanticSegmentationTransformOutput(TaskTransformOutput):
 class SemanticSegmentationTransformArgs(TaskTransformArgs):
     ignore_index: int
     image_size: tuple[int, int]
+    channel_drop: ChannelDropArgs | None
+    num_channels: int | Literal["auto"]
     normalize: NormalizeArgs
     random_flip: RandomFlipArgs | None
     color_jitter: ColorJitterArgs | None
@@ -63,21 +72,70 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
     random_crop: RandomCropArgs | None
 
     def resolve_auto(self) -> None:
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                self.num_channels = len(self.normalize.mean)
+
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
             field = getattr(self, field_name)
             if hasattr(field, "resolve_auto"):
                 field.resolve_auto(height=height, width=width)
 
+    def resolve_incompatible(self) -> None:
+        # Adjust normalization mean and std to match num_channels.
+        if len(self.normalize.mean) != no_auto(self.num_channels):
+            logger.debug(
+                "Adjusting mean of normalize transform to match num_channels. "
+                f"num_channels is {self.num_channels} but "
+                f"normalize.mean has length {len(self.normalize.mean)}."
+            )
+            # Repeat the values until they match num_channels.
+            self.normalize.mean = tuple(
+                self.normalize.mean[i % len(self.normalize.mean)]
+                for i in range(no_auto(self.num_channels))
+            )
+        if len(self.normalize.std) != no_auto(self.num_channels):
+            logger.debug(
+                "Adjusting std of normalize transform to match num_channels. "
+                f"num_channels is {self.num_channels} but "
+                f"normalize.std has length {len(self.normalize.std)}."
+            )
+            # Repeat the values until they match num_channels.
+            self.normalize.std = tuple(
+                self.normalize.std[i % len(self.normalize.std)]
+                for i in range(no_auto(self.num_channels))
+            )
+
+        # Disable color jitter if necessary.
+        if self.color_jitter is not None and no_auto(self.num_channels) != 3:
+            logger.debug(
+                "Disabling color jitter transform as it only supports 3-channel "
+                f"images but num_channels is {self.num_channels}."
+            )
+            self.color_jitter = None
+
 
 class SemanticSegmentationTransform(TaskTransform):
-    transform_args_cls: type[SemanticSegmentationTransformArgs]
+    transform_args_cls: type[SemanticSegmentationTransformArgs] = (
+        SemanticSegmentationTransformArgs
+    )
 
     def __init__(self, transform_args: SemanticSegmentationTransformArgs) -> None:
         super().__init__(transform_args)
 
         # Initialize the list of transforms to apply.
         transform: list[BasicTransform] = []
+
+        if transform_args.channel_drop is not None:
+            transform += [
+                ChannelDrop(
+                    num_channels_keep=transform_args.channel_drop.num_channels_keep,
+                    weight_drop=transform_args.channel_drop.weight_drop,
+                )
+            ]
 
         if transform_args.scale_jitter is not None:
             # This follows recommendation on how to replace torchvision ScaleJitter with

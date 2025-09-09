@@ -14,7 +14,6 @@ from enum import Enum
 from pathlib import Path
 
 import numpy as np
-from numpy.typing import NDArray
 from PIL import Image
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -152,7 +151,7 @@ def open_image_numpy(
     mode: ImageMode = ImageMode.RGB,
 ) -> NDArrayImage:
     """Returns image as (H, W, C) or (H, W) numpy array."""
-    image_np: NDArray[np.uint8]
+    image_np: NDArrayImage
     if image_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             image_np = _open_image_numpy__with_torch(image_path=image_path, mode=mode)

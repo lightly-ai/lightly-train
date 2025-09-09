@@ -217,6 +217,7 @@ def dinov3_vits16(
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
     check_hash: bool = False,
+    in_chans: int = 3,
     **kwargs,
 ):
     if "hash" not in kwargs:
@@ -225,7 +226,7 @@ def dinov3_vits16(
     return _make_dinov3_vit(
         img_size=224,
         patch_size=16,
-        in_chans=3,
+        in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
         pos_embed_rope_rescale_coords=2,
@@ -256,6 +257,7 @@ def dinov3_vits16plus(
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
     check_hash: bool = False,
+    in_chans: int = 3,
     **kwargs,
 ):
     if "hash" not in kwargs:
@@ -264,7 +266,7 @@ def dinov3_vits16plus(
     return _make_dinov3_vit(
         img_size=224,
         patch_size=16,
-        in_chans=3,
+        in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
         pos_embed_rope_rescale_coords=2,
@@ -295,6 +297,7 @@ def dinov3_vitb16(
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
     check_hash: bool = False,
+    in_chans: int = 3,
     **kwargs,
 ):
     if "hash" not in kwargs:
@@ -303,7 +306,7 @@ def dinov3_vitb16(
     return _make_dinov3_vit(
         img_size=224,
         patch_size=16,
-        in_chans=3,
+        in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
         pos_embed_rope_rescale_coords=2,
@@ -334,6 +337,7 @@ def dinov3_vitl16(
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
     check_hash: bool = False,
+    in_chans: int = 3,
     **kwargs,
 ):
     untie_global_and_local_cls_norm = False
@@ -360,7 +364,7 @@ def dinov3_vitl16(
     return _make_dinov3_vit(
         img_size=224,
         patch_size=16,
-        in_chans=3,
+        in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
         pos_embed_rope_rescale_coords=2,
@@ -392,6 +396,7 @@ def dinov3_vitl16plus(
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
     check_hash: bool = False,
+    in_chans: int = 3,
     **kwargs,
 ):
     if "hash" not in kwargs:
@@ -400,7 +405,7 @@ def dinov3_vitl16plus(
     return _make_dinov3_vit(
         img_size=224,
         patch_size=16,
-        in_chans=3,
+        in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
         pos_embed_rope_rescale_coords=2,
@@ -431,6 +436,7 @@ def dinov3_vith16plus(
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
     check_hash: bool = False,
+    in_chans: int = 3,
     **kwargs,
 ):
     if "hash" not in kwargs:
@@ -439,7 +445,7 @@ def dinov3_vith16plus(
     return _make_dinov3_vit(
         img_size=224,
         patch_size=16,
-        in_chans=3,
+        in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
         pos_embed_rope_rescale_coords=2,
@@ -470,6 +476,7 @@ def dinov3_vit7b16(
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
     check_hash: bool = False,
+    in_chans: int = 3,
     **kwargs,
 ):
     if weights == Weights.LVD1689M:
@@ -483,7 +490,7 @@ def dinov3_vit7b16(
     return _make_dinov3_vit(
         img_size=224,
         patch_size=16,
-        in_chans=3,
+        in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
         pos_embed_rope_rescale_coords=2,
@@ -514,6 +521,7 @@ def dinov3_convnext_tiny(
     *,
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
+    in_chans: int = 3,
     **kwargs,
 ):
     _hash_convnext = "21b726bb"
@@ -525,7 +533,7 @@ def dinov3_convnext_tiny(
     size_dict = convnext_sizes["tiny"]
 
     model = _make_dinov3_convnext(
-        in_chans=3,
+        in_chans=in_chans,
         depths=size_dict["depths"],
         dims=size_dict["dims"],
         compact_arch_name="convnext_tiny",
@@ -544,6 +552,7 @@ def dinov3_convnext_small(
     *,
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
+    in_chans: int = 3,
     **kwargs,
 ):
     _hash_convnext = "296db49d"
@@ -555,7 +564,7 @@ def dinov3_convnext_small(
     size_dict = convnext_sizes["small"]
 
     model = _make_dinov3_convnext(
-        in_chans=3,
+        in_chans=in_chans,
         depths=size_dict["depths"],
         dims=size_dict["dims"],
         compact_arch_name="convnext_small",
@@ -574,6 +583,7 @@ def dinov3_convnext_base(
     *,
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
+    in_chans: int = 3,
     **kwargs,
 ):
     _hash_convnext = "801f2ba9"
@@ -585,7 +595,7 @@ def dinov3_convnext_base(
     size_dict = convnext_sizes["base"]
 
     model = _make_dinov3_convnext(
-        in_chans=3,
+        in_chans=in_chans,
         depths=size_dict["depths"],
         dims=size_dict["dims"],
         compact_arch_name="convnext_base",
@@ -604,6 +614,7 @@ def dinov3_convnext_large(
     *,
     pretrained: bool = True,
     weights: Union[Weights, str] = Weights.LVD1689M,
+    in_chans: int = 3,
     **kwargs,
 ):
     _hash_convnext = "61fa432d"
@@ -615,7 +626,7 @@ def dinov3_convnext_large(
     size_dict = convnext_sizes["large"]
 
     model = _make_dinov3_convnext(
-        in_chans=3,
+        in_chans=in_chans,
         depths=size_dict["depths"],
         dims=size_dict["dims"],
         compact_arch_name="convnext_large",

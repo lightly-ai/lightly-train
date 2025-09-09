@@ -101,7 +101,9 @@ def embed_from_config(config: EmbedConfig) -> None:
     _warnings.filter_embed_warnings()
     _logging.set_up_console_logging()
     _logging.set_up_filters()
-    logger.info(common_helpers.pretty_format_args(args=config.model_dump()))
+    logger.info(
+        common_helpers.pretty_format_args(args=config.model_dump(), limit_keys={"data"})
+    )
 
     logger.info(
         f"Embedding images in '{common_helpers.remove_excessive_args({'data': config.data})}'."
@@ -136,6 +138,7 @@ def embed_from_config(config: EmbedConfig) -> None:
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform,
+            num_channels=len(checkpoint_instance.lightly_train.normalize_args.mean),
             mmap_filepath=mmap_filepath,
             out_dir=out_path,
         )

@@ -70,7 +70,10 @@ class SuperGradientsPackage(Package):
 
     @classmethod
     def get_model(
-        cls, model_name: str, model_args: dict[str, Any] | None = None
+        cls,
+        model_name: str,
+        num_input_channels: int = 3,
+        model_args: dict[str, Any] | None = None,
     ) -> Module:
         try:
             from super_gradients.training import models
@@ -78,6 +81,11 @@ class SuperGradientsPackage(Package):
             raise ValueError(
                 f"Cannot create model '{model_name}' because '{cls.name}' is not "
                 "installed."
+            )
+        if num_input_channels != 3:
+            raise ValueError(
+                f"SuperGradients models only support 3 input channels, but got "
+                f"{num_input_channels}."
             )
         args = dict(num_classes=10)
         if model_args is not None:

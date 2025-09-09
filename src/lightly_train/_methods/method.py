@@ -54,6 +54,7 @@ class Method(LightningModule):
         optimizer_args: OptimizerArgs,
         embedding_model: EmbeddingModel,
         global_batch_size: int,
+        num_input_channels: int,
     ):
         super().__init__()
         self.global_batch_size = global_batch_size

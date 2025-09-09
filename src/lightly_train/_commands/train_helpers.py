@@ -50,19 +50,23 @@ def get_transform_args(
 ) -> MethodTransformArgs:
     logger.debug(f"Getting transform args for method '{method}'.")
     logger.debug(f"Using additional transform arguments {transform_args}.")
-    if isinstance(transform_args, MethodTransformArgs):
-        return transform_args
+    if not isinstance(transform_args, MethodTransformArgs):
+        method_cls = method_helpers.get_method_cls(method)
+        transform_cls = method_cls.transform_cls()
+        transform_args_cls = transform_cls.transform_args_cls()
 
-    method_cls = method_helpers.get_method_cls(method)
-    transform_cls = method_cls.transform_cls()
-    transform_args_cls = transform_cls.transform_args_cls()
+        if transform_args is None:
+            # We need to typeignore here because a MethodTransformArgs might not have
+            # defaults for all fields, while its children do.
+            transform_args = transform_args_cls()  # type: ignore[call-arg]
+        else:
+            transform_args = validate.pydantic_model_validate(
+                transform_args_cls, transform_args
+            )
 
-    if transform_args is None:
-        # We need to typeignore here because a MethodTransformArgs might not have
-        # defaults for all fields, while its children do.
-        return transform_args_cls()  # type: ignore[call-arg]
-
-    return validate.pydantic_model_validate(transform_args_cls, transform_args)
+    transform_args.resolve_auto()
+    transform_args.resolve_incompatible()
+    return transform_args
 
 
 def get_transform(
@@ -326,6 +330,7 @@ def get_method(
     optimizer_args: OptimizerArgs,
     embedding_model: EmbeddingModel,
     global_batch_size: int,
+    num_input_channels: int,
 ) -> Method:
     logger.debug(f"Getting method for '{method_cls.__name__}'")
     return method_cls(
@@ -333,6 +338,7 @@ def get_method(
         optimizer_args=optimizer_args,
         embedding_model=embedding_model,
         global_batch_size=global_batch_size,
+        num_input_channels=num_input_channels,
     )
 
 

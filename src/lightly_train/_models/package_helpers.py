@@ -70,7 +70,9 @@ def list_model_names() -> list[str]:
 
 
 def get_wrapped_model(
-    model: str | Module | ModelWrapper, model_args: dict[str, Any] | None = None
+    model: str | Module | ModelWrapper,
+    num_input_channels: int,
+    model_args: dict[str, Any] | None = None,
 ) -> ModelWrapper:
     """Returns a wrapped model instance given a model name or instance."""
     if isinstance(model, ModelWrapper):
@@ -80,7 +82,9 @@ def get_wrapped_model(
     if isinstance(model, str):
         package_name, model_name = parse_model_name(model)
         package = get_package(package_name)
-        model = package.get_model(model_name, model_args=model_args)
+        model = package.get_model(
+            model_name, num_input_channels=num_input_channels, model_args=model_args
+        )
     else:
         package = get_package_from_model(
             model, include_custom=False, fallback_custom=False

@@ -135,6 +135,7 @@ class TestDistillationV2:
             optimizer_args=DistillationV2LARSArgs(),
             embedding_model=mock_student_model,
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
         mock_get_teacher.assert_called_once()
 
@@ -184,6 +185,7 @@ class TestDistillationV2:
             optimizer_args=DistillationV2LARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
 
     def test_load_state_dict_ignores_missing_teacher_keys(
@@ -218,6 +220,7 @@ class TestDistillationV2:
             optimizer_args=DistillationV2LARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
         mock_get_teacher.assert_called_once()
 
@@ -267,6 +270,7 @@ class TestDistillationV2:
             optimizer_args=DistillationV2LARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
         mock_get_teacher.assert_called_once()
 
@@ -317,6 +321,7 @@ class TestDistillationV2:
             optimizer_args=DistillationV2LARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
+            num_input_channels=3,
         )
         mock_get_teacher.assert_called_once()
 
@@ -391,6 +396,7 @@ class TestDistillationV2:
             optimizer_args=DistillationV2LARSArgs(lr=base_lr),
             embedding_model=student_model,
             global_batch_size=global_batch_size,
+            num_input_channels=3,
         )
 
         # Mock trainer attributes needed by configure_optimizers.

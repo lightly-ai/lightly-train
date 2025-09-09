@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import ClassVar, Dict, Iterable, Union
+from typing import Any, ClassVar, Dict, Iterable, Union
 
+import numpy as np
 import torch
-from pydantic import Field, TypeAdapter, field_validator
+from pydantic import AliasChoices, Field, TypeAdapter, field_validator
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -21,17 +22,37 @@ from lightly_train._data import file_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._env import Env
-from lightly_train._transforms.task_transform import TaskTransform
+from lightly_train._transforms.semantic_segmentation_transform import (
+    SemanticSegmentationTransform,
+    SemanticSegmentationTransformArgs,
+)
 from lightly_train.types import (
     BinaryMasksDict,
     MaskSemanticSegmentationDatasetItem,
+    NDArrayImage,
     PathLike,
 )
 
 
-class ClassInfo(PydanticConfig):
+class SingleChannelClassInfo(PydanticConfig):
     name: str
-    values: set[int] = Field(strict=False)
+    labels: set[int] = Field(
+        validation_alias=AliasChoices("labels", "values"),
+        serialization_alias="labels",
+        strict=False,
+    )
+
+
+class MultiChannelClassInfo(PydanticConfig):
+    name: str
+    labels: set[tuple[int, ...]] = Field(
+        validation_alias=AliasChoices("labels", "values"),
+        serialization_alias="labels",
+        strict=False,
+    )
+
+
+ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
 
 
 class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
@@ -39,7 +60,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self,
         dataset_args: MaskSemanticSegmentationDatasetArgs,
         image_info: Sequence[dict[str, str]],
-        transform: TaskTransform,
+        transform: SemanticSegmentationTransform,
     ):
         self.args = dataset_args
         self.filepaths = image_info
@@ -50,20 +71,27 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         self.class_mapping = self.get_class_mapping()
         self.valid_classes = torch.tensor(list(self.class_mapping.keys()))
 
-        image_mode = Env.LIGHTLY_TRAIN_IMAGE_MODE.value
-        if image_mode not in ("RGB", "UNCHANGED"):
-            raise ValueError(
-                f'Invalid image mode: {Env.LIGHTLY_TRAIN_IMAGE_MODE.name}="{image_mode}". '
-                "Supported modes are 'RGB' and 'UNCHANGED'."
+        transform_args = transform.transform_args
+        assert isinstance(transform_args, SemanticSegmentationTransformArgs)
+
+        image_mode = (
+            None
+            if Env.LIGHTLY_TRAIN_IMAGE_MODE.value is None
+            else ImageMode(Env.LIGHTLY_TRAIN_IMAGE_MODE.value)
+        )
+        if image_mode is None:
+            image_mode = (
+                ImageMode.RGB
+                if transform_args.num_channels == 3
+                else ImageMode.UNCHANGED
             )
-        # Convert string to enum value
-        if image_mode == "RGB":
-            self.image_mode = ImageMode.RGB
-        elif image_mode == "UNCHANGED":
-            self.image_mode = ImageMode.UNCHANGED
-        else:
-            # This should not happen due to the check above, but added for type safety
-            raise ValueError(f"Unexpected image mode: {image_mode}")
+
+        if image_mode not in (ImageMode.RGB, ImageMode.UNCHANGED):
+            raise ValueError(
+                f"Invalid image mode: '{image_mode}'. "
+                f"Supported modes are '{[ImageMode.RGB.value, ImageMode.UNCHANGED.value]}'."
+            )
+        self.image_mode = image_mode
 
     def is_mask_valid(self, mask: Tensor) -> bool:
         # Check if at least one value in the mask is in the valid classes.
@@ -114,9 +142,16 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         }
         return binary_masks
 
-    def remap_mask(self, mask: torch.Tensor) -> torch.Tensor:
-        # Create a lookup table initialized with ignore_index
-        max_class = int(mask.max().item())
+    def map_class_id_to_internal_class_id(self, mask: torch.Tensor) -> torch.Tensor:
+        # Map only non-ignored pixels through the LUT and keep ignored pixels untouched.
+        # NOTE: this relies on the fact that all `old_class`es are non-negative.
+        ignore = mask == self.ignore_index
+        valid = ~ignore
+
+        if ignore.all():
+            return mask  # entire mask is ignore; nothing to remap
+
+        max_class = int(mask[valid].max().item())
         lut = mask.new_full((max_class + 1,), self.ignore_index, dtype=torch.long)
 
         # Fill in valid mappings
@@ -124,8 +159,38 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
             if old_class <= max_class:
                 lut[old_class] = new_class
 
-        # Use LUT to remap efficiently
-        return lut[mask.to(torch.long)]
+        mask = mask.to(torch.long)
+        mask[valid] = lut[mask[valid]]
+
+        return mask
+
+    def map_mask_labels_to_class_ids(
+        self,
+        mask_with_labels: NDArrayImage,
+    ) -> NDArrayImage:
+        class_infos = self.args.classes
+        # Always compare against a 3D mask: expand (H, W) -> (H, W, 1)
+        mask_with_labels = (
+            mask_with_labels
+            if mask_with_labels.ndim == 3
+            else mask_with_labels[:, :, np.newaxis]
+        )
+        # Initialize output single-channel mask with ignore_index
+        mask_with_class_ids = np.full(
+            mask_with_labels.shape[:2], self.ignore_index, dtype=np.int_
+        )
+
+        # Map labels (ints or tuples) to class ids
+        for class_id, class_info in class_infos.items():
+            for label in class_info.labels:
+                # Normalize integer labels to 1-tuple for broadcasting with (H, W, 1)
+                label_tuple = (label,) if isinstance(label, np.int_) else label
+                # Find pixels that match this value across channels
+                label_mask = np.all(mask_with_labels == label_tuple, axis=2)
+                # Assign class_id to matching pixels
+                mask_with_class_ids[label_mask] = class_id
+
+        return mask_with_class_ids
 
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
         row = self.filepaths[index]
@@ -142,9 +207,37 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
         )
 
         # Verify that the mask and the image have the same shape.
-        assert image.shape[:2] == mask.shape, (
-            f"Shape mismatch: image shape is {image.shape[:2]} while mask shape is {mask.shape}."
-        )
+        if image.shape[:2] != mask.shape[:2]:
+            raise ValueError(
+                f"Shape mismatch: image (height, width) is {image.shape[:2]} while mask (height, width) is {mask.shape[:2]}."
+            )
+
+        # Local alias to enable type narrowing with TypeGuard
+        classes = self.args.classes
+
+        # Check that if the mask is multi-channel, then the class info must be MultiChannelClassInfo
+        if len(mask.shape) == 3:
+            if not all(
+                isinstance(class_info, MultiChannelClassInfo)
+                for class_info in classes.values()
+            ):
+                raise ValueError(
+                    "Expected tuple labels specified in `classes` for multi-channel masks but got single-channel integer labels. "
+                    "For multi-channel masks, you have to specify the tuple label value of the pixels that correspond to each class id.\n\n"
+                    "The tuple labels must be provided as a list of tuples to `labels`:\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'labels': [(0, 0, 0)]},\n"
+                    "  1: {'name': 'road', 'labels': [(0, 128, 128)]}\n"
+                    "}\n\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'labels': [(0, 0, 0), (255, 255, 255)]},\n"
+                    "  1: {'name': 'road', 'labels': [(0, 128, 128), (64, 64, 64)]}\n"
+                    "}\n\n"
+                    "Note: the key `values` is still accepted as an alias for `labels` for backward compatibility."
+                )
+
+        # Map mask labels (single- or multi-channel) to single channel class ids
+        mask = self.map_mask_labels_to_class_ids(mask)
 
         # Try to find an augmentation that contains a valid mask. This increases the
         # probability for a good training signal. If no valid mask is found we still
@@ -161,8 +254,7 @@ class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetIte
 
         # Mark pixels to ignore in the masks.
         # TODO(Thomas, 07/25): Make this optional.
-        transformed_mask = transformed["mask"]
-        transformed_mask = self.remap_mask(transformed_mask)
+        transformed_mask = self.map_class_id_to_internal_class_id(transformed["mask"])
 
         return {
             "image_path": str(image_path),  # Str for torch dataloader compatibility.
@@ -222,43 +314,83 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     @field_validator("classes", mode="before")
     @classmethod
     def validate_classes(
-        cls, classes: dict[int, str | dict[str, str | Sequence[int]]]
+        cls, classes: dict[int, str | dict[str, Any]]
     ) -> dict[int, ClassInfo]:
-        # Let Pydantic validate the structure and types
         classes_validated = TypeAdapter(
-            Dict[int, Union[str, ClassInfo]]
+            Dict[int, Union[str, SingleChannelClassInfo, MultiChannelClassInfo]]
         ).validate_python(classes)
 
-        # Convert to ClassInfo objects
+        # Convert to ClassInfo objects and perform consistency checks.
         class_infos: dict[int, ClassInfo] = {}
+        class_types: set[type] = set()
+        class_labels: set[int | tuple[int, ...]] = set()
+
         for class_id, class_info in classes_validated.items():
             if isinstance(class_info, str):
-                class_infos[class_id] = ClassInfo(name=class_info, values={class_id})
-            else:
-                class_infos[class_id] = class_info
+                class_info = SingleChannelClassInfo(name=class_info, labels={class_id})
 
-        # Check the class mappings for validity.
-        class_values: set[int] = set()
+            # Check for inconsistent class types early
+            class_types.add(type(class_info))
+            if len(class_types) > 1:
+                raise ValueError(
+                    "Invalid class mapping: mixed class types detected. "
+                    "All labels must be consistently either integers for single-channel masks or tuples for multi-channel masks. Mixed types are not allowed.\n\n"
+                    "INCORRECT (mixed integers and tuples):\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'labels': [0, 1, 2]},\n"
+                    "  1: {'name': 'road', 'labels': [(0, 0, 0), (128, 128, 128)]}  # <- mixed types\n"
+                    "}\n\n"
+                    "CORRECT (use only integers):\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'labels': [0, 1, 2]},\n"
+                    "  1: {'name': 'road', 'labels': [3, 4, 5]}\n"
+                    "}\n\n"
+                    "CORRECT (use only tuples):\n"
+                    "classes = {\n"
+                    "  0: {'name': 'background', 'labels': [(0, 0, 0), (255, 255, 255)]},\n"
+                    "  1: {'name': 'road', 'labels': [(128, 128, 128), (64, 64, 64)]}\n"
+                    "}\n\n"
+                    "Note: the key `values` is still accepted as an alias for `labels` for backward compatibility."
+                )
 
-        for class_id, class_info in class_infos.items():
-            for value in class_info.values:
-                # Check for multiple values across different class mappings
-                if value in class_values:
-                    raise ValueError(
-                        f"Invalid class mapping: Class {value} appears in multiple class definitions. "
-                        f"Each old class value can only mapped to one new class.\n\n"
-                        f"INCORRECT (class {value} is duplicated):\n"
-                        f"classes = {{\n"
-                        f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                        f"  254: {{'name': 'background-254', 'values': [0, 1, 2]}}  # <- class [0, 1, 2] conflict with class 255\n"
-                        f"}}\n\n"
-                        f"CORRECT (each set of class values belongs to only one class):\n"
-                        f"classes = {{\n"
-                        f"  255: {{'name': 'background-255', 'values': [0, 1, 2]}},\n"
-                        f"  254: {{'name': 'background-254', 'values': [3, 4, 5]}}  # <- unique values\n"
-                        f"}}"
-                    )
-                class_values.add(value)
+            for label in class_info.labels:
+                # Check for multiple labels across different class mappings
+                if label in class_labels:
+                    if isinstance(class_info, SingleChannelClassInfo):
+                        raise ValueError(
+                            f"Invalid class mapping: integer label {label} appears in multiple class definitions. "
+                            "Each integer label in the single-channel masks can only be mapped to one class id.\n\n"
+                            f"INCORRECT (integer label {label} is duplicated):\n"
+                            "classes = {{\n"
+                            "  0: {{'name': 'background', 'labels': [0, 1, 2]}},\n"
+                            "  1: {{'name': 'road', 'labels': [0, 3, 4]}}  # <- integer label 0 conflict with class id 0\n"
+                            "}}\n\n"
+                            "CORRECT (each integer label belongs to only one class id):\n"
+                            "classes = {{\n"
+                            "  0: {{'name': 'background', 'labels': [0, 1, 2]}},\n"
+                            "  1: {{'name': 'road', 'labels': [3, 4, 5]}}  # <- unique integer labels\n"
+                            "}}\n\n"
+                            "Note: you can also use the key `values` as an alias for `labels`."
+                        )
+                    else:
+                        raise ValueError(
+                            f"Invalid class mapping: tuple label {label} appears in multiple class definitions. "
+                            "Each tuple label in the multi-channel masks can only be mapped to one class id.\n\n"
+                            f"INCORRECT (tuple label {label} is duplicated):\n"
+                            "classes = {{\n"
+                            "  0: {{'name': 'background', 'labels': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            "  1: {{'name': 'road', 'labels': [(0, 0, 0), (128, 128, 128)]}}  # <- tuple label (0, 0, 0) conflict with class id 0\n"
+                            "}}\n\n"
+                            "CORRECT (each tuple label belongs to only one class id):\n"
+                            "classes = {{\n"
+                            "  0: {{'name': 'background', 'labels': [(0, 0, 0), (255, 255, 255)]}},\n"
+                            "  1: {{'name': 'road', 'labels': [(128, 128, 128), (64, 64, 64)]}}  # <- unique tuple labels\n"
+                            "}}\n\n"
+                            "Note: the key `values` is still accepted as an alias for `labels`."
+                        )
+                class_labels.add(label)
+
+            class_infos[class_id] = class_info
 
         return class_infos
 

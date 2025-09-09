@@ -14,6 +14,7 @@ from typing import Any, Literal
 
 import pytest
 import torch
+from lightning_utilities.core.imports import RequirementCache
 from omegaconf import OmegaConf
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
@@ -483,3 +484,34 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
             # Skip the last layer as it is not pretrained.
             continue
         assert torch.equal(second_state_dict[key], exported_state_dict[key])
+
+
+@pytest.mark.parametrize(
+    "model, method, method_args",
+    [
+        ("dinov2/_vittest14", "dinov2", {}),
+        ("timm/resnet18", "distillation", {"teacher": "dinov2/_vittest14"}),
+    ],
+)
+def test_train__multichannel(
+    tmp_path: Path, model: str, method: str, method_args: dict[str, Any]
+) -> None:
+    if model.startswith("timm") and not RequirementCache("timm"):
+        pytest.skip("timm is not installed")
+
+    out = tmp_path / "out"
+    data = tmp_path / "data"
+    helpers.create_images(image_dir=data, files=10, num_channels=4, mode="RGBA")
+
+    train.train(
+        out=out,
+        data=data,
+        model=model,
+        method=method,
+        method_args=method_args,
+        batch_size=4,
+        num_workers=0,
+        epochs=1,
+        devices=1,
+        embed_dim=64,
+    )
