@@ -38,10 +38,10 @@ class ImageMode(Enum):
     MASK = "MASK"
 
 
-def list_image_filenames_from_iterable(
+def list_image_filepaths_from_iterable(
     imgs_and_dirs: Iterable[PathLike],
 ) -> Iterable[ImageFilename]:
-    """List image files recursively from the given list of image files and directories.
+    """List image filepaths recursively from the given list of image files and directories.
 
     Assumes that all given paths exist.
 
@@ -50,7 +50,7 @@ def list_image_filenames_from_iterable(
             directories that should be scanned for images.
 
     Returns:
-        An iterable of image filenames starting from the given paths. The given paths
+        An iterable of image filepaths starting from the given paths. The given paths
         are always included in the output filenames.
     """
     supported_extensions = _pil_supported_image_extensions()
