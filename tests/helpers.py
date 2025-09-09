@@ -51,6 +51,53 @@ from lightly_train._scaling import ScalingInfo
 from lightly_train._transforms.transform import MethodTransform, NormalizeArgs
 from lightly_train.types import TransformInput, TransformOutput
 
+SUPPORTED_IMAGE_EXTENSIONS = [
+    ".bmp",
+    ".BMP",
+    ".dib",
+    ".pcx",
+    ".dds",
+    ".ps",
+    ".eps",
+    ".gif",
+    ".GIF",
+    ".png",
+    ".PNG",
+    ".apng",
+    ".jp2",
+    ".j2k",
+    ".jpc",
+    ".jpf",
+    ".jpx",
+    ".j2c",
+    ".icns",
+    ".ico",
+    ".im",
+    ".jfif",
+    ".jpe",
+    ".jpg",
+    ".JPG",
+    ".jpeg",
+    ".JPEG",
+    ".tif",
+    ".TIF",
+    ".tiff",
+    ".TIFF",
+    ".pbm",
+    ".pgm",
+    ".ppm",
+    ".pnm",
+    ".bw",
+    ".rgb",
+    ".rgba",
+    ".sgi",
+    ".tga",
+    ".icb",
+    ".vda",
+    ".vst",
+    ".webp",
+]
+
 
 class DummyMethod(Method):
     def __init__(
@@ -231,6 +278,45 @@ def create_masks(
             height=height,
             width=width,
             num_classes=num_classes,
+        )
+
+
+def create_multi_channel_mask(
+    path: Path,
+    height: int = 128,
+    width: int = 128,
+    values: Iterable[tuple[int, ...]] | None = None,
+    dtype: DTypeLike = np.uint8,
+) -> None:
+    if values is not None:
+        palette = np.array(list(values), dtype=np.uint8)
+        idx = np.random.randint(0, len(palette), size=(height, width))
+        mask_np = palette[idx]
+    else:
+        mask_np = np.random.randint(0, 256, size=(height, width, 3), dtype=np.uint8)
+    img = Image.fromarray(mask_np.astype(dtype), mode="RGB")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(path)
+
+
+def create_multi_channel_masks(
+    mask_dir: Path,
+    files: int | Iterable[str] = 10,
+    height: int = 128,
+    width: int = 128,
+    values: Iterable[tuple[int, ...]] | None = None,
+    dtype: DTypeLike = np.uint8,
+) -> None:
+    mask_dir.mkdir(parents=True, exist_ok=True)
+    if isinstance(files, int):
+        files = [f"{i}.png" for i in range(files)]
+    for filename in files:
+        create_multi_channel_mask(
+            path=mask_dir / filename,
+            height=height,
+            width=width,
+            values=values,
+            dtype=dtype,
         )
 
 

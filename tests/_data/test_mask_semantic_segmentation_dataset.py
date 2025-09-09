@@ -10,15 +10,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 import torch
 from torch import Tensor
 
 from lightly_train._data.mask_semantic_segmentation_dataset import (
-    ClassInfo,
     MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
+    MultiChannelClassInfo,
+    SingleChannelClassInfo,
     SplitArgs,
 )
 from lightly_train._transforms.semantic_segmentation_transform import (
@@ -58,8 +60,8 @@ class TestMaskSemanticSegmentationDataArgs:
             # Test with all dict input (overlapping values)
             (
                 {
-                    0: {"name": "background", "values": [0, 5]},
-                    1: {"name": "vehicle", "values": [1, 2, 3]},
+                    0: {"name": "background", "labels": [0, 5]},
+                    1: {"name": "vehicle", "labels": [1, 2, 3]},
                 },
                 {
                     0: ("background", [0, 5]),
@@ -69,8 +71,8 @@ class TestMaskSemanticSegmentationDataArgs:
             # Test with all dict input (non-overlapping values)
             (
                 {
-                    0: {"name": "background", "values": [4]},
-                    5: {"name": "vehicle", "values": [1, 2, 3]},
+                    0: {"name": "background", "labels": [4]},
+                    5: {"name": "vehicle", "labels": [1, 2, 3]},
                 },
                 {
                     0: ("background", [4]),
@@ -92,7 +94,7 @@ class TestMaskSemanticSegmentationDataArgs:
             (
                 {
                     0: "background",
-                    1: {"name": "vehicle", "values": [1, 2, 3]},
+                    1: {"name": "vehicle", "labels": [1, 2, 3]},
                 },
                 {
                     0: ("background", [0]),
@@ -101,9 +103,9 @@ class TestMaskSemanticSegmentationDataArgs:
             ),
         ],
     )
-    def test_validate_classes(
+    def test_validate_class_labels(
         self,
-        classes_input: dict[int, str | dict[str, str | list[int]]],
+        classes_input: dict[int, Any],
         expected_checks: dict[int, tuple[str, list[int]]],
         tmp_path: Path,
     ) -> None:
@@ -113,7 +115,7 @@ class TestMaskSemanticSegmentationDataArgs:
         dataset_args = MaskSemanticSegmentationDataArgs(
             train=SplitArgs(images=image_dir, masks=mask_dir),
             val=SplitArgs(images=image_dir, masks=mask_dir),
-            classes=classes_input,  # type: ignore[arg-type]
+            classes=classes_input,
         )
 
         # Check that all inputs were converted to ClassInfo objects
@@ -124,9 +126,66 @@ class TestMaskSemanticSegmentationDataArgs:
         # Check that names and values match expected
         for class_id, (expected_name, expected_values) in expected_checks.items():
             class_info = dataset_args.classes[class_id]
-            assert isinstance(class_info, ClassInfo)
+            assert isinstance(class_info, SingleChannelClassInfo)
             assert class_info.name == expected_name
-            assert class_info.values == set(expected_values)
+            assert class_info.labels == set(expected_values)
+
+    @pytest.mark.parametrize(
+        "classes_input, expected_checks",
+        [
+            # Test with single multi-channel values
+            (
+                {
+                    0: {"name": "unlabeled", "labels": [(0, 0, 0), (255, 255, 255)]},
+                    1: {"name": "road", "labels": [(128, 128, 128)]},
+                },
+                {
+                    0: ("unlabeled", [(0, 0, 0), (255, 255, 255)]),
+                    1: ("road", [(128, 128, 128)]),
+                },
+            ),
+            # Test with multiple multi-channel values
+            (
+                {
+                    0: {"name": "unlabeled", "labels": [(0, 0, 0), (255, 255, 255)]},
+                    1: {"name": "road", "labels": [(128, 128, 128), (128, 255, 255)]},
+                },
+                {
+                    0: ("unlabeled", [(0, 0, 0), (255, 255, 255)]),
+                    1: ("road", [(128, 128, 128), (128, 255, 255)]),
+                },
+            ),
+        ],
+    )
+    def test_validate_class_multi_channel_masks(
+        self,
+        classes_input: dict[int, Any],
+        expected_checks: dict[int, tuple[str, list[tuple[int, int, int]]]],
+        tmp_path: Path,
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes=classes_input,
+        )
+
+        # Check that all inputs were converted to ClassInfo objects
+        assert set(dataset_args.classes.keys()) == set(expected_checks.keys()), (
+            "Class IDs don't match"
+        )
+
+        # Check that names and labels match expected
+        for class_id, (
+            expected_name,
+            expected_channel_values,
+        ) in expected_checks.items():
+            class_info = dataset_args.classes[class_id]
+            assert isinstance(class_info, MultiChannelClassInfo)
+            assert class_info.name == expected_name
+            assert class_info.labels == set(expected_channel_values)
 
     @pytest.mark.parametrize(
         "invalid_classes",
@@ -134,10 +193,10 @@ class TestMaskSemanticSegmentationDataArgs:
             # Invalid ClassInfo structure
             {0: {"invalid": "structure"}},
             # Invalid values type in ClassInfo
-            {0: {"name": "background", "values": "0"}},
+            {0: {"name": "background", "labels": "0"}},
         ],
     )
-    def test_validate_classes__invalid_input(
+    def test_validate_class__invalid_inputs(
         self, invalid_classes: dict[int, Any], tmp_path: Path
     ) -> None:
         image_dir = tmp_path / "images"
@@ -151,68 +210,209 @@ class TestMaskSemanticSegmentationDataArgs:
                 classes=invalid_classes,
             )
 
-    def test_validate_classes__mapping_to_multiple_class_labels(
-        self, tmp_path: Path
+    @pytest.mark.parametrize(
+        "mixed_classes",
+        [
+            # Mixed multi-channel values and class name strings
+            {
+                0: {"name": "unlabeled", "labels": [(0, 0, 0), (255, 255, 255)]},
+                1: "road",
+            },
+            # Mixed multi-channel values and integer labels
+            {
+                0: {"name": "unlabeled", "labels": [(0, 0, 0), (255, 255, 255)]},
+                1: {"name": "road", "labels": [1, 2]},
+            },
+        ],
+    )
+    def test_validate_class__invalid_inputs_mixed_types(
+        self, mixed_classes: dict[int, Any], tmp_path: Path
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        # Test that mixed class types raise validation error
+        with pytest.raises(
+            ValueError,
+            match="Invalid class mapping: mixed class types detected.",
+        ):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images=image_dir, masks=mask_dir),
+                val=SplitArgs(images=image_dir, masks=mask_dir),
+                classes=mixed_classes,
+            )
+
+    @pytest.mark.parametrize(
+        "classes,expected_match",
+        [
+            (
+                {
+                    0: {"name": "background", "labels": [0, 1, 2]},
+                    5: {"name": "vehicle", "labels": [2, 3, 4]},
+                },
+                "Invalid class mapping: integer label 2 appears in multiple class definitions. ",
+            ),
+            (
+                {
+                    0: {"name": "background", "labels": [0, 1, 2]},
+                    1: "vehicle",
+                },
+                "Invalid class mapping: integer label 1 appears in multiple class definitions. ",
+            ),
+            (
+                {
+                    0: {"name": "background", "labels": [(0, 0, 0), (128, 128, 128)]},
+                    1: {"name": "vehicle", "labels": [(128, 128, 128), (255, 0, 0)]},
+                },
+                "Invalid class mapping: tuple label \\(128, 128, 128\\) appears in multiple class definitions. ",
+            ),
+        ],
+    )
+    def test_validate_class__mapping_to_multiple_classes(
+        self, tmp_path: Path, classes: dict[int, Any], expected_match: str
     ) -> None:
         """Test that overlapping values in different ClassInfo instances raise validation error."""
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
 
-        # Test that overlapping values in ClassInfo instances raise error
-        classes_with_all_mappings = {
-            0: {"name": "background", "values": [0, 1, 2]},
-            5: {
-                "name": "vehicle",
-                "values": [2, 3, 4],
-            },  # Value 2 is mapped to both background and vehicle
-        }
-
-        with pytest.raises(
-            ValueError,
-            match="Invalid class mapping: Class 2 appears in multiple class definitions. ",
-        ):
+        with pytest.raises(ValueError, match=expected_match):
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=classes_with_all_mappings,  # type: ignore[arg-type]
+                classes=classes,
             )
 
-        # Test that overlapping values in ClassInfo instances raise error
-        classes_with_partial_mappings = {
-            0: {"name": "background", "values": [0, 1, 2]},
-            1: "vehicle",  # Implicitly maps to {1}, Value 1 is mapped to both background and vehicle
-        }
-
-        with pytest.raises(
-            ValueError,
-            match="Invalid class mapping: Class 1 appears in multiple class definitions. ",
-        ):
-            MaskSemanticSegmentationDataArgs(
-                train=SplitArgs(images=image_dir, masks=mask_dir),
-                val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=classes_with_partial_mappings,  # type: ignore[arg-type]
-            )
-
-    def test_included_classes(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "classes,ignore_classes,expected_included",
+        [
+            (
+                {
+                    0: "background",
+                    1: {"name": "vehicle", "labels": [1, 2, 3]},
+                    4: "person",
+                },
+                {1, 4},
+                {0: "background"},
+            ),
+            (
+                {
+                    0: {"name": "background", "labels": [(0, 0, 0)]},
+                    1: {"name": "vehicle", "labels": [(128, 128, 128)]},
+                    4: {"name": "person", "labels": [(255, 255, 255)]},
+                },
+                {1, 4},
+                {0: "background"},
+            ),
+            (
+                {
+                    0: {"name": "background", "labels": [(0, 0, 0), (64, 64, 64)]},
+                    1: {"name": "road", "labels": [(128, 128, 128)]},
+                    2: {"name": "vehicle", "labels": [(255, 0, 0)]},
+                },
+                {2},
+                {0: "background", 1: "road"},
+            ),
+        ],
+    )
+    def test_included_classes(
+        self,
+        tmp_path: Path,
+        classes: dict[int, Any],
+        ignore_classes: set[int],
+        expected_included: dict[int, str],
+    ) -> None:
+        """Test that included_classes property works correctly for both labels and channel values."""
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
-
-        classes = {
-            0: "background",
-            1: {"name": "vehicle", "values": [1, 2, 3]},
-            4: "person",
-        }
-        ignore_classes = {1, 4}  # Ignore vehicle class key and person
-        expected_included = {0: "background"}
 
         dataset_args = MaskSemanticSegmentationDataArgs(
             train=SplitArgs(images=image_dir, masks=mask_dir),
             val=SplitArgs(images=image_dir, masks=mask_dir),
-            classes=classes,  # type: ignore[arg-type]
+            classes=classes,
             ignore_classes=ignore_classes,
         )
 
         assert dataset_args.included_classes == expected_included
+
+
+class TestMaskSemanticSegmentationDatasetArgs:
+    def test_mask_dir_or_file__filename_template_string(self, tmp_path: Path) -> None:
+        """Test that template string is used as-is when it contains format placeholders."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        image_filenames = ["image0.jpg", "image1.jpg"]
+        mask_filenames = ["image0.png", "image1.png"]
+
+        helpers.create_images(image_dir, files=image_filenames)
+        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=1)
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
+            classes={0: SingleChannelClassInfo(name="background", labels={0})},
+            ignore_index=-100,
+        )
+
+        filepaths = list(dataset_args.list_image_info())
+
+        assert len(filepaths) == 2
+        expected_pairs = [
+            {
+                "image_filepaths": str(image_dir / "image0.jpg"),
+                "mask_filepaths": str(mask_dir / "image0.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image1.jpg"),
+                "mask_filepaths": str(mask_dir / "image1.png"),
+            },
+        ]
+        # Convert to tuples for comparison since dicts are not hashable
+        filepaths_tuples = [
+            (fp["image_filepaths"], fp["mask_filepaths"]) for fp in filepaths
+        ]
+        expected_tuples = [
+            (ep["image_filepaths"], ep["mask_filepaths"]) for ep in expected_pairs
+        ]
+        assert set(filepaths_tuples) == set(expected_tuples)
+
+    def test_mask_dir_or_file__directory_path(self, tmp_path: Path) -> None:
+        """Test that directory path gets converted to template string when no format placeholders exist."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        image_filenames = ["image0.jpg", "image1.jpg"]
+        mask_filenames = ["image0.png", "image1.png"]
+
+        helpers.create_images(image_dir, files=image_filenames)
+        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=1)
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir_or_file=str(mask_dir),
+            classes={0: SingleChannelClassInfo(name="background", labels={0})},
+            ignore_index=-100,
+        )
+
+        filepaths = list(dataset_args.list_image_info())
+
+        assert len(filepaths) == 2
+        expected_pairs = [
+            {
+                "image_filepaths": str(image_dir / "image0.jpg"),
+                "mask_filepaths": str(mask_dir / "image0.png"),
+            },
+            {
+                "image_filepaths": str(image_dir / "image1.jpg"),
+                "mask_filepaths": str(mask_dir / "image1.png"),
+            },
+        ]
+        # Convert to tuples for comparison since dicts are not hashable
+        filepaths_tuples = [
+            (fp["image_filepaths"], fp["mask_filepaths"]) for fp in filepaths
+        ]
+        expected_tuples = [
+            (ep["image_filepaths"], ep["mask_filepaths"]) for ep in expected_pairs
+        ]
+        assert set(filepaths_tuples) == set(expected_tuples)
 
 
 class TestMaskSemanticSegmentationDataset:
@@ -224,7 +424,7 @@ class TestMaskSemanticSegmentationDataset:
             (500, 3, torch.long, -100),
         ],
     )
-    def test__getitem__(
+    def test__getitem__integer_masks(
         self,
         num_classes: int,
         num_channels: int,
@@ -247,9 +447,10 @@ class TestMaskSemanticSegmentationDataset:
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
+            mask_dir_or_file=str(mask_dir),
             classes={
-                i: ClassInfo(name=f"class_{i}", values={i}) for i in range(num_classes)
+                i: SingleChannelClassInfo(name=f"class_{i}", labels={i})
+                for i in range(num_classes)
             },
             ignore_index=ignore_index,
         )
@@ -285,7 +486,149 @@ class TestMaskSemanticSegmentationDataset:
             str(image_dir / "image1.png"),
         ]
 
-    def test_get_class_mapping(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "num_classes, num_channels, expected_mask_dtype, ignore_index",
+        [
+            (5, 3, torch.long, -100),
+            (5, 4, torch.long, -100),
+            (500, 3, torch.long, -100),
+        ],
+    )
+    def test__getitem__multi_channel_masks(
+        self,
+        num_classes: int,
+        num_channels: int,
+        expected_mask_dtype: torch.dtype,
+        tmp_path: Path,
+        ignore_index: int,
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        image_filenames = ["image0.png", "image1.png"]
+        mask_filenames = ["image0.png", "image1.png"]
+
+        helpers.create_images(
+            image_dir,
+            files=image_filenames,
+            num_channels=num_channels,
+            mode="RGB" if num_channels == 3 else "RGBA",
+        )
+
+        channel_values_set: set[tuple[int, ...]] = set()
+        while len(channel_values_set) < num_classes:
+            channel_value = tuple(int(x) for x in np.random.randint(0, 256, size=3))
+            channel_values_set.add(channel_value)
+        channel_values = list(channel_values_set)
+        helpers.create_multi_channel_masks(
+            mask_dir,
+            files=mask_filenames,
+            values=channel_values,
+        )
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir_or_file=str(mask_dir),
+            classes={
+                i: MultiChannelClassInfo(name=f"class_{i}", labels={channel_values[i]})
+                for i in range(num_classes)
+            },
+            ignore_index=ignore_index,
+        )
+        transform = _dummy_transform(num_channels=num_channels)
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_info=list(dataset_args.list_image_info()),
+            transform=transform,
+        )
+
+        assert len(dataset) == 2
+        for item in dataset:  # type: ignore[attr-defined]
+            assert isinstance(item["image"], Tensor)
+            assert item["image"].shape == (num_channels, 32, 32)
+            assert item["image"].dtype == torch.float32
+            assert isinstance(item["mask"], Tensor)
+            assert item["mask"].shape == (32, 32)
+            assert item["mask"].dtype == expected_mask_dtype
+
+            # All valid (non-ignored) pixels should be between 0 and num_classes-1
+            mask = item["mask"]
+            valid_pixels = mask != ignore_index
+            if valid_pixels.any():
+                assert mask[valid_pixels].min() >= 0
+                assert mask[valid_pixels].max() < num_classes
+
+            # Ignored pixels should exactly match ignore_index
+            ignored_pixels = mask == ignore_index
+            assert (ignored_pixels.sum() + valid_pixels.sum()) == mask.numel()
+        assert sorted(item["image_path"] for item in dataset) == [  # type: ignore[attr-defined]
+            str(image_dir / "image0.png"),
+            str(image_dir / "image1.png"),
+        ]
+
+    def test__getitem__shape_mismatch_error(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        # Create image with one size
+        helpers.create_image(image_dir / "image0.jpg", height=64, width=64)
+
+        # Create mask with different size
+        helpers.create_mask(
+            mask_dir / "image0.png", height=128, width=128, num_classes=1
+        )
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir_or_file=str(mask_dir),
+            classes={0: SingleChannelClassInfo(name="class_0", labels={0})},
+            ignore_index=-100,
+        )
+        transform = _dummy_transform(num_channels=3)
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_info=list(dataset_args.list_image_info()),
+            transform=transform,
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Shape mismatch: image \\(height, width\\) is .* while mask \\(height, width\\) is .*",
+        ):
+            dataset[0]
+
+    def test__getitem__multi_channel_mask_with_label_classes_error(
+        self, tmp_path: Path
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        # Create a regular image
+        helpers.create_image(image_dir / "image0.jpg", height=64, width=64)
+
+        # Create a multi-channel mask (3 channels)
+        helpers.create_multi_channel_mask(mask_dir / "image0.png", height=64, width=64)
+
+        # Use SingleChannelClassInfo (instead of MultiChannelClassInfo)
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir_or_file=str(mask_dir),
+            classes={0: SingleChannelClassInfo(name="class_0", labels={0})},
+            ignore_index=-100,
+        )
+        transform = _dummy_transform(num_channels=3)
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_info=list(dataset_args.list_image_info()),
+            transform=transform,
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Expected tuple labels specified in `classes` for multi-channel masks",
+        ):
+            dataset[0]
+
+    def test_get_class_mapping__labels(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
@@ -294,15 +637,15 @@ class TestMaskSemanticSegmentationDataset:
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
 
-        classes = {
-            0: ClassInfo(name="background", values={0, 5}),
-            1: ClassInfo(name="vehicle", values={1, 2, 3}),
+        classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
+            0: SingleChannelClassInfo(name="background", labels={0, 5}),
+            1: SingleChannelClassInfo(name="vehicle", labels={1, 2, 3}),
         }
         expected_mapping = {0: 0, 1: 1}
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
+            mask_dir_or_file=str(mask_dir),
             classes=classes,
             ignore_index=-100,
         )
@@ -315,7 +658,7 @@ class TestMaskSemanticSegmentationDataset:
 
         assert dataset.class_mapping == expected_mapping
 
-    def test_get_class_mapping__ignore_classes(self, tmp_path: Path) -> None:
+    def test_get_class_mapping__ignore_classes__labels(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_filenames = ["image0.jpg"]
@@ -324,17 +667,17 @@ class TestMaskSemanticSegmentationDataset:
         helpers.create_images(image_dir, files=image_filenames)
         helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
 
-        classes = {
-            1: ClassInfo(name="vehicle", values={1, 2, 3}),
-            4: ClassInfo(name="ignore_me", values={4}),
-            5: ClassInfo(name="person", values={5}),
+        classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
+            1: SingleChannelClassInfo(name="vehicle", labels={1, 2, 3}),
+            4: SingleChannelClassInfo(name="ignore_me", labels={4}),
+            5: SingleChannelClassInfo(name="person", labels={5}),
         }
         ignore_classes = {4}
         expected_mapping = {1: 0, 5: 1}
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
-            mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
+            mask_dir_or_file=str(mask_dir),
             classes=classes,
             ignore_classes=ignore_classes,
             ignore_index=-100,
@@ -348,82 +691,72 @@ class TestMaskSemanticSegmentationDataset:
 
         assert dataset.class_mapping == expected_mapping
 
-
-class TestMaskSemanticSegmentationDatasetArgs:
-    def test_mask_dir_or_file__filename_template_string(self, tmp_path: Path) -> None:
-        """Test that template string is used as-is when it contains format placeholders."""
+    def test_get_class_mapping__multi_channel_masks(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
-        image_filenames = ["image0.jpg", "image1.jpg"]
-        mask_filenames = ["image0.png", "image1.png"]
+        image_filenames = ["image0.jpg"]
+        mask_filenames = ["image0.png"]
 
         helpers.create_images(image_dir, files=image_filenames)
-        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=2)
-
-        dataset_args = MaskSemanticSegmentationDatasetArgs(
-            image_dir=image_dir,
-            mask_dir_or_file="{image_path.parent.parent}/masks/{image_path.stem}.png",
-            classes={0: ClassInfo(name="background", values={0})},
-            ignore_index=-100,
+        helpers.create_multi_channel_masks(
+            mask_dir, files=mask_filenames, values=[(0, 0, 0), (128, 128, 128)]
         )
 
-        filepaths = list(dataset_args.list_image_info())
-
-        assert len(filepaths) == 2
-        expected_pairs = [
-            {
-                "image_filepaths": str(image_dir / "image0.jpg"),
-                "mask_filepaths": str(mask_dir / "image0.png"),
-            },
-            {
-                "image_filepaths": str(image_dir / "image1.jpg"),
-                "mask_filepaths": str(mask_dir / "image1.png"),
-            },
-        ]
-        # Convert to tuples for comparison since dicts are not hashable
-        filepaths_tuples = [
-            (fp["image_filepaths"], fp["mask_filepaths"]) for fp in filepaths
-        ]
-        expected_tuples = [
-            (ep["image_filepaths"], ep["mask_filepaths"]) for ep in expected_pairs
-        ]
-        assert set(filepaths_tuples) == set(expected_tuples)
-
-    def test_mask_dir_or_file__directory_path(self, tmp_path: Path) -> None:
-        """Test that directory path gets converted to template string when no format placeholders exist."""
-        image_dir = tmp_path / "images"
-        mask_dir = tmp_path / "masks"
-        image_filenames = ["image0.jpg", "image1.jpg"]
-        mask_filenames = ["image0.png", "image1.png"]
-
-        helpers.create_images(image_dir, files=image_filenames)
-        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=2)
+        classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
+            0: MultiChannelClassInfo(name="background", labels={(0, 0, 0)}),
+            1: MultiChannelClassInfo(name="road", labels={(128, 128, 128)}),
+        }
+        expected_mapping = {0: 0, 1: 1}
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
             mask_dir_or_file=str(mask_dir),
-            classes={0: ClassInfo(name="background", values={0})},
+            classes=classes,
             ignore_index=-100,
         )
+        transform = _dummy_transform(num_channels=3)
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_info=list(dataset_args.list_image_info()),
+            transform=transform,
+        )
 
-        filepaths = list(dataset_args.list_image_info())
+        assert dataset.class_mapping == expected_mapping
 
-        assert len(filepaths) == 2
-        expected_pairs = [
-            {
-                "image_filepaths": str(image_dir / "image0.jpg"),
-                "mask_filepaths": str(mask_dir / "image0.png"),
-            },
-            {
-                "image_filepaths": str(image_dir / "image1.jpg"),
-                "mask_filepaths": str(mask_dir / "image1.png"),
-            },
-        ]
-        # Convert to tuples for comparison since dicts are not hashable
-        filepaths_tuples = [
-            (fp["image_filepaths"], fp["mask_filepaths"]) for fp in filepaths
-        ]
-        expected_tuples = [
-            (ep["image_filepaths"], ep["mask_filepaths"]) for ep in expected_pairs
-        ]
-        assert set(filepaths_tuples) == set(expected_tuples)
+    def test_get_class_mapping__ignore_classes__multi_channel_masks(
+        self, tmp_path: Path
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        image_filenames = ["image0.jpg"]
+        mask_filenames = ["image0.png"]
+
+        helpers.create_images(image_dir, files=image_filenames)
+        palette = [(0, 0, 0), (128, 128, 128), (255, 0, 0)]
+        helpers.create_multi_channel_masks(
+            mask_dir, files=mask_filenames, values=palette
+        )
+
+        classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
+            1: MultiChannelClassInfo(name="road", labels={(128, 128, 128)}),
+            4: MultiChannelClassInfo(name="ignore_me", labels={(255, 0, 0)}),
+            5: MultiChannelClassInfo(name="person", labels={(0, 0, 0)}),
+        }
+        ignore_classes = {4}
+        expected_mapping = {1: 0, 5: 1}
+
+        dataset_args = MaskSemanticSegmentationDatasetArgs(
+            image_dir=image_dir,
+            mask_dir_or_file=str(mask_dir),
+            classes=classes,
+            ignore_classes=ignore_classes,
+            ignore_index=-100,
+        )
+        transform = _dummy_transform(num_channels=3)
+        dataset = MaskSemanticSegmentationDataset(
+            dataset_args=dataset_args,
+            image_info=list(dataset_args.list_image_info()),
+            transform=transform,
+        )
+
+        assert dataset.class_mapping == expected_mapping

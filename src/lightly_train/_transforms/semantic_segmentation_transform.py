@@ -24,7 +24,6 @@ from albumentations import (
     SmallestMaxSize,
 )
 from albumentations.pytorch import ToTensorV2
-from numpy.typing import NDArray
 from torch import Tensor
 from typing_extensions import NotRequired
 
@@ -45,13 +44,14 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
+from lightly_train.types import NDArrayImage
 
 logger = logging.getLogger(__name__)
 
 
 class SemanticSegmentationTransformInput(TaskTransformInput):
-    image: NDArray[np.uint8]
-    mask: NotRequired[NDArray[np.uint8]]
+    image: NDArrayImage
+    mask: NotRequired[NDArrayImage]
 
 
 class SemanticSegmentationTransformOutput(TaskTransformOutput):
