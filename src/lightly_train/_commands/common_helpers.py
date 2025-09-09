@@ -32,9 +32,9 @@ from torch.utils.data import Dataset
 
 from lightly_train import _distributed as distributed_helpers
 from lightly_train._data import cache, file_helpers
-from lightly_train._data._serialize import memory_mapped_sequence_task
-from lightly_train._data._serialize.memory_mapped_sequence_task import (
-    MemoryMappedSequenceTask,
+from lightly_train._data._serialize import memory_mapped_sequence
+from lightly_train._data._serialize.memory_mapped_sequence import (
+    MemoryMappedSequence,
 )
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._embedding.embedding_format import EmbeddingFormat
@@ -512,7 +512,7 @@ def get_dataset_mmap_file(
     out_dir: Path,
     filenames: Iterable[str],
     mmap_filepath: Path,
-) -> MemoryMappedSequenceTask[str]:
+) -> MemoryMappedSequence[str]:
     """Returns memory-mapped filenames shared across all ranks.
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
@@ -520,7 +520,7 @@ def get_dataset_mmap_file(
     if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
         # If the file already exists and we are allowed to reuse it, return it.
         logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
-        return MemoryMappedSequenceTask.from_file(mmap_filepath=mmap_filepath)
+        return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
 
     tmp_path = mmap_filepath.with_suffix(f".{get_sha256(out_dir.resolve())}.temp")
     try:
@@ -528,7 +528,7 @@ def get_dataset_mmap_file(
             # Save filenames to temporary file. Create the final file only once rank zero has
             # finished writing all the filenames.
             # Convert list[str] to list[{"filenames": str}] and write
-            memory_mapped_sequence_task.write_items_to_file(
+            memory_mapped_sequence.write_items_to_file(
                 items=({"filenames": f} for f in filenames),
                 mmap_filepath=tmp_path,
             )
@@ -558,7 +558,7 @@ def get_dataset_mmap_file(
             _unlink_and_ignore(tmp_path)
 
     # Return memory-mapped filenames from file as a string view.
-    return MemoryMappedSequenceTask.from_file(mmap_filepath=mmap_filepath)
+    return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
 
 
 def get_dataset(

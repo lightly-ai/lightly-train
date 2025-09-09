@@ -48,7 +48,7 @@ def write_items_to_file(
     )
 
 
-class MemoryMappedSequenceTask(Sequence[T[Primitive]], Generic[Primitive]):
+class MemoryMappedSequence(Sequence[T[Primitive]], Generic[Primitive]):
     """A memory mapped sequence built around PyArrow's memory mapped tables.
 
     A memory mapped sequence does not store its items in RAM but loads the data from disk.
@@ -141,12 +141,12 @@ class MemoryMappedSequenceTask(Sequence[T[Primitive]], Generic[Primitive]):
     def __setstate__(self, state: dict[str, Any]) -> None:
         columns = state["columns"]
         path = state["path"]
-        MemoryMappedSequenceTask.__init__(self, path=path, columns=columns)
+        MemoryMappedSequence.__init__(self, path=path, columns=columns)
 
     @classmethod
     def from_file(
-        cls: type[MemoryMappedSequenceTask[Primitive]], mmap_filepath: Path
-    ) -> MemoryMappedSequenceTask[Primitive]:
+        cls: type[MemoryMappedSequence[Primitive]], mmap_filepath: Path
+    ) -> MemoryMappedSequence[Primitive]:
         table = _mmap_table_from_file(mmap_filepath=mmap_filepath)
 
         num_rows = table.num_rows

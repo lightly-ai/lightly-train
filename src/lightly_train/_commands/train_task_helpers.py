@@ -26,9 +26,9 @@ from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._configs import validate
 from lightly_train._data import cache
-from lightly_train._data._serialize import memory_mapped_sequence_task
-from lightly_train._data._serialize.memory_mapped_sequence_task import (
-    MemoryMappedSequenceTask,
+from lightly_train._data._serialize import memory_mapped_sequence
+from lightly_train._data._serialize.memory_mapped_sequence import (
+    MemoryMappedSequence,
     Primitive,
 )
 from lightly_train._data.mask_semantic_segmentation_dataset import (
@@ -375,7 +375,7 @@ def get_dataset_mmap_file(
     fabric: Fabric,
     items: Iterable[Mapping[str, Primitive]],
     mmap_filepath: Path,
-) -> MemoryMappedSequenceTask[Primitive]:
+) -> MemoryMappedSequence[Primitive]:
     """Returns memory-mapped filepaths shared across all ranks.
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
@@ -384,7 +384,7 @@ def get_dataset_mmap_file(
     # If the file already exists and we are allowed to reuse it, return it.
     if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
         logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
-        return MemoryMappedSequenceTask.from_file(mmap_filepath=mmap_filepath)
+        return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
 
     # Check if the mmap file is on a shared filesystem.
     try:
@@ -401,12 +401,12 @@ def get_dataset_mmap_file(
         if (fabric.global_rank == 0) or (
             not is_shared_filesystem and fabric.local_rank == 0
         ):
-            memory_mapped_sequence_task.write_items_to_file(
+            memory_mapped_sequence.write_items_to_file(
                 items=items,
                 mmap_filepath=mmap_filepath,
             )
 
-    return MemoryMappedSequenceTask.from_file(mmap_filepath=mmap_filepath)
+    return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
 
 
 def get_dataset(

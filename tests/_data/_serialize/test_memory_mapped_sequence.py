@@ -10,20 +10,20 @@ from pathlib import Path
 
 import pytest
 
-from lightly_train._data._serialize import memory_mapped_sequence_task
-from lightly_train._data._serialize.memory_mapped_sequence_task import (
-    MemoryMappedSequenceTask,
+from lightly_train._data._serialize import memory_mapped_sequence
+from lightly_train._data._serialize.memory_mapped_sequence import (
+    MemoryMappedSequence,
 )
 
 
-class TestMemoryMappedSequenceTask:
+class TestMemoryMappedSequence:
     def test_index(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         image_dir.mkdir()
         mask_dir.mkdir()
 
-        memory_mapped_sequence_task.write_items_to_file(
+        memory_mapped_sequence.write_items_to_file(
             items=[
                 {
                     "image_filepaths": str(image_dir / "image1.jpg"),
@@ -40,7 +40,7 @@ class TestMemoryMappedSequenceTask:
             ],
             mmap_filepath=tmp_path / "test.arrow",
         )
-        sequence = MemoryMappedSequenceTask[str].from_file(
+        sequence = MemoryMappedSequence[str].from_file(
             mmap_filepath=tmp_path / "test.arrow",
         )
         assert len(sequence) == 3
@@ -65,7 +65,7 @@ class TestMemoryMappedSequenceTask:
         image_dir.mkdir()
         mask_dir.mkdir()
 
-        memory_mapped_sequence_task.write_items_to_file(
+        memory_mapped_sequence.write_items_to_file(
             items=[
                 {
                     "image_filepaths": str(image_dir / "image1.jpg"),
@@ -82,7 +82,7 @@ class TestMemoryMappedSequenceTask:
             ],
             mmap_filepath=tmp_path / "test.arrow",
         )
-        sequence = MemoryMappedSequenceTask[str].from_file(
+        sequence = MemoryMappedSequence[str].from_file(
             mmap_filepath=tmp_path / "test.arrow",
         )
         assert len(sequence) == 3
@@ -127,7 +127,7 @@ class TestMemoryMappedSequenceTask:
         image_dir.mkdir()
         mask_dir.mkdir()
 
-        memory_mapped_sequence_task.write_items_to_file(
+        memory_mapped_sequence.write_items_to_file(
             items=[
                 {
                     "image_filepaths": str(image_dir / "image1.jpg"),
@@ -144,7 +144,7 @@ class TestMemoryMappedSequenceTask:
             ],
             mmap_filepath=tmp_path / "test.arrow",
         )
-        sequence = MemoryMappedSequenceTask[str].from_file(
+        sequence = MemoryMappedSequence[str].from_file(
             mmap_filepath=tmp_path / "test.arrow",
         )
         assert len(sequence) == 3
@@ -160,7 +160,7 @@ def test_write_items_to_file(chunk_size: int, tmp_path: Path) -> None:
     image_dir.mkdir()
     mask_dir.mkdir()
 
-    memory_mapped_sequence_task.write_items_to_file(
+    memory_mapped_sequence.write_items_to_file(
         items=[
             {
                 "image_filepaths": str(image_dir / "image1.jpg"),
@@ -178,7 +178,7 @@ def test_write_items_to_file(chunk_size: int, tmp_path: Path) -> None:
         mmap_filepath=tmp_path / "test.arrow",
         chunk_size=chunk_size,
     )
-    sequence = MemoryMappedSequenceTask[str].from_file(
+    sequence = MemoryMappedSequence[str].from_file(
         mmap_filepath=tmp_path / "test.arrow",
     )
     assert len(sequence) == 3
