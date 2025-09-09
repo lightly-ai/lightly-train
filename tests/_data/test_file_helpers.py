@@ -113,7 +113,7 @@ def test_list_image_filenames_from_iterable__invalid_path(tmp_path: Path) -> Non
     invalid_path = tmp_path / "invalid_path"
     with pytest.raises(
         ValueError,
-        match=f"Invalid path: '{invalid_path}'.",
+        match="Invalid path: '.*invalid_path'.",
     ):
         list(
             file_helpers.list_image_filenames_from_iterable(
