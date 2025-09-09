@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Speed up listing of filenames in large datasets.
+
 ### Security
 
 ## [0.11.2] - 2025-09-08
@@ -75,8 +77,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Loading EoMT models with `load_model_from_checkpoint` no longer raises a missing
   key error.
 - Fix MLFlow logging on AzureML.
-
-### Security
 
 ## [0.11.0] - 2025-08-15
 

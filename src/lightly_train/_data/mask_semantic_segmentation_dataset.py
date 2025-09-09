@@ -273,19 +273,17 @@ class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     ignore_index: int
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
-        is_mask_dir = Path(self.mask_dir_or_file).is_dir()
-        for image_filepath in file_helpers.list_image_files(
-            imgs_and_dirs=[self.image_dir]
+        mask_dir = Path(self.mask_dir_or_file)
+        is_mask_dir = mask_dir.is_dir()
+        for image_filename in file_helpers.list_image_filenames_from_dir(
+            image_dir=self.image_dir
         ):
+            image_filepath = self.image_dir / image_filename
             if is_mask_dir:
-                mask_filepath = self.mask_dir_or_file / image_filepath.relative_to(
-                    self.image_dir
-                ).with_suffix(".png")
+                mask_filepath = (mask_dir / image_filename).with_suffix(".png")
             else:
                 mask_filepath = Path(
-                    self.mask_dir_or_file.format(
-                        image_path=image_filepath,
-                    )
+                    self.mask_dir_or_file.format(image_path=image_filepath)
                 )
 
             if mask_filepath.exists():
