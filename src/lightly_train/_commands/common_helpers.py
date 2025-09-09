@@ -32,8 +32,10 @@ from torch.utils.data import Dataset
 
 from lightly_train import _distributed as distributed_helpers
 from lightly_train._data import cache, file_helpers
-from lightly_train._data._serialize import memory_mapped_sequence
-from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
+from lightly_train._data._serialize import memory_mapped_sequence_task
+from lightly_train._data._serialize.memory_mapped_sequence_task import (
+    MemoryMappedSequenceTask,
+)
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._embedding.embedding_format import EmbeddingFormat
 from lightly_train._env import Env
@@ -506,11 +508,11 @@ def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
         pass  # Another process already cleaned up
 
 
-def get_dataset_mmap_filenames(
+def get_dataset_mmap_file(
     out_dir: Path,
     filenames: Iterable[str],
     mmap_filepath: Path,
-) -> MemoryMappedSequence[str]:
+) -> MemoryMappedSequenceTask[str]:
     """Returns memory-mapped filenames shared across all ranks.
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
@@ -518,17 +520,16 @@ def get_dataset_mmap_filenames(
     if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
         # If the file already exists and we are allowed to reuse it, return it.
         logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
-        return memory_mapped_sequence.memory_mapped_sequence_from_file(
-            mmap_filepath=mmap_filepath
-        )
+        return MemoryMappedSequenceTask.from_file(mmap_filepath=mmap_filepath)
 
     tmp_path = mmap_filepath.with_suffix(f".{get_sha256(out_dir.resolve())}.temp")
     try:
         if distributed_helpers.is_local_rank_zero():
             # Save filenames to temporary file. Create the final file only once rank zero has
             # finished writing all the filenames.
-            memory_mapped_sequence.write_filenames_to_file(
-                filenames=filenames,
+            # Convert list[str] to list[{"filenames": str}] and write
+            memory_mapped_sequence_task.write_items_to_file(
+                items=({"filenames": f} for f in filenames),
                 mmap_filepath=tmp_path,
             )
             # Rename the temporary file to mmap_filepath.
@@ -556,10 +557,8 @@ def get_dataset_mmap_filenames(
         if distributed_helpers.is_local_rank_zero():
             _unlink_and_ignore(tmp_path)
 
-    # Return memory-mapped filenames from file.
-    return memory_mapped_sequence.memory_mapped_sequence_from_file(
-        mmap_filepath=mmap_filepath
-    )
+    # Return memory-mapped filenames from file as a string view.
+    return MemoryMappedSequenceTask.from_file(mmap_filepath=mmap_filepath)
 
 
 def get_dataset(
@@ -594,7 +593,7 @@ def get_dataset(
         filenames = file_helpers.list_image_filenames_from_dir(image_dir=data)
         return ImageDataset(
             image_dir=data,
-            image_filenames=get_dataset_mmap_filenames(
+            image_filenames=get_dataset_mmap_file(
                 out_dir=out_dir,
                 filenames=filenames,
                 mmap_filepath=mmap_filepath,
@@ -613,7 +612,7 @@ def get_dataset(
         filenames = file_helpers.list_image_filenames_from_iterable(imgs_and_dirs=data)
         return ImageDataset(
             image_dir=None,
-            image_filenames=get_dataset_mmap_filenames(
+            image_filenames=get_dataset_mmap_file(
                 out_dir=out_dir,
                 filenames=filenames,
                 mmap_filepath=mmap_filepath,

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from PIL import ImageFile
 from torch.utils.data import Dataset
@@ -25,7 +25,7 @@ class ImageDataset(Dataset[DatasetItem]):
     def __init__(
         self,
         image_dir: Path | None,
-        image_filenames: Sequence[ImageFilename],
+        image_filenames: Sequence[Mapping[str, ImageFilename]],
         transform: Transform,
         num_channels: int,
         mask_dir: Path | None = None,
@@ -54,7 +54,7 @@ class ImageDataset(Dataset[DatasetItem]):
         self.image_mode = image_mode
 
     def __getitem__(self, idx: int) -> DatasetItem:
-        filename = self.image_filenames[idx]
+        filename = self.image_filenames[idx]["filenames"]
         if self.image_dir is None:
             image = file_helpers.open_image_numpy(Path(filename), mode=self.image_mode)
         else:
