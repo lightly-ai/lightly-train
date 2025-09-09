@@ -64,7 +64,7 @@ class UltralyticsPackage(Package):
         for model_name in list(untrained_models):
             try:
                 # This only loads the model config, not the model itself.
-                tasks.yaml_model_load(model_name)
+                tasks.yaml_model_load(model_name)  # type: ignore
             except FileNotFoundError:
                 untrained_models.remove(model_name)
 
@@ -107,7 +107,7 @@ class UltralyticsPackage(Package):
 
     @classmethod
     def get_model_wrapper(cls, model: Module) -> UltralyticsModelWrapper:
-        return UltralyticsModelWrapper(model=model)
+        return UltralyticsModelWrapper(model=model)  # type: ignore
 
     @classmethod
     def export_model(
