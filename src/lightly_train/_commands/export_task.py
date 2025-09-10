@@ -76,6 +76,7 @@ def export_onnx(
     height: int = 224,
     width: int = 224,
     precision: Literal["32-true", "16-true"] = "32-true",
+    simplify: bool = True,
     verify: bool = True,
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
@@ -93,6 +94,7 @@ def _export_task(
     height: int = 224,
     width: int = 224,
     precision: Literal["32-true", "16-true"] = "32-true",
+    simplify: bool = True,
     verify: bool = True,
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
@@ -116,6 +118,8 @@ def _export_task(
             Width of the input tensor.
         precision:
             OnnxPrecision.F32_TRUE for float32 precision or OnnxPrecision.F16_TRUE for float16 precision.
+        simplify:
+            Simplify the ONNX model after the export.
         verify:
             Check the exported model for errors.
         overwrite:
@@ -189,6 +193,15 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             **config.format_args if config.format_args else {},
         )
 
+        if config.simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            # We skip constant folding as this currently increases the model size by quite a lot.
+            # If we refactor the untile method we might be able to add constant folding.
+            onnxslim.slim(
+                out_path, output_model=out_path, skip_optimizations=["constant_folding"]
+            )
+
         if config.verify:
             logger.info("Verifying ONNX model")
             import onnx
@@ -248,6 +261,7 @@ class ExportTaskConfig(PydanticConfig):
     height: int = 224
     width: int = 224
     precision: OnnxPrecision = OnnxPrecision.F32_TRUE
+    simplify: bool = True
     verify: bool = True
     overwrite: bool = False
     format_args: dict[str, Any] | None = (
