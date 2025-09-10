@@ -37,6 +37,8 @@ class Attention(nn.Module):
     ) -> None:
         super().__init__()
         self.num_heads = num_heads
+        head_dim = dim // num_heads
+        self.scale = head_dim**-0.5
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)

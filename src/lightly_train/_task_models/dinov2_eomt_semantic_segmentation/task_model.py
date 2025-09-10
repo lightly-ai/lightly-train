@@ -525,12 +525,11 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     # TODO(Guarin, 07/25): Add support for attention masks directly to Attention class?
     def _attn(self, module: Attention, x: Tensor, mask: Tensor | None) -> Tensor:
         # This mirrors DINOv2 Attention forward but with mask support.
-        B, N, C = x.shape
+        B, N, _ = x.shape
 
-        head_dim = C // module.num_heads
         qkv = (
             module.qkv(x)
-            .reshape(B, N, 3, module.num_heads, head_dim)
+            .reshape(B, N, 3, module.num_heads, self.head_dim)
             .permute(2, 0, 3, 1, 4)
         )
         q, k, v = qkv[0], qkv[1], qkv[2]
@@ -544,10 +543,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             value=v,
             attn_mask=mask,
             dropout_p=module.attn_drop.p,
-        )  # B x num_heads x N x (C // num_heads)
+        )  # B x num_heads x N x (dim // num_heads)
 
         x = x.transpose(1, 2)
-        x = x.reshape(B, N, C)
+        x = x.reshape(B, N, self.dim)
 
         x = module.proj(x)
         x = module.proj_drop(x)
