@@ -527,10 +527,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # This mirrors DINOv2 Attention forward but with mask support.
         B, N, C = x.shape
 
-        embedding_dim = C // module.num_heads
+        head_dim = C // module.num_heads
         qkv = (
             module.qkv(x)
-            .reshape(B, N, 3, module.num_heads, embedding_dim)
+            .reshape(B, N, 3, module.num_heads, head_dim)
             .permute(2, 0, 3, 1, 4)
         )
         q, k, v = qkv[0], qkv[1], qkv[2]
