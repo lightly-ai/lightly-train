@@ -263,7 +263,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # such that the short side of the image matches the crop size.
         crop_size = min(self.image_size)
         # (C, H, W) -> (C, H', W')
-        x = transforms_functional.resize(x, size=[crop_size])  
+        x = transforms_functional.resize(x, size=[crop_size])
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
