@@ -208,10 +208,11 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
-        # Resize to configured image size
-        x = transforms_functional.resize(
-            x, size=list(self.image_size)
-        )  # (C, H, W) -> (C, H', W')
+        # Crop size is the short side of the training image size. We resize the image
+        # such that the short side of the image matches the crop size.
+        crop_size = min(self.image_size)
+        # (C, H, W) -> (C, H', W')
+        x = transforms_functional.resize(x, size=[crop_size])
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         logits = self._forward_logits(x)  # (1, K|K+1, H', W'), K=num_classes
