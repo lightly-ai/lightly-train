@@ -546,7 +546,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         )  # B x num_heads x N x (dim // num_heads)
 
         x = x.transpose(1, 2)
-        x = x.reshape(B, N, self.dim)
+        x = x.reshape(B, N, module.dim)
 
         x = module.proj(x)
         x = module.proj_drop(x)
