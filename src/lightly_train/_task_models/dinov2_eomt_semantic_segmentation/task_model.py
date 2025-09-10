@@ -13,7 +13,6 @@ import os
 from typing import Any
 
 import torch
-from packaging import version
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import GELU, Embedding, Linear, Sequential
@@ -535,16 +534,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             .permute(2, 0, 3, 1, 4)
         )
         q, k, v = qkv[0], qkv[1], qkv[2]
-        scale = module.scale
-        # This is a workaround for the issue document in https://github.com/lightly-ai/lightly-train/pull/282,
-        # namely ONNX export not working for scaled_dot_product_attention if scale is not None for torch < 2.5
-        if torch.onnx.is_in_onnx_export() and version.parse(
-            torch.__version__
-        ) < version.parse("2.5"):
-            factor = math.sqrt(math.sqrt(embedding_dim) * module.scale)
-            q *= factor
-            k *= factor
-            scale = None
 
         if mask is not None:
             mask = mask[:, None, ...]
@@ -554,7 +543,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             key=k,
             value=v,
             attn_mask=mask,
-            scale=scale,
             dropout_p=module.attn_drop.p,
         )  # B x num_heads x N x (C // num_heads)
 
