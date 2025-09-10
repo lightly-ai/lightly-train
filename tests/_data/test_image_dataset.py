@@ -65,18 +65,19 @@ def nested_image_dir(tmp_path: Path) -> Path:
 class TestImageDataset:
     @pytest.mark.parametrize("num_channels", [3, 4])
     def test___getitem__(self, tmp_path: Path, num_channels: int) -> None:
+        filenames = ["image1.png", "image2.png"]
+        filename_items = [{"filenames": ImageFilename(fn)} for fn in filenames]
         helpers.create_images(
             tmp_path,
-            files=["image1.png", "image2.png"],
+            files=filenames,
             height=32,
             width=32,
             num_channels=num_channels,
             mode="RGB" if num_channels == 3 else "RGBA",
         )
-        filenames = [ImageFilename("image1.png"), ImageFilename("image2.png")]
         dataset = ImageDataset(
             image_dir=tmp_path,
-            image_filenames=filenames,
+            image_filenames=filename_items,
             transform=DummyMethodTransform(),
             num_channels=num_channels,
         )
@@ -109,13 +110,14 @@ class TestImageDataset:
     )
     def test___getitem____mode(self, tmp_path: Path, mode: str, extension: str) -> None:
         filenames = [ImageFilename(f"image1.{extension}")]
+        filename_items = [{"filenames": fn} for fn in filenames]
         image_dir = tmp_path / "images"
         _create_images(
             base_path=image_dir, filenames=filenames, mode=None, convert_mode=mode
         )
         dataset = ImageDataset(
             image_dir=image_dir,
-            image_filenames=filenames,
+            image_filenames=filename_items,
             transform=DummyMethodTransform(),
             num_channels=3,
         )
@@ -125,6 +127,7 @@ class TestImageDataset:
 
     def test___getitem____truncated(self, tmp_path: Path) -> None:
         filenames = [ImageFilename("image1.jpg")]
+        filename_items = [{"filenames": fn} for fn in filenames]
         image_dir = tmp_path / "images"
         _create_images(base_path=image_dir, filenames=filenames)
 
@@ -137,7 +140,7 @@ class TestImageDataset:
 
         dataset = ImageDataset(
             image_dir=image_dir,
-            image_filenames=filenames,
+            image_filenames=filename_items,
             transform=DummyMethodTransform(),
             num_channels=3,
         )
@@ -154,9 +157,11 @@ class TestImageDataset:
         _create_images(
             base_path=mask_dir, filenames=mask_filenames, mode="L", num_channels=0
         )
+
+        filename_items = [{"filenames": fn} for fn in img_filenames]
         dataset = ImageDataset(
             image_dir=image_dir,
-            image_filenames=img_filenames,
+            image_filenames=filename_items,
             mask_dir=mask_dir,
             transform=DummyMethodTransform(),
             num_channels=3,
@@ -177,9 +182,10 @@ class TestImageDataset:
 
     def test_dataloader(self, flat_image_dir: Path) -> None:
         filenames = [ImageFilename("image1.jpg"), ImageFilename("image2.jpg")]
+        filename_items = [{"filenames": fn} for fn in filenames]
         dataset = ImageDataset(
             image_dir=flat_image_dir,
-            image_filenames=filenames,
+            image_filenames=filename_items,
             transform=DummyMethodTransform(),
             num_channels=3,
         )

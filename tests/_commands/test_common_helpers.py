@@ -763,26 +763,27 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
     assert not mmap_paths[0].exists()
 
 
-def test_get_dataset_mmap_filenames__rank0(tmp_path: Path) -> None:
+def test_get_dataset_mmap_file__rank0(tmp_path: Path) -> None:
     filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
+    filename_items = [{"filenames": filename} for filename in filenames]
+
     mmap_filepath = tmp_path / "test.mmap"
-    mmap_filenames = common_helpers.get_dataset_mmap_filenames(
+    mmap_filenames = common_helpers.get_dataset_mmap_file(
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
-    assert list(mmap_filenames) == filenames
+    assert list(mmap_filenames) == filename_items
 
 
-def test_get_dataset_mmap_filenames__rank(
-    tmp_path: Path, mocker: MockerFixture
-) -> None:
+def test_get_dataset_mmap_file__rank(tmp_path: Path, mocker: MockerFixture) -> None:
     filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
-    mmap_filepath = tmp_path / "test.mmap"
+    filename_items = [{"filenames": filename} for filename in filenames]
 
+    mmap_filepath = tmp_path / "test.mmap"
     # Simulate calling the function from rank 0
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
-    mmap_filenames_rank0 = common_helpers.get_dataset_mmap_filenames(
+    mmap_filenames_rank0 = common_helpers.get_dataset_mmap_file(
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
@@ -790,16 +791,16 @@ def test_get_dataset_mmap_filenames__rank(
 
     # Simulate calling the function from rank 1
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
-    mmap_filenames_rank1 = common_helpers.get_dataset_mmap_filenames(
+    mmap_filenames_rank1 = common_helpers.get_dataset_mmap_file(
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
     )
-    assert list(mmap_filenames_rank0) == filenames
-    assert list(mmap_filenames_rank1) == filenames
+    assert list(mmap_filenames_rank0) == filename_items
+    assert list(mmap_filenames_rank1) == filename_items
 
 
-def test_get_dataset_mmap_filenames__rank_error(
+def test_get_dataset_mmap_file__rank_error(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
     # Test that the function raises an error if it is called with different paths
@@ -810,7 +811,7 @@ def test_get_dataset_mmap_filenames__rank_error(
 
     # Simulate calling the function from rank 0.
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
-    common_helpers.get_dataset_mmap_filenames(
+    common_helpers.get_dataset_mmap_file(
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath_rank0,
@@ -821,22 +822,23 @@ def test_get_dataset_mmap_filenames__rank_error(
         os.environ, {"LOCAL_RANK": "1", "LIGHTLY_TRAIN_MMAP_TIMEOUT_SEC": "0.1"}
     )
     with pytest.raises(RuntimeError, match="Rank 1: Timeout after 0.1 seconds"):
-        common_helpers.get_dataset_mmap_filenames(
+        common_helpers.get_dataset_mmap_file(
             out_dir=tmp_path,
             filenames=filenames,
             mmap_filepath=mmap_filepath_rank1,
         )
 
 
-def test_get_dataset_mmap_filenames__reuse(
+def test_get_dataset_mmap_file__reuse(
     tmp_path: Path, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
 ) -> None:
     filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
-    mmap_filepath = tmp_path / "test.mmap"
+    filename_items = [{"filenames": filename} for filename in filenames]
 
+    mmap_filepath = tmp_path / "test.mmap"
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_MMAP_REUSE_FILE": "1"})
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_TMP_DIR": str(tmp_path)})
-    mmap_filenames_first = common_helpers.get_dataset_mmap_filenames(
+    mmap_filenames_first = common_helpers.get_dataset_mmap_file(
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
@@ -845,14 +847,14 @@ def test_get_dataset_mmap_filenames__reuse(
     # make sure warning is raised if the file already exists
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
     with caplog.at_level(logging.WARNING):
-        mmap_filenames_reused = common_helpers.get_dataset_mmap_filenames(
+        mmap_filenames_reused = common_helpers.get_dataset_mmap_file(
             out_dir=tmp_path,
             filenames=filenames,
             mmap_filepath=mmap_filepath,
         )
     assert "Reusing existing memory-mapped file " in caplog.text
-    assert list(mmap_filenames_first) == filenames
-    assert list(mmap_filenames_reused) == filenames
+    assert list(mmap_filenames_first) == filename_items
+    assert list(mmap_filenames_reused) == filename_items
 
 
 def test_get_dataset__path(tmp_path: Path) -> None:
