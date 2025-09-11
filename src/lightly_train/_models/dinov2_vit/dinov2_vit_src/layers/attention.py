@@ -37,6 +37,7 @@ class Attention(nn.Module):
     ) -> None:
         super().__init__()
         self.num_heads = num_heads
+        self.dim = dim
         self.head_dim = dim // num_heads
         self.scale = self.head_dim**-0.5
 
