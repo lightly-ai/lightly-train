@@ -236,7 +236,9 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 ### Supported Models
 
-| Framework | Model | Pretrain | Distill\\n From DINOv2/v3 | Fine-tune |
+LightlyTrain supports a wide range of frameworks and models out of the box.
+
+| Framework | Model | Pretrain | Distill<br> From DINOv2/v3 | Fine-tune |
 |----------------|--------------|--------------------------------------------------------------------------|---------|------------------------|
 | | | | | Semantic Segmentation |
 | LightlyTrain | DINOv3 | | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html#distill-from-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
@@ -259,26 +261,11 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 | | YOLO-NAS | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | |
 | Custom Models | Any PyTorch model | ✅ [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) | |
 
-#### Pretraining & Distillation
-
-The following models and libraries are supported for pretraining and distillation:
-
-| Framework | Supported Models | Docs |
-|------------------|---------------------------------------------------|------|
-| Torchvision | ResNet, ConvNext, ShuffleNetV2 | [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) |
-| TIMM | All models | [🔗](https://docs.lightly.ai/train/stable/models/timm.html) |
-| Ultralytics | YOLOv5, YOLOv6, YOLOv8, YOLO11, YOLO12 | [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) |
-| RT-DETR | RT-DETR & RT-DETRv2 | [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) |
-| RF-DETR | RF-DETR | [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) |
-| YOLOv12 | YOLOv12 | [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) |
-| SuperGradients | PP-LiteSeg, SSD, YOLO-NAS | [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) |
-| Custom Models | Any PyTorch model | [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) |
-
 For an overview of all supported models and usage instructions, see the full [model docs](https://docs.lightly.ai/train/stable/models/index.html).
 
 [Contact](#contact) us if you need support for additional models or libraries.
 
-### Supported Training Methods
+### Supported Pretraining & Distillation Methods
 
 - [DINOv3 Distillation](https://docs.lightly.ai/train/stable/methods/index.html#methods-distillation-dinov3)
 - [DINOv2 Distillation](https://docs.lightly.ai/train/stable/methods/index.html#methods-distillation) (recommended 🚀)
