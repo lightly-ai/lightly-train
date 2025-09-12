@@ -113,11 +113,11 @@ for more details.
 
 ## 🔥 Train SOTA Semantic Segmentation Models 🔥
 
-| Implementation | Model | Input Size | ADE20K Val mIoU | Tensorboard | Checkpoint |
-|----------------|-------|------------|-----------------|-------------|------------|
-| LightlyTrain | dinov3/vits16-eomt | 512x512 | 46.6% | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757573634.dinov3_eomt_vits16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
-| LightlyTrain | dinov3/vitb16-eomt | 512x512 | 54.4% | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757511566.dinov3_eomt_vitb16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
-| LightlyTrain | dinov3/vitl16-eomt | 512x512 | **59.1%** | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757520165.dinov3_eomt_vitl16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
+| Implementation | Model | Input Size | ADE20K<br>Val mIoU | Tensorboard | Checkpoint |
+|----------------|-------|------------|--------------------|-------------|------------|
+| LightlyTrain | dinov3/vits16-eomt | 518x518 | 46.6% | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757573634.dinov3_eomt_vits16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
+| LightlyTrain | dinov3/vitb16-eomt | 518x518 | 54.4% | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757511566.dinov3_eomt_vitb16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
+| LightlyTrain | dinov3/vitl16-eomt | 518x518 | **59.1%** | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757520165.dinov3_eomt_vitl16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
 | EoMT | dinov2/vitl14-eomt | 512x512 | 58.4% | - | [🔗](https://github.com/tue-mps/eomt) |
 
 > LightlyTrain's EoMT semantic segmentation model based on DINOv3 achieves a new
@@ -238,7 +238,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 LightlyTrain supports a wide range of frameworks and models out of the box.
 
-| Framework | Model | Pretrain | Distill<br> From DINOv2/v3 | Fine-tune |
+| Framework | Model | Pretrain<br>*Unlabeled Images* | Distill From<br> DINOv2/v3<br>*Unlabeled Images* | Fine-tune<br>*Labeled Images* |
 |----------------|--------------|--------------------------------------------------------------------------|---------|------------------------|
 | | | | | Semantic Segmentation |
 | LightlyTrain | DINOv3 | | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html#distill-from-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
