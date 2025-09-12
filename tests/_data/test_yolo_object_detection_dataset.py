@@ -7,7 +7,7 @@
 #
 from pathlib import Path
 
-import albumentations as A
+from albumentations import BboxParams, Compose, Normalize, Resize, ToTensorV2
 
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
@@ -19,6 +19,12 @@ from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformInput,
     ObjectDetectionTransformOutput,
 )
+from lightly_train._transforms.transform import (
+    RandomFlipArgs,
+    RandomPhotometricDistortArgs,
+    RandomZoomOutArgs,
+    ResizeArgs,
+)
 
 from ..helpers import create_yolo_dataset
 
@@ -28,11 +34,11 @@ class DummyTransform(ObjectDetectionTransform):
 
     def __init__(self, transform_args: ObjectDetectionTransformArgs):
         super().__init__(transform_args=transform_args)
-        self.transform = A.Compose(
+        self.transform = Compose(
             [
-                A.Resize(32, 32),
-                A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
-                A.pytorch.transforms.ToTensorV2(),
+                Resize(32, 32),
+                Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+                ToTensorV2(),
             ],
             bbox_params=transform_args.bbox_params,
         )
@@ -42,6 +48,17 @@ class DummyTransform(ObjectDetectionTransform):
     ) -> ObjectDetectionTransformOutput:
         output: ObjectDetectionTransformOutput = self.transform(**input)
         return output
+
+
+class DummyTransformArgs(ObjectDetectionTransformArgs):
+    photometric_distort: RandomPhotometricDistortArgs | None = None
+    random_zoom_out: RandomZoomOutArgs | None = None
+    random_flip: RandomFlipArgs | None = None
+    resize: ResizeArgs | None = None
+    bbox_params: BboxParams = BboxParams(
+        format="yolo",
+        label_fields=["class_labels"],
+    )
 
 
 class TestYoloObjectDetectionDataset:
@@ -60,13 +77,13 @@ class TestYoloObjectDetectionDataset:
 
         train_dataset = YOLOObjectDetectionDataset(
             dataset_args=train_args,
-            transform=DummyTransform(ObjectDetectionTransformArgs()),
+            transform=DummyTransform(DummyTransformArgs()),
             image_filenames=["0.png", "1.png"],
         )
 
         val_dataset = YOLOObjectDetectionDataset(
             dataset_args=val_args,
-            transform=DummyTransform(ObjectDetectionTransformArgs()),
+            transform=DummyTransform(DummyTransformArgs()),
             image_filenames=["0.png", "1.png"],
         )
 
@@ -95,13 +112,13 @@ class TestYoloObjectDetectionDataset:
 
         train_dataset = YOLOObjectDetectionDataset(
             dataset_args=train_args,
-            transform=DummyTransform(ObjectDetectionTransformArgs()),
+            transform=DummyTransform(DummyTransformArgs()),
             image_filenames=["0.png", "1.png"],
         )
 
         val_dataset = YOLOObjectDetectionDataset(
             dataset_args=val_args,
-            transform=DummyTransform(ObjectDetectionTransformArgs()),
+            transform=DummyTransform(DummyTransformArgs()),
             image_filenames=["0.png", "1.png"],
         )
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 import numpy as np
 from albumentations import BboxParams
 from numpy.typing import NDArray
-from pydantic import Field
 from torch import Tensor
 
 from lightly_train._transforms.task_transform import (
@@ -19,11 +18,17 @@ from lightly_train._transforms.task_transform import (
     TaskTransformInput,
     TaskTransformOutput,
 )
-from lightly_train._transforms.transform import RandomPhotometricDistortArgs
+from lightly_train._transforms.transform import (
+    RandomFlipArgs,
+    RandomPhotometricDistortArgs,
+    RandomZoomOutArgs,
+    ResizeArgs,
+)
+from lightly_train.types import NDArrayImage
 
 
 class ObjectDetectionTransformInput(TaskTransformInput):
-    image: NDArray[np.uint8]
+    image: NDArrayImage
     bboxes: NDArray[np.float64]
     class_labels: NDArray[np.int64]
 
@@ -35,14 +40,11 @@ class ObjectDetectionTransformOutput(TaskTransformOutput):
 
 
 class ObjectDetectionTransformArgs(TaskTransformArgs):
-    photometric_distort: RandomPhotometricDistortArgs
-
-    # We use the YOLO format internally for now.
-    bbox_params: BboxParams = Field(
-        default_factory=lambda: BboxParams(
-            format="yolo", label_fields=["class_labels"]
-        ),
-    )
+    photometric_distort: RandomPhotometricDistortArgs | None
+    random_zoom_out: RandomZoomOutArgs | None
+    random_flip: RandomFlipArgs | None
+    resize: ResizeArgs | None
+    bbox_params: BboxParams
 
 
 class ObjectDetectionTransform(TaskTransform):

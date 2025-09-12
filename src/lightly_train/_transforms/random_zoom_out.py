@@ -14,7 +14,7 @@ from albumentations import PadIfNeeded
 from albumentations.augmentations.geometric import functional as fgeometric
 
 
-class RandomZoomOut(PadIfNeeded):
+class RandomZoomOut(PadIfNeeded):  # type: ignore[misc]
     """Approximate TorchVision's RandomZoomOut using Albumentations.
 
     Args:

@@ -19,7 +19,7 @@ from albumentations import (
 from numpy.typing import NDArray
 
 
-class RandomPhotometricDistort(ImageOnlyTransform):
+class RandomPhotometricDistort(ImageOnlyTransform):  # type: ignore[misc]
     def __init__(
         self,
         brightness: tuple[float, float],
@@ -98,4 +98,7 @@ class RandomPhotometricDistort(ImageOnlyTransform):
         Returns:
             Transformed image as numpy array with shape (H, W, C).
         """
-        return self.transform(image=img)["image"]
+        out = self.transform(image=img)["image"]
+        assert isinstance(out, np.ndarray)
+        assert out.dtype == np.uint8
+        return out
