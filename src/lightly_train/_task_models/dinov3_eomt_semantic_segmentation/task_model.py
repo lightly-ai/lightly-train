@@ -296,6 +296,10 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
     ) -> tuple[list[Tensor], list[Tensor]]:
         _, _, H, W = x.shape
         patch_size = self.backbone.patch_size
+
+        # Match the logic of the PatchEmbded forward
+        # (src/lightly_train/_models/dinov3/dinov3_src/layers/patch_embed.py).
+        # TODO(Thomas, 09/25): Update the patch embedding logic to not drop extra pixels.
         grid_size = (H // patch_size, W // patch_size)
 
         x, image_size = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
