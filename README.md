@@ -54,7 +54,7 @@ a wide range of model architectures and use cases out of the box.
 | LightlyTrain | dinov2/vitl16 | **81.9%** | [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) |
 | DINOv2 | dinov2/vitl16 | 81.6% | [🔗](https://github.com/facebookresearch/dinov2) |
 
-> Pretrain your own DINOv2 model on your own unlabeled images. LightlyTrain's DINOv2
+> Pretrain a DINOv2 model on your own unlabeled images. LightlyTrain's DINOv2
 > implementation matches or outperforms the official implementation on ImageNet-1K.
 > See our [documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html) on
 > how to get started!
@@ -206,7 +206,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 **See also**:
 
-- **Fine-Tune Example**: Looking for a full fine-tuning example? Head over to the [Quick Start](https://docs.lightly.ai/train/stable/quick_start.html#fine-tune)!
+- **Fine-tuning Example**: Looking for a full fine-tuning example? Head over to the [Quick Start](https://docs.lightly.ai/train/stable/quick_start.html#fine-tune)!
 
 - **🔥 New: Semantic Segmentation Fine-tuning**: Want to train a state-of-the-art semantic segmentation model? Head over to the [semantic segmentation guide](https://docs.lightly.ai/train/stable/semantic_segmentation.html)!
 
@@ -216,15 +216,17 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 ## Features
 
-- Train models on any image data without labels
-- Train models from popular libraries such as [Torchvision](https://docs.lightly.ai/train/stable/models/torchvision.html),
+- Pretrain DINOv2 and DINOv3 foundation models on your own data
+- Distill knowledge from DINOv2 or DINOv3 into any model architecture
+- Pretrain models from popular libraries such as [Torchvision](https://docs.lightly.ai/train/stable/models/torchvision.html),
   [TIMM](https://docs.lightly.ai/train/stable/models/timm.html),
   [Ultralytics](https://docs.lightly.ai/train/stable/models/ultralytics.html),
   [SuperGradients](https://docs.lightly.ai/train/stable/models/supergradients.html),
   [RT-DETR](https://docs.lightly.ai/train/stable/models/rtdetr.html),
   [RF-DETR](https://docs.lightly.ai/train/stable/models/rfdetr.html),
   and [YOLOv12](https://docs.lightly.ai/train/stable/models/yolov12.html)
-- Train [custom models](https://docs.lightly.ai/train/stable/models/custom_models.html) with ease
+- Pretrain [custom models](https://docs.lightly.ai/train/stable/models/custom_models.html) with ease
+- Fine-tune DINOv2 and DINOv3 for [semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
 - No self-supervised learning expertise required
 - Automatic SSL method selection (coming soon!)
 - Python, Command Line, and [Docker](https://docs.lightly.ai/train/stable/docker.html) support
