@@ -5,13 +5,27 @@
 ```{note}
 🔥 **New**: LightlyTrain now supports training **[DINOv3](#-use-eomt-with-dinov3-)** and DINOv2 models for semantic segmentation with the `train_semantic_segmentation` function! The method is based on the
 state-of-the-art segmentation model [EoMT](https://arxiv.org/abs/2503.19108) by
-Kerssies et al. and reaches 59.1% mIoU with DINOv3 weights and 58.4% mIoU with DINOv2 weights on the ADE20k dataset. See [here](#benchmark-results-and-model-checkpoints) for more details about the results.
+Kerssies et al. and reaches 59.1% mIoU with DINOv3 weights and 58.4% mIoU with DINOv2 weights on the ADE20k dataset.
 ```
+
+Below we report the validation mIoUs of three different DINOv3 models fine-tuned on the ADE20k dataset with LightlyTrain.
+
+| DINOv3 Model | Val mIoU | Tensorboard | Checkpoint |
+|--------------|----------|-------------|------------|
+| dinov3/vits16-eomt | 0.4658 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757573634.dinov3_eomt_vits16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
+| dinov3/vitb16-eomt | 0.5437 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757511566.dinov3_eomt_vitb16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
+| dinov3/vitl16-eomt | 0.5912 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757520165.dinov3_eomt_vitl16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
+
+The experiments generally follow the protocol in the original EoMT paper, using a batch size of 16, trained for 40,000 steps, and with a learning rate of 1e-4. Images were resized to 518×518 pixels. We also provide the Tensorboard file and model checkpoints for these runs.
+
+## Semantic Segmentation with EoMT in LightlyTrain
 
 Training a semantic segmentation model with LightlyTrain is straightforward and
 only requires a few lines of code. The dataset must follow the [ADE20K format](https://ade20k.csail.mit.edu/)
 with RGB images and integer masks in PNG format. See [data](#semantic-segmentation-data)
 for more details.
+
+### Train a Semantic Segmentation Model
 
 ````{tab} Python
 ```python
@@ -44,6 +58,8 @@ if __name__ == "__main__":
 ```
 ````
 
+### Load the Trained Model from Checkpoint and Predict
+
 After the training completes you can load the model for inference like this:
 
 ```python
@@ -54,6 +70,8 @@ model = lightly_train.load_model_from_checkpoint(
 )
 masks = model.predict("path/to/image.jpg")
 ```
+
+### Visualize the Result
 
 And visualize the predicted masks like this:
 
@@ -114,20 +132,6 @@ if __name__ == "__main__":
 ````
 
 See [here](#dinov3-models) for the list of available DINOv3 models.
-
-(semantic-segmentation-results-and-checkpoints)=
-
-### Benchmark Results and Model Checkpoints
-
-Below we report the validation mIoUs of three different DINOv3 models fine-tuned on the ADE20k dataset with LightlyTrain. The experiments generally follow the protocol in the original EoMT paper, using a batch size of 16, trained for 40,000 steps, and with a learning rate of 1e-4. Images were resized to 518×518 pixels. We also provide the Tensorboard file and model checkpoints for these runs.
-
-| DINOv3 Model | Val mIoU | Tensorboard | Checkpoint |
-|--------------|----------|-------------|------------|
-| dinov3/vits16-eomt | 0.4658 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757573634.dinov3_eomt_vits16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
-| dinov3/vitb16-eomt | 0.5437 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757511566.dinov3_eomt_vitb16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
-| dinov3/vitl16-eomt | 0.5912 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757520165.dinov3_eomt_vitl16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
-
-For how to load these model checkpoints for your own use, see [here](#semantic-segmentation-load-checkpoints).
 
 (semantic-segmentation-output)=
 
@@ -381,20 +385,6 @@ if __name__ == "__main__":
     )
 ```
 ````
-
-(semantic-segmentation-load-checkpoints)=
-
-## Load Model from Checkpoint
-
-You can load a fine-tuned semantic segmentation model from the model checkpoint using:
-
-```python
-import lightly_train
-
-model = lightly_train.load_model_from_checkpoint(
-    "path/to/checkpoint.ckpt"
-)
-```
 
 (semantic-segmentation-transform-arguments)=
 
