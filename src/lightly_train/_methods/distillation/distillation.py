@@ -44,8 +44,19 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
-def get_teacher(teacher_name: str, teacher_weights: str | Path | None = None) -> Module:
-    wrapped_model = package_helpers.get_wrapped_model(model=teacher_name)
+def get_teacher(
+    teacher_name: str,
+    num_input_channels: int,
+    teacher_weights: str | Path | None = None,
+    method_args: DistillationArgs | None = None,
+) -> Module:
+    model_args: dict[str, Any] = {}
+    if "dinov3" in teacher_name and method_args is not None:
+        model_args["weights"] = method_args.teacher_url
+
+    wrapped_model = package_helpers.get_wrapped_model(
+        model=teacher_name, num_input_channels=num_input_channels, model_args=model_args
+    )
     assert isinstance(wrapped_model, (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper))
     wrapped_model.make_teacher()
     teacher_embedding_model = wrapped_model.get_model()
@@ -80,6 +91,9 @@ class DistillationArgs(MethodArgs):
 
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None
+
+    # Optional teacher url.
+    teacher_url: str | None = None
 
     # Scaling method for the learning rate.
     lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
@@ -135,16 +149,21 @@ class Distillation(Method):
         optimizer_args: OptimizerArgs,
         embedding_model: EmbeddingModel,
         global_batch_size: int,
+        num_input_channels: int,
     ):
         super().__init__(
             method_args=method_args,
             optimizer_args=optimizer_args,
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
+            num_input_channels=num_input_channels,
         )
         # Get the teacher model.
         self.teacher_embedding_model = get_teacher(
-            method_args.teacher, method_args.teacher_weights
+            method_args.teacher,
+            num_input_channels=num_input_channels,
+            teacher_weights=method_args.teacher_weights,
+            method_args=method_args,
         )
 
         # Store the student model.

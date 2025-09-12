@@ -41,10 +41,10 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         classes: dict[int, str],
         class_ignore_index: int | None,
         backbone_freeze: bool,
+        image_size: tuple[int, int],
+        image_normalize: dict[str, tuple[float, ...]],
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        image_size: tuple[int, int],
-        image_normalize: dict[str, float],
     ) -> None:
         """
         Args:
@@ -58,15 +58,15 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
                 The class ID assigned to pixels that do not belong to any of the
                 classes in `classes`. If None, the model will not ignore any classes and
                 always assign a class to each pixel.
+            image_size:
+                The size to resize images to during inference. Default is (518, 518).
+            image_normalize:
+                The normalization parameters for images. Default uses ImageNet stats.
             backbone_weights:
                 The path to the DINOv2 backbone weights. The weights must be exported
                 using LightlyTrain.
             backbone_args:
                 Additional arguments to pass to the DINOv2 backbone.
-            image_size:
-                The size to resize images to during inference. Default is (518, 518).
-            image_normalize:
-                The normalization parameters for images. Default uses ImageNet stats.
         """
         super().__init__(locals(), ignore_args={"backbone_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
@@ -97,6 +97,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         # Disable drop path by default.
         args = {
             "drop_path_rate": 0.0,
+            "in_chans": len(self.image_normalize["mean"]),
         }
         if backbone_args is not None:
             args.update(backbone_args)
@@ -207,10 +208,11 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
-        # Resize to configured image size
-        x = transforms_functional.resize(
-            x, size=list(self.image_size)
-        )  # (C, H, W) -> (C, H', W')
+        # Crop size is the short side of the training image size. We resize the image
+        # such that the short side of the image matches the crop size.
+        crop_size = min(self.image_size)
+        # (C, H, W) -> (C, H', W')
+        x = transforms_functional.resize(x, size=[crop_size])
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         logits = self._forward_logits(x)  # (1, K|K+1, H', W'), K=num_classes

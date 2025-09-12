@@ -14,60 +14,11 @@ import pytest
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from lightly_train._data import file_helpers
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train.types import Batch, DatasetItem, ImageFilename
 
 from .. import helpers
 from ..helpers import DummyMethodTransform
-
-# The list below is not exhaustive. Some image types require extra handlers installed.
-SUPPORTED_IMAGE_EXTENSIONS = [
-    ".bmp",
-    ".BMP",
-    ".dib",
-    ".pcx",
-    ".dds",
-    ".ps",
-    ".eps",
-    ".gif",
-    ".GIF",
-    ".png",
-    ".PNG",
-    ".apng",
-    ".jp2",
-    ".j2k",
-    ".jpc",
-    ".jpf",
-    ".jpx",
-    ".j2c",
-    ".icns",
-    ".ico",
-    ".im",
-    ".jfif",
-    ".jpe",
-    ".jpg",
-    ".JPG",
-    ".jpeg",
-    ".JPEG",
-    ".tif",
-    ".TIF",
-    ".tiff",
-    ".TIFF",
-    ".pbm",
-    ".pgm",
-    ".ppm",
-    ".pnm",
-    ".bw",
-    ".rgb",
-    ".rgba",
-    ".sgi",
-    ".tga",
-    ".icb",
-    ".vda",
-    ".vst",
-    ".webp",
-]
 
 
 @pytest.fixture
@@ -112,12 +63,23 @@ def nested_image_dir(tmp_path: Path) -> Path:
 
 
 class TestImageDataset:
-    def test___getitem__(self, flat_image_dir: Path) -> None:
-        filenames = [ImageFilename("image1.jpg"), ImageFilename("image2.jpg")]
+    @pytest.mark.parametrize("num_channels", [3, 4])
+    def test___getitem__(self, tmp_path: Path, num_channels: int) -> None:
+        filenames = ["image1.png", "image2.png"]
+        filename_items = [{"filenames": ImageFilename(fn)} for fn in filenames]
+        helpers.create_images(
+            tmp_path,
+            files=filenames,
+            height=32,
+            width=32,
+            num_channels=num_channels,
+            mode="RGB" if num_channels == 3 else "RGBA",
+        )
         dataset = ImageDataset(
-            image_dir=flat_image_dir,
-            image_filenames=filenames,
+            image_dir=tmp_path,
+            image_filenames=filename_items,
             transform=DummyMethodTransform(),
+            num_channels=num_channels,
         )
         assert len(dataset) == 2
         for i in range(2):
@@ -127,7 +89,7 @@ class TestImageDataset:
             assert isinstance(item["views"], list)
             assert len(item["views"]) == 1
             assert isinstance(item["views"][0], Tensor)
-            assert item["views"][0].shape == (3, 32, 32)
+            assert item["views"][0].shape == (num_channels, 32, 32)
             assert "mask" not in item
 
     @pytest.mark.parametrize(
@@ -148,12 +110,16 @@ class TestImageDataset:
     )
     def test___getitem____mode(self, tmp_path: Path, mode: str, extension: str) -> None:
         filenames = [ImageFilename(f"image1.{extension}")]
+        filename_items = [{"filenames": fn} for fn in filenames]
         image_dir = tmp_path / "images"
-        _create_images(base_path=image_dir, filenames=filenames, mode=mode)
+        _create_images(
+            base_path=image_dir, filenames=filenames, mode=None, convert_mode=mode
+        )
         dataset = ImageDataset(
             image_dir=image_dir,
-            image_filenames=filenames,
+            image_filenames=filename_items,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         image = dataset[0]["views"][0]
         assert isinstance(image, Tensor)
@@ -161,6 +127,7 @@ class TestImageDataset:
 
     def test___getitem____truncated(self, tmp_path: Path) -> None:
         filenames = [ImageFilename("image1.jpg")]
+        filename_items = [{"filenames": fn} for fn in filenames]
         image_dir = tmp_path / "images"
         _create_images(base_path=image_dir, filenames=filenames)
 
@@ -173,8 +140,9 @@ class TestImageDataset:
 
         dataset = ImageDataset(
             image_dir=image_dir,
-            image_filenames=filenames,
+            image_filenames=filename_items,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         image = dataset[0]["views"][0]
         assert isinstance(image, Tensor)
@@ -186,12 +154,17 @@ class TestImageDataset:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
         _create_images(base_path=image_dir, filenames=img_filenames)
-        _create_images(base_path=mask_dir, filenames=mask_filenames, mode="L")
+        _create_images(
+            base_path=mask_dir, filenames=mask_filenames, mode="L", num_channels=0
+        )
+
+        filename_items = [{"filenames": fn} for fn in img_filenames]
         dataset = ImageDataset(
             image_dir=image_dir,
-            image_filenames=img_filenames,
+            image_filenames=filename_items,
             mask_dir=mask_dir,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         item: DatasetItem = dataset[0]
         print(f"{item=}")
@@ -209,10 +182,12 @@ class TestImageDataset:
 
     def test_dataloader(self, flat_image_dir: Path) -> None:
         filenames = [ImageFilename("image1.jpg"), ImageFilename("image2.jpg")]
+        filename_items = [{"filenames": fn} for fn in filenames]
         dataset = ImageDataset(
             image_dir=flat_image_dir,
-            image_filenames=filenames,
+            image_filenames=filename_items,
             transform=DummyMethodTransform(),
+            num_channels=3,
         )
         assert len(dataset) == 2
         dataloader = DataLoader(
@@ -232,153 +207,23 @@ class TestImageDataset:
             assert batch["filename"] == filenames
 
 
-def test_list_image_files__single_flat_dir(flat_image_dir: Path) -> None:
-    file_paths = file_helpers.list_image_files(imgs_and_dirs=[flat_image_dir])
-    assert sorted(file_paths) == sorted(
-        [
-            flat_image_dir / "image1.jpg",
-            flat_image_dir / "image2.jpg",
-        ]
-    )
-
-
-def test_list_image_files__single_nested_dir(nested_image_dir: Path) -> None:
-    file_paths = file_helpers.list_image_files(imgs_and_dirs=[nested_image_dir])
-    assert sorted(file_paths) == sorted(
-        [
-            nested_image_dir / "class1" / "image1.jpg",
-            nested_image_dir / "class2" / "image2.jpg",
-        ]
-    )
-
-
-def test_list_image_files__multiple_dirs(
-    flat_image_dir: Path, nested_image_dir: Path
-) -> None:
-    file_paths = file_helpers.list_image_files(
-        imgs_and_dirs=[flat_image_dir, nested_image_dir]
-    )
-    assert sorted(file_paths) == sorted(
-        [
-            flat_image_dir / "image1.jpg",
-            flat_image_dir / "image2.jpg",
-            nested_image_dir / "class1" / "image1.jpg",
-            nested_image_dir / "class2" / "image2.jpg",
-        ]
-    )
-
-
-@pytest.mark.parametrize(
-    "extension",
-    SUPPORTED_IMAGE_EXTENSIONS,
-)
-def test_list_image_files__extensions(extension: str, tmp_path: Path) -> None:
-    base_path = tmp_path / "images"
-    filenames = [f"image{i}{extension}" for i in range(1, 3)]
-    imgs = [base_path / filename for filename in filenames]
-    _create_images(
-        base_path=tmp_path / "images",
-        filenames=[f"image{i}{extension}" for i in range(1, 3)],
-    )
-    _filenames = file_helpers.list_image_files(imgs_and_dirs=imgs)
-    assert sorted(list(_filenames)) == [
-        base_path / f"image1{extension}",
-        base_path / f"image2{extension}",
-    ]
-
-
-def test_list_image_filenames__file_paths() -> None:
-    file_paths = [
-        Path("class1/image1.jpg"),
-        Path("class1/image2.jpg"),
-        Path("class2/image3.jpg"),
-        Path("image4.jpg"),
-    ]
-    filenames = file_helpers.list_image_filenames(files=file_paths)
-
-    # Resolve all paths to absolute paths for consistent comparison
-    expected = [
-        ImageFilename(Path("class1/image1.jpg").resolve()),
-        ImageFilename(Path("class1/image2.jpg").resolve()),
-        ImageFilename(Path("class2/image3.jpg").resolve()),
-        ImageFilename(Path("image4.jpg").resolve()),
-    ]
-
-    assert sorted(list(filenames)) == sorted(expected)
-
-
-def test_list_image_filenames__image_dir(flat_image_dir: Path) -> None:
-    file_paths = file_helpers.list_image_filenames(image_dir=flat_image_dir)
-    assert sorted(file_paths) == sorted(
-        [
-            ImageFilename("image1.jpg"),
-            ImageFilename("image2.jpg"),
-        ]
-    )
-
-
-def test_list_image_filenames__dir_is_symlink(image_dir_being_symlink: Path) -> None:
-    file_paths = file_helpers.list_image_filenames(image_dir=image_dir_being_symlink)
-    assert sorted(file_paths) == sorted(
-        [
-            "image1.jpg",
-            "image2.jpg",
-        ]
-    )
-
-
-def test_list_image_filenames__multiple_dirs_with_symlinks(
-    flat_image_dir: Path, nested_image_dir: Path, image_dir_containing_symlinks: Path
-) -> None:
-    file_paths = file_helpers.list_image_files(
-        imgs_and_dirs=[flat_image_dir, nested_image_dir, image_dir_containing_symlinks]
-    )
-    file_names = file_helpers.list_image_filenames(
-        files=file_paths,
-    )
-    target_dir = image_dir_containing_symlinks.parent / "images_symlinktarget"
-    file_names = sorted(list(file_names))
-    expected = sorted(
-        [
-            ImageFilename(flat_image_dir / "image1.jpg"),
-            ImageFilename(flat_image_dir / "image2.jpg"),
-            ImageFilename(nested_image_dir / "class1" / "image1.jpg"),
-            ImageFilename(nested_image_dir / "class2" / "image2.jpg"),
-            ImageFilename(target_dir / "image1.jpg"),
-            ImageFilename(target_dir / "image2.jpg"),
-        ]
-    )
-    for file_name, expected_name in zip(file_names, expected):
-        print(f"{file_name=}, {expected_name=}")
-    assert file_names == expected
-
-
-@pytest.mark.parametrize(
-    "extension",
-    SUPPORTED_IMAGE_EXTENSIONS,
-)
-def test_list_image_filenames__extensions(extension: str, tmp_path: Path) -> None:
-    base_path = tmp_path / "images"
-    filenames = [f"image{i}{extension}" for i in range(1, 3)]
-    imgs = [base_path / filename for filename in filenames]
-    _create_images(
-        base_path=tmp_path / "images",
-        filenames=[f"image{i}{extension}" for i in range(1, 3)],
-    )
-    _filenames = file_helpers.list_image_filenames(files=imgs)
-    assert sorted(list(_filenames)) == [
-        ImageFilename(base_path / f"image1{extension}"),
-        ImageFilename(base_path / f"image2{extension}"),
-    ]
-
-
 def _create_images(
-    base_path: Path, filenames: Iterable[str], mode: str = "RGB"
+    base_path: Path,
+    filenames: Iterable[str],
+    mode: str | None = "RGB",
+    convert_mode: str | None = None,
+    num_channels: int = 3,
 ) -> list[Path]:
     """Create images in the given directory with the given filenames and return their
     paths.
     """
     helpers.create_images(
-        image_dir=base_path, files=filenames, height=32, width=32, mode=mode
+        image_dir=base_path,
+        files=filenames,
+        height=32,
+        width=32,
+        mode=mode,
+        convert_mode=convert_mode,
+        num_channels=num_channels,
     )
     return [base_path / filename for filename in filenames]

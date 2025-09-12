@@ -166,12 +166,12 @@ EXTRAS_PY38 := [dev,mlflow,notebook,onnx,super-gradients,tensorboard,timm,ultral
 # on MacOS. Therefore we exclude it from the default extras.
 # RFDETR has installation issues because of onnxsim dependency on CI with Python 3.12.
 # Onnx dependencies in RFDETR should become optional in RFDETR >1.1.0.
-EXTRAS_PY312 := [dev,mlflow,notebook,onnx,onnxruntime,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY312 := [dev,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies. And SuperGradients is not compatible with
 # Python>=3.10, therefore we also remove it from the default development dependencies.
-EXTRAS_DEV := [dev,mlflow,notebook,onnx,onnxruntime,tensorboard,timm,ultralytics,wandb]
+EXTRAS_DEV := [dev,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.
@@ -179,7 +179,7 @@ DOCKER_EXTRAS := --extra mlflow --extra tensorboard --extra timm --extra wandb -
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
-EXCLUDE_NEWER_DATE := "2025-06-08"
+EXCLUDE_NEWER_DATE := "2025-09-07"
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
 # on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.

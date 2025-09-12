@@ -11,6 +11,7 @@ import contextlib
 import contextvars
 import logging
 from collections.abc import Iterator
+from enum import Enum
 from typing import Any, Literal
 
 import torch
@@ -55,6 +56,17 @@ def precalculate_for_onnx_export() -> Iterator[None]:
         _PRECALCULATE_FOR_ONNX_EXPORT.reset(token)
 
 
+class OnnxPrecision(str, Enum):
+    F16_TRUE = "16-true"
+    F32_TRUE = "32-true"
+
+    def torch(self) -> torch.dtype:
+        if self == OnnxPrecision.F32_TRUE:
+            return torch.float32
+        if self == OnnxPrecision.F16_TRUE:
+            return torch.float16
+
+
 def export_onnx(
     *,
     out: PathLike,
@@ -63,6 +75,8 @@ def export_onnx(
     num_channels: int = 3,
     height: int = 224,
     width: int = 224,
+    precision: Literal["32-true", "16-true"] = "32-true",
+    simplify: bool = True,
     verify: bool = True,
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
@@ -79,6 +93,8 @@ def _export_task(
     num_channels: int = 3,
     height: int = 224,
     width: int = 224,
+    precision: Literal["32-true", "16-true"] = "32-true",
+    simplify: bool = True,
     verify: bool = True,
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
@@ -100,6 +116,10 @@ def _export_task(
             Height of the input tensor.
         width:
             Width of the input tensor.
+        precision:
+            OnnxPrecision.F32_TRUE for float32 precision or OnnxPrecision.F16_TRUE for float16 precision.
+        simplify:
+            Simplify the ONNX model after the export.
         verify:
             Check the exported model for errors.
         overwrite:
@@ -107,7 +127,9 @@ def _export_task(
         format_args:
             Format specific arguments. Eg. "dynamic" for onnx and int8 precision for tensorrt.
     """
-    config = ExportTaskConfig(**locals())
+    kwargs = locals()
+    kwargs.update(precision=OnnxPrecision(precision))  # Necessary for MyPy
+    config = ExportTaskConfig(**kwargs)
     _export_task_from_config(config=config)
 
 
@@ -134,8 +156,20 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
     if config.format == "onnx":
+        # The DinoVisionTransformer _predict method currently raises a RuntimeException when the image size is not
+        # divisible by the patch size. This only occurs during ONNX export as otherwise we interpolate the input
+        # image to the correct size.
+        patch_size = task_model.backbone.patch_size
+        if not (config.height % patch_size == 0 and config.width % patch_size == 0):
+            raise ValueError(
+                f"Height {config.height} and width {config.width} must be a multiple of patch size {patch_size}."
+            )
+
         # Get the device of the model to ensure dummy input is on the same device
         model_device = next(task_model.parameters()).device
+        onnx_dtype = config.precision.torch()
+        task_model.to(onnx_dtype)
+
         dummy_input = torch.randn(
             config.batch_size,
             config.num_channels,
@@ -143,6 +177,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             config.width,
             requires_grad=False,
             device=model_device,
+            dtype=onnx_dtype,
         )
         input_name = "input"
         output_names = ["masks", "logits"]
@@ -158,6 +193,15 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             **config.format_args if config.format_args else {},
         )
 
+        if config.simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            # We skip constant folding as this currently increases the model size by quite a lot.
+            # If we refactor the untile method we might be able to add constant folding.
+            onnxslim.slim(
+                out_path, output_model=out_path, skip_optimizations=["constant_folding"]
+            )
+
         if config.verify:
             logger.info("Verifying ONNX model")
             import onnx
@@ -165,13 +209,19 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
 
             onnx.checker.check_model(out_path, full_check=True)
 
-            x = torch.rand_like(dummy_input)
+            # Always run the reference input in float32 and on cpu for consistency
+            x_model = torch.rand_like(dummy_input, dtype=torch.float32, device="cpu")
+            x_onnx = x_model.to(onnx_dtype)
+
             session = ort.InferenceSession(out_path)
-            input_feed = {input_name: x.cpu().numpy()}
+            input_feed = {input_name: x_onnx.numpy()}
             outputs_onnx = session.run(output_names=output_names, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
 
-            outputs_model = task_model(x)
+            task_model = task_model_helpers.load_model_from_checkpoint(
+                checkpoint=checkpoint_path, device="cpu"
+            )
+            outputs_model = task_model(x_model)
 
             if len(outputs_onnx) != len(outputs_model):
                 raise AssertionError(
@@ -210,6 +260,8 @@ class ExportTaskConfig(PydanticConfig):
     num_channels: int = 3
     height: int = 224
     width: int = 224
+    precision: OnnxPrecision = OnnxPrecision.F32_TRUE
+    simplify: bool = True
     verify: bool = True
     overwrite: bool = False
     format_args: dict[str, Any] | None = (

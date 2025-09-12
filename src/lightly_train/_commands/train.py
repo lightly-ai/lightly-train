@@ -30,6 +30,7 @@ from lightly_train._commands import _warnings, common_helpers, train_helpers
 from lightly_train._commands.common_helpers import ModelFormat
 from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._configs.validate import no_auto
 from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.logger_args import LoggerArgs
 from lightly_train._methods import method_helpers
@@ -260,7 +261,7 @@ def train_from_config(config: TrainConfig) -> None:
     _logging.set_up_file_logging(out_dir / "train.log")
     _logging.set_up_filters()
     logger.info(
-        f"Args: {common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}"
+        f"Args: {common_helpers.pretty_format_args(args=config.model_dump(), limit_keys={'data'})}"
     )
     logger.info(f"Using output directory '{out_dir}'.")
 
@@ -287,14 +288,17 @@ def train_from_config(config: TrainConfig) -> None:
     with common_helpers.verify_out_dir_equal_on_all_local_ranks(
         out=out_dir
     ), common_helpers.get_dataset_temp_mmap_path(
-        data=config.data
+        data=config.data,
+        out=out_dir,
     ) as mmap_filepath, _float32_matmul_precision.float32_matmul_precision(
         float32_matmul_precision=config.float32_matmul_precision
     ):
         dataset = common_helpers.get_dataset(
             data=config.data,
             transform=transform_instance,
+            num_channels=no_auto(transform_instance.transform_args.num_channels),
             mmap_filepath=mmap_filepath,
+            out_dir=out_dir,
         )
         dataset_size = train_helpers.get_dataset_size(dataset=dataset)
         config.epochs = train_helpers.get_epochs(
@@ -308,7 +312,9 @@ def train_from_config(config: TrainConfig) -> None:
             epochs=config.epochs,
         )
         wrapped_model = package_helpers.get_wrapped_model(
-            model=config.model, model_args=config.model_args
+            model=config.model,
+            model_args=config.model_args,
+            num_input_channels=no_auto(transform_instance.transform_args.num_channels),
         )
         embedding_model = train_helpers.get_embedding_model(
             wrapped_model=wrapped_model, embed_dim=config.embed_dim
@@ -396,6 +402,7 @@ def train_from_config(config: TrainConfig) -> None:
             optimizer_args=config.optim_args,
             embedding_model=embedding_model,
             global_batch_size=config.batch_size,
+            num_input_channels=no_auto(transform_instance.transform_args.num_channels),
         )
         train_helpers.load_checkpoint(
             checkpoint=config.checkpoint,
@@ -410,6 +417,7 @@ def train_from_config(config: TrainConfig) -> None:
             train_dataloaders=dataloader,
             ckpt_path="last" if config.resume_interrupted else None,
         )
+
     if config.epochs == 0:
         logger.info("No training epochs specified. Saving model and exiting.")
         trainer_instance.save_checkpoint(out_dir / "checkpoints" / "last.ckpt")
@@ -499,10 +507,12 @@ def log_resolved_config(config: TrainConfig, loggers: list[Logger]) -> None:
     """
     log_string = (
         "Resolved configuration:\n"
-        f"{common_helpers.pretty_format_args(args=common_helpers.remove_excessive_args(config.model_dump(), limit_keys={'data'}))}\n"
+        f"{common_helpers.pretty_format_args(args=config.model_dump(), limit_keys={'data'})}\n"
     )
     logger.info(log_string)
 
-    hyperparams = common_helpers.sanitize_config_dict(config.model_dump())
+    hyperparams = common_helpers.sanitize_config_dict(
+        common_helpers.remove_excessive_args(config.model_dump(), limit_keys={"data"})
+    )
     for logger_instance in loggers:
         logger_instance.log_hyperparams(params=hyperparams)

@@ -34,7 +34,7 @@ from .. import helpers
 if importlib_util.find_spec("ultralytics") is not None:
     from ultralytics import YOLO
 else:
-    YOLO = None
+    YOLO = None  # type: ignore
 
 if importlib_util.find_spec("super_gradients") is not None:
     from super_gradients.training import models as super_gradient_models

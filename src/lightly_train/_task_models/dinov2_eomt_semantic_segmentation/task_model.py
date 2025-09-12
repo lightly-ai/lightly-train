@@ -45,7 +45,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         classes: dict[int, str],
         class_ignore_index: int | None,
         image_size: tuple[int, int],
-        image_normalize: dict[str, float],
+        image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
         num_joint_blocks: int,
         backbone_weights: PathLike | None = None,
@@ -110,6 +110,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # Disable drop path by default.
         backbone_model_args = {
             "drop_path_rate": 0.0,
+            "in_chans": len(self.image_normalize["mean"]),
         }
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
@@ -245,14 +246,14 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         image_h, image_w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
-        # TODO(Guarin, 07/25): Save mean and std in the model.
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
-        # Resize shorter edge to 518
-        # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
-        # model.
-        x = transforms_functional.resize(x, size=[518])  # (C, H, W) -> (C, H', W')
+        # Crop size is the short side of the training image size. We resize the image
+        # such that the short side of the image matches the crop size.
+        crop_size = min(self.image_size)
+        # (C, H, W) -> (C, H', W')
+        x = transforms_functional.resize(x, size=[crop_size])
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
@@ -418,10 +419,15 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # Initialize the tensors containing the final predictions.
         for size in image_sizes:
             logit_sums.append(
-                torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
+                crop_logits.new_zeros(
+                    (crop_logits.shape[1], *size),
+                )
             )
             logit_counts.append(
-                torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
+                torch.zeros_like(
+                    logit_sums[-1],
+                    dtype=torch.int32,
+                )
             )
 
         for crop_index, (image_index, start, end, is_tall) in enumerate(origins):
@@ -519,25 +525,29 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     # TODO(Guarin, 07/25): Add support for attention masks directly to Attention class?
     def _attn(self, module: Attention, x: Tensor, mask: Tensor | None) -> Tensor:
         # This mirrors DINOv2 Attention forward but with mask support.
-        B, N, C = x.shape
+        B, N, _ = x.shape
 
         qkv = (
             module.qkv(x)
-            .reshape(B, N, 3, module.num_heads, C // module.num_heads)
+            .reshape(B, N, 3, module.num_heads, module.head_dim)
             .permute(2, 0, 3, 1, 4)
         )
-        q, k, v = qkv[0] * module.scale, qkv[1], qkv[2]
+        q, k, v = qkv[0], qkv[1], qkv[2]
 
         if mask is not None:
-            mask = mask[:, None, ...].expand(-1, module.num_heads, -1, -1)
+            mask = mask[:, None, ...]
 
-        attn = q @ k.transpose(-2, -1)
-        if mask is not None:
-            attn = attn.masked_fill(~mask, float("-inf"))
-        attn = attn.softmax(dim=-1)
-        attn = module.attn_drop(attn)
+        x = F.scaled_dot_product_attention(
+            query=q,
+            key=k,
+            value=v,
+            attn_mask=mask,
+            dropout_p=module.attn_drop.p,
+        )  # B x num_heads x N x (dim // num_heads)
 
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = x.transpose(1, 2)
+        x = x.reshape(B, N, module.dim)
+
         x = module.proj(x)
         x = module.proj_drop(x)
         return x

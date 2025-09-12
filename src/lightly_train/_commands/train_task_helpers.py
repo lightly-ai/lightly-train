@@ -14,9 +14,10 @@ import logging
 from functools import partial
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal
+from typing import Any, Generator, Iterable, Literal, Mapping
 
 import torch
+from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
@@ -26,7 +27,10 @@ from torch.utils.data import DataLoader, Dataset
 from lightly_train._configs import validate
 from lightly_train._data import cache
 from lightly_train._data._serialize import memory_mapped_sequence
-from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
+from lightly_train._data._serialize.memory_mapped_sequence import (
+    MemoryMappedSequence,
+    Primitive,
+)
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
@@ -50,6 +54,9 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
+from lightly_train._transforms.semantic_segmentation_transform import (
+    SemanticSegmentationTransform,
+)
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -174,6 +181,8 @@ class PrettyFormatArgsJSONEncoder(JSONEncoder):
     def default(self, obj: Any) -> Any:
         if isinstance(obj, Path):
             return str(obj)
+        if isinstance(obj, set):
+            return sorted(list(obj))
         try:
             return super().default(obj)
         except TypeError:
@@ -223,10 +232,16 @@ def get_transform_args(
         train_transform_args_cls, transform_args
     )
     train_transform_args.resolve_auto()
+    train_transform_args.resolve_incompatible()
 
     # Take defaults from train transform.
     val_args_dict = train_transform_args.model_dump(
-        include={"image_size": True, "normalize": True, "ignore_index": True}
+        include={
+            "image_size": True,
+            "normalize": True,
+            "ignore_index": True,
+            "num_channels": True,
+        }
     )
     # Overwrite with user provided val args.
     val_args_dict.update(val_args)
@@ -234,6 +249,7 @@ def get_transform_args(
         val_transform_args_cls, val_args_dict
     )
     val_transform_args.resolve_auto()
+    val_transform_args.resolve_incompatible()
 
     logger.debug(
         f"Resolved train transform args {pretty_format_args(train_transform_args.model_dump())}"
@@ -287,6 +303,7 @@ def get_dataset_temp_mmap_path(
     mmap_filepath = (cache.get_data_cache_dir() / get_sha256(data)).with_suffix(".mmap")
     mmap_filepath_broadcasted = Path(fabric.broadcast(str(mmap_filepath)))
     mmap_dirpath_broadcasted = mmap_filepath_broadcasted.parent
+    ref_count_filepath_broadcasted = mmap_filepath.with_suffix(".ref_count")
 
     # Create the output directory if it doesn't exist.
     with fabric.rank_zero_first():
@@ -310,24 +327,56 @@ def get_dataset_temp_mmap_path(
             if fabric.local_rank == 0 and fabric.global_rank != 0:
                 mmap_dirpath_broadcasted.mkdir(parents=True, exist_ok=True)
 
-    reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
     try:
-        # Delete the file if it already exists from a previous run.
-        if not reuse_file and (fabric.local_rank == 0):
-            _unlink_and_ignore(mmap_filepath_broadcasted)
+        # Increment reference count atomically
+        _increment_ref_count(ref_count_filepath_broadcasted)
 
         yield mmap_filepath_broadcasted
     finally:
-        if not reuse_file and (fabric.local_rank == 0):
-            _unlink_and_ignore(mmap_filepath_broadcasted)
+        # Decrement reference count and cleanup if zero
+        _decrement_and_cleanup_if_zero(
+            mmap_filepath_broadcasted, ref_count_filepath_broadcasted
+        )
 
 
-def get_dataset_mmap_filenames(
+def _increment_ref_count(ref_file: Path) -> None:
+    lock_file = ref_file.with_suffix(".lock")
+
+    with FileLock(lock_file, timeout=300):
+        # Ensure file exists within the lock to avoid race conditions
+        ref_file.touch()
+        with open(ref_file, "r+") as f:
+            count = int(f.read() or "0")
+            f.seek(0)
+            f.write(str(count + 1))
+            f.truncate()
+
+
+def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
+    try:
+        lock_file = ref_file.with_suffix(".lock")
+
+        with FileLock(lock_file, timeout=300):
+            with open(ref_file, "r+") as f:
+                count = max(0, int(f.read() or "1") - 1)
+                f.seek(0)
+                f.write(str(count))
+                f.truncate()
+
+                if count <= 0 and not Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
+                    # Remove mmap file only if we are not reusing it and count is zero
+                    _unlink_and_ignore(mmap_file)
+
+    except (FileNotFoundError, OSError):
+        pass  # Another process already cleaned up
+
+
+def get_dataset_mmap_file(
     fabric: Fabric,
-    filenames: Iterable[str],
+    items: Iterable[Mapping[str, Primitive]],
     mmap_filepath: Path,
-) -> MemoryMappedSequence[str]:
-    """Returns memory-mapped filenames shared across all ranks.
+) -> MemoryMappedSequence[Primitive]:
+    """Returns memory-mapped filepaths shared across all ranks.
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
     """
@@ -335,9 +384,7 @@ def get_dataset_mmap_filenames(
     # If the file already exists and we are allowed to reuse it, return it.
     if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
         logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
-        return memory_mapped_sequence.memory_mapped_sequence_from_file(
-            mmap_filepath=mmap_filepath
-        )
+        return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
 
     # Check if the mmap file is on a shared filesystem.
     try:
@@ -354,15 +401,12 @@ def get_dataset_mmap_filenames(
         if (fabric.global_rank == 0) or (
             not is_shared_filesystem and fabric.local_rank == 0
         ):
-            memory_mapped_sequence.write_filenames_to_file(
-                filenames=filenames,
+            memory_mapped_sequence.write_items_to_file(
+                items=items,
                 mmap_filepath=mmap_filepath,
             )
 
-    # Return memory-mapped filenames from file.
-    return memory_mapped_sequence.memory_mapped_sequence_from_file(
-        mmap_filepath=mmap_filepath
-    )
+    return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
 
 
 def get_dataset(
@@ -371,13 +415,16 @@ def get_dataset(
     transform: TaskTransform,
     mmap_filepath: Path,
 ) -> MaskSemanticSegmentationDataset:
-    filenames = list(dataset_args.list_image_filenames())
+    image_info = dataset_args.list_image_info()
+
     dataset_cls = dataset_args.get_dataset_cls()
+    # TODO(Guarin, 08/25): Relax this when we add object detection.
+    assert isinstance(transform, SemanticSegmentationTransform)
     return dataset_cls(
         dataset_args=dataset_args,
-        image_filenames=get_dataset_mmap_filenames(
+        image_info=get_dataset_mmap_file(
             fabric=fabric,
-            filenames=filenames,
+            items=image_info,
             mmap_filepath=mmap_filepath,
         ),
         transform=transform,

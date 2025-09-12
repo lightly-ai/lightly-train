@@ -32,6 +32,11 @@ class TaskTransformArgs(PydanticConfig):
     )
 
     def resolve_auto(self) -> None:
+        """Resolve any arguments set to "auto"."""
+        pass
+
+    def resolve_incompatible(self) -> None:
+        """Resolve any incompatible arguments."""
         pass
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

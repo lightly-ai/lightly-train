@@ -47,7 +47,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         classes: dict[int, str],
         class_ignore_index: int | None,
         image_size: tuple[int, int],
-        image_normalize: dict[str, float],
+        image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
         num_joint_blocks: int,
         backbone_url: str | None = None,
@@ -115,7 +115,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {}
+        backbone_model_args: dict[str, Any] = {
+            "in_chans": len(self.image_normalize["mean"]),
+        }
         if backbone_url is not None:
             backbone_model_args["weights"] = backbone_url
         else:
@@ -254,15 +256,14 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         image_h, image_w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
-        # TODO(Guarin, 07/25): Save mean and std in the model.
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
-        # Resize shorter edge to 518
-        # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
-        # model.
-        # TODO(Guarin, 07/25): Check if we should change default to 512.
-        x = transforms_functional.resize(x, size=[518])  # (C, H, W) -> (C, H', W')
+        # Crop size is the short side of the training image size. We resize the image
+        # such that the short side of the image matches the crop size.
+        crop_size = min(self.image_size)
+        # (C, H, W) -> (C, H', W')
+        x = transforms_functional.resize(x, size=[crop_size])
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
