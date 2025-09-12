@@ -47,38 +47,6 @@ a wide range of model architectures and use cases out of the box.
 - 🏗️ **Model & Task Agnostic**: Compatible with any architecture and task, including detection, classification, and segmentation.
 - 🚀 **Industrial-Scale Support**: LightlyTrain scales from thousands to millions of images. Supports on-prem, cloud, single, and multi-GPU setups.
 
-## 🔥 Distill DINOv2/v3 Into Any Model Architecture 🔥
-
-![Benchmark Results](https://cdn.prod.website-files.com/62cd5ce03261cb3e98188470/67fe4efa0209fb4eb0c3da5c_Introducing%20LightlyTrain_imag_1.png)
-
-> Pretrain any model architecture with unlabeled data by distilling the knowledge from
-> DINOv2 or DINOv3 foundation models into your model. On the COCO dataset, YOLOv8-s
-> models pretrained with LightlyTrain achieve high performance across all tested label
-> fractions. These improvements hold for other architectures like YOLOv11, RT-DETR,
-> and Faster R-CNN. See our [announcement post](https://www.lightly.ai/blog/introducing-lightly-train)
-> for more benchmarks and details. See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
-> on how to get started!
-
-<details>
-<summary><strong>Example Code</strong></summary>
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.train(
-        out="out/my_experiment", 
-        data="my_data_dir",
-        model="ultralytics/yolov8s",
-        method="distillation",
-    )
-```
-
-See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
-for more details.
-
-</details>
-
 ## 🔥 Pretrain Your Own DINOv2 Foundation Model 🔥
 
 | Implementation | Model | ImageNet k-NN | Docs |
@@ -111,6 +79,38 @@ for more details.
 
 </details>
 
+## 🔥 Distill DINOv2/v3 Into Any Model Architecture 🔥
+
+![Benchmark Results](https://cdn.prod.website-files.com/62cd5ce03261cb3e98188470/67fe4efa0209fb4eb0c3da5c_Introducing%20LightlyTrain_imag_1.png)
+
+> Pretrain any model architecture with unlabeled data by distilling the knowledge from
+> DINOv2 or DINOv3 foundation models into your model. On the COCO dataset, YOLOv8-s
+> models pretrained with LightlyTrain achieve high performance across all tested label
+> fractions. These improvements hold for other architectures like YOLOv11, RT-DETR,
+> and Faster R-CNN. See our [announcement post](https://www.lightly.ai/blog/introducing-lightly-train)
+> for more benchmarks and details. See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
+> on how to get started!
+
+<details>
+<summary><strong>Example Code</strong></summary>
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train(
+        out="out/my_experiment", 
+        data="my_data_dir",
+        model="ultralytics/yolov8s",
+        method="distillation",
+    )
+```
+
+See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
+for more details.
+
+</details>
+
 ## 🔥 Train SOTA Semantic Segmentation Models 🔥
 
 | Implementation | Model | Input Size | ADE20K Val mIoU | Tensorboard | Checkpoint |
@@ -120,8 +120,8 @@ for more details.
 | LightlyTrain | dinov3/vitl16-eomt | 512x512 | **59.1%** | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757520165.dinov3_eomt_vitl16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
 | EoMT | dinov2/vitl14-eomt | 512x512 | 58.4% | - | [🔗](https://github.com/tue-mps/eomt) |
 
-> LightlyTrain's semantic segmentation model achieves a new state-of-the-art on the
-> ADE20K benchmark. See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
+> LightlyTrain's EoMT semantic segmentation model based on DINOv3 achieves a new
+> state-of-the-art on the ADE20K benchmark. See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
 > on how to get started!
 
 <details>
@@ -135,7 +135,7 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="dinov3/vits16-eomt",
         model_args={
-            # Replace with your own url
+            # Replace with your own url, request access from Meta at: https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/
             "backbone_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
         },
         data={
@@ -236,6 +236,29 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 ### Supported Models
 
+| Framework | Model | Pretrain | Distill\\n From DINOv2/v3 | Fine-tune |
+|----------------|--------------|--------------------------------------------------------------------------|---------|------------------------|
+| | | | | Semantic Segmentation |
+| LightlyTrain | DINOv3 | | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html#distill-from-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
+| | DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/dinov2.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html) |
+| Torchvision | ResNet | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | |
+| | ConvNext | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | |
+| | ShuffleNetV2 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | |
+| TIMM | All models | ✅ [🔗](https://docs.lightly.ai/train/stable/models/timm.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/timm.html) | |
+| Ultralytics | YOLOv5 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | |
+| | YOLOv6 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | |
+| | YOLOv8 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | |
+| | YOLO11 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | |
+| | YOLO12 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | |
+| RT-DETR | RT-DETR | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) | |
+| | RT-DETRv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) | |
+| RF-DETR | RF-DETR | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) | |
+| YOLOv12 | YOLOv12 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) | |
+| SuperGradients | PP-LiteSeg | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | |
+| | SSD | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | |
+| | YOLO-NAS | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | |
+| Custom Models | Any PyTorch model | ✅ [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) | |
+
 #### Pretraining & Distillation
 
 The following models and libraries are supported for pretraining and distillation:
@@ -252,15 +275,6 @@ The following models and libraries are supported for pretraining and distillatio
 | Custom Models | Any PyTorch model | [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) |
 
 For an overview of all supported models and usage instructions, see the full [model docs](https://docs.lightly.ai/train/stable/models/index.html).
-
-#### Semantic Segmentation
-
-The following models and libraries are supported for semantic segmentation fine-tuning:
-
-| Supported Models | Docs |
-|------------------|------|
-| DINOv3 EoMT | [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) |
-| DINOv2 EoMT | [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov2) |
 
 [Contact](#contact) us if you need support for additional models or libraries.
 
