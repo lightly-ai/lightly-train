@@ -286,6 +286,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     ) -> tuple[list[Tensor], list[Tensor]]:
         _, _, H, W = x.shape
         patch_size = self.backbone.patch_size
+
+        # Match the logic of the PatchEmbded forward
+        # (src/lightly_train/_models/dinov2_vit/dinov2_vit_src/layers/patch_embed.py).
         grid_size = (math.ceil(H / patch_size), math.ceil(W / patch_size))
 
         x = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
