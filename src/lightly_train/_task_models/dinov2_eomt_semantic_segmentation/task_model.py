@@ -286,7 +286,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     ) -> tuple[list[Tensor], list[Tensor]]:
         _, _, H, W = x.shape
         patch_size = self.backbone.patch_size
-        grid_size = (H // patch_size, W // patch_size)
+        grid_size = (math.ceil(H / patch_size), math.ceil(W / patch_size))
 
         x = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
         mask_logits_per_layer, class_logits_per_layer = [], []
