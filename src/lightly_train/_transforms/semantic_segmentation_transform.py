@@ -27,8 +27,6 @@ from albumentations.pytorch import ToTensorV2
 from numpy.typing import NDArray
 from torch import Tensor
 from typing_extensions import NotRequired
-from torch import Tensor
-from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDrop
@@ -47,7 +45,6 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
-from lightly_train.types import NDArrayImage
 
 logger = logging.getLogger(__name__)
 
