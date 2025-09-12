@@ -238,7 +238,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 LightlyTrain supports a wide range of frameworks and models out of the box.
 
-| Framework | Model | Pretrain<br>*Unlabeled Images* | Distill From<br> DINOv2/v3<br>*Unlabeled Images* | Fine-tune<br>*Labeled Images* |
+| Framework | Model | Pretrain<br><sub>(*Unlabeled Images*)</sub> | Distill From<br> DINOv2/v3<br><sub>(*Unlabeled Images*)</sub> | Fine-tune<br><sub>(*Labeled Images*)</sub> |
 |----------------|--------------|--------------------------------------------------------------------------|---------|------------------------|
 | | | | | Semantic Segmentation |
 | LightlyTrain | DINOv3 | | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html#distill-from-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
