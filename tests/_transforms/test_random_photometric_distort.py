@@ -87,12 +87,12 @@ class TestRandomPhotometricDistort:
     )
     def test__init__errors(
         self,
-        brightness,
-        contrast,
-        saturation,
-        hue,
-        p,
-        error,
+        brightness: tuple[float, float],
+        contrast: tuple[float, float],
+        saturation: tuple[float, float],
+        hue: tuple[float, float],
+        p: float,
+        error: str,
     ) -> None:
         with pytest.raises(ValueError, match=error):
             RandomPhotometricDistort(

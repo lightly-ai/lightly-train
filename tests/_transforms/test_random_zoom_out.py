@@ -17,15 +17,15 @@ class TestRandomZoomOut:
     @pytest.mark.parametrize(
         "side_range, fill, error",
         [
-            ((0.5, 2.0), 0, "side_range must be"),
-            ((2.0, 1.0), 0, "side_range must be"),
+            ((0.5, 2.0), 0.0, "side_range must be"),
+            ((2.0, 1.0), 0.0, "side_range must be"),
         ],
     )
     def test__init__errors(
         self,
-        side_range,
-        fill,
-        error,
+        side_range: tuple[float, float],
+        fill: float,
+        error: str,
     ) -> None:
         with pytest.raises(ValueError, match=error):
             RandomZoomOut(side_range=side_range, fill=fill, p=1.0)
