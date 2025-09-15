@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._transforms.random_zoom_out import RandomZoomOut
+
+ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
 
 
 class TestRandomZoomOut:
@@ -47,8 +50,12 @@ class TestRandomZoomOut:
         assert out["mask"].shape[0] == out["image"].shape[0]
         assert out["mask"].shape[1] == out["image"].shape[1]
 
-        assert out["bboxes"].shape == bboxes.shape
-        assert out["class_labels"].shape == class_labels.shape
+        if ALBUMENTATIONS_VERSION_2XX:
+            assert out["bboxes"].shape == bboxes.shape
+            assert out["class_labels"].shape == class_labels.shape
+        else:
+            assert all(elem.shape == (2,) for elem in out["bboxes"])
+            assert all(elem.shape == (1,) for elem in out["class_labels"])
 
     def test__call__no_transform_when_p0(self) -> None:
         img = np.random.randint(0, 255, size=(8, 8, 3), dtype=np.uint8)

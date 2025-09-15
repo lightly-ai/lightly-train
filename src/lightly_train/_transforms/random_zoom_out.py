@@ -7,11 +7,16 @@
 #
 from __future__ import annotations
 
+import random
 from typing import Any
 
 import cv2
 from albumentations import PadIfNeeded
 from albumentations.augmentations.geometric import functional as fgeometric
+from lightning_utilities.core.imports import RequirementCache
+
+ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
+ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
 
 
 class RandomZoomOut(PadIfNeeded):  # type: ignore[misc]
@@ -30,14 +35,24 @@ class RandomZoomOut(PadIfNeeded):  # type: ignore[misc]
         side_range: tuple[float, float],
         p: float,
     ):
-        super().__init__(
-            min_height=1,  # Will be ignored and set dynamically based on input image size.
-            min_width=1,  # Will be ignored and set dynamically based on input image size.
-            position="random",
-            border_mode=cv2.BORDER_CONSTANT,
-            fill=fill,
-            p=p,
-        )
+        if ALBUMENTATIONS_VERSION_2XX:
+            super().__init__(
+                min_height=1,  # Will be ignored and set dynamically based on input image size.
+                min_width=1,  # Will be ignored and set dynamically based on input image size.
+                position="random",
+                border_mode=cv2.BORDER_CONSTANT,
+                fill=fill,
+                p=p,
+            )
+        else:
+            super().__init__(
+                min_height=1,  # Will be ignored and set dynamically based on input image size.
+                min_width=1,  # Will be ignored and set dynamically based on input image size.
+                position="random",
+                border_mode=cv2.BORDER_CONSTANT,
+                value=fill,
+                p=p,
+            )
         self.fill = fill
         self.side_range = side_range
         self.p = p
@@ -50,7 +65,10 @@ class RandomZoomOut(PadIfNeeded):  # type: ignore[misc]
     def get_params_dependent_on_data(
         self, params: dict[str, Any], data: dict[str, Any]
     ) -> dict[str, Any]:
-        scale = self.py_random.uniform(self.side_range[0], self.side_range[1])
+        if ALBUMENTATIONS_GEQ_1_4_21:
+            scale = self.py_random.uniform(self.side_range[0], self.side_range[1])
+        else:
+            scale = random.uniform(self.side_range[0], self.side_range[1])
         h, w = data["image"].shape[:2]
         new_h, new_w = int(h * scale), int(w * scale)
 
