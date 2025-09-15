@@ -216,6 +216,8 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 ## Features
 
+Model Pretraining (**no self-supervised learning expertise required!**)
+
 - Pretrain DINOv2 foundation models on your own data
 - Distill knowledge from DINOv2 or DINOv3 into any model architecture
 - Pretrain models from popular libraries such as [Torchvision](https://docs.lightly.ai/train/stable/models/torchvision.html),
@@ -226,13 +228,18 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
   [RF-DETR](https://docs.lightly.ai/train/stable/models/rfdetr.html),
   and [YOLOv12](https://docs.lightly.ai/train/stable/models/yolov12.html)
 - Pretrain [custom models](https://docs.lightly.ai/train/stable/models/custom_models.html) with ease
+- [Export models in their native format](https://docs.lightly.ai/train/stable/export.html) for fine-tuning or inference
+- Generate and export [image embeddings](https://docs.lightly.ai/train/stable/embed.html)
+
+Model Fine-tuning
+
 - Fine-tune DINOv2 and DINOv3 for [semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
-- No self-supervised learning expertise required
 - Automatic SSL method selection (coming soon!)
+
+MLOps
+
 - Python, Command Line, and [Docker](https://docs.lightly.ai/train/stable/docker.html) support
 - Built for [high performance](https://docs.lightly.ai/train/stable/performance/index.html) including [multi-GPU](https://docs.lightly.ai/train/stable/performance/multi_gpu.html) and [multi-node](https://docs.lightly.ai/train/stable/performance/multi_node.html) support
-- [Export models](https://docs.lightly.ai/train/stable/export.html) for fine-tuning or inference
-- Generate and export [image embeddings](https://docs.lightly.ai/train/stable/embed.html)
 - [Monitor training progress](https://docs.lightly.ai/train/stable/train.html#loggers) with MLflow, TensorBoard, Weights & Biases, and more
 - Runs fully on-premises with no API authentication and no telemetry
 
