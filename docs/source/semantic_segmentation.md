@@ -469,3 +469,49 @@ transform_args={
     }
 }
 ```
+
+## Exporting a checkpoint to ONNX
+
+[Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange) is a standard format
+for representing machine learning models in a framework independent manner. In particular, it is useful for deploying our
+models on edge devices where PyTorch is not available.
+
+Currently, we allow only DINOv2 EoMT segmentation models to be exported as ONNX but plan to add more models in the future.
+
+The following example shows how to export a previously trained checkpoint to ONNX using the `export_onnx` function.
+
+```python
+import lightly_train
+
+lightly_train.export_onnx(
+        out="model.onnx",
+        checkpoint="out/checkpoints/last.ckpt",
+    )
+```
+#### Required arguments
+
+- `out` (path): Where model should be exported to.
+- `checkpoint` (path): Location of a trained checkpoint.
+ 
+#### Optional Arguments
+
+- `batch_size` (`int`): The number of images that is passed per batch to the model. (Default: `1`)
+- `num_channels` (`int`): The number of channels (e.g. RGB) of the images. (Default: `3`)
+- `height` (`int`): The height of the images. (Default: `224`)
+- `width` (`int`): The width of the images. (Default: `224`)
+- `precision` (`"32-true"` or `"16-true"`): The floating point precision that should be used. Lower precisions use less memory
+    and might run faster but also might have more inaccuracies. (Default: `32-true`)
+- `simplify` (`bool`): Simplify the model using [OnnxSlim](https://github.com/inisis/OnnxSlim). (Default: `True`)
+- `verify` (`bool`): Run the exported model on a sample input and verify that the results are correct. We recomment to have
+    this enabled. (Default: `True`)
+- `overwrite` (`bool`): Replace the exported model if it already exists. (Default: `False`)
+- `format_args` (`dict`): Additional arguments that should be passed to [torch.onnx.export](https://docs.pytorch.org/docs/stable/onnx_dynamo.html#torch.onnx.export).
+    Only use this if you know what you are doing. (Default: `{}`)
+
+ ### Requirements
+
+Exporting to ONNX requires some additional packages to be installed. Namely
+
+* `onnx`
+* `onnxruntime` if `verify` is set to `True`.
+* `onnxslim` if `simplify` is set to `True`
