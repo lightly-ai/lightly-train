@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from albumentations import BboxParams, Compose, Normalize, Resize, ToTensorV2
+from albumentations import BboxParams, Compose, Normalize, Resize
+from albumentations.pytorch.transforms import ToTensorV2
 
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
