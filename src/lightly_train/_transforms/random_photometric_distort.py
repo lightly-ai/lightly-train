@@ -14,9 +14,10 @@ from albumentations import (
     ChannelShuffle,
     ColorJitter,
     ImageOnlyTransform,
-    RandomOrder,
 )
 from numpy.typing import NDArray
+
+from lightly_train._transforms.random_order import RandomOrder
 
 
 class RandomPhotometricDistort(ImageOnlyTransform):  # type: ignore[misc]
