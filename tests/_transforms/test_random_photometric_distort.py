@@ -73,7 +73,7 @@ class TestRandomPhotometricDistort:
                 (1.0, 2.0),
                 (0.0, 0.1),
                 -0.1,
-                "Input should be greater than or equal to 0",
+                r"Probability must be in \(0, 1\]",
             ),
             (
                 (0.5, 1.0),
@@ -81,7 +81,7 @@ class TestRandomPhotometricDistort:
                 (1.0, 2.0),
                 (0.0, 0.1),
                 1.1,
-                "Input should be less than or equal to 1",
+                r"Probability must be in \(0, 1\]",
             ),
         ],
     )
@@ -130,20 +130,7 @@ class TestRandomPhotometricDistort:
         assert result.shape == img.shape
         assert result.dtype == img.dtype
 
-    def test__call__no_transform_when_p0(self) -> None:
-        img = np.random.randint(0, 255, size=(8, 8, 3), dtype=np.uint8)
-        transform = RandomPhotometricDistort(
-            brightness=(1.0, 1.0),
-            contrast=(1.0, 1.0),
-            saturation=(1.0, 1.0),
-            hue=(0.0, 0.0),
-            p=0.0,
-        )
-        out = transform(image=img)
-        np.testing.assert_array_equal(out["image"], img)
-
     def test__call__always_transform_when_p1(self) -> None:
-        np.random.seed(42)
         img = np.random.randint(0, 255, size=(8, 8, 3), dtype=np.uint8)
         # Use 0.5, 0.9 to make sure that 1.0 is not sampled and the image must change.
         transform = RandomPhotometricDistort(
