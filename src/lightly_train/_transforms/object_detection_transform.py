@@ -11,6 +11,7 @@ import numpy as np
 from albumentations import BboxParams
 from numpy.typing import NDArray
 from torch import Tensor
+from typing_extensions import NotRequired
 
 from lightly_train._transforms.task_transform import (
     TaskTransform,
@@ -29,14 +30,14 @@ from lightly_train.types import NDArrayImage
 
 class ObjectDetectionTransformInput(TaskTransformInput):
     image: NDArrayImage
-    bboxes: NDArray[np.float64]
-    class_labels: NDArray[np.int64]
+    bboxes: NotRequired[NDArray[np.float64]]
+    class_labels: NotRequired[NDArray[np.int64]]
 
 
 class ObjectDetectionTransformOutput(TaskTransformOutput):
     image: Tensor
-    bboxes: Tensor
-    class_labels: Tensor
+    bboxes: NotRequired[Tensor]
+    class_labels: NotRequired[Tensor]
 
 
 class ObjectDetectionTransformArgs(TaskTransformArgs):
