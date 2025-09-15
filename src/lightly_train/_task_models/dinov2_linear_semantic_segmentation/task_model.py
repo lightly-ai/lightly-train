@@ -240,8 +240,8 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         logits: Tensor = self.head(patch_tokens)
 
         # Reshape back to (B, K|K+1, H_patch, W_patch).
-        H_patch = H // self.patch_size
-        W_patch = W // self.patch_size
+        H_patch = math.ceil(H / self.patch_size)
+        W_patch = math.ceil(W / self.patch_size)
         logits = logits.permute(0, 2, 1).reshape(B, -1, H_patch, W_patch)
 
         # Up-sample to match original image/mask resolution.
