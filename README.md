@@ -49,15 +49,15 @@ a wide range of model architectures and use cases out of the box.
 
 ## 🔥 Pretrain Your Own DINOv2 Foundation Model 🔥
 
+Pretrain a DINOv2 model on your own unlabeled images. LightlyTrain's DINOv2
+implementation matches or outperforms the official implementation on ImageNet-1K.
+See our [documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html) on
+how to get started!
+
 | Implementation | Model | ImageNet k-NN | Docs |
 |----------------|-------|---------------|------|
 | LightlyTrain | dinov2/vitl16 | **81.9%** | [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) |
 | DINOv2 | dinov2/vitl16 | 81.6% | [🔗](https://github.com/facebookresearch/dinov2) |
-
-> Pretrain a DINOv2 model on your own unlabeled images. LightlyTrain's DINOv2
-> implementation matches or outperforms the official implementation on ImageNet-1K.
-> See our [documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html) on
-> how to get started!
 
 <details>
 <summary><strong>Example Code</strong></summary>
@@ -81,15 +81,15 @@ for more details.
 
 ## 🔥 Distill DINOv2/v3 Into Any Model Architecture 🔥
 
-![Benchmark Results](https://cdn.prod.website-files.com/62cd5ce03261cb3e98188470/67fe4efa0209fb4eb0c3da5c_Introducing%20LightlyTrain_imag_1.png)
+Pretrain any model architecture with unlabeled data by distilling the knowledge from
+DINOv2 or DINOv3 foundation models into your model. On the COCO dataset, YOLOv8-s
+models pretrained with LightlyTrain achieve high performance across all tested label
+fractions. These improvements hold for other architectures like YOLOv11, RT-DETR,
+and Faster R-CNN. See our [announcement post](https://www.lightly.ai/blog/introducing-lightly-train)
+for more benchmarks and details. See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
+on how to get started!
 
-> Pretrain any model architecture with unlabeled data by distilling the knowledge from
-> DINOv2 or DINOv3 foundation models into your model. On the COCO dataset, YOLOv8-s
-> models pretrained with LightlyTrain achieve high performance across all tested label
-> fractions. These improvements hold for other architectures like YOLOv11, RT-DETR,
-> and Faster R-CNN. See our [announcement post](https://www.lightly.ai/blog/introducing-lightly-train)
-> for more benchmarks and details. See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
-> on how to get started!
+![Benchmark Results](https://cdn.prod.website-files.com/62cd5ce03261cb3e98188470/67fe4efa0209fb4eb0c3da5c_Introducing%20LightlyTrain_imag_1.png)
 
 <details>
 <summary><strong>Example Code</strong></summary>
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     lightly_train.train(
         out="out/my_experiment", 
         data="my_data_dir",
-        model="ultralytics/yolov8s",
+        model="ultralytics/yolov8s.pt",
         method="distillation",
     )
 ```
@@ -113,16 +113,16 @@ for more details.
 
 ## 🔥 Train SOTA Semantic Segmentation Models 🔥
 
+LightlyTrain's EoMT semantic segmentation model based on DINOv3 achieves a new
+state-of-the-art on the ADE20K benchmark. See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
+on how to get started!
+
 | Implementation | Model | Input Size | ADE20K<br>Val mIoU | Tensorboard | Checkpoint |
 |----------------|-------|------------|--------------------|-------------|------------|
 | LightlyTrain | dinov3/vits16-eomt | 518x518 | 46.6% | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757573634.dinov3_eomt_vits16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
 | LightlyTrain | dinov3/vitb16-eomt | 518x518 | 54.4% | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757511566.dinov3_eomt_vitb16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
 | LightlyTrain | dinov3/vitl16-eomt | 518x518 | **59.1%** | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757520165.dinov3_eomt_vitl16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
 | EoMT | dinov2/vitl14-eomt | 512x512 | 58.4% | - | [🔗](https://github.com/tue-mps/eomt) |
-
-> LightlyTrain's EoMT semantic segmentation model based on DINOv3 achieves a new
-> state-of-the-art on the ADE20K benchmark. See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
-> on how to get started!
 
 <details>
 <summary><strong>Example Code</strong></summary>
@@ -216,7 +216,7 @@ model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_las
 
 ## Features
 
-- Pretrain DINOv2 and DINOv3 foundation models on your own data
+- Pretrain DINOv2 foundation models on your own data
 - Distill knowledge from DINOv2 or DINOv3 into any model architecture
 - Pretrain models from popular libraries such as [Torchvision](https://docs.lightly.ai/train/stable/models/torchvision.html),
   [TIMM](https://docs.lightly.ai/train/stable/models/timm.html),
