@@ -514,4 +514,4 @@ Exporting to ONNX requires some additional packages to be installed. Namely
 
 * `onnx`
 * `onnxruntime` if `verify` is set to `True`.
-* `onnxslim` if `simplify` is set to `True`
+* `onnxslim` if `simplify` is set to `True`.
