@@ -51,7 +51,9 @@ class RandomPhotometricDistort(ImageOnlyTransform):  # type: ignore[misc]
             prob:
                 Probability of applying the transform. Should be in [0, 1].
         """
-        super().__init__(p=1.0)  # We handle probability in the sub-transforms.
+        # The pipeline should always be applied and the probability of application
+        # should be handled in the subtransforms.
+        super().__init__(p=1.0)
         self.brightness = brightness
         self.contrast = contrast
         self.saturation = saturation
@@ -74,6 +76,8 @@ class RandomPhotometricDistort(ImageOnlyTransform):  # type: ignore[misc]
             raise ValueError(
                 f"Hue values must respect -0.5 <= min <= max <= 0.5, got {hue}."
             )
+        if not 0 < p <= 1:
+            raise ValueError(f"Probability must be in (0, 1], got {p}.")
 
         self.transform = RandomOrder(
             [
