@@ -111,6 +111,11 @@ MODELS: dict[str, _Model] = {
         config="train/vitl14",
         list=False,
     ),
+    "vitl16-noreg-notpretrained": _Model(
+        url="",
+        config="ssl_default_config",
+        list=False,
+    ),
     "vitg14-noreg-notpretrained": _Model(
         url="",
         config="train/vitg14",
