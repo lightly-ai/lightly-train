@@ -495,7 +495,7 @@ lightly_train.export_onnx(
 
 - `out` (path): Where model should be exported to.
 - `checkpoint` (path): Location of a trained checkpoint.
- 
+
 ### Optional
 
 - `batch_size` (`int`): The number of images that is passed per batch to the model. (Default: `1`)
@@ -503,18 +503,18 @@ lightly_train.export_onnx(
 - `height` (`int`): The height of the images. (Default: `224`)
 - `width` (`int`): The width of the images. (Default: `224`)
 - `precision` (`"32-true"` or `"16-true"`): The floating point precision that should be used. Lower precisions use less memory
-    and might run faster but also might have more inaccuracies. (Default: `32-true`)
+  and might run faster but also might have more inaccuracies. (Default: `32-true`)
 - `simplify` (`bool`): Simplify the model using [OnnxSlim](https://github.com/inisis/OnnxSlim). (Default: `True`)
 - `verify` (`bool`): Run the exported model on a sample input and verify that the results are correct. We recommend to have
-    this enabled. (Default: `True`)
+  this enabled. (Default: `True`)
 - `overwrite` (`bool`): Replace the exported model if it already exists. (Default: `False`)
 - `format_args` (`dict`): Additional arguments that should be passed to [torch.onnx.export](https://docs.pytorch.org/docs/stable/onnx_dynamo.html#torch.onnx.export).
-    Only use this if you know what you are doing. (Default: `{}`)
+  Only use this if you know what you are doing. (Default: `{}`)
 
- ### Requirements
+### Requirements
 
 Exporting to ONNX requires some additional packages to be installed. Namely
 
-* `onnx`
-* `onnxruntime` if `verify` is set to `True`.
-* `onnxslim` if `simplify` is set to `True`.
+- `onnx`
+- `onnxruntime` if `verify` is set to `True`.
+- `onnxslim` if `simplify` is set to `True`.
