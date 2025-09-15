@@ -488,12 +488,15 @@ lightly_train.export_onnx(
         checkpoint="out/checkpoints/last.ckpt",
     )
 ```
-#### Required arguments
+
+### Arguments
+
+### Required
 
 - `out` (path): Where model should be exported to.
 - `checkpoint` (path): Location of a trained checkpoint.
  
-#### Optional Arguments
+### Optional
 
 - `batch_size` (`int`): The number of images that is passed per batch to the model. (Default: `1`)
 - `num_channels` (`int`): The number of channels (e.g. RGB) of the images. (Default: `3`)
