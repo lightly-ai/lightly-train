@@ -154,4 +154,4 @@ class RandomZoomOutV2(RandomZoomOutBase):
 if ALBUMENTATIONS_GEQ_1_4_21:
     RandomZoomOut = RandomZoomOutV2
 else:
-    RandomZoomOut = RandomZoomOutV1
+    RandomZoomOut = RandomZoomOutV1  # type: ignore[misc]
