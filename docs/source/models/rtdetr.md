@@ -53,9 +53,10 @@ be executed from inside the `RT-DETR/rtdetrv2_pytorch` directory or the
 `RT-DETR/rtdetrv2_pytorch` directory must be added to the Python path.
 
 ```python
+from src.core import YAMLConfig
+
 import lightly_train
 from lightly_train.model_wrappers import RTDETRModelWrapper
-from src.core import YAMLConfig
 
 if __name__ == "__main__":
     # Load the RT-DETR model

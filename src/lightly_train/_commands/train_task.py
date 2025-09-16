@@ -147,12 +147,82 @@ def train_semantic_segmentation(
     return _train_task(task="semantic_segmentation", **locals())
 
 
+def train_classification(
+    *,
+    out: PathLike,
+    data: dict[str, Any],
+    model: str,
+    steps: int | Literal["auto"] = "auto",
+    batch_size: int | Literal["auto"] = "auto",
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    accelerator: str = "auto",
+    strategy: str = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    overwrite: bool = False,
+    resume_interrupted: bool = False,
+    seed: int | None = 0,
+    logger_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
+) -> None:
+    """Train a classification model.
+
+    Args:
+        out:
+            Output directory.
+        data:
+            Dataset configuration.
+        model:
+            Model to train.
+        steps:
+            Number of training steps.
+        batch_size:
+            Global batch size.
+        num_workers:
+            Number of workers for the dataloader.
+        devices:
+            Number of devices/GPUs for training.
+        num_nodes:
+            Number of nodes for distributed training.
+        accelerator:
+            Hardware accelerator.
+        strategy:
+            Training strategy.
+        precision:
+            Training precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication.
+        overwrite:
+            Overwrite the output directory if it already exists.
+        resume_interrupted:
+            Resume training from an interrupted run.
+        seed:
+            Random seed for reproducibility.
+        logger_args:
+            Logger arguments.
+        model_args:
+            Model training arguments.
+        transform_args:
+            Transform arguments.
+        loader_args:
+            Arguments for the PyTorch DataLoader.
+        save_checkpoint_args:
+            Arguments to configure the saving of checkpoints.
+    """
+    return _train_task(task="classification", **locals())
+
+
 def _train_task(
     *,
     out: PathLike,
     data: dict[str, Any],
     model: str,
-    task: Literal["semantic_segmentation"],
+    task: Literal["semantic_segmentation", "classification"],
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
     num_workers: int | Literal["auto"] = "auto",
@@ -172,11 +242,13 @@ def _train_task(
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
     config = validate.pydantic_model_validate(TrainTaskConfig, locals())
-    _train_task_from_config(config=config)
+    _train_task_from_config(config=config, task=task)
 
 
-def _train_task_from_config(config: TrainTaskConfig) -> None:
-    config = validate.pydantic_model_validate(TrainTaskConfig, dict(config))
+def _train_task_from_config(
+    config: TrainTaskConfig,
+    task: str,
+) -> None:
     initial_config = config.model_dump()
     # NOTE(Guarin, 07/25): We add callbacks and loggers later to fabric because we first
     # have to initialize the output directory and some other things. Fabric doesn't
@@ -466,7 +538,7 @@ class TrainTaskConfig(PydanticConfig):
     out: PathLike
     data: MaskSemanticSegmentationDataArgs
     model: str
-    task: Literal["semantic_segmentation"]
+    task: Literal["semantic_segmentation", "classification"]
     steps: int | Literal["auto"] = "auto"
     batch_size: int | Literal["auto"] = "auto"
     num_workers: int | Literal["auto"] = "auto"
