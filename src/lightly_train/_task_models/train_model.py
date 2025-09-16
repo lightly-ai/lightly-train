@@ -28,9 +28,6 @@ class TrainModelArgs(PydanticConfig):
     default_batch_size: ClassVar[int]
     default_steps: ClassVar[int]
 
-    train_transform_cls: ClassVar[type[TaskTransform]]
-    val_transform_cls: ClassVar[type[TaskTransform]]
-
     def resolve_auto(self, total_steps: int, model_name: str) -> None:
         pass
 
