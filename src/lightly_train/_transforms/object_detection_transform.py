@@ -88,13 +88,14 @@ class ObjectDetectionTransform(TaskTransform):
     def __init__(self, transform_args: ObjectDetectionTransformArgs) -> None:
         super().__init__(transform_args)
 
-        self.transform_args = transform_args
+        self.transform_args: ObjectDetectionTransformArgs = transform_args
         self.stop_step = (
             transform_args.stop_policy.stop_step if transform_args.stop_policy else None
         )
         self.stop_ops = (
             transform_args.stop_policy.ops if transform_args.stop_policy else set()
         )
+        self.past_stop = False
 
         self.individual_transforms = []
 
@@ -153,7 +154,11 @@ class ObjectDetectionTransform(TaskTransform):
         self, input: ObjectDetectionTransformInput
     ) -> ObjectDetectionTransformOutput:
         # Adjust transform after stop_step is reached.
-        if self.stop_step is not None and self.global_step >= self.stop_step:
+        if (
+            self.stop_step is not None
+            and self.global_step >= self.stop_step
+            and not self.past_stop
+        ):
             self.individual_transforms = [
                 t for t in self.individual_transforms if type(t) not in self.stop_ops
             ]
@@ -161,6 +166,7 @@ class ObjectDetectionTransform(TaskTransform):
                 self.individual_transforms,
                 bbox_params=self.transform_args.bbox_params,
             )
+            self.past_stop = True
 
         transformed = self.transform(
             image=input["image"],

@@ -19,7 +19,7 @@ from typing import (
 import pydantic
 from albumentations import BasicTransform
 from lightly.transforms.utils import IMAGENET_NORMALIZE
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
@@ -158,6 +158,8 @@ class ScaleJitterArgs(PydanticConfig):
 class StopPolicyArgs(PydanticConfig):
     stop_step: int
     ops: Set[type[BasicTransform]]
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class SmallestMaxSizeArgs(PydanticConfig):

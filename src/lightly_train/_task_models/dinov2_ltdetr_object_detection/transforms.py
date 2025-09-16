@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Literal, Set
 
 from albumentations import BasicTransform, BboxParams
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransform,
@@ -50,12 +50,14 @@ class DINOv2LTDetrObjectDetectionRandomFlipArgs(RandomFlipArgs):
 
 
 class DINOv2LTDetrObjectDetectionStopPolicyArgs(StopPolicyArgs):
-    stop_epoch: int = 71
-    ops: Set[type[BasicTransform]] = {
-        RandomPhotometricDistort,
-        RandomZoomOut,
-        # TODO: Lionel (09/25): Add RandomIoUCrop.
-    }
+    stop_step: int = 71
+    ops: Set[type[BasicTransform]] = Field(
+        default_factory=lambda: {
+            RandomPhotometricDistort,
+            RandomZoomOut,
+            # TODO: Lionel (09/25): Add RandomIoUCrop.
+        }
+    )
 
 
 class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
@@ -71,7 +73,7 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
         default_factory=DINOv2LTDetrObjectDetectionRandomFlipArgs
     )
     image_size: tuple[int, int] = (644, 644)
-    stop_policy: StopPolicyArgs | None = Field(
+    stop_policy: DINOv2LTDetrObjectDetectionStopPolicyArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionStopPolicyArgs
     )
     # We use the YOLO format internally for now.
@@ -80,6 +82,8 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
             format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0
         ),
     )
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class DINOv2LTDetrObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
