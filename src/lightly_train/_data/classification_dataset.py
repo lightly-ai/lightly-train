@@ -17,6 +17,7 @@ from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
+from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import ImageFilename, PathLike
@@ -41,7 +42,7 @@ class ClassificationDataset(Dataset[dict[str, Tensor]]):
     def __getitem__(self, index: int) -> dict[str, Tensor]:
         image_filename = self.image_filenames[index]
         image_path = self.args.image_dir / image_filename
-        image = file_helpers.open_image_numpy(image_path=image_path, mode="RGB")
+        image = file_helpers.open_image_numpy(image_path=image_path, mode=ImageMode.RGB)
         transformed = self.transform({"image": image})
         target = torch.tensor(self.args.targets[image_filename], dtype=torch.long)
         return {

@@ -50,10 +50,10 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     default_steps: ClassVar[int] = 40_000
 
     train_transform_cls: ClassVar[type[TaskTransform]] = (
-        DINOv2SemanticSegmentationTrainTransform
+        DINOv2EoMTSemanticSegmentationTrainTransform
     )
     val_transform_cls: ClassVar[type[TaskTransform]] = (
-        DINOv2SemanticSegmentationValTransform
+        DINOv2EoMTSemanticSegmentationValTransform
     )
 
     backbone_weights: PathLike | None = None

@@ -32,6 +32,7 @@ from lightly_train._data._serialize.memory_mapped_sequence import (
     Primitive,
 )
 from lightly_train._data.mask_semantic_segmentation_dataset import (
+    MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
 )
@@ -42,6 +43,10 @@ from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
+    DINOv2EoMTSemanticSegmentationTrainArgs,
+)
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
+    DINOv2EoMTSemanticSegmentationValTransformArgs,
 )
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
     DINOv2LinearSemanticSegmentationTrain,
@@ -535,7 +540,7 @@ def get_train_model(
     model_name: str,
     model_args: TrainModelArgs,
     data_args: MaskSemanticSegmentationDataArgs,
-    val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
+    val_transform_args: DINOv2EoMTSemanticSegmentationValTransformArgs,
 ) -> TrainModel:
     package_name, model_name = model_name.split("/", maxsplit=1)
     if package_name == "dinov2_vit":  # For backwards compatibility
