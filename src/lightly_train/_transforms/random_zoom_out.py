@@ -19,16 +19,7 @@ ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
 ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
 
 
-class RandomZoomOut(PadIfNeeded):  # type: ignore[misc]
-    """Approximate TorchVision's RandomZoomOut using Albumentations.
-
-    Args:
-        fill: Pixel fill value for padding. Can be an int, float, sequence, None, or dict.
-        side_range: Range for the size of the output image as a multiple of the input size.
-            Should be a sequence of two floats (min, max), e.g. (1.0, 4.0).
-        p: Probability of applying the transform.
-    """
-
+class RandomZoomOutBase(PadIfNeeded):  # type: ignore[misc]
     def __init__(
         self,
         fill: float,
@@ -62,6 +53,63 @@ class RandomZoomOut(PadIfNeeded):  # type: ignore[misc]
                 f"side_range must be a sequence of two floats (min >= 1.0, max >= min), got {side_range}."
             )
 
+
+class RandomZoomOutV1(RandomZoomOutBase):
+    """Approximate TorchVision's RandomZoomOut using Albumentations.
+
+    Args:
+        fill: Pixel fill value for padding. Can be an int, float, sequence, None, or dict.
+        side_range: Range for the size of the output image as a multiple of the input size.
+            Should be a sequence of two floats (min, max), e.g. (1.0, 4.0).
+        p: Probability of applying the transform.
+    """
+
+    def update_params(self, params: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        params = super().update_params(params, **kwargs)
+        print(params.keys())
+        try:
+            rows, cols = params["shape"][:2]
+        except KeyError:
+            rows, cols = params["rows"], params["cols"]
+
+        scale = random.uniform(self.side_range[0], self.side_range[1])
+        new_h, new_w = int(rows * scale), int(cols * scale)
+
+        if rows < new_h:
+            h_pad_top = int((new_h - rows) / 2.0)
+            h_pad_bottom = new_h - rows - h_pad_top
+        else:
+            h_pad_top = 0
+            h_pad_bottom = 0
+
+        if cols < new_w:
+            w_pad_left = int((new_w - cols) / 2.0)
+            w_pad_right = new_w - cols - w_pad_left
+        else:
+            w_pad_left = 0
+            w_pad_right = 0
+
+        h_pad_top, h_pad_bottom, w_pad_left, w_pad_right = (
+            self._PadIfNeeded__update_position_params(
+                h_top=h_pad_top,
+                h_bottom=h_pad_bottom,
+                w_left=w_pad_left,
+                w_right=w_pad_right,
+            )
+        )
+
+        params.update(
+            {
+                "pad_top": h_pad_top,
+                "pad_bottom": h_pad_bottom,
+                "pad_left": w_pad_left,
+                "pad_right": w_pad_right,
+            },
+        )
+        return params
+
+
+class RandomZoomOutV2(RandomZoomOutBase):
     def get_params_dependent_on_data(
         self, params: dict[str, Any], data: dict[str, Any]
     ) -> dict[str, Any]:
@@ -101,3 +149,9 @@ class RandomZoomOut(PadIfNeeded):  # type: ignore[misc]
             "pad_left": w_pad_left,
             "pad_right": w_pad_right,
         }
+
+
+if ALBUMENTATIONS_GEQ_1_4_21:
+    RandomZoomOut = RandomZoomOutV2
+else:
+    RandomZoomOut = RandomZoomOutV1
