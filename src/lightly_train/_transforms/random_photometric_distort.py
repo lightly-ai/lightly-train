@@ -88,6 +88,8 @@ class RandomPhotometricDistort(ImageOnlyTransform):  # type: ignore[misc]
                     hue=self.hue,
                     p=p,
                 ),
+                # TODO: Lionel (09/25): This might be stronger augmentation than in
+                # torchvision. Verify influence on performance.
                 ChannelShuffle(p=p),
             ]
         )
