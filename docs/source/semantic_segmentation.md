@@ -16,7 +16,7 @@ Below we report the validation mIoUs and inference FPS of three different DINOv3
 | dinov3/vitb16-eomt | 0.5437 | 36.2 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757511566.dinov3_eomt_vitb16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
 | dinov3/vitl16-eomt | 0.5912 | 16.2 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757520165.dinov3_eomt_vitl16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
 
-The experiments generally follow the protocol in the original EoMT paper, using a batch size of 16, trained for 40,000 steps, and with a learning rate of 1e-4. Images were resized to 512×512 pixels. FPS values were measured on a single NVIDIA T4 GPU with FP16 precision. We also provide the TensorBoard file and model checkpoints for these runs.
+The experiments generally follow the protocol in the original EoMT paper, using a batch size of 16, trained for 40,000 steps, and with a learning rate of 1e-4. Images were resized to 512×512 pixels. FPS values were measured on a single NVIDIA T4 GPU with FP16 precision without compiling the models. We also provide the TensorBoard file and model checkpoints for these runs.
 
 ## Semantic Segmentation with EoMT in LightlyTrain
 
