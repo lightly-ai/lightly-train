@@ -166,6 +166,7 @@ def train_classification(
     seed: int | None = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -206,6 +207,8 @@ def train_classification(
             Logger arguments.
         model_args:
             Model training arguments.
+        transform_args:
+            Transform arguments.
         loader_args:
             Arguments for the PyTorch DataLoader.
         save_checkpoint_args:

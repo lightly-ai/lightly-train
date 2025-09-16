@@ -103,6 +103,12 @@ class ObjectDetectionDatasetItem(TypedDict):
     classes: Tensor  # Of shape (n_boxes,) with class labels.
 
 
+class ClassificationDatasetItem(TaskDatasetItem):
+    image_path: ImageFilename
+    image: Tensor
+    target: Tensor  # Scalar tensor with the class label.
+
+
 # Replaces torch.optim.optimizer.ParamsT
 # as it is only available in torch>=v2.2.
 # Importing it conditionally cannot make typing work for both older

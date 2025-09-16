@@ -32,7 +32,6 @@ class YOLOObjectDetectionDataset(TaskDataset):
         super().__init__(transform=transform)
         self.args = dataset_args
         self.image_filenames = image_filenames
-        self.transform = transform
 
     def __len__(self) -> int:
         return len(self.image_filenames)

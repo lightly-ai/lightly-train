@@ -12,34 +12,33 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch import Tensor
-from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._transforms.task_transform import TaskTransform
-from lightly_train.types import ImageFilename, PathLike
+from lightly_train.types import ClassificationDatasetItem, ImageFilename, PathLike
 
 
-class ClassificationDataset(Dataset[dict[str, Tensor]]):
+class ClassificationDataset(TaskDataset):
     def __init__(
         self,
         dataset_args: ClassificationDatasetArgs,
         image_filenames: Sequence[ImageFilename],
         transform: TaskTransform,
     ):
+        super().__init__(transform=transform)
         self.args = dataset_args
         self.image_filenames = image_filenames
-        self.transform = transform
         self.classes = dataset_args.classes
         self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
 
     def __len__(self) -> int:
         return len(self.image_filenames)
 
-    def __getitem__(self, index: int) -> dict[str, Tensor]:
+    def __getitem__(self, index: int) -> ClassificationDatasetItem:
         image_filename = self.image_filenames[index]
         image_path = self.args.image_dir / image_filename
         image = file_helpers.open_image_numpy(image_path=image_path, mode=ImageMode.RGB)
