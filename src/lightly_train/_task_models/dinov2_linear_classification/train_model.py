@@ -14,8 +14,8 @@ from lightning_fabric import Fabric
 from torch import Tensor, nn
 
 from lightly_train._data.classification_dataset import ClassificationDataArgs
-from lightly_train._task_models.dinov2_classification.task_model import (
-    DINOv2Classification,
+from lightly_train._task_models.dinov2_linear_classification.task_model import (
+    DINOv2LinearClassification,
 )
 from lightly_train._task_models.train_model import (
     TaskStepResult,
@@ -28,7 +28,7 @@ class ClassificationBatch(Mapping[str, Tensor]):
     pass
 
 
-class DINOv2ClassificationTrainArgs(TrainModelArgs):
+class DINOv2LinearClassificationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 64
     default_steps: ClassVar[int] = 10_000
     backbone_weights: str | None = None
@@ -36,16 +36,16 @@ class DINOv2ClassificationTrainArgs(TrainModelArgs):
     drop_path_rate: float = 0.0
 
 
-class DINOv2ClassificationTrainModel(TrainModel):
+class DINOv2LinearClassificationTrainModel(TrainModel):
     def __init__(
         self,
         *,
         model_name: str,
-        model_args: DINOv2ClassificationTrainArgs,
+        model_args: DINOv2LinearClassificationTrainArgs,
         data_args: ClassificationDataArgs,
     ) -> None:
         super().__init__()
-        self.model = DINOv2Classification(
+        self.model = DINOv2LinearClassification(
             model_name=model_name,
             num_classes=model_args.num_classes,
             backbone_weights=model_args.backbone_weights,
@@ -53,7 +53,7 @@ class DINOv2ClassificationTrainModel(TrainModel):
         )
         self.criterion = nn.CrossEntropyLoss()
 
-    def get_task_model(self) -> DINOv2Classification:
+    def get_task_model(self) -> DINOv2LinearClassification:
         # Return type must match base class
         return self.model  # type: ignore[return-value]
 

@@ -14,7 +14,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKA
 from lightly_train._task_models.task_model import TaskModel
 
 
-class DINOv2Classification(TaskModel):
+class DINOv2LinearClassification(TaskModel):
     """DINOv2 model for image classification tasks."""
 
     def __init__(
