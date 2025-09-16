@@ -39,7 +39,6 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
-from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
