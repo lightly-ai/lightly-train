@@ -13,9 +13,10 @@ import itertools
 import numpy as np
 import pytest
 import torch
-from albumentations import BboxParams, ChannelDrop
+from albumentations import BboxParams
 from numpy.typing import NDArray
 
+from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransform,
     ObjectDetectionTransformArgs,
