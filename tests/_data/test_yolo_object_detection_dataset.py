@@ -7,13 +7,9 @@
 #
 from __future__ import annotations
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Literal
 
-from albumentations import BboxParams, Compose, Normalize, Resize
-from albumentations.pytorch.transforms import ToTensorV2
 from albumentations import BboxParams, Compose, Normalize, Resize
 from albumentations.pytorch.transforms import ToTensorV2
 
@@ -43,7 +39,6 @@ class DummyTransform(ObjectDetectionTransform):
 
     def __init__(self, transform_args: ObjectDetectionTransformArgs):
         super().__init__(transform_args=transform_args)
-        self.transform = Compose(
         self.transform = Compose(
             [
                 Resize(32, 32),
