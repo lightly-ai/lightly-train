@@ -13,7 +13,7 @@ from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._transforms.random_zoom_out import RandomZoomOut
 
-ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
+ALBUMENTATIONS_GEQ_1_4_15 = RequirementCache("albumentations>=1.4.15")
 
 
 class TestRandomZoomOut:
@@ -50,12 +50,12 @@ class TestRandomZoomOut:
         assert out["mask"].shape[0] == out["image"].shape[0]
         assert out["mask"].shape[1] == out["image"].shape[1]
 
-        if ALBUMENTATIONS_VERSION_2XX:
+        if ALBUMENTATIONS_GEQ_1_4_15:
             assert out["bboxes"].shape == bboxes.shape
             assert out["class_labels"].shape == class_labels.shape
         else:
-            assert all(elem.shape == (2,) for elem in out["bboxes"])
-            assert all(elem.shape == (1,) for elem in out["class_labels"])
+            assert all(len(elem) == 4 for elem in out["bboxes"])
+            assert len(out["class_labels"]) == len(out["bboxes"])
 
     def test__call__no_transform_when_p0(self) -> None:
         img = np.random.randint(0, 255, size=(8, 8, 3), dtype=np.uint8)
