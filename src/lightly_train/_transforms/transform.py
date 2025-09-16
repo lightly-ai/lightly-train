@@ -33,6 +33,11 @@ class ChannelDropArgs(PydanticConfig):
     weight_drop: tuple[float, ...] = Field(strict=False)
 
 
+class ResizeArgs(PydanticConfig):
+    height: int
+    width: int
+
+
 class RandomResizeArgs(PydanticConfig):
     min_scale: float = 0.08
     max_scale: float = 1.0
@@ -54,11 +59,19 @@ class RandomFlipArgs(PydanticConfig):
 
 
 class RandomPhotometricDistortArgs(PydanticConfig):
+<<<<<<< HEAD
     brightness: tuple[float, float]
     contrast: tuple[float, float]
     saturation: tuple[float, float]
     hue: tuple[float, float]
     prob: float
+=======
+    brightness: tuple[float, float] = Field(strict=False, ge=0.0)
+    contrast: tuple[float, float] = Field(strict=False, ge=0.0)
+    saturation: tuple[float, float] = Field(strict=False, ge=0.0)
+    hue: tuple[float, float] = Field(strict=False, ge=-0.5, le=0.5)
+    prob: float = Field(ge=0.0, le=1.0)
+>>>>>>> main
 
 
 class RandomRotationArgs(PydanticConfig):
@@ -67,9 +80,15 @@ class RandomRotationArgs(PydanticConfig):
 
 
 class RandomZoomOutArgs(PydanticConfig):
+<<<<<<< HEAD
     prob: float
     fill: float
     side_range: tuple[float, float]
+=======
+    prob: float = Field(ge=0.0, le=1.0)
+    fill: float
+    side_range: tuple[float, float] = Field(strict=False, ge=1.0)
+>>>>>>> main
 
 
 class ColorJitterArgs(PydanticConfig):
