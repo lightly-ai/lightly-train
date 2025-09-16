@@ -15,6 +15,7 @@ from torch.nn import Module
 from lightly_train._models import model_wrapper
 from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
+from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import BasePackage, Package
 from lightly_train._models.rfdetr.rfdetr_package import RFDETR_PACKAGE
@@ -36,6 +37,7 @@ def list_base_packages() -> list[BasePackage]:
         TORCHVISION_PACKAGE,
         ULTRALYTICS_PACKAGE,
         DINOV2_VIT_PACKAGE,
+        DINOV3_PACKAGE,
         # Custom package must be at end of list because we first want to check if a
         # model is part of one of the other packages. Custom is the last resort.
         CUSTOM_PACKAGE,
@@ -68,7 +70,9 @@ def list_model_names() -> list[str]:
 
 
 def get_wrapped_model(
-    model: str | Module | ModelWrapper, model_args: dict[str, Any] | None = None
+    model: str | Module | ModelWrapper,
+    num_input_channels: int,
+    model_args: dict[str, Any] | None = None,
 ) -> ModelWrapper:
     """Returns a wrapped model instance given a model name or instance."""
     if isinstance(model, ModelWrapper):
@@ -76,9 +80,11 @@ def get_wrapped_model(
 
     package: Package
     if isinstance(model, str):
-        package_name, model_name = _parse_model_name(model)
+        package_name, model_name = parse_model_name(model)
         package = get_package(package_name)
-        model = package.get_model(model_name, model_args=model_args)
+        model = package.get_model(
+            model_name, num_input_channels=num_input_channels, model_args=model_args
+        )
     else:
         package = get_package_from_model(
             model, include_custom=False, fallback_custom=False
@@ -126,7 +132,7 @@ def get_package_from_model(
         return CUSTOM_PACKAGE
 
 
-def _parse_model_name(model: str) -> tuple[str, str]:
+def parse_model_name(model: str) -> tuple[str, str]:
     parts = model.split("/")
     if len(parts) != 2:
         raise ValueError(

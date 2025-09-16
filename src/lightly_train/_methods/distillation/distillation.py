@@ -27,6 +27,8 @@ from lightly_train._methods.distillation.distillation_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.lars_args import LARSArgs
@@ -42,10 +44,22 @@ from lightly_train.types import Batch
 logger = logging.getLogger(__name__)
 
 
-def get_teacher(teacher_name: str, teacher_weights: str | Path | None = None) -> Module:
-    wrapped_model = package_helpers.get_wrapped_model(model=teacher_name)
+def get_teacher(
+    teacher_name: str,
+    num_input_channels: int,
+    teacher_weights: str | Path | None = None,
+    method_args: DistillationArgs | None = None,
+) -> Module:
+    model_args: dict[str, Any] = {}
+    if "dinov3" in teacher_name and method_args is not None:
+        model_args["weights"] = method_args.teacher_url
+
+    wrapped_model = package_helpers.get_wrapped_model(
+        model=teacher_name, num_input_channels=num_input_channels, model_args=model_args
+    )
+    assert isinstance(wrapped_model, (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper))
+    wrapped_model.make_teacher()
     teacher_embedding_model = wrapped_model.get_model()
-    assert isinstance(teacher_embedding_model, Module)
 
     # If a path to the teacher weights is provided, load them.
     if teacher_weights is not None:
@@ -77,6 +91,9 @@ class DistillationArgs(MethodArgs):
 
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None
+
+    # Optional teacher url.
+    teacher_url: str | None = None
 
     # Scaling method for the learning rate.
     lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
@@ -132,16 +149,21 @@ class Distillation(Method):
         optimizer_args: OptimizerArgs,
         embedding_model: EmbeddingModel,
         global_batch_size: int,
+        num_input_channels: int,
     ):
         super().__init__(
             method_args=method_args,
             optimizer_args=optimizer_args,
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
+            num_input_channels=num_input_channels,
         )
         # Get the teacher model.
         self.teacher_embedding_model = get_teacher(
-            method_args.teacher, method_args.teacher_weights
+            method_args.teacher,
+            num_input_channels=num_input_channels,
+            teacher_weights=method_args.teacher_weights,
+            method_args=method_args,
         )
 
         # Store the student model.

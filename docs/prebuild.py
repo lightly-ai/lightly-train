@@ -6,12 +6,20 @@ from argparse import ArgumentParser
 from pathlib import Path
 from re import Match
 
-from lightly_train._commands import common_helpers, train_helpers
+from lightly_train._commands import common_helpers, train_helpers, train_task_helpers
+from lightly_train._commands.train_task_helpers import TASK_TRAIN_MODEL_CLASSES
+from lightly_train._data.mask_semantic_segmentation_dataset import (
+    MaskSemanticSegmentationDataArgs,
+)
 from lightly_train._methods import method_helpers
+from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
+    DINOv2LinearSemanticSegmentationTrain,
+)
 
 THIS_DIR = Path(__file__).parent.resolve()
 DOCS_DIR = THIS_DIR / "source"
 PROJECT_ROOT = THIS_DIR.parent
+SOURCE_AUTO_DIR = DOCS_DIR / "_auto"
 METHODS_AUTO_ARGS_DIR = DOCS_DIR / "methods" / "_auto"
 
 
@@ -73,11 +81,42 @@ def dump_transform_args_for_methods(dest_dir: Path) -> None:
         transform_args = train_helpers.get_transform_args(
             method=method, transform_args=None
         )
-        args = common_helpers.pretty_format_args(transform_args.model_dump())
+        args = common_helpers.pretty_format_args(
+            transform_args.model_dump(), limit=False
+        )
         # write to file
         with open(dest_dir / f"{method}_transform_args.md", "w") as f:
             f.write("```json\n")
             f.write(args + "\n")
+            f.write("```\n")
+
+
+def dump_transform_args_for_tasks(dest_dir: Path) -> None:
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
+        if train_model_cls in {DINOv2LinearSemanticSegmentationTrain}:
+            continue
+        train_transform_args = train_model_cls.train_transform_cls.transform_args_cls(
+            ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
+        )
+        val_transform_args = train_model_cls.val_transform_cls.transform_args_cls(
+            ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
+        )
+        train_args = train_task_helpers.pretty_format_args(
+            train_transform_args.model_dump(),
+        )
+        val_args = train_task_helpers.pretty_format_args(
+            val_transform_args.model_dump()
+        )
+        name = train_model_cls.__name__.lower()
+        # write to file
+        with open(dest_dir / f"{name}_train_transform_args.md", "w") as f:
+            f.write("```json\n")
+            f.write(train_args + "\n")
+            f.write("```\n")
+        with open(dest_dir / f"{name}_val_transform_args.md", "w") as f:
+            f.write("```json\n")
+            f.write(val_args + "\n")
             f.write("```\n")
 
 
@@ -88,7 +127,7 @@ def dump_method_args(dest_dir: Path) -> None:
         if method in {"distillationv1", "distillationv2"}:
             continue
         method_args = method_helpers.get_method_cls(method).method_args_cls()()
-        args = common_helpers.pretty_format_args(method_args.model_dump())
+        args = common_helpers.pretty_format_args(method_args.model_dump(), limit=False)
         # write to file
         with open(dest_dir / f"{method}_method_args.md", "w") as f:
             f.write("```json\n")
@@ -98,8 +137,11 @@ def dump_method_args(dest_dir: Path) -> None:
 
 def main(source_dir: Path) -> None:
     build_changelog_html(source_dir=source_dir)
+    # Methods
     dump_transform_args_for_methods(dest_dir=METHODS_AUTO_ARGS_DIR)
     dump_method_args(dest_dir=METHODS_AUTO_ARGS_DIR)
+    # Tasks
+    dump_transform_args_for_tasks(dest_dir=SOURCE_AUTO_DIR)
 
 
 if __name__ == "__main__":

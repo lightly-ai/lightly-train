@@ -7,42 +7,43 @@
 #
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
-import numpy as np
-from albumentations import BboxParams
-from numpy.typing import NDArray
-from pydantic import Field
-from torch import Tensor
-from typing_extensions import NotRequired
+from pydantic import ConfigDict
 
 from lightly_train._configs.config import PydanticConfig
 
 
 class TaskTransformInput(TypedDict):
-    image: NDArray[np.uint8]
-    mask: NotRequired[NDArray[np.uint8]]
-    bboxes: NotRequired[NDArray[np.float64]]
-    class_labels: NotRequired[NDArray[np.int64]]
+    pass
 
 
 class TaskTransformOutput(TypedDict):
-    image: Tensor
-    mask: NotRequired[Tensor]
-    bboxes: NotRequired[Tensor]
-    class_labels: NotRequired[Tensor]
+    pass
 
 
 class TaskTransformArgs(PydanticConfig):
-    # We use the YOLO format internally for now.
-    bbox_params: BboxParams = Field(
-        default_factory=lambda: BboxParams(format="yolo", label_fields=["class_labels"])
-    )
+    def resolve_auto(self) -> None:
+        """Resolve any arguments set to "auto"."""
+        pass
+
+    def resolve_incompatible(self) -> None:
+        """Resolve any incompatible arguments."""
+        pass
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class TaskTransform:
+    transform_args_cls: type[TaskTransformArgs]
+
     def __init__(self, transform_args: TaskTransformArgs):
+        if not isinstance(transform_args, self.transform_args_cls):
+            raise TypeError(
+                f"transform_args must be of type {self.transform_args_cls.__name__}, "
+                f"got {type(transform_args).__name__} instead."
+            )
         self.transform_args = transform_args
 
-    def __call__(self, input: TaskTransformInput) -> TaskTransformOutput:
+    def __call__(self, input: Any) -> Any:
         raise NotImplementedError()

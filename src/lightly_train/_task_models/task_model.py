@@ -23,6 +23,8 @@ class TaskModel(Module):
     on Fabric or Lightning modules.
     """
 
+    model_suffix: str
+
     def __init__(self, init_args: dict[str, Any], ignore_args: set[str] | None = None):
         """
         Args:
@@ -45,6 +47,10 @@ class TaskModel(Module):
                 "Please contact the Lightly team if you encounter this error."
             )
         self._init_args = {k: v for k, v in init_args.items() if k not in ignore_args}
+
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        raise NotImplementedError()
 
     @property
     def init_args(self) -> dict[str, Any]:

@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import typing_extensions
 from albumentations.pytorch.transforms import ToTensorV2
+from numpy.typing import DTypeLike
 from PIL import Image
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Conv2d, Module
@@ -50,6 +51,53 @@ from lightly_train._scaling import ScalingInfo
 from lightly_train._transforms.transform import MethodTransform, NormalizeArgs
 from lightly_train.types import TransformInput, TransformOutput
 
+SUPPORTED_IMAGE_EXTENSIONS = [
+    ".bmp",
+    ".BMP",
+    ".dib",
+    ".pcx",
+    ".dds",
+    ".ps",
+    ".eps",
+    ".gif",
+    ".GIF",
+    ".png",
+    ".PNG",
+    ".apng",
+    ".jp2",
+    ".j2k",
+    ".jpc",
+    ".jpf",
+    ".jpx",
+    ".j2c",
+    ".icns",
+    ".ico",
+    ".im",
+    ".jfif",
+    ".jpe",
+    ".jpg",
+    ".JPG",
+    ".jpeg",
+    ".JPEG",
+    ".tif",
+    ".TIF",
+    ".tiff",
+    ".TIFF",
+    ".pbm",
+    ".pgm",
+    ".ppm",
+    ".pnm",
+    ".bw",
+    ".rgb",
+    ".rgba",
+    ".sgi",
+    ".tga",
+    ".icb",
+    ".vda",
+    ".vst",
+    ".webp",
+]
+
 
 class DummyMethod(Method):
     def __init__(
@@ -58,12 +106,14 @@ class DummyMethod(Method):
         optimizer_args: OptimizerArgs,
         embedding_model: EmbeddingModel,
         global_batch_size: int,
+        num_input_channels: int = 3,
     ):
         super().__init__(
             method_args=method_args,
             optimizer_args=optimizer_args,
             embedding_model=embedding_model,
             global_batch_size=global_batch_size,
+            num_input_channels=num_input_channels,
         )
         self.embedding_model = embedding_model
         self.method_args = method_args
@@ -113,13 +163,16 @@ def get_method(wrapped_model: ModelWrapper) -> Method:
         optimizer_args=AdamWArgs(),
         embedding_model=EmbeddingModel(wrapped_model=wrapped_model),
         global_batch_size=2,
+        num_input_channels=3,
     )
 
 
 def get_method_dinov2() -> DINOv2:
     optim_args = DINOv2AdamWViTArgs()
     dinov2_args = DINOv2Args()
-    wrapped_model = package_helpers.get_wrapped_model(model="dinov2/_vittest14")
+    wrapped_model = package_helpers.get_wrapped_model(
+        model="dinov2/_vittest14", num_input_channels=3
+    )
     dinov2_args.resolve_auto(
         scaling_info=ScalingInfo(dataset_size=1000, epochs=100),
         optimizer_args=optim_args,
@@ -130,6 +183,7 @@ def get_method_dinov2() -> DINOv2:
         optimizer_args=optim_args,
         embedding_model=EmbeddingModel(wrapped_model=wrapped_model),
         global_batch_size=2,
+        num_input_channels=3,
     )
     return dinov2
 
@@ -155,10 +209,19 @@ def get_checkpoint(
 
 
 def create_image(
-    path: Path, height: int = 128, width: int = 128, mode: str = "RGB"
+    path: Path,
+    height: int = 128,
+    width: int = 128,
+    mode: str | None = "RGB",
+    convert_mode: str | None = None,
+    dtype: DTypeLike = np.uint8,
+    min_value: int = 0,
+    max_value: int = 255,
+    num_channels: int = 3,
 ) -> None:
-    img_np = np.random.uniform(0, 255, size=(width, height, 3))
-    img = Image.fromarray(img_np.astype(np.uint8)).convert(mode=mode)
+    size = (width, height, num_channels) if num_channels > 0 else (width, height)
+    img_np = np.random.uniform(min_value, max_value, size=size)
+    img = Image.fromarray(img_np.astype(dtype), mode=mode).convert(mode=convert_mode)
     path.parent.mkdir(parents=True, exist_ok=True)
     img.save(path)
 
@@ -168,13 +231,22 @@ def create_images(
     files: int | Iterable[str] = 10,
     height: int = 128,
     width: int = 128,
-    mode: str = "RGB",
+    mode: str | None = "RGB",
+    convert_mode: str | None = None,
+    num_channels: int = 3,
 ) -> None:
     image_dir.mkdir(parents=True, exist_ok=True)
     if isinstance(files, int):
         files = [f"{i}.png" for i in range(files)]
     for filename in files:
-        create_image(path=image_dir / filename, height=height, width=width, mode=mode)
+        create_image(
+            path=image_dir / filename,
+            height=height,
+            width=width,
+            mode=mode,
+            convert_mode=convert_mode,
+            num_channels=num_channels,
+        )
 
 
 def create_mask(
@@ -206,6 +278,45 @@ def create_masks(
             height=height,
             width=width,
             num_classes=num_classes,
+        )
+
+
+def create_multi_channel_mask(
+    path: Path,
+    height: int = 128,
+    width: int = 128,
+    values: Iterable[tuple[int, ...]] | None = None,
+    dtype: DTypeLike = np.uint8,
+) -> None:
+    if values is not None:
+        palette = np.array(list(values), dtype=np.uint8)
+        idx = np.random.randint(0, len(palette), size=(height, width))
+        mask_np = palette[idx]
+    else:
+        mask_np = np.random.randint(0, 256, size=(height, width, 3), dtype=np.uint8)
+    img = Image.fromarray(mask_np.astype(dtype), mode="RGB")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(path)
+
+
+def create_multi_channel_masks(
+    mask_dir: Path,
+    files: int | Iterable[str] = 10,
+    height: int = 128,
+    width: int = 128,
+    values: Iterable[tuple[int, ...]] | None = None,
+    dtype: DTypeLike = np.uint8,
+) -> None:
+    mask_dir.mkdir(parents=True, exist_ok=True)
+    if isinstance(files, int):
+        files = [f"{i}.png" for i in range(files)]
+    for filename in files:
+        create_multi_channel_mask(
+            path=mask_dir / filename,
+            height=height,
+            width=width,
+            values=values,
+            dtype=dtype,
         )
 
 
@@ -241,6 +352,51 @@ def create_videos(
             video_path=videos_dir / f"video_{i}.mp4",
             n_frames=n_frames_per_video,
         )
+
+
+def create_normalized_yolo_labels(labels_dir: Path, image_paths: list[Path]) -> None:
+    for image_path in image_paths:
+        label_path = labels_dir / f"{image_path.stem}.txt"
+        with open(label_path, "w") as f:
+            f.write("2 0.375 0.5 0.25 0.5\n")
+
+
+def create_yolo_dataset(tmp_path: Path, split_first: bool) -> None:
+    """Create a minimal YOLO object detection dataset.
+
+    Args:
+        split_first: If set to True, the dataset will have the "train" and "val"
+            directories at the top level, and the "images" and "labels" directories
+            will be nested within them. If set to False, "images" and "labels" will be
+            at the top.
+    """
+    # Define directories.
+    if split_first:
+        train_images = tmp_path / "train" / "images"
+        val_images = tmp_path / "val" / "images"
+        train_labels = tmp_path / "train" / "labels"
+        val_labels = tmp_path / "val" / "labels"
+    else:
+        train_images = tmp_path / "images" / "train"
+        val_images = tmp_path / "images" / "val"
+        train_labels = tmp_path / "labels" / "train"
+        val_labels = tmp_path / "labels" / "val"
+
+    # Create directories.
+    for dir in [train_images, val_images, train_labels, val_labels]:
+        dir.mkdir(parents=True, exist_ok=True)
+
+    # Create images.
+    create_images(image_dir=train_images, files=2)
+    create_images(image_dir=val_images, files=2)
+
+    # Create labels.
+    create_normalized_yolo_labels(
+        labels_dir=train_labels, image_paths=list(train_images.glob("*.png"))
+    )
+    create_normalized_yolo_labels(
+        labels_dir=val_labels, image_paths=list(val_images.glob("*.png"))
+    )
 
 
 def assert_same_params(

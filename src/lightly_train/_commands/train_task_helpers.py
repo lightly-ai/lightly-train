@@ -7,14 +7,17 @@
 #
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import logging
 from functools import partial
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Generator, Iterable, Literal, Mapping
 
 import torch
+from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
@@ -22,8 +25,13 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._configs import validate
+from lightly_train._data import cache
+from lightly_train._data._serialize import memory_mapped_sequence
+from lightly_train._data._serialize.memory_mapped_sequence import (
+    MemoryMappedSequence,
+    Primitive,
+)
 from lightly_train._data.mask_semantic_segmentation_dataset import (
-    MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
 )
@@ -34,23 +42,40 @@ from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
-    DINOv2EoMTSemanticSegmentationTrainArgs,
 )
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
-    DINOv2SemanticSegmentationTrainTransform,
-    DINOv2SemanticSegmentationTrainTransformArgs,
-    DINOv2SemanticSegmentationValTransform,
-    DINOv2SemanticSegmentationValTransformArgs,
+from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
+    DINOv2LinearSemanticSegmentationTrain,
+)
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
+    DINOv3EoMTSemanticSegmentationTrain,
 )
 from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
-from lightly_train._transforms.task_transform import TaskTransform
-from lightly_train.types import PathLike, TaskDatasetItem
+from lightly_train._transforms.semantic_segmentation_transform import (
+    SemanticSegmentationTransform,
+)
+from lightly_train._transforms.task_transform import (
+    TaskTransform,
+    TaskTransformArgs,
+)
+from lightly_train.types import (
+    MaskSemanticSegmentationBatch,
+    MaskSemanticSegmentationDatasetItem,
+    PathLike,
+    TaskDatasetItem,
+)
 
 logger = logging.getLogger(__name__)
+
+
+TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
+    DINOv2EoMTSemanticSegmentationTrain,
+    DINOv2LinearSemanticSegmentationTrain,
+    DINOv3EoMTSemanticSegmentationTrain,
+]
 
 
 def get_out_dir(
@@ -156,6 +181,8 @@ class PrettyFormatArgsJSONEncoder(JSONEncoder):
     def default(self, obj: Any) -> Any:
         if isinstance(obj, Path):
             return str(obj)
+        if isinstance(obj, set):
+            return sorted(list(obj))
         try:
             return super().default(obj)
         except TypeError:
@@ -175,58 +202,251 @@ def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
     return args_dict
 
 
-def get_train_transform_args(
-    ignore_index: int,
-) -> DINOv2SemanticSegmentationTrainTransformArgs:
-    return DINOv2SemanticSegmentationTrainTransformArgs(
-        ignore_index=ignore_index,
+def get_transform_args(
+    train_model_cls: type[TrainModel],
+    transform_args: dict[str, Any] | None,
+    ignore_index: int | None,
+) -> tuple[TaskTransformArgs, TaskTransformArgs]:
+    if train_model_cls.task != "semantic_segmentation" and ignore_index is not None:
+        raise ValueError(
+            "`ignore_index` is only supported for semantic segmentation tasks."
+        )
+    transform_args = {} if transform_args is None else transform_args.copy()
+    if ignore_index is not None:
+        transform_args["ignore_index"] = ignore_index
+    # Allows passing validation specific args via transform_args:
+    # transform_args={
+    #   "image_size": ..., # train only
+    #   "normalize": ..., # train and val
+    #   "val": {
+    #       "image_size": ..., # val only
+    # }
+    val_args = transform_args.pop("val", {})
+
+    train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
+    val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls
+    train_transform_args: TaskTransformArgs
+    val_transform_args: TaskTransformArgs
+
+    train_transform_args = validate.pydantic_model_validate(
+        train_transform_args_cls, transform_args
     )
+    train_transform_args.resolve_auto()
+    train_transform_args.resolve_incompatible()
+
+    # Take defaults from train transform.
+    val_args_dict = train_transform_args.model_dump(
+        include={
+            "image_size": True,
+            "normalize": True,
+            "ignore_index": True,
+            "num_channels": True,
+        }
+    )
+    # Overwrite with user provided val args.
+    val_args_dict.update(val_args)
+    val_transform_args = validate.pydantic_model_validate(
+        val_transform_args_cls, val_args_dict
+    )
+    val_transform_args.resolve_auto()
+    val_transform_args.resolve_incompatible()
+
+    logger.debug(
+        f"Resolved train transform args {pretty_format_args(train_transform_args.model_dump())}"
+    )
+    logger.debug(
+        f"Resolved val transform args {pretty_format_args(val_transform_args.model_dump())}"
+    )
+    return train_transform_args, val_transform_args
 
 
 def get_train_transform(
-    train_transform_args: DINOv2SemanticSegmentationTrainTransformArgs,
+    train_model_cls: type[TrainModel],
+    train_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
-    return DINOv2SemanticSegmentationTrainTransform(train_transform_args)
-
-
-def get_val_transform_args(
-    ignore_index: int,
-) -> DINOv2SemanticSegmentationValTransformArgs:
-    return DINOv2SemanticSegmentationValTransformArgs(
-        ignore_index=ignore_index,
-    )
+    return train_model_cls.train_transform_cls(transform_args=train_transform_args)
 
 
 def get_val_transform(
-    val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
+    train_model_cls: type[TrainModel],
+    val_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
-    return DINOv2SemanticSegmentationValTransform(val_transform_args)
+    return train_model_cls.val_transform_cls(transform_args=val_transform_args)
+
+
+def get_sha256(value: Any) -> str:
+    """Get the SHA256 hash of a value."""
+    return hashlib.sha256(str(value).encode()).hexdigest()
+
+
+def _unlink_and_ignore(path: Path) -> None:
+    """Unlink a file and ignore the error if it fails.
+
+    Errors can happen if we do not have permission to access the file.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+@contextlib.contextmanager
+def get_dataset_temp_mmap_path(
+    fabric: Fabric,
+    data: PathLike,
+) -> Generator[Path, Any, Any]:
+    """Generate file in temporary directory to be used for memory-mapping the dataset.
+
+    Use the same file on all ranks across all nodes, unless the filesystem is not shared.
+    """
+
+    mmap_filepath = (cache.get_data_cache_dir() / get_sha256(data)).with_suffix(".mmap")
+    mmap_filepath_broadcasted = Path(fabric.broadcast(str(mmap_filepath)))
+    mmap_dirpath_broadcasted = mmap_filepath_broadcasted.parent
+    ref_count_filepath_broadcasted = mmap_filepath.with_suffix(".ref_count")
+
+    # Create the output directory if it doesn't exist.
+    with fabric.rank_zero_first():
+        if fabric.global_rank == 0:
+            mmap_dirpath_broadcasted.mkdir(parents=True, exist_ok=True)
+
+    # Check if the mmap directory is on a shared filesystem. We can only check this
+    # after global rank zero has created the directory.
+    try:
+        is_shared_filesystem = fabric_utilities.is_shared_filesystem(
+            strategy=fabric.strategy, path=mmap_dirpath_broadcasted
+        )
+    except FileNotFoundError:
+        # Clearly not a shared filesystem because we just created the directory.
+        is_shared_filesystem = False
+
+    # If the filesystem is not shared we have to create the mmap file on every
+    # node individually.
+    if not is_shared_filesystem:
+        with fabric.rank_zero_first(local=True):
+            if fabric.local_rank == 0 and fabric.global_rank != 0:
+                mmap_dirpath_broadcasted.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # Increment reference count atomically
+        _increment_ref_count(ref_count_filepath_broadcasted)
+
+        yield mmap_filepath_broadcasted
+    finally:
+        # Decrement reference count and cleanup if zero
+        _decrement_and_cleanup_if_zero(
+            mmap_filepath_broadcasted, ref_count_filepath_broadcasted
+        )
+
+
+def _increment_ref_count(ref_file: Path) -> None:
+    lock_file = ref_file.with_suffix(".lock")
+
+    with FileLock(lock_file, timeout=300):
+        # Ensure file exists within the lock to avoid race conditions
+        ref_file.touch()
+        with open(ref_file, "r+") as f:
+            count = int(f.read() or "0")
+            f.seek(0)
+            f.write(str(count + 1))
+            f.truncate()
+
+
+def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
+    try:
+        lock_file = ref_file.with_suffix(".lock")
+
+        with FileLock(lock_file, timeout=300):
+            with open(ref_file, "r+") as f:
+                count = max(0, int(f.read() or "1") - 1)
+                f.seek(0)
+                f.write(str(count))
+                f.truncate()
+
+                if count <= 0 and not Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
+                    # Remove mmap file only if we are not reusing it and count is zero
+                    _unlink_and_ignore(mmap_file)
+
+    except (FileNotFoundError, OSError):
+        pass  # Another process already cleaned up
+
+
+def get_dataset_mmap_file(
+    fabric: Fabric,
+    items: Iterable[Mapping[str, Primitive]],
+    mmap_filepath: Path,
+) -> MemoryMappedSequence[Primitive]:
+    """Returns memory-mapped filepaths shared across all ranks.
+
+    Filenames are written to mmap_filepath by rank zero and read by all ranks.
+    """
+
+    # If the file already exists and we are allowed to reuse it, return it.
+    if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
+        logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
+        return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
+
+    # Check if the mmap file is on a shared filesystem.
+    try:
+        is_shared_filesystem = fabric_utilities.is_shared_filesystem(
+            strategy=fabric.strategy, path=mmap_filepath.parent
+        )
+    except FileNotFoundError:
+        # Clearly not a shared filesystem because we just created the parent directory.
+        is_shared_filesystem = False
+
+    # If the filesystem is not shared we have to create the mmap file on every
+    # node individually.
+    with fabric.rank_zero_first(local=True):
+        if (fabric.global_rank == 0) or (
+            not is_shared_filesystem and fabric.local_rank == 0
+        ):
+            memory_mapped_sequence.write_items_to_file(
+                items=items,
+                mmap_filepath=mmap_filepath,
+            )
+
+    return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
 
 
 def get_dataset(
-    dataset_args: MaskSemanticSegmentationDatasetArgs, transform: TaskTransform
+    fabric: Fabric,
+    dataset_args: MaskSemanticSegmentationDatasetArgs,
+    transform: TaskTransform,
+    mmap_filepath: Path,
 ) -> MaskSemanticSegmentationDataset:
-    # TODO(Guarin, 07/25): MMAP filenames.
-    filenames = list(dataset_args.list_image_filenames())
+    image_info = dataset_args.list_image_info()
+
     dataset_cls = dataset_args.get_dataset_cls()
+    # TODO(Guarin, 08/25): Relax this when we add object detection.
+    assert isinstance(transform, SemanticSegmentationTransform)
     return dataset_cls(
-        dataset_args=dataset_args, image_filenames=filenames, transform=transform
+        dataset_args=dataset_args,
+        image_info=get_dataset_mmap_file(
+            fabric=fabric,
+            items=image_info,
+            mmap_filepath=mmap_filepath,
+        ),
+        transform=transform,
     )
 
 
-def collate_fn(batch: list[dict[str, Any]], split: str) -> dict[str, Any]:
+# TODO(Guarin, 08/25): Move this function to the _data module.
+def collate_fn(
+    batch: list[MaskSemanticSegmentationDatasetItem], split: str
+) -> MaskSemanticSegmentationBatch:
     # Prepare the batch without any stacking.
-    out: dict[str, Any] = {
-        "image_paths": [item["image_path"] for item in batch],
-        "image": [item["image"] for item in batch],
-        "mask": [item["mask"] for item in batch],
-        "target": [item["target"] for item in batch],
-    }
+    images = [item["image"] for item in batch]
+    masks = [item["mask"] for item in batch]
 
-    # During training images and masks all have the same shape.
-    if split == "train":
-        out["image"] = torch.stack(out["image"])
-        out["mask"] = torch.stack(out["mask"])
+    out: MaskSemanticSegmentationBatch = {
+        "image_path": [item["image_path"] for item in batch],
+        # Stack images during training as they all have the same shape.
+        # During validation every image can have a different shape.
+        "image": torch.stack(images) if split == "train" else images,
+        "mask": torch.stack(masks) if split == "train" else masks,
+        "binary_masks": [item["binary_masks"] for item in batch],
+    }
 
     return out
 
@@ -290,15 +510,10 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
     return default_steps if steps == "auto" else steps
 
 
-def get_train_model_args_cls(
-    model_name: str, model_args: dict[str, Any] | TrainModelArgs | None
-) -> type[TrainModelArgs]:
-    if isinstance(model_args, TrainModelArgs):
-        return model_args.__class__
-
-    # TODO(Guarin, 08/25): Properly handle model name and args linking.
-    if model_name.endswith("-eomt"):
-        return DINOv2EoMTSemanticSegmentationTrainArgs
+def get_train_model_cls(model_name: str) -> type[TrainModel]:
+    for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
+        if train_model_cls.task_model_cls.is_supported_model(model_name):
+            return train_model_cls
     raise ValueError(f"Unsupported model name '{model_name}'.")
 
 

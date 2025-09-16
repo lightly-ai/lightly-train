@@ -9,46 +9,46 @@ from __future__ import annotations
 
 import logging
 import os
+from itertools import chain
 from pathlib import Path
-from typing import Any, Generic, Iterable, Sequence, TypeVar, overload
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    Iterable,
+    Mapping,
+    Sequence,
+    TypeVar,
+    overload,
+)
 
 import pyarrow as pa  # type: ignore
 from pyarrow import Table, ipc
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
+Primitive = TypeVar("Primitive", bool, int, float, str)
+T = Dict[str, Primitive]
 
 
-def write_filenames_to_file(
-    filenames: Iterable[str],
+def write_items_to_file(
+    items: Iterable[Mapping[str, Primitive]],
     mmap_filepath: Path,
     chunk_size: int = 10_000,
-    column_name: str = "filenames",
 ) -> None:
-    """Writes the filenames to a file for memory mapping."""
+    """Writes the filepaths to a file for memory dict."""
     if chunk_size <= 0:
         raise ValueError(f"Invalid `chunk_size` {chunk_size} must be positive!")
-    logger.debug(f"Writing filenames to '{mmap_filepath}' (chunk_size={chunk_size})")
+    logger.debug(f"Writing filepaths to '{mmap_filepath}' (chunk_size={chunk_size})")
+
     _stream_write_table_to_file(
-        items=filenames,
+        items=items,
         mmap_filepath=mmap_filepath,
         chunk_size=chunk_size,
-        column_name=column_name,
     )
 
 
-def memory_mapped_sequence_from_file(
-    mmap_filepath: Path, column_name: str = "filenames"
-) -> MemoryMappedSequence[str]:
-    table = _mmap_table_from_file(mmap_filepath=mmap_filepath)
-    logger.debug(
-        f"Creating memory mapped sequence with {table.num_rows} '{column_name}'."
-    )
-    return MemoryMappedSequence(path=mmap_filepath, column=column_name)
-
-
-class MemoryMappedSequence(Sequence[T], Generic[T]):
+class MemoryMappedSequence(Sequence[T[Primitive]], Generic[Primitive]):
     """A memory mapped sequence built around PyArrow's memory mapped tables.
 
     A memory mapped sequence does not store its items in RAM but loads the data from disk.
@@ -64,18 +64,18 @@ class MemoryMappedSequence(Sequence[T], Generic[T]):
     def __init__(
         self,
         path: Path,
-        column: str,
+        columns: list[str],
     ):
         """Instantiates a new memory mapped sequence from a table and path.
 
         Args:
             path:
                 The path to the PyArrow file.
-            column:
-                The relevant column in the table.
+            columns:
+                The relevant columns in the table.
         """
         self._path = path
-        self._column = column
+        self._columns = columns
         # The table is lazily initialized on every process independently. This avoids
         # accidentally sharing table references between processes.
         # The following scenarios are covered:
@@ -105,44 +105,104 @@ class MemoryMappedSequence(Sequence[T], Generic[T]):
         return num_rows
 
     @overload
-    def __getitem__(self, index: int) -> T: ...
+    def __getitem__(self, index: int) -> T[Primitive]: ...
 
     @overload
-    def __getitem__(self, index: slice) -> Sequence[T]: ...
+    def __getitem__(self, index: slice) -> Sequence[T[Primitive]]: ...
 
-    def __getitem__(self, index: int | slice) -> T | Sequence[T]:
+    def __getitem__(self, index: int | slice) -> T[Primitive] | Sequence[T[Primitive]]:
         if isinstance(index, int):
-            item_: T = self.table().column(self._column)[index].as_py()
-            return item_
+            rows_dict: list[T[Primitive]] = (
+                self.table().select(self._columns).slice(index, 1).to_pylist()
+            )
+            # Each row is a dict of values corresponding to the requested columns.
+            return rows_dict[0]
         else:
-            items: Sequence[T] = self.table().column(self._column)[index].to_pylist()
-            return items
+            start, stop, step = index.indices(len(self))
+
+            if step == 1:
+                # Contiguous slice - use slice() method (much faster)
+                rows_dict = (
+                    self.table()
+                    .select(self._columns)
+                    .slice(start, stop - start)
+                    .to_pylist()
+                )
+            else:
+                # Non-contiguous slice - still need take()
+                indices = list(range(start, stop, step))
+                rows_dict = self.table().select(self._columns).take(indices).to_pylist()
+
+            return rows_dict
 
     def __getstate__(self) -> dict[str, Any]:
-        return {"path": self._path, "column": self._column}
+        return {"path": self._path, "columns": self._columns}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
-        column = state["column"]
+        columns = state["columns"]
         path = state["path"]
-        MemoryMappedSequence.__init__(self, path=path, column=column)
+        MemoryMappedSequence.__init__(self, path=path, columns=columns)
+
+    @classmethod
+    def from_file(
+        cls: type[MemoryMappedSequence[Primitive]], mmap_filepath: Path
+    ) -> MemoryMappedSequence[Primitive]:
+        table = _mmap_table_from_file(mmap_filepath=mmap_filepath)
+
+        num_rows = table.num_rows
+        column_names = table.column_names
+
+        logger.debug(
+            f"Creating memory mapped sequence with {num_rows} '{column_names}'."
+        )
+        return cls(path=mmap_filepath, columns=column_names)
+
+
+def _infer_type(value: Primitive) -> pa.DataType:
+    # Fallback to string for any unexpected type.
+    ArrowTypes = {
+        bool: pa.bool_(),
+        float: pa.float64(),
+        int: pa.int64(),
+        str: pa.string(),
+    }
+
+    return ArrowTypes.get(type(value), pa.string())
 
 
 def _stream_write_table_to_file(
-    items: Iterable[T],
+    items: Iterable[Mapping[str, Primitive]],
     mmap_filepath: Path,
     chunk_size: int = 10_000,
-    column_name: str = "items",
 ) -> None:
-    schema = pa.schema([(column_name, pa.string())])
+    it = iter(items)
+    try:
+        first_item = next(it)
+    except StopIteration:
+        # Create an empty file with no rows and no columns
+        with ipc.new_file(
+            sink=str(mmap_filepath.resolve()), schema=pa.schema([])
+        ) as writer:
+            pass
+        return
+
+    column_names = list(first_item.keys())
+    schema = pa.schema([(name, _infer_type(first_item[name])) for name in column_names])
+
     with ipc.new_file(sink=str(mmap_filepath.resolve()), schema=schema) as writer:
-        chunk = []
-        for item in items:
-            chunk.append(item)
-            if len(chunk) == chunk_size:
-                writer.write_table(pa.table({column_name: pa.array(chunk)}))
-                chunk.clear()
-        if len(chunk) > 0:
-            writer.write_table(pa.table({column_name: pa.array(chunk)}))
+        chunks: list[list[Primitive]] = list([] for _ in column_names)
+
+        for item_count, item in enumerate(chain([first_item], it), 1):
+            for chunk, name in zip(chunks, column_names):
+                chunk.append(item[name])
+
+            if item_count % chunk_size == 0:
+                writer.write_table(pa.table(data=chunks, names=column_names))
+                for chunk in chunks:
+                    chunk.clear()
+
+        if any(chunks):  # Check if any chunk has remaining data
+            writer.write_table(pa.table(data=chunks, names=column_names))
 
 
 def _mmap_table_from_file(mmap_filepath: Path) -> Table:

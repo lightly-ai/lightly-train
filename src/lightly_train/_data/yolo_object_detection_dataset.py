@@ -10,125 +10,156 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, Sequence
 
+import numpy as np
 import pydantic
 import torch
 from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
+from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._transforms.task_transform import TaskTransform
-from lightly_train.types import ImageFilename, ObjectDetectionDatasetItem
+from lightly_train.types import ImageFilename, ObjectDetectionDatasetItem, PathLike
 
 
-class YoloObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
+class YOLOObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
     def __init__(
         self,
-        dataset_args: YoloObjectDetectionDatasetArgs,
+        dataset_args: YOLOObjectDetectionDatasetArgs,
         image_filenames: Sequence[ImageFilename],
         transform: TaskTransform,
-        mode: Literal["train", "val", "test"],
     ) -> None:
-        self._args = dataset_args
+        self.args = dataset_args
         self.image_filenames = image_filenames
         self.transform = transform
-        self.mode = mode
-
-        self._image_dir, self._label_dir = self._get_image_and_labels_dirs()
-        if self._image_dir is None or self._label_dir is None:
-            raise ValueError(
-                f"Could not find image or label directory for mode '{self.mode}'. "
-                "Ensure that the dataset paths are correctly set."
-            )
-
-    def _get_image_and_labels_dirs(
-        self,
-    ) -> tuple[Path | None, Path | None]:
-        train_img_dir = self._args.path / self._args.train
-        val_img_dir = self._args.path / self._args.val
-        test_img_dir = self._args.path / self._args.test if self._args.test else None
-
-        train_label_path = Path(str(self._args.train).replace("images", "labels"))
-        val_label_path = Path(str(self._args.val).replace("images", "labels"))
-        test_label_path = (
-            Path(str(self._args.test).replace("images", "labels"))
-            if self._args.test
-            else None
-        )
-
-        train_label_dir = self._args.path / train_label_path
-        val_label_dir = self._args.path / val_label_path
-        test_label_dir = self._args.path / test_label_path if test_label_path else None
-
-        if self.mode == "train":
-            return train_img_dir, train_label_dir
-        elif self.mode == "val":
-            return val_img_dir, val_label_dir
-        elif self.mode == "test":
-            return test_img_dir, test_label_dir
-        else:
-            raise ValueError(f"Unknown mode: {self.mode}")
-
-    def _determine_train_folder_first(
-        self,
-        train_path: Path,
-        val_path: Path,
-    ) -> bool:
-        if str(train_path).split("/").index("images") == 1:
-            assert str(val_path).split("/").index("images") == 1
-            return True
-        return False
 
     def __len__(self) -> int:
         return len(self.image_filenames)
 
     def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
-        assert self._image_dir is not None
-        assert self._label_dir is not None
-
         # Load the image.
         image_filename = self.image_filenames[index]
-        image_path = self._image_dir / Path(image_filename)
-        label_path = self._label_dir / Path(image_filename).with_suffix(".txt")
+        image_path = self.args.image_dir / Path(image_filename)
+        label_path = self.args.label_dir / Path(image_filename).with_suffix(".txt")
 
         if not image_path.exists():
             raise FileNotFoundError(f"Image file {image_path} does not exist.")
         if not label_path.exists():
             raise FileNotFoundError(f"Label file {label_path} does not exist.")
 
-        image = file_helpers.open_image_numpy(image_path)
-        bboxes, class_labels = file_helpers.open_yolo_label_numpy(label_path)
+        image_ = file_helpers.open_image_numpy(image_path)
+        bboxes_, class_labels_ = file_helpers.open_yolo_label_numpy(label_path)
 
         transformed = self.transform(
             {
-                "image": image,
-                "bboxes": bboxes,  # Shape (n_boxes, 4)
-                "class_labels": class_labels,  # Shape (n_boxes,)
+                "image": image_,
+                "bboxes": bboxes_,  # Shape (n_boxes, 4)
+                "class_labels": class_labels_,  # Shape (n_boxes,)
             }
         )
 
-        image_ = torch.from_numpy(transformed["image"]).permute(2, 0, 1)
-        bboxes_ = torch.from_numpy(transformed["bboxes"]).float()
-        class_labels_ = torch.from_numpy(transformed["class_labels"]).long()
+        image = transformed["image"]
+        # Some albumentations versions return lists of tuples instead of arrays.
+        if isinstance(transformed["bboxes"], list):
+            transformed["bboxes"] = np.array(transformed["bboxes"])
+        if isinstance(transformed["class_labels"], list):
+            transformed["class_labels"] = np.array(transformed["class_labels"])
+        bboxes = torch.from_numpy(transformed["bboxes"]).float()
+        class_labels = torch.from_numpy(transformed["class_labels"]).long()
 
         return ObjectDetectionDatasetItem(
-            image_path=image_path,
-            image=image_,
-            bboxes=bboxes_,
-            classes=class_labels_,
+            image_path=str(image_path),
+            image=image,
+            bboxes=bboxes,
+            classes=class_labels,
         )
 
 
-class YoloObjectDetectionDatasetArgs(PydanticConfig):
-    path: Path
-    train: Path
-    val: Path
-    test: Path | None
+class YOLOObjectDetectionDataArgs(TaskDataArgs):
+    # TODO: (Lionel, 08/25): Handle test set.
+    path: PathLike
+    train: PathLike
+    val: PathLike
+    test: PathLike | None = None
     names: dict[int, str]
 
     @pydantic.field_validator("train", "val", mode="after")
-    def validate_paths(cls, v: Path) -> Path:
-        if "images" not in str(v):
-            raise ValueError(f"Expected path to include 'images', got {v}.")
-        if len(str(v).split("/")) != 2:
-            raise ValueError(f"Expected subdirectories of depth 2 from root, got {v}.")
+    def validate_paths(cls, v: PathLike) -> Path:
+        v = Path(v)
+        if "images" not in v.parts:
+            raise ValueError(f"Expected path to include 'images' directory, got {v}.")
         return v
+
+    def get_train_args(
+        self,
+    ) -> YOLOObjectDetectionDatasetArgs:
+        image_dir, label_dir = self._get_image_and_labels_dirs(
+            path=Path(self.path),
+            train=Path(self.train),
+            val=Path(self.val),
+            test=Path(self.test) if self.test else None,
+            mode="train",
+        )
+        assert image_dir is not None
+        assert label_dir is not None
+        return YOLOObjectDetectionDatasetArgs(
+            image_dir=image_dir, label_dir=label_dir, classes=self.names
+        )
+
+    def get_val_args(self) -> YOLOObjectDetectionDatasetArgs:
+        image_dir, label_dir = self._get_image_and_labels_dirs(
+            path=Path(self.path),
+            train=Path(self.train),
+            val=Path(self.val),
+            test=Path(self.test) if self.test else None,
+            mode="val",
+        )
+        assert image_dir is not None
+        assert label_dir is not None
+        return YOLOObjectDetectionDatasetArgs(
+            image_dir=image_dir, label_dir=label_dir, classes=self.names
+        )
+
+    def _get_image_and_labels_dirs(
+        self,
+        path: Path,
+        train: Path,
+        val: Path,
+        test: Path | None,
+        mode: Literal["train", "val", "test"],
+    ) -> tuple[Path | None, Path | None]:
+        train_img_dir = path / train
+        val_img_dir = path / val
+        test_img_dir = path / test if test else None
+
+        def _replace_first_images_with_labels(path: Path) -> Path:
+            """Replaces only the first occurrence of 'images' with 'labels' in a Path."""
+            parts = list(path.parts)
+            for i, part in enumerate(parts):
+                if part == "images":
+                    parts[i] = "labels"
+                    break
+            return Path(*parts)
+
+        train_label_path = _replace_first_images_with_labels(train)
+        val_label_path = _replace_first_images_with_labels(val)
+        test_label_path = _replace_first_images_with_labels(test) if test else None
+
+        train_label_dir = path / train_label_path
+        val_label_dir = path / val_label_path
+        test_label_dir = path / test_label_path if test_label_path else None
+
+        if mode == "train":
+            return train_img_dir, train_label_dir
+        elif mode == "val":
+            return val_img_dir, val_label_dir
+        elif mode == "test":
+            return test_img_dir, test_label_dir
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
+
+class YOLOObjectDetectionDatasetArgs(PydanticConfig):
+    image_dir: Path
+    label_dir: Path
+    classes: dict[int, str]

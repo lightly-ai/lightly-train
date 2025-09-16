@@ -86,6 +86,7 @@ add-header:
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
+		-x src/lightly_train/_models/dinov3/dinov3_src \
 		-E py
 	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
@@ -109,6 +110,11 @@ add-header:
 		-f src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
+		-E py
+	
+	# Apply the DINOv3 license header to the DINOv3 derived files
+	licenseheaders -t dev_tools/dinov3_licenseheader.tmpl \
+		-d src/lightly_train/_models/dinov3/dinov3_src \
 		-E py
 
 
@@ -160,12 +166,12 @@ EXTRAS_PY38 := [dev,mlflow,notebook,onnx,super-gradients,tensorboard,timm,ultral
 # on MacOS. Therefore we exclude it from the default extras.
 # RFDETR has installation issues because of onnxsim dependency on CI with Python 3.12.
 # Onnx dependencies in RFDETR should become optional in RFDETR >1.1.0.
-EXTRAS_PY312 := [dev,mlflow,notebook,onnx,onnxruntime,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY312 := [dev,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies. And SuperGradients is not compatible with
 # Python>=3.10, therefore we also remove it from the default development dependencies.
-EXTRAS_DEV := [dev,mlflow,notebook,onnx,onnxruntime,tensorboard,timm,ultralytics,wandb]
+EXTRAS_DEV := [dev,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.
@@ -173,7 +179,7 @@ DOCKER_EXTRAS := --extra mlflow --extra tensorboard --extra timm --extra wandb -
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
-EXCLUDE_NEWER_DATE := "2025-06-08"
+EXCLUDE_NEWER_DATE := "2025-09-07"
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
 # on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.

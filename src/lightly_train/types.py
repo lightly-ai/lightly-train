@@ -22,6 +22,9 @@ from typing_extensions import NotRequired
 PackageModel = Any
 
 # Types for the new transforms.
+NDArrayImage = NDArray[Union[np.uint8, np.int32, np.int64]]
+NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
+NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
 NDArrayImage = NDArray[np.uint8]
 NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
 NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
@@ -50,18 +53,18 @@ ImageFilename = str
 
 class DatasetItem(TypedDict):
     filename: ImageFilename
-    views: list[Tensor]  # One tensor per view, of shape (3, w, h) each.
-    masks: NotRequired[list[Tensor]]  # One tensor per view, of shape (w, h) each
+    views: list[Tensor]  # One tensor per view, of shape (3, H, W) each.
+    masks: NotRequired[list[Tensor]]  # One tensor per view, of shape (H, W) each
 
 
 # The type and variable names of the Batch is fully determined by the type and
 # variable names of the DatasetItem by the dataloader collate function.
 class Batch(TypedDict):
     filename: list[ImageFilename]  # length==batch_size
-    views: list[Tensor]  # One tensor per view, of shape (batch_size, 3, w, h) each.
+    views: list[Tensor]  # One tensor per view, of shape (batch_size, 3, H, W) each.
     masks: NotRequired[
         list[Tensor]
-    ]  # One tensor per view, of shape (batch_size, w, h) each.
+    ]  # One tensor per view, of shape (batch_size, H, W) each.
 
 
 class TaskDatasetItem(TypedDict):
@@ -72,18 +75,35 @@ class TaskBatch(TypedDict):
     pass
 
 
+class BinaryMasksDict(TypedDict):
+    # Boolean tensor with shape (num_classes_in_image, H, W).
+    masks: Tensor
+    # Class labels corresponding to the boolean masks. Tensor with shape
+    # (num_classes_in_image,)
+    labels: Tensor
+
+
 class MaskSemanticSegmentationDatasetItem(TaskDatasetItem):
     image_path: ImageFilename
     image: Tensor
     mask: Tensor
-    target: dict[str, Tensor]
+    binary_masks: BinaryMasksDict
 
 
 class MaskSemanticSegmentationBatch(TypedDict):
     image_path: list[ImageFilename]  # length==batch_size
-    image: Tensor  # One tensor per view, of shape (batch_size, 3, w, h) each.
-    mask: Tensor  # One tensor per view, of shape (batch_size, w, h) each.
-    target: list[dict[str, Tensor]]
+    # Tensor with shape (batch_size, 3, H, W) or list of Tensors with shape (3, H, W).
+    image: Tensor | list[Tensor]
+    # Tensor with shape (batch_size, H, W) or list of Tensors with shape (H, W).
+    mask: Tensor | list[Tensor]
+    binary_masks: list[BinaryMasksDict]  # On dict per image.
+
+
+class ObjectDetectionDatasetItem(TypedDict):
+    image_path: ImageFilename
+    image: Tensor
+    bboxes: Tensor  # Of shape (n_boxes, 4) with (x_center, y_center, w, h) coordinates.
+    classes: Tensor  # Of shape (n_boxes,) with class labels.
 
 
 class ObjectDetectionDatasetItem(TypedDict):

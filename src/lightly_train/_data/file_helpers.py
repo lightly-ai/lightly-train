@@ -7,12 +7,13 @@
 #
 from __future__ import annotations
 
+import logging
 import os
+from collections.abc import Iterable, Set
+from enum import Enum
 from pathlib import Path
-from typing import Iterable, Literal, Sequence
 
 import numpy as np
-from numpy.typing import NDArray
 from PIL import Image
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -28,31 +29,58 @@ from lightly_train.types import (
     PathLike,
 )
 
+logger = logging.getLogger(__name__)
 
-def list_image_files(imgs_and_dirs: Sequence[Path]) -> Iterable[Path]:
+
+class ImageMode(Enum):
+    RGB = "RGB"
+    UNCHANGED = "UNCHANGED"
+    MASK = "MASK"
+
+
+def list_image_filenames_from_iterable(
+    imgs_and_dirs: Iterable[PathLike],
+) -> Iterable[ImageFilename]:
     """List image files recursively from the given list of image files and directories.
+
+    Assumes that all given paths exist.
 
     Args:
         imgs_and_dirs: A list of (relative or absolute) paths to image files and
             directories that should be scanned for images.
 
     Returns:
-        A list of absolute paths pointing to the image files.
+        An iterable of image filenames starting from the given paths. The given paths
+        are always included in the output filenames.
     """
+    supported_extensions = _pil_supported_image_extensions()
     for img_or_dir in imgs_and_dirs:
-        if img_or_dir.is_file() and (
-            img_or_dir.suffix.lower() in _pil_supported_image_extensions()
-        ):
-            yield img_or_dir.resolve()
-        elif img_or_dir.is_dir():
-            yield from _get_image_filepaths(img_or_dir)
+        _, ext = os.path.splitext(img_or_dir)
+        # Only check image extension. This is faster than checking isfile() because it
+        # does not require a system call.
+        if ext.lower() in supported_extensions:
+            yield ImageFilename(img_or_dir)
+        # For dirs we have to make a system call.
+        elif os.path.isdir(img_or_dir):
+            contains_images = False
+            dir_str = str(img_or_dir)
+            for image_filename in _get_image_filenames(
+                image_dir=dir_str, image_extensions=supported_extensions
+            ):
+                contains_images = True
+                yield ImageFilename(os.path.join(dir_str, image_filename))
+            if not contains_images:
+                logger.warning(
+                    f"The directory '{img_or_dir}' does not contain any images."
+                )
         else:
-            raise ValueError(f"Invalid path: {img_or_dir}")
+            raise ValueError(
+                f"Invalid path: '{img_or_dir}'. It is neither a valid image nor a "
+                f"directory. Valid image extensions are: {supported_extensions}"
+            )
 
 
-def list_image_filenames(
-    *, image_dir: Path | None = None, files: Iterable[Path] | None = None
-) -> Iterable[ImageFilename]:
+def list_image_filenames_from_dir(image_dir: PathLike) -> Iterable[ImageFilename]:
     """List image filenames relative to `image_dir` recursively.
 
     Args:
@@ -60,25 +88,10 @@ def list_image_filenames(
             The root directory to scan for images.
 
     Returns:
-        An iterable of image filenames relative to `image_dir` or absolute paths
-        if `files` is provided.
+        An iterable of image filenames relative to `image_dir`.
     """
-    if (image_dir is not None and files is not None) or (
-        image_dir is None and files is None
-    ):
-        raise ValueError(
-            "Either `image_dir` or `files` must be provided, but not both."
-        )
-    elif files is not None:
-        # NOTE(Jonas 06/2025): drop resolve if complains about performance are raised.
-        return (ImageFilename(str(fpath.resolve())) for fpath in files)
-    elif image_dir is not None:
-        return (
-            ImageFilename(str(fpath.relative_to(image_dir)))
-            for fpath in _get_image_filepaths(image_dir=image_dir)
-        )
-    else:
-        raise ValueError("Either `image_dir` or `files` must be provided.")
+    for filename in _get_image_filenames(image_dir=image_dir):
+        yield ImageFilename(filename)
 
 
 def _pil_supported_image_extensions() -> set[str]:
@@ -89,22 +102,30 @@ def _pil_supported_image_extensions() -> set[str]:
     }
 
 
-def _get_image_filepaths(image_dir: Path) -> Iterable[Path]:
-    extensions = _pil_supported_image_extensions()
-    for root, _, files in os.walk(image_dir, followlinks=True):
-        root_path = Path(root)
-        for file in files:
-            fpath = root_path / file
-            if fpath.suffix.lower() in extensions:
-                yield fpath
+def _get_image_filenames(
+    image_dir: PathLike, image_extensions: Set[str] | None = None
+) -> Iterable[str]:
+    """Returns image filenames relative to image_dir."""
+    image_extensions = (
+        _pil_supported_image_extensions()
+        if image_extensions is None
+        else image_extensions
+    )
+    for dirpath, _, filenames in os.walk(image_dir, followlinks=True):
+        # Make paths relative to image_dir. `dirpath` is absolute.
+        parent = os.path.relpath(dirpath, start=image_dir)
+        parent = "" if parent == "." else parent
+        for file in filenames:
+            _, ext = os.path.splitext(file)
+            if ext.lower() in image_extensions:
+                yield os.path.join(parent, file)
 
 
-def _torchvision_supported_image_extensions() -> set[str]:
-    # See https://pytorch.org/vision/0.18/generated/torchvision.io.read_image.html
-    return {"jpg", "jpeg", "png"}
+_TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
 def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
+    """Returns image as (C, H, W) tensor."""
     if isinstance(image, Tensor):
         return image
     elif isinstance(image, PILImage):
@@ -115,8 +136,9 @@ def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
 
 
 def open_image_tensor(image_path: Path) -> Tensor:
+    """Returns image as (C, H, W) tensor."""
     image: Tensor
-    if image_path.suffix.lower() in _torchvision_supported_image_extensions():
+    if image_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         image = io.read_image(str(image_path), mode=ImageReadMode.RGB)
         return image
     else:
@@ -126,30 +148,18 @@ def open_image_tensor(image_path: Path) -> Tensor:
 
 def open_image_numpy(
     image_path: Path,
-    mode: Literal["RGB", "L", "UNCHANGED", "MASK"] = "RGB",
+    mode: ImageMode = ImageMode.RGB,
 ) -> NDArrayImage:
-    image_np: NDArray[np.uint8]
-    if image_path.suffix.lower() in _torchvision_supported_image_extensions():
-        mode_torch = {
-            "RGB": ImageReadMode.RGB,
-            "L": ImageReadMode.GRAY,
-            "UNCHANGED": ImageReadMode.UNCHANGED,
-            "MASK": ImageReadMode.GRAY,
-        }[mode]
-        image_torch = io.read_image(str(image_path), mode=mode_torch)
-        image_torch = image_torch.permute(1, 2, 0)
-        image_np = image_torch.numpy()
+    """Returns image as (H, W, C) or (H, W) numpy array."""
+    image_np: NDArrayImage
+    if image_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+        try:
+            image_np = _open_image_numpy__with_torch(image_path=image_path, mode=mode)
+        except RuntimeError:
+            # RuntimeError can happen for truncated images. Fall back to PIL.
+            image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
     else:
-        convert_mode = {
-            "RGB": "RGB",
-            "L": "L",
-            "UNCHANGED": None,
-            "MASK": None,
-        }[mode]
-        image = Image.open(image_path)
-        if convert_mode is not None:
-            image = image.convert(convert_mode)
-        image_np = np.array(image)
+        image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
     dtype = image_np.dtype
     if np.issubdtype(dtype, np.unsignedinteger) and dtype != np.uint8:
         # Convert uint16, uint32, uint64 to signed integer type because torch has only
@@ -164,15 +174,60 @@ def open_image_numpy(
     return image_np
 
 
+def _open_image_numpy__with_torch(
+    image_path: Path,
+    mode: ImageMode = ImageMode.RGB,
+) -> NDArrayImage:
+    image_np: NDArrayImage
+    mode_torch = {
+        ImageMode.RGB: ImageReadMode.RGB,
+        ImageMode.UNCHANGED: ImageReadMode.UNCHANGED,
+        ImageMode.MASK: ImageReadMode.UNCHANGED,
+    }[mode]
+    image_torch = io.read_image(str(image_path), mode=mode_torch)
+    image_torch = image_torch.permute(1, 2, 0)
+    if image_torch.shape[2] == 1 and mode == ImageMode.RGB:
+        # Convert single-channel grayscale to 3-channel RGB.
+        # (H, W, 1) -> (H, W, 3)
+        image_torch = image_torch.repeat(1, 1, 3)
+    if image_torch.shape[2] == 1 and mode == ImageMode.MASK:
+        # Squeeze channel dimension for single-channel masks.
+        # (H, W, 1) -> (H, W)
+        image_torch = image_torch.squeeze(2)
+    image_np = image_torch.numpy()
+    return image_np
+
+
+def _open_image_numpy__with_pil(
+    image_path: Path,
+    mode: ImageMode = ImageMode.RGB,
+) -> NDArrayImage:
+    image_np: NDArrayImage
+    convert_mode = {
+        ImageMode.RGB: "RGB",
+        ImageMode.UNCHANGED: None,
+        ImageMode.MASK: None,
+    }[mode]
+    image = Image.open(image_path)
+    if convert_mode is not None:
+        image = image.convert(convert_mode)
+    image_np = np.array(image)
+    return image_np
+
+
 def open_yolo_label_numpy(label_path: Path) -> tuple[NDArrayBBoxes, NDArrayClasses]:
     """Open a YOLO label file and return the bounding boxes and classes as numpy arrays."""
     bboxes = []
     classes = []
     with open(label_path, "r") as f:
         for line in f.readlines():
+            line = line.strip()
+            # Skip empty lines.
+            if not line:
+                continue
             class_id, x_center, y_center, width, height = (
-                float(x) for x in line.strip().split()
+                float(x) for x in line.split()
             )
             bboxes.append([x_center, y_center, width, height])
             classes.append(int(class_id))
-    return np.array(bboxes), np.array(classes)
+    return np.array(bboxes, dtype=np.float64), np.array(classes, dtype=np.int64)

@@ -12,13 +12,16 @@ import hashlib
 import json
 import logging
 import os
+import sys
 import time
 import warnings
+from collections.abc import Iterable, Sequence, Set, Sized
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Sequence, Sized, TypeVar
+from typing import Any, Generator, Literal, TypeVar
 
 import torch
+from filelock import FileLock
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
 from pytorch_lightning.accelerators.cuda import CUDAAccelerator
@@ -30,7 +33,9 @@ from torch.utils.data import Dataset
 from lightly_train import _distributed as distributed_helpers
 from lightly_train._data import cache, file_helpers
 from lightly_train._data._serialize import memory_mapped_sequence
-from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
+from lightly_train._data._serialize.memory_mapped_sequence import (
+    MemoryMappedSequence,
+)
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._embedding.embedding_format import EmbeddingFormat
 from lightly_train._env import Env
@@ -204,14 +209,23 @@ def verify_out_dir_equal_on_all_local_ranks(out: Path) -> Generator[None, None, 
         _unlink_and_ignore(out_tmp)
 
 
-def pretty_format_args(args: dict[str, Any], indent: int = 4) -> str:
+def pretty_format_args(
+    args: dict[str, Any],
+    indent: int = 4,
+    limit: bool = True,
+    limit_keys: Set[str] | None = None,
+    limit_num_elems: int = 10,
+) -> str:
+    if limit:
+        args = remove_excessive_args(
+            args, limit_keys=limit_keys, num_elems=limit_num_elems
+        )
     args = sanitize_config_dict(args)
-
     return json.dumps(args, indent=indent, sort_keys=True)
 
 
 def remove_excessive_args(
-    args: dict[str, Any], limit_keys: set[str] | None = None, num_elems: int = 5
+    args: dict[str, Any], limit_keys: Set[str] | None = None, num_elems: int = 10
 ) -> dict[str, Any]:
     """Limit the number of elements in sequences of a dict to a certain number. This is
     strictly for logging purposes. Does not work with nested structures.
@@ -232,8 +246,14 @@ def remove_excessive_args(
             and not isinstance(args[key], str)
             and len(args[key]) > num_elems
         ):
-            args[key] = type(args[key])(
-                (*args[key][: num_elems - 2], "...", args[key][-1])
+            val = args[key]
+            num_extra_values = len(val) - (num_elems - 1)
+            args[key] = type(val)(
+                (
+                    *val[: num_elems - 2],
+                    f"... {num_extra_values} more values",
+                    val[-1],
+                )
             )
     return args
 
@@ -370,13 +390,14 @@ def _get_package(model: Module) -> BasePackage:
 @contextlib.contextmanager
 def get_dataset_temp_mmap_path(
     data: PathLike | Sequence[PathLike],
+    out: PathLike,
 ) -> Generator[Path, Any, Any]:
-    """Generate file in temporary directory to be used for memory-mapping the dataset.
+    """Generate file in the cache directory to be used for memory-mapping the dataset.
 
-    Creates a unique filename for the memory-mapped file based on the data arg.
-    We use the data arg as a deterministic value that is consistent across all ranks
-    on the same node. Additionally, we can cache the file if required, since the hash
-    directly reflects the used config.
+    Creates a unique filename for the memory-mapped file based on the `out` or `data`
+    arguments. We use those arguments as they are consistent across all ranks on the
+    same node for the same run. Additionally, we can cache the file if required, since
+    the hash directly reflects the used config.
 
     We need a deterministic value from "outside" at this point in the code as the
     code might already be running on multiple processes depending on how it was
@@ -389,23 +410,106 @@ def get_dataset_temp_mmap_path(
     The filename is different on each node. This is necessary to avoid multiple
     processes writing to the same file in case the nodes use a shared filesystem.
     """
-    out_hash = get_sha256(f"{data}-{distributed_helpers.get_node_rank() or 0}")
-    mmap_filepath = (cache.get_data_cache_dir() / out_hash).with_suffix(".mmap")
+    if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
+        # Use data as identifier to share the mmap file across multiple runs.
+        # NOTE(Guarin, 09/25): Hash of data might be slow if data is a long list of
+        # filenames or directories.
+        identifier = f"{data}-{distributed_helpers.get_node_rank() or 0}"
+    else:
+        # Use out as identifier to create a unique mmap file for each run. We assume
+        # that only one run is using a specific out directory at a time.
+        out = Path(out).resolve()
+        identifier = f"{out}-{distributed_helpers.get_node_rank() or 0}"
+
+    mmap_filepath = (cache.get_data_cache_dir() / get_sha256(identifier)).with_suffix(
+        ".mmap"
+    )
+    ref_count_filepath = mmap_filepath.with_suffix(".ref_count")
+
     mmap_filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    reuse_file = Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
+    if (
+        not Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
+        and mmap_filepath.exists()
+        and distributed_helpers.is_local_rank_zero()
+    ):
+        # We have to crash in this case because we cannot guarantee that the other
+        # processes from the current run didn't already read from the existing mmap
+        # file which could lead to inconsistent data between processes.
+        # This can only happen with PyTorch Lightning but not with Lightning Fabric.
+        if sys.platform.startswith("win"):
+            # On windows we sometimes cannot delete mmap files with _unlink_and_ignore
+            # due to a "[WinError 5] Access is denied: ..." error. This is probably due
+            # to a file-handle that is not released yet. In that case we show a warning
+            # instead of raising an error.
+            logger.warning(
+                f"Detected multiple runs using output directory '{out}'! This warning "
+                "can also happen if a previous run did not shut down properly. If no "
+                "other run is using this output directory concurrently and you didn't "
+                "modify any files in the `data` directory you can ignore this warning. "
+                "If another run is using this output directory concurrently, the "
+                "results might get corrupted, in that case please restart the run with "
+                "a different output directory. "
+                "If the files in `data` were modified since the last run, please "
+                "re-run with a new output directory or delete the following leftover "
+                "files:\n "
+                "   - {mmap_filepath}\n"
+                "   - {ref_count_filepath}\n"
+            )
+        else:
+            raise RuntimeError(
+                f"Detected multiple runs using output directory '{out}' concurrently! "
+                "This error can also happen if a previous run crashed and did not shut "
+                "down properly. If no other run is using this output directory, please go "
+                "ahead and delete the following leftover files:\n "
+                f" - {mmap_filepath}\n"
+                f" - {ref_count_filepath}\n"
+            )
+
     try:
-        # Delete the file if it already exists from a previous run.
-        if not reuse_file and distributed_helpers.is_local_rank_zero():
-            _unlink_and_ignore(mmap_filepath)
+        # Increment reference count atomically
+        _increment_ref_count(ref_count_filepath)
 
         yield mmap_filepath
     finally:
-        if not reuse_file and distributed_helpers.is_local_rank_zero():
-            _unlink_and_ignore(mmap_filepath)
+        # Decrement reference count and cleanup if zero
+        _decrement_and_cleanup_if_zero(mmap_filepath, ref_count_filepath)
 
 
-def get_dataset_mmap_filenames(
+def _increment_ref_count(ref_file: Path) -> None:
+    lock_file = ref_file.with_suffix(".lock")
+
+    with FileLock(lock_file, timeout=300):
+        # Ensure file exists within the lock to avoid race conditions
+        ref_file.touch()
+        with open(ref_file, "r+") as f:
+            count = int(f.read() or "0")
+            f.seek(0)
+            f.write(str(count + 1))
+            f.truncate()
+
+
+def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
+    try:
+        lock_file = ref_file.with_suffix(".lock")
+
+        with FileLock(lock_file, timeout=300):
+            with open(ref_file, "r+") as f:
+                count = max(0, int(f.read() or "1") - 1)
+                f.seek(0)
+                f.write(str(count))
+                f.truncate()
+
+                if count <= 0 and not Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
+                    # Remove mmap file only if we are not reusing it and count is zero
+                    _unlink_and_ignore(mmap_file)
+
+    except (FileNotFoundError, OSError):
+        pass  # Another process already cleaned up
+
+
+def get_dataset_mmap_file(
+    out_dir: Path,
     filenames: Iterable[str],
     mmap_filepath: Path,
 ) -> MemoryMappedSequence[str]:
@@ -416,17 +520,16 @@ def get_dataset_mmap_filenames(
     if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
         # If the file already exists and we are allowed to reuse it, return it.
         logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
-        return memory_mapped_sequence.memory_mapped_sequence_from_file(
-            mmap_filepath=mmap_filepath
-        )
+        return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
 
-    tmp_path = mmap_filepath.with_suffix(".temp")
+    tmp_path = mmap_filepath.with_suffix(f".{get_sha256(out_dir.resolve())}.temp")
     try:
         if distributed_helpers.is_local_rank_zero():
             # Save filenames to temporary file. Create the final file only once rank zero has
             # finished writing all the filenames.
-            memory_mapped_sequence.write_filenames_to_file(
-                filenames=filenames,
+            # Convert list[str] to list[{"filenames": str}] and write
+            memory_mapped_sequence.write_items_to_file(
+                items=({"filenames": f} for f in filenames),
                 mmap_filepath=tmp_path,
             )
             # Rename the temporary file to mmap_filepath.
@@ -451,18 +554,19 @@ def get_dataset_mmap_filenames(
                     )
                 time.sleep(0.2)
     finally:
-        _unlink_and_ignore(tmp_path)
+        if distributed_helpers.is_local_rank_zero():
+            _unlink_and_ignore(tmp_path)
 
-    # Return memory-mapped filenames from file.
-    return memory_mapped_sequence.memory_mapped_sequence_from_file(
-        mmap_filepath=mmap_filepath
-    )
+    # Return memory-mapped filenames from file as a string view.
+    return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
 
 
 def get_dataset(
     data: PathLike | Sequence[PathLike] | Dataset[DatasetItem],
     transform: Transform,
+    num_channels: int,
     mmap_filepath: Path | None,
+    out_dir: Path,
 ) -> Dataset[DatasetItem]:
     if isinstance(data, Dataset):
         logger.debug("Using provided dataset.")
@@ -486,39 +590,35 @@ def get_dataset(
         # NOTE(Guarin, 01/25): The bottleneck for dataset initialization is filename
         # listing and not the memory mapping. Listing the train set from ImageNet takes
         # about 30 seconds. This is mostly because os.walk is not parallelized.
-        filenames = file_helpers.list_image_filenames(image_dir=data)
+        filenames = file_helpers.list_image_filenames_from_dir(image_dir=data)
         return ImageDataset(
             image_dir=data,
-            image_filenames=get_dataset_mmap_filenames(
+            image_filenames=get_dataset_mmap_file(
+                out_dir=out_dir,
                 filenames=filenames,
                 mmap_filepath=mmap_filepath,
             ),
             transform=transform,
+            num_channels=num_channels,
             mask_dir=Path(mask_dir) if mask_dir is not None else None,
         )
 
     elif isinstance(data, Sequence):
-        _data: Sequence[Path] = [Path(d).resolve() for d in data]
         if mask_dir is not None:
             raise ValueError(
                 "Mask directory is not supported when multiple directories or files "
                 "are provided."
             )
-
-        for d in _data:
-            if not d.exists():
-                raise ValueError(f"Data directory or file '{d}' does not exist!")
-            elif d.is_dir() and not any(d.iterdir()):
-                raise ValueError(f"Data directory '{d}' is empty!")
-        files = file_helpers.list_image_files(imgs_and_dirs=_data)
-        filenames = file_helpers.list_image_filenames(files=files)
+        filenames = file_helpers.list_image_filenames_from_iterable(imgs_and_dirs=data)
         return ImageDataset(
             image_dir=None,
-            image_filenames=get_dataset_mmap_filenames(
+            image_filenames=get_dataset_mmap_file(
+                out_dir=out_dir,
                 filenames=filenames,
                 mmap_filepath=mmap_filepath,
             ),
             transform=transform,
+            num_channels=num_channels,
         )
     else:
         raise ValueError(

@@ -42,6 +42,12 @@ class TrainModel(Module):
     It also implements the train and validation steps.
     """
 
+    task: ClassVar[str]
+    train_model_args_cls: ClassVar[type[TrainModelArgs]]
+    task_model_cls: ClassVar[type[TaskModel]]
+    train_transform_cls: ClassVar[type[TaskTransform]]
+    val_transform_cls: ClassVar[type[TaskTransform]]
+
     # NOTE(Guarin, 07/25): We use the same method names as for LightningModule as
     # those methods are automatically handled by Fabric. Methods with different
     # names that are called within a Fabric context will raise an error if they have

@@ -30,9 +30,9 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model imp
     DINOv2EoMTSemanticSegmentation,
 )
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
-    DINOv2SemanticSegmentationTrainTransform,
-    DINOv2SemanticSegmentationValTransform,
-    DINOv2SemanticSegmentationValTransformArgs,
+    DINOv2EoMTSemanticSegmentationTrainTransform,
+    DINOv2EoMTSemanticSegmentationValTransform,
+    DINOv2EoMTSemanticSegmentationValTransformArgs,
 )
 from lightly_train._task_models.train_model import (
     TaskStepResult,
@@ -93,14 +93,16 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
     def resolve_auto(self, total_steps: int, model_name: str) -> None:
         if self.num_joint_blocks == "auto":
-            match = re.match(r"(dinov2(?:_vit)?)/(vit[slbg]).*", model_name)
+            match = re.match(
+                r"(dinov2(?:_vit)?)/(?P<model_size>vit[slbg]).*", model_name
+            )
             if match is None:
                 raise ValueError(
                     f"Unknown model name '{model_name}', "
                     "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
                     "for all supported models."
                 )
-            model_size = match.group(1)
+            model_size = match.group("model_size")
             self.num_joint_blocks = {
                 "vits": 3,
                 "vitb": 3,
@@ -127,13 +129,19 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
 
 class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
+    task = "semantic_segmentation"
+    train_model_args_cls = DINOv2EoMTSemanticSegmentationTrainArgs
+    task_model_cls = DINOv2EoMTSemanticSegmentation
+    train_transform_cls = DINOv2EoMTSemanticSegmentationTrainTransform
+    val_transform_cls = DINOv2EoMTSemanticSegmentationValTransform
+
     def __init__(
         self,
         *,
         model_name: str,
         model_args: DINOv2EoMTSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
-        val_transform_args: DINOv2SemanticSegmentationValTransformArgs,
+        val_transform_args: DINOv2EoMTSemanticSegmentationValTransformArgs,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
@@ -238,8 +246,9 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     ) -> TaskStepResult:
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
+        assert isinstance(images, Tensor), "Images must be a single tensor for training"
         masks = batch["mask"]
-        targets = batch["target"]
+        binary_masks = batch["binary_masks"]
         _, _, H, W = images.shape
 
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
@@ -258,7 +267,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             block_losses = self.criterion(
                 masks_queries_logits=block_mask_logits,
                 class_queries_logits=block_class_logits,
-                targets=targets,
+                targets=binary_masks,
             )
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
@@ -329,23 +338,22 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
         masks = batch["mask"]
-        targets = batch["target"]
-        image_sizes = [image.shape[-2:] for image in images]
+        binary_masks = batch["binary_masks"]
+        image_sizes = [(image.shape[-2], image.shape[-1]) for image in images]
 
         # Tile the images.
         crops_list, origins = self.model.tile(images)  # type: ignore[arg-type]
         crops = torch.stack(crops_list)
 
-        # Tile the targets for the loss
-        binary_masks = [target["masks"] for target in targets]
-        binary_masks_labels = [target["labels"] for target in targets]
-        binary_masks_crops, _ = self.model.tile(binary_masks)
+        # Tile the binary masks for the loss
+        binary_masks_labels = [m["labels"] for m in binary_masks]
+        binary_masks_crops, _ = self.model.tile([m["masks"] for m in binary_masks])
 
         # Compute the target per crop.
-        targets_crops = []
+        binary_masks_crops_dicts = []
         for origin, binary_masks_crop in zip(origins, binary_masks_crops):
             # Store the binary mask and label for the crop.
-            targets_crops.append(
+            binary_masks_crops_dicts.append(
                 {
                     "masks": binary_masks_crop,
                     "labels": binary_masks_labels[origin[0]],
@@ -389,7 +397,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             block_losses = self.criterion(
                 masks_queries_logits=mask_logits,
                 class_queries_logits=class_logits,
-                targets=targets_crops,
+                targets=binary_masks_crops_dicts,
             )
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
@@ -429,47 +437,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 **metrics,
             },
         )
-
-    def get_targets(self, masks: Tensor) -> list[dict[str, Tensor]]:
-        # This follows logic from: https://github.com/tue-mps/eomt/blob/716cbd562366b9746804579b48b866da487d9485/datasets/ade20k_semantic.py#L47-L48
-        targets = []
-        for mask in masks:
-            img_masks = []
-            img_labels = []
-            class_ids = mask.unique()
-            # TODO(Guarin, 07/25): EoMT checks whether class id is in class mappings.
-            for class_id in class_ids:
-                img_masks.append(mask == class_id)
-                img_labels.append(class_id)
-            targets.append(
-                {
-                    "masks": torch.stack(img_masks),
-                    "labels": mask.new_tensor(img_labels, dtype=torch.long),
-                }
-            )
-        return targets
-
-    @torch.compiler.disable  # type: ignore[misc]
-    def to_per_pixel_targets_semantic(
-        self,
-        targets: list[dict[str, Tensor]],
-        ignore_idx: int,
-    ) -> list[Tensor]:
-        per_pixel_targets = []
-        for target in targets:
-            per_pixel_target = torch.full(
-                target["masks"].shape[-2:],
-                ignore_idx,
-                dtype=target["labels"].dtype,
-                device=target["labels"].device,
-            )
-
-            for i, mask in enumerate(target["masks"]):
-                per_pixel_target[mask] = target["labels"][i]
-
-            per_pixel_targets.append(per_pixel_target)
-
-        return per_pixel_targets
 
     def mask_annealing(
         self,

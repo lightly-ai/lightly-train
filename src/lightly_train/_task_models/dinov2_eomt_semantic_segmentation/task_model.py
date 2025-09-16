@@ -20,6 +20,7 @@ from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
+from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Attention
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
@@ -47,6 +48,8 @@ class DinoV2EoMTSemanticSegmentationArgs:
 
 
 class DINOv2EoMTSemanticSegmentation(TaskModel):
+    model_suffix = "eomt"
+
     def __init__(
         self,
         *,
@@ -54,7 +57,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         classes: dict[int, str],
         class_ignore_index: int | None,
         image_size: tuple[int, int],
-        image_normalize: dict[str, float],
+        image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
         num_joint_blocks: int,
         backbone_weights: PathLike | None = None,
@@ -93,12 +96,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 Additional arguments to pass to the DINOv2 backbone.
         """
         super().__init__(locals(), ignore_args={"backbone_weights"})
-        if not model_name.endswith("-eomt"):
-            raise ValueError(
-                f"Model name must end with '-eomt', got '{model_name}' instead."
-            )
-
-        self.model_name = model_name
+        parsed_name = self.parse_model_name(model_name=model_name)
+        self.model_name = parsed_name["model_name"]
         self.classes = classes
         self.class_ignore_index = class_ignore_index
         self.image_size = image_size
@@ -121,17 +120,17 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         )
 
         # Disable drop path by default.
-        args = {
+        backbone_model_args = {
             "drop_path_rate": 0.0,
+            "in_chans": len(self.image_normalize["mean"]),
         }
         if backbone_args is not None:
-            args.update(backbone_args)
+            backbone_model_args.update(backbone_args)
 
         # Get the backbone.
-        backbone_name = self.model_name[: -len("-eomt")]
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
-            model_name=backbone_name,
-            model_args=args,
+            model_name=parsed_name["backbone_name"],
+            model_args=backbone_model_args,
         )
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
@@ -178,6 +177,58 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
 
+    @classmethod
+    def list_model_names(cls) -> list[str]:
+        return [
+            f"{name}-{cls.model_suffix}"
+            for name in DINOV2_VIT_PACKAGE.list_model_names()
+        ]
+
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        try:
+            cls.parse_model_name(model_name=model)
+        except ValueError:
+            return False
+        else:
+            return True
+
+    @classmethod
+    def parse_model_name(cls, model_name: str) -> dict[str, str]:
+        def raise_invalid_name() -> None:
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available "
+                f"models are: {cls.list_model_names()}. See the documentation for "
+                "more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html"
+            )
+
+        if not model_name.endswith(f"-{cls.model_suffix}"):
+            raise_invalid_name()
+
+        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
+
+        try:
+            package_name, backbone_name = package_helpers.parse_model_name(
+                backbone_name
+            )
+        except ValueError:
+            raise_invalid_name()
+
+        if package_name != DINOV2_VIT_PACKAGE.name:
+            raise_invalid_name()
+
+        try:
+            backbone_name = DINOV2_VIT_PACKAGE.parse_model_name(
+                model_name=backbone_name
+            )
+        except ValueError:
+            raise_invalid_name()
+
+        return {
+            "model_name": f"{DINOV2_VIT_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "backbone_name": backbone_name,
+        }
+
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
         """Returns the predicted mask for the given image.
@@ -202,18 +253,19 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             self.eval()
 
         # Load image
-        x = file_helpers.as_image_tensor(image)
+        device = next(self.parameters()).device
+        x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
-        # TODO(Guarin, 07/25): Save mean and std in the model.
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
-        # Resize shorter edge to 518
-        # TODO(Guarin, 07/25): Make this configurable. Save default image size in the
-        # model.
-        x = transforms_functional.resize(x, size=[518])  # (C, H, W) -> (C, H', W')
+        # Crop size is the short side of the training image size. We resize the image
+        # such that the short side of the image matches the crop size.
+        crop_size = min(self.image_size)
+        # (C, H, W) -> (C, H', W')
+        x = transforms_functional.resize(x, size=[crop_size])
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
@@ -246,7 +298,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     ) -> tuple[list[Tensor], list[Tensor]]:
         _, _, H, W = x.shape
         patch_size = self.backbone.patch_size
-        grid_size = (H // patch_size, W // patch_size)
+
+        # Match the logic of the PatchEmbded forward
+        # (src/lightly_train/_models/dinov2_vit/dinov2_vit_src/layers/patch_embed.py).
+        grid_size = (math.ceil(H / patch_size), math.ceil(W / patch_size))
 
         x = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
         mask_logits_per_layer, class_logits_per_layer = [], []
@@ -328,6 +383,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             class_logits_per_layer,
         )
 
+    # TODO(Guarin, 08/25): Move tile/until as functions to a separate utility module.
     def tile(
         self, images: list[Tensor] | Tensor
     ) -> tuple[list[Tensor], list[tuple[int, int, int, bool]]]:
@@ -378,10 +434,15 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # Initialize the tensors containing the final predictions.
         for size in image_sizes:
             logit_sums.append(
-                torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
+                crop_logits.new_zeros(
+                    (crop_logits.shape[1], *size),
+                )
             )
             logit_counts.append(
-                torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
+                torch.zeros_like(
+                    logit_sums[-1],
+                    dtype=torch.int32,
+                )
             )
 
         for crop_index, (image_index, start, end, is_tall) in enumerate(origins):
@@ -479,25 +540,29 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     # TODO(Guarin, 07/25): Add support for attention masks directly to Attention class?
     def _attn(self, module: Attention, x: Tensor, mask: Tensor | None) -> Tensor:
         # This mirrors DINOv2 Attention forward but with mask support.
-        B, N, C = x.shape
+        B, N, _ = x.shape
 
         qkv = (
             module.qkv(x)
-            .reshape(B, N, 3, module.num_heads, C // module.num_heads)
+            .reshape(B, N, 3, module.num_heads, module.head_dim)
             .permute(2, 0, 3, 1, 4)
         )
-        q, k, v = qkv[0] * module.scale, qkv[1], qkv[2]
+        q, k, v = qkv[0], qkv[1], qkv[2]
 
         if mask is not None:
-            mask = mask[:, None, ...].expand(-1, module.num_heads, -1, -1)
+            mask = mask[:, None, ...]
 
-        attn = q @ k.transpose(-2, -1)
-        if mask is not None:
-            attn = attn.masked_fill(~mask, float("-inf"))
-        attn = attn.softmax(dim=-1)
-        attn = module.attn_drop(attn)
+        x = F.scaled_dot_product_attention(
+            query=q,
+            key=k,
+            value=v,
+            attn_mask=mask,
+            dropout_p=module.attn_drop.p,
+        )  # B x num_heads x N x (dim // num_heads)
 
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = x.transpose(1, 2)
+        x = x.reshape(B, N, module.dim)
+
         x = module.proj(x)
         x = module.proj_drop(x)
         return x
@@ -531,11 +596,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""
-        param_names = {name for name, _ in self.named_parameters()}
         new_state_dict = {}
         for name, param in state_dict.items():
             if name.startswith("model."):
                 name = name[len("model.") :]
-                if name in param_names:
-                    new_state_dict[name] = param
+                new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)

@@ -55,7 +55,7 @@ class UltralyticsModelWrapper(Module, ModelWrapper):
         _enable_gradients(model=model)
         # Set model to training mode. This is necessary for Ultralytics pretrained
         # models as they are loaded in eval mode by default.
-        model.model.train()
+        model.model.train()  # type: ignore
         self._model = [model]
         self._backbone, self._feature_dim = _get_backbone(model)
         self._pool = AdaptiveAvgPool2d((1, 1))
@@ -85,7 +85,7 @@ def _get_backbone(model: YOLO) -> tuple[Sequential, int]:
     from ultralytics.nn.modules.head import Classify
 
     # Ultralytics stores the actual model in YOLO.model.model
-    seq = model.model.model
+    seq = model.model.model  # type: ignore
     assert isinstance(seq, Sequential)
 
     for module_idx, module in enumerate(seq):
@@ -175,7 +175,8 @@ def _cv2_skip_bn_act(cv2: Conv) -> Conv:
     """
     new_cv2 = copy.deepcopy(cv2)
     new_cv2.conv = cv2.conv  # Keep the convolutional layer
-    new_cv2.bn = Identity()  # Replace batchnorm with identity
+    # Replace batchnorm with identity
+    new_cv2.bn = Identity()  # type: ignore
     new_cv2.act = Identity()  # Replace activation with identity
     return new_cv2
 
@@ -191,8 +192,8 @@ def _enable_gradients(model: YOLO) -> None:
     # The logic of the function follows the one in the original Ultralytics code:
     # https://github.com/ultralytics/ultralytics/blob/6dcc4a0610bf445212253fb51b24e29429a2bcc3/ultralytics/engine/trainer.py#L238C11-L258
     freeze_names = [".dfl"]
-    if model.model is not None and model.model.args is not None:
-        freeze = model.model.args.get("freeze")
+    if model.model is not None and model.model.args is not None:  # type: ignore
+        freeze = model.model.args.get("freeze")  # type: ignore
         freeze_list = (
             freeze
             if isinstance(freeze, list)
