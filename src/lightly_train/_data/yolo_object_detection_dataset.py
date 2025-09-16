@@ -13,25 +13,25 @@ from typing import Literal, Sequence
 import numpy as np
 import pydantic
 import torch
-from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import ImageFilename, ObjectDetectionDatasetItem, PathLike
 
 
-class YOLOObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
+class YOLOObjectDetectionDataset(TaskDataset):
     def __init__(
         self,
         dataset_args: YOLOObjectDetectionDatasetArgs,
         image_filenames: Sequence[ImageFilename],
         transform: TaskTransform,
     ) -> None:
+        super().__init__(transform=transform)
         self.args = dataset_args
         self.image_filenames = image_filenames
-        self.transform = transform
 
     def __len__(self) -> int:
         return len(self.image_filenames)

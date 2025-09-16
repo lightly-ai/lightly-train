@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from albumentations import BboxParams, Compose, Normalize, Resize
 from albumentations.pytorch.transforms import ToTensorV2
@@ -23,10 +24,11 @@ from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformOutput,
 )
 from lightly_train._transforms.transform import (
+    ChannelDropArgs,
     RandomFlipArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
-    ResizeArgs,
+    StopPolicyArgs,
 )
 
 from ..helpers import create_yolo_dataset
@@ -54,10 +56,13 @@ class DummyTransform(ObjectDetectionTransform):
 
 
 class DummyTransformArgs(ObjectDetectionTransformArgs):
+    channel_drop: ChannelDropArgs | None = None
+    num_channels: int | Literal["auto"] = "auto"
     photometric_distort: RandomPhotometricDistortArgs | None = None
     random_zoom_out: RandomZoomOutArgs | None = None
     random_flip: RandomFlipArgs | None = None
-    resize: ResizeArgs | None = None
+    image_size: tuple[int, int] = (32, 32)
+    stop_policy: StopPolicyArgs | None = None
     bbox_params: BboxParams = BboxParams(
         format="yolo",
         label_fields=["class_labels"],

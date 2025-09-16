@@ -7,17 +7,24 @@
 #
 from __future__ import annotations
 
-from albumentations import BboxParams
+from typing import Literal, Set
+
+from albumentations import BasicTransform, BboxParams
 from pydantic import Field
 
 from lightly_train._transforms.object_detection_transform import (
+    ObjectDetectionTransform,
     ObjectDetectionTransformArgs,
 )
+from lightly_train._transforms.random_photometric_distort import (
+    RandomPhotometricDistort,
+)
+from lightly_train._transforms.random_zoom_out import RandomZoomOut
 from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
-    ResizeArgs,
+    StopPolicyArgs,
 )
 
 
@@ -42,23 +49,30 @@ class DINOv2LTDetrObjectDetectionRandomFlipArgs(RandomFlipArgs):
     vertical_prob: float = 0.0
 
 
-class DINOv2LTDetrObjectDetectionResizeArgs(ResizeArgs):
-    height: int = 644
-    width: int = 644
+class DINOv2LTDetrObjectDetectionStopPolicyArgs(StopPolicyArgs):
+    stop_epoch: int = 71
+    ops: Set[type[BasicTransform]] = {
+        RandomPhotometricDistort,
+        RandomZoomOut,
+        # TODO: Lionel (09/25): Add RandomIoUCrop.
+    }
 
 
-class DINOv2LTDetrObjectDetectionTransformArgs(ObjectDetectionTransformArgs):
-    photometric_distort: DINOv2LTDetrObjectDetectionRandomPhotometricDistortArgs = (
-        Field(default_factory=DINOv2LTDetrObjectDetectionRandomPhotometricDistortArgs)
-    )
-    random_zoom_out: DINOv2LTDetrObjectDetectionRandomZoomOutArgs = Field(
+class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
+    channel_drop: None = None
+    num_channels: int | Literal["auto"] = "auto"
+    photometric_distort: (
+        DINOv2LTDetrObjectDetectionRandomPhotometricDistortArgs | None
+    ) = Field(default_factory=DINOv2LTDetrObjectDetectionRandomPhotometricDistortArgs)
+    random_zoom_out: DINOv2LTDetrObjectDetectionRandomZoomOutArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionRandomZoomOutArgs
     )
-    random_flip: DINOv2LTDetrObjectDetectionRandomFlipArgs = Field(
+    random_flip: DINOv2LTDetrObjectDetectionRandomFlipArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionRandomFlipArgs
     )
-    resize: DINOv2LTDetrObjectDetectionResizeArgs = Field(
-        default_factory=DINOv2LTDetrObjectDetectionResizeArgs
+    image_size: tuple[int, int] = (644, 644)
+    stop_policy: StopPolicyArgs | None = Field(
+        default_factory=DINOv2LTDetrObjectDetectionStopPolicyArgs
     )
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
@@ -66,3 +80,26 @@ class DINOv2LTDetrObjectDetectionTransformArgs(ObjectDetectionTransformArgs):
             format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0
         ),
     )
+
+
+class DINOv2LTDetrObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
+    channel_drop: None = None
+    num_channels: int | Literal["auto"] = "auto"
+    photometric_distort: None = None
+    random_zoom_out: None = None
+    random_flip: None = None
+    image_size: tuple[int, int] = (644, 644)
+    stop_policy: None = None
+    bbox_params: BboxParams = Field(
+        default_factory=lambda: BboxParams(
+            format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0
+        ),
+    )
+
+
+class DINOv2LTDetrObjectDetectionTrainTransform(ObjectDetectionTransform):
+    transform_args_cls = DINOv2LTDetrObjectDetectionTrainTransformArgs
+
+
+class DINOv2LTDetrObjectDetectionValTransform(ObjectDetectionTransform):
+    transform_args_cls = DINOv2LTDetrObjectDetectionValTransformArgs
