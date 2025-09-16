@@ -1,4 +1,4 @@
-<p algin="center">
+<p align="center">
   <a href="https://calendly.com/guarin-lightly/miccai">
   <img width="1373" height="322" alt="Book meeting with Lightly at MICCAI 2025" src="https://github.com/user-attachments/assets/a47ff932-4612-4c66-b104-93dcbffff6fd"/>
   </a>
