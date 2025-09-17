@@ -30,6 +30,8 @@ def lightly_train_cache_dir(
     name = request.node.name
     # From: https://github.com/pytest-dev/pytest/blob/9913cedb51a39da580d3ef3aff8cff006c3e7fc6/src/_pytest/tmpdir.py#L247-L249
     name = re.sub(r"[\W]", "_", name)
+    MAXVAL = 30
+    name = name[:MAXVAL]
     # Use tmp_path_factory instead of tmp_path because tmp_path is oftentimes also used
     # inside the actual test function. We don't want to use tmp_path for the cache dir
     # because then tmp_path is not empty anymore for the test function which might be
