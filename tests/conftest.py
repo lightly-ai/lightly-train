@@ -28,14 +28,12 @@ def lightly_train_cache_dir(
     lead to hard-to-debug issues when tests interfere with each other.
     """
     name = request.node.name
-    name = re.sub(
-        r"[\W]", "_", name
-    )  # From: https://github.com/pytest-dev/pytest/blob/9913cedb51a39da580d3ef3aff8cff006c3e7fc6/src/_pytest/tmpdir.py#L247-L249
+    # From: https://github.com/pytest-dev/pytest/blob/9913cedb51a39da580d3ef3aff8cff006c3e7fc6/src/_pytest/tmpdir.py#L247-L249
+    name = re.sub(r"[\W]", "_", name)
     # Use tmp_path_factory instead of tmp_path because tmp_path is oftentimes also used
     # inside the actual test function. We don't want to use tmp_path for the cache dir
     # because then tmp_path is not empty anymore for the test function which might be
     # unexpected.
     cache_dir = tmp_path_factory.mktemp(f"{name}_lightly_train_cache")
-    cache_dir.mkdir(parents=True, exist_ok=True)
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_CACHE_DIR": str(cache_dir)})
     yield cache_dir
