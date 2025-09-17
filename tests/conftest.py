@@ -24,7 +24,8 @@ def lightly_train_cache_dir(
     """Set LIGHTLY_TRAIN_CACHE_DIR to a unique directory for each test.
 
     This ensures that tests do not share cache files between each other. By default
-    LightlyTrain uses ~/.cache/lightly-train which is the same for all tests.
+    LightlyTrain uses ~/.cache/lightly-train which is the same for all tests and can
+    lead to hard-to-debug issues when tests interfere with each other.
     """
     name = request.node.name
     name = re.sub(
