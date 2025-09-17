@@ -290,6 +290,8 @@ def train_from_config(config: TrainConfig) -> None:
     ), common_helpers.get_dataset_temp_mmap_path(
         data=config.data,
         out=out_dir,
+        resume_interrupted=config.resume_interrupted,
+        overwrite=config.overwrite,
     ) as mmap_filepath, _float32_matmul_precision.float32_matmul_precision(
         float32_matmul_precision=config.float32_matmul_precision
     ):
@@ -299,6 +301,8 @@ def train_from_config(config: TrainConfig) -> None:
             num_channels=no_auto(transform_instance.transform_args.num_channels),
             mmap_filepath=mmap_filepath,
             out_dir=out_dir,
+            resume_interrupted=config.resume_interrupted,
+            overwrite=config.overwrite,
         )
         dataset_size = train_helpers.get_dataset_size(dataset=dataset)
         config.epochs = train_helpers.get_epochs(

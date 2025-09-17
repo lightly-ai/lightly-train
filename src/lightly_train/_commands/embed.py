@@ -133,7 +133,10 @@ def embed_from_config(config: EmbedConfig) -> None:
     with common_helpers.verify_out_dir_equal_on_all_local_ranks(
         out=out_path
     ), common_helpers.get_dataset_temp_mmap_path(
-        data=config.data, out=out_path
+        data=config.data,
+        out=out_path,
+        resume_interrupted=False,
+        overwrite=config.overwrite,
     ) as mmap_filepath:
         dataset = common_helpers.get_dataset(
             data=config.data,
@@ -141,6 +144,8 @@ def embed_from_config(config: EmbedConfig) -> None:
             num_channels=len(checkpoint_instance.lightly_train.normalize_args.mean),
             mmap_filepath=mmap_filepath,
             out_dir=out_path,
+            resume_interrupted=False,
+            overwrite=config.overwrite,
         )
         dataloader = _get_dataloader(
             dataset=dataset,

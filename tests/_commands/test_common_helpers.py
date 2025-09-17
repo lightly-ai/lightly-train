@@ -56,7 +56,10 @@ def _ctx_mmap_worker(data_str: str, out_str: str) -> str:
 
     data_path = Path(data_str)
     with common_helpers.get_dataset_temp_mmap_path(
-        data=data_path, out=out_str
+        data=data_path,
+        out=out_str,
+        resume_interrupted=False,
+        overwrite=False,
     ) as mmap_path:
         assert mmap_path.suffix == ".mmap"
         return str(mmap_path)
@@ -724,14 +727,14 @@ def test_get_dataset_temp_mmap_path__rank(
     out = tmp_path / "out"
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
     with common_helpers.get_dataset_temp_mmap_path(
-        data=data, out=out
+        data=data, out=out, resume_interrupted=False, overwrite=False
     ) as mmap_path_rank0:
         pass
 
     # Simulate calling the function from rank 1
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
     with common_helpers.get_dataset_temp_mmap_path(
-        data=data, out=out
+        data=data, out=out, resume_interrupted=False, overwrite=False
     ) as mmap_path_rank1:
         pass
 
@@ -772,6 +775,8 @@ def test_get_dataset_mmap_file__rank0(tmp_path: Path) -> None:
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
+        resume_interrupted=False,
+        overwrite=False,
     )
     assert list(mmap_filenames) == filename_items
 
@@ -787,6 +792,8 @@ def test_get_dataset_mmap_file__rank(tmp_path: Path, mocker: MockerFixture) -> N
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
+        resume_interrupted=False,
+        overwrite=False,
     )
 
     # Simulate calling the function from rank 1
@@ -795,6 +802,8 @@ def test_get_dataset_mmap_file__rank(tmp_path: Path, mocker: MockerFixture) -> N
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
+        resume_interrupted=False,
+        overwrite=False,
     )
     assert list(mmap_filenames_rank0) == filename_items
     assert list(mmap_filenames_rank1) == filename_items
@@ -815,6 +824,8 @@ def test_get_dataset_mmap_file__rank_error(
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath_rank0,
+        resume_interrupted=False,
+        overwrite=False,
     )
 
     # Simulate calling the function from rank 1.
@@ -826,6 +837,8 @@ def test_get_dataset_mmap_file__rank_error(
             out_dir=tmp_path,
             filenames=filenames,
             mmap_filepath=mmap_filepath_rank1,
+            resume_interrupted=False,
+            overwrite=False,
         )
 
 
@@ -842,6 +855,8 @@ def test_get_dataset_mmap_file__reuse(
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
+        resume_interrupted=False,
+        overwrite=False,
     )
 
     # make sure warning is raised if the file already exists
@@ -851,6 +866,8 @@ def test_get_dataset_mmap_file__reuse(
             out_dir=tmp_path,
             filenames=filenames,
             mmap_filepath=mmap_filepath,
+            resume_interrupted=False,
+            overwrite=False,
         )
     assert "Reusing existing memory-mapped file " in caplog.text
     assert list(mmap_filenames_first) == filename_items
@@ -866,6 +883,8 @@ def test_get_dataset__path(tmp_path: Path) -> None:
         num_channels=3,
         mmap_filepath=mmap_filepath,
         out_dir=tmp_path,
+        resume_interrupted=False,
+        overwrite=False,
     )
 
 
@@ -877,6 +896,8 @@ def test_get_dataset__path__nonexisting(tmp_path: Path) -> None:
             num_channels=3,
             mmap_filepath=None,
             out_dir=tmp_path,
+            resume_interrupted=False,
+            overwrite=False,
         )
 
 
@@ -890,6 +911,8 @@ def test_get_dataset__path__nondir(tmp_path: Path) -> None:
             num_channels=3,
             mmap_filepath=None,
             out_dir=tmp_path,
+            resume_interrupted=False,
+            overwrite=False,
         )
 
 
@@ -901,6 +924,8 @@ def test_get_dataset__path__empty(tmp_path: Path) -> None:
             num_channels=3,
             mmap_filepath=None,
             out_dir=tmp_path,
+            resume_interrupted=False,
+            overwrite=False,
         )
 
 
@@ -925,6 +950,8 @@ def test_get_dataset__dirs_and_files(tmp_path: Path) -> None:
         num_channels=3,
         mmap_filepath=mmap_filepath,
         out_dir=tmp_path,
+        resume_interrupted=False,
+        overwrite=False,
     )
 
 
@@ -936,6 +963,8 @@ def test_get_dataset__dataset() -> None:
         num_channels=3,
         mmap_filepath=None,
         out_dir=Path("/tmp"),
+        resume_interrupted=False,
+        overwrite=False,
     )
     assert dataset == dataset_1
 
