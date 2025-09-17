@@ -25,7 +25,7 @@ def test_get_model_cache_dir__custom(tmp_path: Path, mocker: MockerFixture) -> N
     assert cache.get_model_cache_dir() == tmp_path
 
 
-def test_get_model_cache_dir__default(mocker: MockerFixture) -> None:
+def test_get_data_cache_dir__default(mocker: MockerFixture) -> None:
     mocker.patch.dict(os.environ, {}, clear=True)
     expected = Path.home() / ".cache" / "lightly-train" / "data"
     assert cache.get_data_cache_dir() == expected
