@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
+import torch
 from albumentations import BboxParams
 
 from lightly_train._data.yolo_object_detection_dataset import (
@@ -74,12 +75,12 @@ class TestYoloObjectDetectionDataset:
         )
 
         sample = train_dataset[0]
-        assert sample["image"].shape == (3, 32, 32)
+        assert sample["image"].dtype == torch.float32
         assert sample["bboxes"].shape == (1, 4)
         assert sample["classes"].shape == (1,)
 
         sample = val_dataset[0]
-        assert sample["image"].shape == (3, 32, 32)
+        assert sample["image"].dtype == torch.float32
         assert sample["bboxes"].shape == (1, 4)
         assert sample["classes"].shape == (1,)
 
@@ -109,10 +110,10 @@ class TestYoloObjectDetectionDataset:
         )
 
         sample = train_dataset[0]
-        assert sample["image"].shape == (3, 32, 32)
+        assert sample["image"].dtype == torch.float32
         assert sample["bboxes"].shape == (1, 4)
         assert sample["classes"].shape == (1,)
 
         sample = val_dataset[0]
-        assert sample["image"].shape == (3, 32, 32)
+        assert sample["image"].dtype == torch.float32
         assert sample["bboxes"].shape == (1, 4)

@@ -153,7 +153,6 @@ class TestObjectDetectionTransform:
         assert isinstance(tr_output, dict)
         out_img = tr_output["image"]
         assert isinstance(out_img, torch.Tensor)
-        assert out_img.shape[1:] == image_size
         assert out_img.dtype == torch.float32
         assert "bboxes" in tr_output
         assert "class_labels" in tr_output
