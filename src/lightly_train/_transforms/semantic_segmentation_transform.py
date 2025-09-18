@@ -68,6 +68,7 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
     normalize: NormalizeArgs
     random_flip: RandomFlipArgs | None
     color_jitter: ColorJitterArgs | None
+    # TODO: Lionel(09/25): These are currently not fully used.
     scale_jitter: ScaleJitterArgs | None
     smallest_max_size: SmallestMaxSizeArgs | None
     random_crop: RandomCropArgs | None

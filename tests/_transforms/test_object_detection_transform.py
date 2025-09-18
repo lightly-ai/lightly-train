@@ -27,6 +27,7 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
+    ScaleJitterArgs,
     StopPolicyArgs,
 )
 
@@ -76,6 +77,18 @@ def _get_stop_policy_args() -> StopPolicyArgs:
     )
 
 
+def _get_scale_jitter_args() -> ScaleJitterArgs:
+    return ScaleJitterArgs(
+        min_scale=0.76,
+        max_scale=1.27,
+        num_scales=13,
+        prob=1.0,
+        divisible_by=14,
+        step_seeding=True,
+        seed_offset=0,
+    )
+
+
 def _get_image_size() -> tuple[int, int]:
     return (64, 64)
 
@@ -86,6 +99,7 @@ PossibleArgsTuple = (
     [None, _get_random_zoom_out_args()],
     [None, _get_random_flip_args()],
     [None, _get_stop_policy_args()],
+    [None, _get_scale_jitter_args()],
 )
 
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
@@ -93,7 +107,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_flip, stop_policy",
+        "channel_drop, photometric_distort, random_zoom_out, random_flip, stop_policy, scale_jitter",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -103,6 +117,7 @@ class TestObjectDetectionTransform:
         random_zoom_out: RandomZoomOutArgs | None,
         random_flip: RandomFlipArgs | None,
         stop_policy: StopPolicyArgs | None,
+        scale_jitter: ScaleJitterArgs | None,
     ) -> None:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
@@ -115,6 +130,7 @@ class TestObjectDetectionTransform:
             image_size=image_size,
             bbox_params=bbox_params,
             stop_policy=stop_policy,
+            scale_jitter=scale_jitter,
         )
         transform_args.resolve_auto()
         transform = ObjectDetectionTransform(transform_args)

@@ -153,6 +153,9 @@ class ScaleJitterArgs(PydanticConfig):
     max_scale: float
     num_scales: int
     prob: float
+    divisible_by: int | None
+    step_seeding: bool
+    seed_offset: int
 
 
 class StopPolicyArgs(PydanticConfig):

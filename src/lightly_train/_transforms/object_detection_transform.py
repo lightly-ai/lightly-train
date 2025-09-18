@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Literal
 
 import numpy as np
-from albumentations import BboxParams, Compose, HorizontalFlip, Resize, VerticalFlip
+from albumentations import BboxParams, Compose, HorizontalFlip, VerticalFlip
 from albumentations.pytorch.transforms import ToTensorV2
 from numpy.typing import NDArray
 from torch import Tensor
@@ -21,6 +21,7 @@ from lightly_train._transforms.random_photometric_distort import (
     RandomPhotometricDistort,
 )
 from lightly_train._transforms.random_zoom_out import RandomZoomOut
+from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -32,6 +33,7 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
+    ScaleJitterArgs,
     StopPolicyArgs,
 )
 from lightly_train.types import NDArrayImage
@@ -59,6 +61,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     image_size: tuple[int, int]
     # TODO: Lionel (09/25): Add Normalize
     stop_policy: StopPolicyArgs | None
+    scale_jitter: ScaleJitterArgs | None
     bbox_params: BboxParams | None
 
     def resolve_auto(self) -> None:
@@ -86,7 +89,7 @@ class ObjectDetectionTransform(TaskTransform):
     )
 
     def __init__(self, transform_args: ObjectDetectionTransformArgs) -> None:
-        super().__init__(transform_args)
+        super().__init__(transform_args=transform_args)
 
         self.transform_args: ObjectDetectionTransformArgs = transform_args
         self.stop_step = (
@@ -137,11 +140,23 @@ class ObjectDetectionTransform(TaskTransform):
                     VerticalFlip(p=transform_args.random_flip.vertical_prob)
                 ]
 
+        if transform_args.scale_jitter is not None:
+            self.individual_transforms += [
+                ScaleJitter(
+                    target_size=transform_args.image_size,
+                    scale_range=(
+                        transform_args.scale_jitter.min_scale,
+                        transform_args.scale_jitter.max_scale,
+                    ),
+                    num_scales=transform_args.scale_jitter.num_scales,
+                    divisible_by=transform_args.scale_jitter.divisible_by,
+                    p=transform_args.scale_jitter.prob,
+                    step_seeding=transform_args.scale_jitter.step_seeding,
+                    seed_offset=transform_args.scale_jitter.seed_offset,
+                ),
+            ]
+
         self.individual_transforms += [
-            Resize(
-                height=transform_args.image_size[0],
-                width=transform_args.image_size[1],
-            ),
             ToTensorV2(),
         ]
 
