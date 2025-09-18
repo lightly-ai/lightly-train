@@ -342,6 +342,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         state = TrainTaskState(
             train_model=train_model,
             optimizer=optimizer,
+            scheduler=scheduler,
             train_dataloader=train_dataloader,
             step=-1,
             model_class_path=train_model.get_task_model().class_path,
