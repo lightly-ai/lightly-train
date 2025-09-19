@@ -610,6 +610,7 @@ def load_checkpoint(fabric: Fabric, out_dir: PathLike, state: TrainTaskState) ->
     train_model_grads = {n: p.requires_grad for n, p in train_model.named_parameters()}
     train_model_trainings = {n: m.training for n, m in train_model.named_modules()}
     optimizer = state["optimizer"]
+    scheduler = state["scheduler"]
     train_dataloader = state["train_dataloader"]
 
     logger.info(f"Loading checkpoint from '{ckpt_path}'")
@@ -625,4 +626,5 @@ def load_checkpoint(fabric: Fabric, out_dir: PathLike, state: TrainTaskState) ->
         n: m.training for n, m in state["train_model"].named_modules()
     } == train_model_trainings
     assert state["optimizer"] is optimizer
+    assert state["scheduler"] is scheduler
     assert state["train_dataloader"] is train_dataloader
