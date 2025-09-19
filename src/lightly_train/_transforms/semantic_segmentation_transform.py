@@ -22,6 +22,7 @@ from albumentations import (
     RandomCrop,
     Resize,
     SmallestMaxSize,
+    VerticalFlip,
 )
 from albumentations.pytorch import ToTensorV2
 from torch import Tensor
@@ -67,6 +68,7 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
     normalize: NormalizeArgs
     random_flip: RandomFlipArgs | None
     color_jitter: ColorJitterArgs | None
+    # TODO: Lionel(09/25): These are currently not fully used.
     scale_jitter: ScaleJitterArgs | None
     smallest_max_size: SmallestMaxSizeArgs | None
     random_crop: RandomCropArgs | None
@@ -185,7 +187,12 @@ class SemanticSegmentationTransform(TaskTransform):
 
         # Optionally apply random horizontal flip.
         if transform_args.random_flip is not None:
-            transform += [HorizontalFlip(p=transform_args.random_flip.horizontal_prob)]
+            if transform_args.random_flip.horizontal_prob > 0.0:
+                transform += [
+                    HorizontalFlip(p=transform_args.random_flip.horizontal_prob)
+                ]
+            if transform_args.random_flip.vertical_prob > 0.0:
+                transform += [VerticalFlip(p=transform_args.random_flip.vertical_prob)]
 
         # Optionally apply color jitter.
         if transform_args.color_jitter is not None:

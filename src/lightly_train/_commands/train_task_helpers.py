@@ -22,7 +22,7 @@ from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
 from torch import Tensor
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 from lightly_train._configs import validate
 from lightly_train._data import cache
@@ -32,9 +32,9 @@ from lightly_train._data._serialize.memory_mapped_sequence import (
     Primitive,
 )
 from lightly_train._data.mask_semantic_segmentation_dataset import (
-    MaskSemanticSegmentationDataset,
     MaskSemanticSegmentationDatasetArgs,
 )
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
@@ -414,7 +414,7 @@ def get_dataset(
     dataset_args: MaskSemanticSegmentationDatasetArgs,
     transform: TaskTransform,
     mmap_filepath: Path,
-) -> MaskSemanticSegmentationDataset:
+) -> TaskDataset:
     image_info = dataset_args.list_image_info()
 
     dataset_cls = dataset_args.get_dataset_cls()
@@ -453,7 +453,7 @@ def collate_fn(
 
 def get_train_dataloader(
     fabric: Fabric,
-    dataset: Dataset[TaskDatasetItem],
+    dataset: TaskDataset,
     batch_size: int,
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
@@ -481,7 +481,7 @@ def get_train_dataloader(
 
 def get_val_dataloader(
     fabric: Fabric,
-    dataset: Dataset[TaskDatasetItem],
+    dataset: TaskDataset,
     batch_size: int,
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
