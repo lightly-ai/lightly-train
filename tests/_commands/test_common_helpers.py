@@ -10,12 +10,14 @@ from __future__ import annotations
 import logging
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any, Literal
 
 import pytest
 import torch
 from albumentations.pytorch.transforms import ToTensorV2
+from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
 from pytorch_lightning.strategies.ddp import DDPStrategy
@@ -766,6 +768,62 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
     assert not mmap_paths[0].exists()
 
 
+def test_get_dataset_temp_mmap_path__reuse(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Tests that no error is raised if LIGHTLY_TRAIN_MMAP_REUSE_FILE is set."""
+    data_path = tmp_path / "data"
+    out_path = tmp_path / "out"
+
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_MMAP_REUSE_FILE": "1"})
+    with common_helpers.get_dataset_temp_mmap_path(
+        data=data_path, out=out_path, resume_interrupted=False, overwrite=False
+    ) as mmap_path:
+        mmap_path.touch()
+        with common_helpers.get_dataset_temp_mmap_path(
+            data=data_path, out=out_path, resume_interrupted=False, overwrite=False
+        ):
+            pass
+
+
+def test_get_dataset_temp_mmap_path__resume_interrupted_overwrite(
+    tmp_path: Path, mocker: MockerFixture, resume_interrupted: bool, overwrite: bool
+) -> None:
+    """Tests that no error is raised if resume_interrupted or overwrite is set to True."""
+    data_path = tmp_path / "data"
+    out_path = tmp_path / "out"
+
+    with common_helpers.get_dataset_temp_mmap_path(
+        data=data_path, out=out_path, resume_interrupted=False, overwrite=False
+    ) as mmap_path:
+        mmap_path.touch()
+        with common_helpers.get_dataset_temp_mmap_path(
+            data=data_path,
+            out=out_path,
+            resume_interrupted=resume_interrupted,
+            overwrite=overwrite,
+        ):
+            pass
+
+
+pytest.mark.skipif(sys.platform.startswith("win"), reason="No error on Windows")
+
+
+def test_get_dataset_temp_mmap_path__error(tmp_path: Path) -> None:
+    data_path = tmp_path / "data"
+    out_path = tmp_path / "out"
+
+    with common_helpers.get_dataset_temp_mmap_path(
+        data=data_path, out=out_path, resume_interrupted=False, overwrite=False
+    ) as mmap_path:
+        mmap_path.touch()
+        with pytest.raises(RuntimeError, match="Detected multiple runs"):
+            with common_helpers.get_dataset_temp_mmap_path(
+                data=data_path, out=out_path, resume_interrupted=False, overwrite=False
+            ):
+                pass
+
+
 def test_get_dataset_mmap_file__rank0(tmp_path: Path) -> None:
     filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
     filename_items = [{"filenames": filename} for filename in filenames]
@@ -843,7 +901,7 @@ def test_get_dataset_mmap_file__rank_error(
 
 
 def test_get_dataset_mmap_file__reuse(
-    tmp_path: Path, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, mocker: MockerFixture, caplog: LogCaptureFixture
 ) -> None:
     filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
     filename_items = [{"filenames": filename} for filename in filenames]
@@ -868,6 +926,46 @@ def test_get_dataset_mmap_file__reuse(
             mmap_filepath=mmap_filepath,
             resume_interrupted=False,
             overwrite=False,
+        )
+    assert "Reusing existing memory-mapped file " in caplog.text
+    assert list(mmap_filenames_first) == filename_items
+    assert list(mmap_filenames_reused) == filename_items
+
+
+@pytest.mark.parametrize(
+    "resume_interrupted, overwrite",
+    [
+        (True, False),
+        (False, True),
+    ],
+)
+def test_get_dataset_mmap_file__reuse_resume_interrupted_overwrite(
+    tmp_path: Path,
+    caplog: LogCaptureFixture,
+    resume_interrupted: bool,
+    overwrite: bool,
+) -> None:
+    """Tests that mmap file is reused if either resume_interrupted or overwrite is True."""
+    filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
+    filename_items = [{"filenames": filename} for filename in filenames]
+
+    mmap_filepath = tmp_path / "test.mmap"
+    mmap_filenames_first = common_helpers.get_dataset_mmap_file(
+        out_dir=tmp_path,
+        filenames=filenames,
+        mmap_filepath=mmap_filepath,
+        resume_interrupted=False,
+        overwrite=False,
+    )
+
+    # make sure warning is raised if the file already exists
+    with caplog.at_level(logging.WARNING):
+        mmap_filenames_reused = common_helpers.get_dataset_mmap_file(
+            out_dir=tmp_path,
+            filenames=filenames,
+            mmap_filepath=mmap_filepath,
+            resume_interrupted=resume_interrupted,
+            overwrite=overwrite,
         )
     assert "Reusing existing memory-mapped file " in caplog.text
     assert list(mmap_filenames_first) == filename_items
