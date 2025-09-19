@@ -470,7 +470,7 @@ transform_args={
 }
 ```
 
-## Exporting a checkpoint to ONNX
+## Exporting a Checkpoint to ONNX
 
 [Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange) is a standard format
 for representing machine learning models in a framework independent manner. In particular, it is useful for deploying our
