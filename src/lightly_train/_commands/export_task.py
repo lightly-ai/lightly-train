@@ -81,6 +81,34 @@ def export_onnx(
     overwrite: bool = False,
     format_args: dict[str, Any] | None = None,
 ) -> None:
+    """Export a model as ONNX from a checkpoint.
+
+    Args:
+        out:
+            Path where the exported model will be saved.
+        checkpoint:
+            Path to the LightlyTrain checkpoint file to export the model from.
+        batch_size:
+            Batch size of the input tensor.
+        num_channels:
+            Number of channels in input tensor.
+        height:
+            Height of the input tensor.
+        width:
+            Width of the input tensor.
+        precision:
+            "32-true" for float32 precision or "16-true" for float16 precision. Choosing "16-true" can lead
+            to less memory consumption and faster inference times on GPUs but might lead to slightly more inaccuracies.
+            Default is "32-true".
+        simplify:
+            Simplify the ONNX model with onnxslim after the export. Default is True.
+        verify:
+            Check the exported model for errors. With recommend to enable this.
+        overwrite:
+            Overwrite the output file if it already exists.
+        format_args:
+            Arguments that are passed to `torch.onnx.export`. Only use this if you know what you are doing.
+    """
     return _export_task(format="onnx", **locals())
 
 
