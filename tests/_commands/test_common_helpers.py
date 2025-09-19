@@ -786,8 +786,15 @@ def test_get_dataset_temp_mmap_path__reuse(
             pass
 
 
+@pytest.mark.parametrize(
+    "resume_interrupted, overwrite",
+    [
+        (True, False),
+        (False, True),
+    ],
+)
 def test_get_dataset_temp_mmap_path__resume_interrupted_overwrite(
-    tmp_path: Path, mocker: MockerFixture, resume_interrupted: bool, overwrite: bool
+    tmp_path: Path, resume_interrupted: bool, overwrite: bool
 ) -> None:
     """Tests that no error is raised if resume_interrupted or overwrite is set to True."""
     data_path = tmp_path / "data"
@@ -806,9 +813,7 @@ def test_get_dataset_temp_mmap_path__resume_interrupted_overwrite(
             pass
 
 
-pytest.mark.skipif(sys.platform.startswith("win"), reason="No error on Windows")
-
-
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="No error on Windows")
 def test_get_dataset_temp_mmap_path__error(tmp_path: Path) -> None:
     data_path = tmp_path / "data"
     out_path = tmp_path / "out"
