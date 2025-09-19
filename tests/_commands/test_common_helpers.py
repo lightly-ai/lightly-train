@@ -10,12 +10,14 @@ from __future__ import annotations
 import logging
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any, Literal
 
 import pytest
 import torch
 from albumentations.pytorch.transforms import ToTensorV2
+from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
 from pytorch_lightning.strategies.ddp import DDPStrategy
@@ -56,7 +58,10 @@ def _ctx_mmap_worker(data_str: str, out_str: str) -> str:
 
     data_path = Path(data_str)
     with common_helpers.get_dataset_temp_mmap_path(
-        data=data_path, out=out_str
+        data=data_path,
+        out=out_str,
+        resume_interrupted=False,
+        overwrite=False,
     ) as mmap_path:
         assert mmap_path.suffix == ".mmap"
         return str(mmap_path)
@@ -724,14 +729,14 @@ def test_get_dataset_temp_mmap_path__rank(
     out = tmp_path / "out"
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "0"})
     with common_helpers.get_dataset_temp_mmap_path(
-        data=data, out=out
+        data=data, out=out, resume_interrupted=False, overwrite=False
     ) as mmap_path_rank0:
         pass
 
     # Simulate calling the function from rank 1
     mocker.patch.dict(os.environ, {"LOCAL_RANK": "1"})
     with common_helpers.get_dataset_temp_mmap_path(
-        data=data, out=out
+        data=data, out=out, resume_interrupted=False, overwrite=False
     ) as mmap_path_rank1:
         pass
 
@@ -763,6 +768,67 @@ def test_get_dataset_temp_mmap_path__concurrent_context_managers(
     assert not mmap_paths[0].exists()
 
 
+def test_get_dataset_temp_mmap_path__reuse(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Tests that no error is raised if LIGHTLY_TRAIN_MMAP_REUSE_FILE is set."""
+    data_path = tmp_path / "data"
+    out_path = tmp_path / "out"
+
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_MMAP_REUSE_FILE": "1"})
+    with common_helpers.get_dataset_temp_mmap_path(
+        data=data_path, out=out_path, resume_interrupted=False, overwrite=False
+    ) as mmap_path:
+        mmap_path.touch()
+        with common_helpers.get_dataset_temp_mmap_path(
+            data=data_path, out=out_path, resume_interrupted=False, overwrite=False
+        ):
+            pass
+
+
+@pytest.mark.parametrize(
+    "resume_interrupted, overwrite",
+    [
+        (True, False),
+        (False, True),
+    ],
+)
+def test_get_dataset_temp_mmap_path__resume_interrupted_overwrite(
+    tmp_path: Path, resume_interrupted: bool, overwrite: bool
+) -> None:
+    """Tests that no error is raised if resume_interrupted or overwrite is set to True."""
+    data_path = tmp_path / "data"
+    out_path = tmp_path / "out"
+
+    with common_helpers.get_dataset_temp_mmap_path(
+        data=data_path, out=out_path, resume_interrupted=False, overwrite=False
+    ) as mmap_path:
+        mmap_path.touch()
+        with common_helpers.get_dataset_temp_mmap_path(
+            data=data_path,
+            out=out_path,
+            resume_interrupted=resume_interrupted,
+            overwrite=overwrite,
+        ):
+            pass
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="No error on Windows")
+def test_get_dataset_temp_mmap_path__error(tmp_path: Path) -> None:
+    data_path = tmp_path / "data"
+    out_path = tmp_path / "out"
+
+    with common_helpers.get_dataset_temp_mmap_path(
+        data=data_path, out=out_path, resume_interrupted=False, overwrite=False
+    ) as mmap_path:
+        mmap_path.touch()
+        with pytest.raises(RuntimeError, match="Detected multiple runs"):
+            with common_helpers.get_dataset_temp_mmap_path(
+                data=data_path, out=out_path, resume_interrupted=False, overwrite=False
+            ):
+                pass
+
+
 def test_get_dataset_mmap_file__rank0(tmp_path: Path) -> None:
     filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
     filename_items = [{"filenames": filename} for filename in filenames]
@@ -772,6 +838,8 @@ def test_get_dataset_mmap_file__rank0(tmp_path: Path) -> None:
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
+        resume_interrupted=False,
+        overwrite=False,
     )
     assert list(mmap_filenames) == filename_items
 
@@ -787,6 +855,8 @@ def test_get_dataset_mmap_file__rank(tmp_path: Path, mocker: MockerFixture) -> N
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
+        resume_interrupted=False,
+        overwrite=False,
     )
 
     # Simulate calling the function from rank 1
@@ -795,6 +865,8 @@ def test_get_dataset_mmap_file__rank(tmp_path: Path, mocker: MockerFixture) -> N
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
+        resume_interrupted=False,
+        overwrite=False,
     )
     assert list(mmap_filenames_rank0) == filename_items
     assert list(mmap_filenames_rank1) == filename_items
@@ -815,6 +887,8 @@ def test_get_dataset_mmap_file__rank_error(
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath_rank0,
+        resume_interrupted=False,
+        overwrite=False,
     )
 
     # Simulate calling the function from rank 1.
@@ -826,11 +900,13 @@ def test_get_dataset_mmap_file__rank_error(
             out_dir=tmp_path,
             filenames=filenames,
             mmap_filepath=mmap_filepath_rank1,
+            resume_interrupted=False,
+            overwrite=False,
         )
 
 
 def test_get_dataset_mmap_file__reuse(
-    tmp_path: Path, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, mocker: MockerFixture, caplog: LogCaptureFixture
 ) -> None:
     filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
     filename_items = [{"filenames": filename} for filename in filenames]
@@ -842,6 +918,8 @@ def test_get_dataset_mmap_file__reuse(
         out_dir=tmp_path,
         filenames=filenames,
         mmap_filepath=mmap_filepath,
+        resume_interrupted=False,
+        overwrite=False,
     )
 
     # make sure warning is raised if the file already exists
@@ -851,6 +929,48 @@ def test_get_dataset_mmap_file__reuse(
             out_dir=tmp_path,
             filenames=filenames,
             mmap_filepath=mmap_filepath,
+            resume_interrupted=False,
+            overwrite=False,
+        )
+    assert "Reusing existing memory-mapped file " in caplog.text
+    assert list(mmap_filenames_first) == filename_items
+    assert list(mmap_filenames_reused) == filename_items
+
+
+@pytest.mark.parametrize(
+    "resume_interrupted, overwrite",
+    [
+        (True, False),
+        (False, True),
+    ],
+)
+def test_get_dataset_mmap_file__reuse_resume_interrupted_overwrite(
+    tmp_path: Path,
+    caplog: LogCaptureFixture,
+    resume_interrupted: bool,
+    overwrite: bool,
+) -> None:
+    """Tests that mmap file is reused if either resume_interrupted or overwrite is True."""
+    filenames = ["file1.jpg", "file2.jpg", "file3.jpg"]
+    filename_items = [{"filenames": filename} for filename in filenames]
+
+    mmap_filepath = tmp_path / "test.mmap"
+    mmap_filenames_first = common_helpers.get_dataset_mmap_file(
+        out_dir=tmp_path,
+        filenames=filenames,
+        mmap_filepath=mmap_filepath,
+        resume_interrupted=False,
+        overwrite=False,
+    )
+
+    # make sure warning is raised if the file already exists
+    with caplog.at_level(logging.WARNING):
+        mmap_filenames_reused = common_helpers.get_dataset_mmap_file(
+            out_dir=tmp_path,
+            filenames=filenames,
+            mmap_filepath=mmap_filepath,
+            resume_interrupted=resume_interrupted,
+            overwrite=overwrite,
         )
     assert "Reusing existing memory-mapped file " in caplog.text
     assert list(mmap_filenames_first) == filename_items
@@ -866,6 +986,8 @@ def test_get_dataset__path(tmp_path: Path) -> None:
         num_channels=3,
         mmap_filepath=mmap_filepath,
         out_dir=tmp_path,
+        resume_interrupted=False,
+        overwrite=False,
     )
 
 
@@ -877,6 +999,8 @@ def test_get_dataset__path__nonexisting(tmp_path: Path) -> None:
             num_channels=3,
             mmap_filepath=None,
             out_dir=tmp_path,
+            resume_interrupted=False,
+            overwrite=False,
         )
 
 
@@ -890,6 +1014,8 @@ def test_get_dataset__path__nondir(tmp_path: Path) -> None:
             num_channels=3,
             mmap_filepath=None,
             out_dir=tmp_path,
+            resume_interrupted=False,
+            overwrite=False,
         )
 
 
@@ -901,6 +1027,8 @@ def test_get_dataset__path__empty(tmp_path: Path) -> None:
             num_channels=3,
             mmap_filepath=None,
             out_dir=tmp_path,
+            resume_interrupted=False,
+            overwrite=False,
         )
 
 
@@ -925,6 +1053,8 @@ def test_get_dataset__dirs_and_files(tmp_path: Path) -> None:
         num_channels=3,
         mmap_filepath=mmap_filepath,
         out_dir=tmp_path,
+        resume_interrupted=False,
+        overwrite=False,
     )
 
 
@@ -936,6 +1066,8 @@ def test_get_dataset__dataset() -> None:
         num_channels=3,
         mmap_filepath=None,
         out_dir=Path("/tmp"),
+        resume_interrupted=False,
+        overwrite=False,
     )
     assert dataset == dataset_1
 
