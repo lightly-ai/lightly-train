@@ -469,3 +469,32 @@ transform_args={
     }
 }
 ```
+
+## Exporting a Checkpoint to ONNX
+
+[Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange) is a standard format
+for representing machine learning models in a framework independent manner. In particular, it is useful for deploying our
+models on edge devices where PyTorch is not available.
+
+Currently, we allow only DINOv2 EoMT segmentation models to be exported as ONNX but plan to add more models in the future.
+
+The following example shows how to export a previously trained checkpoint to ONNX using the `export_onnx` function.
+
+```python
+import lightly_train
+
+lightly_train.export_onnx(
+        out="model.onnx",
+        checkpoint="out/checkpoints/last.ckpt",
+        height=518,
+        width=518
+)
+```
+
+### Requirements
+
+Exporting to ONNX requires some additional packages to be installed. Namely
+
+- `onnx`
+- `onnxruntime` if `verify` is set to `True`.
+- `onnxslim` if `simplify` is set to `True`.
