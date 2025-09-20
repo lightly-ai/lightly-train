@@ -66,10 +66,11 @@ def dinov2_vits14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> P
 
 onnx_export_testset = [
     (1, 42, 154, OnnxPrecision.F32_TRUE),
-    (1, 42, 154, OnnxPrecision.F32_TRUE),
+    (1, 154, 42, OnnxPrecision.F32_TRUE),
     (2, 14, 14, OnnxPrecision.F32_TRUE),
-    (3, 140, 280, OnnxPrecision.F16_TRUE),
-    (4, 266, 28, OnnxPrecision.F16_TRUE),
+    (2, None, None, OnnxPrecision.F32_TRUE),
+    (3, 140, None, OnnxPrecision.F16_TRUE),
+    (4, None, 28, OnnxPrecision.F16_TRUE),
 ]
 
 
@@ -89,8 +90,8 @@ onnx_export_testset = [
 @pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export(
     batch_size: int,
-    height: int,
-    width: int,
+    height: int | None,
+    width: int | None,
     precision: OnnxPrecision,
     dinov2_vits14_eomt_checkpoint: Path,
     tmp_path: Path,
@@ -102,6 +103,10 @@ def test_onnx_export(
     model = lightly_train.load_model_from_checkpoint(
         dinov2_vits14_eomt_checkpoint, device="cpu"
     )
+    if height is None:
+        height = model.image_size[0]
+    if width is None:
+        width = model.image_size[1]
     onnx_path = tmp_path / "model.onnx"
     validation_input = torch.randn(batch_size, 3, height, width, device="cpu")
     expected_outputs = model(validation_input)
