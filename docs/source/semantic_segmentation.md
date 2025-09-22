@@ -495,6 +495,6 @@ lightly_train.export_onnx(
 
 Exporting to ONNX requires some additional packages to be installed. Namely
 
-- `onnx`
-- `onnxruntime` if `verify` is set to `True`.
-- `onnxslim` if `simplify` is set to `True`.
+- [onnx](https://pypi.org/project/onnx/)
+- [onnxruntime](https://pypi.org/project/onnxruntime/) if `verify` is set to `True`.
+- [onnxslim](https://pypi.org/project/onnxslim/) if `simplify` is set to `True`.
