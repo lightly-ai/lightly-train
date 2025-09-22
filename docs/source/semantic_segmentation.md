@@ -476,7 +476,7 @@ transform_args={
 for representing machine learning models in a framework independent manner. In particular, it is useful for deploying our
 models on edge devices where PyTorch is not available.
 
-Currently, we allow only DINOv2 EoMT segmentation models to be exported as ONNX but plan to add more models in the future.
+Currently, we support exporting as ONNX for DINOv2 EoMT segmentation models. The support for DINOv3 EoMT will be released in the short term.
 
 The following example shows how to export a previously trained checkpoint to ONNX using the `export_onnx` function.
 
