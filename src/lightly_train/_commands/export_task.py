@@ -12,7 +12,7 @@ import contextvars
 import logging
 from collections.abc import Iterator
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 import torch
 from torch import distributed
@@ -72,8 +72,8 @@ def export_onnx(
     out: PathLike,
     checkpoint: PathLike,
     batch_size: int = 1,
-    height: int | None = None,
-    width: int | None = None,
+    height: Union[int, None] = None,
+    width: Union[int | None] = None,
     precision: Literal["32-true", "16-true"] = "32-true",
     simplify: bool = True,
     verify: bool = True,
