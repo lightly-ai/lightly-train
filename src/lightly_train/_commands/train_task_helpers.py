@@ -67,6 +67,7 @@ from lightly_train.types import (
     PathLike,
     TaskDatasetItem,
 )
+import multiprocessing as mp
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,23 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv3EoMTSemanticSegmentationTrain,
 ]
 
+
+class WorkerSharedStep:
+    """Class to share the current step between workers in a DataLoader."""
+
+    def __init__(self) -> None:
+        self._val = mp.Value("i", 0)
+
+    @property
+    def value(self) -> int:
+        with self._val.get_lock():
+            return self._val.value
+        
+    @value.setter
+    def value(self, val: int) -> None:
+        with self._val.get_lock():
+            self._val.value = val
+            
 
 def get_out_dir(
     fabric: Fabric,
