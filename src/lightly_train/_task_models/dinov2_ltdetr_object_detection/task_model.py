@@ -16,6 +16,9 @@ from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKA
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._task_models.object_detection_components.detr_postprocessor import (
+    DetDETRPostProcessor,
+)
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     HybridEncoder,
 )
@@ -75,6 +78,7 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
             depth_mult=1,
             act="silu",
         )
+
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
             feat_channels=[384, 384, 384],
             feat_strides=[14, 14, 14],
@@ -89,6 +93,10 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
             eval_idx=-1,
             num_points=[4, 4, 4],
             query_select_method="default",
+        )
+
+        self.postprocessor: DetDETRPostProcessor = DetDETRPostProcessor(
+            num_top_queries=300,
         )
 
     @classmethod
