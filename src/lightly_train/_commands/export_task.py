@@ -138,10 +138,10 @@ def _export_task(
             Batch size of the input tensor.
         height:
             Height of the input tensor. If not specified it will be the same height that the model was trained in.
-            For efficiency reasons we recomment this to be the same as width.
+            For efficiency reasons we recommend this to be the same as width.
         width:
             Width of the input tensor. If not specified it will be the same width that the model was trained in.
-            For efficiency reasons we recomment this to be the same as height.
+            For efficiency reasons we recommend this to be the same as height.
         precision:
             OnnxPrecision.F32_TRUE for float32 precision or OnnxPrecision.F16_TRUE for float16 precision.
         simplify:
