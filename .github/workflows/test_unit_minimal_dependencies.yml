@@ -47,7 +47,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
       - name: Set Up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v5s
         id: setup-uv
         with:
           version: 0.6.11
