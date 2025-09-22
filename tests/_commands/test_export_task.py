@@ -8,6 +8,7 @@
 
 import sys
 from pathlib import Path
+from typing import Union
 
 import pytest
 import torch
@@ -90,8 +91,8 @@ onnx_export_testset = [
 @pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export(
     batch_size: int,
-    height: int | None,
-    width: int | None,
+    height: Union[int, None],
+    width: Union[int, None],
     precision: OnnxPrecision,
     dinov2_vits14_eomt_checkpoint: Path,
     tmp_path: Path,
