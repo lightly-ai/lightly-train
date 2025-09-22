@@ -10,7 +10,9 @@ from typing import Any
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
+from torchvision.transforms.v2 import functional as transforms_functional
 
+from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
@@ -143,11 +145,36 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> dict[str, Tensor]:
-        raise NotImplementedError()
+        for stage in [self.backbone, self.encoder, self.decoder, self.postprocessor]:
+            stage.deploy()
 
-    def forward(self, x: Tensor) -> dict[str, Tensor]:
+        if self.training:
+            self.eval()
+
+        device = next(self.parameters()).device
+        x = file_helpers.as_image_tensor(image).to(device)
+        image_h, image_w = x.shape[:-2]
+
+        x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
+        # TODO: Lionel (09/25) Change to Normalize transform using saved params.
+        x = x / 255.0
+        x = x.unsqueeze(0)
+
+        labels, boxes, scores = self(x)
+        return {
+            "labels": labels,
+            "bboxes": boxes,
+            "scores": scores,
+        }
+
+    def forward(self, x: Tensor) -> list[Tensor]:
         # Function used for ONNX export
-        raise NotImplementedError()
+        orig_target_size = x.shape[1:3]
+        x = self.backbone(x)
+        x = self.encoder(x)
+        x = self.decoder(x)
+        x_: list[Tensor] = self.postprocessor(x, orig_target_size)
+        return x_
 
     def _forward_bboxes_logits(self, x: Tensor) -> dict[str, Tensor]:
         """Forward pass that returns bounding boxes and class logits. Intended for inference."""
