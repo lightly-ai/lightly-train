@@ -601,8 +601,26 @@ def save_checkpoint(fabric: Fabric, out_dir: Path, state: TrainTaskState) -> Non
     fabric.save(path=ckpt_path, state=state)  # type: ignore[arg-type]
 
 
-def load_checkpoint(fabric: Fabric, out_dir: PathLike, state: TrainTaskState) -> None:
-    ckpt_path = get_last_checkpoint_path(out_dir)
+def load_checkpoint(
+    checkpoint: PathLike | None,
+    resume_interrupted: bool,
+    fabric: Fabric,
+    out_dir: PathLike,
+    state: TrainTaskState,
+) -> None:
+    if checkpoint is not None and resume_interrupted:
+        raise ValueError(
+            f"resume_interrupted={resume_interrupted} and checkpoint='{checkpoint}' "
+            "cannot be set at the same time! Please set only one of them. "
+        )
+
+    if checkpoint is not None:  # Load from user provided checkpoint path.
+        ckpt_path = Path(checkpoint).resolve()
+    elif resume_interrupted:  # Load from last checkpoint in out_dir.
+        ckpt_path = get_last_checkpoint_path(out_dir)
+    else:  # Nothing to load.
+        return
+
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
 
