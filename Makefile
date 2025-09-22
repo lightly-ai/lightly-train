@@ -87,6 +87,7 @@ add-header:
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
 		-x src/lightly_train/_models/dinov3/dinov3_src \
+		-x src/lightly_train/_task_models/object_detection_components \
 		-E py
 	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
@@ -104,6 +105,11 @@ add-header:
 	# Apply the Apache 2.0 license header to PyTorch Lighting derived files
 	licenseheaders -t dev_tools/pytorch_lightning_licenseheader.tmpl \
 		-f src/lightly_train/_lightning_rank_zero.py
+
+	# Apply the Apache 2.0 license header to RT-DETR derived files
+	licenseheaders -t dev_tools/rtdetr_licenseheader.tmpl \
+		-f src/lightly_train/_task_models/object_detection_components/ \
+		-E py
 
 	# Apply the MIT license header to the EoMT derived files
 	licenseheaders -t dev_tools/eomt_licenseheader.tmpl \
