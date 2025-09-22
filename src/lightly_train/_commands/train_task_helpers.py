@@ -601,26 +601,10 @@ def save_checkpoint(fabric: Fabric, out_dir: Path, state: TrainTaskState) -> Non
     fabric.save(path=ckpt_path, state=state)  # type: ignore[arg-type]
 
 
-def load_checkpoint(
-    checkpoint: PathLike | None,
-    resume_interrupted: bool,
-    fabric: Fabric,
-    out_dir: PathLike,
-    state: TrainTaskState,
+def load_checkpoint_from_interrupted(
+    fabric: Fabric, out_dir: PathLike, state: TrainTaskState
 ) -> None:
-    if checkpoint is not None and resume_interrupted:
-        raise ValueError(
-            f"resume_interrupted={resume_interrupted} and checkpoint='{checkpoint}' "
-            "cannot be set at the same time! Please set only one of them. "
-        )
-
-    if checkpoint is not None:  # Load from user provided checkpoint path.
-        ckpt_path = Path(checkpoint).resolve()
-    elif resume_interrupted:  # Load from last checkpoint in out_dir.
-        ckpt_path = get_last_checkpoint_path(out_dir)
-    else:  # Nothing to load.
-        return
-
+    ckpt_path = get_last_checkpoint_path(out_dir)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
 
@@ -646,3 +630,30 @@ def load_checkpoint(
     assert state["optimizer"] is optimizer
     assert state["scheduler"] is scheduler
     assert state["train_dataloader"] is train_dataloader
+
+
+def load_checkpoint_from_file(
+    fabric: Fabric,
+    ckpt_path: PathLike,
+    state: TrainTaskState,
+) -> None:
+    ckpt_path = Path(ckpt_path).resolve()
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
+
+    train_model = state["train_model"]
+    train_model_grads = {n: p.requires_grad for n, p in train_model.named_parameters()}
+    train_model_trainings = {n: m.training for n, m in train_model.named_modules()}
+
+    logger.info(f"Loading checkpoint from '{ckpt_path}'")
+    fabric.load(path=ckpt_path, state={"train_model": train_model})  # type: ignore[arg-type]
+
+    # Sanity check to make sure that checkpoint loading didn't create new objects or
+    # changed the model state.
+    assert state["train_model"] is train_model
+    assert {
+        n: p.requires_grad for n, p in state["train_model"].named_parameters()
+    } == train_model_grads
+    assert {
+        n: m.training for n, m in state["train_model"].named_modules()
+    } == train_model_trainings

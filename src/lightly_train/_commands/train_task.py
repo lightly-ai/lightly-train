@@ -167,13 +167,13 @@ def _train_task(
     num_workers: int | Literal["auto"] = "auto",
     devices: int | str | list[int] = "auto",
     num_nodes: int = 1,
+    resume_interrupted: bool = False,
     checkpoint: PathLike | None = None,
+    overwrite: bool = False,
     accelerator: str = "auto",
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    overwrite: bool = False,
-    resume_interrupted: bool = False,
     seed: int | None = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
@@ -358,17 +358,28 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             step=-1,
             model_class_path=train_model.get_task_model().class_path,
             model_init_args=train_model.get_task_model().init_args,
-            # TODO(Guarin, 07/25): Add config to state. For this we have to make the config
-            # JSON serializable.
         )
 
-        helpers.load_checkpoint(
-            checkpoint=config.checkpoint,
-            resume_interrupted=config.resume_interrupted,
-            fabric=fabric,
-            out_dir=out_dir,
-            state=state,
-        )
+        if config.checkpoint and config.resume_interrupted:
+            raise ValueError(
+                f"resume_interrupted={config.resume_interrupted} and checkpoint='{config.checkpoint}' "
+                "cannot be set at the same time! Please set only one of them. "
+            )
+
+        if config.checkpoint:  # Load from user provided checkpoint path.
+            helpers.load_checkpoint_from_file(
+                fabric=fabric,
+                ckpt_path=config.checkpoint,
+                state=state,
+            )
+        elif config.resume_interrupted:  # Resume from last checkpoint in out_dir.
+            helpers.load_checkpoint_from_interrupted(
+                fabric=fabric,
+                out_dir=out_dir,
+                state=state,
+            )
+        else:
+            pass
 
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
