@@ -484,10 +484,10 @@ The following example shows how to export a previously trained checkpoint to ONN
 import lightly_train
 
 lightly_train.export_onnx(
-        out="model.onnx",
-        checkpoint="out/checkpoints/last.ckpt",
-        height=518,
-        width=518
+    out="model.onnx",
+    checkpoint="out/checkpoints/last.ckpt",
+    height=518,
+    width=518
 )
 ```
 
