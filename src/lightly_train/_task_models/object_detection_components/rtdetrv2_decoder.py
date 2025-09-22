@@ -334,6 +334,7 @@ class TransformerDecoder(nn.Module):
             inter_ref_bbox = F.sigmoid(
                 bbox_head[i](output) + inverse_sigmoid(ref_points_detach)
             )
+            ref_points = inter_ref_bbox
 
             if self.training:
                 dec_out_logits.append(score_head[i](output))
@@ -349,7 +350,6 @@ class TransformerDecoder(nn.Module):
                 dec_out_bboxes.append(inter_ref_bbox)
                 break
 
-            ref_points = inter_ref_bbox
             ref_points_detach = inter_ref_bbox.detach()
 
         return torch.stack(dec_out_bboxes), torch.stack(dec_out_logits)

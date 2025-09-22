@@ -5,8 +5,10 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-import PIL.Image.Image as PILImage
+from typing import Any
+
 import torch
+from PIL.Image import Image as PILImage
 from torch import Tensor
 
 from lightly_train._models import package_helpers
@@ -17,7 +19,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     HybridEncoder,
 )
-from lightly_train._task_models.object_detection_components.rtdetr_transformerv2 import (
+from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
     RTDETRTransformerv2,
 )
 from lightly_train._task_models.task_model import TaskModel
@@ -37,7 +39,7 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
         image_size: tuple[int, int],
         image_normalize: dict[str, tuple[float, ...]],
         backbone_weights: PathLike | None,
-        backbone_args: dict | None = None,
+        backbone_args: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(init_args=locals(), ignore_args={"backbone_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
@@ -60,8 +62,34 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
             model_args=backbone_args,
         )
 
-        self.encoder: HybridEncoder = None
-        self.decoder: RTDETRTransformerv2 = None
+        self.encoder: HybridEncoder = HybridEncoder(  # type: ignore[no-untyped-call]
+            in_channels=[384, 384, 384],
+            feat_strides=[14, 14, 14],
+            hidden_dim=384,
+            use_encoder_idx=[2],
+            num_encoder_layers=1,
+            nhead=8,
+            dropout=0.0,
+            enc_act="gelu",
+            expansion=1.0,
+            depth_mult=1,
+            act="silu",
+        )
+        self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
+            feat_channels=[384, 384, 384],
+            feat_strides=[14, 14, 14],
+            hidden_dim=256,
+            num_levels=3,
+            cross_attn_method="discrete",
+            num_layers=6,
+            num_queries=300,
+            num_denoising=100,
+            label_noise_ratio=0.5,
+            box_noise_scale=1.0,
+            eval_idx=-1,
+            num_points=[4, 4, 4],
+            query_select_method="default",
+        )
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
@@ -106,13 +134,13 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
         ]
 
     @torch.no_grad()
-    def predict(self, image: PathLike | PILImage | Tensor) -> dict:
+    def predict(self, image: PathLike | PILImage | Tensor) -> dict[str, Tensor]:
         raise NotImplementedError()
 
-    def forward(self, x: Tensor) -> dict:
+    def forward(self, x: Tensor) -> dict[str, Tensor]:
         # Function used for ONNX export
         raise NotImplementedError()
 
-    def _forward_bboxes_logits(self, x: Tensor) -> dict:
+    def _forward_bboxes_logits(self, x: Tensor) -> dict[str, Tensor]:
         """Forward pass that returns bounding boxes and class logits. Intended for inference."""
         raise NotImplementedError()
