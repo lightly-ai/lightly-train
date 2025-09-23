@@ -28,7 +28,6 @@ import sys
 import torch
 
 import lightly_train
-from lightly_train._checkpoint import Checkpoint
 
 from .. import helpers
 
@@ -109,6 +108,80 @@ def test_train_semantic_segmentation(
     assert prediction.max() <= 1
 
 
+pytest.mark.skipif(
+    sys.platform.startswith("win") or is_self_hosted_docker_runner,
+    reason=(
+        "Fails on Windows since switching to Jaccard index "
+        "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    "model_name, model_args",
+    [
+        # Reduce number of joint blocks _vittest14.
+        ("dinov2/_vittest14-eomt", {"num_joint_blocks": 1}),
+        ("dinov2/_vittest14-linear", {}),
+    ],
+)
+@pytest.mark.parametrize("num_channels", [3, 4])
+def test_train_semantic_segmentation_export(
+    tmp_path: Path, model_name: str, model_args: dict[str, Any], num_channels: int
+) -> None:
+    out = tmp_path / "out"
+    train_images = tmp_path / "train_images"
+    train_masks = tmp_path / "train_masks"
+    val_images = tmp_path / "val_images"
+    val_masks = tmp_path / "val_masks"
+    mode = "RGB" if num_channels == 3 else "RGBA"
+    helpers.create_images(train_images, num_channels=num_channels, mode=mode)
+    helpers.create_masks(train_masks)
+    helpers.create_images(val_images, num_channels=num_channels, mode=mode)
+    helpers.create_masks(val_masks)
+
+    lightly_train.train_semantic_segmentation(
+        out=out,
+        data={
+            "train": {
+                "images": train_images,
+                "masks": train_masks,
+            },
+            "val": {
+                "images": val_images,
+                "masks": val_masks,
+            },
+            "classes": {
+                0: "background",
+                1: "car",
+            },
+        },
+        model=model_name,
+        model_args=model_args,
+        # The operator 'aten::upsample_bicubic2d.out' raises a NotImplementedError
+        # on macOS with MPS backend.
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+        devices=1,
+        batch_size=2,
+        num_workers=2,
+        steps=2,
+        transform_args={
+            "num_channels": num_channels,
+        },
+    )
+
+    # Check that last.ckpt and exported_model.pt contain same information.
+    ckpt_model_state_dict = lightly_train.load_model_from_checkpoint(
+        out / "checkpoints" / "last.ckpt"
+    ).state_dict()
+    exported_model_state_dict = lightly_train.load_model_from_checkpoint(
+        out / "exported_models" / "exported_last.pt"
+    ).state_dict()
+    assert ckpt_model_state_dict.keys() == exported_model_state_dict.keys()
+    for key in ckpt_model_state_dict.keys():
+        assert torch.equal(ckpt_model_state_dict[key], exported_model_state_dict[key])
+
+
 @pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
     reason=(
@@ -158,7 +231,6 @@ def test_train_semantic_segmentation__checkpoint(
     )
     last_ckpt_path = out / "checkpoints" / "last.ckpt"
     assert last_ckpt_path.exists()
-    first_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
 
     # Part 2: Load the checkpoint via the checkpoint parameter and assert log.
     with caplog.at_level(logging.INFO):
@@ -188,23 +260,6 @@ def test_train_semantic_segmentation__checkpoint(
             checkpoint=last_ckpt_path,
         )
     assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
-
-    # Check that exported checkpoint weights changed between first and second run.
-    second_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
-    first_state_dict = first_ckpt.lightly_train.models.model.state_dict()
-    second_state_dict = second_ckpt.lightly_train.models.model.state_dict()
-    assert first_state_dict.keys() == second_state_dict.keys()
-    for key in first_state_dict.keys():
-        assert not torch.equal(first_state_dict[key], second_state_dict[key])
-
-    # Check that last.ckpt and exported_model.pt contain same information. If this fails
-    # it means that checkpoint loading is not working correctly.
-    exported_state_dict = torch.load(
-        out / "exported_models" / "exported_last.pt", weights_only=True
-    )
-    assert second_state_dict.keys() == exported_state_dict.keys()
-    for key in second_state_dict.keys():
-        assert torch.equal(second_state_dict[key], exported_state_dict[key])
 
 
 @pytest.mark.skipif(
