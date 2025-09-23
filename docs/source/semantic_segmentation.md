@@ -60,13 +60,13 @@ if __name__ == "__main__":
 
 ### Load the Trained Model from Checkpoint and Predict
 
-After the training completes you can load the model for inference like this:
+After the training completes you can load the model for inference with the exported model weights:
 
 ```python
 import lightly_train
 
 model = lightly_train.load_model_from_checkpoint(
-    "out/my_experiment/checkpoints/last.ckpt"
+    "out/exported_models/exported_last.pt"
 )
 masks = model.predict("path/to/image.jpg")
 ```
