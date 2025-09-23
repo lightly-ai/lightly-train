@@ -28,6 +28,7 @@ import sys
 import torch
 
 import lightly_train
+from lightly_train._checkpoint import Checkpoint
 
 from .. import helpers
 
@@ -157,6 +158,7 @@ def test_train_semantic_segmentation__checkpoint(
     )
     last_ckpt_path = out / "checkpoints" / "last.ckpt"
     assert last_ckpt_path.exists()
+    first_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
 
     # Part 2: Load the checkpoint via the checkpoint parameter and assert log.
     with caplog.at_level(logging.INFO):
@@ -186,6 +188,23 @@ def test_train_semantic_segmentation__checkpoint(
             checkpoint=last_ckpt_path,
         )
     assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
+
+    # Check that exported checkpoint weights changed between first and second run.
+    second_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
+    first_state_dict = first_ckpt.lightly_train.models.model.state_dict()
+    second_state_dict = second_ckpt.lightly_train.models.model.state_dict()
+    assert first_state_dict.keys() == second_state_dict.keys()
+    for key in first_state_dict.keys():
+        assert not torch.equal(first_state_dict[key], second_state_dict[key])
+
+    # Check that last.ckpt and exported_model.pt contain same information. If this fails
+    # it means that checkpoint loading is not working correctly.
+    exported_state_dict = torch.load(
+        out / "exported_models" / "exported_last.pt", weights_only=True
+    )
+    assert second_state_dict.keys() == exported_state_dict.keys()
+    for key in second_state_dict.keys():
+        assert torch.equal(second_state_dict[key], exported_state_dict[key])
 
 
 @pytest.mark.skipif(
