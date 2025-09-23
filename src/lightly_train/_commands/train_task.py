@@ -71,7 +71,7 @@ def train_semantic_segmentation(
         tensorboard --logdir out
 
     After training, the last model checkpoint is saved in the out directory to:
-    ``out/checkpoints/last.ckpt`` and also exported to``out/exported_models/exported_last.pt``.
+    ``out/checkpoints/last.ckpt`` and also exported to ``out/exported_models/exported_last.pt``.
 
     Args:
         out:

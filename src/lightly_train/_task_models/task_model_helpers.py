@@ -24,7 +24,7 @@ def load_model_from_checkpoint(
     """Load a model from an exported model file (in .pt format) or a checkpoint file (in .ckpt format).
 
     Args:
-        checkpoint:
+        exported_model_or_checkpoint:
             Path to the exported model file or checkpoint file.
         device:
             Device to load the model on. If None, the model will be loaded onto a GPU
