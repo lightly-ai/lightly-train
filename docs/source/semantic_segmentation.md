@@ -58,6 +58,22 @@ if __name__ == "__main__":
 ```
 ````
 
+You can also train from an already fine-tuned model by loading the checkpoint with `checkpoint` parameter:
+
+````{tab} Python
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt", 
+        checkpoint="/path/to/a/vitl14-eomt/checkpoint/file.ckpt",
+        data={...},
+    )
+```
+````
+
 ### Load the Trained Model from Checkpoint and Predict
 
 After the training completes you can load the model for inference like this:
