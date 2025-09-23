@@ -601,6 +601,20 @@ def save_checkpoint(fabric: Fabric, out_dir: Path, state: TrainTaskState) -> Non
     fabric.save(path=ckpt_path, state=state)  # type: ignore[arg-type]
 
 
+def get_exported_model_path(out_dir: PathLike) -> Path:
+    out_dir = Path(out_dir).resolve()
+    model_path = out_dir / "exported_models" / "exported_last.pt"
+    return model_path
+
+
+def export_model(out_dir: Path, model_dict: dict[str, Any]) -> None:
+    model_path = get_exported_model_path(out_dir)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"Exporting models to '{model_path}'")
+    torch.save(model_dict, model_path)
+
+
 def load_checkpoint_from_interrupted(
     fabric: Fabric, out_dir: PathLike, state: TrainTaskState
 ) -> None:

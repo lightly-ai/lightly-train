@@ -71,7 +71,7 @@ def train_semantic_segmentation(
         tensorboard --logdir out
 
     After training, the last model checkpoint is saved in the out directory to:
-    ``out/checkpoints/last.ckpt``.
+    ``out/checkpoints/last.ckpt`` and also exported to``out/exported_models/exported_last.pt``.
 
     Args:
         out:
@@ -439,6 +439,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
             if is_save_ckpt_step or is_last_step:
                 helpers.save_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
+
+                model_dict = {
+                    "model_class_path": state["model_class_path"],
+                    "model_init_args": state["model_init_args"],
+                    "train_model": train_model.state_dict(),
+                }
+
+                helpers.export_model(out_dir=out_dir, model_dict=model_dict)
 
             if is_val_step or is_last_step:
                 fabric.barrier()
