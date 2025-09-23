@@ -9,13 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add support for training semantic segmentation models by loading from a model checkpoint file with `checkpoint="/path/to/checkpoint/file.ckpt"`.
+- Add `simplify` flag to ONNX export task to simplify the model after export.
 - Add support for training models on multi-channel images with `transform_args={"num_channels": 4}`.
 - Add support for using custom mask names for the inputs in semantic segmentation.
 - Add support for using DINOv3 models as teacher in distillationv1.
 
 ### Changed
-
-- Add `simplify` flag to ONNX export task to simplify the model after export.
 
 ### Deprecated
 
