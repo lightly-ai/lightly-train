@@ -27,7 +27,6 @@ for more details.
 
 ### Train a Semantic Segmentation Model
 
-````{tab} Python
 ```python
 import lightly_train
 
@@ -56,7 +55,20 @@ if __name__ == "__main__":
         },
     )
 ```
-````
+
+You can also train from an already fine-tuned model by loading the weights with the `checkpoint` parameter:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt", 
+        checkpoint="/path/to/vitl14-eomt/exported_model.pt",
+        data={...},
+    )
+```
 
 ### Load the Trained Model from Checkpoint and Predict
 
@@ -76,8 +88,9 @@ masks = model.predict("path/to/image.jpg")
 And visualize the predicted masks like this:
 
 ```python
-import torch
+# ruff: noqa: F821
 import matplotlib.pyplot as plt
+import torch
 from torchvision.io import read_image
 from torchvision.utils import draw_segmentation_masks
 
@@ -96,7 +109,6 @@ ID as defined in the `classes` dictionary in the dataset.
 
 To fine-tune EoMT from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script.
 
-````{tab} Python
 ```python
 import lightly_train
 
@@ -129,7 +141,6 @@ if __name__ == "__main__":
         },
     )
 ```
-````
 
 See [here](#dinov3-models) for the list of available DINOv3 models.
 
@@ -288,7 +299,6 @@ MLflow must be installed with `pip install "lightly-train[mlflow]"`.
 
 The mlflow logger can be configured with the following arguments:
 
-````{tab} Python
 ```python
 import lightly_train
 
@@ -308,7 +318,6 @@ if __name__ == "__main__":
         },
     )
 ```
-````
 
 (semantic-segmentation-tensorboard)=
 
@@ -323,11 +332,9 @@ tensorboard --logdir out/my_experiment
 
 Disable the TensorBoard logger with:
 
-````{tab} Python
 ```python
 logger_args={"tensorboard": None}
 ```
-````
 
 (semantic-segmentation-pretrain-finetune)=
 
@@ -342,7 +349,6 @@ The following example shows how to pretrain and fine-tune the model. Check out t
 on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2 models on unlabeled
 data.
 
-````{tab} Python
 ```python
 import lightly_train
 
@@ -384,7 +390,6 @@ if __name__ == "__main__":
         },
     )
 ```
-````
 
 (semantic-segmentation-transform-arguments)=
 
