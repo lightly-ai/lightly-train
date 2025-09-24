@@ -56,7 +56,7 @@ if __name__ == "__main__":
     )
 ```
 
-You can also train from an already fine-tuned model by loading the model with the `checkpoint` parameter:
+You can also train from an already fine-tuned model by loading the weights with the `checkpoint` parameter:
 
 ```python
 import lightly_train
