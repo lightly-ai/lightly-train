@@ -440,6 +440,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             if is_save_ckpt_step or is_last_step:
                 helpers.save_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
 
+            if is_last_step:
                 model_dict = {
                     "model_class_path": state["model_class_path"],
                     "model_init_args": state["model_init_args"],
