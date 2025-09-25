@@ -240,12 +240,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             The predicted mask as a tensor of shape (H, W). The values represent the
             class IDs as defined in the `classes` argument of your dataset. These
             classes are also stored in the `classes` attribute of the model.
-            If your dataset contains ignored classes defined by the `ignore_classes`
-            argument, the model will assign a special value for any pixels that it
-            cannot assign to any of the known classes. This value is stored as
-            `class_ignore_index` attribute of the model and is by default -100.
-            If the dataset doesn't contain any ignored classes, the model will always
-            assign a known class to each pixel.
+            The model will always predict the pixels as one of the known classes even when
+            your dataset contains ignored classes defined by the `ignore_classes` argument.
         """
         if self.training:
             self.eval()
@@ -267,9 +263,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
-        if self.class_ignore_index is None:
-            # Restrict logits to known classes only.
-            logits = logits[:, :-1]  # (1, K, H', W')
+        # Restrict logits to known classes only.
+        logits = logits[:, :-1]  # (1, K, H', W')
         logits = F.interpolate(
             logits, size=(image_h, image_w), mode="bilinear"
         )  # (1, K|K+1, H, W)
@@ -281,10 +276,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         # Function used for ONNX export
-        logits = self._forward_logits(x)  # (B, C, H, W)
-        if self.class_ignore_index is None:
-            # Restrict logits to known classes only.
-            logits = logits[:, :-1]
+        logits = self._forward_logits(x)  # (B, K+1, H, W), K = len(self.classes)
+        # Restrict logits to known classes only.
+        logits = logits[:, :-1]  # (1, K, H, W)
         masks = logits.argmax(dim=1)  # (B, H, W)
         # Map internal class IDs to class IDs.
         masks = self.internal_class_to_class[masks]

@@ -9,13 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add support for training models on multi-channel images with `transform_args={"num_channels": 4}`.
-- Add support for using custom mask names for the inputs in semantic segmentation.
-- Add support for using DINOv3 models as teacher in distillationv1.
-
 ### Changed
-
-- Add `simplify` flag to ONNX export task to simplify the model after export.
 
 ### Deprecated
 
@@ -23,9 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Speed up listing of filenames in large datasets.
+## [0.11.3] - 2025-09-25
 
-### Security
+### Added
+
+- Add EoMT semantic segmentation benchmark results and model weights trained on ADE20k, COCO-Stuff, and Cityscapes datasets.
+- Add support for exporting the semantic segmentation model weights to `exported_models/exported_last.pt`.
+- Add support for allow loading semantic segmentation model weights for training.
+- Add `simplify` flag to ONNX `export_task`.
+- Add support for using DINOv3 models as teacher in distillationv1.
+
+### Fixed
+
+- Fix a bug in `model.predict()` with `ignore_index`.
+- Speed up listing of filenames in large datasets.
 
 ## [0.11.2] - 2025-09-08
 

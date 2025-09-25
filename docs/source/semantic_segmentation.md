@@ -8,15 +8,47 @@ state-of-the-art segmentation model [EoMT](https://arxiv.org/abs/2503.19108) by
 Kerssies et al. and reaches 59.1% mIoU with DINOv3 weights and 58.4% mIoU with DINOv2 weights on the ADE20k dataset.
 ```
 
-Below we report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on the ADE20k dataset with LightlyTrain.
+## Benchmark Results
 
-| DINOv3 Model | Val mIoU | FPS | TensorBoard | Checkpoint |
-|--------------|----------|-----|-------------|------------|
-| dinov3/vits16-eomt | 0.4658 | 37.3 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757573634.dinov3_eomt_vits16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
-| dinov3/vitb16-eomt | 0.5437 | 36.2 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757511566.dinov3_eomt_vitb16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
-| dinov3/vitl16-eomt | 0.5912 | 16.2 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757520165.dinov3_eomt_vitl16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
+Below we provide the model checkpoints and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available.
 
-The experiments generally follow the protocol in the original EoMT paper, using a batch size of 16, trained for 40,000 steps, and with a learning rate of 1e-4. Images were resized to 512×512 pixels. FPS values were measured on a single NVIDIA T4 GPU with FP16 precision without compiling the models. We also provide the TensorBoard file and model checkpoints for these runs.
+The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average FPS values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
+
+You can also explore inferencing with these model weights using our Colab notebook:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
+
+### ADE20k
+
+| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+|----------------|-------------|------------|----------|----------|------------|
+| dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 48.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
+| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.544 | 48.1 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
+| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.591** | 22.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
+| dinov2/vitl16-eomt (original) | 319 | 512×512 | 0.584 | - | - |
+
+We trained the models with 40k steps and `num_queries=100` , as in the setting of the original EoMT paper.
+
+### COCO-Stuff
+
+| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+|----------------|-------------|------------|----------|----------|------------|
+| dinov3/vits16-eomt | 21.6 | 512×512 | 0.465 | 88.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
+| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
+| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.544** | 20.4 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
+
+We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
+
+### Cityscapes
+
+| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+|----------------|-------------|------------|----------|----------|------------|
+| dinov3/vits16-eomt | 21.6 | 1024×1024 | 0.786 | 18.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
+| dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
+| dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
+| dinov2/vitl16-eomt (original) | 319 | 1024×1024 | 0.842 | - | - |
+
+We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
 
 ## Semantic Segmentation with EoMT in LightlyTrain
 
@@ -27,7 +59,6 @@ for more details.
 
 ### Train a Semantic Segmentation Model
 
-````{tab} Python
 ```python
 import lightly_train
 
@@ -56,7 +87,20 @@ if __name__ == "__main__":
         },
     )
 ```
-````
+
+You can also train from an already fine-tuned model by loading the weights with the `checkpoint` parameter:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt", 
+        checkpoint="/path/to/vitl14-eomt/exported_model.pt",
+        data={...},
+    )
+```
 
 ### Load the Trained Model from Checkpoint and Predict
 
@@ -66,7 +110,7 @@ After the training completes you can load the model for inference like this:
 import lightly_train
 
 model = lightly_train.load_model_from_checkpoint(
-    "out/my_experiment/checkpoints/last.ckpt"
+    "out/my_experiment/exported_models/exported_last.pt"
 )
 masks = model.predict("path/to/image.jpg")
 ```
@@ -76,8 +120,9 @@ masks = model.predict("path/to/image.jpg")
 And visualize the predicted masks like this:
 
 ```python
-import torch
+# ruff: noqa: F821
 import matplotlib.pyplot as plt
+import torch
 from torchvision.io import read_image
 from torchvision.utils import draw_segmentation_masks
 
@@ -96,7 +141,6 @@ ID as defined in the `classes` dictionary in the dataset.
 
 To fine-tune EoMT from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script.
 
-````{tab} Python
 ```python
 import lightly_train
 
@@ -129,7 +173,6 @@ if __name__ == "__main__":
         },
     )
 ```
-````
 
 See [here](#dinov3-models) for the list of available DINOv3 models.
 
@@ -288,7 +331,6 @@ MLflow must be installed with `pip install "lightly-train[mlflow]"`.
 
 The mlflow logger can be configured with the following arguments:
 
-````{tab} Python
 ```python
 import lightly_train
 
@@ -308,7 +350,6 @@ if __name__ == "__main__":
         },
     )
 ```
-````
 
 (semantic-segmentation-tensorboard)=
 
@@ -323,11 +364,9 @@ tensorboard --logdir out/my_experiment
 
 Disable the TensorBoard logger with:
 
-````{tab} Python
 ```python
 logger_args={"tensorboard": None}
 ```
-````
 
 (semantic-segmentation-pretrain-finetune)=
 
@@ -342,7 +381,6 @@ The following example shows how to pretrain and fine-tune the model. Check out t
 on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2 models on unlabeled
 data.
 
-````{tab} Python
 ```python
 import lightly_train
 
@@ -384,7 +422,6 @@ if __name__ == "__main__":
         },
     )
 ```
-````
 
 (semantic-segmentation-transform-arguments)=
 
@@ -469,3 +506,32 @@ transform_args={
     }
 }
 ```
+
+## Exporting a Checkpoint to ONNX
+
+[Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange) is a standard format
+for representing machine learning models in a framework independent manner. In particular, it is useful for deploying our
+models on edge devices where PyTorch is not available.
+
+Currently, we support exporting as ONNX for DINOv2 EoMT segmentation models. The support for DINOv3 EoMT will be released in the short term.
+
+The following example shows how to export a previously trained checkpoint to ONNX using the `export_onnx` function.
+
+```python
+import lightly_train
+
+lightly_train.export_onnx(
+    out="model.onnx",
+    checkpoint="out/my_experiment/exported_models/exported_last.pt",
+    height=518,
+    width=518
+)
+```
+
+### Requirements
+
+Exporting to ONNX requires some additional packages to be installed. Namely
+
+- [onnx](https://pypi.org/project/onnx/)
+- [onnxruntime](https://pypi.org/project/onnxruntime/) if `verify` is set to `True`.
+- [onnxslim](https://pypi.org/project/onnxslim/) if `simplify` is set to `True`.

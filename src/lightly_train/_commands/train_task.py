@@ -47,12 +47,13 @@ def train_semantic_segmentation(
     num_workers: int | Literal["auto"] = "auto",
     devices: int | str | list[int] = "auto",
     num_nodes: int = 1,
+    resume_interrupted: bool = False,
+    checkpoint: PathLike | None = None,
+    overwrite: bool = False,
     accelerator: str = "auto",
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    overwrite: bool = False,
-    resume_interrupted: bool = False,
     seed: int | None = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
@@ -71,7 +72,7 @@ def train_semantic_segmentation(
         tensorboard --logdir out
 
     After training, the last model checkpoint is saved in the out directory to:
-    ``out/checkpoints/last.ckpt``.
+    ``out/checkpoints/last.ckpt`` and also exported to ``out/exported_models/exported_last.pt``.
 
     Args:
         out:
@@ -95,6 +96,26 @@ def train_semantic_segmentation(
             parameter.
         num_nodes:
             Number of nodes for distributed training.
+        checkpoint:
+            Use this parameter to further fine-tune a model from a previous fine-tuned checkpoint.
+            The checkpoint must be a path to a checkpoint file, for example "checkpoints/model.ckpt".
+            This will only load the model weights from the previous run. All other
+            training state (e.g. optimizer state, epochs) from the previous run are not
+            loaded.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
+        resume_interrupted:
+            Set this to True if you want to resume training from an **interrupted or
+            crashed** training run. This will pick up exactly where the training left
+            off, including the optimizer state and the current step.
+
+            - You must use the same ``out`` directory as the interrupted run.
+            - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
+            - This is intended for continuing the same run without modification.
+        overwrite:
+            Overwrite the output directory if it already exists. Warning, this might
+            overwrite existing files in the directory!
         accelerator:
             Hardware accelerator. Can be one of ['cpu', 'gpu', 'mps', 'auto'].
             'auto' will automatically select the best accelerator available.
@@ -108,17 +129,6 @@ def train_semantic_segmentation(
             Precision for float32 matrix multiplication. Can be one of ['auto',
             'highest', 'high', 'medium']. See https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
             for more information.
-        overwrite:
-            Overwrite the output directory if it already exists. Warning, this might
-            overwrite existing files in the directory!
-        resume_interrupted:
-            Set this to True if you want to resume training from an **interrupted or
-            crashed** training run. This will pick up exactly where the training left
-            off, including the optimizer state and the current step.
-
-            - You must use the same ``out`` directory as the interrupted run.
-            - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
-            - This is intended for continuing the same run without modification.
         seed:
             Random seed for reproducibility.
         logger_args:
@@ -158,12 +168,13 @@ def _train_task(
     num_workers: int | Literal["auto"] = "auto",
     devices: int | str | list[int] = "auto",
     num_nodes: int = 1,
+    resume_interrupted: bool = False,
+    checkpoint: PathLike | None = None,
+    overwrite: bool = False,
     accelerator: str = "auto",
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    overwrite: bool = False,
-    resume_interrupted: bool = False,
     seed: int | None = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
@@ -345,16 +356,33 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         state = TrainTaskState(
             train_model=train_model,
             optimizer=optimizer,
+            scheduler=scheduler,
             train_dataloader=train_dataloader,
             step=-1,
             model_class_path=train_model.get_task_model().class_path,
             model_init_args=train_model.get_task_model().init_args,
-            # TODO(Guarin, 07/25): Add config to state. For this we have to make the config
-            # JSON serializable.
         )
 
-        if config.resume_interrupted:
-            helpers.load_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
+        if config.checkpoint and config.resume_interrupted:
+            raise ValueError(
+                f"resume_interrupted={config.resume_interrupted} and checkpoint='{config.checkpoint}' "
+                "cannot be set at the same time! Please set only one of them. "
+            )
+
+        if config.checkpoint:  # Load from user provided checkpoint path.
+            helpers.load_checkpoint_from_file(
+                fabric=fabric,
+                ckpt_path=config.checkpoint,
+                state=state,
+            )
+        elif config.resume_interrupted:  # Resume from last checkpoint in out_dir.
+            helpers.load_checkpoint_from_interrupted(
+                fabric=fabric,
+                out_dir=out_dir,
+                state=state,
+            )
+        else:
+            pass
 
         # Set the global_step in the transform (has to be done after loading potential
         # checkpoint).
@@ -426,6 +454,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             if is_save_ckpt_step or is_last_step:
                 helpers.save_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
 
+                model_dict = {
+                    "model_class_path": state["model_class_path"],
+                    "model_init_args": state["model_init_args"],
+                    "train_model": train_model.state_dict(),
+                }
+
+                helpers.export_model(out_dir=out_dir, model_dict=model_dict)
+
             if is_val_step or is_last_step:
                 fabric.barrier()
                 logger.info("Validating...")
@@ -475,12 +511,13 @@ class TrainTaskConfig(PydanticConfig):
     num_workers: int | Literal["auto"] = "auto"
     devices: int | str | list[int] = "auto"
     num_nodes: int = 1
+    resume_interrupted: bool = False
+    checkpoint: PathLike | None = None
+    overwrite: bool = False
     accelerator: str | Accelerator = "auto"
     strategy: str | Strategy = "auto"
     precision: _PRECISION_INPUT = "bf16-mixed"
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
-    overwrite: bool = False
-    resume_interrupted: bool = False
     seed: int | None = 0
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
     model_args: dict[str, Any] | TrainModelArgs | None = None

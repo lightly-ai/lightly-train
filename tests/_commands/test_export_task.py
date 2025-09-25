@@ -59,7 +59,7 @@ def dinov2_vits14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> P
         steps=1,
     )
 
-    checkpoint_path = out / "checkpoints/last.ckpt"
+    checkpoint_path = out / "exported_models" / "exported_last.pt"
     assert checkpoint_path.exists()
     return checkpoint_path
 

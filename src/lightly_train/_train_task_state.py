@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, TypedDict
 
 from torch.nn import Module
+from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
@@ -19,6 +20,7 @@ from lightly_train.types import TaskBatch
 class TrainTaskState(TypedDict):
     train_model: Module
     optimizer: Optimizer
+    scheduler: LRScheduler
     train_dataloader: DataLoader[TaskBatch]
     step: int
     # Model class path and initialization arguments for serialization.
