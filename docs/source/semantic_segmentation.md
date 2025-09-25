@@ -78,7 +78,7 @@ After the training completes you can load the model for inference like this:
 import lightly_train
 
 model = lightly_train.load_model_from_checkpoint(
-    "out/my_experiment/checkpoints/last.ckpt"
+    "out/my_experiment/exported_models/exported_last.pt"
 )
 masks = model.predict("path/to/image.jpg")
 ```
@@ -490,7 +490,7 @@ import lightly_train
 
 lightly_train.export_onnx(
     out="model.onnx",
-    checkpoint="out/checkpoints/last.ckpt",
+    checkpoint="out/my_experiment/exported_models/exported_last.pt",
     height=518,
     width=518
 )
