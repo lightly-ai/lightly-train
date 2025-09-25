@@ -33,7 +33,7 @@ We trained the models with 40k steps, as in the setting of the original EoMT pap
 | dinov3/vitb16-eomt | 92.49 | 512×512 | 0.520 | 43.3 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
 | dinov3/vitl16-eomt | 315.17 | 512×512 | **0.544** | 20.4 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
 
-We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queires=200` for EoMT.
+We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
 
 ### Cityscapes
 
@@ -42,9 +42,9 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queir
 | dinov3/vits16-eomt | 23.33 | 1024×1024 | 0.786 | 18.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
 | dinov3/vitb16-eomt | 92.38 | 1024×1024 | 0.810 | 8.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
 | dinov3/vitl16-eomt | 315.02 | 1024×1024 | **0.844** | 3.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
-| dinov2/vitl16-eomt (in the paper) | 319 | 1024x1024 | 0.842 | - | - |
+| dinov2/vitl16-eomt (in the paper) | 319 | 1024×1024 | 0.842 | - | - |
 
-We trained with 107 epochs (~20k steps) on the COCO-Stuff dataset with `num_queires=200` for EoMT.
+We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
 
 ## Semantic Segmentation with EoMT in LightlyTrain
 
