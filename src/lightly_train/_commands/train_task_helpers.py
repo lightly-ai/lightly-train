@@ -15,6 +15,7 @@ from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Generator, Iterable, Literal, Mapping
 
+import torch
 from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
