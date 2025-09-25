@@ -22,9 +22,9 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
 |----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 23.34 | 512×512 | 0.466 | 48.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
-| dinov3/vitb16-eomt | 92.40 | 512×512 | 0.544 | 48.1 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
-| dinov3/vitl16-eomt | 315.05 | 512×512 | **0.591** | 22.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
+| dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 48.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
+| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.544 | 48.1 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
+| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.591** | 22.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
 | dinov2/vitl16-eomt (original) | 319 | 512×512 | 0.584 | - | - |
 
 We trained the models with 40k steps and `num_queries=100` , as in the setting of the original EoMT paper.
@@ -33,9 +33,9 @@ We trained the models with 40k steps and `num_queries=100` , as in the setting o
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
 |----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 23.39 | 512×512 | 0.465 | 88.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
-| dinov3/vitb16-eomt | 92.49 | 512×512 | 0.520 | 43.3 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
-| dinov3/vitl16-eomt | 315.17 | 512×512 | **0.544** | 20.4 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
+| dinov3/vits16-eomt | 21.6 | 512×512 | 0.465 | 88.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
+| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
+| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.544** | 20.4 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
 
 We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
 
@@ -43,9 +43,9 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
 |----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 23.33 | 1024×1024 | 0.786 | 18.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
-| dinov3/vitb16-eomt | 92.38 | 1024×1024 | 0.810 | 8.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
-| dinov3/vitl16-eomt | 315.02 | 1024×1024 | **0.844** | 3.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
+| dinov3/vits16-eomt | 21.6 | 1024×1024 | 0.786 | 18.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
+| dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
+| dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
 | dinov2/vitl16-eomt (original) | 319 | 1024×1024 | 0.842 | - | - |
 
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
