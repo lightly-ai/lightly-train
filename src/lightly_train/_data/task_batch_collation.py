@@ -126,9 +126,3 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
                 "classes": [item["classes"] for item in batch],
             }
             return out_
-
-
-COLLATE_FN_CLS_LIST = [
-    MaskSemanticSegmentationCollateFunction,
-    ObjectDetectionCollateFunction,
-]
