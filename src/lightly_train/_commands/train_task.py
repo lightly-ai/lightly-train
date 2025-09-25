@@ -403,6 +403,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             optimizer.zero_grad()
             scheduler.step()
 
+            # Update the global step in the transform.
             train_dataloader.dataset.transform.global_step = state["step"]
             val_dataloader.dataset.transform.global_step = state["step"]
 
