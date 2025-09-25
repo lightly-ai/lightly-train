@@ -611,7 +611,7 @@ def export_model(out_dir: Path, model_dict: dict[str, Any]) -> None:
     model_path = get_exported_model_path(out_dir)
     model_path.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Exporting models to '{model_path}'")
+    logger.info(f"Exporting model to '{model_path}'")
     torch.save(model_dict, model_path)
 
 

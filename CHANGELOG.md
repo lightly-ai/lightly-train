@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add support for exporting the semantic segmentation model weights to \`\`exported_models/exported_last.pt\` under the output directory at the end of training.
+- Add support for exporting the semantic segmentation model weights to `exported_models/exported_last.pt` under the output directory at the end of training.
 - Add support for training semantic segmentation models by loading from a model checkpoint file with `checkpoint="/path/to/checkpoint/file.ckpt"`.
 - Add `simplify` flag to ONNX export task to simplify the model after export.
 - Add support for training models on multi-channel images with `transform_args={"num_channels": 4}`.

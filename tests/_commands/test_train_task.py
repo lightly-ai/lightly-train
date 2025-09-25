@@ -108,7 +108,7 @@ def test_train_semantic_segmentation(
     assert prediction.max() <= 1
 
 
-pytest.mark.skipif(
+@pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
     reason=(
         "Fails on Windows since switching to Jaccard index "
