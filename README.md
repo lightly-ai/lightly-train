@@ -167,7 +167,7 @@ Below we provide the model checkpoints and report the validation mIoUs and infer
 
 The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average FPS values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 
-You can also explort inferencing with these model weights using our Colab notebook below:
+You can also explore inferencing with these model weights using our Colab notebook below:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
 
@@ -180,7 +180,7 @@ You can also explort inferencing with these model weights using our Colab notebo
 | LightlyTrain | dinov3/vitl16-eomt | 303.2 | 512×512 | **0.591** | 22.6 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
 | EoMT | dinov2/vitl16-eomt | 319 | 512×512 | 0.584 | - | - |
 
-We trained the models with 40k steps and `num_queries=100` , as in the setting of the original EoMT paper.
+We trained the models with 40k steps and `num_queries=100`, as in the setting of the original EoMT paper.
 
 #### COCO-Stuff Dataset
 
