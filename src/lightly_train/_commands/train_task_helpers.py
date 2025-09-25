@@ -574,36 +574,48 @@ def get_save_checkpoint_args(
     return args
 
 
-def get_last_checkpoint_path(out_dir: PathLike) -> Path:
+def get_checkpoint_path(
+    out_dir: PathLike, best_or_last: Literal["best", "last"]
+) -> Path:
     out_dir = Path(out_dir).resolve()
-    ckpt_path = out_dir / "checkpoints" / "last.ckpt"
+    ckpt_path = out_dir / "checkpoints" / f"{best_or_last}.ckpt"
     return ckpt_path
 
 
-def save_checkpoint(fabric: Fabric, out_dir: Path, state: TrainTaskState) -> None:
-    ckpt_path = get_last_checkpoint_path(out_dir)
-    logger.info(f"Saving checkpoint to '{ckpt_path}'")
+def save_checkpoint(
+    fabric: Fabric,
+    out_dir: Path,
+    state: TrainTaskState,
+    best_or_last: Literal["best", "last"],
+) -> None:
+    ckpt_path = get_checkpoint_path(out_dir=out_dir, best_or_last=best_or_last)
+
+    logger.info(f"Saving the {best_or_last} checkpoint to '{ckpt_path}'")
     fabric.save(path=ckpt_path, state=state)  # type: ignore[arg-type]
 
 
-def get_exported_model_path(out_dir: PathLike) -> Path:
+def get_exported_model_path(
+    out_dir: PathLike, best_or_last: Literal["best", "last"]
+) -> Path:
     out_dir = Path(out_dir).resolve()
-    model_path = out_dir / "exported_models" / "exported_last.pt"
+    model_path = out_dir / "exported_models" / f"exported_{best_or_last}.pt"
     return model_path
 
 
-def export_model(out_dir: Path, model_dict: dict[str, Any]) -> None:
-    model_path = get_exported_model_path(out_dir)
+def export_model(
+    out_dir: Path, model_dict: dict[str, Any], best_or_last: Literal["best", "last"]
+) -> None:
+    model_path = get_exported_model_path(out_dir=out_dir, best_or_last=best_or_last)
     model_path.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Exporting model to '{model_path}'")
+    logger.info(f"Exporting the {best_or_last} model to '{model_path}'")
     torch.save(model_dict, model_path)
 
 
 def load_checkpoint_from_interrupted(
     fabric: Fabric, out_dir: PathLike, state: TrainTaskState
 ) -> None:
-    ckpt_path = get_last_checkpoint_path(out_dir)
+    ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
 
