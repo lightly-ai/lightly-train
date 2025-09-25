@@ -12,6 +12,7 @@ from typing import Any, TypedDict
 from pydantic import ConfigDict
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._data.dataloader_helpers import WorkerSharedStep
 
 
 class TaskTransformInput(TypedDict):
@@ -38,7 +39,7 @@ class TaskTransform:
     transform_args_cls: type[TaskTransformArgs]
 
     def __init__(self, transform_args: TaskTransformArgs):
-        self._global_step = 0
+        self._global_step = WorkerSharedStep(step=0)
         if not isinstance(transform_args, self.transform_args_cls):
             raise TypeError(
                 f"transform_args must be of type {self.transform_args_cls.__name__}, "
@@ -48,11 +49,11 @@ class TaskTransform:
 
     @property
     def global_step(self) -> int:
-        return self._global_step
+        return self._global_step.step
 
     @global_step.setter
     def global_step(self, step: int) -> None:
-        self._global_step = step
+        self._global_step.step = step
 
     def __call__(self, input: Any) -> Any:
         raise NotImplementedError()
