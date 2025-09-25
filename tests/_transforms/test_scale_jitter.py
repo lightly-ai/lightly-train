@@ -8,58 +8,56 @@
 from __future__ import annotations
 
 import numpy as np
-from albumentations import BboxParams, Compose
 import torch
-from torch.utils.data import Dataset, DataLoader
+from albumentations import BboxParams, Compose
+from torch.utils.data import Dataset
 
 from lightly_train._transforms.scale_jitter import ScaleJitter
-from lightly_train._commands.train_task_helpers import WorkerSharedStep
 
 
-class WorkerDataset(Dataset):
+class DummyDataset(Dataset):  # type: ignore[type-arg]
     def __init__(
         self,
         img_size: tuple[int, int],
         length: int,
-        shared_step: "WorkerSharedStep",
         bbox_params: BboxParams,
-    ):
+    ) -> None:
         self.img_size = img_size
         self.length = length
-        self.shared_step = shared_step
+        self.bbox_params = bbox_params
         self.transform = Compose(
             [
                 ScaleJitter(
-                    target_size=img_size,
+                    target_size=self.img_size,
                     scale_range=(1.0, 10.0),
                     num_scales=10,
                     p=1.0,
-                    step_seeding=True,
-                    seed_offset=42,
                 )
             ],
-            bbox_params=bbox_params,
+            bbox_params=self.bbox_params,
         )
 
     def __len__(self) -> int:
         return self.length
 
-    def __getitem__(self, idx: int) -> dict:
-        sample = {
-            "image": np.random.randint(0, 255, size=(*self.img_size, 3), dtype=np.uint8),
-            "mask": np.random.randint(0, 255, size=self.img_size, dtype=np.uint8),
-            "bboxes": np.array([[1, 1, 2, 2]], dtype=np.float32),
-            "class_labels": np.array([1], dtype=np.int32),
-        }
-        # Set the step for deterministic seeding using shared value
-        self.transform.transforms[0].step = self.shared_step.value
+    def __getitem__(self, index: int) -> dict[str, torch.Tensor | np.ndarray]:
+        img = np.random.randint(0, 255, size=(*self.img_size, 3), dtype=np.uint8)
+        mask = np.random.randint(0, 255, size=self.img_size, dtype=np.uint8)
+        bboxes = np.array([[1, 1, 2, 2]], dtype=np.float32)
+        classes = np.array([1], dtype=np.int32)
+
         out = self.transform(
-            image=sample["image"],
-            mask=sample["mask"],
-            bboxes=sample["bboxes"],
-            class_labels=sample["class_labels"],
+            image=img,
+            mask=mask,
+            bboxes=bboxes,
+            class_labels=classes,
         )
-        return out
+        return {
+            "image": torch.tensor(out["image"]),
+            "mask": torch.tensor(out["mask"]),
+            "bboxes": torch.tensor(out["bboxes"]),
+            "class_labels": torch.tensor(out["class_labels"]),
+        }
 
 
 class TestRandomScaleJitter:
@@ -256,37 +254,3 @@ class TestRandomScaleJitter:
         assert not np.array_equal(out1["mask"], out2["mask"])
         assert not np.array_equal(out1["bboxes"], out2["bboxes"])
         assert np.array_equal(out1["class_labels"], out2["class_labels"])
-
-    def test__step_seeding__multiprocessing_consistency(self) -> None:
-
-        img_size = (8, 8)
-        length = 100
-        bbox_params = BboxParams(format="pascal_voc", label_fields=["class_labels"])
-        shared_step = WorkerSharedStep()
-        step_val = 4
-        bs = 16
-
-        # Test for two different steps using shared WorkerSharedStep
-        shared_step.value = step_val
-        dataset = WorkerDataset(
-            img_size=img_size,
-            length=length,
-            shared_step=shared_step,
-            bbox_params=bbox_params,
-        )
-        loader = DataLoader(
-            dataset,
-            batch_size=bs,
-            num_workers=0,
-            shuffle=False,
-        )
-        # Check that collation works and batch shape changes.
-        outputs = []
-        for i, batch in enumerate(loader):
-            outputs.append(batch)
-            shared_step.value = step_val + i + 1
-            if i == 5:
-                break
-        assert outputs[0]["image"].shape[1:3] != outputs[1]["image"].shape[1:3]
-        assert outputs[0]["image"].shape[0] == outputs[0]["image"].shape[0]
-        assert outputs[1]["image"].shape[-1] == outputs[0]["image"].shape[-1]

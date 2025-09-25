@@ -11,12 +11,10 @@ import contextlib
 import hashlib
 import json
 import logging
-from functools import partial
 from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Generator, Iterable, Literal, Mapping
 
-import torch
 from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
@@ -62,12 +60,9 @@ from lightly_train._transforms.task_transform import (
     TaskTransformArgs,
 )
 from lightly_train.types import (
-    MaskSemanticSegmentationBatch,
-    MaskSemanticSegmentationDatasetItem,
     PathLike,
     TaskDatasetItem,
 )
-import multiprocessing as mp
 
 logger = logging.getLogger(__name__)
 
@@ -78,23 +73,6 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv3EoMTSemanticSegmentationTrain,
 ]
 
-
-class WorkerSharedStep:
-    """Class to share the current step between workers in a DataLoader."""
-
-    def __init__(self) -> None:
-        self._val = mp.Value("i", 0)
-
-    @property
-    def value(self) -> int:
-        with self._val.get_lock():
-            return self._val.value
-        
-    @value.setter
-    def value(self, val: int) -> None:
-        with self._val.get_lock():
-            self._val.value = val
-            
 
 def get_out_dir(
     fabric: Fabric,
@@ -449,35 +427,19 @@ def get_dataset(
     )
 
 
-# TODO(Guarin, 08/25): Move this function to the _data module.
-def collate_fn(
-    batch: list[MaskSemanticSegmentationDatasetItem], split: str
-) -> MaskSemanticSegmentationBatch:
-    # Prepare the batch without any stacking.
-    images = [item["image"] for item in batch]
-    masks = [item["mask"] for item in batch]
-
-    out: MaskSemanticSegmentationBatch = {
-        "image_path": [item["image_path"] for item in batch],
-        # Stack images during training as they all have the same shape.
-        # During validation every image can have a different shape.
-        "image": torch.stack(images) if split == "train" else images,
-        "mask": torch.stack(masks) if split == "train" else masks,
-        "binary_masks": [item["binary_masks"] for item in batch],
-    }
-
-    return out
-
-
 def get_train_dataloader(
     fabric: Fabric,
     dataset: TaskDataset,
+    transform_args: TaskTransformArgs,
     batch_size: int,
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
 ) -> DataLoader[TaskDatasetItem]:
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
     # TODO(Guarin, 07/25): Persistent workers by default?
+    collate_fn = dataset.batch_collate_fn_cls(
+        split="train", transform_args=transform_args
+    )
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
         batch_size=batch_size // fabric.world_size,
@@ -485,7 +447,7 @@ def get_train_dataloader(
         num_workers=num_workers,
         drop_last=True,
         timeout=timeout,
-        collate_fn=partial(collate_fn, split="train"),
+        collate_fn=collate_fn,
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
@@ -500,11 +462,15 @@ def get_train_dataloader(
 def get_val_dataloader(
     fabric: Fabric,
     dataset: TaskDataset,
+    transform_args: TaskTransformArgs,
     batch_size: int,
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
 ) -> DataLoader[TaskDatasetItem]:
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
+    collate_fn = dataset.batch_collate_fn_cls(
+        split="val", transform_args=transform_args
+    )
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
         batch_size=batch_size // fabric.world_size,
@@ -512,7 +478,7 @@ def get_val_dataloader(
         num_workers=num_workers,
         drop_last=False,
         timeout=timeout,
-        collate_fn=partial(collate_fn, split="validation"),
+        collate_fn=collate_fn,
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")

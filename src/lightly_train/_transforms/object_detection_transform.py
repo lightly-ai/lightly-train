@@ -21,7 +21,6 @@ from lightly_train._transforms.random_photometric_distort import (
     RandomPhotometricDistort,
 )
 from lightly_train._transforms.random_zoom_out import RandomZoomOut
-from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -139,22 +138,6 @@ class ObjectDetectionTransform(TaskTransform):
                 self.individual_transforms += [
                     VerticalFlip(p=transform_args.random_flip.vertical_prob)
                 ]
-
-        if transform_args.scale_jitter is not None:
-            self.individual_transforms += [
-                ScaleJitter(
-                    target_size=transform_args.image_size,
-                    scale_range=(
-                        transform_args.scale_jitter.min_scale,
-                        transform_args.scale_jitter.max_scale,
-                    ),
-                    num_scales=transform_args.scale_jitter.num_scales,
-                    divisible_by=transform_args.scale_jitter.divisible_by,
-                    p=transform_args.scale_jitter.prob,
-                    step_seeding=transform_args.scale_jitter.step_seeding,
-                    seed_offset=transform_args.scale_jitter.seed_offset,
-                ),
-            ]
 
         self.individual_transforms += [
             ToTensorV2(),

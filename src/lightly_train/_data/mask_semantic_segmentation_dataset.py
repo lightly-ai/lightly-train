@@ -19,6 +19,10 @@ from torch import Tensor
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._data.file_helpers import ImageMode
+from lightly_train._data.task_batch_collation import (
+    BaseCollateFunction,
+    MaskSemanticSegmentationCollateFunction,
+)
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._env import Env
@@ -56,6 +60,10 @@ ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
 
 
 class MaskSemanticSegmentationDataset(TaskDataset):
+    batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
+        MaskSemanticSegmentationCollateFunction
+    )
+
     def __init__(
         self,
         dataset_args: MaskSemanticSegmentationDatasetArgs,
