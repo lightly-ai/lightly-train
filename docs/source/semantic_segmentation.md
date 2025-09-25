@@ -14,6 +14,10 @@ Below we provide the model checkpoints and report the validation mIoUs and infer
 
 The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of 16 and a learning rate of 1e-4. The average FPS values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 
+You can also explore inferencing with these model weights using our Colab notebook:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
+
 ### ADE20k
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
