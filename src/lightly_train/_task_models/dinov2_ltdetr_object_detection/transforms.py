@@ -52,7 +52,9 @@ class DINOv2LTDetrObjectDetectionRandomFlipArgs(RandomFlipArgs):
 
 
 class DINOv2LTDetrObjectDetectionStopPolicyArgs(StopPolicyArgs):
-    stop_step: int = 71
+    # In the original implementation, stop_epoch is 71. We assume a dataset of 100_000
+    # and batch size 16.
+    stop_step: int = 71 * 100_000 // 16
     ops: Set[type[BasicTransform]] = Field(
         default_factory=lambda: {
             RandomPhotometricDistort,
@@ -87,9 +89,7 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
         default_factory=DINOv2LTDetrObjectDetectionRandomFlipArgs
     )
     image_size: tuple[int, int] = (644, 644)
-    stop_policy: DINOv2LTDetrObjectDetectionStopPolicyArgs | None = Field(
-        default_factory=DINOv2LTDetrObjectDetectionStopPolicyArgs
-    )
+    stop_policy: DINOv2LTDetrObjectDetectionStopPolicyArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionScaleJitterArgs
     )
