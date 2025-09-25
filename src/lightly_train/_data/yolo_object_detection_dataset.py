@@ -8,30 +8,38 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import ClassVar, Literal, Sequence
 
 import numpy as np
 import pydantic
 import torch
-from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
+from lightly_train._data.task_batch_collation import (
+    BaseCollateFunction,
+    ObjectDetectionCollateFunction,
+)
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._transforms.task_transform import TaskTransform
 from lightly_train.types import ImageFilename, ObjectDetectionDatasetItem, PathLike
 
 
-class YOLOObjectDetectionDataset(Dataset[ObjectDetectionDatasetItem]):
+class YOLOObjectDetectionDataset(TaskDataset):
+    batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
+        ObjectDetectionCollateFunction
+    )
+
     def __init__(
         self,
         dataset_args: YOLOObjectDetectionDatasetArgs,
         image_filenames: Sequence[ImageFilename],
         transform: TaskTransform,
     ) -> None:
+        super().__init__(transform=transform)
         self.args = dataset_args
         self.image_filenames = image_filenames
-        self.transform = transform
 
     def __len__(self) -> int:
         return len(self.image_filenames)

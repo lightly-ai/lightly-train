@@ -44,6 +44,9 @@ class DINOv2EoMTSemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
     max_scale: float = 2.0
     num_scales: int = 20
     prob: float = 1.0
+    step_seeding: bool = False
+    seed_offset: int = 0
+    divisible_by: int | None = None
 
 
 class DINOv2EoMTSemanticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):

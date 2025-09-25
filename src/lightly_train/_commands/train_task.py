@@ -27,6 +27,7 @@ from lightly_train._data.infinite_cycle_iterator import InfiniteCycleIterator
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModelArgs
@@ -258,13 +259,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     ) as train_mmap_filepath, helpers.get_dataset_temp_mmap_path(
         fabric=fabric, data=config.data.val.images
     ) as val_mmap_filepath:
-        train_dataset = helpers.get_dataset(
+        train_dataset: TaskDataset = helpers.get_dataset(
             fabric=fabric,
             dataset_args=config.data.get_train_args(),
             transform=train_transform,
             mmap_filepath=train_mmap_filepath,
         )
-        val_dataset = helpers.get_dataset(
+        val_dataset: TaskDataset = helpers.get_dataset(
             fabric=fabric,
             dataset_args=config.data.get_val_args(),
             transform=val_transform,
@@ -305,6 +306,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_dataloader = helpers.get_train_dataloader(
             fabric=fabric,
             dataset=train_dataset,
+            transform_args=train_transform_args,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
             loader_args=config.loader_args,
@@ -313,6 +315,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         val_dataloader = helpers.get_val_dataloader(
             fabric=fabric,
             dataset=val_dataset,
+            transform_args=val_transform_args,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
             loader_args=config.loader_args,
@@ -381,6 +384,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         else:
             pass
 
+        # Set the global_step in the transform (has to be done after loading potential
+        # checkpoint).
+        assert isinstance(train_dataloader.dataset, TaskDataset)
+        assert isinstance(val_dataloader.dataset, TaskDataset)
+        train_dataloader.dataset.transform.global_step = state["step"]
+        val_dataloader.dataset.transform.global_step = state["step"]
+
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
         infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
@@ -420,6 +430,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
+
+            # Update the global step in the transform.
+            train_dataloader.dataset.transform.global_step = state["step"]
+            val_dataloader.dataset.transform.global_step = state["step"]
 
             if is_log_step or is_last_step:
                 train_log_dict = helpers.compute_metrics(train_result.log_dict)
