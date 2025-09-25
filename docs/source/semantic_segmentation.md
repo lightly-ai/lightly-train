@@ -16,29 +16,27 @@ The experiments, unless stated otherwise, generally follow the protocol in the o
 
 ### ADE20k
 
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | TensorBoard | Checkpoint |
-|----------------|-------------|------------|----------|----------|-------------|------------|
-| dinov3/vits16-eomt | 23.34 | 512×512 | 0.4658 | 48.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757573634.dinov3_eomt_vits16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
-| dinov3/vitb16-eomt | 92.40 | 512×512 | 0.5437 | 48.1 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757511566.dinov3_eomt_vitb16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
-| dinov3/vitl16-eomt | 315.05 | 512×512 | 0.5912 | 22.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757520165.dinov3_eomt_vitl16_ade20k) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
-
-trained for 40,000 steps
+| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+|----------------|-------------|------------|----------|----------|------------|
+| dinov3/vits16-eomt | 23.34 | 512×512 | 0.4658 | 48.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
+| dinov3/vitb16-eomt | 92.40 | 512×512 | 0.5437 | 48.1 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
+| dinov3/vitl16-eomt | 315.05 | 512×512 | 0.5912 | 22.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
 
 ### COCO-Stuff
 
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | TensorBoard | Checkpoint |
-|----------------|-------------|------------|----------|----------|-------------|------------|
-| dinov3/vits16-eomt | 23.39 | 512×512 | 0.4650 | 88.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1758697582.lightlytrain_dinov3_eomt_vits16_cocostuff.3543725.0) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
-| dinov3/vitb16-eomt | 92.49 | 512×512 | 0.5203 | 43.3 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1758655170.lightlytrain_dinov3_eomt_vitb16_cocostuff.618723.0) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
-| dinov3/vitl16-eomt | 315.17 | 512×512 | 0.5439 | 20.4 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1758627506.lightlytrain_dinov3_eomt_vitl16_cocostuff.43772.0) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
+| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+|----------------|-------------|------------|----------|----------|------------|
+| dinov3/vits16-eomt | 23.39 | 512×512 | 0.4650 | 88.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
+| dinov3/vitb16-eomt | 92.49 | 512×512 | 0.5203 | 43.3 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
+| dinov3/vitl16-eomt | 315.17 | 512×512 | 0.5439 | 20.4 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
 
 ### Cityscapes
 
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | TensorBoard | Checkpoint |
-|----------------|-------------|------------|----------|----------|-------------|------------|
-| dinov3/vits16-eomt | 23.33 | 1024×1024 | 0.7857 | 18.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1758713306.lightlytrain_dinov3_eomt_vits16_cityscapes.3897178.0) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
-| dinov3/vitb16-eomt | 92.38 | 1024×1024 | 0.8095 | 8.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1758714993.lightlytrain_dinov3_eomt_vitb16_cityscapes.3948673.0) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
-| dinov3/vitl16-eomt | 315.02 | 1024×1024 | 0.8438 | 3.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1758715207.lightlytrain_dinov3_eomt_vitl16_cityscapes.3955664.0) | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
+| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+|----------------|-------------|------------|----------|----------|------------|
+| dinov3/vits16-eomt | 23.33 | 1024×1024 | 0.7857 | 18.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
+| dinov3/vitb16-eomt | 92.38 | 1024×1024 | 0.8095 | 8.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
+| dinov3/vitl16-eomt | 315.02 | 1024×1024 | 0.8438 | 3.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
 
 ## Semantic Segmentation with EoMT in LightlyTrain
 
