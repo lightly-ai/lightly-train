@@ -119,16 +119,9 @@ for more details.
 
 ## 🔥 Train SOTA Semantic Segmentation Models 🔥
 
-LightlyTrain's EoMT semantic segmentation model based on DINOv3 achieves a new
-state-of-the-art on the ADE20K benchmark. See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
-on how to get started!
+LightlyTrain's EoMT semantic segmentation model based on DINOv3 achieves a new state-of-the-art on the ADE20K benchmark! See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html) for more details.
 
-| Implementation | Model | Input Size | ADE20K<br>Val mIoU | Tensorboard | Checkpoint |
-|----------------|-------|------------|--------------------|-------------|------------|
-| LightlyTrain | dinov3/vits16-eomt | 518x518 | 46.6% | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757573634.dinov3_eomt_vits16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
-| LightlyTrain | dinov3/vitb16-eomt | 518x518 | 54.4% | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757511566.dinov3_eomt_vitb16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
-| LightlyTrain | dinov3/vitl16-eomt | 518x518 | **59.1%** | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/tensorboard/events.out.tfevents.1757520165.dinov3_eomt_vitl16_ade20k) | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
-| EoMT | dinov2/vitl14-eomt | 512x512 | 58.4% | - | [🔗](https://github.com/tue-mps/eomt) |
+You can explore training semantic segmentation models with the example code below:
 
 <details>
 <summary><strong>Example Code</strong></summary>
@@ -166,10 +159,49 @@ if __name__ == "__main__":
     )
 ```
 
-See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
-for more details.
-
 </details>
+
+### Benchmark Results
+
+Below we provide the model checkpoints and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available.
+
+The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average FPS values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
+
+You can also explort inferencing with these model weights using our Colab notebook below:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
+
+#### ADE20k Dataset
+
+| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+|----------------|----------------|-------------|------------|----------|----------|------------|
+| LightlyTrain | dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 48.9 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
+| LightlyTrain | dinov3/vitb16-eomt | 85.7 | 512×512 | 0.544 | 48.1 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
+| LightlyTrain | dinov3/vitl16-eomt | 303.2 | 512×512 | **0.591** | 22.6 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
+| EoMT | dinov2/vitl16-eomt | 319 | 512×512 | 0.584 | - | - |
+
+We trained the models with 40k steps and `num_queries=100` , as in the setting of the original EoMT paper.
+
+#### COCO-Stuff Dataset
+
+| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+|----------------|----------------|-------------|------------|----------|----------|------------|
+| LightlyTrain | dinov3/vits16-eomt | 21.6 | 512×512 | 0.465 | 88.7 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
+| LightlyTrain | dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
+| LightlyTrain | dinov3/vitl16-eomt | 303.2 | 512×512 | **0.544** | 20.4 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
+
+We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
+
+#### Cityscapes Dataset
+
+| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+|----------------|----------------|-------------|------------|----------|----------|------------|
+| LightlyTrain | dinov3/vits16-eomt | 21.6 | 1024×1024 | 0.786 | 18.6 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
+| LightlyTrain | dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
+| LightlyTrain | dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
+| EoMT | dinov2/vitl16-eomt | 319 | 1024×1024 | 0.842 | - | - |
+
+We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
 
 ## How It Works [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
 
