@@ -10,6 +10,8 @@ from __future__ import annotations
 import numpy as np
 import torch
 from albumentations import BboxParams, Compose
+from numpy.typing import NDArray
+from torch import Tensor
 from torch.utils.data import Dataset
 
 from lightly_train._transforms.scale_jitter import ScaleJitter
@@ -40,7 +42,9 @@ class DummyDataset(Dataset):  # type: ignore[type-arg]
     def __len__(self) -> int:
         return self.length
 
-    def __getitem__(self, index: int) -> dict[str, torch.Tensor | np.ndarray]:
+    def __getitem__(
+        self, index: int
+    ) -> dict[str, Tensor | NDArray[np.float64 | np.int64]]:
         img = np.random.randint(0, 255, size=(*self.img_size, 3), dtype=np.uint8)
         mask = np.random.randint(0, 255, size=self.img_size, dtype=np.uint8)
         bboxes = np.array([[1, 1, 2, 2]], dtype=np.float32)
