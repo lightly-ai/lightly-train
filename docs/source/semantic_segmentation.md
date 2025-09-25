@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
 ### Load the Trained Model from Checkpoint and Predict
 
-After the training completes you can load the model for inference with the exported model weights:
+After the training completes you can load the model for inference like this:
 
 ```python
 import lightly_train

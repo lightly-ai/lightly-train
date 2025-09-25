@@ -98,7 +98,7 @@ def test_train_semantic_segmentation(
     assert (out / "train.log").exists()
 
     model = lightly_train.load_model_from_checkpoint(
-        exported_model_or_checkpoint=out / "exported_models" / "exported_last.pt"
+        checkpoint=out / "exported_models" / "exported_last.pt"
     )
     # Check forward pass
     dummy_input = torch.randn(1, num_channels, 224, 224)
@@ -115,8 +115,6 @@ def test_train_semantic_segmentation(
         "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
     ),
 )
-
-
 @pytest.mark.parametrize(
     "model_name, model_args",
     [

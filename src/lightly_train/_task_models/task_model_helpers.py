@@ -18,13 +18,13 @@ from lightly_train.types import PathLike
 
 
 def load_model_from_checkpoint(
-    exported_model_or_checkpoint: PathLike,
+    checkpoint: PathLike,
     device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
 ) -> TaskModel:
     """Load a model from an exported model file (in .pt format) or a checkpoint file (in .ckpt format).
 
     Args:
-        exported_model_or_checkpoint:
+        checkpoint:
             Path to the exported model file or checkpoint file.
         device:
             Device to load the model on. If None, the model will be loaded onto a GPU
@@ -34,9 +34,7 @@ def load_model_from_checkpoint(
         The loaded model.
     """
     device = _resolve_device(device)
-    checkpoint = common_helpers.get_checkpoint_path(
-        checkpoint=exported_model_or_checkpoint
-    )
+    checkpoint = common_helpers.get_checkpoint_path(checkpoint=checkpoint)
     ckpt = torch.load(checkpoint, weights_only=False, map_location=device)
 
     # Import the model class dynamically

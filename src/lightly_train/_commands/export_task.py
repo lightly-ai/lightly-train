@@ -177,7 +177,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     ).as_posix()  # TODO(Yutong, 07/25): make sure the format corrsponds to the output file extension!
     checkpoint_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
     task_model = task_model_helpers.load_model_from_checkpoint(
-        exported_model_or_checkpoint=checkpoint_path
+        checkpoint=checkpoint_path
     )
     task_model.eval()
 
@@ -247,7 +247,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
 
             task_model = task_model_helpers.load_model_from_checkpoint(
-                exported_model_or_checkpoint=checkpoint_path, device="cpu"
+                checkpoint=checkpoint_path, device="cpu"
             )
             outputs_model = task_model(x_model)
 
