@@ -21,12 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add semantic segmentation benchmark results and model weights trained on ADE20k, COCO-Stuff, and Cityscapes datasets.
-- Add support for exporting the semantic segmentation model weights to `exported_models/exported_last.pt` under the output directory.
-- Add support for training semantic segmentation models by loading from a model weight file with the `checkpoint` parameter.
-- Add `simplify` flag to ONNX export task to simplify the model after export.
-- Add support for training models on multi-channel images with `transform_args={"num_channels": 4}`.
-- Add support for using custom mask names for the inputs in semantic segmentation.
+- Add EoMT semantic segmentation benchmark results and model weights trained on ADE20k, COCO-Stuff, and Cityscapes datasets.
+- Add support for exporting the semantic segmentation model weights to `exported_models/exported_last.pt`.
+- Add support for allow loading semantic segmentation model weights for training.
+- Add `simplify` flag to ONNX `export_task`.
 - Add support for using DINOv3 models as teacher in distillationv1.
 
 ### Fixed
