@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
 ### Benchmark Results
 
-Below we provide the model checkpoints and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available.
+Below we provide the model weights and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available. Distribution and use of these model weights are governed by the [DINOv3 License](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md), and accessing them constitutes acceptance of its terms.
 
 The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average FPS values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 
@@ -173,7 +173,7 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 #### ADE20k Dataset
 
-| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Model Weights |
 |----------------|----------------|-------------|------------|----------|----------|------------|
 | LightlyTrain | dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 48.9 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
 | LightlyTrain | dinov3/vitb16-eomt | 85.7 | 512×512 | 0.544 | 48.1 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
