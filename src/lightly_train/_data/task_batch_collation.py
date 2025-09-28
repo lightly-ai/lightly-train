@@ -11,7 +11,6 @@ from typing import Literal
 
 import numpy as np
 import torch
-from torch import Tensor
 
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
@@ -93,9 +92,9 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
             # Apply transform.
             seed = np.random.randint(0, 1_000_000)
             self.scale_jitter.global_step = seed
-            images: list[Tensor] = []
-            bboxes: list[Tensor] = []
-            classes: list[Tensor] = []
+            images = []
+            bboxes = []
+            classes = []
             for item in batch_np:
                 out = self.scale_jitter(
                     image=item["image"],
@@ -105,6 +104,16 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
                 images.append(out["image"])
                 bboxes.append(out["bboxes"])
                 classes.append(out["class_labels"])
+
+            # Old versions of albumentations return classes/boxes as a list.
+            bboxes = [
+                bbox if isinstance(bbox, np.ndarray) else np.array(bbox)
+                for bbox in bboxes
+            ]
+            classes = [
+                cls_ if isinstance(cls_, np.ndarray) else np.array(cls_)
+                for cls_ in classes
+            ]
 
             # Turn back into torch tensors.
             images = [torch.from_numpy(img).to(torch.float32) for img in images]

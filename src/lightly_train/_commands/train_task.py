@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from multiprocessing import Manager
 from typing import Any, Literal
 
 import torch
@@ -242,16 +243,22 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         model_name=config.model,
     )
 
+    shared_dict = Manager().dict()
+
     train_transform_args, val_transform_args = helpers.get_transform_args(
         train_model_cls=train_model_cls,
         transform_args=config.transform_args,
         ignore_index=config.data.ignore_index,
     )
     train_transform = helpers.get_train_transform(
-        train_model_cls=train_model_cls, train_transform_args=train_transform_args
+        train_model_cls=train_model_cls,
+        train_transform_args=train_transform_args,
+        shared_dict=shared_dict,
     )
     val_transform = helpers.get_val_transform(
-        train_model_cls=train_model_cls, val_transform_args=val_transform_args
+        train_model_cls=train_model_cls,
+        val_transform_args=val_transform_args,
+        shared_dict=shared_dict,
     )
 
     with helpers.get_dataset_temp_mmap_path(
@@ -405,6 +412,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             logger.info(f"Resuming training from step {start_step}/{config.steps}...")
         else:
             logger.info(f"Training for {config.steps} steps...")
+
+        # Set the global_step in the transform after potential loading of checkpoint.
+        train_dataloader.dataset.transform.global_step = state["step"]
+        val_dataloader.dataset.transform.global_step = state["step"]
 
         fabric.barrier()
         for step in range(start_step, config.steps):

@@ -7,12 +7,12 @@
 #
 from __future__ import annotations
 
+from multiprocessing.managers import DictProxy
 from typing import Any, TypedDict
 
 from pydantic import ConfigDict
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data.dataloader_helpers import WorkerSharedStep
 
 
 class TaskTransformInput(TypedDict):
@@ -38,8 +38,14 @@ class TaskTransformArgs(PydanticConfig):
 class TaskTransform:
     transform_args_cls: type[TaskTransformArgs]
 
-    def __init__(self, transform_args: TaskTransformArgs):
-        self._global_step = WorkerSharedStep(step=0)
+    def __init__(
+        self,
+        transform_args: TaskTransformArgs,
+        shared_dict: DictProxy[str, Any] | dict[str, Any] | None = None,
+    ) -> None:
+        if shared_dict is None:
+            shared_dict = {"step": 0}
+        self._shared_dict = shared_dict
         if not isinstance(transform_args, self.transform_args_cls):
             raise TypeError(
                 f"transform_args must be of type {self.transform_args_cls.__name__}, "
@@ -49,11 +55,11 @@ class TaskTransform:
 
     @property
     def global_step(self) -> int:
-        return self._global_step.step
+        return int(self._shared_dict["step"])
 
     @global_step.setter
     def global_step(self, step: int) -> None:
-        self._global_step.step = step
+        self._shared_dict["step"] = step
 
     def __call__(self, input: Any) -> Any:
         raise NotImplementedError()

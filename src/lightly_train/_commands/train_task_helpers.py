@@ -260,15 +260,21 @@ def get_transform_args(
 def get_train_transform(
     train_model_cls: type[TrainModel],
     train_transform_args: TaskTransformArgs,
+    shared_dict: Any,
 ) -> TaskTransform:
-    return train_model_cls.train_transform_cls(transform_args=train_transform_args)
+    return train_model_cls.train_transform_cls(
+        transform_args=train_transform_args, shared_dict=shared_dict
+    )
 
 
 def get_val_transform(
     train_model_cls: type[TrainModel],
     val_transform_args: TaskTransformArgs,
+    shared_dict: Any,
 ) -> TaskTransform:
-    return train_model_cls.val_transform_cls(transform_args=val_transform_args)
+    return train_model_cls.val_transform_cls(
+        transform_args=val_transform_args, shared_dict=shared_dict
+    )
 
 
 def get_sha256(value: Any) -> str:
