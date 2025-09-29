@@ -10,3 +10,5 @@ from lightly_train._configs.config import PydanticConfig
 
 class TaskSaveCheckpointArgs(PydanticConfig):
     save_every_num_steps: int = 1000
+    save_last: bool = True
+    save_best: bool = True

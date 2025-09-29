@@ -443,7 +443,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 fabric.log_dict(train_log_dict, step=step)
                 helpers.reset_metrics(train_result.log_dict)
 
-            if is_save_ckpt_step or is_last_step:
+            if config.save_checkpoint_args.save_last and (
+                is_save_ckpt_step or is_last_step
+            ):
                 helpers.save_checkpoint(
                     fabric=fabric, out_dir=out_dir, state=state, best_or_last="last"
                 )
@@ -484,25 +486,27 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         fabric.log_dict(val_log_dict, step=step)
                         helpers.reset_metrics(val_result.log_dict)
 
-                        if (val_miou := val_log_dict["val_metric/miou"]) > max_val_miou:
-                            helpers.save_checkpoint(
-                                fabric=fabric,
-                                out_dir=out_dir,
-                                state=state,
-                                best_or_last="best",
-                            )
+                        val_miou = val_log_dict["val_metric/miou"]
+                        if val_miou > max_val_miou:
+                            if config.save_checkpoint_args.save_best:
+                                helpers.save_checkpoint(
+                                    fabric=fabric,
+                                    out_dir=out_dir,
+                                    state=state,
+                                    best_or_last="best",
+                                )
 
-                            model_dict = {
-                                "model_class_path": state["model_class_path"],
-                                "model_init_args": state["model_init_args"],
-                                "train_model": train_model.state_dict(),
-                            }
+                                model_dict = {
+                                    "model_class_path": state["model_class_path"],
+                                    "model_init_args": state["model_init_args"],
+                                    "train_model": train_model.state_dict(),
+                                }
 
-                            helpers.export_model(
-                                out_dir=out_dir,
-                                model_dict=model_dict,
-                                best_or_last="best",
-                            )
+                                helpers.export_model(
+                                    out_dir=out_dir,
+                                    model_dict=model_dict,
+                                    best_or_last="best",
+                                )
 
                             max_val_miou = val_miou
 
