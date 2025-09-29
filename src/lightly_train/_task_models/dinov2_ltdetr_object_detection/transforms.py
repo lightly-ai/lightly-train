@@ -7,20 +7,15 @@
 #
 from __future__ import annotations
 
-from typing import Literal, Sequence, Set
+from typing import Literal, Sequence
 
-from albumentations import BasicTransform, BboxParams
+from albumentations import BboxParams
 from pydantic import Field
 
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransform,
     ObjectDetectionTransformArgs,
 )
-from lightly_train._transforms.random_photometric_distort import (
-    RandomPhotometricDistort,
-)
-from lightly_train._transforms.random_zoom_out import RandomZoomOut
-from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomPhotometricDistortArgs,
@@ -49,20 +44,6 @@ class DINOv2LTDetrObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
 class DINOv2LTDetrObjectDetectionRandomFlipArgs(RandomFlipArgs):
     horizontal_prob: float = 0.5
     vertical_prob: float = 0.0
-
-
-class DINOv2LTDetrObjectDetectionStopPolicyArgs(StopPolicyArgs):
-    # In the original implementation, stop_epoch is 71. We assume a dataset of 100_000
-    # and batch size 16.
-    stop_step: int = 71 * 100_000 // 16
-    ops: Set[type[BasicTransform]] = Field(
-        default_factory=lambda: {
-            RandomPhotometricDistort,
-            RandomZoomOut,
-            ScaleJitter,
-            # TODO: Lionel (09/25): Add RandomIoUCrop.
-        }
-    )
 
 
 class DINOv2LTDetrObjectDetectionScaleJitterArgs(ScaleJitterArgs):
@@ -103,7 +84,7 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     )
     image_size: tuple[int, int] = (644, 644)
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
-    stop_policy: DINOv2LTDetrObjectDetectionStopPolicyArgs | None = None
+    stop_policy: StopPolicyArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionScaleJitterArgs
     )
