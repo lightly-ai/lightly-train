@@ -59,11 +59,11 @@ class RandomFlipArgs(PydanticConfig):
 
 
 class RandomPhotometricDistortArgs(PydanticConfig):
-    brightness: tuple[float, float]
-    contrast: tuple[float, float]
-    saturation: tuple[float, float]
-    hue: tuple[float, float]
-    prob: float
+    brightness: tuple[float, float] = Field(strict=False)
+    contrast: tuple[float, float] = Field(strict=False)
+    saturation: tuple[float, float] = Field(strict=False)
+    hue: tuple[float, float] = Field(strict=False)
+    prob: float = Field(ge=0.0, le=1.0)
 
 
 class RandomRotationArgs(PydanticConfig):
@@ -72,9 +72,9 @@ class RandomRotationArgs(PydanticConfig):
 
 
 class RandomZoomOutArgs(PydanticConfig):
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
     fill: float
-    side_range: tuple[float, float]
+    side_range: tuple[float, float] = Field(strict=False)
 
 
 class ColorJitterArgs(PydanticConfig):

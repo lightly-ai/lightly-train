@@ -13,6 +13,7 @@ import numpy as np
 from albumentations import BboxParams, Compose, HorizontalFlip, VerticalFlip
 from albumentations.pytorch.transforms import ToTensorV2
 from numpy.typing import NDArray
+from pydantic import ConfigDict
 from torch import Tensor
 from typing_extensions import NotRequired
 
@@ -62,6 +63,9 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     stop_policy: StopPolicyArgs | None
     scale_jitter: ScaleJitterArgs | None
     bbox_params: BboxParams | None
+
+    # Necessary for the StopPolicyArgs, which are not serializable by pydantic.
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def resolve_auto(self) -> None:
         if self.num_channels == "auto":

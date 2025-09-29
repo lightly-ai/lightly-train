@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Literal, Set
 
 from albumentations import BasicTransform, BboxParams
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransform,
@@ -99,8 +99,6 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
             format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0
         ),
     )
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class DINOv2LTDetrObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):

@@ -122,7 +122,7 @@ class TestObjectDetectionTransform:
     ) -> None:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
-        stop_policy = None # TODO: Lionel (09/25) Pass as function argument.
+        stop_policy = None  # TODO: Lionel (09/25) Pass as function argument.
         transform_args = ObjectDetectionTransformArgs(
             channel_drop=channel_drop,
             num_channels="auto",
