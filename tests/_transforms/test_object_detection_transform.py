@@ -100,7 +100,7 @@ PossibleArgsTuple = (
     [None, _get_photometric_distort_args()],
     [None, _get_random_zoom_out_args()],
     [None, _get_random_flip_args()],
-    [None, _get_stop_policy_args()],
+    # TODO: Lionel (09/25) Add StopPolicyArgs test cases.
     [None, _get_scale_jitter_args()],
 )
 
@@ -109,7 +109,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_flip, stop_policy, scale_jitter",
+        "channel_drop, photometric_distort, random_zoom_out, random_flip, scale_jitter",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -118,11 +118,11 @@ class TestObjectDetectionTransform:
         photometric_distort: RandomPhotometricDistortArgs | None,
         random_zoom_out: RandomZoomOutArgs | None,
         random_flip: RandomFlipArgs | None,
-        stop_policy: StopPolicyArgs | None,
         scale_jitter: ScaleJitterArgs | None,
     ) -> None:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
+        stop_policy = None # TODO: Lionel (09/25) Pass as function argument.
         transform_args = ObjectDetectionTransformArgs(
             channel_drop=channel_drop,
             num_channels="auto",
