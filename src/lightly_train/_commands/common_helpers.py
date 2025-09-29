@@ -391,6 +391,8 @@ def _get_package(model: Module) -> BasePackage:
 def get_dataset_temp_mmap_path(
     data: PathLike | Sequence[PathLike],
     out: PathLike,
+    resume_interrupted: bool,
+    overwrite: bool,
 ) -> Generator[Path, Any, Any]:
     """Generate file in the cache directory to be used for memory-mapping the dataset.
 
@@ -414,6 +416,8 @@ def get_dataset_temp_mmap_path(
         # Use data as identifier to share the mmap file across multiple runs.
         # NOTE(Guarin, 09/25): Hash of data might be slow if data is a long list of
         # filenames or directories.
+        if isinstance(data, (str, Path)):
+            data = Path(data).resolve()
         identifier = f"{data}-{distributed_helpers.get_node_rank() or 0}"
     else:
         # Use out as identifier to create a unique mmap file for each run. We assume
@@ -430,6 +434,10 @@ def get_dataset_temp_mmap_path(
 
     if (
         not Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value
+        # With resume and overwrite we make the assumption that the data did not change
+        # since the last run.
+        and not resume_interrupted
+        and not overwrite
         and mmap_filepath.exists()
         and distributed_helpers.is_local_rank_zero()
     ):
@@ -453,8 +461,8 @@ def get_dataset_temp_mmap_path(
                 "If the files in `data` were modified since the last run, please "
                 "re-run with a new output directory or delete the following leftover "
                 "files:\n "
-                "   - {mmap_filepath}\n"
-                "   - {ref_count_filepath}\n"
+                f"  - {mmap_filepath}\n"
+                f"  - {ref_count_filepath}"
             )
         else:
             raise RuntimeError(
@@ -462,8 +470,8 @@ def get_dataset_temp_mmap_path(
                 "This error can also happen if a previous run crashed and did not shut "
                 "down properly. If no other run is using this output directory, please go "
                 "ahead and delete the following leftover files:\n "
-                f" - {mmap_filepath}\n"
-                f" - {ref_count_filepath}\n"
+                f"  - {mmap_filepath}\n"
+                f"  - {ref_count_filepath}"
             )
 
     try:
@@ -478,8 +486,8 @@ def get_dataset_temp_mmap_path(
 
 def _increment_ref_count(ref_file: Path) -> None:
     lock_file = ref_file.with_suffix(".lock")
-
-    with FileLock(lock_file, timeout=300):
+    lock = FileLock(lock_file, timeout=300)
+    with lock:
         # Ensure file exists within the lock to avoid race conditions
         ref_file.touch()
         with open(ref_file, "r+") as f:
@@ -492,8 +500,8 @@ def _increment_ref_count(ref_file: Path) -> None:
 def _decrement_and_cleanup_if_zero(mmap_file: Path, ref_file: Path) -> None:
     try:
         lock_file = ref_file.with_suffix(".lock")
-
-        with FileLock(lock_file, timeout=300):
+        lock = FileLock(lock_file, timeout=300)
+        with lock:
             with open(ref_file, "r+") as f:
                 count = max(0, int(f.read() or "1") - 1)
                 f.seek(0)
@@ -512,12 +520,16 @@ def get_dataset_mmap_file(
     out_dir: Path,
     filenames: Iterable[str],
     mmap_filepath: Path,
+    resume_interrupted: bool,
+    overwrite: bool,
 ) -> MemoryMappedSequence[str]:
     """Returns memory-mapped filenames shared across all ranks.
 
     Filenames are written to mmap_filepath by rank zero and read by all ranks.
     """
-    if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value and mmap_filepath.exists():
+    if (
+        Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value or resume_interrupted or overwrite
+    ) and mmap_filepath.exists():
         # If the file already exists and we are allowed to reuse it, return it.
         logger.warning(f"Reusing existing memory-mapped file '{mmap_filepath}'.")
         return MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath)
@@ -567,6 +579,8 @@ def get_dataset(
     num_channels: int,
     mmap_filepath: Path | None,
     out_dir: Path,
+    resume_interrupted: bool,
+    overwrite: bool,
 ) -> Dataset[DatasetItem]:
     if isinstance(data, Dataset):
         logger.debug("Using provided dataset.")
@@ -597,6 +611,8 @@ def get_dataset(
                 out_dir=out_dir,
                 filenames=filenames,
                 mmap_filepath=mmap_filepath,
+                resume_interrupted=resume_interrupted,
+                overwrite=overwrite,
             ),
             transform=transform,
             num_channels=num_channels,
@@ -616,6 +632,8 @@ def get_dataset(
                 out_dir=out_dir,
                 filenames=filenames,
                 mmap_filepath=mmap_filepath,
+                resume_interrupted=resume_interrupted,
+                overwrite=overwrite,
             ),
             transform=transform,
             num_channels=num_channels,

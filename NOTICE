@@ -5,7 +5,7 @@ This project incorporates the following third-party components:
 **DINOv2**
 - Source: https://github.com/facebookresearch/dinov2
 - License: Apache License 2.0
-- License file: licenses/DINOv2_LICENSE
+- License file: licences/DINOv2_LICENSE
 - Modifications:
   - The logging related to xFormers availability has been changed and moved to a single place. Affected files: .../attention.py, .../block.py, .../swiglu_ffn.py, vision_transformer.py
 
@@ -27,12 +27,17 @@ This project incorporates the following third-party components:
 **EoMT**
 - Source: https://github.com/tue-mps/eomt
 - License: MIT License
-- License file: licenses/EOMT_LICENSE
+- License file: licences/EOMT_LICENSE
 
 **PyTorch Lightning**
 - Source: https://github.com/Lightning-AI/pytorch-lightning
 - License: Apache License 2.0
-- License file: licenses/PYTORCH_LIGHTNING_LICENSE
+- License file: licences/PYTORCH_LIGHTNING_LICENSE
+
+**DINOv3**
+- Source: https://github.com/facebookresearch/dinov3
+- License: DINOv3 License (custom)
+- License file: licences/DINOv3_LICENSE.md
 
 ---
 

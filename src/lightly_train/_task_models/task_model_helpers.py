@@ -21,11 +21,11 @@ def load_model_from_checkpoint(
     checkpoint: PathLike,
     device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
 ) -> TaskModel:
-    """Load a model from a checkpoint file.
+    """Load a model from an exported model file (in .pt format) or a checkpoint file (in .ckpt format).
 
     Args:
         checkpoint:
-            Path to the checkpoint file. For example "out/checkpoints/last.ckpt".
+            Path to the exported model file or checkpoint file.
         device:
             Device to load the model on. If None, the model will be loaded onto a GPU
             (`"cuda"` or `"mps"`) if available, and otherwise fall back to CPU.
