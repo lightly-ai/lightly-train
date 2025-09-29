@@ -8,60 +8,9 @@
 from __future__ import annotations
 
 import numpy as np
-import torch
 from albumentations import BboxParams, Compose
-from numpy.typing import NDArray
-from torch import Tensor
-from torch.utils.data import Dataset
 
 from lightly_train._transforms.scale_jitter import ScaleJitter
-
-
-class DummyDataset(Dataset):  # type: ignore[type-arg]
-    def __init__(
-        self,
-        img_size: tuple[int, int],
-        length: int,
-        bbox_params: BboxParams,
-    ) -> None:
-        self.img_size = img_size
-        self.length = length
-        self.bbox_params = bbox_params
-        self.transform = Compose(
-            [
-                ScaleJitter(
-                    target_size=self.img_size,
-                    scale_range=(1.0, 10.0),
-                    num_scales=10,
-                    p=1.0,
-                )
-            ],
-            bbox_params=self.bbox_params,
-        )
-
-    def __len__(self) -> int:
-        return self.length
-
-    def __getitem__(
-        self, index: int
-    ) -> dict[str, Tensor | NDArray[np.float64 | np.int64]]:
-        img = np.random.randint(0, 255, size=(*self.img_size, 3), dtype=np.uint8)
-        mask = np.random.randint(0, 255, size=self.img_size, dtype=np.uint8)
-        bboxes = np.array([[1, 1, 2, 2]], dtype=np.float32)
-        classes = np.array([1], dtype=np.int32)
-
-        out = self.transform(
-            image=img,
-            mask=mask,
-            bboxes=bboxes,
-            class_labels=classes,
-        )
-        return {
-            "image": torch.tensor(out["image"]),
-            "mask": torch.tensor(out["mask"]),
-            "bboxes": torch.tensor(out["bboxes"]),
-            "class_labels": torch.tensor(out["class_labels"]),
-        }
 
 
 class TestRandomScaleJitter:
@@ -73,6 +22,7 @@ class TestRandomScaleJitter:
         classes = np.array([1], dtype=np.int32)
 
         transform = ScaleJitter(
+            sizes=None,
             target_size=img_size,
             scale_range=(2.0, 4.0),
             num_scales=3,
@@ -100,6 +50,7 @@ class TestRandomScaleJitter:
         classes = np.array([1], dtype=np.int32)
 
         transform = ScaleJitter(
+            sizes=None,
             target_size=img_size,
             scale_range=(0.2, 0.7),
             num_scales=3,
@@ -119,6 +70,35 @@ class TestRandomScaleJitter:
         assert np.array(out["class_labels"]).shape == classes.shape
         assert np.array(out["bboxes"]).shape == bboxes.shape
 
+    def test__call__check_return_shapes_in_sizes(self) -> None:
+        img_size = (16, 16)
+        img = np.random.randint(0, 255, size=(*img_size, 3), dtype=np.uint8)
+        mask = np.random.randint(0, 255, size=img_size, dtype=np.uint8)
+        bboxes = np.array([[4, 4, 12, 12]], dtype=np.float32)
+        classes = np.array([1], dtype=np.int32)
+
+        sizes = [(8, 8), (12, 12), (20, 20)]
+        transform = ScaleJitter(
+            sizes=sizes,
+            target_size=img_size,
+            scale_range=(0.5, 2.0),
+            num_scales=3,
+            p=1.0,
+        )
+        bbox_params = BboxParams(format="pascal_voc", label_fields=["class_labels"])
+        out = transform(
+            image=img,
+            mask=mask,
+            bboxes=bboxes,
+            bbox_params=bbox_params,
+            class_labels=classes,
+        )
+
+        assert out["image"].shape in [(s[0], s[1], 3) for s in sizes]
+        assert out["mask"].shape in [s for s in sizes]
+        assert np.array(out["class_labels"]).shape == classes.shape
+        assert np.array(out["bboxes"]).shape == bboxes.shape
+
     def test__call__no_transform_when_p0(self) -> None:
         img_size = (8, 8)
         img = np.random.randint(0, 255, size=(*img_size, 3), dtype=np.uint8)
@@ -127,6 +107,7 @@ class TestRandomScaleJitter:
         classes = np.array([1], dtype=np.int32)
 
         transform = ScaleJitter(
+            sizes=None,
             target_size=img_size,
             scale_range=(1.0, 2.0),
             num_scales=3,
@@ -157,6 +138,7 @@ class TestRandomScaleJitter:
         transform = Compose(
             [
                 ScaleJitter(
+                    sizes=None,
                     target_size=img_size,
                     scale_range=(2.0, 4.0),
                     num_scales=2,
@@ -188,6 +170,7 @@ class TestRandomScaleJitter:
         transform = Compose(
             [
                 ScaleJitter(
+                    sizes=None,
                     target_size=img_size,
                     scale_range=(1.0, 10.0),
                     num_scales=10,
@@ -228,6 +211,7 @@ class TestRandomScaleJitter:
         transform = Compose(
             [
                 ScaleJitter(
+                    sizes=None,
                     target_size=img_size,
                     scale_range=(1.0, 10.0),
                     num_scales=10,

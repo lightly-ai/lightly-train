@@ -61,12 +61,20 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
         assert isinstance(transform_args, ObjectDetectionTransformArgs)
         self.scale_jitter: ScaleJitter | None
         if transform_args.scale_jitter is not None:
-            self.scale_jitter = ScaleJitter(
-                target_size=transform_args.image_size,
-                scale_range=(
+            if (
+                transform_args.scale_jitter.min_scale is None
+                or transform_args.scale_jitter.max_scale is None
+            ):
+                scale_range = None
+            else:
+                scale_range = (
                     transform_args.scale_jitter.min_scale,
                     transform_args.scale_jitter.max_scale,
-                ),
+                )
+            self.scale_jitter = ScaleJitter(
+                sizes=transform_args.scale_jitter.sizes,
+                target_size=transform_args.image_size,
+                scale_range=scale_range,
                 num_scales=transform_args.scale_jitter.num_scales,
                 divisible_by=transform_args.scale_jitter.divisible_by,
                 p=transform_args.scale_jitter.prob,

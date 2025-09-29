@@ -147,6 +147,9 @@ class SemanticSegmentationTransform(TaskTransform):
 
             # This follows recommendation on how to replace torchvision ScaleJitter with
             # albumentations: https://albumentations.ai/docs/torchvision-kornia2albumentations/
+            assert transform_args.scale_jitter.min_scale is not None
+            assert transform_args.scale_jitter.max_scale is not None
+            assert transform_args.scale_jitter.num_scales is not None
             scales = np.linspace(
                 start=transform_args.scale_jitter.min_scale,
                 stop=transform_args.scale_jitter.max_scale,

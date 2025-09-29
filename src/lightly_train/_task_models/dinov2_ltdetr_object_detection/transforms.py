@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Literal, Set
+from typing import Literal, Sequence, Set
 
 from albumentations import BasicTransform, BboxParams
 from pydantic import Field
@@ -66,9 +66,24 @@ class DINOv2LTDetrObjectDetectionStopPolicyArgs(StopPolicyArgs):
 
 
 class DINOv2LTDetrObjectDetectionScaleJitterArgs(ScaleJitterArgs):
-    min_scale: float = 0.76
-    max_scale: float = 1.27
-    num_scales: int = 13
+    sizes: Sequence[tuple[int, int]] | None = [
+        (490, 490),
+        (518, 518),
+        (546, 546),
+        (588, 588),
+        (616, 616),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (686, 686),
+        (714, 714),
+        (742, 742),
+        (770, 770),
+        (812, 812),
+    ]
+    min_scale: float | None = 0.76
+    max_scale: float | None = 1.27
+    num_scales: int | None = 13
     prob: float = 1.0
     # The model is patch 14.
     divisible_by: int | None = 14
