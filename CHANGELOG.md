@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add support for saving the best semantic segmentation checkpoints and model weights during training
+
 ### Changed
 
 ### Deprecated
