@@ -125,8 +125,11 @@ class SemanticSegmentationTransform(TaskTransform):
         SemanticSegmentationTransformArgs
     )
 
-    def __init__(self, transform_args: SemanticSegmentationTransformArgs) -> None:
-        super().__init__(transform_args)
+    def __init__(
+        self,
+        transform_args: SemanticSegmentationTransformArgs,
+    ) -> None:
+        super().__init__(transform_args=transform_args)
 
         # Initialize the list of transforms to apply.
         transform: list[BasicTransform] = []
@@ -140,8 +143,13 @@ class SemanticSegmentationTransform(TaskTransform):
             ]
 
         if transform_args.scale_jitter is not None:
+            # TODO (Lionel, 09/25): Use our custom ScaleJitter transform.
+
             # This follows recommendation on how to replace torchvision ScaleJitter with
             # albumentations: https://albumentations.ai/docs/torchvision-kornia2albumentations/
+            assert transform_args.scale_jitter.min_scale is not None
+            assert transform_args.scale_jitter.max_scale is not None
+            assert transform_args.scale_jitter.num_scales is not None
             scales = np.linspace(
                 start=transform_args.scale_jitter.min_scale,
                 stop=transform_args.scale_jitter.max_scale,

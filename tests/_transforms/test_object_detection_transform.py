@@ -16,6 +16,7 @@ import torch
 from albumentations import BboxParams
 from numpy.typing import NDArray
 
+from lightly_train._data.task_batch_collation import ObjectDetectionCollateFunction
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransform,
@@ -30,6 +31,7 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     StopPolicyArgs,
 )
+from lightly_train.types import ObjectDetectionDatasetItem
 
 
 def _get_channel_drop_args() -> ChannelDropArgs:
@@ -79,6 +81,7 @@ def _get_stop_policy_args() -> StopPolicyArgs:
 
 def _get_scale_jitter_args() -> ScaleJitterArgs:
     return ScaleJitterArgs(
+        sizes=None,
         min_scale=0.76,
         max_scale=1.27,
         num_scales=13,
@@ -98,7 +101,7 @@ PossibleArgsTuple = (
     [None, _get_photometric_distort_args()],
     [None, _get_random_zoom_out_args()],
     [None, _get_random_flip_args()],
-    [None, _get_stop_policy_args()],
+    # TODO: Lionel (09/25) Add StopPolicyArgs test cases.
     [None, _get_scale_jitter_args()],
 )
 
@@ -107,7 +110,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_flip, stop_policy, scale_jitter",
+        "channel_drop, photometric_distort, random_zoom_out, random_flip, scale_jitter",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -116,11 +119,11 @@ class TestObjectDetectionTransform:
         photometric_distort: RandomPhotometricDistortArgs | None,
         random_zoom_out: RandomZoomOutArgs | None,
         random_flip: RandomFlipArgs | None,
-        stop_policy: StopPolicyArgs | None,
         scale_jitter: ScaleJitterArgs | None,
     ) -> None:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
+        stop_policy = None  # TODO: Lionel (09/25) Pass as function argument.
         transform_args = ObjectDetectionTransformArgs(
             channel_drop=channel_drop,
             num_channels="auto",
@@ -156,3 +159,37 @@ class TestObjectDetectionTransform:
         assert out_img.dtype == torch.float32
         assert "bboxes" in tr_output
         assert "class_labels" in tr_output
+
+    def test__collation(self) -> None:
+        transform_args = ObjectDetectionTransformArgs(
+            channel_drop=_get_channel_drop_args(),
+            num_channels="auto",
+            photometric_distort=_get_photometric_distort_args(),
+            random_zoom_out=_get_random_zoom_out_args(),
+            random_flip=_get_random_flip_args(),
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+            stop_policy=_get_stop_policy_args(),
+            scale_jitter=_get_scale_jitter_args(),
+        )
+        transform_args.resolve_auto()
+        collate_fn = ObjectDetectionCollateFunction(
+            split="train", transform_args=transform_args
+        )
+
+        sample1: ObjectDetectionDatasetItem = {
+            "image_path": "img1.png",
+            "image": torch.randn(3, 64, 64),
+            "bboxes": torch.tensor([[10.0, 10.0, 50.0, 50.0]]),
+            "classes": torch.tensor([1]),
+        }
+        sample2: ObjectDetectionDatasetItem = {
+            "image_path": "img2.png",
+            "image": torch.randn(3, 64, 64),
+            "bboxes": torch.tensor([[20.0, 20.0, 40.0, 40.0]]),
+            "classes": torch.tensor([2]),
+        }
+        batch = [sample1, sample2]
+
+        out = collate_fn(batch)
+        assert isinstance(out, dict)

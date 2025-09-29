@@ -59,11 +59,11 @@ class RandomFlipArgs(PydanticConfig):
 
 
 class RandomPhotometricDistortArgs(PydanticConfig):
-    brightness: tuple[float, float]
-    contrast: tuple[float, float]
-    saturation: tuple[float, float]
-    hue: tuple[float, float]
-    prob: float
+    brightness: tuple[float, float] = Field(strict=False)
+    contrast: tuple[float, float] = Field(strict=False)
+    saturation: tuple[float, float] = Field(strict=False)
+    hue: tuple[float, float] = Field(strict=False)
+    prob: float = Field(ge=0.0, le=1.0)
 
 
 class RandomRotationArgs(PydanticConfig):
@@ -72,9 +72,9 @@ class RandomRotationArgs(PydanticConfig):
 
 
 class RandomZoomOutArgs(PydanticConfig):
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
     fill: float
-    side_range: tuple[float, float]
+    side_range: tuple[float, float] = Field(strict=False)
 
 
 class ColorJitterArgs(PydanticConfig):
@@ -149,10 +149,11 @@ class NormalizeArgs(PydanticConfig):
 
 
 class ScaleJitterArgs(PydanticConfig):
-    min_scale: float
-    max_scale: float
-    num_scales: int
-    prob: float
+    sizes: Sequence[tuple[int, int]] | None
+    min_scale: float | None
+    max_scale: float | None
+    num_scales: int | None
+    prob: float = Field(ge=0.0, le=1.0)
     divisible_by: int | None
     step_seeding: bool
     seed_offset: int

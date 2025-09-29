@@ -22,6 +22,7 @@ class TestRandomScaleJitter:
         classes = np.array([1], dtype=np.int32)
 
         transform = ScaleJitter(
+            sizes=None,
             target_size=img_size,
             scale_range=(2.0, 4.0),
             num_scales=3,
@@ -49,6 +50,7 @@ class TestRandomScaleJitter:
         classes = np.array([1], dtype=np.int32)
 
         transform = ScaleJitter(
+            sizes=None,
             target_size=img_size,
             scale_range=(0.2, 0.7),
             num_scales=3,
@@ -68,6 +70,35 @@ class TestRandomScaleJitter:
         assert np.array(out["class_labels"]).shape == classes.shape
         assert np.array(out["bboxes"]).shape == bboxes.shape
 
+    def test__call__check_return_shapes_in_sizes(self) -> None:
+        img_size = (16, 16)
+        img = np.random.randint(0, 255, size=(*img_size, 3), dtype=np.uint8)
+        mask = np.random.randint(0, 255, size=img_size, dtype=np.uint8)
+        bboxes = np.array([[4, 4, 12, 12]], dtype=np.float32)
+        classes = np.array([1], dtype=np.int32)
+
+        sizes = [(8, 8), (12, 12), (20, 20)]
+        transform = ScaleJitter(
+            sizes=sizes,
+            target_size=img_size,
+            scale_range=(0.5, 2.0),
+            num_scales=3,
+            p=1.0,
+        )
+        bbox_params = BboxParams(format="pascal_voc", label_fields=["class_labels"])
+        out = transform(
+            image=img,
+            mask=mask,
+            bboxes=bboxes,
+            bbox_params=bbox_params,
+            class_labels=classes,
+        )
+
+        assert out["image"].shape in [(s[0], s[1], 3) for s in sizes]
+        assert out["mask"].shape in [s for s in sizes]
+        assert np.array(out["class_labels"]).shape == classes.shape
+        assert np.array(out["bboxes"]).shape == bboxes.shape
+
     def test__call__no_transform_when_p0(self) -> None:
         img_size = (8, 8)
         img = np.random.randint(0, 255, size=(*img_size, 3), dtype=np.uint8)
@@ -76,6 +107,7 @@ class TestRandomScaleJitter:
         classes = np.array([1], dtype=np.int32)
 
         transform = ScaleJitter(
+            sizes=None,
             target_size=img_size,
             scale_range=(1.0, 2.0),
             num_scales=3,
@@ -106,6 +138,7 @@ class TestRandomScaleJitter:
         transform = Compose(
             [
                 ScaleJitter(
+                    sizes=None,
                     target_size=img_size,
                     scale_range=(2.0, 4.0),
                     num_scales=2,
@@ -137,6 +170,7 @@ class TestRandomScaleJitter:
         transform = Compose(
             [
                 ScaleJitter(
+                    sizes=None,
                     target_size=img_size,
                     scale_range=(1.0, 10.0),
                     num_scales=10,
@@ -170,13 +204,14 @@ class TestRandomScaleJitter:
         img_size = (8, 8)
         img = np.random.randint(0, 255, size=(*img_size, 3), dtype=np.uint8)
         mask = np.random.randint(0, 255, size=img_size, dtype=np.uint8)
-        bboxes = np.array([[1, 1, 2, 2]], dtype=np.float32)
-        classes = np.array([1], dtype=np.int32)
+        bboxes = np.array([[1, 1, 2, 2]], dtype=np.float64)
+        classes = np.array([1], dtype=np.int64)
         bbox_params = BboxParams(format="pascal_voc", label_fields=["class_labels"])
 
         transform = Compose(
             [
                 ScaleJitter(
+                    sizes=None,
                     target_size=img_size,
                     scale_range=(1.0, 10.0),
                     num_scales=10,

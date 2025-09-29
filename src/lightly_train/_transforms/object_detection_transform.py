@@ -13,6 +13,7 @@ import numpy as np
 from albumentations import BboxParams, Compose, HorizontalFlip, VerticalFlip
 from albumentations.pytorch.transforms import ToTensorV2
 from numpy.typing import NDArray
+from pydantic import ConfigDict
 from torch import Tensor
 from typing_extensions import NotRequired
 
@@ -21,7 +22,6 @@ from lightly_train._transforms.random_photometric_distort import (
     RandomPhotometricDistort,
 )
 from lightly_train._transforms.random_zoom_out import RandomZoomOut
-from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -64,6 +64,9 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     scale_jitter: ScaleJitterArgs | None
     bbox_params: BboxParams | None
 
+    # Necessary for the StopPolicyArgs, which are not serializable by pydantic.
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     def resolve_auto(self) -> None:
         if self.num_channels == "auto":
             if self.channel_drop is not None:
@@ -88,13 +91,23 @@ class ObjectDetectionTransform(TaskTransform):
         ObjectDetectionTransformArgs
     )
 
-    def __init__(self, transform_args: ObjectDetectionTransformArgs) -> None:
+    def __init__(
+        self,
+        transform_args: ObjectDetectionTransformArgs,
+    ) -> None:
         super().__init__(transform_args=transform_args)
 
         self.transform_args: ObjectDetectionTransformArgs = transform_args
         self.stop_step = (
             transform_args.stop_policy.stop_step if transform_args.stop_policy else None
         )
+
+        # TODO: Lionel (09/25): Implement stopping of certain augmentations after some steps.
+        if self.stop_step is not None:
+            raise NotImplementedError(
+                "Stopping certain augmentations after some steps is not implemented yet."
+            )
+        self.global_step = 0  # Currently hardcoded, will be set from outside.
         self.stop_ops = (
             transform_args.stop_policy.ops if transform_args.stop_policy else set()
         )
@@ -139,22 +152,6 @@ class ObjectDetectionTransform(TaskTransform):
                 self.individual_transforms += [
                     VerticalFlip(p=transform_args.random_flip.vertical_prob)
                 ]
-
-        if transform_args.scale_jitter is not None:
-            self.individual_transforms += [
-                ScaleJitter(
-                    target_size=transform_args.image_size,
-                    scale_range=(
-                        transform_args.scale_jitter.min_scale,
-                        transform_args.scale_jitter.max_scale,
-                    ),
-                    num_scales=transform_args.scale_jitter.num_scales,
-                    divisible_by=transform_args.scale_jitter.divisible_by,
-                    p=transform_args.scale_jitter.prob,
-                    step_seeding=transform_args.scale_jitter.step_seeding,
-                    seed_offset=transform_args.scale_jitter.seed_offset,
-                ),
-            ]
 
         self.individual_transforms += [
             ToTensorV2(),

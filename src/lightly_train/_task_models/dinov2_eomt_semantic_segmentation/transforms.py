@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Sequence
 
 from pydantic import Field
 
@@ -40,9 +40,10 @@ class DINOv2EoMTSemanticSegmentationColorJitterArgs(ColorJitterArgs):
 
 
 class DINOv2EoMTSemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
-    min_scale: float = 0.5
-    max_scale: float = 2.0
-    num_scales: int = 20
+    sizes: Sequence[tuple[int, int]] | None = None
+    min_scale: float | None = 0.5
+    max_scale: float | None = 2.0
+    num_scales: int | None = 20
     prob: float = 1.0
     step_seeding: bool = False
     seed_offset: int = 0

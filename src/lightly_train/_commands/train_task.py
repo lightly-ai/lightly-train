@@ -248,10 +248,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         ignore_index=config.data.ignore_index,
     )
     train_transform = helpers.get_train_transform(
-        train_model_cls=train_model_cls, train_transform_args=train_transform_args
+        train_model_cls=train_model_cls,
+        train_transform_args=train_transform_args,
     )
     val_transform = helpers.get_val_transform(
-        train_model_cls=train_model_cls, val_transform_args=val_transform_args
+        train_model_cls=train_model_cls,
+        val_transform_args=val_transform_args,
     )
 
     with helpers.get_dataset_temp_mmap_path(
@@ -306,6 +308,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_dataloader = helpers.get_train_dataloader(
             fabric=fabric,
             dataset=train_dataset,
+            transform_args=train_transform_args,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
             loader_args=config.loader_args,
@@ -314,6 +317,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         val_dataloader = helpers.get_val_dataloader(
             fabric=fabric,
             dataset=val_dataset,
+            transform_args=val_transform_args,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
             loader_args=config.loader_args,
@@ -382,13 +386,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         else:
             pass
 
-        # Set the global_step in the transform (has to be done after loading potential
-        # checkpoint).
-        assert isinstance(train_dataloader.dataset, TaskDataset)
-        assert isinstance(val_dataloader.dataset, TaskDataset)
-        train_dataloader.dataset.transform.global_step = state["step"]
-        val_dataloader.dataset.transform.global_step = state["step"]
-
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
         infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
@@ -428,9 +425,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
-
-            train_dataloader.dataset.transform.global_step = state["step"]
-            val_dataloader.dataset.transform.global_step = state["step"]
 
             if is_log_step or is_last_step:
                 train_log_dict = helpers.compute_metrics(train_result.log_dict)
