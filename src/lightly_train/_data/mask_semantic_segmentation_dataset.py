@@ -15,12 +15,16 @@ import numpy as np
 import torch
 from pydantic import AliasChoices, Field, TypeAdapter, field_validator
 from torch import Tensor
-from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._data.file_helpers import ImageMode
+from lightly_train._data.task_batch_collation import (
+    BaseCollateFunction,
+    MaskSemanticSegmentationCollateFunction,
+)
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._env import Env
 from lightly_train._transforms.semantic_segmentation_transform import (
     SemanticSegmentationTransform,
@@ -55,16 +59,20 @@ class MultiChannelClassInfo(PydanticConfig):
 ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
 
 
-class MaskSemanticSegmentationDataset(Dataset[MaskSemanticSegmentationDatasetItem]):
+class MaskSemanticSegmentationDataset(TaskDataset):
+    batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
+        MaskSemanticSegmentationCollateFunction
+    )
+
     def __init__(
         self,
         dataset_args: MaskSemanticSegmentationDatasetArgs,
         image_info: Sequence[dict[str, str]],
         transform: SemanticSegmentationTransform,
     ):
+        super().__init__(transform=transform)
         self.args = dataset_args
         self.filepaths = image_info
-        self.transform = transform
         self.ignore_index = dataset_args.ignore_index
 
         # Get the class mapping.

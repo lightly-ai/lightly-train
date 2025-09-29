@@ -22,6 +22,7 @@ from albumentations import (
     RandomCrop,
     Resize,
     SmallestMaxSize,
+    VerticalFlip,
 )
 from albumentations.pytorch import ToTensorV2
 from torch import Tensor
@@ -67,6 +68,7 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
     normalize: NormalizeArgs
     random_flip: RandomFlipArgs | None
     color_jitter: ColorJitterArgs | None
+    # TODO: Lionel(09/25): These are currently not fully used.
     scale_jitter: ScaleJitterArgs | None
     smallest_max_size: SmallestMaxSizeArgs | None
     random_crop: RandomCropArgs | None
@@ -123,8 +125,11 @@ class SemanticSegmentationTransform(TaskTransform):
         SemanticSegmentationTransformArgs
     )
 
-    def __init__(self, transform_args: SemanticSegmentationTransformArgs) -> None:
-        super().__init__(transform_args)
+    def __init__(
+        self,
+        transform_args: SemanticSegmentationTransformArgs,
+    ) -> None:
+        super().__init__(transform_args=transform_args)
 
         # Initialize the list of transforms to apply.
         transform: list[BasicTransform] = []
@@ -138,8 +143,13 @@ class SemanticSegmentationTransform(TaskTransform):
             ]
 
         if transform_args.scale_jitter is not None:
+            # TODO (Lionel, 09/25): Use our custom ScaleJitter transform.
+
             # This follows recommendation on how to replace torchvision ScaleJitter with
             # albumentations: https://albumentations.ai/docs/torchvision-kornia2albumentations/
+            assert transform_args.scale_jitter.min_scale is not None
+            assert transform_args.scale_jitter.max_scale is not None
+            assert transform_args.scale_jitter.num_scales is not None
             scales = np.linspace(
                 start=transform_args.scale_jitter.min_scale,
                 stop=transform_args.scale_jitter.max_scale,
@@ -185,7 +195,12 @@ class SemanticSegmentationTransform(TaskTransform):
 
         # Optionally apply random horizontal flip.
         if transform_args.random_flip is not None:
-            transform += [HorizontalFlip(p=transform_args.random_flip.horizontal_prob)]
+            if transform_args.random_flip.horizontal_prob > 0.0:
+                transform += [
+                    HorizontalFlip(p=transform_args.random_flip.horizontal_prob)
+                ]
+            if transform_args.random_flip.vertical_prob > 0.0:
+                transform += [VerticalFlip(p=transform_args.random_flip.vertical_prob)]
 
         # Optionally apply color jitter.
         if transform_args.color_jitter is not None:
