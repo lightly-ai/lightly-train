@@ -122,6 +122,9 @@ class RandomIoUCrop(RandomCrop):  # type: ignore[misc]
                     continue
 
                 return {"crop_coords": (top, left, new_h, new_w), "pad_params": None}
+            
+        # Fallback
+        return {"crop_coords": (0, 0, orig_h, orig_w), "pad_params": None}
 
     def _iou(self, box_a: Sequence[float], box_b: Sequence[float]) -> float:
         """Compute intersection over union of two boxes.
