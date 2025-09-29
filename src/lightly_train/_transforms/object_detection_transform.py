@@ -7,8 +7,7 @@
 #
 from __future__ import annotations
 
-from multiprocessing.managers import DictProxy
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 from albumentations import BboxParams, Compose, HorizontalFlip, VerticalFlip
@@ -91,14 +90,20 @@ class ObjectDetectionTransform(TaskTransform):
     def __init__(
         self,
         transform_args: ObjectDetectionTransformArgs,
-        shared_dict: DictProxy[str, Any] | dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(transform_args=transform_args, shared_dict=shared_dict)
+        super().__init__(transform_args=transform_args)
 
         self.transform_args: ObjectDetectionTransformArgs = transform_args
         self.stop_step = (
             transform_args.stop_policy.stop_step if transform_args.stop_policy else None
         )
+
+        # TODO: Lionel (09/25): Implement stopping of certain augmentations after some steps.
+        if self.stop_step is not None:
+            raise NotImplementedError(
+                "Stopping certain augmentations after some steps is not implemented yet."
+            )
+        self.global_step = 0  # Currently hardcoded, will be set from outside.
         self.stop_ops = (
             transform_args.stop_policy.ops if transform_args.stop_policy else set()
         )

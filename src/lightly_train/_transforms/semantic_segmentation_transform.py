@@ -9,8 +9,7 @@
 from __future__ import annotations
 
 import logging
-from multiprocessing.managers import DictProxy
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 from albumentations import (
@@ -129,9 +128,8 @@ class SemanticSegmentationTransform(TaskTransform):
     def __init__(
         self,
         transform_args: SemanticSegmentationTransformArgs,
-        shared_dict: DictProxy[str, Any] | dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(transform_args=transform_args, shared_dict=shared_dict)
+        super().__init__(transform_args=transform_args)
 
         # Initialize the list of transforms to apply.
         transform: list[BasicTransform] = []

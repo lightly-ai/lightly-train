@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-from multiprocessing import Manager
 from typing import Any, Literal
 
 import torch
@@ -243,8 +242,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         model_name=config.model,
     )
 
-    shared_dict = Manager().dict()
-
     train_transform_args, val_transform_args = helpers.get_transform_args(
         train_model_cls=train_model_cls,
         transform_args=config.transform_args,
@@ -253,12 +250,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     train_transform = helpers.get_train_transform(
         train_model_cls=train_model_cls,
         train_transform_args=train_transform_args,
-        shared_dict=shared_dict,
     )
     val_transform = helpers.get_val_transform(
         train_model_cls=train_model_cls,
         val_transform_args=val_transform_args,
-        shared_dict=shared_dict,
     )
 
     with helpers.get_dataset_temp_mmap_path(
@@ -391,13 +386,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         else:
             pass
 
-        # Set the global_step in the transform (has to be done after loading potential
-        # checkpoint).
-        assert isinstance(train_dataloader.dataset, TaskDataset)
-        assert isinstance(val_dataloader.dataset, TaskDataset)
-        train_dataloader.dataset.transform.global_step = state["step"]
-        val_dataloader.dataset.transform.global_step = state["step"]
-
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
         infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
@@ -412,10 +400,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             logger.info(f"Resuming training from step {start_step}/{config.steps}...")
         else:
             logger.info(f"Training for {config.steps} steps...")
-
-        # Set the global_step in the transform after potential loading of checkpoint.
-        train_dataloader.dataset.transform.global_step = state["step"]
-        val_dataloader.dataset.transform.global_step = state["step"]
 
         fabric.barrier()
         for step in range(start_step, config.steps):
@@ -441,10 +425,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
-
-            # Update the global step in the transform.
-            train_dataloader.dataset.transform.global_step = state["step"]
-            val_dataloader.dataset.transform.global_step = state["step"]
 
             if is_log_step or is_last_step:
                 train_log_dict = helpers.compute_metrics(train_result.log_dict)
