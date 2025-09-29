@@ -42,8 +42,8 @@ class TestRandomIoUCrop:
         transform = Compose(
             [RandomIoUCrop(sampler_options=[0.0])], bbox_params=bbox_params
         )
-        image = np.random.randn(64, 64, 3).astype(np.float32)
-        boxes = np.array([[10, 10, 30, 30], [20, 20, 40, 40]], dtype=np.float32)
+        image = np.random.randn(64, 64, 3).astype(np.float64)
+        boxes = np.array([[10, 10, 30, 30], [20, 20, 40, 40]], dtype=np.float64)
         classes = np.array([1, 2], dtype=np.int64)
 
         data = {"image": image, "bboxes": boxes, "classes": classes}
@@ -67,8 +67,8 @@ class TestRandomIoUCrop:
         transform = Compose(
             [RandomIoUCrop(sampler_options=[0.0])], bbox_params=bbox_params
         )
-        image = np.random.randn(32, 32, 3).astype(np.float32)
-        boxes = np.array([[5, 5, 25, 25]], dtype=np.float32)
+        image = np.random.randn(32, 32, 3).astype(np.float64)
+        boxes = np.array([[5, 5, 25, 25]], dtype=np.float64)
         classes = np.array([1], dtype=np.int64)
 
         data = {"image": image, "bboxes": boxes, "classes": classes}
@@ -87,14 +87,14 @@ class TestRandomIoUCrop:
         transform = Compose(
             [RandomIoUCrop(sampler_options=[0.0])], bbox_params=bbox_params
         )
-        image = np.random.randn(32, 32, 3).astype(np.float32)
-        boxes = np.zeros((0, 4), dtype=np.float32)
+        image = np.random.randn(32, 32, 3).astype(np.float64)
+        boxes = np.zeros((0, 4), dtype=np.float64)
         classes = np.zeros((0,), dtype=np.int64)
 
         data = {"image": image, "bboxes": boxes, "classes": classes}
         transformed = transform(**data)
         assert np.array_equal(transformed["image"], image)
-        assert transformed["bboxes"] == []
+        assert np.array_equal(transformed["bboxes"], np.zeros((0, 4), dtype=np.float64))
         assert np.array_equal(transformed["classes"], classes)
 
     def test_crop_with_min_iou_one(self, bbox_params):
@@ -102,8 +102,8 @@ class TestRandomIoUCrop:
         transform = Compose(
             [RandomIoUCrop(sampler_options=[1.0])], bbox_params=bbox_params
         )
-        image = np.random.randn(16, 16, 3).astype(np.float32)
-        boxes = np.array([[2, 2, 10, 10]], dtype=np.float32)
+        image = np.random.randn(16, 16, 3).astype(np.float64)
+        boxes = np.array([[2, 2, 10, 10]], dtype=np.float64)
         classes = np.array([1], dtype=np.int64)
 
         data = {"image": image, "bboxes": boxes, "classes": classes}
@@ -117,8 +117,8 @@ class TestRandomIoUCrop:
         transform = Compose(
             [RandomIoUCrop(sampler_options=[0.5])], bbox_params=bbox_params
         )
-        image = np.random.randn(32, 32, 3).astype(np.float32)
-        boxes = np.array([[5, 5, 25, 25], [10, 10, 20, 20]], dtype=np.float32)
+        image = np.random.randn(32, 32, 3).astype(np.float64)
+        boxes = np.array([[5, 5, 25, 25], [10, 10, 20, 20]], dtype=np.float64)
         classes = np.array([1, 2], dtype=np.int64)
 
         data = {"image": image, "bboxes": boxes, "classes": classes}
