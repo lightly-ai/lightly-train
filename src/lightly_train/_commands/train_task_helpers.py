@@ -647,6 +647,7 @@ def load_checkpoint_from_file(
     fabric: Fabric,
     ckpt_path: PathLike,
     state: TrainTaskState,
+    reuse_class_head: bool = False,
 ) -> None:
     ckpt_path = Path(ckpt_path).resolve()
     if not ckpt_path.exists():
@@ -656,11 +657,21 @@ def load_checkpoint_from_file(
     train_model_grads = {n: p.requires_grad for n, p in train_model.named_parameters()}
     train_model_trainings = {n: m.training for n, m in train_model.named_modules()}
 
+    class_head_before = None
+    class_head_param_ids_before: set[int] | None = None
+    if not reuse_class_head and hasattr(train_model, "class_head"):
+        class_head_before = getattr(train_model, "class_head")
+        class_head_param_ids_before = {
+            id(param) for param in class_head_before.parameters()
+        }
+        delattr(train_model, "class_head")
+
     logger.info(f"Loading checkpoint from '{ckpt_path}'")
     fabric.load(path=ckpt_path, state={"train_model": train_model})  # type: ignore[arg-type]
 
     # Sanity check to make sure that checkpoint loading didn't create new objects or
     # changed the model state.
+
     assert state["train_model"] is train_model
     assert {
         n: p.requires_grad for n, p in state["train_model"].named_parameters()
@@ -668,3 +679,20 @@ def load_checkpoint_from_file(
     assert {
         n: m.training for n, m in state["train_model"].named_modules()
     } == train_model_trainings
+
+    # Sanity check to make sure that the class head was reinitialized correctly.
+    if not reuse_class_head and class_head_before is not None:
+        assert hasattr(train_model, "class_head"), (
+            "Expected train_model to recreate a class_head attribute after removing it "
+            "when reuse_class_head is False."
+        )
+        class_head_after = getattr(train_model, "class_head")
+        assert class_head_after is not class_head_before, (
+            "Expected class_head module to be reinitialized when reuse_class_head is False."
+        )
+        if class_head_param_ids_before is not None:
+            params_after = {id(param) for param in class_head_after.parameters()}
+            assert params_after.isdisjoint(class_head_param_ids_before), (
+                "Expected new class_head parameters to be different objects when "
+                "reuse_class_head is False."
+            )

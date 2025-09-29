@@ -124,7 +124,7 @@ def test_train_semantic_segmentation(
     ],
 )
 @pytest.mark.parametrize("num_channels", [3, 4])
-def test_train_semantic_segmentation_export(
+def test_train_semantic_segmentation__export(
     tmp_path: Path, model_name: str, model_args: dict[str, Any], num_channels: int
 ) -> None:
     out = tmp_path / "out"
