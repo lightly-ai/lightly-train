@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://calendar.app.google/5mqoEnnyacKGzZfw6">
-  <img width="1373" height="322" alt="Book meeting with Lightly at BioTechX 2025 in Basel" src="https://github.com/user-attachments/assets/a798a575-762d-4713-b550-2861b09425ee"/>
+  <img width="1373" height="322" alt="Book meeting with Lightly at BioTechX 2025 in Basel" src="https://github.com/user-attachments/assets/00431826-5d4f-4428-b341-104e4fb59e7b"/>
   </a>
 </p>
 
