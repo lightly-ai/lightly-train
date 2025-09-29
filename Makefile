@@ -108,7 +108,7 @@ add-header:
 
 	# Apply the Apache 2.0 license header to RT-DETR derived files
 	licenseheaders -t dev_tools/rtdetr_licenseheader.tmpl \
-		-f src/lightly_train/_task_models/object_detection_components/ \
+		-d src/lightly_train/_task_models/object_detection_components/ \
 		-E py
 
 	# Apply the MIT license header to the EoMT derived files
