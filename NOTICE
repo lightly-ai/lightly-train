@@ -9,21 +9,6 @@ This project incorporates the following third-party components:
 - Modifications:
   - The logging related to xFormers availability has been changed and moved to a single place. Affected files: .../attention.py, .../block.py, .../swiglu_ffn.py, vision_transformer.py
 
-**DINOv3**
-- Source: https://github.com/facebookresearch/dinov3
-- License: DINOv3 License (custom)
-- License file: licenses/DINOv3_LICENSE.md
-
-**RT-DETR**
-- Source: https://github.com/lyuwenyu/RT-DETR
-- License: Apache License 2.0
-- License file: licenses/RTDETR_LICENSE
-- Modifications:
-  - Relative imports have been changed to absolute imports. Affected files: .../rtdetrv2_decoder.py, .../hybrid_encoder.py
-  - Export via `__all__`, `__share__` class attributes, and registration of models have been removed. Affected files: .../rtdetrv2_decoder.py, .../hybrid_encoder.py
-  - Move assignment of `ref_points` further up to avoid conflict with linter.
-
-
 **EoMT**
 - Source: https://github.com/tue-mps/eomt
 - License: MIT License
@@ -38,6 +23,15 @@ This project incorporates the following third-party components:
 - Source: https://github.com/facebookresearch/dinov3
 - License: DINOv3 License (custom)
 - License file: licences/DINOv3_LICENSE.md
+
+**RT-DETR**
+- Source: https://github.com/lyuwenyu/RT-DETR
+- License: Apache License 2.0
+- License file: licenses/RTDETR_LICENSE
+- Modifications:
+  - Relative imports have been changed to absolute imports. Affected files: .../rtdetrv2_decoder.py, .../hybrid_encoder.py
+  - Export via `__all__`, `__share__` class attributes, and registration of models have been removed. Affected files: .../rtdetrv2_decoder.py, .../hybrid_encoder.py
+  - Move assignment of `ref_points` further up to avoid conflict with linter.
 
 ---
 
