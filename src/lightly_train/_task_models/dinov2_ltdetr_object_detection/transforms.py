@@ -104,6 +104,7 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
         default_factory=DINOv2LTDetrObjectDetectionRandomFlipArgs
     )
     image_size: tuple[int, int] = (644, 644)
+    # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: DINOv2LTDetrObjectDetectionStopPolicyArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionScaleJitterArgs
