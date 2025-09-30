@@ -15,8 +15,8 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    DinoVisionTransformer,
+from lightly_train._task_models.dinov2_ltdetr_object_detection.dinov2_vit_wrapper import (
+    DINOv2ViTWrapper,
 )
 from lightly_train._task_models.object_detection_components.detr_postprocessor import (
     DetDETRPostProcessor,
@@ -62,9 +62,13 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
 
         # TODO: Lionel(09/25) check drop_path in LTDetr.
 
-        self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
+        dinov2 = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_args,
+        )
+        self.backbone: DINOv2ViTWrapper = DINOv2ViTWrapper(
+            model=dinov2,
+            keep_indices=[5, 8, 11],
         )
 
         self.encoder: HybridEncoder = HybridEncoder(  # type: ignore[no-untyped-call]
@@ -74,6 +78,7 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
             use_encoder_idx=[2],
             num_encoder_layers=1,
             nhead=8,
+            dim_feedforward=2048,
             dropout=0.0,
             enc_act="gelu",
             expansion=1.0,
@@ -95,7 +100,9 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
             eval_idx=-1,
             num_points=[4, 4, 4],
             query_select_method="default",
+            eval_spatial_size=(644, 644),
         )
+        self.decoder.training = False
 
         self.postprocessor: DetDETRPostProcessor = DetDETRPostProcessor(
             num_top_queries=300,
@@ -173,7 +180,7 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
         x = self.backbone(x)
         x = self.encoder(x)
         x = self.decoder(x)
-        x_: list[Tensor] = self.postprocessor(x, orig_target_size)
+        x_: list[Tensor] = self.postprocessor(x)
         return x_
 
     def _forward_bboxes_logits(self, x: Tensor) -> dict[str, Tensor]:
