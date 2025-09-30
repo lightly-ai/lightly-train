@@ -647,7 +647,7 @@ def load_checkpoint_from_file(
     fabric: Fabric,
     ckpt_path: PathLike,
     state: TrainTaskState,
-    reuse_class_head: bool = False,
+    reuse_class_head: bool,
 ) -> None:
     ckpt_path = Path(ckpt_path).resolve()
     if not ckpt_path.exists():
