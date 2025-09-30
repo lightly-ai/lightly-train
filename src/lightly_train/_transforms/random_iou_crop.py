@@ -23,7 +23,8 @@ class RandomIoUCrop(RandomCrop):  # type: ignore[misc]
         max_aspect_ratio: Maximum aspect ratio for the crop.
         sampler_options: List of minimal IoU (Jaccard) overlap between all the boxes and
             a cropped image.
-        trials: Number of attempts to find a crop for a given value of minimal IoU.
+        crop_trials: Number of trials for generating a crop.
+        iou_trials: Number of trials for generating a crop with a valid IoU.
     """
 
     def __init__(
@@ -122,7 +123,7 @@ class RandomIoUCrop(RandomCrop):  # type: ignore[misc]
                     continue
 
                 return {"crop_coords": (top, left, new_h, new_w), "pad_params": None}
-            
+
         # Fallback
         return {"crop_coords": (0, 0, orig_h, orig_w), "pad_params": None}
 

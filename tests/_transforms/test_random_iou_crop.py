@@ -13,12 +13,12 @@ from lightly_train._transforms.random_iou_crop import RandomIoUCrop
 
 
 @pytest.fixture
-def bbox_params():
+def bbox_params() -> BboxParams:
     return BboxParams(format="pascal_voc", label_fields=["classes"])
 
 
 class TestRandomIoUCrop:
-    def test__iou_bigger_than_one(self, bbox_params):
+    def test__iou_bigger_than_one(self, bbox_params: BboxParams) -> None:
         transform = Compose(
             [RandomIoUCrop(sampler_options=[1.0])], bbox_params=bbox_params
         )
@@ -38,7 +38,7 @@ class TestRandomIoUCrop:
         assert np.array_equal(boxes, transformed_boxes)
         assert np.array_equal(classes, transformed_classes)
 
-    def test_output_types_and_shapes(self, bbox_params):
+    def test_output_types_and_shapes(self, bbox_params: BboxParams) -> None:
         transform = Compose(
             [RandomIoUCrop(sampler_options=[0.0])], bbox_params=bbox_params
         )
@@ -62,7 +62,7 @@ class TestRandomIoUCrop:
         assert transformed_boxes.shape[1] == 4
         assert transformed_classes.shape == (transformed_boxes.shape[0],)
 
-    def test_crop_with_min_iou_zero(self, bbox_params):
+    def test_crop_with_min_iou_zero(self, bbox_params: BboxParams) -> None:
         # With min IoU 0.0, cropping is allowed, so output may differ from input.
         transform = Compose(
             [RandomIoUCrop(sampler_options=[0.0])], bbox_params=bbox_params
@@ -82,7 +82,7 @@ class TestRandomIoUCrop:
         # Output boxes shape should be (N, 4)
         assert transformed_boxes.shape[1] == 4
 
-    def test_crop_with_no_boxes(self, bbox_params):
+    def test_crop_with_no_boxes(self, bbox_params: BboxParams) -> None:
         # If there are no boxes, output should be unchanged.
         transform = Compose(
             [RandomIoUCrop(sampler_options=[0.0])], bbox_params=bbox_params
@@ -97,7 +97,7 @@ class TestRandomIoUCrop:
         assert np.array_equal(transformed["bboxes"], np.zeros((0, 4), dtype=np.float64))
         assert np.array_equal(transformed["classes"], classes)
 
-    def test_crop_with_min_iou_one(self, bbox_params):
+    def test_crop_with_min_iou_one(self, bbox_params: BboxParams) -> None:
         # Already covered by test__iou_bigger_than_one, but check types as well.
         transform = Compose(
             [RandomIoUCrop(sampler_options=[1.0])], bbox_params=bbox_params
@@ -112,7 +112,7 @@ class TestRandomIoUCrop:
         assert np.array_equal(np.array(transformed["bboxes"]), boxes)
         assert np.array_equal(np.array(transformed["classes"]), classes)
 
-    def test_crop_does_not_remove_all_boxes(self, bbox_params):
+    def test_crop_does_not_remove_all_boxes(self, bbox_params: BboxParams) -> None:
         # The transform should never return zero boxes if there was at least one input box.
         transform = Compose(
             [RandomIoUCrop(sampler_options=[0.5])], bbox_params=bbox_params
