@@ -1,6 +1,6 @@
 <p align="center">
-  <a href="https://calendly.com/guarin-lightly/miccai">
-  <img width="1373" height="322" alt="Book meeting with Lightly at MICCAI 2025" src="https://github.com/user-attachments/assets/a47ff932-4612-4c66-b104-93dcbffff6fd"/>
+  <a href="https://calendar.app.google/5mqoEnnyacKGzZfw6">
+  <img width="1373" height="322" alt="Book meeting with Lightly at BioTechX 2025 in Basel" src="https://github.com/user-attachments/assets/00431826-5d4f-4428-b341-104e4fb59e7b"/>
   </a>
 </p>
 
@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
 ### Benchmark Results
 
-Below we provide the model checkpoints and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available.
+Below we provide the model weights and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available. Distribution and use of these model weights are governed by the [DINOv3 License](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md), and accessing them constitutes acceptance of its terms.
 
 The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average FPS values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 
@@ -173,7 +173,7 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 #### ADE20k Dataset
 
-| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Model Weights |
 |----------------|----------------|-------------|------------|----------|----------|------------|
 | LightlyTrain | dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 48.9 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
 | LightlyTrain | dinov3/vitb16-eomt | 85.7 | 512×512 | 0.544 | 48.1 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
@@ -407,4 +407,5 @@ We're committed to supporting both open-source and commercial users.
 [![Discord](https://img.shields.io/discord/752876370337726585?style=for-the-badge&logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94) <br>
 [![GitHub](https://img.shields.io/badge/GitHub-lightly--ai-black?style=for-the-badge&logo=github&logoColor=white)](https://github.com/lightly-ai/lightly-train) <br>
 [![X](https://img.shields.io/badge/X-lightlyai-black?style=for-the-badge&logo=x&logoColor=white)](https://x.com/lightlyai) <br>
+[![YouTube](https://img.shields.io/badge/YouTube-lightly--tech-blue?style=for-the-badge&logo=YouTube&logoColor=white)](https://www.youtube.com/channel/UCAz60UdQ9Q3jPqqZi-6bmXw) <br>
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-lightly--tech-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/lightly-tech)

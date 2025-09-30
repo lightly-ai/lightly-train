@@ -11,13 +11,15 @@ import logging
 from collections.abc import Sequence
 from typing import (
     Literal,
+    Set,
     Type,
     TypeVar,
 )
 
 import pydantic
+from albumentations import BasicTransform
 from lightly.transforms.utils import IMAGENET_NORMALIZE
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
@@ -57,10 +59,10 @@ class RandomFlipArgs(PydanticConfig):
 
 
 class RandomPhotometricDistortArgs(PydanticConfig):
-    brightness: tuple[float, float] = Field(strict=False, ge=0.0)
-    contrast: tuple[float, float] = Field(strict=False, ge=0.0)
-    saturation: tuple[float, float] = Field(strict=False, ge=0.0)
-    hue: tuple[float, float] = Field(strict=False, ge=-0.5, le=0.5)
+    brightness: tuple[float, float] = Field(strict=False)
+    contrast: tuple[float, float] = Field(strict=False)
+    saturation: tuple[float, float] = Field(strict=False)
+    hue: tuple[float, float] = Field(strict=False)
     prob: float = Field(ge=0.0, le=1.0)
 
 
@@ -72,7 +74,7 @@ class RandomRotationArgs(PydanticConfig):
 class RandomZoomOutArgs(PydanticConfig):
     prob: float = Field(ge=0.0, le=1.0)
     fill: float
-    side_range: tuple[float, float] = Field(strict=False, ge=1.0)
+    side_range: tuple[float, float] = Field(strict=False)
 
 
 class ColorJitterArgs(PydanticConfig):
@@ -147,10 +149,19 @@ class NormalizeArgs(PydanticConfig):
 
 
 class ScaleJitterArgs(PydanticConfig):
-    min_scale: float
-    max_scale: float
-    num_scales: int
-    prob: float
+    sizes: Sequence[tuple[int, int]] | None
+    min_scale: float | None
+    max_scale: float | None
+    num_scales: int | None
+    prob: float = Field(ge=0.0, le=1.0)
+    divisible_by: int | None
+
+
+class StopPolicyArgs(PydanticConfig):
+    stop_step: int
+    ops: Set[type[BasicTransform]]
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class SmallestMaxSizeArgs(PydanticConfig):

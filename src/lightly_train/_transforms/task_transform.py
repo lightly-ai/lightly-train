@@ -37,7 +37,10 @@ class TaskTransformArgs(PydanticConfig):
 class TaskTransform:
     transform_args_cls: type[TaskTransformArgs]
 
-    def __init__(self, transform_args: TaskTransformArgs):
+    def __init__(
+        self,
+        transform_args: TaskTransformArgs,
+    ) -> None:
         if not isinstance(transform_args, self.transform_args_cls):
             raise TypeError(
                 f"transform_args must be of type {self.transform_args_cls.__name__}, "

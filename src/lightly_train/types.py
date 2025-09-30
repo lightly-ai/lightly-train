@@ -103,6 +103,13 @@ class ObjectDetectionDatasetItem(TypedDict):
     classes: Tensor  # Of shape (n_boxes,) with class labels.
 
 
+class ObjectDetectionBatch(TypedDict):
+    image_path: list[ImageFilename]  # length==batch_size
+    image: Tensor  # Tensor with shape (batch_size, 3, H, W).
+    bboxes: list[Tensor]  # One tensor per image, each of shape (n_boxes, 4).
+    classes: list[Tensor]  # One tensor per image, each of shape (n_boxes,).
+
+
 # Replaces torch.optim.optimizer.ParamsT
 # as it is only available in torch>=v2.2.
 # Importing it conditionally cannot make typing work for both older
