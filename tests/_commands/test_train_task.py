@@ -259,6 +259,37 @@ def test_train_semantic_segmentation__checkpoint(
         )
     assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
 
+    # Part 3: check that the class head can be re-initialized when loading from checkpoint.
+    with caplog.at_level(logging.INFO):
+        lightly_train.train_semantic_segmentation(
+            out=out,
+            data={
+                "train": {
+                    "images": train_images,
+                    "masks": train_masks,
+                },
+                "val": {
+                    "images": val_images,
+                    "masks": val_masks,
+                },
+                "classes": {
+                    0: "background",
+                    1: "car",
+                    2: "tree",
+                },
+            },
+            model="dinov2/vits14-eomt",
+            accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+            devices=1,
+            batch_size=2,
+            num_workers=0,
+            steps=1,
+            overwrite=True,
+            checkpoint=last_ckpt_path,
+            reuse_class_head=False,
+        )
+    assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
+
 
 @pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
