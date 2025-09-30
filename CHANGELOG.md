@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Change default precision to `bf16-mixed` for training on GPUs that support it.
+
 ### Deprecated
 
 ### Removed
