@@ -24,7 +24,7 @@ class TestRandomIoUCrop:
         )
         # Use (height, width, channels) for albumentations
         image = np.random.randn(32, 32, 3)
-        boxes = np.array([[10, 10, 20, 20], [5, 5, 15, 15]], dtype=np.float32)
+        boxes = np.array([[10, 10, 20, 20], [5, 5, 15, 15]], dtype=np.float64)
         classes = np.array([1, 2], dtype=np.int64)
 
         data = {"image": image, "bboxes": boxes, "classes": classes}
@@ -49,18 +49,25 @@ class TestRandomIoUCrop:
         data = {"image": image, "bboxes": boxes, "classes": classes}
         transformed = transform(**data)
         transformed_image = transformed["image"]
-        transformed_boxes = np.array(transformed["bboxes"])
-        transformed_classes = np.array(transformed["classes"])
+        transformed_boxes = transformed["bboxes"]
+        transformed_classes = transformed["classes"]
+
+        # Convert to arrays if needed (for compatibility with older albumentations)
+        transformed_boxes_arr = np.array(transformed_boxes)
+        transformed_classes_arr = np.array(transformed_classes)
 
         # Check dtypes
         assert transformed_image.dtype == image.dtype
-        assert transformed_boxes.dtype == boxes.dtype
-        assert transformed_classes.dtype == classes.dtype
+        assert transformed_boxes_arr.dtype == boxes.dtype
+        # assert np.all(np.equal(np.mod(transformed_classes_arr, 1), 0)) # check if integers
+        # if not transformed_classes_arr.dtype == np.int64:
+        #     transformed_classes_arr = transformed_classes_arr.astype(np.int64)
+        assert transformed_classes_arr.dtype == classes.dtype
 
         # Check shapes
         assert transformed_image.shape[2] == 3
-        assert transformed_boxes.shape[1] == 4
-        assert transformed_classes.shape == (transformed_boxes.shape[0],)
+        assert transformed_boxes_arr.shape[1] == 4
+        assert transformed_classes_arr.shape == (transformed_boxes_arr.shape[0],)
 
     def test_crop_with_min_iou_zero(self, bbox_params: BboxParams) -> None:
         # With min IoU 0.0, cropping is allowed, so output may differ from input.
@@ -74,13 +81,15 @@ class TestRandomIoUCrop:
         data = {"image": image, "bboxes": boxes, "classes": classes}
         transformed = transform(**data)
         transformed_image = transformed["image"]
-        transformed_boxes = np.array(transformed["bboxes"])
+        transformed_boxes = transformed["bboxes"]
+
+        transformed_boxes_arr = np.array(transformed_boxes)
 
         # Output image shape should be (h, w, 3)
         assert transformed_image.ndim == 3
         assert transformed_image.shape[2] == 3
         # Output boxes shape should be (N, 4)
-        assert transformed_boxes.shape[1] == 4
+        assert transformed_boxes_arr.shape[1] == 4
 
     def test_crop_with_no_boxes(self, bbox_params: BboxParams) -> None:
         # If there are no boxes, output should be unchanged.
@@ -93,9 +102,16 @@ class TestRandomIoUCrop:
 
         data = {"image": image, "bboxes": boxes, "classes": classes}
         transformed = transform(**data)
+        transformed_boxes = transformed["bboxes"]
+        transformed_classes = transformed["classes"]
+
+        # Convert to arrays for comparison
+        transformed_boxes_arr = np.array(transformed_boxes)
+        transformed_classes_arr = np.array(transformed_classes)
+
         assert np.array_equal(transformed["image"], image)
-        assert np.array_equal(transformed["bboxes"], np.zeros((0, 4), dtype=np.float64))
-        assert np.array_equal(transformed["classes"], classes)
+        assert transformed_boxes_arr.shape == (0, 4)
+        assert np.array_equal(transformed_classes_arr, classes)
 
     def test_crop_with_min_iou_one(self, bbox_params: BboxParams) -> None:
         # Already covered by test__iou_bigger_than_one, but check types as well.
@@ -108,9 +124,15 @@ class TestRandomIoUCrop:
 
         data = {"image": image, "bboxes": boxes, "classes": classes}
         transformed = transform(**data)
+        transformed_boxes = transformed["bboxes"]
+        transformed_classes = transformed["classes"]
+
+        transformed_boxes_arr = np.array(transformed_boxes)
+        transformed_classes_arr = np.array(transformed_classes)
+
         assert np.array_equal(transformed["image"], image)
-        assert np.array_equal(np.array(transformed["bboxes"]), boxes)
-        assert np.array_equal(np.array(transformed["classes"]), classes)
+        assert np.array_equal(transformed_boxes_arr, boxes)
+        assert np.array_equal(transformed_classes_arr, classes)
 
     def test_crop_does_not_remove_all_boxes(self, bbox_params: BboxParams) -> None:
         # The transform should never return zero boxes if there was at least one input box.
@@ -123,5 +145,12 @@ class TestRandomIoUCrop:
 
         data = {"image": image, "bboxes": boxes, "classes": classes}
         transformed = transform(**data)
-        assert len(transformed["bboxes"]) > 0
-        assert len(transformed["classes"]) == len(transformed["bboxes"])
+        transformed_boxes = transformed["bboxes"]
+        transformed_classes = transformed["classes"]
+
+        # Convert to arrays for length checks
+        transformed_boxes_arr = np.array(transformed_boxes)
+        transformed_classes_arr = np.array(transformed_classes)
+
+        assert transformed_boxes_arr.shape[0] > 0
+        assert transformed_classes_arr.shape[0] == transformed_boxes_arr.shape[0]

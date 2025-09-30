@@ -15,8 +15,6 @@ import numpy as np
 from albumentations.augmentations.crops.transforms import RandomCrop
 from lightning_utilities.core.imports import RequirementCache
 
-
-
 ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
 
 
