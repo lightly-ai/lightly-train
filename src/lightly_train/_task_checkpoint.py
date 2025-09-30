@@ -6,9 +6,9 @@
 # LICENSE file in the root directory of this source tree.
 #
 import logging
-from typing_extensions import Self
 
 from pydantic import model_validator
+from typing_extensions import Self
 
 from lightly_train._configs.config import PydanticConfig
 
