@@ -63,7 +63,7 @@ def train(
     overwrite: bool = False,
     accelerator: str | Accelerator = "auto",
     strategy: str | Strategy = "auto",
-    precision: _PRECISION_INPUT = "bf16-mixed",
+    precision: _PRECISION_INPUT | Literal["auto"] = "auto",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
     seed: int = 0,
     loggers: dict[str, dict[str, Any] | None] | None = None,
@@ -349,6 +349,7 @@ def train_from_config(config: TrainConfig) -> None:
             strategy=config.strategy,
             devices=config.devices,
         )
+        config.precision = train_helpers.get_precision(config.precision)
         trainer_instance = train_helpers.get_trainer(
             out=out_dir,
             epochs=config.epochs,
@@ -356,7 +357,7 @@ def train_from_config(config: TrainConfig) -> None:
             strategy=config.strategy,
             devices=config.devices,
             num_nodes=config.num_nodes,
-            precision=config.precision,
+            precision=no_auto(config.precision),
             log_every_n_steps=log_every_n_steps,
             loggers=logger_instances,
             callbacks=callback_instances,
@@ -462,7 +463,7 @@ class TrainConfig(PydanticConfig):
     overwrite: bool = False
     accelerator: str | Accelerator = "auto"
     strategy: str | Strategy = "auto"
-    precision: _PRECISION_INPUT = "bf16-mixed"
+    precision: _PRECISION_INPUT | Literal["auto"] = "auto"
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
     seed: int = 0
     loggers: dict[str, dict[str, Any] | None] | LoggerArgs | None = None

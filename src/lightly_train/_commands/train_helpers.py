@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 from typing import Any, Literal, Sized
 
+import torch
 from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
@@ -193,6 +194,21 @@ def get_lightning_logging_interval(dataset_size: int, batch_size: int) -> int:
         )
     n_batches = max(1, dataset_size // batch_size)
     return min(50, n_batches)  # Lightning uses 50 as default logging interval.
+
+
+def get_precision(
+    precision: _PRECISION_INPUT | Literal["auto"],
+) -> _PRECISION_INPUT:
+    if precision != "auto":
+        logger.debug(f"Using provided precision '{precision}'.")
+        return precision
+    # Use bfloat16 if available, otherwise fall back to 32.
+    if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+        logger.debug("Using precision 'bf16-mixed'.")
+        return "bf16-mixed"
+    else:
+        logger.debug("Using precision '32-true'.")
+        return "32-true"
 
 
 def get_strategy(
