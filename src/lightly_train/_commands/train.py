@@ -63,7 +63,7 @@ def train(
     overwrite: bool = False,
     accelerator: str | Accelerator = "auto",
     strategy: str | Strategy = "auto",
-    precision: _PRECISION_INPUT = "32-true",  # Default precision in PyTorch Lightning
+    precision: _PRECISION_INPUT = "bf16-mixed",  # Default precision in PyTorch Lightning
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
     seed: int = 0,
     loggers: dict[str, dict[str, Any] | None] | None = None,
@@ -462,7 +462,7 @@ class TrainConfig(PydanticConfig):
     overwrite: bool = False
     accelerator: str | Accelerator = "auto"
     strategy: str | Strategy = "auto"
-    precision: _PRECISION_INPUT = "32-true"
+    precision: _PRECISION_INPUT = "bf16-mixed"
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
     seed: int = 0
     loggers: dict[str, dict[str, Any] | None] | LoggerArgs | None = None
