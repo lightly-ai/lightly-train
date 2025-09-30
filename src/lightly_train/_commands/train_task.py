@@ -486,9 +486,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         fabric.log_dict(val_log_dict, step=step)
                         helpers.reset_metrics(val_result.log_dict)
 
-                        val_miou = val_log_dict["val_metric/miou"]
-                        if val_miou > max_val_miou:
+                        val_miou = val_log_dict.get("val_metric/miou")
+                        if val_miou is None:
+                            logger.warning(
+                                "Validation metric 'val_metric/miou' not found in val_log_dict. Skipping best model checkpoint update."
+                            )
+                        elif val_miou > max_val_miou:
                             if config.save_checkpoint_args.save_best:
+                                logger.info(
+                                    f"The best validation metric 'val_metric/miou'={val_miou:.4f} was reached."
+                                )
                                 helpers.save_checkpoint(
                                     fabric=fabric,
                                     out_dir=out_dir,
