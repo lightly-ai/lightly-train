@@ -5,12 +5,19 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 import random
 from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
 from albumentations.augmentations.crops.transforms import RandomCrop
+from lightning_utilities.core.imports import RequirementCache
+
+
+
+ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
 
 
 class RandomIoUCrop(RandomCrop):  # type: ignore[misc]
@@ -37,17 +44,24 @@ class RandomIoUCrop(RandomCrop):  # type: ignore[misc]
         crop_trials: int = 40,
         iou_trials: int = 1000,
     ):
-        # Hardcode required args for RandomCrop
-        super().__init__(
-            height=1,
-            width=1,
-            pad_if_needed=False,
-            pad_position="center",
-            border_mode=0,
-            fill=0.0,
-            fill_mask=0.0,
-            p=1.0,
-        )
+        # Hardcode required args for RandomCrop, height and width will be set dynamically.
+        if ALBUMENTATIONS_GEQ_1_4_21:
+            super().__init__(
+                height=1,
+                width=1,
+                pad_if_needed=False,
+                pad_position="center",
+                border_mode=0,
+                fill=0.0,
+                fill_mask=0.0,
+                p=1.0,
+            )
+        else:
+            super().__init__(
+                height=1,
+                width=1,
+                p=1.0,
+            )
         self.min_scale = min_scale
         self.max_scale = max_scale
         self.min_aspect_ratio = min_aspect_ratio
