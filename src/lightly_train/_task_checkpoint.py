@@ -6,7 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 import logging
-from typing import Self
+from typing_extensions import Self
 
 from pydantic import model_validator
 
