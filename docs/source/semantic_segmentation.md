@@ -22,7 +22,7 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
 |----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 48.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
+| dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 103.5 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
 | dinov3/vitb16-eomt | 85.7 | 512×512 | 0.544 | 48.1 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
 | dinov3/vitl16-eomt | 303.2 | 512×512 | **0.591** | 22.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
 | dinov2/vitl16-eomt (original) | 319 | 512×512 | 0.584 | - | - |
