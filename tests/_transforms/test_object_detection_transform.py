@@ -87,8 +87,6 @@ def _get_scale_jitter_args() -> ScaleJitterArgs:
         num_scales=13,
         prob=1.0,
         divisible_by=14,
-        step_seeding=True,
-        seed_offset=0,
     )
 
 

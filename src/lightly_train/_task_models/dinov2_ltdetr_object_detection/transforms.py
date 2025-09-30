@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Literal, Sequence, Set
+from typing import Literal
 
 from albumentations import BasicTransform, BboxParams
 from pydantic import Field
@@ -51,20 +51,6 @@ class DINOv2LTDetrObjectDetectionRandomFlipArgs(RandomFlipArgs):
     vertical_prob: float = 0.0
 
 
-class DINOv2LTDetrObjectDetectionStopPolicyArgs(StopPolicyArgs):
-    # In the original implementation, stop_epoch is 71. We assume a dataset of 100_000
-    # and batch size 16.
-    stop_step: int = 71 * 100_000 // 16
-    ops: Set[type[BasicTransform]] = Field(
-        default_factory=lambda: {
-            RandomPhotometricDistort,
-            RandomZoomOut,
-            ScaleJitter,
-            # TODO: Lionel (09/25): Add RandomIoUCrop.
-        }
-    )
-
-
 class DINOv2LTDetrObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     sizes: Sequence[tuple[int, int]] | None = [
         (490, 490),
@@ -87,8 +73,6 @@ class DINOv2LTDetrObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     prob: float = 1.0
     # The model is patch 14.
     divisible_by: int | None = 14
-    step_seeding: bool = True
-    seed_offset: int = 0
 
 
 class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
@@ -105,7 +89,7 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     )
     image_size: tuple[int, int] = (644, 644)
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
-    stop_policy: DINOv2LTDetrObjectDetectionStopPolicyArgs | None = None
+    stop_policy: StopPolicyArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionScaleJitterArgs
     )

@@ -22,7 +22,7 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
 |----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 48.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
+| dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 103.5 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
 | dinov3/vitb16-eomt | 85.7 | 512×512 | 0.544 | 48.1 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
 | dinov3/vitl16-eomt | 303.2 | 512×512 | **0.591** | 22.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
 | dinov2/vitl16-eomt (original) | 319 | 512×512 | 0.584 | - | - |
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     )
 ```
 
-You can also train from an already fine-tuned model by loading the weights with the `checkpoint` parameter:
+During training, both the best and last model weights are saved to `out/my_experiment/exported_models/` unless disabled in `save_checkpoint_args`. This way, you can also load these weights to continue fine-tuning on another task by specifying the `checkpoint` parameter:
 
 ```python
 import lightly_train
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
         model="dinov2/vitl14-eomt", 
-        checkpoint="/path/to/vitl14-eomt/exported_model.pt",
+        checkpoint="out/my_experiment/exported_models/exported_best.pt", # use the best model to continue training
         data={...},
     )
 ```
@@ -110,7 +110,7 @@ After the training completes you can load the model for inference like this:
 import lightly_train
 
 model = lightly_train.load_model_from_checkpoint(
-    "out/my_experiment/exported_models/exported_last.pt"
+    "out/my_experiment/exported_models/exported_best.pt"
 )
 masks = model.predict("path/to/image.jpg")
 ```
@@ -399,7 +399,7 @@ if __name__ == "__main__":
         model="dinov2/vitl14-eomt",
         model_args={
             # Path to your pretrained DINOv2 model.
-            "backbone_weights": "out/my_pretrain_experiment/exported_models/exported_last.pt",
+            "backbone_weights": "out/my_pretrain_experiment/exported_models/exported_best.pt",
         },
         data={
             "train": {
@@ -522,7 +522,7 @@ import lightly_train
 
 lightly_train.export_onnx(
     out="model.onnx",
-    checkpoint="out/my_experiment/exported_models/exported_last.pt",
+    checkpoint="out/my_experiment/exported_models/exported_best.pt",
     height=518,
     width=518
 )

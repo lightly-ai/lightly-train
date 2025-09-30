@@ -175,7 +175,7 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 | Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Model Weights |
 |----------------|----------------|-------------|------------|----------|----------|------------|
-| LightlyTrain | dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 48.9 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
+| LightlyTrain | dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 103.5 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
 | LightlyTrain | dinov3/vitb16-eomt | 85.7 | 512×512 | 0.544 | 48.1 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
 | LightlyTrain | dinov3/vitl16-eomt | 303.2 | 512×512 | **0.591** | 22.6 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
 | EoMT | dinov2/vitl16-eomt | 319 | 512×512 | 0.584 | - | - |
@@ -407,4 +407,5 @@ We're committed to supporting both open-source and commercial users.
 [![Discord](https://img.shields.io/discord/752876370337726585?style=for-the-badge&logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94) <br>
 [![GitHub](https://img.shields.io/badge/GitHub-lightly--ai-black?style=for-the-badge&logo=github&logoColor=white)](https://github.com/lightly-ai/lightly-train) <br>
 [![X](https://img.shields.io/badge/X-lightlyai-black?style=for-the-badge&logo=x&logoColor=white)](https://x.com/lightlyai) <br>
+[![YouTube](https://img.shields.io/badge/YouTube-lightly--tech-blue?style=for-the-badge&logo=YouTube&logoColor=white)](https://www.youtube.com/channel/UCAz60UdQ9Q3jPqqZi-6bmXw) <br>
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-lightly--tech-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/lightly-tech)

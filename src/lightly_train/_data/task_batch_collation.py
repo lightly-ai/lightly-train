@@ -78,8 +78,6 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
                 num_scales=transform_args.scale_jitter.num_scales,
                 divisible_by=transform_args.scale_jitter.divisible_by,
                 p=transform_args.scale_jitter.prob,
-                step_seeding=transform_args.scale_jitter.step_seeding,
-                seed_offset=transform_args.scale_jitter.seed_offset,
             )
         else:
             self.scale_jitter = None
