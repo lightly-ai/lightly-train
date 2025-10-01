@@ -260,7 +260,7 @@ def test_train_semantic_segmentation__checkpoint(
     assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
 
     # Part 3: check that the class head can be re-initialized when loading from checkpoint.
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.DEBUG):
         lightly_train.train_semantic_segmentation(
             out=out,
             data={
@@ -288,7 +288,7 @@ def test_train_semantic_segmentation__checkpoint(
             checkpoint=last_ckpt_path,
             reuse_class_head=False,
         )
-    assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
+    assert "Skipping class-dependent parameters from checkpoint:" in caplog.text
 
 
 @pytest.mark.skipif(
