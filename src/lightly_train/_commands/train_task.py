@@ -49,6 +49,7 @@ def train_semantic_segmentation(
     num_nodes: int = 1,
     resume_interrupted: bool = False,
     checkpoint: PathLike | None = None,
+    reuse_class_head: bool = False,
     overwrite: bool = False,
     accelerator: str = "auto",
     strategy: str = "auto",
@@ -105,6 +106,10 @@ def train_semantic_segmentation(
 
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
+        reuse_class_head:
+            Set this to True if you want to keep the class head from the provided
+            checkpoint. The default behavior removes the class head before loading so
+            that a new head can be initialized for the current task.
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
             crashed** training run. This will pick up exactly where the training left
@@ -170,6 +175,7 @@ def _train_task(
     num_nodes: int = 1,
     resume_interrupted: bool = False,
     checkpoint: PathLike | None = None,
+    reuse_class_head: bool = False,
     overwrite: bool = False,
     accelerator: str = "auto",
     strategy: str = "auto",
@@ -376,6 +382,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 fabric=fabric,
                 ckpt_path=config.checkpoint,
                 state=state,
+                reuse_class_head=config.reuse_class_head,
             )
         elif config.resume_interrupted:  # Resume from last checkpoint in out_dir.
             helpers.load_checkpoint_from_interrupted(
@@ -543,6 +550,7 @@ class TrainTaskConfig(PydanticConfig):
     num_nodes: int = 1
     resume_interrupted: bool = False
     checkpoint: PathLike | None = None
+    reuse_class_head: bool = False
     overwrite: bool = False
     accelerator: str | Accelerator = "auto"
     strategy: str | Strategy = "auto"
