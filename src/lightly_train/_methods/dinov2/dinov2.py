@@ -673,7 +673,7 @@ class DINOv2(Method):
         # Compute dataset-specific epoch recommendation.
         dataset_size = len(self.trainer.train_dataloader.dataset)
         steps_per_epoch = dataset_size // self.global_batch_size
-        recommended_epochs = math.ceil(self.RECOMMENDED_MIN_STEPS / steps_per_epoch)
+        recommended_epochs = math.floor(self.RECOMMENDED_MIN_STEPS / steps_per_epoch)
         total_num_steps = self.trainer.estimated_stepping_batches
 
         # Display recommendation.
