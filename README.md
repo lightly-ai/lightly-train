@@ -18,16 +18,17 @@
 [![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/)
 [![Discord](https://img.shields.io/discord/752876370337726585?logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94)
 
-*Train Better Models, Faster - No Labels Needed*
+*LightlyTrain is the leading PyTorch framework for training and pretraining vision transformers and foundation models*
 
-LightlyTrain brings self-supervised pretraining to real-world computer vision pipelines, using
-your unlabeled data to reduce labeling costs and speed up model deployment. Leveraging the
-state-of-the-art from research, it pretrains your model on your unlabeled, domain-specific
-data, significantly reducing the amount of labeling needed to reach a high model performance.
+It makes it simple to train state-of-the-art architectures like **DINOv3**, **RT-DETR**, and **ViTs** using labeled or unlabeled data — from **pretraining** and **fine-tuning** to **large-scale distillation**. Vision Transformers achieve the highest accuracy in **segmentation** and **object detection** — setting a new standard for computer vision.
 
-This allows you to focus on new features and domains instead of managing your labeling cycles.
-LightlyTrain is designed for simple integration into existing training pipelines and supports
-a wide range of model architectures and use cases out of the box.
+LightlyTrain brings the latest advances in computer vision **pretraining** to your own data and infrastructure. Whether you’re exploring self-supervised learning or building foundation models for downstream tasks, LightlyTrain gives you the tools to do it efficiently and reproducibly. LightlyTrain brings self-supervised pretraining to the real world. It pretrains your model on your unlabeled, domain-specific data, significantly reducing the amount of labeling needed to reach a high model performance.
+
+Our goal:
+
+> **Make advanced vision transformer training as easy as running a single command.**
+
+This allows you to focus on new features and domains instead of managing your labeling cycles. LightlyTrain is designed for simple integration into existing training pipelines and supports a wide range of model architectures and use cases out of the box.
 
 ## News
 
