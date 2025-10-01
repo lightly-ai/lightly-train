@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from pathlib import Path
 from typing import Any, Literal, Mapping, cast
 
@@ -211,7 +210,11 @@ class DistillationV2(Method):
         assert x_teacher.ndim == 3
 
         # Get the (B, H*W, D) student features.
-        x_student = self._forward_student(views, teacher_features_h=teacher_features_h, teacher_features_w=teacher_features_w)
+        x_student = self._forward_student(
+            views,
+            teacher_features_h=teacher_features_h,
+            teacher_features_w=teacher_features_w,
+        )
 
         # Compute the loss.
         loss = self.criterion(
@@ -230,7 +233,9 @@ class DistillationV2(Method):
         x = torch.cat(x_list, dim=-1)
         return x
 
-    def _forward_student(self, x: Tensor, teacher_features_h: int, teacher_features_w: int) -> Tensor:
+    def _forward_student(
+        self, x: Tensor, teacher_features_h: int, teacher_features_w: int
+    ) -> Tensor:
         # Store the image size.
         # b, _, image_h, image_w = x.shape
 
