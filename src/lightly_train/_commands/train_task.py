@@ -360,6 +360,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         hyperparams = helpers.pretty_format_args_dict(config.model_dump())
         hyperparams.pop("resume_interrupted", None)
+        if "logger_args" in hyperparams and "mlflow" in hyperparams["logger_args"]:
+            hyperparams["logger_args"]["mlflow"].pop("run_id", None)
         for logger_instance in fabric.loggers:
             if config.resume_interrupted:
                 hyperparams["resume_interrupted"] = True

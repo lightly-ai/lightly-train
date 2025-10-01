@@ -148,6 +148,8 @@ def _resolve_mlflow_run_id_for_resume(
     mlflow_args: MLFlowLoggerArgs,
 ) -> str | None:
     """Return the MLflow run id to resume from when resuming an interrupted run."""
+    if mlflow_args.tracking_uri is not None:
+        mlflow.set_tracking_uri(mlflow_args.tracking_uri)
     experiment_name = mlflow_args.experiment_name
     run_name = mlflow_args.run_name
 
@@ -158,7 +160,7 @@ def _resolve_mlflow_run_id_for_resume(
         return None
 
     filter_string = f"""
-        attributes.run_name = "{run_name}"
+        attributes.run_name LIKE "{run_name}"
         """
     runs = mlflow.search_runs(
         experiment_names=[experiment_name],
