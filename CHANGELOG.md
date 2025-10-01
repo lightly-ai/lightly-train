@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix warning that occurs with default epoch settings in DINOv2.
+
 ## [0.11.3] - 2025-09-25
 
 ### Added
