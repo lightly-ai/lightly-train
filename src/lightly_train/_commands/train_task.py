@@ -402,6 +402,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             logger.info(f"Training for {config.steps} steps...")
 
         fabric.barrier()
+        max_val_miou = 0.0
         for step in range(start_step, config.steps):
             state["step"] = step
             is_last_step = step + 1 == config.steps
@@ -442,8 +443,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 fabric.log_dict(train_log_dict, step=step)
                 helpers.reset_metrics(train_result.log_dict)
 
-            if is_save_ckpt_step or is_last_step:
-                helpers.save_checkpoint(fabric=fabric, out_dir=out_dir, state=state)
+            if config.save_checkpoint_args.save_last and (
+                is_save_ckpt_step or is_last_step
+            ):
+                helpers.save_checkpoint(
+                    fabric=fabric, out_dir=out_dir, state=state, best_or_last="last"
+                )
 
                 model_dict = {
                     "model_class_path": state["model_class_path"],
@@ -451,7 +456,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     "train_model": train_model.state_dict(),
                 }
 
-                helpers.export_model(out_dir=out_dir, model_dict=model_dict)
+                helpers.export_model(
+                    out_dir=out_dir, model_dict=model_dict, best_or_last="last"
+                )
 
             if is_val_step or is_last_step:
                 fabric.barrier()
@@ -478,6 +485,38 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         )
                         fabric.log_dict(val_log_dict, step=step)
                         helpers.reset_metrics(val_result.log_dict)
+
+                        val_miou = val_log_dict.get("val_metric/miou")
+                        if val_miou is None:
+                            logger.warning(
+                                "Validation metric 'val_metric/miou' not found in val_log_dict. Skipping best model checkpoint update."
+                            )
+                        elif val_miou > max_val_miou:
+                            if config.save_checkpoint_args.save_best:
+                                logger.info(
+                                    f"The best validation metric 'val_metric/miou'={val_miou:.4f} was reached."
+                                )
+                                helpers.save_checkpoint(
+                                    fabric=fabric,
+                                    out_dir=out_dir,
+                                    state=state,
+                                    best_or_last="best",
+                                )
+
+                                model_dict = {
+                                    "model_class_path": state["model_class_path"],
+                                    "model_init_args": state["model_init_args"],
+                                    "train_model": train_model.state_dict(),
+                                }
+
+                                helpers.export_model(
+                                    out_dir=out_dir,
+                                    model_dict=model_dict,
+                                    best_or_last="best",
+                                )
+
+                            max_val_miou = val_miou
+
                     elif is_val_log_step:
                         # Show that we are making progress. Metrics are only calculated
                         # at the end of the validation loop.

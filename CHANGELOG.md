@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add support for saving the best semantic segmentation checkpoints and model weights during training
+
 ### Changed
+
+- Change default precision to `bf16-mixed` for training on GPUs that support it.
 
 ### Deprecated
 
