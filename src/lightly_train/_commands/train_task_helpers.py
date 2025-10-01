@@ -150,6 +150,13 @@ def _resolve_mlflow_run_id_for_resume(
     """Return the MLflow run id to resume from when resuming an interrupted run."""
     if mlflow_args.tracking_uri is not None:
         mlflow.set_tracking_uri(mlflow_args.tracking_uri)
+    else:
+        logger.warning(
+            "No tracking_uri specified in the MLFlow logger configuration. This way we could not find the run to resume."
+            "Starting a new run instead."
+        )
+        return None
+
     experiment_name = mlflow_args.experiment_name
     run_name = mlflow_args.run_name
 
