@@ -6,9 +6,10 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
-from typing import Union
 
 import pytest
 import torch
@@ -91,8 +92,8 @@ onnx_export_testset = [
 @pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export(
     batch_size: int,
-    height: Union[int, None],
-    width: Union[int, None],
+    height: int | None,
+    width: int | None,
     precision: OnnxPrecision,
     dinov2_vits14_eomt_checkpoint: Path,
     tmp_path: Path,
