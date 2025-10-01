@@ -358,7 +358,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         hyperparams = helpers.pretty_format_args_dict(config.model_dump())
+        hyperparams.pop("resume_interrupted", None)
         for logger_instance in fabric.loggers:
+            if config.resume_interrupted:
+                hyperparams["resume_interrupted"] = True
             logger_instance.log_hyperparams(hyperparams)
 
         state = TrainTaskState(
