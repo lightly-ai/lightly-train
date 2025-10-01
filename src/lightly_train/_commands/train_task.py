@@ -337,6 +337,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         logger_instances = helpers.get_loggers(
             logger_args=config.logger_args,
             out=out_dir,
+            resume_interrupted=config.resume_interrupted,
         )
         fabric.loggers.extend(logger_instances)
 
