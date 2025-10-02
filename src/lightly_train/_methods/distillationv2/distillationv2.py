@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Any, Literal, Mapping, cast
 
@@ -26,7 +27,6 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
-from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.lars_args import LARSArgs
@@ -54,10 +54,7 @@ def get_teacher(
     wrapped_model = package_helpers.get_wrapped_model(
         model=teacher_name, num_input_channels=num_input_channels, model_args=model_args
     )
-    assert isinstance(
-        wrapped_model,
-        (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper, DINOv3VConvNeXtModelWrapper),
-    )
+    assert isinstance(wrapped_model, (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper))
     wrapped_model.make_teacher()
     teacher_embedding_model = wrapped_model.get_model()
 
@@ -202,19 +199,11 @@ class DistillationV2(Method):
         # Mixup the data.
         views = self._mixup_data(views)
 
-        # Get the (B, D, H, W) teacher features.
+        # Get the [B, D] teacher features.
         x_teacher = self._forward_teacher(views)
-        _, _, teacher_features_h, teacher_features_w = x_teacher.shape
-        # (B, D, H, W) -> (B, H*W, D)
-        x_teacher = x_teacher.permute(0, 2, 3, 1).flatten(start_dim=1, end_dim=2)
-        assert x_teacher.ndim == 3
 
-        # Get the (B, H*W, D) student features.
-        x_student = self._forward_student(
-            views,
-            teacher_features_h=teacher_features_h,
-            teacher_features_w=teacher_features_w,
-        )
+        # Get the [B, D] student features.
+        x_student = self._forward_student(views)
 
         # Compute the loss.
         loss = self.criterion(
@@ -228,24 +217,22 @@ class DistillationV2(Method):
     def _forward_teacher(self, x: Tensor) -> Tensor:
         # Forward the images through the teacher model.
         x_list = self.teacher_embedding_model.get_intermediate_layers(
-            x, n=self.method_args.n_teacher_blocks, reshape=True
+            x, n=self.method_args.n_teacher_blocks
         )
         x = torch.cat(x_list, dim=-1)
         return x
 
-    def _forward_student(
-        self, x: Tensor, teacher_features_h: int, teacher_features_w: int
-    ) -> Tensor:
+    def _forward_student(self, x: Tensor) -> Tensor:
         # Store the image size.
-        # b, _, image_h, image_w = x.shape
+        b, _, image_h, image_w = x.shape
 
         # Infer the spatial size of the teacher features.
-        # teacher_features_h = math.ceil(
-        #     image_h / self.teacher_embedding_model.patch_size
-        # )
-        # teacher_features_w = math.ceil(
-        #     image_w / self.teacher_embedding_model.patch_size
-        # )
+        teacher_features_h = math.ceil(
+            image_h / self.teacher_embedding_model.patch_size
+        )
+        teacher_features_w = math.ceil(
+            image_w / self.teacher_embedding_model.patch_size
+        )
 
         # Forward the images through the student model.
         x = self.student_embedding_model(x, pool=False)
@@ -266,7 +253,7 @@ class DistillationV2(Method):
 
         # Flatten the spatial dimensions to match the teacher features:
         # (B, D, H, W) -> (B, H * W, D).
-        x = x.permute(0, 2, 3, 1).flatten(start_dim=1, end_dim=2)
+        x = x.permute(0, 2, 3, 1).view(b, -1, self.teacher_embedding_dim)
 
         return x
 
