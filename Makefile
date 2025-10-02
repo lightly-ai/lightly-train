@@ -171,7 +171,7 @@ EXTRAS_PY312 := [dev,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies. And SuperGradients is not compatible with
 # Python>=3.10, therefore we also remove it from the default development dependencies.
-EXTRAS_DEV := [dev,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
+EXTRAS_DEV := [dev,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.
