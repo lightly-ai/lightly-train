@@ -101,19 +101,18 @@ class ModelCheckpoint(_ModelCheckpoint):
                 f"Could not restore lightly_train models from checkpoint: {ex}"
             )
         else:
-            new_wrapped_model = self._models.wrapped_model.load_state_dict(
+            self._models.wrapped_model.load_state_dict(
                 _checkpoint.models.wrapped_model.state_dict()
             )
             new_model = self._models.wrapped_model.get_model()
-            new_embedding_model = self._models.embedding_model.load_state_dict(
+            self._models.embedding_model.load_state_dict(
                 _checkpoint.models.embedding_model.state_dict()
             )
-            new_models = CheckpointLightlyTrainModels(
+            self._models = CheckpointLightlyTrainModels(
                 model=new_model,
-                wrapped_model=new_wrapped_model,
-                embedding_model=new_embedding_model,
+                wrapped_model=self._models.wrapped_model,
+                embedding_model=self._models.embedding_model,
             )
-            self._models = new_models
 
             # Raise a warning if the normalize_args do not match.
             if self._normalize_args != _checkpoint.normalize_args:
