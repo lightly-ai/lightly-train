@@ -14,7 +14,6 @@ from typing import Any
 import torch
 
 from lightly_train._models import log_usage_example
-from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_src.hub import backbones
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
@@ -42,7 +41,6 @@ MODEL_NAME_TO_GETTER = {
 
 MODEL_CLS_TO_WRAPPER = {
     DinoVisionTransformer: DINOv3ViTModelWrapper,
-    ConvNeXt: DINOv3VConvNeXtModelWrapper,
 }
 
 
@@ -103,7 +101,7 @@ class DINOv3Package(Package):
     @classmethod
     def get_model_wrapper(
         cls, model: DinoVisionTransformer | ConvNeXt
-    ) -> DINOv3ViTModelWrapper | DINOv3VConvNeXtModelWrapper:
+    ) -> DINOv3ViTModelWrapper:
         return MODEL_CLS_TO_WRAPPER[model.__class__](model=model)
 
     @classmethod

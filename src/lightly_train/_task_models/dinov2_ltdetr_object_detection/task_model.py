@@ -108,10 +108,7 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
             num_points=[4, 4, 4],
             query_select_method="default",
             # TODO Lionel (09/25): Remove when anchors are not in checkpoints anymore.
-            eval_spatial_size=(
-                644,
-                644,
-            ),  # From global config, otherwise anchors are not generated.
+            eval_spatial_size=self.image_size,  # From global config, otherwise anchors are not generated.
         )
 
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
@@ -213,10 +210,6 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
         x = self.decoder(x)
         x_: list[Tensor] = self.postprocessor(x, orig_target_size_)
         return x_
-
-    def _forward_bboxes_logits(self, x: Tensor) -> dict[str, Tensor]:
-        """Forward pass that returns bounding boxes and class logits. Intended for inference."""
-        raise NotImplementedError()
 
 
 class DINOv2LTDetrDSPObjectDetectionTaskModel(DINOv2LTDetrObjectDetectionTaskModel):
