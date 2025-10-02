@@ -647,6 +647,7 @@ def load_checkpoint_from_file(
     fabric: Fabric,
     ckpt_path: PathLike,
     state: TrainTaskState,
+    reuse_class_head: bool,
 ) -> None:
     ckpt_path = Path(ckpt_path).resolve()
     if not ckpt_path.exists():
@@ -655,9 +656,37 @@ def load_checkpoint_from_file(
     train_model = state["train_model"]
     train_model_grads = {n: p.requires_grad for n, p in train_model.named_parameters()}
     train_model_trainings = {n: m.training for n, m in train_model.named_modules()}
-
     logger.info(f"Loading checkpoint from '{ckpt_path}'")
-    fabric.load(path=ckpt_path, state={"train_model": train_model})  # type: ignore[arg-type]
+
+    if reuse_class_head:
+        fabric.load(path=ckpt_path, state={"train_model": train_model})  # type: ignore[arg-type]
+    else:
+        checkpoint = fabric.load(path=ckpt_path)
+        checkpoint_train_model = checkpoint["train_model"]
+
+        train_model_state_keys = set(train_model.state_dict().keys())
+        class_head_keys = {
+            key
+            for key in train_model_state_keys
+            if key.startswith("class_head") or ".class_head" in key
+        }
+        criterion_keys = {
+            key for key in train_model_state_keys if "criterion.empty_weight" in key
+        }
+        checkpoint_keys_to_skip = class_head_keys | criterion_keys
+
+        if checkpoint_keys_to_skip:
+            logger.debug(
+                "Skipping class-dependent parameters from checkpoint: %s",
+                sorted(checkpoint_keys_to_skip),
+            )
+
+        filtered_state = {
+            key: value
+            for key, value in checkpoint_train_model.items()
+            if key not in checkpoint_keys_to_skip
+        }
+        train_model.load_state_dict(filtered_state, strict=reuse_class_head)
 
     # Sanity check to make sure that checkpoint loading didn't create new objects or
     # changed the model state.
