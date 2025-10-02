@@ -129,10 +129,11 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             backbone_model_args.update(backbone_args)
 
         # Get the backbone.
-        self.backbone: DinoVisionTransformer = DINOV3_PACKAGE.get_model(
+        self.backbone = DINOV3_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_model_args,
         )
+        assert isinstance(self.backbone, DinoVisionTransformer)
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
 

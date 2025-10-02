@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .utils import get_activation
+from lightly_train._task_models.object_detection_components.utils import get_activation
 
 
 class ConvNormLayer(nn.Module):

@@ -5,17 +5,19 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from torch import Tensor
 from torch.nn import Module
+
+from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 
 
 class DINOv3ConvNextWrapper(Module):
-    def __init__(self, model_name="convnext_tiny"):
+    def __init__(self, model: ConvNeXt) -> None:
         super().__init__()
-        # Get the model.
-        model_getter = MODEL_NAME_TO_GETTER[model_name]
-        model_url = MODEL_NAME_TO_URL[model_name]
-        self.backbone = model_getter(weights=model_url)
+        self.backbone = model
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> tuple[Tensor, ...]:
         feats = self.backbone.get_intermediate_layers(x, n=3, reshape=True)
+        assert isinstance(feats, tuple)
+        assert all(isinstance(f, Tensor) for f in feats)
         return feats

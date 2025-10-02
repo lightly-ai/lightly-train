@@ -5,7 +5,10 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from typing import Any
+from __future__ import annotations
+
+import logging
+from typing import Any, Self
 
 import torch
 from PIL.Image import Image as PILImage
@@ -18,11 +21,11 @@ from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKA
 from lightly_train._task_models.dinov2_ltdetr_object_detection.dinov2_vit_wrapper import (
     DINOv2ViTWrapper,
 )
-from lightly_train._task_models.object_detection_components.detr_postprocessor import (
-    DetDETRPostProcessor,
-)
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     HybridEncoder,
+)
+from lightly_train._task_models.object_detection_components.rtdetr_postprocessor import (
+    RTDETRPostProcessor,
 )
 from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
     RTDETRTransformerv2,
@@ -30,37 +33,42 @@ from lightly_train._task_models.object_detection_components.rtdetrv2_decoder imp
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
+logger = logging.getLogger(__name__)
 
-class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
-    model_suffix = "ltdetr-dsp"
+
+class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
+    model_suffix = "ltdetr"
 
     def __init__(
         self,
         *,
         model_name: str,
-        classes: dict[int, str],
-        class_ignore_index: int | None,
-        backbone_freeze: bool,
         image_size: tuple[int, int],
-        image_normalize: dict[str, tuple[float, ...]],
-        backbone_weights: PathLike | None,
+        classes: dict[int, str] | None,
+        image_normalize: dict[str, Any] | None = None,
+        backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(init_args=locals(), ignore_args={"backbone_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
 
         self.model_name = parsed_name["model_name"]
-        self.classes = classes
-        self.class_ignore_index = class_ignore_index
-        # TODO: Lionel(09/25) implement ignore index handling.
-        if class_ignore_index is not None:
-            raise NotImplementedError()
-        self.backbone_freeze = backbone_freeze
         self.image_size = image_size
-        # TODO: Lionel(09/25) this will currently be ignored, since we just divide by 255.
-        self.image_normalize = image_normalize
+        self.classes = classes
 
-        # TODO: Lionel(09/25) check drop_path in LTDetr.
+        # TODO: Lionel(09/25) Those will currently be ignored.
+        self.image_normalize = image_normalize
+        if image_normalize is not None:
+            logger.warning(
+                "The image_normalize argument is currently ignored. "
+                "Images are only divided by 255."
+            )
+        self.backbone_weights = backbone_weights
+        if backbone_weights is not None:
+            logger.warning(
+                "The backbone_weights argument is currently ignored. "
+                "Pretrained weights are not supported yet."
+            )
 
         dinov2 = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
@@ -91,7 +99,6 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
             feat_strides=[14, 14, 14],
             hidden_dim=256,
             num_levels=3,
-            cross_attn_method="discrete",
             num_layers=6,
             num_queries=300,
             num_denoising=100,
@@ -100,11 +107,14 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
             eval_idx=-1,
             num_points=[4, 4, 4],
             query_select_method="default",
-            eval_spatial_size=(644, 644),
+            # TODO Lionel (09/25): Remove when anchors are not in checkpoints anymore.
+            eval_spatial_size=(
+                644,
+                644,
+            ),  # From global config, otherwise anchors are not generated.
         )
-        self.decoder.training = False
 
-        self.postprocessor: DetDETRPostProcessor = DetDETRPostProcessor(
+        self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
             num_top_queries=300,
         )
 
@@ -150,39 +160,139 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(TaskModel):
             for name in DINOV2_VIT_PACKAGE.list_model_names()
         ]
 
-    @torch.no_grad()
-    def predict(self, image: PathLike | PILImage | Tensor) -> dict[str, Tensor]:
-        for stage in [self.backbone, self.encoder, self.decoder, self.postprocessor]:
-            stage.deploy()
+    def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
+        self.load_state_dict(state_dict)
 
-        if self.training:
-            self.eval()
+    @torch.no_grad()
+    def predict(
+        self, image: PathLike | PILImage | Tensor, threshold: float = 0.5
+    ) -> dict[str, Tensor]:
+        self.postprocessor = self.postprocessor.deploy()  # type: ignore[no-untyped-call]
+        self = self.deploy()  # type: ignore[no-untyped-call]
 
         device = next(self.parameters()).device
         x = file_helpers.as_image_tensor(image).to(device)
-        image_h, image_w = x.shape[:-2]
 
-        x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
+        h, w = x.shape[-2:]
+
+        x = transforms_functional.to_dtype(x, dtype=torch.float32)
+        x = transforms_functional.resize(x, self.image_size)
         # TODO: Lionel (09/25) Change to Normalize transform using saved params.
         x = x / 255.0
         x = x.unsqueeze(0)
 
-        labels, boxes, scores = self(x)
+        labels, boxes, scores = self(x, orig_target_size=(h, w))
+        keep = scores > threshold
+        labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
         return {
-            "labels": labels,
-            "bboxes": boxes,
-            "scores": scores,
+            "labels": labels.squeeze(0),
+            "bboxes": boxes.squeeze(0),
+            "scores": scores.squeeze(0),
         }
 
-    def forward(self, x: Tensor) -> list[Tensor]:
+    def deploy(self) -> Self:
+        self.eval()
+        for m in self.modules():
+            if hasattr(m, "convert_to_deploy"):
+                m.convert_to_deploy()
+        return self
+
+    def forward(
+        self, x: Tensor, orig_target_size: tuple[int, int] | None = None
+    ) -> list[Tensor]:
         # Function used for ONNX export
-        orig_target_size = x.shape[1:3]
+        h, w = x.shape[-2:]
+        if orig_target_size is None:
+            orig_target_size_ = torch.tensor([w, h])[None].to(x.device)
+        else:
+            orig_target_size = torch.tensor([orig_target_size[1], orig_target_size[0]])[
+                None
+            ].to(x.device)
         x = self.backbone(x)
         x = self.encoder(x)
         x = self.decoder(x)
-        x_: list[Tensor] = self.postprocessor(x)
+        x_: list[Tensor] = self.postprocessor(x, orig_target_size_)
         return x_
 
     def _forward_bboxes_logits(self, x: Tensor) -> dict[str, Tensor]:
         """Forward pass that returns bounding boxes and class logits. Intended for inference."""
         raise NotImplementedError()
+
+
+class DINOv2LTDetrDSPObjectDetectionTaskModel(DINOv2LTDetrObjectDetectionTaskModel):
+    model_suffix = "ltdetr-dsp"
+
+    def __init__(
+        self,
+        *,
+        model_name: str,
+        image_size: tuple[int, int],
+        classes: dict[int, str] | None,
+        image_normalize: dict[str, Any] | None = None,
+        backbone_weights: PathLike | None = None,
+        backbone_args: dict[str, Any] | None = None,
+    ) -> None:
+        super(DINOv2LTDetrObjectDetectionTaskModel, self).__init__(
+            init_args=locals(), ignore_args={"backbone_weights"}
+        )
+        parsed_name = self.parse_model_name(model_name=model_name)
+
+        self.model_name = parsed_name["model_name"]
+        self.image_size = image_size
+        self.classes = classes
+        # TODO: Lionel(09/25) this will currently be ignored, since we just divide by 255.
+        self.image_normalize = image_normalize
+        if image_normalize is not None:
+            logger.warning(
+                "The image_normalize argument is currently ignored. "
+                "Images are only divided by 255."
+            )
+
+        dinov2 = DINOV2_VIT_PACKAGE.get_model(
+            model_name=parsed_name["backbone_name"],
+            model_args=backbone_args,
+        )
+        self.backbone: DINOv2ViTWrapper = DINOv2ViTWrapper(
+            model=dinov2,
+            keep_indices=[5, 8, 11],
+        )
+
+        self.encoder: HybridEncoder = HybridEncoder(  # type: ignore[no-untyped-call]
+            in_channels=[384, 384, 384],
+            feat_strides=[14, 14, 14],
+            hidden_dim=384,
+            use_encoder_idx=[2],
+            num_encoder_layers=1,
+            nhead=8,
+            dim_feedforward=2048,
+            dropout=0.0,
+            enc_act="gelu",
+            expansion=1.0,
+            depth_mult=1,
+            act="silu",
+        )
+
+        self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
+            feat_channels=[384, 384, 384],
+            feat_strides=[14, 14, 14],
+            hidden_dim=256,
+            num_levels=3,
+            cross_attn_method="discrete",
+            num_layers=6,
+            num_queries=300,
+            num_denoising=100,
+            label_noise_ratio=0.5,
+            box_noise_scale=1.0,
+            eval_idx=-1,
+            num_points=[4, 4, 4],
+            query_select_method="default",
+            # TODO Lionel (09/25): Remove when anchors are not in checkpoints anymore.
+            eval_spatial_size=(
+                644,
+                644,
+            ),  # From global config, otherwise anchors are not generated.
+        )
+
+        self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
+            num_top_queries=300,
+        )

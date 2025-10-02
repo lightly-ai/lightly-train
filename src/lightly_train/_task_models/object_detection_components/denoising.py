@@ -14,8 +14,11 @@
 
 import torch
 
-from .box_ops import box_cxcywh_to_xyxy, box_xyxy_to_cxcywh
-from .utils import inverse_sigmoid
+from lightly_train._task_models.object_detection_components.box_ops import (
+    box_cxcywh_to_xyxy,
+    box_xyxy_to_cxcywh,
+)
+from lightly_train._task_models.object_detection_components.utils import inverse_sigmoid
 
 
 def get_contrastive_denoising_training_group(

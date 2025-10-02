@@ -15,11 +15,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from lightly_train._task_models.object_detection_components.box_revert import (
-    BoxProcessFormat,
-    box_revert,
-)
+import torchvision
 
 
 def mod(a, b):
@@ -27,35 +23,41 @@ def mod(a, b):
     return out
 
 
-class DetDETRPostProcessor(nn.Module):
+class RTDETRPostProcessor(nn.Module):
     def __init__(
         self,
         num_classes=80,
         use_focal_loss=True,
         num_top_queries=300,
-        box_process_format=BoxProcessFormat.RESIZE,
+        remap_mscoco_category=False,
     ) -> None:
         super().__init__()
         self.use_focal_loss = use_focal_loss
         self.num_top_queries = num_top_queries
         self.num_classes = int(num_classes)
-        self.box_process_format = box_process_format
+        self.remap_mscoco_category = remap_mscoco_category
         self.deploy_mode = False
 
     def extra_repr(self) -> str:
         return f"use_focal_loss={self.use_focal_loss}, num_classes={self.num_classes}, num_top_queries={self.num_top_queries}"
 
-    def forward(self, outputs, **kwargs):
+    # def forward(self, outputs, orig_target_sizes):
+    def forward(self, outputs, orig_target_sizes: torch.Tensor):
         logits, boxes = outputs["pred_logits"], outputs["pred_boxes"]
+        # orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
+
+        bbox_pred = torchvision.ops.box_convert(boxes, in_fmt="cxcywh", out_fmt="xyxy")
+        bbox_pred *= orig_target_sizes.repeat(1, 2).unsqueeze(1)
 
         if self.use_focal_loss:
             scores = F.sigmoid(logits)
             scores, index = torch.topk(scores.flatten(1), self.num_top_queries, dim=-1)
-            labels = index % self.num_classes
-            # labels = mod(index, self.num_classes) # for tensorrt
+            # TODO for older tensorrt
+            # labels = index % self.num_classes
+            labels = mod(index, self.num_classes)
             index = index // self.num_classes
-            boxes = boxes.gather(
-                dim=1, index=index.unsqueeze(-1).repeat(1, 1, boxes.shape[-1])
+            boxes = bbox_pred.gather(
+                dim=1, index=index.unsqueeze(-1).repeat(1, 1, bbox_pred.shape[-1])
             )
 
         else:
@@ -68,19 +70,21 @@ class DetDETRPostProcessor(nn.Module):
                     boxes, dim=1, index=index.unsqueeze(-1).tile(1, 1, boxes.shape[-1])
                 )
 
-        if kwargs is not None:
-            boxes = box_revert(
-                boxes,
-                in_fmt="cxcywh",
-                out_fmt="xyxy",
-                process_fmt=self.box_process_format,
-                normalized=True,
-                **kwargs,
-            )
-
         # TODO for onnx export
         if self.deploy_mode:
             return labels, boxes, scores
+
+        # TODO
+        if self.remap_mscoco_category:
+            from ...data.dataset import mscoco_label2category
+
+            labels = (
+                torch.tensor(
+                    [mscoco_label2category[int(x.item())] for x in labels.flatten()]
+                )
+                .to(boxes.device)
+                .reshape(labels.shape)
+            )
 
         results = []
         for lab, box, sco in zip(labels, boxes, scores):

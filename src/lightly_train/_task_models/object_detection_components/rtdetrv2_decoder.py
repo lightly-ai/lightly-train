@@ -23,10 +23,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 
-from lightly_train._task_models.object_detection_components.denoising import (
-    get_contrastive_denoising_training_group,
-)
-from lightly_train._task_models.object_detection_components.utils import (
+from .denoising import get_contrastive_denoising_training_group
+from .utils import (
     bias_init_with_prob,
     deformable_attention_core_func_v2,
     get_activation,
@@ -339,6 +337,7 @@ class TransformerDecoder(nn.Module):
             inter_ref_bbox = F.sigmoid(
                 bbox_head[i](output) + inverse_sigmoid(ref_points_detach)
             )
+
             ref_points = inter_ref_bbox
 
             if self.training:
