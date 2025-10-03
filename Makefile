@@ -153,25 +153,25 @@ reset-venv:
 # Set EDITABLE to -e to install the package in editable mode outside of CI. This is
 # useful for local development.
 ifdef CI
-EDITABLE :=
+EDITABLE := --no-editable
 else
-EDITABLE := -e
+EDITABLE :=
 endif
 
 # RFDETR and ONNXRuntime is not compatible with Python<3.9. Therefore we exclude it from the
 # default extras.
-EXTRAS_PY38 := [dev,mlflow,notebook,onnx,super-gradients,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY38 := dev mlflow notebook onnx super-gradients timm ultralytics wandb
 
 # SuperGradients is not compatible with Python>=3.10. It is also not easy to install
 # on MacOS. Therefore we exclude it from the default extras.
 # RFDETR has installation issues because of onnxsim dependency on CI with Python 3.12.
 # Onnx dependencies in RFDETR should become optional in RFDETR >1.1.0.
-EXTRAS_PY312 := [dev,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY312 := dev mlflow notebook onnx onnxruntime onnxslim rfdetr timm ultralytics wandb xformers
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies. And SuperGradients is not compatible with
 # Python>=3.10, therefore we also remove it from the default development dependencies.
-EXTRAS_DEV := [dev,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
+EXTRAS_DEV := dev mlflow notebook onnx onnxruntime onnxslim tensorboard timm ultralytics wandb xformers
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.
@@ -193,25 +193,6 @@ EXCLUDE_NEWER_DATE := "2025-09-07"
 # down a rabbit hole of dependency resolution issues.
 UNAME_S := $(shell uname -s)
 
-ifeq ($(UNAME_S),Linux)
-ifdef CI
-PINNED_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-PINNED_TORCH_VERSION_PY312 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
-PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-PINNED_TORCHVISION_VERSION_PY312 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
-MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-endif
-else
-PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
-PINNED_TORCH_VERSION_PY312 := "torch==2.4.0"
-PINNED_TORCHVISION_VERSION_PY38 := "torchvision==0.19.0"
-PINNED_TORCHVISION_VERSION_PY312 := "torchvision==0.19.0"
-MINIMAL_TORCH_VERSION_PY38 := "torch==2.1.0"
-MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision==0.16.0"
-endif
-
-
 # Install ffmpeg on Ubuntu.
 . PHONY: install-ffmpeg-ubuntu
 install-ffmpeg-ubuntu:
@@ -220,7 +201,7 @@ install-ffmpeg-ubuntu:
 # Install package for local development.
 .PHONY: install-dev
 install-dev:
-	uv pip install ${EDITABLE} ".${EXTRAS_DEV}"
+	uv sync ${EDITABLE} $(foreach extra,$(EXTRAS_DEV),--extra $(extra))
 	pre-commit install
 
 # Install package with minimal dependencies.
@@ -241,19 +222,14 @@ install-dev:
 # --reinstall: Reinstall dependencies to make sure they satisfy the constraints.
 .PHONY: install-minimal
 install-minimal:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} ${EDITABLE} ".[dev]"
-	uv pip install --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} \
-		--reinstall ${EDITABLE} "." --requirement pyproject.toml \
-		${MINIMAL_TORCH_VERSION_PY38} ${MINIMAL_TORCHVISION_VERSION_PY38}
+	uv sync --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} ${EDITABLE}
 
 # Install package with minimal dependencies including extras.
 # See install-minimal for more information.
 .PHONY: install-minimal-extras
 install-minimal-extras:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} ${EDITABLE} ".[dev]"
-	uv pip install --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} \
-		--reinstall ${EDITABLE} ".${EXTRAS_PY38}" --requirement pyproject.toml \
-		${MINIMAL_TORCH_VERSION_PY38} ${MINIMAL_TORCHVISION_VERSION_PY38}
+	uv sync --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} \
+		${EDITABLE} --extra ${EXTRAS_PY38}
 
 # Install package for Python 3.8 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE. This keeps CI stable if new versions of
@@ -265,10 +241,11 @@ install-minimal-extras:
 # For Python 3.8 we install the package with SuperGradients and without RFDETR.
 # Torch and TorchVision are pinned to specific versions to avoid issues with the
 # CUDA/driver version on the CI machine.
+
 .PHONY: install-pinned-3.8
 install-pinned-3.8:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY38}" --requirement pyproject.toml \
-		${PINNED_TORCH_VERSION_PY38} ${PINNED_TORCHVISION_VERSION_PY38}
+	uv sync --exclude-newer ${EXCLUDE_NEWER_DATE} ${EDITABLE} --extra ${EXTRAS_PY38}
+		--extra cpu-linux --extra gpu-linux --extra gpu-win
 
 # Install package for Python 3.12 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE.

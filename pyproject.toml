@@ -45,7 +45,7 @@ dependencies = [
     "tqdm>=4.0.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "licenseheaders>=0.8.8",
     "mdformat>=0.7.21; python_version>='3.9'",  # Older versions change formatting behavior
@@ -78,8 +78,7 @@ notebook = [
 # Note: rfdetr, or one of its dependencies, installs opencv-python and opencv-python-headless
 # which can result in conflicts.
 rfdetr = [
-    "rfdetr>=1.0.8",
-    "onnxruntime>=1.21.0", # onnxruntime is required for onnxsim, which is required for rfdetr
+    "rfdetr>=1.2.0",
 ]
 super-gradients = [
     "super-gradients>=3.7",
@@ -106,6 +105,7 @@ onnxruntime = [
 onnxslim = [
     "onnxslim>=0.1.67",
 ]
+
 [project.scripts]
 lightly-train = "lightly_train._cli:_cli_entrypoint"
 
@@ -182,6 +182,56 @@ convention = "google"
 override-dependencies = [
   "sphinx>=7.1",              # Override dependency from SuperGradients on sphinx<=4.1
 ]
+# conflicts = [
+#     [
+#         { extra = "cpu-linux" },
+#         { extra = "gpu-linux" },
+#         { extra = "gpu-win" },
+#         { extra = "cpu-win" },
+#         { extra = "cpu-macos" }
+#     ]
+# ]
+conflicts = [
+    [
+      { extra = "super-gradients" },
+      { extra = "onnxruntime" },
+    ],
+]
+
+[tool.uv.dependency-groups]
+onnxruntime = { requires-python = ">=3.10" }
+onnxslim = { requires-python = ">=3.10" }
+
+# [tool.uv.sources]
+# torch = [
+#     { extra = "cpu-linux", index = "torch-linux-cpu"},
+#     { extra = "gpu-linux", index = "torch-linux-gpu"},
+#     # torch-cpu-win should be installed fom PyPi
+#     { extra = "gpu-win", index = "torch-win-gpu"},
+#     # torch-cpu-macos should be installed fom PyPi
+# ]
+# torchvision = [
+#     { extra = "cpu-linux", index = "torch-linux-cpu"},
+#     { extra = "gpu-linux", index = "torch-linux-gpu"},
+#     # torchvision-cpu-win should be installed fom PyPi
+#     { extra = "gpu-win", index = "torch-win-gpu"},
+#     # torchvision-cpu-macos should be installed fom PyPi
+# ]
+
+# [[tool.uv.index]]
+# name = "torch-linux-cpu"
+# url = "https://download.pytorch.org/whl/cpu"
+# explicit = true
+
+# [[tool.uv.index]]
+# name = "torch-linux-gpu"
+# url = "https://download.pytorch.org/whl/cu118"
+# explicit = true
+
+# [[tool.uv.index]]
+# name = "torch-win-gpu"
+# url = "https://download.pytorch.org/whl/cu118"
+# explicit = true
 
 
 [tool.pytest.ini_options]
