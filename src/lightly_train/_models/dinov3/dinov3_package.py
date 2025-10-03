@@ -15,6 +15,7 @@ import torch
 
 from lightly_train._models import log_usage_example
 from lightly_train._models.dinov3.dinov3_src.hub import backbones
+from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
@@ -32,6 +33,14 @@ MODEL_NAME_TO_GETTER = {
     "vitl16plus": backbones.dinov3_vitl16plus,
     "vith16plus": backbones.dinov3_vith16plus,
     "vit7b16": backbones.dinov3_vit7b16,
+    "convnext-tiny": backbones.dinov3_convnext_tiny,
+    "convnext-small": backbones.dinov3_convnext_small,
+    "convnext-base": backbones.dinov3_convnext_base,
+    "convnext-large": backbones.dinov3_convnext_large,
+}
+
+MODEL_CLS_TO_WRAPPER = {
+    DinoVisionTransformer: DINOv3ViTModelWrapper,
 }
 
 
@@ -46,7 +55,7 @@ class DINOv3Package(Package):
 
     @classmethod
     def is_supported_model(
-        cls, model: DinoVisionTransformer | ModelWrapper | Any
+        cls, model: DinoVisionTransformer | ConvNeXt | ModelWrapper | Any
     ) -> bool:
         if isinstance(model, ModelWrapper):
             return isinstance(model.get_model(), DinoVisionTransformer)
@@ -78,25 +87,25 @@ class DINOv3Package(Package):
         model_name: str,
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
-    ) -> DinoVisionTransformer:
+    ) -> DinoVisionTransformer | ConvNeXt:
         """
         Get a DINOv3 ViT model by name. Here the student version is build.
         """
         args: dict[str, Any] = {"in_chans": num_input_channels}
         if model_args is not None:
             args.update(model_args)
-        model = MODEL_NAME_TO_GETTER[model_name](**args)
-        assert isinstance(model, DinoVisionTransformer)
+        model = MODEL_NAME_TO_GETTER[model_name](**args)  # type: ignore[operator]
+        assert isinstance(model, (DinoVisionTransformer, ConvNeXt))
         return model
 
     @classmethod
     def get_model_wrapper(cls, model: DinoVisionTransformer) -> DINOv3ViTModelWrapper:
-        return DINOv3ViTModelWrapper(model=model)
+        return MODEL_CLS_TO_WRAPPER[model.__class__](model=model)
 
     @classmethod
     def export_model(
         cls,
-        model: DinoVisionTransformer | ModelWrapper | Any,
+        model: DinoVisionTransformer | ConvNeXt | ModelWrapper | Any,
         out: Path,
         log_example: bool = True,
     ) -> None:
@@ -117,7 +126,7 @@ class DINOv3Package(Package):
                 "import torch",
                 "",
                 "# Load the pretrained model",
-                "model = DINOv3Package.get_model('dinov3/<vitXX>') # Replace with the model name used in train",
+                "model = DINOv3Package.get_model('dinov3/<XYZ>') # Replace with the model name used in train. E.g. 'dinov3/vitb16'",
                 f"model.load_state_dict(torch.load('{out}', weights_only=True))",
                 "",
                 "# Finetune or evaluate the model",

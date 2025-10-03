@@ -102,7 +102,6 @@ class DINOv2ViTPackage(Package):
         model_builder = model_builders.get(cfg.student.arch, None)
         if model_builder is None:
             raise TypeError(f"Unsupported architecture type {cfg.student.arch}.")
-
         kwargs = dict(
             img_size=cfg.crops.global_crops_size,
             patch_size=cfg.student.patch_size,
