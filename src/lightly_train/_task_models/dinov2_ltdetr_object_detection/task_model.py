@@ -92,6 +92,7 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
             expansion=1.0,
             depth_mult=1,
             act="silu",
+            upsample=False,
         )
 
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]

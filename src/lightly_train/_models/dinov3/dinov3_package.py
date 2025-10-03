@@ -94,14 +94,12 @@ class DINOv3Package(Package):
         args: dict[str, Any] = {"in_chans": num_input_channels}
         if model_args is not None:
             args.update(model_args)
-        model = MODEL_NAME_TO_GETTER[model_name](**args)
+        model = MODEL_NAME_TO_GETTER[model_name](**args)  # type: ignore[operator]
         assert isinstance(model, (DinoVisionTransformer, ConvNeXt))
         return model
 
     @classmethod
-    def get_model_wrapper(
-        cls, model: DinoVisionTransformer | ConvNeXt
-    ) -> DINOv3ViTModelWrapper:
+    def get_model_wrapper(cls, model: DinoVisionTransformer) -> DINOv3ViTModelWrapper:
         return MODEL_CLS_TO_WRAPPER[model.__class__](model=model)
 
     @classmethod
