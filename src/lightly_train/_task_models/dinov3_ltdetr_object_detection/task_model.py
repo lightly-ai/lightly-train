@@ -323,7 +323,7 @@ class DINOv3LTDetrObjectDetectionTaskModel(TaskModel):
         if orig_target_size is None:
             orig_target_size_ = torch.tensor([w, h])[None].to(x.device)
         else:
-            orig_target_size = torch.tensor([orig_target_size[1], orig_target_size[0]])[
+            orig_target_size_ = torch.tensor([orig_target_size[1], orig_target_size[0]])[
                 None
             ].to(x.device)
         x = self.backbone(x)
