@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Self
+from typing import Any
 
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
+from typing_extensions import Self
 
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
