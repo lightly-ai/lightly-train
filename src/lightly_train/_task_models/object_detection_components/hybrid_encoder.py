@@ -207,6 +207,7 @@ class TransformerEncoder(nn.Module):
 class HybridEncoder(nn.Module):
     def __init__(
         self,
+        upsample: bool,  # Added: Lionel (09/25) to handle grid_sampling in line 386
         in_channels=[512, 1024, 2048],
         feat_strides=[8, 16, 32],
         hidden_dim=256,
@@ -233,6 +234,10 @@ class HybridEncoder(nn.Module):
         self.eval_spatial_size = eval_spatial_size
         self.out_channels = [hidden_dim for _ in range(len(in_channels))]
         self.out_strides = feat_strides
+
+        self.upsample = (
+            upsample  # Added: Lionel (09/25) to handle grid_sampling in line 386
+        )
 
         # channel projection
         self.input_proj = nn.ModuleList()
@@ -379,7 +384,10 @@ class HybridEncoder(nn.Module):
             feat_low = proj_feats[idx - 1]
             feat_heigh = self.lateral_convs[len(self.in_channels) - 1 - idx](feat_heigh)
             inner_outs[0] = feat_heigh
-            # upsample_feat = F.interpolate(feat_heigh, scale_factor=2., mode='nearest')
+            if self.upsample:
+                upsample_feat = F.interpolate(
+                    feat_heigh, scale_factor=2.0, mode="nearest"
+                )
             upsample_feat = feat_heigh
             inner_out = self.fpn_blocks[len(self.in_channels) - 1 - idx](
                 torch.concat([upsample_feat, feat_low], dim=1)

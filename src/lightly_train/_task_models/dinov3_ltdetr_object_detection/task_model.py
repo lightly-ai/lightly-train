@@ -39,6 +39,7 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
+# TODO: Lionel(09/25) Make names more descriptive for ViT support.
 class _HybridEncoderConfig(PydanticConfig):
     in_channels: list[int]
     feat_strides: list[int]
@@ -52,6 +53,7 @@ class _HybridEncoderConfig(PydanticConfig):
     expansion: float
     depth_mult: float
     act: str
+    upsample: bool = True
 
 
 class _HybridEncoderLargeConfig(_HybridEncoderConfig):
@@ -288,7 +290,7 @@ class DINOv3LTDetrObjectDetectionTaskModel(TaskModel):
 
     @torch.no_grad()
     def predict(
-        self, image: PathLike | PILImage | Tensor, threshold: float = 0.5
+        self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
     ) -> dict[str, Tensor]:
         self.postprocessor = self.postprocessor.deploy()  # type: ignore[no-untyped-call]
         self = self.deploy()  # type: ignore[no-untyped-call]

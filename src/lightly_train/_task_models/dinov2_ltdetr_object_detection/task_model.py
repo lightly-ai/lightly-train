@@ -162,7 +162,7 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
 
     @torch.no_grad()
     def predict(
-        self, image: PathLike | PILImage | Tensor, threshold: float = 0.5
+        self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
     ) -> dict[str, Tensor]:
         self.postprocessor = self.postprocessor.deploy()  # type: ignore[no-untyped-call]
         self = self.deploy()  # type: ignore[no-untyped-call]
@@ -202,9 +202,9 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
         if orig_target_size is None:
             orig_target_size_ = torch.tensor([w, h])[None].to(x.device)
         else:
-            orig_target_size = torch.tensor([orig_target_size[1], orig_target_size[0]])[
-                None
-            ].to(x.device)
+            orig_target_size_ = torch.tensor(
+                [orig_target_size[1], orig_target_size[0]]
+            )[None].to(x.device)
         x = self.backbone(x)
         x = self.encoder(x)
         x = self.decoder(x)
@@ -263,6 +263,7 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(DINOv2LTDetrObjectDetectionTaskMod
             expansion=1.0,
             depth_mult=1,
             act="silu",
+            upsample=False,
         )
 
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]

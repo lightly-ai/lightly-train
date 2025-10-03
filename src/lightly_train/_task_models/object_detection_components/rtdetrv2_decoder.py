@@ -478,6 +478,7 @@ class RTDETRTransformerv2(nn.Module):
         # init encoder output anchors and valid_mask
         if self.eval_spatial_size:
             anchors, valid_mask = self._generate_anchors()
+            # TODO Lionel (09/25): Remove, we should not save the anchors in the checkpoints.
             self.register_buffer("anchors", anchors)
             self.register_buffer("valid_mask", valid_mask)
 
