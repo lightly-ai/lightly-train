@@ -121,19 +121,17 @@ for more details.
 
 LightlyTrain’s LT-DETR models, powered by DINOv2 and DINOv3 backbones, demonstrate strong performance across different scales.
 
-|  Backbone  | Pre-training | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Resolution | Model Weights |
+| Backbone | Pre-training | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Resolution | Model Weights |
 | :--------: | :----------: | :----------------: | :----------: | :----------: | :--------: | :-----------: |
-|  ViT-S/14  |    DINOv2    |        55.7        |     16.87    |     55.3     |   640×640  |  [Weights](#) |
-| ConvNeXt-T |    DINOv3    |        54.4        |     13.29    |     61.1     |   640×640  |  [weights](#) |
-| ConvNeXt-S |    DINOv3    |        56.9        |     17.65    |     82.7     |   640×640  |  [weights](#) |
-| ConvNeXt-B |    DINOv3    |        58.6        |     24.68    |     121.0    |   640×640  |  [weights](#) |
-| ConvNeXt-L |    DINOv3    |        60.0        |     42.30    |     230.0    |   640×640  |  [weights](#) |
-
+| ViT-S/14 | DINOv2 | 55.7 | 16.87 | 55.3 | 640×640 | [Weights](#) |
+| ConvNeXt-T | DINOv3 | 54.4 | 13.29 | 61.1 | 640×640 | [weights](#) |
+| ConvNeXt-S | DINOv3 | 56.9 | 17.65 | 82.7 | 640×640 | [weights](#) |
+| ConvNeXt-B | DINOv3 | 58.6 | 24.68 | 121.0 | 640×640 | [weights](#) |
+| ConvNeXt-L | DINOv3 | 60.0 | 42.30 | 230.0 | 640×640 | [weights](#) |
 
 Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `tensorrt==10.13.3.9`.
 
 🚀 We are actively working on new models with improved speed and accuracy. Updates coming soon.Faster and better models are coming soon. Stay tuned!
-
 
 ## 🔥 Train SOTA Semantic Segmentation Models 🔥
 
