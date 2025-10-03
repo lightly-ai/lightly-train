@@ -5,7 +5,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from typing import Sequence
+from typing import Sequence, Tuple
 
 from torch import Tensor
 from torch.nn import Module
@@ -24,7 +24,7 @@ class DINOv2ViTWrapper(Module):
         self.keep_indices = list(keep_indices)
         self.backbone = model
 
-    def forward(self, x: Tensor) -> tuple[Tensor, ...]:
+    def forward(self, x: Tensor) -> Tuple[Tensor, ...]:
         # TODO: Lionel(09/25) Infer minimum n from keep_indices.
         feats = self.backbone.get_intermediate_layers(x, n=12, reshape=True)
         feats_: list[Tensor] = [feats[i] for i in self.keep_indices]  # type: ignore[misc]
