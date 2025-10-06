@@ -124,7 +124,7 @@ def test_train_semantic_segmentation(
     ],
 )
 @pytest.mark.parametrize("num_channels", [3, 4])
-def test_train_semantic_segmentation_export(
+def test_train_semantic_segmentation__export(
     tmp_path: Path, model_name: str, model_args: dict[str, Any], num_channels: int
 ) -> None:
     out = tmp_path / "out"
@@ -258,6 +258,37 @@ def test_train_semantic_segmentation__checkpoint(
             checkpoint=last_ckpt_path,
         )
     assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
+
+    # Part 3: check that the class head can be re-initialized when loading from checkpoint.
+    with caplog.at_level(logging.DEBUG):
+        lightly_train.train_semantic_segmentation(
+            out=out,
+            data={
+                "train": {
+                    "images": train_images,
+                    "masks": train_masks,
+                },
+                "val": {
+                    "images": val_images,
+                    "masks": val_masks,
+                },
+                "classes": {
+                    0: "background",
+                    1: "car",
+                    2: "tree",
+                },
+            },
+            model="dinov2/vits14-eomt",
+            accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+            devices=1,
+            batch_size=2,
+            num_workers=0,
+            steps=1,
+            overwrite=True,
+            checkpoint=last_ckpt_path,
+            reuse_class_head=False,
+        )
+    assert "Skipping class-dependent parameters from checkpoint:" in caplog.text
 
 
 @pytest.mark.skipif(
