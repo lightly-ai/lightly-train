@@ -86,6 +86,10 @@ def get_callbacks(
             )
         )
     if callback_args.model_checkpoint is not None:
+        if callback_args.model_checkpoint.dirpath is None:
+            dirpath = out / "checkpoints"
+        else:
+            dirpath = callback_args.model_checkpoint.dirpath
         callbacks.append(
             ModelCheckpoint(
                 models=CheckpointLightlyTrainModels(
@@ -93,7 +97,7 @@ def get_callbacks(
                     wrapped_model=wrapped_model,
                     embedding_model=embedding_model,
                 ),
-                dirpath=out / "checkpoints",
+                dirpath=dirpath,
                 normalize_args=normalize_args,
                 **callback_args.model_checkpoint.model_dump(),
             )
