@@ -106,9 +106,14 @@ class ModelCheckpoint(_ModelCheckpoint):
             self._models.wrapped_model.load_state_dict(
                 _checkpoint.models.wrapped_model.state_dict()
             )
-            self._models.model = self._models.wrapped_model.get_model()
+            updated_model = self._models.wrapped_model.get_model()
             self._models.embedding_model.load_state_dict(
                 _checkpoint.models.embedding_model.state_dict()
+            )
+            self._models = CheckpointLightlyTrainModels(
+                model=updated_model,
+                wrapped_model=self._models.wrapped_model,
+                embedding_model=self._models.embedding_model,
             )
 
             # Raise a warning if the normalize_args do not match.
