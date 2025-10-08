@@ -101,6 +101,8 @@ class ModelCheckpoint(_ModelCheckpoint):
                 f"Could not restore lightly_train models from checkpoint: {ex}"
             )
         else:
+            # Load wrapped model first, since wrapped_model.get_model() might not be a
+            # torch.nn.Module and therefore cannot have its state_dict loaded directly.
             self._models.wrapped_model.load_state_dict(
                 _checkpoint.models.wrapped_model.state_dict()
             )
