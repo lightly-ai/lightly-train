@@ -87,7 +87,7 @@ def get_callbacks(
         )
     if callback_args.model_checkpoint is not None:
         if callback_args.model_checkpoint.dirpath is None:
-            callback_args.model_checkpoint.dirpath = out / "checkpoints"
+            callback_args.model_checkpoint.dirpath = str(out / "checkpoints")
         callbacks.append(
             ModelCheckpoint(
                 models=CheckpointLightlyTrainModels(

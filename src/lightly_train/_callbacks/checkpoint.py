@@ -48,7 +48,7 @@ class ModelCheckpoint(_ModelCheckpoint):
         self,
         models: CheckpointLightlyTrainModels,
         normalize_args: NormalizeArgs,
-        dirpath: None | PathLike = None,
+        dirpath: None | str = None,
         filename: None | str = None,
         monitor: None | str = None,
         verbose: bool = False,
