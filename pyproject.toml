@@ -82,7 +82,7 @@ rfdetr = [
     "rfdetr>=1.2.0; python_version>='3.9'", # requires Python >=3.9
 ]
 super-gradients = [
-    "super-gradients>=3.7",
+    "super-gradients>=3.7; python_version<='3.10'", # requires Python >=3.11
 ]
 tensorboard = [] # Keep for backwards compatibility
 timm = [
@@ -210,6 +210,10 @@ conflicts = [
         { extra = "super-gradients" },
         { extra = "onnxruntime" },
     ],
+    [
+        { extra = "super-gradients" },
+        { extra = "ultralytics"},
+    ]
 ]
 
 # [tool.uv.sources]
