@@ -133,6 +133,7 @@ Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are 
 ```bash
 wget <MODEL-WEIGHTS-URL> -O model.ckpt
 ```
+
 ```python
 import lightly_train
 from torchvision import utils, io
