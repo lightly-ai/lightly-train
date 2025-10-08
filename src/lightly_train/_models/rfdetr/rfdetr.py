@@ -64,16 +64,3 @@ class RFDETRModelWrapper(Module, ModelWrapper):
 
     def get_model(self) -> RFDETR:
         return self._model[0]
-
-    def load_state_dict(self, state_dict: dict[str, Any], *args, **kwargs) -> None:  # type: ignore[no-untyped-def,override]
-        state_dict = {"".join(k.split(".")[3:]): v for k, v in state_dict.items()}
-        self._model[0].model.model.load_state_dict(state_dict, *args, **kwargs)
-
-    def state_dict(self, *args, **kwargs) -> dict[str, Any]:  # type: ignore[no-untyped-def,override]
-        state_dict: dict[str, Any] = self._model[0].model.model.state_dict(
-            *args, **kwargs
-        )
-        state_dict = {
-            f"wrapped_model.model.model.{k}": v for k, v in state_dict.items()
-        }
-        return state_dict
