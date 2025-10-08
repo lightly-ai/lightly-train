@@ -70,6 +70,7 @@ class CheckpointLightlyTrain:
         )
 
 
+@dataclass(frozen=True)
 class CheckpointLightlyTrainModels:
     model: Module
     wrapped_model: ModelWrapper
