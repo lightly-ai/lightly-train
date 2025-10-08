@@ -104,9 +104,7 @@ def test_train(
             devices=1,
             resume_interrupted=True,
         )
-    assert (
-        f"Restored all states from the checkpoint at {last_ckpt_path}" in caplog.text
-    )
+    assert f"Restored all states from the checkpoint at {last_ckpt_path}" in caplog.text
     # Epochs in checkpoint are 0-indexed. Epoch 1 is therefore the second epoch.
     # weights_only=True does not work here.
     assert torch.load(last_ckpt_path, weights_only=False)["epoch"] == 1

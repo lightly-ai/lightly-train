@@ -17,7 +17,6 @@ try:
 except ImportError:
     pass
 
-from typing import Any
 
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
