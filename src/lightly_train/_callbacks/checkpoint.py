@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 
 class ModelCheckpointArgs(PydanticConfig):
-    dirpath: PathLike | None = None
     filename: str | None = None
     monitor: str | None = None
     verbose: bool = False
