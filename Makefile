@@ -201,7 +201,7 @@ install-ffmpeg-ubuntu:
 # Install package for local development.
 .PHONY: install-dev
 install-dev:
-	uv sync ${EDITABLE} $(foreach extra,$(EXTRAS_DEV),--extra $(extra))
+	uv sync --python 3.11 ${EDITABLE} $(foreach extra,$(EXTRAS_DEV),--extra $(extra))
 	pre-commit install
 
 # Install package with minimal dependencies.

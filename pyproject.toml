@@ -45,7 +45,7 @@ dependencies = [
     "tqdm>=4.0.0",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "licenseheaders>=0.8.8",
     "mdformat>=0.7.21; python_version>='3.9'",  # Older versions change formatting behavior
@@ -69,6 +69,7 @@ dev = [
     "sphinxcontrib-googleanalytics>=0.4",
     "sphinx>=7.1",              # Allow old sphinx version for Python 3.8 compatibility
 ]
+
 mlflow = [
     "mlflow>=2.0.0", # contain fixes for numpy>=2.0 support
 ]
@@ -78,7 +79,7 @@ notebook = [
 # Note: rfdetr, or one of its dependencies, installs opencv-python and opencv-python-headless
 # which can result in conflicts.
 rfdetr = [
-    "rfdetr>=1.2.0",
+    "rfdetr>=1.2.0; python_version>='3.9'", # requires Python >=3.9
 ]
 super-gradients = [
     "super-gradients>=3.7",
@@ -94,16 +95,38 @@ wandb = [
     "wandb>=0.17.2", # contain fixes for numpy>=2.0 support
 ]
 xformers = [
-    "xformers>=0.0.18",
+    "xformers>=0.0.18; sys_platform == 'linux'",
 ]
 onnx = [
     "onnx>=1.15.0",
 ]
 onnxruntime = [
-    "onnxruntime>=1.21.0",
+    "onnxruntime>=1.21.0; python_version>='3.10'",
 ] # inference engines
 onnxslim = [
-    "onnxslim>=0.1.67",
+    "onnxslim>=0.1.67; python_version>='3.10'",
+]
+
+# CI-specific optional dependencies.
+ci-cpu-linux-latest = [
+    "torch==2.4.0",
+    "torchvision>=0.16.0",
+]
+ci-gpu-linux-latest = [
+    "torch==2.4.0",
+    "torchvision>=0.16.0",
+]
+ci-cpu-macos-latest = [
+    "torch==2.4.0",
+    "torchvision>=0.16.0",
+]
+ci-cpu-win-latest = [
+    "torch==2.4.0",
+    "torchvision>=0.16.0",
+]
+ci-gpu-win-latest = [
+    "torch==2.4.0",
+    "torchvision>=0.16.0",
 ]
 
 [project.scripts]
@@ -182,54 +205,51 @@ convention = "google"
 override-dependencies = [
   "sphinx>=7.1",              # Override dependency from SuperGradients on sphinx<=4.1
 ]
-# conflicts = [
-#     [
-#         { extra = "cpu-linux" },
-#         { extra = "gpu-linux" },
-#         { extra = "gpu-win" },
-#         { extra = "cpu-win" },
-#         { extra = "cpu-macos" }
-#     ]
-# ]
 conflicts = [
     [
-      { extra = "super-gradients" },
-      { extra = "onnxruntime" },
+        { extra = "super-gradients" },
+        { extra = "onnxruntime" },
     ],
 ]
 
-[tool.uv.dependency-groups]
-onnxruntime = { requires-python = ">=3.10" }
-onnxslim = { requires-python = ">=3.10" }
-
 # [tool.uv.sources]
 # torch = [
-#     { extra = "cpu-linux", index = "torch-linux-cpu"},
-#     { extra = "gpu-linux", index = "torch-linux-gpu"},
-#     # torch-cpu-win should be installed fom PyPi
-#     { extra = "gpu-win", index = "torch-win-gpu"},
-#     # torch-cpu-macos should be installed fom PyPi
+#     { index = "torch-default" },
+#     { index = "torch-cpu", extra = "ci-cpu-linux-latest" },
+#     { index = "torch-gpu", extra = "ci-gpu-linux-latest" },
+#     # { index = "torch-win-cpu", extra = "ci-cpu-win-latest" },
+#     { index = "torch-gpu", extra = "ci-gpu-win-latest" },
+#     # { index = "macos-cpu", extra = "ci-cpu-macos-latest" },
 # ]
 # torchvision = [
-#     { extra = "cpu-linux", index = "torch-linux-cpu"},
-#     { extra = "gpu-linux", index = "torch-linux-gpu"},
-#     # torchvision-cpu-win should be installed fom PyPi
-#     { extra = "gpu-win", index = "torch-win-gpu"},
-#     # torchvision-cpu-macos should be installed fom PyPi
+#     { index = "torchvision-default" },
+#     { index = "torchvision-cpu", extra = "ci-cpu-linux-latest" },
+#     { index = "torchvision-gpu", extra = "ci-gpu-linux-latest" },
+#     { index = "torchvision-gpu", extra = "ci-gpu-win-latest" },
 # ]
 
 # [[tool.uv.index]]
-# name = "torch-linux-cpu"
+# name = "torch-default"
+# url = "https://pypi.org/simple"
+# explicit = false
+
+# [[tool.uv.index]]
+# name = "torch-cpu"
 # url = "https://download.pytorch.org/whl/cpu"
 # explicit = true
 
 # [[tool.uv.index]]
-# name = "torch-linux-gpu"
+# name = "torch-gpu"
 # url = "https://download.pytorch.org/whl/cu118"
 # explicit = true
 
 # [[tool.uv.index]]
-# name = "torch-win-gpu"
+# name = "torchvision-cpu"
+# url = "https://download.pytorch.org/whl/cpu"
+# explicit = true
+
+# [[tool.uv.index]]
+# name = "torchvision-gpu"
 # url = "https://download.pytorch.org/whl/cu118"
 # explicit = true
 
