@@ -1,9 +1,3 @@
-<p align="center">
-  <a href="https://calendar.app.google/5mqoEnnyacKGzZfw6">
-  <img width="1373" height="322" alt="Book meeting with Lightly at BioTechX 2025 in Basel" src="https://github.com/user-attachments/assets/00431826-5d4f-4428-b341-104e4fb59e7b"/>
-  </a>
-</p>
-
 <picture>
   <!-- Use absolute links for images to make them render correctly on PyPI and Dockerhub -->
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/lightly-ai/lightly-train/refs/heads/main/docs/source/_static/lightly_train_light.svg">
@@ -117,6 +111,54 @@ for more details.
 
 </details>
 
+## 🔥 Train High-Performance Object Detection Models 🔥
+
+LightlyTrain’s LT-DETR models, powered by DINOv2 and DINOv3 backbones, demonstrate strong performance across different scales.
+
+Implementation | Model | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Resolution | Model Weights |
+:------------: | :--------: | :----------------: | :----------: | :----------: | :--------: | :-----------: |
+| LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2_ltdetr/ltdetr_vits14dinov2_coco.ckpt) |
+| LightlyTrain | dinov3/convnext-tiny-ltdetr | 54.4 | 13.29 | 61.1 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-tiny_coco.ckpt) |
+| LightlyTrain | dinov3/convnext-small-ltdetr | 56.9 | 17.65 | 82.7 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-small_coco.ckpt) |
+| LightlyTrain | dinov3/convnext-base-ltdetr | 58.6 | 24.68 | 121.0 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-base_coco.ckpt) |
+| LightlyTrain | dinov3/convnext-large-ltdetr | 60.0 | 42.30 | 230.0 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-large_coco.ckpt) |
+
+Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `tensorrt==10.13.3.9`.
+
+🚀 We are actively working on new models with improved speed and accuracy. Updates coming soon, so stay tuned!
+
+<details>
+<summary><strong>You can already run inference with above models using the following example code:</strong></summary>
+
+```bash
+wget <MODEL-WEIGHTS-URL> -O model.ckpt
+```
+
+```python
+import lightly_train
+from torchvision import utils, io
+import matplotlib.pyplot as plt
+
+model = lightly_train.load_model_from_checkpoint(
+    checkpoint="model.ckpt",
+)
+
+labels, boxes, scores = model.predict("<image>.jpg").values()
+
+# Visualize predictions.
+image_with_boxes = utils.draw_bounding_boxes(
+    image=io.read_image("<image>.jpg"),
+    boxes=boxes,
+    labels=[model.classes[i.item()] for i in labels],
+)
+
+fig, ax = plt.subplots(figsize=(30, 30))
+ax.imshow(image_with_boxes.permute(1, 2, 0))
+fig.savefig(f"predictions_{model.model_name}.png")
+```
+
+</details>
+
 ## 🔥 Train SOTA Semantic Segmentation Models 🔥
 
 LightlyTrain's EoMT semantic segmentation model based on DINOv3 achieves a new state-of-the-art on the ADE20K benchmark! See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html) for more details.
@@ -184,7 +226,7 @@ We trained the models with 40k steps and `num_queries=100`, as in the setting of
 
 #### COCO-Stuff Dataset
 
-| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Model Weights |
 |----------------|----------------|-------------|------------|----------|----------|------------|
 | LightlyTrain | dinov3/vits16-eomt | 21.6 | 512×512 | 0.465 | 88.7 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
 | LightlyTrain | dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
@@ -194,7 +236,7 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 
 #### Cityscapes Dataset
 
-| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
+| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Model Weights |
 |----------------|----------------|-------------|------------|----------|----------|------------|
 | LightlyTrain | dinov3/vits16-eomt | 21.6 | 1024×1024 | 0.786 | 18.6 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
 | LightlyTrain | dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
