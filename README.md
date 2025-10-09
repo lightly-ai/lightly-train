@@ -140,8 +140,7 @@ from torchvision import utils, io
 import matplotlib.pyplot as plt
 
 model = lightly_train.load_model_from_checkpoint(
-    checkpoint="<CKPT-PATH.ckpt>",
-    device="cpu",
+    checkpoint="model.ckpt",
 )
 
 labels, boxes, scores = model.predict("<image>.jpg").values()
