@@ -14,11 +14,17 @@ from typing import Any
 import numpy as np
 from albumentations.augmentations.crops.transforms import RandomCrop
 from lightning_utilities.core.imports import RequirementCache
+from numpy.typing import NDArray
 
 ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
+ALBUMENTATIONS_GEQ_1_4_15 = RequirementCache("albumentations>=1.4.15")
+ALBUMENTATIONS_GEQ_1_4_11 = RequirementCache("albumentations>=1.4.11")
+
+if not ALBUMENTATIONS_GEQ_1_4_21:
+    import albumentations.augmentations.crops.functional as F
 
 
-class RandomIoUCrop(RandomCrop):  # type: ignore[misc]
+class RandomIoUCropBase(RandomCrop):  # type: ignore[misc]
     """Random IoU crop transformation, similar to torchvision's RandomIoUCrop.
 
     Args:
@@ -72,94 +78,276 @@ class RandomIoUCrop(RandomCrop):  # type: ignore[misc]
         self.crop_trials = crop_trials
         self.iou_trials = iou_trials
 
+
+def _get_crop_coords(
+    orig_shape: tuple[int, int],
+    min_scale: float,
+    max_scale: float,
+    min_aspect_ratio: float,
+    max_aspect_ratio: float,
+    sampler_options: Sequence[float],
+    crop_trials: int,
+    iou_trials: int,
+    orig_bboxes: NDArray[np.float32],
+) -> tuple[int, int, int, int]:
+    """Find crop coordinates according to IoU constraints.
+
+    Args:
+        orig_shape: (height, width) of the original image.
+        min_scale: Minimum scale for the crop.
+        max_scale: Maximum scale for the crop.
+        min_aspect_ratio: Minimum aspect ratio for the crop.
+        max_aspect_ratio: Maximum aspect ratio for the crop.
+        sampler_options: List of minimal IoU (Jaccard) overlap between all the boxes and
+            a cropped image.
+        crop_trials: Number of trials for generating a crop.
+        iou_trials: Number of trials for generating a crop with a valid IoU.
+        orig_bboxes: Bounding boxes as ndarray of shape (N, 4), normalized [0, 1].
+
+    Returns:
+        Crop coordinates as (x_min, y_min, x_max, y_max).
+    """
+    orig_h, orig_w = orig_shape
+    for _ in range(iou_trials):
+        min_jaccard_overlap = random.choice(sampler_options)
+        if min_jaccard_overlap >= 1.0:
+            return (0, 0, orig_h, orig_w)
+
+        for _ in range(crop_trials):
+            r = np.random.uniform(min_scale, max_scale, size=2)
+            new_w = int(orig_w * r[0])
+            new_h = int(orig_h * r[1])
+            aspect_ratio = new_w / new_h if new_h > 0 else 0.0
+
+            if not (min_aspect_ratio <= aspect_ratio <= max_aspect_ratio):
+                continue
+
+            r = np.random.uniform(0, 1, size=2)
+            left = int((orig_w - new_w) * r[0])
+            top = int((orig_h - new_h) * r[1])
+            right = left + new_w
+            bottom = top + new_h
+
+            if left == right or top == bottom:
+                continue
+
+            bboxes_absolute = orig_bboxes * np.array([orig_w, orig_h, orig_w, orig_h])
+
+            cx = (bboxes_absolute[:, 0] + bboxes_absolute[:, 2]) / 2
+            cy = (bboxes_absolute[:, 1] + bboxes_absolute[:, 3]) / 2
+            is_within_crop_area = (
+                (left < cx) & (cx < right) & (top < cy) & (cy < bottom)
+            )
+
+            if not is_within_crop_area.any():
+                continue
+
+            bboxes_within = bboxes_absolute[is_within_crop_area]
+            ious = [_iou(bbox, (left, top, right, bottom)) for bbox in bboxes_within]
+            if max(ious) < min_jaccard_overlap:
+                continue
+
+            return (left, top, right, bottom)
+
+    return (0, 0, orig_h, orig_w)
+
+
+class RandomIoUCropV3(RandomIoUCropBase):
     def get_params_dependent_on_data(
         self,
         params: dict[str, Any],
         data: dict[str, Any],
     ) -> dict[str, Any]:
         orig_image_shape = data["image"].shape[:2]
-        orig_h, orig_w = orig_image_shape
         orig_bboxes = np.array(data["bboxes"][:, :4])
+        crop_coords = _get_crop_coords(
+            orig_shape=orig_image_shape,
+            min_scale=self.min_scale,
+            max_scale=self.max_scale,
+            min_aspect_ratio=self.min_aspect_ratio,
+            max_aspect_ratio=self.max_aspect_ratio,
+            sampler_options=self.options,
+            crop_trials=self.crop_trials,
+            iou_trials=self.iou_trials,
+            orig_bboxes=orig_bboxes,
+        )
+        return {"crop_coords": crop_coords, "pad_params": None}
 
-        for _ in range(self.iou_trials):
-            # 1. Sample a minimum IoU value.
-            min_jaccard_overlap = random.choice(self.options)
-            if min_jaccard_overlap >= 1.0:
-                return {"crop_coords": (0, 0, orig_h, orig_w), "pad_params": None}
 
-            for _ in range(self.crop_trials):
-                # Sample scales in range [min_scale, max_scale]
-                r = np.random.uniform(self.min_scale, self.max_scale, size=2)
-                new_w = int(orig_w * r[0])
-                new_h = int(orig_h * r[1])
-                aspect_ratio = new_w / new_h
+class RandomIoUCropV2(RandomIoUCropBase):
+    def update_params(self, params: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        super().update_params(params, **kwargs)
+        # Allow both 'shape' or ('rows', 'cols') in params.
+        if "shape" in params:
+            orig_image_shape = params["shape"][:2]
+        else:
+            orig_image_shape = (params["rows"], params["cols"])
 
-                # If the aspect ratio is not in the desired range, skip this trial.
-                if not (self.min_aspect_ratio <= aspect_ratio <= self.max_aspect_ratio):
-                    continue
+        # If no bboxes are provided, create empty 2D array.
+        if "bboxes" not in kwargs or len(kwargs["bboxes"]) == 0:
+            kwargs["bboxes"] = np.zeros((0, 4), dtype=np.float32)
+        orig_bboxes = np.array(kwargs["bboxes"])[:, :4]
 
-                # Randomly place the crop.
-                r = np.random.uniform(0, 1, size=2)
-                left = int((orig_w - new_w) * r[0])
-                top = int((orig_h - new_h) * r[1])
-                right = left + new_w
-                bottom = top + new_h
+        crop_coords = _get_crop_coords(
+            orig_shape=orig_image_shape,
+            min_scale=self.min_scale,
+            max_scale=self.max_scale,
+            min_aspect_ratio=self.min_aspect_ratio,
+            max_aspect_ratio=self.max_aspect_ratio,
+            sampler_options=self.options,
+            crop_trials=self.crop_trials,
+            iou_trials=self.iou_trials,
+            orig_bboxes=orig_bboxes,
+        )
+        params = params.copy()
+        params.update({"crop_coords": crop_coords, "orig_img_shape": orig_image_shape})
+        return params
 
-                # If zero area crop, skip this trial.
-                if left == right or top == bottom:
-                    continue
+    def apply(
+        self, img: NDArray[np.float32 | np.float64], **params: Any
+    ) -> NDArray[np.float32 | np.float64]:
+        crop_coords = params["crop_coords"]
+        y_min, x_min, y_max, x_max = crop_coords
+        cropped = F.crop(
+            img,
+            x_min=x_min,
+            y_min=y_min,
+            x_max=x_max,
+            y_max=y_max,
+        )
+        assert isinstance(cropped, np.ndarray)
+        assert cropped.dtype in (np.float32, np.float64)
+        return cropped
 
-                # Convert bboxes from [0, 1] to absolute image coordinates.
-                bboxes_absolute = orig_bboxes * np.array(
-                    [orig_w, orig_h, orig_w, orig_h]
-                )
+    def apply_to_bboxes(
+        self, bboxes: NDArray[np.float32 | np.float64], **params: Any
+    ) -> NDArray[np.float32 | np.float64]:
+        crop_coords = params["crop_coords"]
+        y_min, x_min, y_max, x_max = crop_coords
 
-                # Get bboxes whose center is in the crop.
-                cx = (bboxes_absolute[:, 0] + bboxes_absolute[:, 2]) / 2
-                cy = (bboxes_absolute[:, 1] + bboxes_absolute[:, 3]) / 2
-                is_within_crop_area = (
-                    (left < cx) & (cx < right) & (top < cy) & (cy < bottom)
-                )
+        cropped = F.crop_bboxes_by_coords(
+            bboxes,
+            crop_coords=(x_min, y_min, x_max, y_max),
+            image_shape=params["orig_img_shape"],
+        )
+        assert isinstance(cropped, np.ndarray)
+        assert cropped.dtype in (np.float32, np.float64)
+        return cropped
 
-                # If no bbox is in the crop, skip this trial.
-                if not is_within_crop_area.any():
-                    continue
+    def apply_to_keypoints(
+        self, keypoints: NDArray[np.float32], **params: Any
+    ) -> NDArray[np.float32]:
+        raise NotImplementedError("Keypoints are not supported by RandomIoUCropV2.")
 
-                # Check if at least one bbox has the required IoU with the crop.
-                bboxes_within = bboxes_absolute[is_within_crop_area]
-                ious = [
-                    self._iou(bbox, (left, top, right, bottom))
-                    for bbox in bboxes_within
-                ]
-                if max(ious) < min_jaccard_overlap:
-                    continue
 
-                return {"crop_coords": (top, left, new_h, new_w), "pad_params": None}
+class RandomIoUCropV1(RandomIoUCropBase):
+    def update_params(self, params: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        super().update_params(params, **kwargs)
+        print("called once")
+        # Allow both 'shape' or ('rows', 'cols') in params.
+        if "shape" in params:
+            orig_image_shape = params["shape"][:2]
+        else:
+            orig_image_shape = (params["rows"], params["cols"])
 
-        # Fallback
-        return {"crop_coords": (0, 0, orig_h, orig_w), "pad_params": None}
+        # If no bboxes are provided, create empty 2D array.
+        if "bboxes" not in kwargs or len(kwargs["bboxes"]) == 0:
+            kwargs["bboxes"] = np.zeros((0, 4), dtype=np.float32)
+        orig_bboxes = np.array(kwargs["bboxes"])[:, :4]
 
-    def _iou(self, box_a: Sequence[float], box_b: Sequence[float]) -> float:
-        """Compute intersection over union of two boxes.
+        crop_coords = _get_crop_coords(
+            orig_shape=orig_image_shape,
+            min_scale=self.min_scale,
+            max_scale=self.max_scale,
+            min_aspect_ratio=self.min_aspect_ratio,
+            max_aspect_ratio=self.max_aspect_ratio,
+            sampler_options=self.options,
+            crop_trials=self.crop_trials,
+            iou_trials=self.iou_trials,
+            orig_bboxes=orig_bboxes,
+        )
+        params = params.copy()
+        params.update({"crop_coords": crop_coords, "orig_img_shape": orig_image_shape})
+        return params
 
-        Args:
-            box_a: (left, top, right, bottom) of box A.
-            box_b: (left, top, right, bottom) of box B.
+    def apply(
+        self, img: NDArray[np.float32 | np.float64], **params: Any
+    ) -> NDArray[np.float32 | np.float64]:
+        crop_coords = params["crop_coords"]
+        y_min, x_min, y_max, x_max = crop_coords
+        cropped = F.crop(
+            img,
+            x_min=x_min,
+            y_min=y_min,
+            x_max=x_max,
+            y_max=y_max,
+        )
+        assert isinstance(cropped, np.ndarray)
+        assert cropped.dtype in (np.float32, np.float64)
+        return cropped
 
-        Returns:
-            IoU value.
-        """
-        xA = max(box_a[0], box_b[0])
-        yA = max(box_a[1], box_b[1])
-        xB = min(box_a[2], box_b[2])
-        yB = min(box_a[3], box_b[3])
+    def apply_to_bbox(
+        self, bbox: tuple[float, float, float, float], **params: Any
+    ) -> tuple[float, float, float, float]:
+        crop_coords = params["crop_coords"]
+        y_min, x_min, y_max, x_max = crop_coords
 
-        interArea = max(0, xB - xA) * max(0, yB - yA)
-        if interArea == 0:
-            return 0.0
+        if not ALBUMENTATIONS_GEQ_1_4_11:
+            tr_bbox = F.crop_bbox_by_coords(
+                bbox,
+                crop_coords=(x_min, y_min, x_max, y_max),
+                crop_height=y_max - y_min,
+                crop_width=x_max - x_min,
+                rows=params["orig_img_shape"][0],
+                cols=params["orig_img_shape"][1],
+            )
+            assert isinstance(tr_bbox, tuple)
+            return tr_bbox
+        else:
+            tr_bbox = F.crop_bbox_by_coords(
+                bbox,
+                crop_coords=(x_min, y_min, x_max, y_max),
+                rows=params["orig_img_shape"][0],
+                cols=params["orig_img_shape"][1],
+            )
+            assert isinstance(tr_bbox, tuple)
+            return tr_bbox
 
-        boxAArea = (box_a[2] - box_a[0]) * (box_a[3] - box_a[1])
-        boxBArea = (box_b[2] - box_b[0]) * (box_b[3] - box_b[1])
+    def apply_to_keypoint(
+        self, keypoint: NDArray[np.float32], **params: Any
+    ) -> NDArray[np.float32]:
+        raise NotImplementedError("Keypoints are not supported by RandomIoUCropV1.")
 
-        iou = interArea / float(boxAArea + boxBArea - interArea)
-        return iou
+
+def _iou(box_a: Sequence[float], box_b: Sequence[float]) -> float:
+    """Compute intersection over union of two boxes.
+
+    Args:
+        box_a: (left, top, right, bottom) of box A.
+        box_b: (left, top, right, bottom) of box B.
+
+    Returns:
+        IoU value.
+    """
+    xA = max(box_a[0], box_b[0])
+    yA = max(box_a[1], box_b[1])
+    xB = min(box_a[2], box_b[2])
+    yB = min(box_a[3], box_b[3])
+
+    interArea = max(0, xB - xA) * max(0, yB - yA)
+    if interArea == 0:
+        return 0.0
+
+    boxAArea = (box_a[2] - box_a[0]) * (box_a[3] - box_a[1])
+    boxBArea = (box_b[2] - box_b[0]) * (box_b[3] - box_b[1])
+
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+    return iou
+
+
+if ALBUMENTATIONS_GEQ_1_4_21:
+    RandomIoUCrop = RandomIoUCropV3  # type: ignore[misc]
+elif ALBUMENTATIONS_GEQ_1_4_15:
+    RandomIoUCrop = RandomIoUCropV2  # type: ignore[misc]
+else:
+    RandomIoUCrop = RandomIoUCropV1  # type: ignore[misc]

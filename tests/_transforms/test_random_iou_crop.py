@@ -58,11 +58,11 @@ class TestRandomIoUCrop:
 
         # Check dtypes
         assert transformed_image.dtype == image.dtype
-        assert transformed_boxes_arr.dtype == boxes.dtype
-        # assert np.all(np.equal(np.mod(transformed_classes_arr, 1), 0)) # check if integers
-        # if not transformed_classes_arr.dtype == np.int64:
-        #     transformed_classes_arr = transformed_classes_arr.astype(np.int64)
-        assert transformed_classes_arr.dtype == classes.dtype
+        # Some albumentations versions return float32, others float64.
+        assert transformed_boxes_arr.dtype in {np.dtype("float32"), np.dtype("float64")}
+        assert np.all(
+            np.equal(np.mod(transformed_classes_arr, 1), 0)
+        )  # check if integers
 
         # Check shapes
         assert transformed_image.shape[2] == 3
@@ -110,7 +110,7 @@ class TestRandomIoUCrop:
         transformed_classes_arr = np.array(transformed_classes)
 
         assert np.array_equal(transformed["image"], image)
-        assert transformed_boxes_arr.shape == (0, 4)
+        assert len(transformed_boxes_arr) == 0
         assert np.array_equal(transformed_classes_arr, classes)
 
     def test_crop_with_min_iou_one(self, bbox_params: BboxParams) -> None:
