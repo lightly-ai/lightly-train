@@ -9,17 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add support for saving the best semantic segmentation checkpoints and model weights during training
-
 ### Changed
-
-- Change default precision to `bf16-mixed` for training on GPUs that support it.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+## [0.11.4] - 2025-10-08
+
+### Added
+
+- Add support for saving the best semantic segmentation checkpoints and model weights during training.
+- Expose more arguments for the checkpointing callback in pretraining.
+- Add LT-DETR inference support with DINOv2 and DINOv3 ConvNext backbones.
+
+### Changed
+
+- Change default precision to `bf16-mixed` for pretraining on GPUs that support it.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Fix warning about too few epochs for DINOv2 which occurs with the default epoch calculation.
 
 ## [0.11.3] - 2025-09-25
 

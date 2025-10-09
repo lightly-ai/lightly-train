@@ -145,6 +145,7 @@ ignore_missing_imports = true
 module = [
     "lightly_train._models.dinov2_vit.dinov2_vit_src.*",
     "lightly_train._models.dinov3.dinov3_src.*",
+    "lightly_train._task_models.object_detection_components.*"
 ]
 ignore_errors = true
 
