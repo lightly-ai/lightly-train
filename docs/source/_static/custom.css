@@ -1,11 +1,207 @@
+/* Sidebar version styling */
 .sidebar-version {
     display: flex;
     color: var(--color-brand-primary);
     font-size: 1rem;
     text-align: left;
     padding: var(--sidebar-item-spacing-vertical) var(--sidebar-item-spacing-horizontal);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background: linear-gradient(90deg, #f8f8fa 0%, #f0e6f6 100%);
+    border-radius: 8px;
+    margin-bottom: 1em;
+    box-shadow: 0 1px 4px rgba(167, 34, 100, 0.07);
+    transition: background 0.3s;
 }
 
 .sidebar-version:visited {
     color: var(--color-brand-primary);
+}
+
+/* Remove gradient background from sidebar version and sidebar brand/logo */
+.sidebar-version,
+.sidebar-brand {
+    background: #f8f8fa;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(167, 34, 100, 0.07);
+    transition: background 0.3s;
+}
+
+/* Sidebar navigation enhancements */
+.sidebar-tree .sidebar-tree__item {
+    border-radius: 6px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.sidebar-tree .sidebar-tree__item:hover,
+.sidebar-tree .sidebar-tree__item--current {
+    background: linear-gradient(90deg, #f7e6f6 0%, #e6f0fa 100%);
+    color: #a72264;
+    box-shadow: 0 2px 8px rgba(167, 34, 100, 0.06);
+}
+
+/* Card-like effect for content blocks */
+div.admonition, .sd-card {
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(167, 34, 100, 0.08);
+    border: none;
+    background: linear-gradient(120deg, #fff 80%, #f7e6f6 100%);
+    transition: box-shadow 0.2s;
+}
+
+div.admonition:hover, .sd-card:hover {
+    box-shadow: 0 6px 24px rgba(167, 34, 100, 0.14);
+}
+
+/* Headings: Sleek, modern look */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #a72264;
+    line-height: 1.15;
+    text-shadow: 0 1px 0 #fff, 0 2px 8px rgba(167, 34, 100, 0.04);
+}
+
+h1 {
+    font-size: 2.6rem;
+}
+
+h2 {
+    font-size: 2rem;
+}
+
+h3 {
+    font-size: 1.4rem;
+}
+
+h4, h5, h6 {
+    font-size: 1.1rem;
+}
+
+/* Code blocks: Modern, with subtle background and rounded corners */
+.highlight, pre, code {
+    background: #f8f8fa !important;
+    border-radius: 8px !important;
+    font-family: 'JetBrains Mono', 'Fira Mono', 'Menlo', 'Consolas', monospace;
+    color: #2d2d2d;
+    box-shadow: 0 1px 4px rgba(167, 34, 100, 0.04);
+    transition: background 0.2s;
+}
+
+.highlight:hover, pre:hover, code:hover {
+    background: #f0e6f6 !important;
+}
+
+/* Inline code: match code blocks, remove annoying color */
+.rst-content code, .docutils.literal.notranslate {
+    background: #f8f8fa !important;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', 'Fira Mono', 'Menlo', 'Consolas', monospace;
+    color: #2d2d2d;
+    box-shadow: 0 1px 4px rgba(167, 34, 100, 0.04);
+    transition: background 0.2s;
+}
+
+/* Links: colored, but no underline */
+a {
+    color: #a72264;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+a:hover, a:focus {
+    color: #7d174b;
+    background: #f7e6f6;
+}
+
+/* Table styling with gradient background */
+table.docutils {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 8px rgba(167, 34, 100, 0.06);
+    background: linear-gradient(120deg, #fff 80%, #f7e6f6 100%);
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+table.docutils th, table.docutils td {
+    border: 0.2px solid #ececec;
+    border-left: none;
+    border-right: none;
+}
+
+table.docutils th {
+    background: #f0e6f6;
+    color: #a72264;
+    font-weight: 600;
+    border-top: 1px solid #ececec;
+    border-bottom: 1px solid #ececec;
+}
+
+/* Improve spacing for lists */
+ul, ol {
+    margin-bottom: 1.2em;
+    padding-left: 2em;
+}
+
+/* Add subtle fade-in animation for main content */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(16px);}
+    to { opacity: 1; transform: none;}
+}
+
+main, .content, .document {
+    animation: fadeIn 0.7s cubic-bezier(.4,0,.2,1);
+}
+
+/* Responsive tweaks for mobile */
+@media (max-width: 700px) {
+    .sidebar-version {
+        font-size: 0.95rem;
+        padding: 0.7em 1em;
+    }
+    h1 {
+        font-size: 2rem;
+    }
+    h2 {
+        font-size: 1.3rem;
+    }
+    .highlight, pre, code {
+        font-size: 0.95em;
+    }
+}
+
+/* Custom scrollbar for a modern touch */
+::-webkit-scrollbar {
+    width: 8px;
+    background: #f0e6f6;
+}
+::-webkit-scrollbar-thumb {
+    background: #a72264;
+    border-radius: 8px;
+}
+
+/* Add a subtle shadow to the sidebar for depth */
+.sidebar {
+    box-shadow: 2px 0 12px rgba(167, 34, 100, 0.07);
+}
+
+/* Gradient background for dropdown/FAQ blocks (MyST dropdowns, details/summary) */
+details,
+.sd-dropdown,
+.myst-dropdown {
+    background: linear-gradient(120deg, #fff 80%, #f7e6f6 100%);
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(167, 34, 100, 0.08);
+    border: none;
+    margin-bottom: 1.2em;
+    padding: 0.7em 1.2em;
+    transition: box-shadow 0.2s;
+}
+
+details[open],
+.sd-dropdown[open],
+.myst-dropdown[open] {
+    box-shadow: 0 6px 24px rgba(167, 34, 100, 0.14);
 }
