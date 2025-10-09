@@ -115,13 +115,13 @@ for more details.
 
 LightlyTrain’s LT-DETR models, powered by DINOv2 and DINOv3 backbones, demonstrate strong performance across different scales.
 
-| Backbone Model | Pre-training | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Resolution | Model Weights |
-| :--------: | :----------: | :----------------: | :----------: | :----------: | :--------: | :-----------: |
-| ViT-S/14 | DINOv2 | 55.7 | 16.87 | 55.3 | 644×644 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2_ltdetr/ltdetr_vits14dinov2_coco.ckpt) |
-| ConvNeXt-T | DINOv3 | 54.4 | 13.29 | 61.1 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-tiny_coco.ckpt) |
-| ConvNeXt-S | DINOv3 | 56.9 | 17.65 | 82.7 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-small_coco.ckpt) |
-| ConvNeXt-B | DINOv3 | 58.6 | 24.68 | 121.0 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-base_coco.ckpt) |
-| ConvNeXt-L | DINOv3 | 60.0 | 42.30 | 230.0 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-large_coco.ckpt) |
+Implementation | Model | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Resolution | Model Weights |
+:------------: | :--------: | :----------------: | :----------: | :----------: | :--------: | :-----------: |
+| LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2_ltdetr/ltdetr_vits14dinov2_coco.ckpt) |
+| LightlyTrain | dinov3/convnext-tiny-ltdetr | 54.4 | 13.29 | 61.1 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-tiny_coco.ckpt) |
+| LightlyTrain | dinov3/convnext-small-ltdetr | 56.9 | 17.65 | 82.7 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-small_coco.ckpt) |
+| LightlyTrain | dinov3/convnext-base-ltdetr | 58.6 | 24.68 | 121.0 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-base_coco.ckpt) |
+| LightlyTrain | dinov3/convnext-large-ltdetr | 60.0 | 42.30 | 230.0 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-large_coco.ckpt) |
 
 Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `tensorrt==10.13.3.9`.
 
@@ -140,8 +140,7 @@ from torchvision import utils, io
 import matplotlib.pyplot as plt
 
 model = lightly_train.load_model_from_checkpoint(
-    checkpoint="<CKPT-PATH.ckpt>",
-    device="cpu",
+    checkpoint="model.ckpt",
 )
 
 labels, boxes, scores = model.predict("<image>.jpg").values()
