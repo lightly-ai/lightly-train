@@ -26,6 +26,7 @@ from lightly_train._transforms.object_detection_transform import (
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
     RandomFlipArgs,
+    RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
     ScaleJitterArgs,
@@ -60,6 +61,19 @@ def _get_random_zoom_out_args() -> RandomZoomOutArgs:
         prob=0.5,
         fill=0.0,
         side_range=(1.0, 1.5),
+    )
+
+
+def _get_random_iou_crop_args() -> RandomIoUCropArgs:
+    return RandomIoUCropArgs(
+        min_scale=0.3,
+        max_scale=1.0,
+        min_aspect_ratio=0.5,
+        max_aspect_ratio=2.0,
+        sampler_options=None,
+        crop_trials=40,
+        iou_trials=1000,
+        prob=0.8,
     )
 
 
@@ -118,6 +132,7 @@ class TestObjectDetectionTransform:
         random_zoom_out: RandomZoomOutArgs | None,
         random_flip: RandomFlipArgs | None,
         scale_jitter: ScaleJitterArgs | None,
+        random_iou_crop: RandomIoUCropArgs | None,
     ) -> None:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
@@ -132,6 +147,7 @@ class TestObjectDetectionTransform:
             bbox_params=bbox_params,
             stop_policy=stop_policy,
             scale_jitter=scale_jitter,
+            random_iou_crop=random_iou_crop,
         )
         transform_args.resolve_auto()
         transform = ObjectDetectionTransform(transform_args)
@@ -169,6 +185,7 @@ class TestObjectDetectionTransform:
             bbox_params=_get_bbox_params(),
             stop_policy=_get_stop_policy_args(),
             scale_jitter=_get_scale_jitter_args(),
+            random_iou_crop=_get_random_iou_crop_args(),
         )
         transform_args.resolve_auto()
         collate_fn = ObjectDetectionCollateFunction(

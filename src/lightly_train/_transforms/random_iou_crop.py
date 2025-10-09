@@ -47,6 +47,7 @@ class RandomIoUCropBase(RandomCrop):  # type: ignore[misc]
         sampler_options: Sequence[float] | None = None,
         crop_trials: int = 40,
         iou_trials: int = 1000,
+        p: float = 1.0,
     ):
         # Hardcode required args for RandomCrop, height and width will be set dynamically.
         if ALBUMENTATIONS_GEQ_1_4_21:
@@ -77,6 +78,9 @@ class RandomIoUCropBase(RandomCrop):  # type: ignore[misc]
         )
         self.crop_trials = crop_trials
         self.iou_trials = iou_trials
+        self.p = p
+        if self.p < 1.0:
+            raise NotImplementedError("p < 1.0 is not implemented yet.")
 
 
 def _get_crop_coords(
