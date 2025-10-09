@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add support for saving the best semantic segmentation checkpoints and model weights during training.
 - Add object detection inference support with LT-DETR models.
+- Expose more arguments for the checkpointing callback in pretraining.
 
 ### Changed
 
