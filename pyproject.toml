@@ -69,6 +69,7 @@ dev = [
     "sphinxcontrib-googleanalytics>=0.4",
     "sphinx>=7.1",              # Allow old sphinx version for Python 3.8 compatibility
 ]
+
 mlflow = [
     "mlflow>=2.0.0", # contain fixes for numpy>=2.0 support
 ]
@@ -78,11 +79,10 @@ notebook = [
 # Note: rfdetr, or one of its dependencies, installs opencv-python and opencv-python-headless
 # which can result in conflicts.
 rfdetr = [
-    "rfdetr>=1.0.8",
-    "onnxruntime>=1.21.0", # onnxruntime is required for onnxsim, which is required for rfdetr
+    "rfdetr>=1.2.0; python_version>='3.9'", # requires Python >=3.9
 ]
 super-gradients = [
-    "super-gradients>=3.7",
+    "super-gradients>=3.7; python_version<='3.10'", # requires Python >=3.11
 ]
 tensorboard = [] # Keep for backwards compatibility
 timm = [
@@ -95,17 +95,40 @@ wandb = [
     "wandb>=0.17.2", # contain fixes for numpy>=2.0 support
 ]
 xformers = [
-    "xformers>=0.0.18",
+    "xformers>=0.0.18; sys_platform == 'linux'",
 ]
 onnx = [
     "onnx>=1.15.0",
 ]
 onnxruntime = [
-    "onnxruntime>=1.21.0",
+    "onnxruntime>=1.21.0; python_version>='3.10'",
 ] # inference engines
 onnxslim = [
-    "onnxslim>=0.1.67",
+    "onnxslim>=0.1.67; python_version>='3.10'",
 ]
+
+# CI-specific optional dependencies.
+ci-cpu-linux-latest = [
+    "torch==2.4.0",
+    "torchvision>=0.16.0",
+]
+ci-gpu-linux-latest = [
+    "torch==2.4.0",
+    "torchvision>=0.16.0",
+]
+ci-cpu-macos-latest = [
+    "torch==2.4.0",
+    "torchvision>=0.16.0",
+]
+ci-cpu-win-latest = [
+    "torch==2.4.0",
+    "torchvision>=0.16.0",
+]
+ci-gpu-win-latest = [
+    "torch==2.4.0",
+    "torchvision>=0.16.0",
+]
+
 [project.scripts]
 lightly-train = "lightly_train._cli:_cli_entrypoint"
 
@@ -183,6 +206,57 @@ convention = "google"
 override-dependencies = [
   "sphinx>=7.1",              # Override dependency from SuperGradients on sphinx<=4.1
 ]
+conflicts = [
+    [
+        { extra = "super-gradients" },
+        { extra = "onnxruntime" },
+    ],
+    [
+        { extra = "super-gradients" },
+        { extra = "ultralytics"},
+    ]
+]
+
+# [tool.uv.sources]
+# torch = [
+#     { index = "torch-default" },
+#     { index = "torch-cpu", extra = "ci-cpu-linux-latest" },
+#     { index = "torch-gpu", extra = "ci-gpu-linux-latest" },
+#     # { index = "torch-win-cpu", extra = "ci-cpu-win-latest" },
+#     { index = "torch-gpu", extra = "ci-gpu-win-latest" },
+#     # { index = "macos-cpu", extra = "ci-cpu-macos-latest" },
+# ]
+# torchvision = [
+#     { index = "torchvision-default" },
+#     { index = "torchvision-cpu", extra = "ci-cpu-linux-latest" },
+#     { index = "torchvision-gpu", extra = "ci-gpu-linux-latest" },
+#     { index = "torchvision-gpu", extra = "ci-gpu-win-latest" },
+# ]
+
+# [[tool.uv.index]]
+# name = "torch-default"
+# url = "https://pypi.org/simple"
+# explicit = false
+
+# [[tool.uv.index]]
+# name = "torch-cpu"
+# url = "https://download.pytorch.org/whl/cpu"
+# explicit = true
+
+# [[tool.uv.index]]
+# name = "torch-gpu"
+# url = "https://download.pytorch.org/whl/cu118"
+# explicit = true
+
+# [[tool.uv.index]]
+# name = "torchvision-cpu"
+# url = "https://download.pytorch.org/whl/cpu"
+# explicit = true
+
+# [[tool.uv.index]]
+# name = "torchvision-gpu"
+# url = "https://download.pytorch.org/whl/cu118"
+# explicit = true
 
 
 [tool.pytest.ini_options]
