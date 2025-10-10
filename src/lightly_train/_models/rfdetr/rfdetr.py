@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from types import MethodType
 
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
@@ -34,6 +35,13 @@ class RFDETRModelWrapper(Module, ModelWrapper):
         from rfdetr.models.backbone.dinov2 import DinoV2
 
         assert isinstance(model, RFDETR)
+
+        # Bind load_state_dict and state_dict methods to the model wrapper since
+        # RFDETR is not a subclass of nn.Module.
+        load_state_dict = model.model.load_state_dict
+        state_dict = model.model.state_dict
+        model.load_state_dict = MethodType(load_state_dict, model)
+        model.state_dict = MethodType(state_dict, model)
 
         backbone = model.model.model.backbone[0]
         assert isinstance(backbone, Backbone)

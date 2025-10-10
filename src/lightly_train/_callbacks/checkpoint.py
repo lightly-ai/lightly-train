@@ -104,19 +104,12 @@ class ModelCheckpoint(_ModelCheckpoint):
                 f"Could not restore lightly_train models from checkpoint: {ex}"
             )
         else:
-            # Load wrapped model first, since wrapped_model.get_model() might not be a
-            # torch.nn.Module and therefore cannot have its state_dict loaded directly.
+            self._models.model.load_state_dict(_checkpoint.models.model.state_dict())
             self._models.wrapped_model.load_state_dict(
                 _checkpoint.models.wrapped_model.state_dict()
             )
-            updated_model = self._models.wrapped_model.get_model()
             self._models.embedding_model.load_state_dict(
                 _checkpoint.models.embedding_model.state_dict()
-            )
-            self._models = CheckpointLightlyTrainModels(
-                model=updated_model,
-                wrapped_model=self._models.wrapped_model,
-                embedding_model=self._models.embedding_model,
             )
 
             # Raise a warning if the normalize_args do not match.
