@@ -73,7 +73,7 @@ def _get_random_iou_crop_args() -> RandomIoUCropArgs:
         sampler_options=None,
         crop_trials=40,
         iou_trials=1000,
-        prob=0.8,
+        prob=1.0,
     )
 
 
@@ -101,6 +101,8 @@ def _get_scale_jitter_args() -> ScaleJitterArgs:
         num_scales=13,
         prob=1.0,
         divisible_by=14,
+        step_seeding=True,
+        seed_offset=0,
     )
 
 
@@ -112,6 +114,7 @@ PossibleArgsTuple = (
     [None, _get_channel_drop_args()],
     [None, _get_photometric_distort_args()],
     [None, _get_random_zoom_out_args()],
+    [None, _get_random_iou_crop_args()],
     [None, _get_random_flip_args()],
     # TODO: Lionel (09/25) Add StopPolicyArgs test cases.
     [None, _get_scale_jitter_args()],
@@ -122,7 +125,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_flip, scale_jitter",
+        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, scale_jitter",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -142,12 +145,12 @@ class TestObjectDetectionTransform:
             num_channels="auto",
             photometric_distort=photometric_distort,
             random_zoom_out=random_zoom_out,
+            random_iou_crop=random_iou_crop,
             random_flip=random_flip,
             image_size=image_size,
             bbox_params=bbox_params,
             stop_policy=stop_policy,
             scale_jitter=scale_jitter,
-            random_iou_crop=random_iou_crop,
         )
         transform_args.resolve_auto()
         transform = ObjectDetectionTransform(transform_args)
@@ -194,7 +197,7 @@ class TestObjectDetectionTransform:
 
         sample1: ObjectDetectionDatasetItem = {
             "image_path": "img1.png",
-            "image": torch.randn(3, 64, 64),
+            "image": torch.randn(3, 128, 128),
             "bboxes": torch.tensor([[10.0, 10.0, 50.0, 50.0]]),
             "classes": torch.tensor([1]),
         }

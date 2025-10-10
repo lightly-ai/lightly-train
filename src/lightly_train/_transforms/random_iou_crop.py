@@ -208,7 +208,7 @@ class RandomIoUCropV2(RandomIoUCropBase):
         return params
 
     def apply(
-        self, img: NDArray[np.float32 | np.float64], **params: Any
+        self, img: NDArray[np.uint8 | np.float32 | np.float64], **params: Any
     ) -> NDArray[np.float32 | np.float64]:
         crop_coords = params["crop_coords"]
         y_min, x_min, y_max, x_max = crop_coords
@@ -220,7 +220,6 @@ class RandomIoUCropV2(RandomIoUCropBase):
             y_max=y_max,
         )
         assert isinstance(cropped, np.ndarray)
-        assert cropped.dtype in (np.float32, np.float64)
         return cropped
 
     def apply_to_bboxes(
@@ -235,7 +234,6 @@ class RandomIoUCropV2(RandomIoUCropBase):
             image_shape=params["orig_img_shape"],
         )
         assert isinstance(cropped, np.ndarray)
-        assert cropped.dtype in (np.float32, np.float64)
         return cropped
 
     def apply_to_keypoints(
@@ -247,7 +245,6 @@ class RandomIoUCropV2(RandomIoUCropBase):
 class RandomIoUCropV1(RandomIoUCropBase):
     def update_params(self, params: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         super().update_params(params, **kwargs)
-        print("called once")
         # Allow both 'shape' or ('rows', 'cols') in params.
         if "shape" in params:
             orig_image_shape = params["shape"][:2]
@@ -275,7 +272,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
         return params
 
     def apply(
-        self, img: NDArray[np.float32 | np.float64], **params: Any
+        self, img: NDArray[np.uint8 | np.float32 | np.float64], **params: Any
     ) -> NDArray[np.float32 | np.float64]:
         crop_coords = params["crop_coords"]
         y_min, x_min, y_max, x_max = crop_coords
@@ -287,7 +284,6 @@ class RandomIoUCropV1(RandomIoUCropBase):
             y_max=y_max,
         )
         assert isinstance(cropped, np.ndarray)
-        assert cropped.dtype in (np.float32, np.float64)
         return cropped
 
     def apply_to_bbox(
