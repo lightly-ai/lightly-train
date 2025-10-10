@@ -70,7 +70,7 @@ def test_train__cpu(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize("num_workers", [0, 2, "auto"])
-@pytest.mark.parametrize("model", ["torchvision/resnet18", "rfdetr/rfdetr-detr-base"])
+@pytest.mark.parametrize("model", ["torchvision/resnet18", "rfdetr/rf-detr-base"])
 def test_train(
     tmp_path: Path,
     caplog: LogCaptureFixture,
