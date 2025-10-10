@@ -15,7 +15,6 @@ from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Generator, Iterable, Literal, Mapping
 
-import mlflow
 import torch
 from filelock import FileLock
 from lightning_fabric import Fabric
@@ -65,6 +64,11 @@ from lightly_train.types import (
     PathLike,
     TaskDatasetItem,
 )
+
+try:
+    import mlflow
+except ImportError:
+    mlflow = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -165,9 +169,9 @@ def _resolve_mlflow_run_id_for_resume(
             "Cannot resume MLflow run because no run name was specified. Please specify a `run_name` in the MLFlow logger configuration so that the metrics will continue to be logged in the same run. Starting a new run instead."
         )
         return None
-
+    safe_run_name = run_name.replace('"', r"\"")
     filter_string = f"""
-        attributes.run_name LIKE "{run_name}"
+        attributes.run_name LIKE "{safe_run_name}"
         """
     runs = mlflow.search_runs(
         experiment_names=[experiment_name],
@@ -203,7 +207,10 @@ def get_loggers(
             Configuration for the loggers.
         out:
             Path to the output directory.
-
+        resume_interrupted:
+            Whether to resume an interrupted run. If True and an MLflow logger is
+            configured, the run_id will be looked up based on the experiment_name
+            and run_name and used to resume the run.
     Returns:
         List of loggers.
     """
@@ -215,7 +222,7 @@ def get_loggers(
         ):
             if (new_run_id := mlflow_args.run_id) and new_run_id != resume_run_id:
                 logger.warning(
-                    f"The run_id '{new_run_id}' specified in the MLFlow logger does not match the run_id '{resume_run_id}' found when trying to resume. Using the run_id '{resume_run_id}' found with the match `experiment_name` and `run_name` instead."
+                    f"The run_id '{new_run_id}' specified in the MLFlow logger does not match the run_id '{resume_run_id}' found when trying to resume. Using the run_id '{resume_run_id}' found with the matching `experiment_name` and `run_name` instead."
                 )
             logger.debug("Resuming MLflow run with id '%s'.", resume_run_id)
             mlflow_args.run_id = resume_run_id
