@@ -104,6 +104,7 @@ class ModelCheckpoint(_ModelCheckpoint):
                 f"Could not restore lightly_train models from checkpoint: {ex}"
             )
         else:
+            # Load the state dicts from the checkpoint in-place.
             self._models.model.load_state_dict(_checkpoint.models.model.state_dict())
             self._models.wrapped_model.load_state_dict(
                 _checkpoint.models.wrapped_model.state_dict()
