@@ -236,17 +236,6 @@ class DistillationV2(Method):
     def _forward_student(
         self, x: Tensor, teacher_features_h: int, teacher_features_w: int
     ) -> Tensor:
-        # Store the image size.
-        # b, _, image_h, image_w = x.shape
-
-        # Infer the spatial size of the teacher features.
-        # teacher_features_h = math.ceil(
-        #     image_h / self.teacher_embedding_model.patch_size
-        # )
-        # teacher_features_w = math.ceil(
-        #     image_w / self.teacher_embedding_model.patch_size
-        # )
-
         # Forward the images through the student model.
         x = self.student_embedding_model(x, pool=False)
 
