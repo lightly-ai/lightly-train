@@ -22,6 +22,10 @@ if importlib_util.find_spec("rfdetr") is None:
 from rfdetr.detr import RFDETR, RFDETRBase
 from rfdetr.models.backbone.dinov2 import WindowedDinov2WithRegistersBackbone
 
+from lightning_utilities.core.imports import RequirementCache
+
+FROZEN_DINOV_BACKBONE = RequirementCache("rfdetr<1.2.0")
+
 
 class TestRFDETRPackage:
     @pytest.mark.parametrize(
@@ -118,8 +122,12 @@ class TestRFDETRPackage:
                     child_module_exp,
                 ) in zip(module.named_modules(), module_exp.named_modules()):
                     assert child_name == child_name_exp
-                    assert not child_module.training
-                    assert not child_module_exp.training
+                    if not FROZEN_DINOV_BACKBONE:
+                        assert child_module.training
+                        assert child_module_exp.training
+                    else:
+                        assert not child_module.training
+                        assert not child_module_exp.training
 
                     visited.add(f"{name}.{child_name}")
             else:
