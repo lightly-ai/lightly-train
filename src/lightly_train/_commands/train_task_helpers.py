@@ -358,13 +358,30 @@ def _unlink_and_ignore(path: Path) -> None:
 def get_dataset_temp_mmap_path(
     fabric: Fabric,
     data: PathLike,
+    out: PathLike,
 ) -> Generator[Path, Any, Any]:
     """Generate file in temporary directory to be used for memory-mapping the dataset.
 
+    Creates a unique filename for the memory-mapped file based on the `out` or `data`
+    arguments. We use those arguments as they are consistent across all ranks on the
+    same node for the same run. Additionally, we can cache the file if required, since
+    the hash directly reflects the used config.
+
     Use the same file on all ranks across all nodes, unless the filesystem is not shared.
     """
+    if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
+        # Use data as identifier to share the mmap file across multiple runs.
+        # NOTE(Guarin, 09/25): Hash of data might be slow if data is a long list of
+        # filenames or directories.
+        identifier = Path(data).resolve()
+    else:
+        # Use out as identifier to create a unique mmap file for each run. We assume
+        # that only one run is using a specific out directory at a time.
+        identifier = Path(out).resolve()
 
-    mmap_filepath = (cache.get_data_cache_dir() / get_sha256(data)).with_suffix(".mmap")
+    mmap_filepath = (cache.get_data_cache_dir() / get_sha256(identifier)).with_suffix(
+        ".mmap"
+    )
     mmap_filepath_broadcasted = Path(fabric.broadcast(str(mmap_filepath)))
     mmap_dirpath_broadcasted = mmap_filepath_broadcasted.parent
     ref_count_filepath_broadcasted = mmap_filepath.with_suffix(".ref_count")
