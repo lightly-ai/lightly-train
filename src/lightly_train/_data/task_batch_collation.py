@@ -78,6 +78,8 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
                 num_scales=transform_args.scale_jitter.num_scales,
                 divisible_by=transform_args.scale_jitter.divisible_by,
                 p=transform_args.scale_jitter.prob,
+                step_seeding=transform_args.scale_jitter.step_seeding,
+                seed_offset=transform_args.scale_jitter.seed_offset,
             )
         else:
             self.scale_jitter = None
@@ -88,7 +90,7 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
             batch_np = [
                 {
                     "image_path": item["image_path"],
-                    "image": item["image"].numpy(),
+                    "image": item["image"].permute(1, 2, 0).numpy(),
                     "bboxes": item["bboxes"].numpy(),
                     "classes": item["classes"].numpy(),
                 }
@@ -97,11 +99,11 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
 
             # Apply transform.
             seed = np.random.randint(0, 1_000_000)
-            self.scale_jitter.global_step = seed
             images = []
             bboxes = []
             classes = []
             for item in batch_np:
+                self.scale_jitter.step = seed
                 out = self.scale_jitter(
                     image=item["image"],
                     bboxes=item["bboxes"],
@@ -122,7 +124,10 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
             ]
 
             # Turn back into torch tensors.
-            images = [torch.from_numpy(img).to(torch.float32) for img in images]
+            images = [
+                torch.from_numpy(img).to(torch.float32).permute(2, 0, 1)
+                for img in images
+            ]
             bboxes = [torch.from_numpy(bbox).to(torch.float32) for bbox in bboxes]
             classes = [torch.from_numpy(cls).to(torch.int64) for cls in classes]
 

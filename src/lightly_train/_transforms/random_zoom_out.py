@@ -66,7 +66,6 @@ class RandomZoomOutV1(RandomZoomOutBase):
 
     def update_params(self, params: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         params = super().update_params(params, **kwargs)
-        print(params.keys())
         try:
             rows, cols = params["shape"][:2]
         except KeyError:
