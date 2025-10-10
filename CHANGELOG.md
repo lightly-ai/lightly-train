@@ -9,11 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Support newer RF-DETR versions, such as RF-DETR Medium and Nano.
+
 ### Changed
 
 ### Deprecated
 
 ### Removed
+
+- Drop support for older versions of RF-DETR which had issues with frozen backbones.
 
 ### Fixed
 

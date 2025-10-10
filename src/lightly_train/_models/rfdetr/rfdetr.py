@@ -40,14 +40,14 @@ class RFDETRModelWrapper(Module, ModelWrapper):
         # RFDETR is not a subclass of nn.Module.
         assert isinstance(model.model.model, Module)
 
-        # def load_state_dict(rfdetr_model, *args, **kwargs):
-        #     rfdetr_model.model.model.load_state_dict(*args, **kwargs)
+        def load_state_dict(rfdetr_model, *args, **kwargs):
+            rfdetr_model.model.model.load_state_dict(*args, **kwargs)
 
-        # def state_dict(rfdetr_model, *args, **kwargs):
-        #     return rfdetr_model.model.model.state_dict(*args, **kwargs)
+        def state_dict(rfdetr_model, *args, **kwargs):
+            return rfdetr_model.model.model.state_dict(*args, **kwargs)
 
-        # self.load_state_dict = MethodType(load_state_dict, model)
-        # self.state_dict = MethodType(state_dict, model)
+        model.load_state_dict = MethodType(load_state_dict, model)
+        model.state_dict = MethodType(state_dict, model)
 
         # Extract the DINOv2 backbone from the RFDETR model.
         backbone = model.model.model.backbone[0]
