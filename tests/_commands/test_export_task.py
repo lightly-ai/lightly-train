@@ -29,7 +29,7 @@ def create_dinov2_vits14_eomt_test_checkpoint(
     train_masks = directory / "train_masks"
     val_images = directory / "val_images"
     val_masks = directory / "val_masks"
-    mode = "RGBA" if num_channels == 4 else None
+    mode = "RGBA" if num_channels == 4 else "RGB"
     helpers.create_images(train_images, num_channels=num_channels, mode=mode)
     helpers.create_masks(train_masks)
     helpers.create_images(val_images, num_channels=num_channels, mode=mode)
