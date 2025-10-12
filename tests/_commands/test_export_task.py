@@ -29,9 +29,10 @@ def create_dinov2_vits14_eomt_test_checkpoint(
     train_masks = directory / "train_masks"
     val_images = directory / "val_images"
     val_masks = directory / "val_masks"
-    helpers.create_images(train_images, num_channels=num_channels, mode="RGBA")
+    mode = "RGBA" if num_channels == 4 else None
+    helpers.create_images(train_images, num_channels=num_channels, mode=mode)
     helpers.create_masks(train_masks)
-    helpers.create_images(val_images, num_channels=num_channels, mode="RGBA")
+    helpers.create_images(val_images, num_channels=num_channels, mode=mode)
     helpers.create_masks(val_masks)
 
     lightly_train.train_semantic_segmentation(
