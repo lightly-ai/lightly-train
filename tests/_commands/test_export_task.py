@@ -27,9 +27,9 @@ def create_dinov2_vits14_eomt_test_checkpoint(dir: Path, num_channels: int = 3):
     train_masks = dir / "train_masks"
     val_images = dir / "val_images"
     val_masks = dir / "val_masks"
-    helpers.create_images(train_images)
+    helpers.create_images(train_images, num_channels=num_channels)
     helpers.create_masks(train_masks)
-    helpers.create_images(val_images)
+    helpers.create_images(val_images, num_channels=num_channels)
     helpers.create_masks(val_masks)
 
     lightly_train.train_semantic_segmentation(
