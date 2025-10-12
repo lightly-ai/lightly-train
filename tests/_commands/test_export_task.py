@@ -21,12 +21,14 @@ from lightly_train._commands.export_task import OnnxPrecision
 from .. import helpers
 
 
-def create_dinov2_vits14_eomt_test_checkpoint(dir: Path, num_channels: int = 3):
-    out = dir / "out"
-    train_images = dir / "train_images"
-    train_masks = dir / "train_masks"
-    val_images = dir / "val_images"
-    val_masks = dir / "val_masks"
+def create_dinov2_vits14_eomt_test_checkpoint(
+    directory: Path, num_channels: int = 3
+) -> Path:
+    out = directory / "out"
+    train_images = directory / "train_images"
+    train_masks = directory / "train_masks"
+    val_images = directory / "val_images"
+    val_masks = directory / "val_masks"
     helpers.create_images(train_images, num_channels=num_channels, mode="RGBA")
     helpers.create_masks(train_masks)
     helpers.create_images(val_images, num_channels=num_channels, mode="RGBA")
@@ -67,7 +69,7 @@ def create_dinov2_vits14_eomt_test_checkpoint(dir: Path, num_channels: int = 3):
 @pytest.fixture(scope="module")
 def dinov2_vits14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> Path:
     tmp = tmp_path_factory.mktemp("tmp")
-    return create_dinov2_vits14_eomt_test_checkpoint(dir=tmp)
+    return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp)
 
 
 @pytest.fixture(scope="module")
@@ -75,7 +77,7 @@ def dinov2_vits14_eomt_4_channels_checkpoint(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Path:
     tmp = tmp_path_factory.mktemp("tmp")
-    return create_dinov2_vits14_eomt_test_checkpoint(dir=tmp, num_channels=4)
+    return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp, num_channels=4)
 
 
 onnx_export_testset = [
