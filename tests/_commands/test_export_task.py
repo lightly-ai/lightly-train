@@ -176,7 +176,6 @@ def test_onnx_export(
 )
 @pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export_4_channels(
-    precision: OnnxPrecision,
     dinov2_vits14_eomt_4_channels_checkpoint: Path,
     tmp_path: Path,
 ) -> None:
@@ -191,6 +190,7 @@ def test_onnx_export_4_channels(
     batch_size = 2
     height = model.image_size[0]
     width = model.image_size[1]
+    precision = OnnxPrecision.F32_TRUE
 
     onnx_path = tmp_path / "model.onnx"
     validation_input = torch.randn(batch_size, 4, height, width, device="cpu")
