@@ -163,7 +163,6 @@ def test_onnx_export(
     sys.platform.startswith("win"),
     reason=("Fails on Windows because of potential memory issues"),
 )
-@pytest.mark.parametrize("batch_size,height,width,precision", onnx_export_testset)
 @pytest.mark.skipif(
     sys.version_info < (3, 9),
     reason="Requires Python 3.9 or higher for image preprocessing.",
@@ -174,9 +173,6 @@ def test_onnx_export(
 )
 @pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export_4_channels(
-    batch_size: int,
-    height: int | None,
-    width: int | None,
     precision: OnnxPrecision,
     dinov2_vits14_eomt_4_channels_checkpoint: Path,
     tmp_path: Path,
@@ -189,9 +185,10 @@ def test_onnx_export_4_channels(
         dinov2_vits14_eomt_4_channels_checkpoint, device="cpu"
     )
 
+    batch_size = 2
     height = model.image_size[0]
     width = model.image_size[1]
-    batch_size = 2
+
     onnx_path = tmp_path / "model.onnx"
     validation_input = torch.randn(batch_size, 4, height, width, device="cpu")
     expected_outputs = model(validation_input)
