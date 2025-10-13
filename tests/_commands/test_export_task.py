@@ -96,7 +96,7 @@ onnx_export_testset = [
     reason=("Fails on Windows because of potential memory issues"),
 )
 @pytest.mark.parametrize(
-    "num_channels, batch_size,height,width,precision", onnx_export_testset
+    "batch_size,num_channels,height,width,precision", onnx_export_testset
 )
 @pytest.mark.skipif(
     sys.version_info < (3, 9),
