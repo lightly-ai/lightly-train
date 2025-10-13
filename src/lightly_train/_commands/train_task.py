@@ -337,6 +337,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         logger_instances = helpers.get_loggers(
             logger_args=config.logger_args,
             out=out_dir,
+            resume_interrupted=config.resume_interrupted,
         )
         fabric.loggers.extend(logger_instances)
 
@@ -358,7 +359,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         hyperparams = helpers.pretty_format_args_dict(config.model_dump())
+        hyperparams.pop("resume_interrupted", None)
+        logger_args = hyperparams.get("logger_args")
+        if isinstance(logger_args, dict):
+            mlflow_logger_args = logger_args.get("mlflow")
+            if isinstance(mlflow_logger_args, dict):
+                mlflow_logger_args.pop("run_id", None)
         for logger_instance in fabric.loggers:
+            if config.resume_interrupted:
+                hyperparams["resume_interrupted"] = True
             logger_instance.log_hyperparams(hyperparams)
 
         state = TrainTaskState(
