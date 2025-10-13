@@ -235,7 +235,7 @@ and checkpoints organized.
 ## Data
 
 Lightly**Train** supports training semantic segmentation models with images and masks.
-Every image must have a corresponding mask whose filepath follows a specific template related to the image filepath. The masks must be PNG images either in grayscale integer format, where each pixel value corresponds to a class ID, or in multi-channel (e.g. RGB) format.
+Every image must have a corresponding mask whose filepath either matches the image filename (under a different directory) or follows a specific template pattern. The masks must be PNG images in either grayscale integer format, where each pixel value corresponds to a class ID, or multi-channel (e.g., RGB) format.
 
 The following image formats are supported:
 
@@ -374,7 +374,7 @@ if __name__ == "__main__":
     )
 ```
 
-Always uses the `image_path` of type `pathlib.Path` to refer to the filepath of the corresponding image. The template string accepts this parameter and calculates the mask filepath for you. No other parameters are allowed in the template string.
+The template string always uses `image_path` (of type `pathlib.Path`) to refer to the filepath of the corresponding image. Only this parameter is allowed in the template string, which is used to calculate the mask filepath.
 
 (semantic-segmentation-model)=
 
