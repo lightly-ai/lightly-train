@@ -97,7 +97,9 @@ onnx_export_testset = [
     sys.platform.startswith("win"),
     reason=("Fails on Windows because of potential memory issues"),
 )
-@pytest.mark.parametrize("batch_size,height,width,precision", onnx_export_testset)
+@pytest.mark.parametrize(
+    "num_channels, batch_size,height,width,precision", onnx_export_testset
+)
 @pytest.mark.skipif(
     sys.version_info < (3, 9),
     reason="Requires Python 3.9 or higher for image preprocessing.",
