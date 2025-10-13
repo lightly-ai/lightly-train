@@ -12,7 +12,7 @@ import contextvars
 import logging
 from collections.abc import Iterator
 from enum import Enum
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 import torch
 from torch import distributed
@@ -72,8 +72,8 @@ def export_onnx(
     out: PathLike,
     checkpoint: PathLike,
     batch_size: int = 1,
-    height: Union[int, None] = None,
-    width: Union[int | None] = None,
+    height: int | None = None,
+    width: int | None = None,
     precision: Literal["32-true", "16-true"] = "32-true",
     simplify: bool = True,
     verify: bool = True,
@@ -89,8 +89,6 @@ def export_onnx(
             Path to the LightlyTrain checkpoint file to export the model from.
         batch_size:
             Batch size of the input tensor.
-        num_channels:
-            Number of channels in input tensor.
         height:
             Height of the input tensor.
         width:
