@@ -68,19 +68,17 @@ def create_dinov2_vits14_eomt_test_checkpoint(
 
 
 @pytest.fixture(scope="module")
-def dinov2_vits14_eomt_checkpoint(tmp_path: Path) -> Path:
-    directory = tmp_path / "3channels"
-    return create_dinov2_vits14_eomt_test_checkpoint(directory=directory)
+def dinov2_vits14_eomt_checkpoint(temp_path_factory: pytest.TempPathFactory) -> Path:
+    tmp = temp_path_factory.mktemp("tmp")
+    return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp)
 
 
 @pytest.fixture(scope="module")
 def dinov2_vits14_eomt_4_channels_checkpoint(
-    tmp_path: Path,
+    temp_path_factory: pytest.TempPathFactory,
 ) -> Path:
-    directory = tmp_path / "4channels"
-    return create_dinov2_vits14_eomt_test_checkpoint(
-        directory=directory, num_channels=4
-    )
+    tmp = temp_path_factory.mktemp("tmp")
+    return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp, num_channels=4)
 
 
 onnx_export_testset = [
