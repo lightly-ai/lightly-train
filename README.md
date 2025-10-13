@@ -154,7 +154,7 @@ image_with_boxes = utils.draw_bounding_boxes(
 
 fig, ax = plt.subplots(figsize=(30, 30))
 ax.imshow(image_with_boxes.permute(1, 2, 0))
-fig.savefig(f"predictions_{model.model_name}.png")
+fig.savefig(f"predictions.png")
 ```
 
 </details>
