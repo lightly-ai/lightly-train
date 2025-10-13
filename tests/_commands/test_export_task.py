@@ -68,16 +68,16 @@ def create_dinov2_vits14_eomt_test_checkpoint(
 
 
 @pytest.fixture(scope="module")
-def dinov2_vits14_eomt_checkpoint(temp_path_factory: pytest.TempPathFactory) -> Path:
-    tmp = temp_path_factory.mktemp("tmp")
+def dinov2_vits14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    tmp = tmp_path_factory.mktemp("tmp")
     return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp)
 
 
 @pytest.fixture(scope="module")
 def dinov2_vits14_eomt_4_channels_checkpoint(
-    temp_path_factory: pytest.TempPathFactory,
+    tmp_path_factory: pytest.TempPathFactory,
 ) -> Path:
-    tmp = temp_path_factory.mktemp("tmp")
+    tmp = tmp_path_factory.mktemp("tmp")
     return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp, num_channels=4)
 
 
