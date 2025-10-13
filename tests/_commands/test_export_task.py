@@ -68,26 +68,28 @@ def create_dinov2_vits14_eomt_test_checkpoint(
 
 
 @pytest.fixture(scope="module")
-def dinov2_vits14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    tmp = tmp_path_factory.mktemp("tmp")
-    return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp)
+def dinov2_vits14_eomt_checkpoint(tmp_path: Path) -> Path:
+    directory = tmp_path / "3channels"
+    return create_dinov2_vits14_eomt_test_checkpoint(directory=directory)
 
 
 @pytest.fixture(scope="module")
 def dinov2_vits14_eomt_4_channels_checkpoint(
-    tmp_path_factory: pytest.TempPathFactory,
+    tmp_path: Path,
 ) -> Path:
-    tmp = tmp_path_factory.mktemp("tmp")
-    return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp, num_channels=4)
+    directory = tmp_path / "4channels"
+    return create_dinov2_vits14_eomt_test_checkpoint(
+        directory=directory, num_channels=4
+    )
 
 
 onnx_export_testset = [
-    (1, 42, 154, OnnxPrecision.F32_TRUE),
-    (1, 154, 42, OnnxPrecision.F32_TRUE),
-    (2, 14, 14, OnnxPrecision.F32_TRUE),
-    (2, None, None, OnnxPrecision.F32_TRUE),
-    (3, 140, None, OnnxPrecision.F16_TRUE),
-    (4, None, 28, OnnxPrecision.F16_TRUE),
+    (1, 3, 42, 154, OnnxPrecision.F32_TRUE),
+    (1, 4, 154, 42, OnnxPrecision.F32_TRUE),
+    (2, 3, 14, 14, OnnxPrecision.F32_TRUE),
+    (2, 4, None, None, OnnxPrecision.F32_TRUE),
+    (3, 3, 140, None, OnnxPrecision.F16_TRUE),
+    (4, 4, None, 28, OnnxPrecision.F16_TRUE),
 ]
 
 
@@ -107,75 +109,11 @@ onnx_export_testset = [
 @pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export(
     batch_size: int,
+    num_channels: int,
     height: int | None,
     width: int | None,
     precision: OnnxPrecision,
     dinov2_vits14_eomt_checkpoint: Path,
-    tmp_path: Path,
-) -> None:
-    import onnx
-    import onnxruntime as ort
-
-    # arrange
-    model = lightly_train.load_model_from_checkpoint(
-        dinov2_vits14_eomt_checkpoint, device="cpu"
-    )
-    if height is None:
-        height = model.image_size[0]
-    if width is None:
-        width = model.image_size[1]
-    onnx_path = tmp_path / "model.onnx"
-    validation_input = torch.randn(batch_size, 3, height, width, device="cpu")
-    expected_outputs = model(validation_input)
-    expected_output_dtypes = [torch.int64, precision.torch()]
-    # We use  torch.testing.assert_close to check if the model outputs the same as when we run the exported
-    # onnx file with onnxruntime. Unfortunately the default tolerances are too strict so we specify our own.
-    rtol = 1e-2
-    atol = 1e-4
-
-    # act
-    lightly_train.export_onnx(
-        out=onnx_path,
-        checkpoint=dinov2_vits14_eomt_checkpoint,
-        height=height,
-        width=width,
-        precision=precision.value,
-        batch_size=batch_size,
-        overwrite=True,
-    )
-
-    # assert
-    assert onnx_path.exists()
-    onnx.checker.check_model(onnx_path, full_check=True)
-
-    session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
-    validation_input = validation_input.to(precision.torch())
-    ort_in = {"input": validation_input.numpy()}
-    ort_outputs = session.run(["masks", "logits"], ort_in)
-    ort_outputs = [torch.from_numpy(y).cpu() for y in ort_outputs]
-    assert [y.dtype for y in ort_outputs] == expected_output_dtypes
-
-    assert len(ort_outputs) == len(expected_outputs)
-    for ort_y, expected_y in zip(ort_outputs, expected_outputs):
-        torch.testing.assert_close(
-            ort_y, expected_y, check_dtype=False, rtol=rtol, atol=atol
-        )
-
-
-@pytest.mark.skipif(
-    sys.platform.startswith("win"),
-    reason=("Fails on Windows because of potential memory issues"),
-)
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
-    reason="Requires Python 3.9 or higher for image preprocessing.",
-)
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-@pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
-def test_onnx_export_4_channels(
     dinov2_vits14_eomt_4_channels_checkpoint: Path,
     tmp_path: Path,
 ) -> None:
@@ -183,17 +121,19 @@ def test_onnx_export_4_channels(
     import onnxruntime as ort
 
     # arrange
-    model = lightly_train.load_model_from_checkpoint(
-        dinov2_vits14_eomt_4_channels_checkpoint, device="cpu"
-    )
-
-    batch_size = 2
-    height = model.image_size[0]
-    width = model.image_size[1]
-    precision = OnnxPrecision.F32_TRUE
-
+    checkpoint = {
+        3: dinov2_vits14_eomt_checkpoint,
+        4: dinov2_vits14_eomt_4_channels_checkpoint,
+    }[num_channels]
+    model = lightly_train.load_model_from_checkpoint(checkpoint, device="cpu")
+    if height is None:
+        height = model.image_size[0]
+    if width is None:
+        width = model.image_size[1]
     onnx_path = tmp_path / "model.onnx"
-    validation_input = torch.randn(batch_size, 4, height, width, device="cpu")
+    validation_input = torch.randn(
+        batch_size, num_channels, height, width, device="cpu"
+    )
     expected_outputs = model(validation_input)
     expected_output_dtypes = [torch.int64, precision.torch()]
     # We use  torch.testing.assert_close to check if the model outputs the same as when we run the exported
@@ -204,7 +144,9 @@ def test_onnx_export_4_channels(
     # act
     lightly_train.export_onnx(
         out=onnx_path,
-        checkpoint=dinov2_vits14_eomt_4_channels_checkpoint,
+        checkpoint=checkpoint,
+        height=height,
+        width=width,
         precision=precision.value,
         batch_size=batch_size,
         overwrite=True,
