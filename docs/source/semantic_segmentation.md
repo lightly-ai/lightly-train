@@ -8,9 +8,11 @@ state-of-the-art segmentation model [EoMT](https://arxiv.org/abs/2503.19108) by
 Kerssies et al. and reaches 59.1% mIoU with DINOv3 weights and 58.4% mIoU with DINOv2 weights on the ADE20k dataset.
 ```
 
+(semantic-segmentation-benchmark-results)=
+
 ## Benchmark Results
 
-Below we provide the model checkpoints and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available.
+Below we provide the model checkpoints and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available. You can check [here](semantic-segmentation-eomt-dinov3-model-weights) for how to use these model checkpoints for further fine-tuning.
 
 The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average FPS values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 
@@ -50,7 +52,7 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
 
-## Semantic Segmentation with EoMT in LightlyTrain
+## Semantic Segmentation with EoMT
 
 Training a semantic segmentation model with LightlyTrain is straightforward and
 only requires a few lines of code. The dataset must follow the [ADE20K format](https://ade20k.csail.mit.edu/)
@@ -100,6 +102,10 @@ if __name__ == "__main__":
         checkpoint="out/my_experiment/exported_models/exported_best.pt", # use the best model to continue training
         data={...},
     )
+```
+
+```{note}
+Check [here](semantic-segmentation-eomt-dinov3-model-weights) for how to use the LightlyTrain model checkpoints for further fine-tuning.
 ```
 
 By default, the classification head weights are not loaded so as to adapt only the backbone and mask head to downstream tasks. If you do need to load the classification head weights, you could specify it by setting the `reuse_class_head` flag to `True` in `train_semantic_segmentation`.
@@ -177,6 +183,30 @@ if __name__ == "__main__":
 ```
 
 See [here](#dinov3-models) for the list of available DINOv3 models.
+
+(semantic-segmentation-eomt-dinov3-model-weights)=
+
+### Use the LightlyTrain Model Checkpoints
+
+Now you can also start with the DINOv3 model checkpoints that LightlyTrain provides. The download links are listed [here](#semantic-segmentation-benchmark-results) in the "Checkpoint" column of the tables.
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vits16-eomt",
+        model_args={
+            # Replace with your own url
+            "backbone_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
+            # For COCO-Stuff and Cityscapes dataset, we use num_queries=200 instead of the default 100
+            "num_queries": 200,
+        },
+        checkpoint="/path/to/your/downloaded/model/lightlytrain_dinov3_eomt_vits16_cocostuff.pt", # use the COCO-Stuff model checkpoint for further fine-tuning
+        data={...},
+    )
+```
 
 (semantic-segmentation-output)=
 
