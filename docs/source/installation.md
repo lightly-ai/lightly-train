@@ -34,7 +34,8 @@ See {ref}`docker` for Docker installation instructions.
 
 | `lightly-train` | `torch` | `torchvision` | `pytorch-lightning` | Python |
 |:---------------:|:-------:|:-------------:|:-------------------:|:------:|
-| `0.6` | `>=2.1`, `<2.6` | `>=0.16` | `>=2.1`, `<2.6` | `>=3.8`, `<3.13` |
+| `>=0.12` | `>=2.1` | `>=0.16` | `>=2.1` | `>=3.8`, `<3.13` |
+| `>=0.6` | `>=2.1`, `<2.6` | `>=0.16` | `>=2.1` | `>=3.8`, `<3.13` |
 
 ```{warning}
 We recommend installing versions of the `torch`, `torchvision`, and `pytorch-lightning` packages that
