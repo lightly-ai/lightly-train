@@ -235,9 +235,7 @@ and checkpoints organized.
 ## Data
 
 Lightly**Train** supports training semantic segmentation models with images and masks.
-Every image must have a corresponding mask with the same filename except for the file
-extension. The masks must be PNG images in grayscale integer format, where each pixel
-value corresponds to a class ID.
+Every image must have a corresponding mask whose filename either matches that of the image (under a different directory) or follows a specific template pattern. The masks must be PNG images in either grayscale integer format, where each pixel value corresponds to a class ID, or multi-channel (e.g., RGB) format.
 
 The following image formats are supported:
 
@@ -255,7 +253,16 @@ The following mask formats are supported:
 
 - png
 
-Example of a directory structure with training and validation images and masks:
+### Supported Mask Dataset Format
+
+We support two ways of specifying the mask filepaths in relation to the image filepaths:
+
+1. Using the same filename as the image but under a different directory.
+1. Using a template against the image filepath.
+
+#### Using the Same Filename as the Image
+
+We support loading masks that share the same filenames as their corresponding images under different directories. Here is an example of such a directory structure with training and validation images and masks:
 
 ```bash
 my_data_dir
@@ -275,7 +282,7 @@ my_data_dir
        └── image3.png
 ```
 
-To train with this folder structure, set the `data` argument like this:
+To train with this directory structure, set the `data` argument like this:
 
 ```python
 import lightly_train
@@ -312,6 +319,62 @@ the values in the mask images. All possible class IDs must be specified, otherwi
 Lightly**Train** will raise an error if an unknown class ID is encountered. If you would
 like to ignore some classes during training, you specify their class IDs in the
 `ignore_classes` argument. The trained model will then not predict these classes.
+
+#### Using a Template against the Image Filepath
+
+We also support loading masks that follow a certain template against the corresponding image filepath. For example, if you have the following directory structure:
+
+```bash
+my_data_dir
+├── train
+│   ├── images
+│   │   ├── image0.jpg
+│   │   └── image1.jpg
+│   └── masks
+│       ├── image0_mask.png
+│       └── image1_mask.png
+└── val
+    ├── images
+    |  ├── image2.jpg
+    |  └── image3.jpg
+    └── masks
+       ├── image2_mask.png
+       └── image3_mask.png
+```
+
+you could set the `data` argument like this:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    mask_file = "{image_path.parent.parent}/masks/{image_path.stem}_mask.png"
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt",
+        data={
+            "train": {
+                "images": "my_data_dir/train/images",
+                "masks": mask_file,  # This will match masks with the same filename stem as the training image but with a `_mask` suffix in "my_data_dir/train/masks" in PNG format
+            },
+            "val": {
+                "images": "my_data_dir/val/images", 
+                "masks": mask_file,  # This will match masks with the same filename stem as the training image but with a `_mask` suffix in "my_data_dir/val/masks" in PNG format
+            },
+            "classes": {             # Classes in the dataset                    
+                0: "background",
+                1: "car",
+                2: "bicycle",
+                # ...
+            },
+            # Optional, classes that are in the dataset but should be ignored during
+            # training.
+            "ignore_classes": [0], 
+        },
+    )
+```
+
+The template string always uses `image_path` (of type `pathlib.Path`) to refer to the filepath of the corresponding image. Only this parameter is allowed in the template string, which is used to calculate the mask filepath.
 
 (semantic-segmentation-model)=
 
