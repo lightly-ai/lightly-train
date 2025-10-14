@@ -376,6 +376,63 @@ if __name__ == "__main__":
 
 The template string always uses `image_path` (of type `pathlib.Path`) to refer to the filepath of the corresponding image. Only this parameter is allowed in the template string, which is used to calculate the mask filepath.
 
+### Specify Training Classes
+
+We support two mask formats:
+
+- Single-channel integer masks
+- Multi-channel masks (e.g., RGB masks)
+
+Use the `classes` dictionary to map class IDs to labels. In this document, a **class ID** is a key in the `classes` dictionary and a **label** is its value.
+
+#### Using Integer Masks
+
+For single-channel integer masks (each pixel value is a label), the default is a direct mapping from class IDs to label names:
+
+```
+    "classes": {                   
+        0: "background",
+        1: "car",
+        2: "bicycle",
+        # ...
+    },
+```
+
+Alternatively, to merge multiple labels into one class during training, specify in a dictionary the label name under the "name" key, and list the integer labels as the value of "labels" (type `list[int]`):
+
+```
+    "classes": {
+        0: "background",
+        1: {"name": "vehicle", "labels": [1, 2]}, # Merge label 1 and 2 into "vehicle" with class ID 1
+        # ...
+    },
+```
+
+Or:
+
+```
+    "classes": {
+        0: {"name": "background", "labels": [0]}, # The dictionary syntax also works for singleton mapping
+        1: {"name": "vehicle", "labels": [1, 2]},
+        # ...
+    },
+```
+
+It is fine if source labels coincide with class IDs, as in the example. Only class IDs define the internal classes for training and prediction masks. Note that you cannot map the same label to multiple class IDs.
+
+#### Using Multi-channel Masks
+
+Mapping for multi-channel masks follows the same rules, except pixel values must be specified as a list of integer tuples (type `list[tuple[int, ...]]`) in the `"labels"` field:
+
+```
+    "classes": {
+        0: {"name": "unlabeled", "labels": [(0, 0, 0), (255, 255, 255)]}, # (0,0,0) and (255,255,255) will be mapped to class "unlabeled" with class ID 0
+        1: {"name": "road", "labels": [(128, 128, 128)]},
+    },
+```
+
+These pixel values are converted to class IDs internally during training. Predictions are single-channel masks with those class IDs. Again, you cannot map the same pixel value to multiple class IDs, and you cannot mix integer and tuple-valued labels in a single `classes` dictionary.
+
 (semantic-segmentation-model)=
 
 ## Model
