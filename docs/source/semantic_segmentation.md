@@ -188,7 +188,7 @@ See [here](#dinov3-models) for the list of available DINOv3 models.
 
 ### Use the LightlyTrain Model Checkpoints
 
-Now you can also start with the DINOv3 model checkpoints that LightlyTrain provides. The download links are listed [here](#semantic-segmentation-benchmark-results) in the "Checkpoint" columns of the tables.
+Now you can also start with the DINOv3 model checkpoints that LightlyTrain provides. The download links are listed [here](#semantic-segmentation-benchmark-results) in the "Checkpoint" column of the tables.
 
 ```python
 import lightly_train
@@ -203,7 +203,7 @@ if __name__ == "__main__":
             # For COCO-Stuff and Cityscapes dataset, we use num_queries=200 instead of the default 100
             "num_queries": 200,
         },
-        checkpoint="/your/downloaded/model/path/to/lightlytrain_dinov3_eomt_vits16_cocostuff", # use the COCO-Stuff model checkpoint for further fine-tuning
+        checkpoint="/path/to/your/downloaded/model/lightlytrain_dinov3_eomt_vits16_cocostuff.pt", # use the COCO-Stuff model checkpoint for further fine-tuning
         data={...},
     )
 ```
