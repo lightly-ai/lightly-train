@@ -55,9 +55,8 @@ We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_quer
 ## Semantic Segmentation with EoMT
 
 Training a semantic segmentation model with LightlyTrain is straightforward and
-only requires a few lines of code. The dataset must follow the [ADE20K format](https://ade20k.csail.mit.edu/)
-with RGB images and integer masks in PNG format. See [data](#semantic-segmentation-data)
-for more details.
+only requires a few lines of code. See [data](#semantic-segmentation-data)
+for more details on how to prepare your dataset.
 
 ### Train a Semantic Segmentation Model
 
@@ -90,7 +89,12 @@ if __name__ == "__main__":
     )
 ```
 
-During training, both the best and last model weights are saved to `out/my_experiment/exported_models/` unless disabled in `save_checkpoint_args`. This way, you can also load these weights to continue fine-tuning on another task by specifying the `checkpoint` parameter:
+During training, both the
+
+- best (with highest validation mIoU) and
+- last (last validation round as determined by `save_checkpoint_args.save_every_num_steps`)
+
+model weights are exported to `out/my_experiment/exported_models/`, unless disabled in `save_checkpoint_args`. You can use these weights to continue fine-tuning on another task by loading the weights via the `checkpoint` parameter:
 
 ```python
 import lightly_train
@@ -112,7 +116,7 @@ By default, the classification head weights are not loaded so as to adapt only t
 
 ### Load the Trained Model from Checkpoint and Predict
 
-After the training completes you can load the model for inference like this:
+After the training completes, you can load the best model checkpoints for inference like this:
 
 ```python
 import lightly_train
@@ -125,7 +129,7 @@ masks = model.predict("path/to/image.jpg")
 
 ### Visualize the Result
 
-And visualize the predicted masks like this:
+After making the predictions with the model weights, you can visualize the predicted masks like this:
 
 ```python
 # ruff: noqa: F821
@@ -219,11 +223,14 @@ and checkpoints are saved. It looks like this after training:
 out/my_experiment
 ├── checkpoints
 │   └── last.ckpt                                       # Last checkpoint
+├── exported_models
+|   └── exported_last.pt                                # Last model exported (unless disabled)
+|   └── exported_best.pt                                # Best model exported (unless disabled)
 ├── events.out.tfevents.1721899772.host.1839736.0       # TensorBoard logs
 └── train.log                                           # Training logs
 ```
 
-The final model checkpoint is saved to `out/my_experiment/checkpoints/last.ckpt`.
+The final model checkpoint is saved to `out/my_experiment/checkpoints/last.ckpt`. The last and best model weights are exported to `out/my_experiment/exported_models/` unless disabled in `save_checkpoint_args`.
 
 ```{tip}
 Create a new output directory for each experiment to keep training logs, model exports,
@@ -519,6 +526,30 @@ Disable the TensorBoard logger with:
 ```python
 logger_args={"tensorboard": None}
 ```
+
+## Resume Training
+
+Like in pretraining, there are two distinct ways to continue training, depending on your intention. Therefore, the `resume_interrupted=True` and the `checkpoint` parameter cannot be used simultaneously.
+
+### Resume Interrupted Training
+
+Use `resume_interrupted=True` to **resume a previously interrupted or crashed training run**.
+This will pick up exactly where the training left off.
+
+- You **must use the same `out` directory** as the original run.
+- You **must not change any training parameters** (e.g., learning rate, batch size, data, etc.).
+- This is intended for continuing the *same* run without modification.
+
+This will utilize the `.ckpt` checkpoint file `out/my_experiment/checkpoints/last.ckpt` to restore the entire training state, including model weights, optimizer state, and epoch count.
+
+### Load Weights for a New Run
+
+As stated above, you can specify the `checkpoint` parameter to further fine-tune a model from a previous run.
+
+- You are free to **change training parameters**.
+- This is useful for continuing training with a different setup.
+
+We recommend using the exported best model weights from `out/my_experiment/exported_models/exported_best.pt` for this purpose, though a `.ckpt` file can also be loaded.
 
 (semantic-segmentation-pretrain-finetune)=
 
