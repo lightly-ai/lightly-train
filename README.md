@@ -1,4 +1,3 @@
-
 # LightlyTrain - SOTA Pretraining, Fine-tuning and Distillation
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
@@ -7,16 +6,15 @@
 [![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/)
 [![Discord](https://img.shields.io/discord/752876370337726585?logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94)
 
-*LightlyTrain is the leading framework for transforming your unlabeled data into powerful vision foundation models – from pretraining, over fine-tuning to knowledge distillation.*  
+*LightlyTrain is the leading framework for transforming your unlabeled data into powerful vision foundation models – from pretraining, over fine-tuning to knowledge distillation.*
 
 Unlock the full potential of your data with state-of-the-art (SOTA) computer vision methods like **DINOv2** and **DINOv3**. Train any model architecture (YOLO, transformers, and beyond) and fine-tune with **segmentation** and **object detection** for your specific use case.
-
 
 ## Benchmarks
 
 ### Custom Foundation Model: Train your own DINOv2!
 
-With LightlyTrain you can train your very own foundation model like DINOv2 on your data. 
+With LightlyTrain you can train your very own foundation model like DINOv2 on your data.
 
 | Implementation | Model | ImageNet k-NN | Docs |
 |----------------|-------|---------------|------|
@@ -24,7 +22,6 @@ With LightlyTrain you can train your very own foundation model like DINOv2 on yo
 | DINOv2 | dinov2/vitl16 | 81.6% | [🔗](https://github.com/facebookresearch/dinov2) |
 
 ### Distillation: Distill the power of DINOv2 and DINOv3 to your model!
-
 
 ### Semantic Segmentation: Use SOTA method from CVPR 2025!
 
@@ -47,7 +44,6 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 | LightlyTrain | dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
 | EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 319 | 1024×1024 | 0.842 | - | - |
 
-
 ## News
 
 - \[[0.11.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-11-0)\] - 2025-08-15: 🚀 **New DINOv3 Support:** Pretrain your own model with [distillation](https://docs.lightly.ai/train/stable/methods/distillation.html#methods-distillation-dinov3) from DINOv3 weights. Or fine-tune our SOTA [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) with a DINOv3 backbone! 🚀
@@ -65,15 +61,12 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
   Up to **3x faster distillation** and higher accuracy with [**Distillation v2**](https://docs.lightly.ai/train/stable/methods/distillation.html)
   (new default method)!
 
-
-
 ## 🔥 Pretrain Your Own DINOv2 Foundation Model 🔥
 
 Pretrain a DINOv2 model on your own unlabeled images. LightlyTrain's DINOv2
 implementation matches or outperforms the official implementation on ImageNet-1K.
 See our [documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html) on
 how to get started!
-
 
 ```python
 import lightly_train
@@ -89,7 +82,6 @@ if __name__ == "__main__":
 
 See our [documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html)
 for more details.
-
 
 ## 🔥 Distill DINOv2/v3 Into Any Model Architecture 🔥
 
@@ -118,13 +110,11 @@ if __name__ == "__main__":
 See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
 for more details.
 
-
 ## 🔥 Train SOTA Semantic Segmentation Models 🔥
 
 LightlyTrain's EoMT semantic segmentation model based on DINOv3 achieves a new state-of-the-art on the ADE20K benchmark! See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html) for more details.
 
 You can explore training semantic segmentation models with the example code below:
-
 
 ```python
 import lightly_train
