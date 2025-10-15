@@ -72,9 +72,8 @@ def export_onnx(
     out: PathLike,
     checkpoint: PathLike,
     batch_size: int = 1,
-    num_channels: int = 3,
-    height: int = 224,
-    width: int = 224,
+    height: int | None = None,
+    width: int | None = None,
     precision: Literal["32-true", "16-true"] = "32-true",
     simplify: bool = True,
     verify: bool = True,
@@ -90,8 +89,6 @@ def export_onnx(
             Path to the LightlyTrain checkpoint file to export the model from.
         batch_size:
             Batch size of the input tensor.
-        num_channels:
-            Number of channels in input tensor.
         height:
             Height of the input tensor.
         width:
@@ -118,9 +115,8 @@ def _export_task(
     checkpoint: PathLike,
     format: Literal["onnx"],
     batch_size: int = 1,
-    num_channels: int = 3,
-    height: int = 224,
-    width: int = 224,
+    height: int | None = None,
+    width: int | None = None,
     precision: Literal["32-true", "16-true"] = "32-true",
     simplify: bool = True,
     verify: bool = True,
@@ -138,12 +134,12 @@ def _export_task(
             Format to save the model in.
         batch_size:
             Batch size of the input tensor.
-        num_channels:
-            Number of channels in input tensor.
         height:
-            Height of the input tensor. For efficiency reasons we recomment this to be the same as width.
+            Height of the input tensor. If not specified it will be the same height that the model was trained in.
+            For efficiency reasons we recommend this to be the same as width.
         width:
-            Width of the input tensor. For efficiency reasons we recomment this to be the same as height.
+            Width of the input tensor. If not specified it will be the same width that the model was trained in.
+            For efficiency reasons we recommend this to be the same as height.
         precision:
             OnnxPrecision.F32_TRUE for float32 precision or OnnxPrecision.F16_TRUE for float16 precision.
         simplify:
@@ -181,6 +177,16 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     )
     task_model.eval()
 
+    height = config.height
+    width = config.width
+    # TODO we might also use task_model.backbone.in_chans
+    num_channels = len(task_model.image_normalize["mean"])
+
+    if height is None:
+        height = task_model.image_size[0]
+    if width is None:
+        width = task_model.image_size[1]
+
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
     if config.format == "onnx":
@@ -188,9 +194,9 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
         # divisible by the patch size. This only occurs during ONNX export as otherwise we interpolate the input
         # image to the correct size.
         patch_size = task_model.backbone.patch_size
-        if not (config.height % patch_size == 0 and config.width % patch_size == 0):
+        if not (height % patch_size == 0 and width % patch_size == 0):
             raise ValueError(
-                f"Height {config.height} and width {config.width} must be a multiple of patch size {patch_size}."
+                f"Height {height} and width {width} must be a multiple of patch size {patch_size}."
             )
 
         # Get the device of the model to ensure dummy input is on the same device
@@ -200,9 +206,9 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
 
         dummy_input = torch.randn(
             config.batch_size,
-            config.num_channels,
-            config.height,
-            config.width,
+            num_channels,
+            height,
+            width,
             requires_grad=False,
             device=model_device,
             dtype=onnx_dtype,
@@ -285,9 +291,8 @@ class ExportTaskConfig(PydanticConfig):
     checkpoint: PathLike
     format: Literal["onnx"]
     batch_size: int = 1
-    num_channels: int = 3
-    height: int = 224
-    width: int = 224
+    height: int | None = None
+    width: int | None = None
     precision: OnnxPrecision = OnnxPrecision.F32_TRUE
     simplify: bool = True
     verify: bool = True

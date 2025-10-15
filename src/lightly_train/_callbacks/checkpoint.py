@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import Any, Literal
 
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint as _ModelCheckpoint
@@ -27,17 +27,20 @@ logger = logging.getLogger(__name__)
 
 
 class ModelCheckpointArgs(PydanticConfig):
-    auto_insert_metric_name: bool = True
-    enable_version_counter: bool = False
-    every_n_epochs: int | None = None
-    every_n_train_steps: int | None = None
+    dirpath: PathLike | None = None
     filename: str | None = None
-    mode: str = "min"
     monitor: str | None = None
+    verbose: bool = False
     save_last: bool = True
-    save_on_train_epoch_end: bool | None = None
     save_top_k: int = 1
     save_weights_only: bool = False
+    mode: Literal["min", "max"] = "min"
+    auto_insert_metric_name: bool = True
+    every_n_train_steps: int | None = None
+    train_time_interval: timedelta | None = None
+    every_n_epochs: int | None = None
+    save_on_train_epoch_end: bool | None = None
+    enable_version_counter: bool = False
 
 
 class ModelCheckpoint(_ModelCheckpoint):
@@ -45,7 +48,7 @@ class ModelCheckpoint(_ModelCheckpoint):
         self,
         models: CheckpointLightlyTrainModels,
         normalize_args: NormalizeArgs,
-        dirpath: None | PathLike = None,
+        dirpath: str,
         filename: None | str = None,
         monitor: None | str = None,
         verbose: bool = False,
@@ -54,7 +57,7 @@ class ModelCheckpoint(_ModelCheckpoint):
         save_last: None | bool = None,
         save_top_k: int = 1,
         save_weights_only: bool = False,
-        mode: str = "min",
+        mode: Literal["min", "max"] = "min",
         auto_insert_metric_name: bool = True,
         every_n_train_steps: None | int = None,
         train_time_interval: None | timedelta = None,

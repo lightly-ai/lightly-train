@@ -35,7 +35,7 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 )
 from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._env import Env
-from lightly_train._loggers.mlflow import MLFlowLogger
+from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
@@ -64,6 +64,11 @@ from lightly_train.types import (
     PathLike,
     TaskDatasetItem,
 )
+
+try:
+    import mlflow
+except ImportError:
+    mlflow = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +148,56 @@ def get_logger_args(
     return args
 
 
-def get_loggers(logger_args: TaskLoggerArgs, out: Path) -> list[FabricLogger]:
+def _resolve_mlflow_run_id_for_resume(
+    mlflow_args: MLFlowLoggerArgs,
+) -> str | None:
+    """Return the MLflow run id to resume from when resuming an interrupted run."""
+    if mlflow_args.tracking_uri is not None:
+        mlflow.set_tracking_uri(mlflow_args.tracking_uri)
+    else:
+        logger.warning(
+            "No tracking_uri specified in the MLFlow logger configuration. This way we could not find the run to resume."
+            "Starting a new run instead."
+        )
+        return None
+
+    experiment_name = mlflow_args.experiment_name
+    run_name = mlflow_args.run_name
+
+    if not run_name:
+        logger.warning(
+            "Cannot resume MLflow run because no run name was specified. Please specify a `run_name` in the MLFlow logger configuration so that the metrics will continue to be logged in the same run. Starting a new run instead."
+        )
+        return None
+    safe_run_name = run_name.replace('"', r"\"")
+    filter_string = f"""
+        attributes.run_name LIKE "{safe_run_name}"
+        """
+    runs = mlflow.search_runs(
+        experiment_names=[experiment_name],
+        filter_string=filter_string,
+        order_by=["attributes.start_time DESC"],
+        output_format="list",
+    )
+
+    if not runs:
+        logger.warning(
+            f"No MLflow runs found for experiment {experiment_name} and run name {run_name} when trying to resume. Starting a new run instead."
+        )
+        return None
+    if len(runs) > 1:
+        logger.warning(
+            f"Multiple MLflow runs found for experiment {experiment_name} and run name {run_name} when trying to resume. Resuming the most recent run."
+        )
+
+    resume_run_id: str = runs[0].info.run_id
+
+    return resume_run_id
+
+
+def get_loggers(
+    logger_args: TaskLoggerArgs, out: Path, resume_interrupted: bool
+) -> list[FabricLogger]:
     """Get logger instances based on the provided configuration.
 
     All loggers are configured with the same output directory 'out'.
@@ -153,15 +207,28 @@ def get_loggers(logger_args: TaskLoggerArgs, out: Path) -> list[FabricLogger]:
             Configuration for the loggers.
         out:
             Path to the output directory.
-
+        resume_interrupted:
+            Whether to resume an interrupted run. If True and an MLflow logger is
+            configured, the run_id will be looked up based on the experiment_name
+            and run_name and used to resume the run.
     Returns:
         List of loggers.
     """
     loggers: list[FabricLogger] = []
 
-    if logger_args.mlflow is not None:
-        logger.debug(f"Using mlflow logger with args {logger_args.mlflow}")
-        loggers.append(MLFlowLogger(save_dir=out, **logger_args.mlflow.model_dump()))
+    if (mlflow_args := logger_args.mlflow) is not None:
+        if resume_interrupted and (
+            resume_run_id := _resolve_mlflow_run_id_for_resume(mlflow_args)
+        ):
+            if (new_run_id := mlflow_args.run_id) and new_run_id != resume_run_id:
+                logger.warning(
+                    f"The run_id '{new_run_id}' specified in the MLFlow logger does not match the run_id '{resume_run_id}' found when trying to resume. Using the run_id '{resume_run_id}' found with the matching `experiment_name` and `run_name` instead."
+                )
+            logger.debug("Resuming MLflow run with id '%s'.", resume_run_id)
+            mlflow_args.run_id = resume_run_id
+
+        logger.debug(f"Using mlflow logger with args {mlflow_args}")
+        loggers.append(MLFlowLogger(save_dir=out, **mlflow_args.model_dump()))
     if logger_args.tensorboard is not None:
         logger.debug(f"Using tensorboard logger with args {logger_args.tensorboard}")
         loggers.append(
@@ -291,13 +358,30 @@ def _unlink_and_ignore(path: Path) -> None:
 def get_dataset_temp_mmap_path(
     fabric: Fabric,
     data: PathLike,
+    out: PathLike,
 ) -> Generator[Path, Any, Any]:
     """Generate file in temporary directory to be used for memory-mapping the dataset.
 
+    Creates a unique filename for the memory-mapped file based on the `out` or `data`
+    arguments. We use those arguments as they are consistent across all ranks on the
+    same node for the same run. Additionally, we can cache the file if required, since
+    the hash directly reflects the used config.
+
     Use the same file on all ranks across all nodes, unless the filesystem is not shared.
     """
+    if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
+        # Use data as identifier to share the mmap file across multiple runs.
+        # NOTE(Guarin, 09/25): Hash of data might be slow if data is a long list of
+        # filenames or directories.
+        identifier = Path(data).resolve()
+    else:
+        # Use out as identifier to create a unique mmap file for each run. We assume
+        # that only one run is using a specific out directory at a time.
+        identifier = Path(out).resolve()
 
-    mmap_filepath = (cache.get_data_cache_dir() / get_sha256(data)).with_suffix(".mmap")
+    mmap_filepath = (cache.get_data_cache_dir() / get_sha256(identifier)).with_suffix(
+        ".mmap"
+    )
     mmap_filepath_broadcasted = Path(fabric.broadcast(str(mmap_filepath)))
     mmap_dirpath_broadcasted = mmap_filepath_broadcasted.parent
     ref_count_filepath_broadcasted = mmap_filepath.with_suffix(".ref_count")
