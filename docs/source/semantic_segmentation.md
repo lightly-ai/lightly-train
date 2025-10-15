@@ -8,9 +8,11 @@ state-of-the-art segmentation model [EoMT](https://arxiv.org/abs/2503.19108) by
 Kerssies et al. and reaches 59.1% mIoU with DINOv3 weights and 58.4% mIoU with DINOv2 weights on the ADE20k dataset.
 ```
 
+(semantic-segmentation-benchmark-results)=
+
 ## Benchmark Results
 
-Below we provide the model checkpoints and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available.
+Below we provide the model checkpoints and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available. You can check [here](semantic-segmentation-eomt-dinov3-model-weights) for how to use these model checkpoints for further fine-tuning.
 
 The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average FPS values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 
@@ -50,7 +52,7 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
 
-## Semantic Segmentation with EoMT in LightlyTrain
+## Semantic Segmentation with EoMT
 
 Training a semantic segmentation model with LightlyTrain is straightforward and
 only requires a few lines of code. The dataset must follow the [ADE20K format](https://ade20k.csail.mit.edu/)
@@ -100,6 +102,10 @@ if __name__ == "__main__":
         checkpoint="out/my_experiment/exported_models/exported_best.pt", # use the best model to continue training
         data={...},
     )
+```
+
+```{note}
+Check [here](semantic-segmentation-eomt-dinov3-model-weights) for how to use the LightlyTrain model checkpoints for further fine-tuning.
 ```
 
 By default, the classification head weights are not loaded so as to adapt only the backbone and mask head to downstream tasks. If you do need to load the classification head weights, you could specify it by setting the `reuse_class_head` flag to `True` in `train_semantic_segmentation`.
@@ -178,6 +184,30 @@ if __name__ == "__main__":
 
 See [here](#dinov3-models) for the list of available DINOv3 models.
 
+(semantic-segmentation-eomt-dinov3-model-weights)=
+
+### Use the LightlyTrain Model Checkpoints
+
+Now you can also start with the DINOv3 model checkpoints that LightlyTrain provides. The download links are listed [here](#semantic-segmentation-benchmark-results) in the "Checkpoint" column of the tables.
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vits16-eomt",
+        model_args={
+            # Replace with your own url
+            "backbone_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
+            # For COCO-Stuff and Cityscapes dataset, we use num_queries=200 instead of the default 100
+            "num_queries": 200,
+        },
+        checkpoint="/path/to/your/downloaded/model/lightlytrain_dinov3_eomt_vits16_cocostuff.pt", # use the COCO-Stuff model checkpoint for further fine-tuning
+        data={...},
+    )
+```
+
 (semantic-segmentation-output)=
 
 ## Out
@@ -205,9 +235,7 @@ and checkpoints organized.
 ## Data
 
 Lightly**Train** supports training semantic segmentation models with images and masks.
-Every image must have a corresponding mask with the same filename except for the file
-extension. The masks must be PNG images in grayscale integer format, where each pixel
-value corresponds to a class ID.
+Every image must have a corresponding mask whose filename either matches that of the image (under a different directory) or follows a specific template pattern. The masks must be PNG images in either grayscale integer format, where each pixel value corresponds to a class ID, or multi-channel (e.g., RGB) format.
 
 The following image formats are supported:
 
@@ -225,7 +253,16 @@ The following mask formats are supported:
 
 - png
 
-Example of a directory structure with training and validation images and masks:
+### Supported Mask Dataset Format
+
+We support two ways of specifying the mask filepaths in relation to the image filepaths:
+
+1. Using the same filename as the image but under a different directory.
+1. Using a template against the image filepath.
+
+#### Using the Same Filename as the Image
+
+We support loading masks that share the same filenames as their corresponding images under different directories. Here is an example of such a directory structure with training and validation images and masks:
 
 ```bash
 my_data_dir
@@ -245,7 +282,7 @@ my_data_dir
        └── image3.png
 ```
 
-To train with this folder structure, set the `data` argument like this:
+To train with this directory structure, set the `data` argument like this:
 
 ```python
 import lightly_train
@@ -282,6 +319,62 @@ the values in the mask images. All possible class IDs must be specified, otherwi
 Lightly**Train** will raise an error if an unknown class ID is encountered. If you would
 like to ignore some classes during training, you specify their class IDs in the
 `ignore_classes` argument. The trained model will then not predict these classes.
+
+#### Using a Template against the Image Filepath
+
+We also support loading masks that follow a certain template against the corresponding image filepath. For example, if you have the following directory structure:
+
+```bash
+my_data_dir
+├── train
+│   ├── images
+│   │   ├── image0.jpg
+│   │   └── image1.jpg
+│   └── masks
+│       ├── image0_mask.png
+│       └── image1_mask.png
+└── val
+    ├── images
+    |  ├── image2.jpg
+    |  └── image3.jpg
+    └── masks
+       ├── image2_mask.png
+       └── image3_mask.png
+```
+
+you could set the `data` argument like this:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    mask_file = "{image_path.parent.parent}/masks/{image_path.stem}_mask.png"
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt",
+        data={
+            "train": {
+                "images": "my_data_dir/train/images",
+                "masks": mask_file,  # This will match masks with the same filename stem as the training image but with a `_mask` suffix in "my_data_dir/train/masks" in PNG format
+            },
+            "val": {
+                "images": "my_data_dir/val/images", 
+                "masks": mask_file,  # This will match masks with the same filename stem as the training image but with a `_mask` suffix in "my_data_dir/val/masks" in PNG format
+            },
+            "classes": {             # Classes in the dataset                    
+                0: "background",
+                1: "car",
+                2: "bicycle",
+                # ...
+            },
+            # Optional, classes that are in the dataset but should be ignored during
+            # training.
+            "ignore_classes": [0], 
+        },
+    )
+```
+
+The template string always uses `image_path` (of type `pathlib.Path`) to refer to the filepath of the corresponding image. Only this parameter is allowed in the template string, which is used to calculate the mask filepath.
 
 (semantic-segmentation-model)=
 
