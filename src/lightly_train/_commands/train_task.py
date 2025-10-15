@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Literal
 
 import torch
@@ -340,6 +341,62 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             resume_interrupted=config.resume_interrupted,
         )
         fabric.loggers.extend(logger_instances)
+
+        # TODO: load from checkpoint the model_init_args to initialize the model the same way
+        if config.resume_interrupted or config.checkpoint:
+            # Initialize from checkpoint if provided or resume from interrupted run.
+            if config.checkpoint and config.resume_interrupted:
+                raise ValueError(
+                    f"resume_interrupted={config.resume_interrupted} and checkpoint='{config.checkpoint}' "
+                    "cannot be set at the same time! Please set only one of them. "
+                )
+            elif config.resume_interrupted:
+                ckpt_path = helpers.get_checkpoint_path(out_dir, best_or_last="last")
+                if not ckpt_path.exists():
+                    raise FileNotFoundError(
+                        f"Checkpoint file '{ckpt_path}' does not exist."
+                    )
+            else:
+                ckpt_path = Path(config.checkpoint).resolve()
+                if not ckpt_path.exists():
+                    raise FileNotFoundError(
+                        f"Checkpoint file '{ckpt_path}' does not exist."
+                    )
+
+            model_init_args: dict[str, Any] = {}
+            model_class_path: str = ""
+            fabric.load(
+                path=ckpt_path,
+                state={
+                    "model_init_args": model_init_args,
+                    "model_class_path": model_class_path,
+                },
+            )
+
+            if model_init_args:
+                model_args_dict = config.model_args.model_dump()
+
+                checkpoint_keys = set(model_init_args)
+                mismatched = {
+                    key: (
+                        model_init_args[key],
+                        model_args_dict[key],
+                    )
+                    for key in checkpoint_keys
+                    if model_init_args[key] != model_args_dict[key]
+                }
+                if mismatched:
+                    mismatch_details = ", ".join(
+                        f"{key} (checkpoint={checkpoint_value!r}, current={current_value!r})"
+                        for key, (checkpoint_value, current_value) in sorted(
+                            mismatched.items()
+                        )
+                    )
+                    raise ValueError(
+                        "The checkpoint was created with different `model_args` values. "
+                        f"Mismatched keys: {mismatch_details}. Please use the same "
+                        "`model_args` as when the checkpoint was created."
+                    )
 
         train_model = train_model_cls(
             model_name=config.model,
