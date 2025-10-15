@@ -6,7 +6,7 @@
 [![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/)
 [![Discord](https://img.shields.io/discord/752876370337726585?logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94)
 
-*LightlyTrain is the leading framework for transforming your unlabeled data into powerful vision foundation models – from pretraining, over fine-tuning to knowledge distillation.*
+*LightlyTrain is the leading framework for transforming your unlabeled data into powerful vision foundation models – from pretraining, over knowledge distillation to fine-tuning.*
 
 Unlock the full potential of your data with state-of-the-art (SOTA) computer vision methods like **DINOv2** and **DINOv3**. Train any model architecture (YOLO, transformers, and beyond) and fine-tune with **segmentation** and **object detection** for your specific use case.
 
@@ -21,7 +21,6 @@ With LightlyTrain you can train your very own foundation model like DINOv2 on yo
 | LightlyTrain | dinov2/vitl16 | **81.9%** | [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) |
 | DINOv2 | dinov2/vitl16 | 81.6% | [🔗](https://github.com/facebookresearch/dinov2) |
 
-### Distillation: Distill the power of DINOv2 and DINOv3 to your model!
 
 ### Semantic Segmentation: Use SOTA method from CVPR 2025!
 
@@ -43,6 +42,10 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 | LightlyTrain | dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
 | LightlyTrain | dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
 | EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 319 | 1024×1024 | 0.842 | - | - |
+
+We trained with 107 epochs (~20k steps) on the Cityscapes dataset with num_queries=200 for EoMT.
+
+
 
 ## News
 
@@ -110,7 +113,7 @@ if __name__ == "__main__":
 See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
 for more details.
 
-## 🔥 Train SOTA Semantic Segmentation Models 🔥
+## 🔥 Fine-tune SOTA Semantic Segmentation Models 🔥
 
 LightlyTrain's EoMT semantic segmentation model based on DINOv3 achieves a new state-of-the-art on the ADE20K benchmark! See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html) for more details.
 
