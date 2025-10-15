@@ -604,7 +604,7 @@ transform_args={
 
 ### Train with Multi-channel Images
 
-By default, images are loaded as RGB images. Beyond that, LightlyTrain EoMT also supports 4-channel images, which can be specified in `transform_args`:
+By default, images are loaded as RGB images. LightlyTrain EoMT also supports 4-channel images, which can be specified in `transform_args`:
 
 ```
 transform_args={
