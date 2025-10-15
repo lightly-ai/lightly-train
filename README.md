@@ -21,7 +21,6 @@ With LightlyTrain you can train your very own foundation model like DINOv2 on yo
 | LightlyTrain | dinov2/vitl16 | **81.9%** | [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) |
 | DINOv2 | dinov2/vitl16 | 81.6% | [🔗](https://github.com/facebookresearch/dinov2) |
 
-
 ### Object Detection
 
 #### COCO Dataset
@@ -58,8 +57,6 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 | EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 319 | 1024×1024 | 0.842 | - | - |
 
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with num_queries=200 for EoMT.
-
-
 
 ## News
 
@@ -177,7 +174,6 @@ if __name__ == "__main__":
         # ...
     )
 ```
-
 
 ## How It Works [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
 
