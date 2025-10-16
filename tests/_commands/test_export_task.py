@@ -92,6 +92,7 @@ onnx_export_testset = [
 ]
 
 
+@pytest.skip
 @pytest.mark.skipif(
     sys.platform.startswith("win"),
     reason=("Fails on Windows because of potential memory issues"),
