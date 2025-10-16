@@ -21,11 +21,11 @@ With LightlyTrain you can train your very own foundation model like DINOv2 on yo
 | LightlyTrain | dinov2/vitl16 | **81.9%** | [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) |
 | DINOv2 | dinov2/vitl16 | 81.6% | [🔗](https://github.com/facebookresearch/dinov2) |
 
-### Object Detection
+### Object Detection: Fine-Tune DINOv2 or DINOv3 for detection!
 
 #### COCO Dataset
 
-Implementation | Model | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Resolution | Model Weights |
+Implementation | Backbone Model | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Input Size | Checkpoint |
 :------------: | :--------: | :----------------: | :----------: | :----------: | :--------: | :-----------: |
 | LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2_ltdetr/ltdetr_vits14dinov2_coco.ckpt) |
 | LightlyTrain | dinov3/convnext-tiny-ltdetr | 54.4 | 13.29 | 61.1 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-tiny_coco.ckpt) |
@@ -45,8 +45,6 @@ Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are 
 | LightlyTrain | dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
 | LightlyTrain | dinov3/vitl16-eomt | 303.2 | 512×512 | **0.544** | 20.4 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
 
-We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
-
 #### Cityscapes Dataset
 
 | Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
@@ -55,8 +53,6 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 | LightlyTrain | dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
 | LightlyTrain | dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
 | EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 319 | 1024×1024 | 0.842 | - | - |
-
-We trained with 107 epochs (~20k steps) on the Cityscapes dataset with num_queries=200 for EoMT.
 
 ## News
 
@@ -75,6 +71,13 @@ We trained with 107 epochs (~20k steps) on the Cityscapes dataset with num_queri
   Up to **3x faster distillation** and higher accuracy with [**Distillation v2**](https://docs.lightly.ai/train/stable/methods/distillation.html)
   (new default method)!
 
+
+## Installation
+Lightly**Train** requires Python 3.8+ and runs on Windows, Linux and MacOS.
+
+```bash
+pip install lightly-train
+```
 ## 🔥 Pretrain Your Own DINOv2 Foundation Model 🔥
 
 Pretrain a DINOv2 model on your own unlabeled images. LightlyTrain's DINOv2
@@ -124,7 +127,7 @@ if __name__ == "__main__":
 See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
 for more details.
 
-## 🔥 Train High-Performance Object Detection Models 🔥
+## 🔥 Fine-tune High-Performance Object Detection Models 🔥  
 
 LightlyTrain’s LT-DETR models, powered by DINOv2 and DINOv3 backbones, demonstrate strong performance across different scales.
 
@@ -175,46 +178,8 @@ if __name__ == "__main__":
     )
 ```
 
-## How It Works [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
 
-Install Lightly**Train**:
-
-```bash
-pip install lightly-train
-```
-
-Then start pretraining with:
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-  lightly_train.train(
-      out="out/my_experiment",            # Output directory
-      data="my_data_dir",                 # Directory with images
-      model="torchvision/resnet50",       # Model to train
-  )
-```
-
-This will pretrain a Torchvision ResNet-50 model using unlabeled images from `my_data_dir`.
-All training logs, model exports, and checkpoints are saved to the output directory
-at `out/my_experiment`. The final model is exported to `out/my_experiment/exported_models/exported_last.pt`.
-
-Finally, load the pretrained model and fine-tune it using your existing training pipeline:
-
-```python
-import torch
-from torchvision import models
-
-# Load the pretrained model
-model = models.resnet50()
-model.load_state_dict(torch.load("out/my_experiment/exported_models/exported_last.pt", weights_only=True))
-
-# Fine-tune the model with your existing training pipeline
-...
-```
-
-**See also**:
+## Tutorials
 
 - **Fine-tuning Example**: Looking for a full fine-tuning example? Head over to the [Quick Start](https://docs.lightly.ai/train/stable/quick_start.html#fine-tune)!
 
