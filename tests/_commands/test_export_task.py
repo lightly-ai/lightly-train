@@ -92,7 +92,7 @@ onnx_export_testset = [
 ]
 
 
-@pytest.skip
+@pytest.mark.skip(reason='Temporarily disabled due to flakiness; see TRN-1610')
 @pytest.mark.skipif(
     sys.platform.startswith("win"),
     reason=("Fails on Windows because of potential memory issues"),
