@@ -71,13 +71,14 @@ Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are 
   Up to **3x faster distillation** and higher accuracy with [**Distillation v2**](https://docs.lightly.ai/train/stable/methods/distillation.html)
   (new default method)!
 
-
 ## Installation
+
 Lightly**Train** requires Python 3.8+ and runs on Windows, Linux and MacOS.
 
 ```bash
 pip install lightly-train
 ```
+
 ## 🔥 Pretrain Your Own DINOv2 Foundation Model 🔥
 
 Pretrain a DINOv2 model on your own unlabeled images. LightlyTrain's DINOv2
@@ -127,7 +128,7 @@ if __name__ == "__main__":
 See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
 for more details.
 
-## 🔥 Fine-tune High-Performance Object Detection Models 🔥  
+## 🔥 Fine-tune High-Performance Object Detection Models 🔥
 
 LightlyTrain’s LT-DETR models, powered by DINOv2 and DINOv3 backbones, demonstrate strong performance across different scales.
 
@@ -177,7 +178,6 @@ if __name__ == "__main__":
         # ...
     )
 ```
-
 
 ## Tutorials
 
