@@ -342,7 +342,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
         fabric.loggers.extend(logger_instances)
 
-        # TODO: load from checkpoint the model_init_args to initialize the model the same way
         if config.resume_interrupted or config.checkpoint:
             # Initialize from checkpoint if provided or resume from interrupted run.
             if config.checkpoint and config.resume_interrupted:
@@ -374,29 +373,96 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             )
 
             if model_init_args:
-                model_args_dict = config.model_args.model_dump()
-
-                checkpoint_keys = set(model_init_args)
-                mismatched = {
-                    key: (
-                        model_init_args[key],
-                        model_args_dict[key],
+                checkpoint_model_name = model_init_args.get("model_name")
+                if (
+                    checkpoint_model_name is not None
+                    and checkpoint_model_name != config.model
+                ):
+                    raise ValueError(
+                        "The checkpoint was created with model_name="
+                        f"'{checkpoint_model_name}', but config.model='{config.model}'. "
+                        "Please use a checkpoint that matches the configured model or "
+                        "update config.model to the correct value before resuming."
                     )
-                    for key in checkpoint_keys
-                    if model_init_args[key] != model_args_dict[key]
+                model_args_dict = config.model_args.model_dump()
+                data_args_dict = config.data.model_dump()
+                val_transform_args_dict = val_transform_args.model_dump()
+
+                params_dict = {
+                    **model_args_dict,
+                    **data_args_dict,
+                    **val_transform_args_dict,
+                    "model_name": config.model,
                 }
+
+                skipped_checkpoint_mismatch_keys = (
+                    {"classes", "class_ignore_index", "image_size"}
+                    if config.checkpoint
+                    else set()
+                )
+                mismatched: dict[str, tuple[Any, Any]] = {}
+                for key, checkpoint_value in model_init_args.items():
+                    if key in skipped_checkpoint_mismatch_keys:
+                        continue
+
+                    current_value = params_dict.get(key, "<missing>")
+                    if current_value != checkpoint_value:
+                        mismatched[key] = (
+                            checkpoint_value,
+                            current_value,
+                        )
                 if mismatched:
                     mismatch_details = ", ".join(
-                        f"{key} (checkpoint={checkpoint_value!r}, current={current_value!r})"
+                        f"{key} (checkpoint={checkpoint_value}, current={current_value})"
                         for key, (checkpoint_value, current_value) in sorted(
                             mismatched.items()
                         )
                     )
-                    raise ValueError(
+                    logger.warning(
                         "The checkpoint was created with different `model_args` values. "
-                        f"Mismatched keys: {mismatch_details}. Please use the same "
-                        "`model_args` as when the checkpoint was created."
+                        f"Mismatched keys: {mismatch_details}. Using the parameters "
+                        "stored in the checkpoint instead."
                     )
+
+                    # Rebuild config.model_args, config.data, and val_transform_args
+                    # from checkpoint init args while ensuring Pydantic validation.
+                    # We only override fields present in each respective schema.
+
+                    # 1) Update model args
+                    model_args_cls = train_model_cls.train_model_args_cls
+                    new_model_args_dict = model_args_dict.copy()
+                    for key in model_args_cls.model_fields:
+                        if key in model_init_args:
+                            new_model_args_dict[key] = model_init_args[key]
+                    updated_model_args = validate.pydantic_model_validate(
+                        model_args_cls, new_model_args_dict
+                    )
+                    updated_model_args.resolve_auto(
+                        total_steps=no_auto(config.steps), model_name=config.model
+                    )
+                    config.model_args = updated_model_args
+
+                    # 2) Update data args (e.g., classes) keeping current train/val paths
+                    data_args_cls = type(config.data)
+                    new_data_args_dict = data_args_dict.copy()
+                    for key in data_args_cls.model_fields:
+                        if key in model_init_args:
+                            new_data_args_dict[key] = model_init_args[key]
+                    config.data = validate.pydantic_model_validate(
+                        data_args_cls, new_data_args_dict
+                    )
+
+                    # 3) Update validation transform args (e.g., image_size, normalize)
+                    val_transform_args_cls = type(val_transform_args)
+                    new_val_args_dict = val_transform_args_dict.copy()
+                    for key in val_transform_args_cls.model_fields:
+                        if key in model_init_args:
+                            new_val_args_dict[key] = model_init_args[key]
+                    val_transform_args = validate.pydantic_model_validate(
+                        val_transform_args_cls, new_val_args_dict
+                    )
+                    val_transform_args.resolve_auto()
+                    val_transform_args.resolve_incompatible()
 
         train_model = train_model_cls(
             model_name=config.model,
