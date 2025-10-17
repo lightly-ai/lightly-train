@@ -253,7 +253,7 @@ The following mask formats are supported:
 
 - png
 
-### Supported Mask Dataset Format
+### Specify Mask Filepaths
 
 We support two ways of specifying the mask filepaths in relation to the image filepaths:
 
@@ -375,6 +375,63 @@ if __name__ == "__main__":
 ```
 
 The template string always uses `image_path` (of type `pathlib.Path`) to refer to the filepath of the corresponding image. Only this parameter is allowed in the template string, which is used to calculate the mask filepath.
+
+### Specify Training Classes
+
+We support two mask formats:
+
+- Single-channel integer masks, where each integer value determines a label
+- Multi-channel masks (e.g., RGB masks), where each pixel value determines a label
+
+Use the `classes` dict in the `data` dict to map class IDs to labels. In this document, a **class ID** is a key in the `classes` dictionary and a **label** is its value.
+
+#### Using Integer Masks
+
+For single-channel integer masks (each pixel value is a label), the default is a direct mapping from class IDs to label names:
+
+```
+    "classes": {                   
+        0: "background",
+        1: "car",
+        2: "bicycle",
+        # ...
+    },
+```
+
+Alternatively, to merge multiple labels into one class during training, use a dictionary like the following:
+
+```
+    "classes": {
+        0: "background",
+        1: {"name": "vehicle", "labels": [1, 2]}, # Merge label 1 and 2 into "vehicle" with class ID 1
+        # ...
+    },
+```
+
+Or:
+
+```
+    "classes": {
+        0: {"name": "background", "labels": [0]},
+        1: {"name": "vehicle", "labels": [1, 2]},
+        # ...
+    },
+```
+
+It is fine if original labels coincide with class IDs, as in the example. Only the class IDs are used for the internal classes for training and prediction masks. Note that each label can map to only **one** class ID.
+
+#### Using Multi-channel Masks
+
+For multi-channel masks, specify pixel values as lists of integer tuples (type `list[tuple[int, ...]]`) in the `"labels"` field:
+
+```
+    "classes": {
+        0: {"name": "unlabeled", "labels": [(0, 0, 0), (255, 255, 255)]}, # (0,0,0) and (255,255,255) will be mapped to class "unlabeled" with class ID 0
+        1: {"name": "road", "labels": [(128, 128, 128)]},
+    },
+```
+
+These pixel values are converted to class IDs internally during training. Predictions are single-channel masks with those class IDs. Again, each label can map to only **one** class ID, and you cannot mix integer and tuple-valued labels in a single `classes` dictionary.
 
 (semantic-segmentation-model)=
 
@@ -601,6 +658,20 @@ transform_args={
     }
 }
 ```
+
+### Train with Multi-channel Images
+
+By default, images are loaded as RGB images. LightlyTrain EoMT also supports 4-channel images, which can be specified in `transform_args`:
+
+```
+transform_args={
+    "num_channels": 4
+}
+```
+
+In this case, you may also want to customize the normalization parameters in `transform_args` to fit your dataset. Otherwise, LightlyTrain will simply repeat the mean and std values of the RGB channels for the extra channels.
+
+You can also randomly drop channels during training for data augmentation with certain probability with the `ChannelDrop` augmentation. See [here](#method-transform-args-channel-drop) for more details.
 
 ## Exporting a Checkpoint to ONNX
 
