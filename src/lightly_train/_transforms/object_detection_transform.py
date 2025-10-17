@@ -18,6 +18,7 @@ from torch import Tensor
 from typing_extensions import NotRequired
 
 from lightly_train._transforms.channel_drop import ChannelDrop
+from lightly_train._transforms.random_iou_crop import RandomIoUCrop
 from lightly_train._transforms.random_photometric_distort import (
     RandomPhotometricDistort,
 )
@@ -31,6 +32,7 @@ from lightly_train._transforms.task_transform import (
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
     RandomFlipArgs,
+    RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
     ScaleJitterArgs,
@@ -56,7 +58,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     num_channels: int | Literal["auto"]
     photometric_distort: RandomPhotometricDistortArgs | None
     random_zoom_out: RandomZoomOutArgs | None
-    # TODO: Lionel (09/25): Add RandomIoUCrop
+    random_iou_crop: RandomIoUCropArgs | None
     random_flip: RandomFlipArgs | None
     image_size: tuple[int, int]
     # TODO: Lionel (09/25): Add Normalize
@@ -140,6 +142,20 @@ class ObjectDetectionTransform(TaskTransform):
                     fill=transform_args.random_zoom_out.fill,
                     side_range=transform_args.random_zoom_out.side_range,
                     p=transform_args.random_zoom_out.prob,
+                )
+            ]
+
+        if transform_args.random_iou_crop is not None:
+            self.individual_transforms += [
+                RandomIoUCrop(
+                    min_scale=transform_args.random_iou_crop.min_scale,
+                    max_scale=transform_args.random_iou_crop.max_scale,
+                    min_aspect_ratio=transform_args.random_iou_crop.min_aspect_ratio,
+                    max_aspect_ratio=transform_args.random_iou_crop.max_aspect_ratio,
+                    sampler_options=transform_args.random_iou_crop.sampler_options,
+                    crop_trials=transform_args.random_iou_crop.crop_trials,
+                    iou_trials=transform_args.random_iou_crop.iou_trials,
+                    p=transform_args.random_iou_crop.prob,
                 )
             ]
 
