@@ -17,7 +17,7 @@ Unlock the full potential of your data with state-of-the-art (SOTA) computer vis
 With LightlyTrain you can train your very own foundation model like DINOv2 on your data.
 
 | Implementation | Model | ImageNet k-NN | Docs |
-|----------------|-------|---------------|------|
+|:--------------:|:-----:|:-------------:|:----:|
 | LightlyTrain | dinov2/vitl16 | **81.9%** | [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) |
 | DINOv2 | dinov2/vitl16 | 81.6% | [🔗](https://github.com/facebookresearch/dinov2) |
 
@@ -40,19 +40,23 @@ Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are 
 #### COCO-Stuff Dataset
 
 | Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint |
-|----------------|----------------|----------|----------|---------------|------------|------------|
+|:--------------:|:--------------:|:--------:|:--------:|:-------------:|:----------:|:----------:|
 | LightlyTrain | dinov3/vits16-eomt | 0.465 | 88.7 | 21.6 | 512×512 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
 | LightlyTrain | dinov3/vitb16-eomt | 0.520 | 43.3 | 85.7 | 512×512 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
 | LightlyTrain | dinov3/vitl16-eomt | **0.544** | 20.4 | 303.2 | 512×512 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
 
+Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `torch.compile`.
+
 #### Cityscapes Dataset
 
 | Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint |
-|----------------|----------------|----------|----------|---------------|------------|------------|
+|:--------------:|:--------------:|:--------:|:--------:|:-------------:|:----------:|:----------:|
 | LightlyTrain | dinov3/vits16-eomt | 0.786 | 18.6 | 21.6 | 1024×1024 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
 | LightlyTrain | dinov3/vitb16-eomt | 0.810 | 8.7 | 85.7 | 1024×1024 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
 | LightlyTrain | dinov3/vitl16-eomt | **0.844** | 3.9 | 303.2 | 1024×1024 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
 | EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 | - |
+
+Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `torch.compile`.
 
 ## News
 
@@ -183,9 +187,9 @@ if __name__ == "__main__":
 
 - **Fine-tuning Your Pretrained Models**: Looking for code example for fine-tuning after pretraining your model? Head over to the [Quick Start](https://docs.lightly.ai/train/stable/quick_start.html#fine-tune)!
 
-- **🔥 New: Semantic Segmentation Fine-tuning**: Want to train a state-of-the-art semantic segmentation model? Head over to the [semantic segmentation guide](https://docs.lightly.ai/train/stable/semantic_segmentation.html)!
-
 - **Embedding Example**: Want to use your pretrained model to generate image embeddings instead? Check out the [embed](https://docs.lightly.ai/train/stable/embed.html) guide!
+
+- **Semantic Segmentation Fine-tuning**: Want to train a state-of-the-art semantic segmentation model? Head over to the [semantic segmentation guide](https://docs.lightly.ai/train/stable/semantic_segmentation.html)!
 
 - **More Tutorials**: Want to get more hands-on with LightlyTrain? Check out our [Tutorials](https://docs.lightly.ai/train/stable/tutorials/index.html) for more examples!
 
@@ -223,7 +227,7 @@ MLOps
 LightlyTrain supports a wide range of frameworks and models out of the box.
 
 | Framework | Model | Pretrain<br><sub>(*Unlabeled Images*)</sub> | Distill From<br> DINOv2/v3<br><sub>(*Unlabeled Images*)</sub> | Fine-tune<br><sub>(*Labeled Images*)</sub> |
-|----------------|--------------|--------------------------------------------------------------------------|---------|------------------------|
+|:--------------:|:------------:|:------------------------------------------------------------------------:|:-------:|:----------------------:|
 | | | | | Semantic Segmentation |
 | LightlyTrain | DINOv3 | | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html#distill-from-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
 | | DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/dinov2.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html) |
