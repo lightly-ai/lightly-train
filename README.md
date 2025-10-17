@@ -39,20 +39,20 @@ Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are 
 
 #### COCO-Stuff Dataset
 
-| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
-|----------------|----------------|-------------|------------|----------|----------|------------|
-| LightlyTrain | dinov3/vits16-eomt | 21.6 | 512×512 | 0.465 | 88.7 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
-| LightlyTrain | dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
-| LightlyTrain | dinov3/vitl16-eomt | 303.2 | 512×512 | **0.544** | 20.4 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
+| Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint |
+|----------------|----------------|----------|----------|---------------|------------|------------|
+| LightlyTrain | dinov3/vits16-eomt | 0.465 | 88.7 | 21.6 | 512×512 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
+| LightlyTrain | dinov3/vitb16-eomt | 0.520 | 43.3 | 85.7 | 512×512 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
+| LightlyTrain | dinov3/vitl16-eomt | **0.544** | 20.4 | 303.2 | 512×512 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
 
 #### Cityscapes Dataset
 
-| Implementation | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
-|----------------|----------------|-------------|------------|----------|----------|------------|
-| LightlyTrain | dinov3/vits16-eomt | 21.6 | 1024×1024 | 0.786 | 18.6 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
-| LightlyTrain | dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
-| LightlyTrain | dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 319 | 1024×1024 | 0.842 | - | - |
+| Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint |
+|----------------|----------------|----------|----------|---------------|------------|------------|
+| LightlyTrain | dinov3/vits16-eomt | 0.786 | 18.6 | 21.6 | 1024×1024 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
+| LightlyTrain | dinov3/vitb16-eomt | 0.810 | 8.7 | 85.7 | 1024×1024 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
+| LightlyTrain | dinov3/vitl16-eomt | **0.844** | 3.9 | 303.2 | 1024×1024 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 | - |
 
 ## News
 
@@ -128,7 +128,7 @@ if __name__ == "__main__":
 See our [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
 for more details.
 
-## 🔥 Fine-tune High-Performance Object Detection Models 🔥
+## 🔥 Predict with High-Performance Object Detection Models 🔥
 
 LightlyTrain’s LT-DETR models, powered by DINOv2 and DINOv3 backbones, demonstrate strong performance across different scales.
 
@@ -161,7 +161,7 @@ ax.imshow(image_with_boxes.permute(1, 2, 0))
 fig.savefig(f"predictions.png")
 ```
 
-## 🔥 Train SOTA Semantic Segmentation Models 🔥
+## 🔥 Fine-tune SOTA Semantic Segmentation Models 🔥
 
 LightlyTrain's EoMT semantic segmentation model based on DINOv3 achieves a new state-of-the-art on the ADE20K benchmark! See our [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html) for more details.
 
@@ -181,7 +181,7 @@ if __name__ == "__main__":
 
 ## Tutorials
 
-- **Fine-tuning Example**: Looking for a full fine-tuning example? Head over to the [Quick Start](https://docs.lightly.ai/train/stable/quick_start.html#fine-tune)!
+- **Fine-tuning Your Pretrained Models**: Looking for code example for fine-tuning after pretraining your model? Head over to the [Quick Start](https://docs.lightly.ai/train/stable/quick_start.html#fine-tune)!
 
 - **🔥 New: Semantic Segmentation Fine-tuning**: Want to train a state-of-the-art semantic segmentation model? Head over to the [semantic segmentation guide](https://docs.lightly.ai/train/stable/semantic_segmentation.html)!
 
