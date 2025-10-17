@@ -41,9 +41,10 @@ Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are 
 
 | Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint |
 |:--------------:|:--------------:|:--------:|:--------:|:-------------:|:----------:|:----------:|
-| LightlyTrain | dinov3/vits16-eomt | 0.465 | 88.7 | 21.6 | 512×512 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
-| LightlyTrain | dinov3/vitb16-eomt | 0.520 | 43.3 | 85.7 | 512×512 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
-| LightlyTrain | dinov3/vitl16-eomt | **0.544** | 20.4 | 303.2 | 512×512 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
+| LightlyTrain | dinov3/vits16-eomt | 0.465 | 88.7 | 21.6 | 518×518 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
+| LightlyTrain | dinov3/vitb16-eomt | 0.520 | 43.3 | 85.7 | 518×518 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
+| LightlyTrain | dinov3/vitl16-eomt | **0.544** | 20.4 | 303.2 | 518×518 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
+518×518
 
 Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `torch.compile`.
 
@@ -57,6 +58,15 @@ Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are
 | EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 | - |
 
 Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `torch.compile`.
+
+#### ADE20k Dataset by Auto-labeling on SUN397 Dataset
+
+| Implementation | Backbone Model | Val mIoU (fine-tuned directly) | Val mIoU (fine-tuned with SUN397 pseudo masks) | # Params (M) | Input Size | Checkpoint |
+|:--------------:|:--------------:|:--------------------------------:|:----------------------------------------------:|:-------------:|:----------:|:----------:|
+| LightlyTrain | dinov3/vits16-eomt | 0.466 | 0.533 | 21.6 | 518×518 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_autolabel_sun397.pt) |
+| LightlyTrain | dinov3/vitb16-eomt | 0.544 | 0.573 | 85.7 | 518×518 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_autolabel_sun397.pt) |
+
+We fine-tuned a ViT-H+ on the ADE20k dataset, which achieves 0.595 validation mIoU. We then used the checkpoint to create pseudo masks for the SUN397 dataset (~100k images). We then fine-tuned the smaller models on these masks and then use the ADE20k dataset for validation.
 
 ## News
 
