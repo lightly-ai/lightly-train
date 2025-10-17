@@ -190,7 +190,7 @@ def test_train_semantic_segmentation__export(
 def test_train_semantic_segmentation__checkpoint(
     tmp_path: Path, caplog: LogCaptureFixture
 ) -> None:
-    """Assert that load_checkpoint_from_file is called when a checkpoint is provided."""
+    """Assert that checkpoint loading logs when a checkpoint is provided."""
     out = tmp_path / "out"
     train_images = tmp_path / "train_images"
     train_masks = tmp_path / "train_masks"
