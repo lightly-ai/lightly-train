@@ -167,22 +167,6 @@ class CheckpointContext:
         if classes is not None:
             params_dict["classes"] = classes
 
-        checkpoint_classes = model_init_args.get("classes")
-        current_classes = params_dict.get("classes")
-        if (
-            self.mode == "resume"
-            and checkpoint_classes is not None
-            and current_classes is not None
-            and current_classes != checkpoint_classes
-        ):
-            raise ValueError(
-                "Cannot resume the interrupted run because the checkpoint was saved "
-                f"with different included classes. Checkpoint classes={checkpoint_classes}, "
-                f"current classes={current_classes}. This usually means "
-                "`data.ignore_classes` or related data settings changed. Please align "
-                "those settings with the original run."
-            )
-
         normalize_args = getattr(val_transform_args, "normalize", None)
         if normalize_args is not None:
             params_dict["image_normalize"] = normalize_args.model_dump()
@@ -206,10 +190,22 @@ class CheckpointContext:
                 # Key not exposed in current config; defaults were used.
                 continue
             if current_value != checkpoint_value:
+                if self.mode == "resume":
+                    if key in {"classes", "image_size", "image_normalize"}:
+                        base_message = (
+                            "Cannot resume the interrupted run because the checkpoint was saved "
+                            f"with different {key}. Checkpoint {key}={checkpoint_value}, "
+                            f"current {key}={current_value}."
+                        )
+                        raise ValueError(
+                            f"{base_message} Please align the setting with the original run."
+                        )
+
                 mismatched[key] = (
                     checkpoint_value,
                     current_value,
                 )
+
         if mismatched:
             mismatch_details = ", ".join(
                 f"{key} (checkpoint={checkpoint_value}, current={current_value})"
