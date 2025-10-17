@@ -64,6 +64,7 @@ from lightly_train.types import (
     PathLike,
     TaskDatasetItem,
 )
+from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import DINOv2LTDetrObjectDetectionTrain
 
 try:
     import mlflow
@@ -77,6 +78,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
+    DINOv2LTDetrObjectDetectionTrain,
 ]
 
 

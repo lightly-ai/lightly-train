@@ -166,6 +166,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
+            # TODO (Lionel, 10/25): Pass backbone args.
         )
 
         self.criterion = MaskClassificationLoss(

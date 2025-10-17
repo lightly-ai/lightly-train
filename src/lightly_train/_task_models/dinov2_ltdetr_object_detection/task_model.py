@@ -118,6 +118,15 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
         )
 
     @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        try:
+            cls.parse_model_name(model_name=model)
+        except ValueError:
+            return False
+        else:
+            return True
+
+    @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
         def raise_invalid_name() -> None:
             raise ValueError(
