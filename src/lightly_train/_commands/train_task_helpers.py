@@ -34,7 +34,6 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 
 from lightly_train._configs import validate
-from lightly_train._configs.validate import no_auto
 from lightly_train._data import cache
 from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data._serialize.memory_mapped_sequence import (
@@ -113,6 +112,7 @@ def _merge(
 class MetadataMergeResult:
     model_args: TrainModelArgs
     data_args: MaskSemanticSegmentationDataArgs
+    train_transform_args: TaskTransformArgs
     val_transform_args: TaskTransformArgs
 
 
@@ -145,8 +145,10 @@ class CheckpointContext:
             FileNotFoundError: If the resolved checkpoint file does not exist.
         """
         if (not config.resume_interrupted) and (config.checkpoint is None):
+            # Not resuming or fine-tuning from a checkpoint.
             return None
         elif config.resume_interrupted and (config.checkpoint is not None):
+            # Both resume and checkpoint specified.
             raise ValueError(
                 f"resume_interrupted={config.resume_interrupted} and checkpoint='{config.checkpoint}' "
                 "cannot be set at the same time! Please set only one of them. "
@@ -184,8 +186,8 @@ class CheckpointContext:
         *,
         model_args: TrainModelArgs,
         data_args: MaskSemanticSegmentationDataArgs,
+        train_transform_args: TaskTransformArgs,
         val_transform_args: TaskTransformArgs,
-        train_model_cls: type[TrainModel],
         config_model: str,
         config_steps: int | Literal["auto"],
     ) -> MetadataMergeResult:
@@ -194,8 +196,8 @@ class CheckpointContext:
         Args:
             model_args: Pydantic model arguments for the train model.
             data_args: Semantic segmentation data arguments.
+            train_transform_args: Training transform arguments.
             val_transform_args: Validation transform arguments.
-            train_model_cls: Train model class required to resolve argument types.
             config_model: Model name defined in the active configuration.
             config_steps: Target number of optimization steps.
 
@@ -206,16 +208,18 @@ class CheckpointContext:
             ValueError: If the checkpoint references a different model or incompatible
                 settings in resume mode.
         """
-        model_init_args = self.metadata.get("model_init_args") or {}
+        model_init_args: dict[str, Any] = self.metadata.get("model_init_args", {})
         if not model_init_args:
+            # No metadata to apply from checkpoint.
             return MetadataMergeResult(
                 model_args=model_args,
                 data_args=data_args,
+                train_transform_args=train_transform_args,
                 val_transform_args=val_transform_args,
             )
 
         checkpoint_model_name = model_init_args.get("model_name")
-        if checkpoint_model_name is not None and checkpoint_model_name != config_model:
+        if checkpoint_model_name and checkpoint_model_name != config_model:
             raise ValueError(
                 "The checkpoint was created with model_name="
                 f"'{checkpoint_model_name}', but config.model='{config_model}'. "
@@ -225,12 +229,16 @@ class CheckpointContext:
 
         model_args_dict = model_args.model_dump()
         data_args_dict = data_args.model_dump()
+        # BUG: the train model is using image_size and image_normalize from the val_transform_args here instead of train_transform_args
+        # which will cause issues if we specify different values for train and val transforms in transform_args input.
+        # So for now we only check if there is a mismatch in val_transform_args
+        # train_transform_args_dict = train_transform_args.model_dump()
         val_transform_args_dict = val_transform_args.model_dump()
 
         params_dict = {
             **model_args_dict,
             **data_args_dict,
-            **val_transform_args_dict,
+            **val_transform_args_dict,  # TODO(Yutong 10/25): treat val and train separately once we fix the bug above
             "model_name": config_model,
         }
         class_ignore_index = getattr(data_args, "ignore_index", None)
@@ -245,12 +253,21 @@ class CheckpointContext:
         if classes is not None:
             params_dict["classes"] = classes
 
-        normalize_args = getattr(val_transform_args, "normalize", None)
+        normalize_args = getattr(train_transform_args, "normalize", None)
+        if normalize_args is None:
+            normalize_args = getattr(type(train_transform_args), "normalize", None)
         if normalize_args is not None:
             params_dict["image_normalize"] = normalize_args.model_dump()
-        if model_init_args:
-            if "backbone_args" in model_init_args:
-                params_dict["backbone_args"] = model_init_args["backbone_args"]
+
+        normalize_args = getattr(val_transform_args, "normalize", None)
+        if normalize_args is None:
+            normalize_args = getattr(type(val_transform_args), "normalize", None)
+        if normalize_args is not None:
+            params_dict["image_normalize"] = normalize_args.model_dump()
+
+        # NOTE(Yutong 10/25): backbone_args is not actually passed into the EoMT models.
+        if "backbone_args" in model_init_args:
+            params_dict["backbone_args"] = model_init_args["backbone_args"]
 
         skipped_checkpoint_mismatch_keys = (
             {"classes", "class_ignore_index", "image_size"}
@@ -295,27 +312,22 @@ class CheckpointContext:
                 "stored in the checkpoint instead."
             )
 
-        model_args_cls = train_model_cls.train_model_args_cls
-        updated_model_args = _merge(model_args_cls, model_args, model_init_args)
-        updated_model_args.resolve_auto(
-            total_steps=no_auto(config_steps), model_name=config_model
-        )
-        model_args = updated_model_args
+        model_args = _merge(type(model_args), model_args, model_init_args)
+        data_args = _merge(type(data_args), data_args, model_init_args)
 
-        data_args_cls = type(data_args)
-        data_args = _merge(data_args_cls, data_args, model_init_args)
+        # TODO(Yutong 10/25): update train_transform_args separately once we fix the bug above
+        # train_transform_args = _merge(
+        #     type(train_transform_args), train_transform_args, model_init_args
+        # )
 
-        val_transform_args_cls = type(val_transform_args)
-        updated_val_args = _merge(
-            val_transform_args_cls, val_transform_args, model_init_args
+        val_transform_args = _merge(
+            type(val_transform_args), val_transform_args, model_init_args
         )
-        updated_val_args.resolve_auto()
-        updated_val_args.resolve_incompatible()
-        val_transform_args = updated_val_args
 
         return MetadataMergeResult(
             model_args=model_args,
             data_args=data_args,
+            train_transform_args=train_transform_args,
             val_transform_args=val_transform_args,
         )
 
@@ -381,7 +393,7 @@ class CheckpointContext:
                 }
                 incompatible = train_model.load_state_dict(filtered_state, strict=False)
 
-            if incompatible.missing_keys:
+            if reuse_class_head and incompatible.missing_keys:
                 logger.warning(
                     "Missing keys after loading checkpoint: %s",
                     incompatible.missing_keys,
@@ -676,6 +688,11 @@ def get_transform_args(
     logger.debug(
         f"Resolved val transform args {pretty_format_args(val_transform_args.model_dump())}"
     )
+
+    # Put back val args for logging purposes
+    if val_args:
+        transform_args["val"] = val_args
+
     return train_transform_args, val_transform_args
 
 

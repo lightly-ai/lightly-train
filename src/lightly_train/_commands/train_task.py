@@ -251,12 +251,47 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     train_model_cls = helpers.get_train_model_cls(
         model_name=config.model,
     )
+    train_model_args_cls = train_model_cls.train_model_args_cls
+
+    config.steps = helpers.get_steps(
+        steps=config.steps, default_steps=train_model_args_cls.default_steps
+    )
+    config.model_args = helpers.get_train_model_args(
+        model_args=config.model_args,
+        model_args_cls=train_model_args_cls,
+        total_steps=no_auto(config.steps),
+        model_name=config.model,
+    )
 
     train_transform_args, val_transform_args = helpers.get_transform_args(
         train_model_cls=train_model_cls,
         transform_args=config.transform_args,
         ignore_index=config.data.ignore_index,
     )
+
+    if checkpoint_ctx is not None:
+        merge_result = checkpoint_ctx.apply_metadata(
+            model_args=config.model_args,
+            data_args=config.data,
+            train_transform_args=train_transform_args,
+            val_transform_args=val_transform_args,
+            config_model=config.model,
+            config_steps=config.steps,
+        )
+
+        config.model_args = merge_result.model_args
+        config.data = merge_result.data_args
+
+        train_transform_args = merge_result.train_transform_args
+        if config.transform_args:
+            config.transform_args.update(train_transform_args.model_dump())
+        else:
+            config.transform_args = train_transform_args.model_dump()
+
+        val_transform_args = merge_result.val_transform_args
+        if config.transform_args.get("val", {}):
+            config.transform_args.update({"val": val_transform_args.model_dump()})
+
     train_transform = helpers.get_train_transform(
         train_model_cls=train_model_cls,
         train_transform_args=train_transform_args,
@@ -287,11 +322,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}"
         )
 
-        train_model_args_cls = train_model_cls.train_model_args_cls
-
-        config.steps = helpers.get_steps(
-            steps=config.steps, default_steps=train_model_args_cls.default_steps
-        )
         config.batch_size = common_helpers.get_global_batch_size(
             global_batch_size=(
                 train_model_args_cls.default_batch_size
@@ -305,13 +335,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         config.num_workers = common_helpers.get_num_workers(
             num_workers=config.num_workers,
             num_devices_per_node=fabric.world_size // config.num_nodes,
-        )
-
-        config.model_args = helpers.get_train_model_args(
-            model_args=config.model_args,
-            model_args_cls=train_model_args_cls,
-            total_steps=no_auto(config.steps),
-            model_name=config.model,
         )
 
         # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
@@ -344,21 +367,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             resume_interrupted=config.resume_interrupted,
         )
         fabric.loggers.extend(logger_instances)
-
-        if checkpoint_ctx is not None:
-            merge_result = checkpoint_ctx.apply_metadata(
-                model_args=config.model_args,
-                data_args=config.data,
-                val_transform_args=val_transform_args,
-                train_model_cls=train_model_cls,
-                config_model=config.model,
-                config_steps=config.steps,
-            )
-
-            config.model_args = merge_result.model_args
-            config.data = merge_result.data_args
-            val_transform_args = merge_result.val_transform_args
-            config.transform_args = val_transform_args.model_dump()
 
         train_model = train_model_cls(
             model_name=config.model,
