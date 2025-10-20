@@ -11,6 +11,7 @@ from typing import Literal
 
 import numpy as np
 import torch
+from albumentations import Compose
 
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
@@ -59,7 +60,7 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
     ):
         super().__init__(split, transform_args)
         assert isinstance(transform_args, ObjectDetectionTransformArgs)
-        self.scale_jitter: ScaleJitter | None
+        self.scale_jitter: Compose | None
         if transform_args.scale_jitter is not None:
             if (
                 transform_args.scale_jitter.min_scale is None
@@ -71,13 +72,20 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
                     transform_args.scale_jitter.min_scale,
                     transform_args.scale_jitter.max_scale,
                 )
-            self.scale_jitter = ScaleJitter(
-                sizes=transform_args.scale_jitter.sizes,
-                target_size=transform_args.image_size,
-                scale_range=scale_range,
-                num_scales=transform_args.scale_jitter.num_scales,
-                divisible_by=transform_args.scale_jitter.divisible_by,
-                p=transform_args.scale_jitter.prob,
+            self.scale_jitter = Compose(
+                [
+                    ScaleJitter(
+                        sizes=transform_args.scale_jitter.sizes,
+                        target_size=transform_args.image_size,
+                        scale_range=scale_range,
+                        num_scales=transform_args.scale_jitter.num_scales,
+                        divisible_by=transform_args.scale_jitter.divisible_by,
+                        p=transform_args.scale_jitter.prob,
+                        step_seeding=transform_args.scale_jitter.step_seeding,
+                        seed_offset=transform_args.scale_jitter.seed_offset,
+                    )
+                ],
+                bbox_params=transform_args.bbox_params,
             )
         else:
             self.scale_jitter = None
@@ -88,7 +96,7 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
             batch_np = [
                 {
                     "image_path": item["image_path"],
-                    "image": item["image"].numpy(),
+                    "image": item["image"].permute(1, 2, 0).numpy(),
                     "bboxes": item["bboxes"].numpy(),
                     "classes": item["classes"].numpy(),
                 }
@@ -97,11 +105,11 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
 
             # Apply transform.
             seed = np.random.randint(0, 1_000_000)
-            self.scale_jitter.global_step = seed
             images = []
             bboxes = []
             classes = []
             for item in batch_np:
+                self.scale_jitter.step = seed
                 out = self.scale_jitter(
                     image=item["image"],
                     bboxes=item["bboxes"],
@@ -122,7 +130,10 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
             ]
 
             # Turn back into torch tensors.
-            images = [torch.from_numpy(img).to(torch.float32) for img in images]
+            images = [
+                torch.from_numpy(img).permute(2, 0, 1).to(torch.float32)
+                for img in images
+            ]
             bboxes = [torch.from_numpy(bbox).to(torch.float32) for bbox in bboxes]
             classes = [torch.from_numpy(cls).to(torch.int64) for cls in classes]
 
