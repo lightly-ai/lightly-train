@@ -14,7 +14,7 @@ from enum import Enum
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFile
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision import io
@@ -208,9 +208,9 @@ def _open_image_numpy__with_pil(
         ImageMode.UNCHANGED: None,
         ImageMode.MASK: None,
     }[mode]
-    image = Image.open(image_path)
+    image: PILImage | ImageFile.ImageFile = Image.open(image_path)
     if convert_mode is not None:
-        image: PILImage = image.convert(convert_mode)
+        image = image.convert(convert_mode)
     image_np = np.array(image)
     return image_np
 
