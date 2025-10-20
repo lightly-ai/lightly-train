@@ -46,8 +46,8 @@ class YOLOObjectDetectionDataset(TaskDataset):
 
     def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
         # Load the image.
-        image_path = Path(self.image_info[index]["image_filepaths"])
-        label_path = Path(self.image_info[index]["label_filepaths"]).with_suffix(".txt")
+        image_path = Path(self.image_info[index]["image_path"])
+        label_path = Path(self.image_info[index]["label_path"]).with_suffix(".txt")
 
         if not image_path.exists():
             raise FileNotFoundError(f"Image file {image_path} does not exist.")
