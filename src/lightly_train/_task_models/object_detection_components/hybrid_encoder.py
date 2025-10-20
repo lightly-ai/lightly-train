@@ -303,9 +303,11 @@ class HybridEncoder(nn.Module):
         self.downsample_convs = nn.ModuleList()
         self.pan_blocks = nn.ModuleList()
         for _ in range(len(in_channels) - 1):
-            self.downsample_convs.append(
-                ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
-            )
+            # Only allocate if needed, otherwise causes errors in distributed training.
+            if self.upsample:
+                self.downsample_convs.append(
+                    ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
+                )
             self.pan_blocks.append(
                 CSPRepLayer(
                     hidden_dim * 2,
