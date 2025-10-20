@@ -8,9 +8,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Literal, Type, TypeVar
+from typing import Any, Literal
 
 import torch
 from lightning_fabric import Fabric
@@ -18,7 +16,6 @@ from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict
-from torch import Tensor
 
 from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._commands import _warnings, common_helpers
@@ -33,309 +30,11 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
-from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
+from lightly_train._task_models.train_model import TrainModelArgs
 from lightly_train._train_task_state import TrainTaskState
-from lightly_train._transforms.task_transform import TaskTransformArgs
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
-
-
-_MergeT = TypeVar(
-    "_MergeT",
-    TrainModelArgs,
-    MaskSemanticSegmentationDataArgs,
-    TaskTransformArgs,
-)
-
-
-def _merge(
-    model_cls: Type[_MergeT],
-    current_obj: _MergeT,
-    update_source: dict[str, Any],
-) -> _MergeT:
-    """Merge checkpoint values into a Pydantic model and revalidate."""
-    merged_dict = current_obj.model_dump()
-    for key in model_cls.model_fields:
-        if key in update_source:
-            merged_dict[key] = update_source[key]
-    return validate.pydantic_model_validate(model_cls, merged_dict)
-
-
-@dataclass
-class MetadataMergeResult:
-    model_args: TrainModelArgs
-    data_args: MaskSemanticSegmentationDataArgs
-    val_transform_args: TaskTransformArgs
-
-
-@dataclass
-class CheckpointContext:
-    path: Path
-    mode: Literal["finetune", "resume"]
-    metadata: dict[str, Any]
-    train_model_state: dict[str, Tensor] | None
-    optimizer_state: dict[str, Any] | None = None
-    scheduler_state: dict[str, Any] | None = None
-    step: int | None = None
-
-    @classmethod
-    def from_config(
-        cls, *, fabric: Fabric, config: TrainTaskConfig, out_dir: Path
-    ) -> "CheckpointContext | None":
-        if (not config.resume_interrupted) and (config.checkpoint is None):
-            return None
-        elif config.resume_interrupted and (config.checkpoint is not None):
-            raise ValueError(
-                f"resume_interrupted={config.resume_interrupted} and checkpoint='{config.checkpoint}' "
-                "cannot be set at the same time! Please set only one of them. "
-            )
-        elif config.checkpoint is not None:
-            ckpt_path = Path(config.checkpoint).resolve()
-        else:
-            ckpt_path = helpers.get_checkpoint_path(out_dir, best_or_last="last")
-
-        if not ckpt_path.exists():
-            raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
-
-        logger.info(f"Loading metadata of the checkpoint from '{ckpt_path}'")
-
-        checkpoint = fabric.load(path=ckpt_path)
-        mode: Literal["finetune", "resume"] = (
-            "resume" if config.resume_interrupted else "finetune"
-        )
-        metadata = {
-            "model_init_args": checkpoint.get("model_init_args") or {},
-            "model_class_path": checkpoint.get("model_class_path") or "",
-        }
-        return cls(
-            path=ckpt_path,
-            mode=mode,
-            metadata=metadata,
-            train_model_state=checkpoint.get("train_model"),
-            optimizer_state=checkpoint.get("optimizer"),
-            scheduler_state=checkpoint.get("scheduler"),
-            step=checkpoint.get("step"),
-        )
-
-    def apply_metadata(
-        self,
-        *,
-        model_args: TrainModelArgs,
-        data_args: MaskSemanticSegmentationDataArgs,
-        val_transform_args: TaskTransformArgs,
-        train_model_cls: type[TrainModel],
-        config_model: str,
-        config_steps: int | Literal["auto"],
-    ) -> MetadataMergeResult:
-        model_init_args = self.metadata.get("model_init_args") or {}
-        if not model_init_args:
-            return MetadataMergeResult(
-                model_args=model_args,
-                data_args=data_args,
-                val_transform_args=val_transform_args,
-            )
-
-        checkpoint_model_name = model_init_args.get("model_name")
-        if checkpoint_model_name is not None and checkpoint_model_name != config_model:
-            raise ValueError(
-                "The checkpoint was created with model_name="
-                f"'{checkpoint_model_name}', but config.model='{config_model}'. "
-                "Please use a checkpoint that matches the configured model or "
-                "update config.model to the correct value before resuming."
-            )
-
-        model_args_dict = model_args.model_dump()
-        data_args_dict = data_args.model_dump()
-        val_transform_args_dict = val_transform_args.model_dump()
-
-        params_dict = {
-            **model_args_dict,
-            **data_args_dict,
-            **val_transform_args_dict,
-            "model_name": config_model,
-        }
-        class_ignore_index = getattr(data_args, "ignore_index", None)
-        if class_ignore_index is None:
-            class_ignore_index = getattr(type(data_args), "ignore_index", None)
-        if class_ignore_index is not None:
-            params_dict["class_ignore_index"] = class_ignore_index
-
-        classes = getattr(data_args, "included_classes", None)
-        if classes is None:
-            classes = getattr(type(data_args), "included_classes", None)
-        if classes is not None:
-            params_dict["classes"] = classes
-
-        normalize_args = getattr(val_transform_args, "normalize", None)
-        if normalize_args is not None:
-            params_dict["image_normalize"] = normalize_args.model_dump()
-        if model_init_args:
-            if "backbone_args" in model_init_args:
-                params_dict["backbone_args"] = model_init_args["backbone_args"]
-
-        skipped_checkpoint_mismatch_keys = (
-            {"classes", "class_ignore_index", "image_size"}
-            if self.mode == "finetune"
-            else set()
-        )
-        mismatched: dict[str, tuple[Any, Any]] = {}
-        _missing = object()
-        for key, checkpoint_value in model_init_args.items():
-            if key in skipped_checkpoint_mismatch_keys:
-                continue
-
-            current_value = params_dict.get(key, _missing)
-            if current_value is _missing:
-                # Key not exposed in current config; defaults were used.
-                continue
-            if current_value != checkpoint_value:
-                if self.mode == "resume":
-                    if key in {"classes", "image_size", "image_normalize"}:
-                        base_message = (
-                            "Cannot resume the interrupted run because the checkpoint was saved "
-                            f"with different {key}. Checkpoint {key}={checkpoint_value}, "
-                            f"current {key}={current_value}."
-                        )
-                        raise ValueError(
-                            f"{base_message} Please align the setting with the original run."
-                        )
-
-                mismatched[key] = (
-                    checkpoint_value,
-                    current_value,
-                )
-
-        if mismatched:
-            mismatch_details = ", ".join(
-                f"{key} (checkpoint={checkpoint_value}, current={current_value})"
-                for key, (checkpoint_value, current_value) in sorted(mismatched.items())
-            )
-            logger.warning(
-                "The checkpoint was created with different `model_args` values. "
-                f"Mismatched keys: {mismatch_details}. Using the parameters "
-                "stored in the checkpoint instead."
-            )
-
-            model_args_cls = train_model_cls.train_model_args_cls
-            updated_model_args = _merge(model_args_cls, model_args, model_init_args)
-            updated_model_args.resolve_auto(
-                total_steps=no_auto(config_steps), model_name=config_model
-            )
-            model_args = updated_model_args
-
-            data_args_cls = type(data_args)
-            data_args = _merge(data_args_cls, data_args, model_init_args)
-
-            val_transform_args_cls = type(val_transform_args)
-            updated_val_args = _merge(
-                val_transform_args_cls, val_transform_args, model_init_args
-            )
-            updated_val_args.resolve_auto()
-            updated_val_args.resolve_incompatible()
-            val_transform_args = updated_val_args
-
-        return MetadataMergeResult(
-            model_args=model_args,
-            data_args=data_args,
-            val_transform_args=val_transform_args,
-        )
-
-    def restore_training_state(
-        self,
-        *,
-        fabric: Fabric,
-        state: TrainTaskState,
-        reuse_class_head: bool,
-    ) -> None:
-        train_model = state["train_model"]
-        optimizer = state["optimizer"]
-        scheduler = state["scheduler"]
-
-        train_model_grads = {
-            n: p.requires_grad for n, p in train_model.named_parameters()
-        }
-        train_model_trainings = {n: m.training for n, m in train_model.named_modules()}
-
-        if self.train_model_state is None:
-            raise ValueError(
-                f"Checkpoint file '{self.path}' does not contain 'train_model'."
-            )
-
-        logger.info(f"Loading checkpoint from '{self.path}'")
-
-        if self.mode == "finetune":
-            train_model_state_keys = set(train_model.state_dict().keys())
-            if reuse_class_head:
-                incompatible = train_model.load_state_dict(
-                    self.train_model_state, strict=False
-                )
-            else:
-                class_head_keys = {
-                    key
-                    for key in train_model_state_keys
-                    if key.startswith("class_head") or ".class_head" in key
-                }
-                criterion_keys = {
-                    key
-                    for key in train_model_state_keys
-                    if "criterion.empty_weight" in key
-                }
-                checkpoint_keys_to_skip = class_head_keys | criterion_keys
-                if checkpoint_keys_to_skip:
-                    logger.debug(
-                        "Skipping class-dependent parameters from checkpoint: %s",
-                        sorted(checkpoint_keys_to_skip),
-                    )
-                filtered_state = {
-                    key: value
-                    for key, value in self.train_model_state.items()
-                    if key not in checkpoint_keys_to_skip
-                }
-                incompatible = train_model.load_state_dict(filtered_state, strict=False)
-
-            if incompatible.missing_keys:
-                logger.warning(
-                    "Missing keys after loading checkpoint: %s",
-                    incompatible.missing_keys,
-                )
-            if incompatible.unexpected_keys:
-                logger.warning(
-                    "Unexpected keys after loading checkpoint: %s",
-                    incompatible.unexpected_keys,
-                )
-        else:
-            incompatible = train_model.load_state_dict(self.train_model_state)
-            if incompatible.missing_keys:
-                logger.warning(
-                    "Missing keys after loading checkpoint: %s",
-                    incompatible.missing_keys,
-                )
-            if incompatible.unexpected_keys:
-                logger.warning(
-                    "Unexpected keys after loading checkpoint: %s",
-                    incompatible.unexpected_keys,
-                )
-
-            if self.optimizer_state is None or self.scheduler_state is None:
-                raise ValueError(
-                    f"Checkpoint file '{self.path}' does not contain optimizer or scheduler state."
-                )
-            optimizer.load_state_dict(self.optimizer_state)
-            scheduler.load_state_dict(self.scheduler_state)
-            if self.step is not None:
-                state["step"] = self.step
-
-        # Ensure that no new objects were created during loading.
-        assert state["train_model"] is train_model
-        assert {
-            n: p.requires_grad for n, p in state["train_model"].named_parameters()
-        } == train_model_grads
-        assert {
-            n: m.training for n, m in state["train_model"].named_modules()
-        } == train_model_trainings
-        assert state["optimizer"] is optimizer
-        assert state["scheduler"] is scheduler
 
 
 def train_semantic_segmentation(
@@ -523,7 +222,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         overwrite=config.overwrite,
     )
 
-    checkpoint_ctx = CheckpointContext.from_config(
+    checkpoint_ctx = helpers.CheckpointContext.from_config(
         fabric=fabric, config=config, out_dir=out_dir
     )
 
@@ -702,7 +401,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         if checkpoint_ctx is not None:
             checkpoint_ctx.restore_training_state(
-                fabric=fabric,
                 state=state,
                 reuse_class_head=config.reuse_class_head,
             )
