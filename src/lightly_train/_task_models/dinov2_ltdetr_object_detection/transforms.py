@@ -68,6 +68,8 @@ class DINOv2LTDetrObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     prob: float = 1.0
     # The model is patch 14.
     divisible_by: int | None = 14
+    step_seeding: bool = True
+    seed_offset: int = 0
 
 
 class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
