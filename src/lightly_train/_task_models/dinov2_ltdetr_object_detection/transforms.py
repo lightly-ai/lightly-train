@@ -20,6 +20,7 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
+    ResizeArgs,
     ScaleJitterArgs,
     StopPolicyArgs,
 )
@@ -62,14 +63,18 @@ class DINOv2LTDetrObjectDetectionScaleJitterArgs(ScaleJitterArgs):
         (770, 770),
         (812, 812),
     ]
-    min_scale: float | None = 0.76
-    max_scale: float | None = 1.27
-    num_scales: int | None = 13
+    min_scale: float | None = None
+    max_scale: float | None = None
+    num_scales: int | None = None
     prob: float = 1.0
-    # The model is patch 14.
-    divisible_by: int | None = 14
+    divisible_by: int | None = None
     step_seeding: bool = True
     seed_offset: int = 0
+
+
+class DINOv2LTDetrObjectDetectionResizeArgs(ResizeArgs):
+    height: int = 644
+    width: int = 644
 
 
 class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
@@ -87,6 +92,7 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     image_size: tuple[int, int] = (644, 644)
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
+    resize: ResizeArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionScaleJitterArgs
     )
@@ -106,7 +112,10 @@ class DINOv2LTDetrObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_flip: None = None
     image_size: tuple[int, int] = (644, 644)
     stop_policy: None = None
-    scale_jitter: None = None
+    resize: ResizeArgs | None = Field(
+        default_factory=DINOv2LTDetrObjectDetectionResizeArgs
+    )
+    scale_jitter: ScaleJitterArgs | None = None
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
             format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0

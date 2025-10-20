@@ -28,6 +28,7 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
+    ResizeArgs,
     ScaleJitterArgs,
     StopPolicyArgs,
 )
@@ -87,6 +88,15 @@ def _get_scale_jitter_args() -> ScaleJitterArgs:
         num_scales=13,
         prob=1.0,
         divisible_by=14,
+        step_seeding=True,
+        seed_offset=0,
+    )
+
+
+def _get_resize_args() -> ResizeArgs:
+    return ResizeArgs(
+        height=64,
+        width=64,
     )
 
 
@@ -101,6 +111,7 @@ PossibleArgsTuple = (
     [None, _get_random_flip_args()],
     # TODO: Lionel (09/25) Add StopPolicyArgs test cases.
     [None, _get_scale_jitter_args()],
+    [None, _get_resize_args()],
 )
 
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
@@ -108,7 +119,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_flip, scale_jitter",
+        "channel_drop, photometric_distort, random_zoom_out, random_flip, scale_jitter, resize",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -118,6 +129,7 @@ class TestObjectDetectionTransform:
         random_zoom_out: RandomZoomOutArgs | None,
         random_flip: RandomFlipArgs | None,
         scale_jitter: ScaleJitterArgs | None,
+        resize: ResizeArgs | None = None,
     ) -> None:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
@@ -131,6 +143,7 @@ class TestObjectDetectionTransform:
             image_size=image_size,
             bbox_params=bbox_params,
             stop_policy=stop_policy,
+            resize=resize,
             scale_jitter=scale_jitter,
         )
         transform_args.resolve_auto()
@@ -169,6 +182,7 @@ class TestObjectDetectionTransform:
             bbox_params=_get_bbox_params(),
             stop_policy=_get_stop_policy_args(),
             scale_jitter=_get_scale_jitter_args(),
+            resize=_get_resize_args(),
         )
         transform_args.resolve_auto()
         collate_fn = ObjectDetectionCollateFunction(

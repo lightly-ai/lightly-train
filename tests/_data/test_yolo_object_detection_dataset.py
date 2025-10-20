@@ -26,6 +26,7 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
+    ResizeArgs,
     ScaleJitterArgs,
     StopPolicyArgs,
 )
@@ -42,6 +43,7 @@ class DummyTransformArgs(ObjectDetectionTransformArgs):
     image_size: tuple[int, int] = (32, 32)
     stop_policy: StopPolicyArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
+    resize: ResizeArgs | None = None
     bbox_params: BboxParams = BboxParams(
         format="yolo",
         label_fields=["class_labels"],
