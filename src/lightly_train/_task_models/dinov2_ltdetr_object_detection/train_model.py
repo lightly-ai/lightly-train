@@ -119,7 +119,7 @@ class DINOv2LTDetrObjectDetectionTrain(TrainModel):
     def validation_step(
         self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
     ) -> TaskStepResult:
-        pass
+        raise NotImplementedError()
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         param_groups = [
