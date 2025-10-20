@@ -42,8 +42,10 @@ from lightly_train.types import ObjectDetectionBatch, PathLike
 
 class DINOv2LTDetrObjectDetectionTrainModelArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
-    default_steps: ClassVar[int] = 100_000 // 16 * 72 # TODO (Lionel, 10/25): Adjust default steps.
-    
+    default_steps: ClassVar[int] = (
+        100_000 // 16 * 72
+    )  # TODO (Lionel, 10/25): Adjust default steps.
+
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
@@ -94,20 +96,35 @@ class DINOv2LTDetrObjectDetectionTrain(TrainModel):
         self.criterion.train()  # TODO (Lionel, 10/25): Check if this is necessary.
 
     def training_step(
-        self, fabric: Fabric, batch: ObjectDetectionBatch
+        self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
     ) -> TaskStepResult:
         samples, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
         boxes = _yolo_to_xyxy(boxes)
-        print(classes, samples)
+        targets = [
+            {"boxes": boxes, "labels": classes}
+            for boxes, classes in zip(boxes, classes)
+        ]
+        outputs = self.model._forward_train(
+            x=samples,
+            targets=targets,
+        )
+        loss_dict = self.criterion(
+            outputs=outputs, targets=targets, epoch=None, step=None, global_step=step, fabric=fabric
+        )
+        return TaskStepResult(
+            loss=sum(loss_dict.values()),
+            log_dict=loss_dict,
+        )
 
     def validation_step(
-        self, fabric: Fabric, batch: ObjectDetectionBatch
+        self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
     ) -> TaskStepResult:
         pass
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         param_groups = [
             {
+                "name": "backbone",
                 "params": [
                     p
                     for n, p in self.model.named_parameters()
@@ -116,6 +133,7 @@ class DINOv2LTDetrObjectDetectionTrain(TrainModel):
                 "lr": 1e-5,
             },
             {
+                "name": "detector",
                 "params": [
                     p
                     for n, p in self.model.named_parameters()

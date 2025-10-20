@@ -204,7 +204,7 @@ class RTDETRCriterionv2(nn.Module):
         )
         if is_dist_available_and_initialized():
             torch.distributed.all_reduce(num_boxes)
-        num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()
+        num_boxes = torch.clamp(num_boxes / kwargs["fabric"].world_size, min=1).item()
 
         # Retrieve the matching between the outputs of the last layer and the targets
         matched = self.matcher(outputs_without_aux, targets)
