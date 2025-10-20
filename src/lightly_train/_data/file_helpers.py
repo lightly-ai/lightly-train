@@ -210,7 +210,7 @@ def _open_image_numpy__with_pil(
     }[mode]
     image = Image.open(image_path)
     if convert_mode is not None:
-        image = image.convert(convert_mode)
+        image: PILImage = image.convert(convert_mode)
     image_np = np.array(image)
     return image_np
 
