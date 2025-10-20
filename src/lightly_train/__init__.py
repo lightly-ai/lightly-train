@@ -33,7 +33,10 @@ from lightly_train._commands.embed import embed
 from lightly_train._commands.export import export
 from lightly_train._commands.export_task import export_onnx
 from lightly_train._commands.train import train
-from lightly_train._commands.train_task import train_semantic_segmentation, train_object_detection
+from lightly_train._commands.train_task import (
+    train_object_detection,
+    train_semantic_segmentation,
+)
 from lightly_train._embedding.embedding_format import EmbeddingFormat
 from lightly_train._methods.method_helpers import list_methods
 from lightly_train._models.package_helpers import list_model_names as list_models

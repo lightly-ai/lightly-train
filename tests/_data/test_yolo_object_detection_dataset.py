@@ -65,13 +65,31 @@ class TestYoloObjectDetectionDataset:
         train_dataset = YOLOObjectDetectionDataset(
             dataset_args=train_args,
             transform=ObjectDetectionTransform(DummyTransformArgs()),
-            image_filenames=["0.png", "1.png"],
+            image_info=[
+                {
+                    "image_filepaths": str(tmp_path / "train/images/0.png"),
+                    "label_filepaths": str(tmp_path / "train/labels/0.txt"),
+                },
+                {
+                    "image_filepaths": str(tmp_path / "train/images/1.png"),
+                    "label_filepaths": str(tmp_path / "train/labels/1.txt"),
+                },
+            ],
         )
 
         val_dataset = YOLOObjectDetectionDataset(
             dataset_args=val_args,
             transform=ObjectDetectionTransform(DummyTransformArgs()),
-            image_filenames=["0.png", "1.png"],
+            image_info=[
+                {
+                    "image_filepaths": str(tmp_path / "val/images/0.png"),
+                    "label_filepaths": str(tmp_path / "val/labels/0.txt"),
+                },
+                {
+                    "image_filepaths": str(tmp_path / "val/images/1.png"),
+                    "label_filepaths": str(tmp_path / "val/labels/1.txt"),
+                },
+            ],
         )
 
         sample = train_dataset[0]
@@ -100,13 +118,31 @@ class TestYoloObjectDetectionDataset:
         train_dataset = YOLOObjectDetectionDataset(
             dataset_args=train_args,
             transform=ObjectDetectionTransform(DummyTransformArgs()),
-            image_filenames=["0.png", "1.png"],
+            image_info=[
+                {
+                    "image_filepaths": str(tmp_path / "images/train/0.png"),
+                    "label_filepaths": str(tmp_path / "labels/train/0.txt"),
+                },
+                {
+                    "image_filepaths": str(tmp_path / "images/train/1.png"),
+                    "label_filepaths": str(tmp_path / "labels/train/1.txt"),
+                },
+            ],
         )
 
         val_dataset = YOLOObjectDetectionDataset(
             dataset_args=val_args,
             transform=ObjectDetectionTransform(DummyTransformArgs()),
-            image_filenames=["0.png", "1.png"],
+            image_info=[
+                {
+                    "image_filepaths": str(tmp_path / "images/val/0.png"),
+                    "label_filepaths": str(tmp_path / "labels/val/0.txt"),
+                },
+                {
+                    "image_filepaths": str(tmp_path / "images/val/1.png"),
+                    "label_filepaths": str(tmp_path / "labels/val/1.txt"),
+                },
+            ],
         )
 
         sample = train_dataset[0]

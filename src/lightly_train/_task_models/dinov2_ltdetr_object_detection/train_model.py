@@ -6,7 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 import re
-from typing import Any
+from typing import Any, ClassVar
 
 import torch
 from lightning_fabric import Fabric
@@ -41,7 +41,9 @@ from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
 class DINOv2LTDetrObjectDetectionTrainModelArgs(TrainModelArgs):
-    default_batch_size: int = 16
+    default_batch_size: ClassVar[int] = 16
+    default_steps: ClassVar[int] = 100_000 // 16 * 72 # TODO (Lionel, 10/25): Adjust default steps.
+    
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}

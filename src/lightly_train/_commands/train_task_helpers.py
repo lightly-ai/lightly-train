@@ -45,6 +45,9 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model im
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
     DINOv2LinearSemanticSegmentationTrain,
 )
+from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
+    DINOv2LTDetrObjectDetectionTrain,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
 )
@@ -53,9 +56,6 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._train_task_state import TrainTaskState
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
-)
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -64,7 +64,6 @@ from lightly_train.types import (
     PathLike,
     TaskDatasetItem,
 )
-from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import DINOv2LTDetrObjectDetectionTrain
 
 try:
     import mlflow
@@ -502,7 +501,7 @@ def get_dataset(
 
     dataset_cls = dataset_args.get_dataset_cls()
     # TODO(Guarin, 08/25): Relax this when we add object detection.
-    assert isinstance(transform, SemanticSegmentationTransform)
+    assert isinstance(transform, TaskTransform)
     return dataset_cls(
         dataset_args=dataset_args,
         image_info=get_dataset_mmap_file(

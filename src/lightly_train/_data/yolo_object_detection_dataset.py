@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import ClassVar, Literal, Sequence
+from typing import ClassVar, Iterable, Literal, Sequence
 
 import numpy as np
 import pydantic
@@ -23,7 +23,7 @@ from lightly_train._data.task_batch_collation import (
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._transforms.task_transform import TaskTransform
-from lightly_train.types import ImageFilename, ObjectDetectionDatasetItem, PathLike
+from lightly_train.types import ObjectDetectionDatasetItem, PathLike
 
 
 class YOLOObjectDetectionDataset(TaskDataset):
@@ -34,21 +34,20 @@ class YOLOObjectDetectionDataset(TaskDataset):
     def __init__(
         self,
         dataset_args: YOLOObjectDetectionDatasetArgs,
-        image_filenames: Sequence[ImageFilename],
+        image_info: Sequence[dict[str, str]],
         transform: TaskTransform,
     ) -> None:
         super().__init__(transform=transform)
         self.args = dataset_args
-        self.image_filenames = image_filenames
+        self.image_info = image_info
 
     def __len__(self) -> int:
-        return len(self.image_filenames)
+        return len(self.image_info)
 
     def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
         # Load the image.
-        image_filename = self.image_filenames[index]
-        image_path = self.args.image_dir / Path(image_filename)
-        label_path = self.args.label_dir / Path(image_filename).with_suffix(".txt")
+        image_path = Path(self.image_info[index]["image_filepaths"])
+        label_path = Path(self.image_info[index]["label_filepaths"]).with_suffix(".txt")
 
         if not image_path.exists():
             raise FileNotFoundError(f"Image file {image_path} does not exist.")
@@ -90,6 +89,12 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
     val: PathLike
     test: PathLike | None = None
     names: dict[int, str]
+
+    def train_imgs_path(self) -> Path:
+        return Path(self.train)
+
+    def val_imgs_path(self) -> Path:
+        return Path(self.val)
 
     @pydantic.field_validator("train", "val", mode="after")
     def validate_paths(cls, v: PathLike) -> Path:
@@ -171,3 +176,19 @@ class YOLOObjectDetectionDatasetArgs(PydanticConfig):
     image_dir: Path
     label_dir: Path
     classes: dict[int, str]
+
+    def list_image_info(self) -> Iterable[dict[str, str]]:
+        for image_filename in file_helpers.list_image_filenames_from_dir(
+            image_dir=self.image_dir
+        ):
+            image_filepath = self.image_dir / Path(image_filename)
+            label_filepath = self.label_dir / Path(image_filename).with_suffix(".txt")
+            if label_filepath.exists():
+                yield {
+                    "image_path": str(image_filepath),
+                    "label_path": str(label_filepath),
+                }
+
+    @staticmethod
+    def get_dataset_cls() -> type[YOLOObjectDetectionDataset]:
+        return YOLOObjectDetectionDataset
