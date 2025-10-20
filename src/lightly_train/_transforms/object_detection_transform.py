@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Literal
 
 import numpy as np
-from albumentations import BboxParams, Compose, HorizontalFlip, VerticalFlip
+from albumentations import BboxParams, Compose, HorizontalFlip, Resize, VerticalFlip
 from albumentations.pytorch.transforms import ToTensorV2
 from numpy.typing import NDArray
 from pydantic import ConfigDict
@@ -33,6 +33,7 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
+    ResizeArgs,
     ScaleJitterArgs,
     StopPolicyArgs,
 )
@@ -62,6 +63,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     # TODO: Lionel (09/25): Add Normalize
     stop_policy: StopPolicyArgs | None
     scale_jitter: ScaleJitterArgs | None
+    resize: ResizeArgs | None
     bbox_params: BboxParams | None
 
     # Necessary for the StopPolicyArgs, which are not serializable by pydantic.
@@ -152,6 +154,14 @@ class ObjectDetectionTransform(TaskTransform):
                 self.individual_transforms += [
                     VerticalFlip(p=transform_args.random_flip.vertical_prob)
                 ]
+
+        if transform_args.resize is not None:
+            self.individual_transforms += [
+                Resize(
+                    height=transform_args.resize.height,
+                    width=transform_args.resize.width,
+                )
+            ]
 
         self.individual_transforms += [
             ToTensorV2(),
