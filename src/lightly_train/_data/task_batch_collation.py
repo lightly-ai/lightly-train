@@ -76,7 +76,9 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
                 [
                     ScaleJitter(
                         sizes=transform_args.scale_jitter.sizes,
-                        target_size=transform_args.image_size,
+                        target_size=transform_args.image_size
+                        if transform_args.scale_jitter.sizes is None
+                        else None,
                         scale_range=scale_range,
                         num_scales=transform_args.scale_jitter.num_scales,
                         divisible_by=transform_args.scale_jitter.divisible_by,
