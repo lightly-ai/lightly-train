@@ -276,7 +276,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             train_transform_args=train_transform_args,
             val_transform_args=val_transform_args,
             config_model=config.model,
-            config_steps=config.steps,
         )
 
         config.model_args = merge_result.model_args

@@ -189,7 +189,6 @@ class CheckpointContext:
         train_transform_args: TaskTransformArgs,
         val_transform_args: TaskTransformArgs,
         config_model: str,
-        config_steps: int | Literal["auto"],
     ) -> MetadataMergeResult:
         """Merge checkpoint metadata into the current task configuration.
 
@@ -253,11 +252,12 @@ class CheckpointContext:
         if classes is not None:
             params_dict["classes"] = classes
 
-        normalize_args = getattr(train_transform_args, "normalize", None)
-        if normalize_args is None:
-            normalize_args = getattr(type(train_transform_args), "normalize", None)
-        if normalize_args is not None:
-            params_dict["image_normalize"] = normalize_args.model_dump()
+        # TODO(Yutong 10/25): update train_transform_args separately once we fix the bug above
+        # normalize_args = getattr(train_transform_args, "normalize", None)
+        # if normalize_args is None:
+        #     normalize_args = getattr(type(train_transform_args), "normalize", None)
+        # if normalize_args is not None:
+        #     params_dict["image_normalize"] = normalize_args.model_dump()
 
         normalize_args = getattr(val_transform_args, "normalize", None)
         if normalize_args is None:
@@ -349,7 +349,6 @@ class CheckpointContext:
         train_model = state["train_model"]
         optimizer = state["optimizer"]
         scheduler = state["scheduler"]
-        train_dataloader = state["train_dataloader"]
 
         train_model_grads = {
             n: p.requires_grad for n, p in train_model.named_parameters()
@@ -437,7 +436,6 @@ class CheckpointContext:
         if self.mode == "resume":
             assert state["optimizer"] is optimizer
             assert state["scheduler"] is scheduler
-            assert state["train_dataloader"] is train_dataloader
 
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
