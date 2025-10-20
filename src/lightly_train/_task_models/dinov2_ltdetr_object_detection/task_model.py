@@ -205,6 +205,12 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
                 m.convert_to_deploy()
         return self
 
+    def _forward_train(self, x: Tensor, targets):
+        x = self.backbone(x)
+        x = self.encoder(x)
+        x = self.decoder(x, targets)
+        return x
+
     def forward(
         self, x: Tensor, orig_target_size: tuple[int, int] | None = None
     ) -> list[Tensor]:
