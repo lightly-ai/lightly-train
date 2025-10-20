@@ -30,10 +30,7 @@ from lightly_train._data._serialize.memory_mapped_sequence import (
     MemoryMappedSequence,
     Primitive,
 )
-from lightly_train._data.mask_semantic_segmentation_dataset import (
-    MaskSemanticSegmentationDatasetArgs,
-)
-from lightly_train._data.task_dataset import TaskDataset
+from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
@@ -493,7 +490,7 @@ def get_dataset_mmap_file(
 
 def get_dataset(
     fabric: Fabric,
-    dataset_args: MaskSemanticSegmentationDatasetArgs,
+    dataset_args: TaskDatasetArgs,
     transform: TaskTransform,
     mmap_filepath: Path,
 ) -> TaskDataset:
@@ -650,12 +647,18 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
 
 
 def get_save_checkpoint_args(
+    train_model_cls: type[TrainModel],
     checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None,
 ) -> TaskSaveCheckpointArgs:
     if isinstance(checkpoint_args, TaskSaveCheckpointArgs):
         return checkpoint_args
-    checkpoint_args = {} if checkpoint_args is None else checkpoint_args
-    args = validate.pydantic_model_validate(TaskSaveCheckpointArgs, checkpoint_args)
+    checkpoint_args_cls = train_model_cls.train_model_args_cls.save_checkpoint_args_cls
+    # Merge with possible overrides from checkpoint_args.
+    default_checkpoint_args = checkpoint_args_cls().model_dump()  # type: ignore[call-arg]
+    default_checkpoint_args.update(checkpoint_args or {})
+    args = validate.pydantic_model_validate(
+        TaskSaveCheckpointArgs, default_checkpoint_args
+    )
     return args
 
 

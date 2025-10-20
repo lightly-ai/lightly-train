@@ -373,11 +373,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             float32_matmul_precision=config.float32_matmul_precision,
         )
     )
-    config.save_checkpoint_args = helpers.get_save_checkpoint_args(
-        checkpoint_args=config.save_checkpoint_args
-    )
     train_model_cls = helpers.get_train_model_cls(
         model_name=config.model,
+    )
+    config.save_checkpoint_args = helpers.get_save_checkpoint_args(
+        train_model_cls=train_model_cls, checkpoint_args=config.save_checkpoint_args
     )
 
     train_transform_args, val_transform_args = helpers.get_transform_args(
@@ -553,7 +553,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             logger.info(f"Training for {config.steps} steps...")
 
         fabric.barrier()
-        max_val_miou = 0.0
+        best_metric = 0.0
         for step in range(start_step, config.steps):
             state["step"] = step
             is_last_step = step + 1 == config.steps
@@ -637,15 +637,21 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         fabric.log_dict(val_log_dict, step=step)
                         helpers.reset_metrics(val_result.log_dict)
 
-                        val_miou = val_log_dict.get("val_metric/miou")
-                        if val_miou is None:
+                        watch_metric = val_log_dict.get(
+                            config.save_checkpoint_args.watch_metric
+                        )
+                        if watch_metric is None:
                             logger.warning(
-                                "Validation metric 'val_metric/miou' not found in val_log_dict. Skipping best model checkpoint update."
+                                f"Validation metric '{config.save_checkpoint_args.watch_metric}' not found in val_log_dict. Skipping best model checkpoint update."
                             )
-                        elif val_miou > max_val_miou:
+                        elif _is_better_metric(
+                            current_metric=watch_metric,
+                            best_metric=best_metric,
+                            mode=config.save_checkpoint_args.mode,
+                        ):
                             if config.save_checkpoint_args.save_best:
                                 logger.info(
-                                    f"The best validation metric 'val_metric/miou'={val_miou:.4f} was reached."
+                                    f"The best validation metric '{config.save_checkpoint_args.watch_metric}'={watch_metric:.4f} was reached."
                                 )
                                 helpers.save_checkpoint(
                                     fabric=fabric,
@@ -666,7 +672,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                     best_or_last="best",
                                 )
 
-                            max_val_miou = val_miou
+                            best_metric = watch_metric
 
                     elif is_val_log_step:
                         # Show that we are making progress. Metrics are only calculated
@@ -680,6 +686,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 train_model.set_train_mode()
                 fabric.barrier()
         logger.info("Training completed.")
+
+
+def _is_better_metric(
+    current_metric: float, best_metric: float, mode: Literal["min", "max"]
+) -> bool:
+    if mode == "min":
+        return current_metric < best_metric
+    elif mode == "max":
+        return current_metric > best_metric
+    raise ValueError(f"Unknown mode: {mode}")
 
 
 class TrainTaskConfig(PydanticConfig):
