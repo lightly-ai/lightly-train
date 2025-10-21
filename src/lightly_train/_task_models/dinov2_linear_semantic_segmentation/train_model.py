@@ -58,7 +58,12 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     metric_log_classwise: bool = True
     metric_log_debug: bool = False
 
-    def resolve_auto(self, total_steps: int, model_name: str) -> None:
+    def resolve_auto(
+        self,
+        total_steps: int,
+        model_name: str,
+        model_init_args: dict[str, Any],
+    ) -> None:
         pass
 
 
