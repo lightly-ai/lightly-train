@@ -50,7 +50,7 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
     backbone_weights: PathLike | None = None
     drop_path_rate: float = 0.0
-    num_queries: int = 100  # Default for ADE20K
+    num_queries: int | Literal["auto"] = "auto"
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int | Literal["auto"] = "auto"
@@ -83,24 +83,35 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     metric_log_classwise: bool = True
     metric_log_debug: bool = False
 
-    def resolve_auto(self, total_steps: int, model_name: str) -> None:
+    def resolve_auto(
+        self, total_steps: int, model_name: str, model_init_args: dict[str, Any]
+    ) -> None:
+        if self.num_queries == "auto":
+            num_queries = model_init_args.get("num_queries", 100)
+            assert isinstance(num_queries, int)  # for mypy
+            self.num_queries = num_queries
+
         if self.num_joint_blocks == "auto":
-            match = re.match(
-                r"(dinov2(?:_vit)?)/(?P<model_size>vit[slbg]).*", model_name
-            )
-            if match is None:
-                raise ValueError(
-                    f"Unknown model name '{model_name}', "
-                    "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
-                    "for all supported models."
+            if num_joint_blocks := model_init_args.get("num_joint_blocks"):
+                self.num_joint_blocks = num_joint_blocks
+                assert isinstance(self.num_joint_blocks, int)  # for mypy
+            else:
+                match = re.match(
+                    r"(dinov2(?:_vit)?)/(?P<model_size>vit[slbg]).*", model_name
                 )
-            model_size = match.group("model_size")
-            self.num_joint_blocks = {
-                "vits": 3,
-                "vitb": 3,
-                "vitl": 4,
-                "vitg": 5,
-            }[model_size]
+                if match is None:
+                    raise ValueError(
+                        f"Unknown model name '{model_name}', "
+                        "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
+                        "for all supported models."
+                    )
+                model_size = match.group("model_size")
+                self.num_joint_blocks = {
+                    "vits": 3,
+                    "vitb": 3,
+                    "vitl": 4,
+                    "vitg": 5,
+                }[model_size]
 
         # Infer the number of training phases from the number of joint blocks.
         num_training_phases = self.num_joint_blocks + 2
@@ -149,6 +160,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         self.model_args = model_args
+        num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
 
         self.model = DINOv2EoMTSemanticSegmentation(
@@ -160,7 +172,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             ),
             image_size=val_transform_args.image_size,
             image_normalize=val_transform_args.normalize.model_dump(),
-            num_queries=model_args.num_queries,
+            num_queries=num_queries,
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
             backbone_args={

@@ -222,6 +222,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         overwrite=config.overwrite,
     )
 
+    checkpoint_ctx = helpers.CheckpointContext.from_config(
+        fabric=fabric, config=config, out_dir=out_dir
+    )
+    model_init_args = checkpoint_ctx.metadata.model_init_args if checkpoint_ctx else {}
+
     # Set up logging.
     _warnings.filter_train_warnings()
     _logging.set_up_console_logging()
@@ -308,6 +313,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_args_cls=train_model_args_cls,
             total_steps=no_auto(config.steps),
             model_name=config.model,
+            model_init_args=model_init_args,
         )
 
         # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
