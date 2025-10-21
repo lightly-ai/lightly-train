@@ -463,7 +463,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             num_workers=config.num_workers,
             loader_args=config.loader_args,
         )
-
         config.logger_args = helpers.get_logger_args(
             steps=config.steps,
             val_steps=len(val_dataloader),

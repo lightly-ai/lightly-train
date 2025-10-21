@@ -20,9 +20,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 
-from lightly_train._commands.train_helpers import (
-    get_total_num_devices as get_world_size,
-)
 from lightly_train._task_models.object_detection_components.box_ops import (
     box_cxcywh_to_xyxy,
     box_iou,
@@ -188,7 +185,7 @@ class RTDETRCriterionv2(nn.Module):
         assert loss in loss_map, f"do you really want to compute {loss} loss?"
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
-    def forward(self, outputs, targets, **kwargs):
+    def forward(self, outputs, targets, world_size, **kwargs):
         """This performs the loss computation.
         Parameters:
              outputs: dict of tensors, see the output specification of the model for the format
@@ -204,7 +201,7 @@ class RTDETRCriterionv2(nn.Module):
         )
         if is_dist_available_and_initialized():
             torch.distributed.all_reduce(num_boxes)
-        num_boxes = torch.clamp(num_boxes / kwargs["fabric"].world_size, min=1).item()
+        num_boxes = torch.clamp(num_boxes / world_size, min=1).item()
 
         # Retrieve the matching between the outputs of the last layer and the targets
         matched = self.matcher(outputs_without_aux, targets)

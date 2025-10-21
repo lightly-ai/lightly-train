@@ -6,19 +6,20 @@
 # LICENSE file in the root directory of this source tree.
 #
 import re
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import torch
 from lightning_fabric import Fabric
 from torch import Tensor
-from torch.optim import AdamW, Optimizer
+from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
 from torch.optim.lr_scheduler import LRScheduler, MultiStepLR
 
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
-    DINOv2LTDetrObjectDetectionTaskModel,
+    DINOv2LTDetrObjectDetection,
 )
 from lightly_train._task_models.dinov2_ltdetr_object_detection.transforms import (
     DINOv2LTDetrObjectDetectionTrainTransform,
@@ -40,11 +41,20 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
+class DINOv2LTDetrObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
+    watch_metric: str = "val_total_loss"
+    mode: Literal["min", "max"] = "min"
+
+
 class DINOv2LTDetrObjectDetectionTrainModelArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     default_steps: ClassVar[int] = (
         100_000 // 16 * 72
     )  # TODO (Lionel, 10/25): Adjust default steps.
+
+    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
+        DINOv2LTDetrObjectDetectionTaskSaveCheckpointArgs
+    )
 
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
@@ -54,9 +64,10 @@ class DINOv2LTDetrObjectDetectionTrainModelArgs(TrainModelArgs):
 class DINOv2LTDetrObjectDetectionTrain(TrainModel):
     task = "object_detection"
     train_model_args_cls = DINOv2LTDetrObjectDetectionTrainModelArgs
-    task_model_cls = DINOv2LTDetrObjectDetectionTaskModel
+    task_model_cls = DINOv2LTDetrObjectDetection
     train_transform_cls = DINOv2LTDetrObjectDetectionTrainTransform
     val_transform_cls = DINOv2LTDetrObjectDetectionValTransform
+    save_checkpoint_args_cls = DINOv2LTDetrObjectDetectionTaskSaveCheckpointArgs
 
     def __init__(
         self,
@@ -68,7 +79,7 @@ class DINOv2LTDetrObjectDetectionTrain(TrainModel):
     ) -> None:
         super().__init__()
         self.model_args = model_args
-        self.model = DINOv2LTDetrObjectDetectionTaskModel(
+        self.model = DINOv2LTDetrObjectDetection(
             model_name=model_name,
             image_size=val_transform_args.image_size,
             classes=data_args.names,
@@ -77,19 +88,22 @@ class DINOv2LTDetrObjectDetectionTrain(TrainModel):
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
         )
 
-        matcher = HungarianMatcher(
+        matcher = HungarianMatcher(  # type: ignore[no-untyped-call]
             weight_dict={"cost_class": 2, "cost_bbox": 5, "cost_giou": 2},
+            use_focal_loss=True,
             alpha=0.25,
             gamma=2.0,
         )
 
-        self.criterion = RTDETRCriterionv2(
+        self.criterion = RTDETRCriterionv2(  # type: ignore[no-untyped-call]
             matcher=matcher,
             weight_dict={"loss_vfl": 1, "loss_bbox": 5, "loss_giou": 2},
             losses=["vfl", "boxes"],
             alpha=0.75,
             gamma=2.0,
         )
+
+        self.clip_max_norm = 0.1
 
     def set_train_mode(self) -> None:
         super().set_train_mode()
@@ -100,7 +114,7 @@ class DINOv2LTDetrObjectDetectionTrain(TrainModel):
     ) -> TaskStepResult:
         samples, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
         boxes = _yolo_to_xyxy(boxes)
-        targets = [
+        targets: list[dict[str, Tensor]] = [
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
         ]
@@ -108,18 +122,53 @@ class DINOv2LTDetrObjectDetectionTrain(TrainModel):
             x=samples,
             targets=targets,
         )
+        # Additional kwargs are anyway ignore in RTDETRCriterionv2.
         loss_dict = self.criterion(
-            outputs=outputs, targets=targets, epoch=None, step=None, global_step=step, fabric=fabric
+            outputs=outputs,
+            targets=targets,
+            epoch=None,
+            step=None,
+            global_step=None,
+            world_size=fabric.world_size,
         )
+        total_loss = sum(loss_dict.values())
         return TaskStepResult(
-            loss=sum(loss_dict.values()),
-            log_dict=loss_dict,
+            loss=total_loss,
+            log_dict={**{"train_total_loss": total_loss.item()}, **loss_dict},
         )
 
     def validation_step(
-        self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
+        self,
+        fabric: Fabric,
+        batch: ObjectDetectionBatch,
     ) -> TaskStepResult:
-        raise NotImplementedError()
+        samples, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
+        boxes = _yolo_to_xyxy(boxes)
+        targets = [
+            {"boxes": boxes, "labels": classes}
+            for boxes, classes in zip(boxes, classes)
+        ]
+        with torch.no_grad():
+            outputs = self.model._forward_train(
+                x=samples,
+                targets=targets,
+            )
+            # TODO (Lionel, 10/25): Pass epoch, step, global_step.
+            loss_dict = self.criterion(
+                outputs=outputs,
+                targets=targets,
+                epoch=None,
+                step=None,
+                global_step=None,
+                world_size=fabric.world_size,
+            )
+
+        total_loss = sum(loss_dict.values())
+
+        return TaskStepResult(
+            loss=total_loss,
+            log_dict={**{"val_total_loss": total_loss.item()}, **loss_dict},
+        )
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         param_groups = [
@@ -130,7 +179,7 @@ class DINOv2LTDetrObjectDetectionTrain(TrainModel):
                     for n, p in self.model.named_parameters()
                     if re.match(r"^(?=.*backbone)(?!.*norm).*$", n)
                 ],
-                "lr": 1e-5,
+                "lr": 1e-6,
             },
             {
                 "name": "detector",
@@ -149,17 +198,22 @@ class DINOv2LTDetrObjectDetectionTrain(TrainModel):
             weight_decay=1e-4,
         )
         scheduler = MultiStepLR(optimizer=optim, milestones=[1000], gamma=0.1)
-        # warmup_scheduler = None
+        # TODO (Lionel, 10/25): Use the warmup scheduler.
         return optim, scheduler
 
     def get_task_model(self) -> TaskModel:
         return self.model
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        pass
+        if self.clip_max_norm > 0:
+            fabric.clip_gradients(
+                self.model,
+                optimizer=optimizer,
+                max_norm=self.clip_max_norm,
+            )
 
 
-def _yolo_to_xyxy(boxes: list[Tensor]) -> list[Tensor]:
+def _yolo_to_xyxy(batch_boxes: list[Tensor]) -> list[Tensor]:
     """Convert bounding boxes from YOLO (normalized cx, cy, w, h) format to
     (normalized x_min, y_min, x_max, y_max) format.
 
@@ -171,12 +225,11 @@ def _yolo_to_xyxy(boxes: list[Tensor]) -> list[Tensor]:
         Bounding boxes in (normalized x_min, y_min, x_max, y_max) format.
     """
     converted_boxes = []
-    for box in boxes:
-        x_c, y_c, w, h = box.unbind(-1)
-        x_min = x_c - 0.5 * w
-        y_min = y_c - 0.5 * h
-        x_max = x_c + 0.5 * w
-        y_max = y_c + 0.5 * h
-        converted_box = torch.stack([x_min, y_min, x_max, y_max], dim=-1)
-        converted_boxes.append(converted_box)
+    for sample_boxes in batch_boxes:
+        cxcywh = sample_boxes
+        x_min = cxcywh[:, 0] - cxcywh[:, 2] / 2
+        y_min = cxcywh[:, 1] - cxcywh[:, 3] / 2
+        x_max = cxcywh[:, 0] + cxcywh[:, 2] / 2
+        y_max = cxcywh[:, 1] + cxcywh[:, 3] / 2
+        converted_boxes.append(torch.stack([x_min, y_min, x_max, y_max], dim=-1))
     return converted_boxes
