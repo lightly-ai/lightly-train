@@ -10,24 +10,6 @@
     color: var(--color-brand-primary);
 }
 
-html body .banner-mobile {
-    display: block !important;
-}
-
-html body .banner-desktop {
-    display: none !important;
-}
-
-@media (min-width: 768px) {
-    html body .banner-mobile {
-        display: none !important;
-    }
-
-    html body .banner-desktop {
-        display: block !important;
-    }
-}
-
 /* Simple responsive banner classes */
 .mobile-only {
     display: block;
