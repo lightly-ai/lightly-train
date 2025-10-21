@@ -48,8 +48,9 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # 20210 images / batch size 16 * 31 epochs ~= 40k steps.
     default_steps: ClassVar[int] = 40_000
 
+    # Model args
     backbone_weights: PathLike | None = None
-    drop_path_rate: float = 0.0
+    drop_path_rate: float | Literal["auto"] = "auto"
     num_queries: int | Literal["auto"] = "auto"
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
@@ -86,8 +87,16 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     def resolve_auto(
         self, total_steps: int, model_name: str, model_init_args: dict[str, Any]
     ) -> None:
+        if self.drop_path_rate == "auto":
+            backbone_args = model_init_args.get("backbone_args", {})
+            assert isinstance(backbone_args, dict)  # for mypy
+
+            drop_path_rate = backbone_args.get("drop_path_rate", 0.0)
+            assert isinstance(drop_path_rate, float)  # for mypy
+            self.drop_path_rate = drop_path_rate
+
         if self.num_queries == "auto":
-            num_queries = model_init_args.get("num_queries", 100)
+            num_queries = model_init_args.get("num_queries", 100)  # Default for ADE20K
             assert isinstance(num_queries, int)  # for mypy
             self.num_queries = num_queries
 
