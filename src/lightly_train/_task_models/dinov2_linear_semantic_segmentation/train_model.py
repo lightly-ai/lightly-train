@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import torch
 from lightly.models.utils import get_weight_decay_parameters
@@ -43,9 +43,10 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     # Default comes from PVOC12
     default_steps: ClassVar[int] = 80_000
 
+    # Model args
     backbone_freeze: bool = True
     backbone_weights: PathLike | None = None
-    drop_path_rate: float = 0.0
+    drop_path_rate: float | Literal["auto"] = "auto"
 
     # Gradient clipping. Same value as DINOv2.
     gradient_clip_val: float = 3.0
@@ -64,7 +65,13 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
         model_name: str,
         model_init_args: dict[str, Any],
     ) -> None:
-        pass
+        if self.drop_path_rate == "auto":
+            backbone_args = model_init_args.get("backbone_args", {})
+            assert isinstance(backbone_args, dict)  # for mypy
+
+            drop_path_rate = backbone_args.get("drop_path_rate", 0.0)
+            assert isinstance(drop_path_rate, float)  # for mypy
+            self.drop_path_rate = drop_path_rate
 
 
 class DINOv2LinearSemanticSegmentationTrain(TrainModel):

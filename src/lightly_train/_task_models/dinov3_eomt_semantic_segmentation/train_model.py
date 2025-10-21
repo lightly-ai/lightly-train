@@ -48,9 +48,9 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # 20210 images / batch size 16 * 31 epochs ~= 40k steps.
     default_steps: ClassVar[int] = 40_000
 
+    # Model args
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
-
     num_queries: int | Literal["auto"] = "auto"
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
