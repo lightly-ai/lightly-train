@@ -265,9 +265,8 @@ class CheckpointContext:
         if normalize_args is not None:
             params_dict["image_normalize"] = normalize_args.model_dump()
 
-        # NOTE(Yutong 10/25): backbone_args is not actually passed into the EoMT models.
-        if "backbone_args" in model_init_args:
-            params_dict["backbone_args"] = model_init_args["backbone_args"]
+        if backbone_args := model_init_args.pop("backbone_args", None):
+            model_init_args.update(backbone_args)
 
         skipped_checkpoint_mismatch_keys = (
             {"classes", "class_ignore_index", "image_size"}
