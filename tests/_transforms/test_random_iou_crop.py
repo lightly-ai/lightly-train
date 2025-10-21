@@ -155,20 +155,24 @@ class TestRandomIoUCrop:
         assert transformed_boxes_arr.shape[0] > 0
         assert transformed_classes_arr.shape[0] == transformed_boxes_arr.shape[0]
 
-    def test_crop_with_p_one_and_forced_scale_change(self, bbox_params: BboxParams) -> None:
+    def test_crop_with_p_one_and_forced_scale_change(
+        self, bbox_params: BboxParams
+    ) -> None:
         """Test that with p=1.0 and scale range that excludes 1.0, transformation always occurs."""
         # Use scale range that doesn't include 1.0 to force cropping.
         # Use larger crop_trials and iou_trials to increase chances of finding a valid crop.
         transform = Compose(
-            [RandomIoUCrop(
-                min_scale=0.5, 
-                max_scale=0.9, 
-                sampler_options=[0.0], 
-                p=1.0,
-                crop_trials=100,
-                iou_trials=50
-            )], 
-            bbox_params=bbox_params
+            [
+                RandomIoUCrop(
+                    min_scale=0.5,
+                    max_scale=0.9,
+                    sampler_options=[0.0],
+                    p=1.0,
+                    crop_trials=100,
+                    iou_trials=50,
+                )
+            ],
+            bbox_params=bbox_params,
         )
         image = (np.random.rand(64, 64, 3) * 255).astype(np.uint8)
         boxes = np.array([[10, 10, 50, 50]], dtype=np.float64)
@@ -187,8 +191,10 @@ class TestRandomIoUCrop:
             transformed_classes_arr = np.array(transformed_classes)
 
             # Check if transformation occurred.
-            if (not np.array_equal(transformed_image, image) and 
-                (transformed_image.shape[0] < image.shape[0] or transformed_image.shape[1] < image.shape[1])):
+            if not np.array_equal(transformed_image, image) and (
+                transformed_image.shape[0] < image.shape[0]
+                or transformed_image.shape[1] < image.shape[1]
+            ):
                 transformation_occurred = True
                 # Boxes should be adjusted due to cropping.
                 assert not np.array_equal(transformed_boxes_arr, boxes)
@@ -197,13 +203,15 @@ class TestRandomIoUCrop:
                 assert transformed_classes_arr.shape[0] == classes.shape[0]
                 break
 
-        assert transformation_occurred, "No transformation occurred despite p=1.0 and forced scale change"
+        assert transformation_occurred, (
+            "No transformation occurred despite p=1.0 and forced scale change"
+        )
 
     def test_crop_with_p_zero_never_transforms(self, bbox_params: BboxParams) -> None:
         """Test that with p=0.0, no transformation ever occurs."""
         transform = Compose(
-            [RandomIoUCrop(min_scale=0.3, max_scale=0.8, sampler_options=[0.0], p=0.0)], 
-            bbox_params=bbox_params
+            [RandomIoUCrop(min_scale=0.3, max_scale=0.8, sampler_options=[0.0], p=0.0)],
+            bbox_params=bbox_params,
         )
         image = (np.random.rand(64, 64, 3) * 255).astype(np.uint8)
         boxes = np.array([[10, 10, 50, 50], [20, 20, 40, 40]], dtype=np.float64)
