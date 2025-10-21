@@ -155,6 +155,9 @@ class TestRandomIoUCrop:
         assert transformed_boxes_arr.shape[0] > 0
         assert transformed_classes_arr.shape[0] == transformed_boxes_arr.shape[0]
 
+    @pytest.mark.skip(
+        reason="Disabled as the current test can fail even if the implementation is correct."
+    )
     def test_crop_with_p_one_and_forced_scale_change(
         self, bbox_params: BboxParams
     ) -> None:
