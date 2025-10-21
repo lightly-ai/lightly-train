@@ -100,6 +100,8 @@ Interested in the default augmentation settings for each method? Check the metho
 
 The following arguments are available for all methods.
 
+(method-transform-args-channel-drop)=
+
 ### Channel Drop
 
 Randomly drops channels from the image. Can be disabled by setting to `None`.

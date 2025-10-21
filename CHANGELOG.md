@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Widen PyTorch constraint — remove `<2.6` upper bound to allow PyTorch 2.6 and later that is officially supported by PyTorch Lightning 2.5.
+
 ### Deprecated
 
 ### Removed
@@ -36,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix warning about too few epochs for DINOv2 which occurs with the default epoch calculation.
+- Fix PyTorch bus errors caused by memory-map file write conflicts when launching multiple runs with `.train_semantic_segmentation()`.
 
 ## [0.11.3] - 2025-09-25
 
