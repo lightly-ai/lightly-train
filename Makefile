@@ -294,7 +294,7 @@ install-latest-3.8:
 # Install package with the latest dependencies for Python 3.12.
 .PHONY: install-latest-3.12
 install-latest-3.12:
-	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY312}"
+	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY312}" "torch<2.9.0"
 
 # Install package with same dependencies as for Python 3.12
 .PHONY: install-latest-3.13

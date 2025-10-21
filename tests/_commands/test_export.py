@@ -83,7 +83,7 @@ def test_export__torch_model(tmp_path: Path) -> None:
             part=part,
             format="torch_model",
         )
-        loaded_model = torch.load(out_path)
+        loaded_model = torch.load(out_path, weights_only=False)
         assert isinstance(loaded_model, type(expected))
         _assert_state_dict_equal(loaded_model.state_dict(), expected.state_dict())
 
