@@ -74,7 +74,7 @@ def binary_mask_from_polygon(
     mask = Image.new("1", (width, height), 0)
     xy = [(x * width, y * height) for x, y in zip(polygon[0::2], polygon[1::2])]
     ImageDraw.Draw(mask).polygon(xy, outline=1, fill=1)
-    return np.array(mask, dtype=np.bool)
+    return np.array(mask, dtype=np.bool_)
 
 
 def binary_masks_from_polygons(
