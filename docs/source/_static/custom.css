@@ -393,4 +393,22 @@ details,
 [data-theme="dark"] .sd-dropdown[open],
 [data-theme="dark"] .myst-dropdown[open] {
     box-shadow: 0 6px 24px rgba(230, 163, 211, 0.2);
+  
+/* Simple responsive banner classes */
+.mobile-only {
+    display: block;
+}
+
+.desktop-only {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .mobile-only {
+        display: none;
+    }
+    
+    .desktop-only {
+        display: block;
+    }
 }
