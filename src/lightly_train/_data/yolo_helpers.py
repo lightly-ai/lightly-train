@@ -101,4 +101,4 @@ def binary_masks_from_polygons(
     if binary_masks:
         return np.stack(binary_masks)
     else:
-        return np.zeros((0, height, width), dtype=np.bool)
+        return np.zeros((0, height, width), dtype=np.bool_)
