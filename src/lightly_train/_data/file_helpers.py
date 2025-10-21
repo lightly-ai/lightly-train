@@ -221,6 +221,12 @@ def open_yolo_label_numpy(
 ) -> tuple[NDArrayBBoxes, NDArrayClasses, list[NDArrayPolygon]]:
     """Open a YOLO label file and return the bounding boxes, classes, and polygons
     as numpy arrays
+
+    Returns:
+        (bboxes, classes, polygons) tuple. All values are in normalized coordinates
+        between [0, 1]. Bboxes are formatted as (x_center, y_center, width, height).
+        Polygons are list of numpy arrays of shape (n_points*2,) and each array is a
+        sequence of x0, y0, x1, y1, ... coordinates.
     """
     bboxes = []
     classes = []
