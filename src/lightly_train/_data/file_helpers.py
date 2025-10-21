@@ -26,6 +26,7 @@ from lightly_train.types import (
     NDArrayBBoxes,
     NDArrayClasses,
     NDArrayImage,
+    NDArrayPolygon,
     PathLike,
 )
 
@@ -215,19 +216,32 @@ def _open_image_numpy__with_pil(
     return image_np
 
 
-def open_yolo_label_numpy(label_path: Path) -> tuple[NDArrayBBoxes, NDArrayClasses]:
-    """Open a YOLO label file and return the bounding boxes and classes as numpy arrays."""
+def open_yolo_label_numpy(
+    label_path: Path,
+) -> tuple[NDArrayBBoxes, NDArrayClasses, list[NDArrayPolygon]]:
+    """Open a YOLO label file and return the bounding boxes, classes, and polygons
+    as numpy arrays
+    """
     bboxes = []
     classes = []
+    polygons = []
     with open(label_path, "r") as f:
         for line in f.readlines():
             line = line.strip()
             # Skip empty lines.
             if not line:
                 continue
-            class_id, x_center, y_center, width, height = (
-                float(x) for x in line.split()
-            )
+            parts = [float(x) for x in line.split()]
+            class_id = parts[0]
+            x_center = parts[1]
+            y_center = parts[2]
+            width = parts[3]
+            height = parts[4]
+            polygon = np.array(parts[5:], dtype=np.float64)
             bboxes.append([x_center, y_center, width, height])
             classes.append(int(class_id))
-    return np.array(bboxes, dtype=np.float64), np.array(classes, dtype=np.int64)
+            polygons.append(polygon)
+
+    bboxes_np = np.array(bboxes, dtype=np.float64)
+    classes_np = np.array(classes, dtype=np.int64)
+    return bboxes_np, classes_np, polygons
