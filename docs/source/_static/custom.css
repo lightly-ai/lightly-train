@@ -9,3 +9,57 @@
 .sidebar-version:visited {
     color: var(--color-brand-primary);
 }
+
+/* Responsive banner styles with HTML structure */
+.lightly-banner-container {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.lightly-banner-container a {
+    display: block;
+    text-decoration: none;
+}
+
+.lightly-banner-container img {
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+}
+
+html body .banner-mobile {
+    display: block !important;
+}
+
+html body .banner-desktop {
+    display: none !important;
+}
+
+@media (min-width: 768px) {
+    html body .banner-mobile {
+        display: none !important;
+    }
+
+    html body .banner-desktop {
+        display: block !important;
+    }
+}
+
+/* Simple responsive banner classes */
+.mobile-only {
+    display: block;
+}
+
+.desktop-only {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .mobile-only {
+        display: none;
+    }
+    
+    .desktop-only {
+        display: block;
+    }
+}
