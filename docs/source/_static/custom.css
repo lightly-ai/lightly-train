@@ -10,23 +10,6 @@
     color: var(--color-brand-primary);
 }
 
-/* Responsive banner styles with HTML structure */
-.lightly-banner-container {
-    text-align: center;
-    margin-bottom: 2rem;
-}
-
-.lightly-banner-container a {
-    display: block;
-    text-decoration: none;
-}
-
-.lightly-banner-container img {
-    max-width: 100%;
-    height: auto;
-    margin: 0 auto;
-}
-
 html body .banner-mobile {
     display: block !important;
 }
