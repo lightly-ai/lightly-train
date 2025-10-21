@@ -79,8 +79,6 @@ class RandomIoUCropBase(RandomCrop):  # type: ignore[misc]
         self.crop_trials = crop_trials
         self.iou_trials = iou_trials
         self.p = p
-        if self.p < 1.0:
-            raise NotImplementedError("p < 1.0 is not implemented yet.")
 
 
 def _get_crop_coords(
@@ -164,18 +162,24 @@ class RandomIoUCropV3(RandomIoUCropBase):
     ) -> dict[str, Any]:
         orig_image_shape = data["image"].shape[:2]
         orig_bboxes = np.array(data["bboxes"][:, :4])
-        crop_coords = _get_crop_coords(
-            orig_shape=orig_image_shape,
-            min_scale=self.min_scale,
-            max_scale=self.max_scale,
-            min_aspect_ratio=self.min_aspect_ratio,
-            max_aspect_ratio=self.max_aspect_ratio,
-            sampler_options=self.options,
-            crop_trials=self.crop_trials,
-            iou_trials=self.iou_trials,
-            orig_bboxes=orig_bboxes,
-        )
-        return {"crop_coords": crop_coords, "pad_params": None}
+        if np.random.rand() < self.p:
+            crop_coords = _get_crop_coords(
+                orig_shape=orig_image_shape,
+                min_scale=self.min_scale,
+                max_scale=self.max_scale,
+                min_aspect_ratio=self.min_aspect_ratio,
+                max_aspect_ratio=self.max_aspect_ratio,
+                sampler_options=self.options,
+                crop_trials=self.crop_trials,
+                iou_trials=self.iou_trials,
+                orig_bboxes=orig_bboxes,
+            )
+            return {"crop_coords": crop_coords, "pad_params": None}
+        else:
+            return {
+                "crop_coords": (0, 0, orig_image_shape[0], orig_image_shape[1]),
+                "pad_params": None,
+            }
 
 
 class RandomIoUCropV2(RandomIoUCropBase):
@@ -187,24 +191,41 @@ class RandomIoUCropV2(RandomIoUCropBase):
         else:
             orig_image_shape = (params["rows"], params["cols"])
 
-        # If no bboxes are provided, create empty 2D array.
-        if "bboxes" not in kwargs or len(kwargs["bboxes"]) == 0:
-            kwargs["bboxes"] = np.zeros((0, 4), dtype=np.float32)
-        orig_bboxes = np.array(kwargs["bboxes"])[:, :4]
+        if np.random.rand() < self.p:
+            # If no bboxes are provided, create empty 2D array.
+            if "bboxes" not in kwargs or len(kwargs["bboxes"]) == 0:
+                kwargs["bboxes"] = np.zeros((0, 4), dtype=np.float32)
+            orig_bboxes = np.array(kwargs["bboxes"])[:, :4]
 
-        crop_coords = _get_crop_coords(
-            orig_shape=orig_image_shape,
-            min_scale=self.min_scale,
-            max_scale=self.max_scale,
-            min_aspect_ratio=self.min_aspect_ratio,
-            max_aspect_ratio=self.max_aspect_ratio,
-            sampler_options=self.options,
-            crop_trials=self.crop_trials,
-            iou_trials=self.iou_trials,
-            orig_bboxes=orig_bboxes,
-        )
-        params = params.copy()
-        params.update({"crop_coords": crop_coords, "orig_img_shape": orig_image_shape})
+            crop_coords = _get_crop_coords(
+                orig_shape=orig_image_shape,
+                min_scale=self.min_scale,
+                max_scale=self.max_scale,
+                min_aspect_ratio=self.min_aspect_ratio,
+                max_aspect_ratio=self.max_aspect_ratio,
+                sampler_options=self.options,
+                crop_trials=self.crop_trials,
+                iou_trials=self.iou_trials,
+                orig_bboxes=orig_bboxes,
+            )
+            params = params.copy()
+            params.update(
+                {"crop_coords": crop_coords, "orig_img_shape": orig_image_shape}
+            )
+
+        else:
+            params = params.copy()
+            params.update(
+                {
+                    "crop_coords": (
+                        0,
+                        0,
+                        orig_image_shape[0],
+                        orig_image_shape[1],
+                    ),
+                    "orig_img_shape": orig_image_shape,
+                }
+            )
         return params
 
     def apply(
@@ -251,24 +272,40 @@ class RandomIoUCropV1(RandomIoUCropBase):
         else:
             orig_image_shape = (params["rows"], params["cols"])
 
-        # If no bboxes are provided, create empty 2D array.
-        if "bboxes" not in kwargs or len(kwargs["bboxes"]) == 0:
-            kwargs["bboxes"] = np.zeros((0, 4), dtype=np.float32)
-        orig_bboxes = np.array(kwargs["bboxes"])[:, :4]
+        if np.random.rand() < self.p:
+            # If no bboxes are provided, create empty 2D array.
+            if "bboxes" not in kwargs or len(kwargs["bboxes"]) == 0:
+                kwargs["bboxes"] = np.zeros((0, 4), dtype=np.float32)
+            orig_bboxes = np.array(kwargs["bboxes"])[:, :4]
 
-        crop_coords = _get_crop_coords(
-            orig_shape=orig_image_shape,
-            min_scale=self.min_scale,
-            max_scale=self.max_scale,
-            min_aspect_ratio=self.min_aspect_ratio,
-            max_aspect_ratio=self.max_aspect_ratio,
-            sampler_options=self.options,
-            crop_trials=self.crop_trials,
-            iou_trials=self.iou_trials,
-            orig_bboxes=orig_bboxes,
-        )
-        params = params.copy()
-        params.update({"crop_coords": crop_coords, "orig_img_shape": orig_image_shape})
+            crop_coords = _get_crop_coords(
+                orig_shape=orig_image_shape,
+                min_scale=self.min_scale,
+                max_scale=self.max_scale,
+                min_aspect_ratio=self.min_aspect_ratio,
+                max_aspect_ratio=self.max_aspect_ratio,
+                sampler_options=self.options,
+                crop_trials=self.crop_trials,
+                iou_trials=self.iou_trials,
+                orig_bboxes=orig_bboxes,
+            )
+            params = params.copy()
+            params.update(
+                {"crop_coords": crop_coords, "orig_img_shape": orig_image_shape}
+            )
+        else:
+            params = params.copy()
+            params.update(
+                {
+                    "crop_coords": (
+                        0,
+                        0,
+                        orig_image_shape[0],
+                        orig_image_shape[1],
+                    ),
+                    "orig_img_shape": orig_image_shape,
+                }
+            )
         return params
 
     def apply(
