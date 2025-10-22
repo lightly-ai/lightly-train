@@ -72,10 +72,10 @@ class DINOv2LinearSemanticSegmentationTrainTransformArgs(
     Defines default transform arguments for semantic segmentation training with DINOv2.
     """
 
-    image_size: tuple[int, int] = (518, 518)
+    image_size: tuple[int, int] | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
-    normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
+    normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     color_jitter: DINOv2LinearSemanticSegmentationColorJitterArgs | None = Field(
         default_factory=DINOv2LinearSemanticSegmentationColorJitterArgs
@@ -87,6 +87,33 @@ class DINOv2LinearSemanticSegmentationTrainTransformArgs(
     random_crop: RandomCropArgs = Field(
         default_factory=DINOv2LinearSemanticSegmentationRandomCropArgs
     )
+
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
+        super().resolve_auto(model_init_args=model_init_args)
+        if self.image_size == "auto":
+            image_size = model_init_args.get("image_size", (518, 518))
+            assert isinstance(image_size, tuple)
+            self.image_size = image_size
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
+
+        if self.normalize == "auto":
+            normalize = model_init_args.get("image_normalize")
+            if normalize is None:
+                self.normalize = NormalizeArgs()
+            else:
+                assert isinstance(normalize, dict)
+                self.normalize = NormalizeArgs.from_dict(normalize)
+
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                self.num_channels = len(self.normalize.mean)
 
 
 class DINOv2LinearSemanticSegmentationValTransformArgs(
