@@ -91,7 +91,9 @@ class CheckpointMetadata(PydanticConfig):
 
 
 class BaseCheckpointContext(PydanticConfig):
-    model_config = ConfigDict(arbitrary_types_allowed=True) # relax validation for Tensor and DataLoader
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True
+    )  # relax validation for Tensor and DataLoader
 
     path: Path
     metadata: CheckpointMetadata
