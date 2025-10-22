@@ -81,16 +81,23 @@ def binary_mask_from_polygon(
     # for details.
     polygons = []
     current_polygon: list[tuple[float, float]] = []
+    prev_point = None
     for point in points:
-        if current_polygon and current_polygon[0] == point:
+        if prev_point == point:
+            # Skip duplicate points
+            continue
+        if len(current_polygon) >= 3 and current_polygon[0] == point:
             # Polygon is closed if current point matches the first point.
             # Start a new polygon.
             current_polygon.append(point)
-            if len(current_polygon) >= 3:
+            if len(current_polygon) >= 4:
                 polygons.append(current_polygon)
             current_polygon = []
         else:
             current_polygon.append(point)
+        prev_point = point
+
+    # Add last polygon. Only 3 points required as it might not be closed.
     if len(current_polygon) >= 3:
         polygons.append(current_polygon)
 

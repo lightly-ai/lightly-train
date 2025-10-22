@@ -236,7 +236,7 @@ def open_yolo_object_detection_label_numpy(
         height = parts[4]
         bboxes.append([x_center, y_center, width, height])
         classes.append(int(class_id))
-    bboxes_np = np.array(bboxes, dtype=np.float64)
+    bboxes_np = np.array(bboxes) if bboxes else np.zeros((0, 4), dtype=np.float64)
     classes_np = np.array(classes, dtype=np.int64)
     return bboxes_np, classes_np
 
@@ -264,7 +264,7 @@ def open_yolo_instance_segmentation_label_numpy(
         polygons.append(polygon)
         bboxes.append(_bbox_from_polygon(polygon))
     classes_np = np.array(classes, dtype=np.int64)
-    bboxes_np = np.stack(bboxes, dtype=np.float64)
+    bboxes_np = np.stack(bboxes) if bboxes else np.zeros((0, 4), dtype=np.float64)
     return polygons, bboxes_np, classes_np
 
 
