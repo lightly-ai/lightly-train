@@ -65,9 +65,9 @@ def train_object_detection(
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
-    """Train a semantic segmentation model.
+    """Train an object detection model.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html
+    See the documentation for more information: https://docs.lightly.ai/train/stable/object_detection.html
 
         The training process can be monitored with TensorBoard:
 
