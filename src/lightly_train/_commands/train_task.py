@@ -257,6 +257,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_model_cls=train_model_cls,
         transform_args=config.transform_args,
         ignore_index=config.data.ignore_index,
+        model_init_args=model_init_args,
     )
     train_transform = helpers.get_train_transform(
         train_model_cls=train_model_cls,

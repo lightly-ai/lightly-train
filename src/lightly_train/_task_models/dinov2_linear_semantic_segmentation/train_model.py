@@ -19,6 +19,7 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
@@ -96,6 +97,8 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             MulticlassJaccardIndex,
         )
 
+        image_size = no_auto(val_transform_args.image_size)
+
         self.model_args = model_args
         self.model = DINOv2LinearSemanticSegmentation(
             model_name=model_name,
@@ -108,7 +111,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
             },
-            image_size=val_transform_args.image_size,
+            image_size=image_size,
             image_normalize=val_transform_args.normalize.model_dump(),
         )
         self.criterion = CrossEntropyLoss(ignore_index=data_args.ignore_index)

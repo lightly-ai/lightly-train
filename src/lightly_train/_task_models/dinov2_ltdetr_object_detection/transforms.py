@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Literal, Sequence
+from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
 from pydantic import Field
@@ -99,7 +99,7 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     random_flip: DINOv2LTDetrObjectDetectionRandomFlipArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionRandomFlipArgs
     )
-    image_size: tuple[int, int] = (644, 644)
+    image_size: tuple[int, int] | Literal["auto"] = "auto"
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
@@ -111,6 +111,19 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
             format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0
         ),
     )
+
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
+        super().resolve_auto(model_init_args=model_init_args)
+        if self.image_size == "auto":
+            image_size = model_init_args.get("image_size", (644, 644))
+            assert isinstance(image_size, tuple)
+            self.image_size = image_size
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
 
 
 class DINOv2LTDetrObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):

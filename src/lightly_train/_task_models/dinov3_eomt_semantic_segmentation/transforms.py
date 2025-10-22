@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Literal, Sequence
+from typing import Any, Literal, Sequence
 
 from pydantic import Field
 
@@ -73,7 +73,7 @@ class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
     """
 
     # TODO(Guarin, 08/25): Check if we should change default to 512.
-    image_size: tuple[int, int] = (518, 518)
+    image_size: tuple[int, int] | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
@@ -89,13 +89,26 @@ class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
         default_factory=DINOv3EoMTSemanticSegmentationRandomCropArgs
     )
 
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
+        super().resolve_auto(model_init_args=model_init_args)
+        if self.image_size == "auto":
+            image_size = model_init_args.get("image_size", (518, 518))
+            assert isinstance(image_size, tuple)
+            self.image_size = image_size
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
+
 
 class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransformArgs):
     """
     Defines default transform arguments for semantic segmentation validation with DINOv3.
     """
 
-    image_size: tuple[int, int] = (518, 518)
+    image_size: tuple[int, int] | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
@@ -106,6 +119,19 @@ class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
         default_factory=DINOv3EoMTSemanticSegmentationSmallestMaxSizeArgs
     )
     random_crop: RandomCropArgs | None = None
+
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
+        super().resolve_auto(model_init_args=model_init_args)
+        if self.image_size == "auto":
+            image_size = model_init_args.get("image_size", (518, 518))
+            assert isinstance(image_size, tuple)
+            self.image_size = image_size
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
 
 
 class DINOv3EoMTSemanticSegmentationTrainTransform(SemanticSegmentationTransform):
