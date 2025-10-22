@@ -184,14 +184,11 @@ class FinetuneCheckpointContext(BaseCheckpointContext):
         state: TrainTaskState,
         reuse_class_head: bool,
     ) -> None:
-        """Restore model, optimizer, and scheduler state from the checkpoint.
+        """Restore model state from the checkpoint for fine-tuning.
 
         Args:
             state: Training state container to populate with checkpoint data.
             reuse_class_head: Whether to keep class-specific layers when fine-tuning.
-
-        Raises:
-            ValueError: If expected components are missing from the checkpoint.
         """
 
         train_model = state["train_model"]
@@ -245,13 +242,10 @@ class ResumeCheckpointContext(BaseCheckpointContext):
         *,
         state: TrainTaskState,
     ) -> None:
-        """Restore model, optimizer, and scheduler state from the checkpoint.
+        """Restore model, optimizer, scheduler, dataloader, and step state from the checkpoint for resuming training.
 
         Args:
             state: Training state container to populate with checkpoint data.
-
-        Raises:
-            ValueError: If expected components are missing from the checkpoint.
         """
 
         train_model = state["train_model"]
@@ -262,6 +256,7 @@ class ResumeCheckpointContext(BaseCheckpointContext):
         optimizer.load_state_dict(self.optimizer_state)
         scheduler.load_state_dict(self.scheduler_state)
 
+        state["train_dataloader"] = self.train_dataloader
         state["step"] = self.step
 
 
