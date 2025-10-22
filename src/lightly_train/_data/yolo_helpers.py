@@ -80,7 +80,7 @@ def binary_mask_from_polygon(
     # See https://github.com/ultralytics/yolov5/issues/11476#issuecomment-1537281864
     # for details.
     polygons = []
-    current_polygon = []
+    current_polygon: list[tuple[float, float]] = []
     for point in points:
         if current_polygon and current_polygon[0] == point:
             # Polygon is closed if current point matches the first point.
