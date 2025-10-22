@@ -179,6 +179,7 @@ class YOLOObjectDetectionDatasetArgs(TaskDatasetArgs):
         ):
             image_filepath = self.image_dir / Path(image_filename)
             label_filepath = self.label_dir / Path(image_filename).with_suffix(".txt")
+            # TODO (Thomas, 10/25): Log warning if label file does not exist. And keep track of how many files are missing labels.
             if label_filepath.exists():
                 yield {
                     "image_path": str(image_filepath),
