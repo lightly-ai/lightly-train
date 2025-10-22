@@ -303,7 +303,8 @@ class HybridEncoder(nn.Module):
         self.downsample_convs = nn.ModuleList()
         self.pan_blocks = nn.ModuleList()
         for _ in range(len(in_channels) - 1):
-            # Only allocate if needed, otherwise causes errors in distributed training.
+            # Allocate only when upsampling is enabled. Otherwise, this layer is detected as an
+            # unused parameter during distributed training, causing training to fail.
             if self.upsample:
                 self.downsample_convs.append(
                     ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
