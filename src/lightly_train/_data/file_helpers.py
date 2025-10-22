@@ -216,38 +216,87 @@ def _open_image_numpy__with_pil(
     return image_np
 
 
-def open_yolo_label_numpy(
+def open_yolo_object_detection_label_numpy(
     label_path: Path,
-) -> tuple[NDArrayBBoxes, NDArrayClasses, list[NDArrayPolygon]]:
-    """Open a YOLO label file and return the bounding boxes, classes, and polygons
-    as numpy arrays
+) -> tuple[NDArrayBBoxes, NDArrayClasses]:
+    """Open a YOLO label file and return the bounding boxes and classes as numpy arrays.
 
     Returns:
-        (bboxes, classes, polygons) tuple. All values are in normalized coordinates
+        (bboxes, classes) tuple. All values are in normalized coordinates
         between [0, 1]. Bboxes are formatted as (x_center, y_center, width, height).
-        Polygons are list of numpy arrays of shape (n_points*2,) and each array is a
-        sequence of x0, y0, x1, y1, ... coordinates.
     """
     bboxes = []
     classes = []
+    for line in _iter_yolo_label_lines(label_path=label_path):
+        parts = [float(x) for x in line.split()]
+        class_id = parts[0]
+        x_center = parts[1]
+        y_center = parts[2]
+        width = parts[3]
+        height = parts[4]
+        bboxes.append([x_center, y_center, width, height])
+        classes.append(int(class_id))
+    bboxes_np = np.array(bboxes, dtype=np.float64)
+    classes_np = np.array(classes, dtype=np.int64)
+    return bboxes_np, classes_np
+
+
+def open_yolo_instance_segmentation_label_numpy(
+    label_path: Path,
+) -> tuple[list[NDArrayPolygon], NDArrayBBoxes, NDArrayClasses]:
+    """Open a YOLO label file and return the polygons, bboxes, and classes as numpy
+    arrays.
+
+    Returns:
+        (polygons, bboxes, classes) tuple. All values are in normalized coordinates
+        between [0, 1]. Polygons are list of numpy arrays of shape (n_points*2,) and
+        each array is a sequence of x0, y0, x1, y1, ... coordinates.
+        Bboxes are formatted as (x_center, y_center, width, height).
+    """
+    classes = []
     polygons = []
+    bboxes = []
+    for line in _iter_yolo_label_lines(label_path=label_path):
+        parts = [float(x) for x in line.split()]
+        class_id = parts[0]
+        polygon = np.array(parts[1:], dtype=np.float64)
+        classes.append(int(class_id))
+        polygons.append(polygon)
+        bboxes.append(_bbox_from_polygon(polygon))
+    classes_np = np.array(classes, dtype=np.int64)
+    bboxes_np = np.stack(bboxes, dtype=np.float64)
+    return polygons, bboxes_np, classes_np
+
+
+def _bbox_from_polygon(polygon: NDArrayPolygon) -> NDArrayBBoxes:
+    xs = polygon[0::2]
+    ys = polygon[1::2]
+    x_min = np.min(xs)
+    x_max = np.max(xs)
+    y_min = np.min(ys)
+    y_max = np.max(ys)
+    x_center = (x_min + x_max) / 2.0
+    y_center = (y_min + y_max) / 2.0
+    width = x_max - x_min
+    height = y_max - y_min
+    bbox = np.array([x_center, y_center, width, height], dtype=np.float64)
+    return bbox
+
+
+def _iter_yolo_label_lines(label_path: Path) -> Iterable[str]:
+    """Yield lines from a YOLO label file.
+
+    Skips empty and duplicate lines.
+    """
+    lines = set()
     with open(label_path, "r") as f:
         for line in f.readlines():
             line = line.strip()
             # Skip empty lines.
             if not line:
                 continue
-            parts = [float(x) for x in line.split()]
-            class_id = parts[0]
-            x_center = parts[1]
-            y_center = parts[2]
-            width = parts[3]
-            height = parts[4]
-            polygon = np.array(parts[5:], dtype=np.float64)
-            bboxes.append([x_center, y_center, width, height])
-            classes.append(int(class_id))
-            polygons.append(polygon)
-
-    bboxes_np = np.array(bboxes, dtype=np.float64)
-    classes_np = np.array(classes, dtype=np.int64)
-    return bboxes_np, classes_np, polygons
+            # Skip duplicate lines.
+            if line in lines:
+                continue
+            lines.add(line)
+            yield line

@@ -90,8 +90,10 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
             raise FileNotFoundError(f"Label file '{label_path}' does not exist.")
 
         image_np = file_helpers.open_image_numpy(image_path)
-        bboxes_np, class_labels_np, polygons_np = file_helpers.open_yolo_label_numpy(
-            label_path
+        polygons_np, bboxes_np, class_labels_np = (
+            file_helpers.open_yolo_instance_segmentation_label_numpy(
+                label_path=label_path
+            )
         )
 
         binary_masks_np = yolo_helpers.binary_masks_from_polygons(

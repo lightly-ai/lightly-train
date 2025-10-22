@@ -20,12 +20,12 @@ from lightly_train._transforms.instance_segmentation_transform import (
     InstanceSegmentationTransformArgs,
 )
 
-from ..helpers import create_yolo_dataset
+from .. import helpers
 
 
 class TestYOLOInstanceSegmentationDataset:
     def test__split_first(self, tmp_path: Path) -> None:
-        create_yolo_dataset(
+        helpers.create_yolo_instance_segmentation_dataset(
             tmp_path=tmp_path, split_first=True, num_files=2, height=64, width=128
         )
 
@@ -74,7 +74,7 @@ class TestYOLOInstanceSegmentationDataset:
         assert sample["classes"].shape == (1,)
 
     def test__split_last(self, tmp_path: Path) -> None:
-        create_yolo_dataset(
+        helpers.create_yolo_instance_segmentation_dataset(
             tmp_path=tmp_path, split_first=False, num_files=2, height=64, width=128
         )
 

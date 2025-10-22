@@ -72,8 +72,30 @@ def binary_mask_from_polygon(
         Binary mask with shape (H, W) where all points inside the polygon are 1.
     """
     mask = Image.new("1", (width, height), 0)
-    xy = [(x * width, y * height) for x, y in zip(polygon[0::2], polygon[1::2])]
-    ImageDraw.Draw(mask).polygon(xy, outline=1, fill=1)
+    points = [(x * width, y * height) for x, y in zip(polygon[0::2], polygon[1::2])]
+
+    # Split the points into multiple polygons if necessary. A single YOLO polygon line
+    # can contain multiple polygons connected by linking the last point of one polygon
+    # to the first point of the next polygon with a line.
+    # See https://github.com/ultralytics/yolov5/issues/11476#issuecomment-1537281864
+    # for details.
+    polygons = []
+    current_polygon = []
+    for point in points:
+        if current_polygon and current_polygon[0] == point:
+            # Polygon is closed if current point matches the first point.
+            # Start a new polygon.
+            current_polygon.append(point)
+            if len(current_polygon) >= 3:
+                polygons.append(current_polygon)
+            current_polygon = []
+        else:
+            current_polygon.append(point)
+    if len(current_polygon) >= 3:
+        polygons.append(current_polygon)
+
+    for poly in polygons:
+        ImageDraw.Draw(mask).polygon(poly, outline=1, fill=1)
     return np.array(mask, dtype=np.bool_)
 
 
