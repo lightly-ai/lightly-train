@@ -24,6 +24,7 @@ from lightly_train._transforms.object_detection_transform import (
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
     RandomFlipArgs,
+    RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
     ResizeArgs,
@@ -39,6 +40,7 @@ class DummyTransformArgs(ObjectDetectionTransformArgs):
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: RandomPhotometricDistortArgs | None = None
     random_zoom_out: RandomZoomOutArgs | None = None
+    random_iou_crop: RandomIoUCropArgs | None = None
     random_flip: RandomFlipArgs | None = None
     image_size: tuple[int, int] = (32, 32)
     stop_policy: StopPolicyArgs | None = None

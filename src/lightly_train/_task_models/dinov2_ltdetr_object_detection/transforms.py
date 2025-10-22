@@ -18,6 +18,7 @@ from lightly_train._transforms.object_detection_transform import (
 )
 from lightly_train._transforms.transform import (
     RandomFlipArgs,
+    RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
     ResizeArgs,
@@ -40,6 +41,17 @@ class DINOv2LTDetrObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
     prob: float = 0.5
     fill: float = 0.0
     side_range: tuple[float, float] = (1.0, 4.0)
+
+
+class DINOv2LTDetrObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
+    min_scale: float = 0.3
+    max_scale: float = 1.0
+    min_aspect_ratio: float = 0.5
+    max_aspect_ratio: float = 2.0
+    sampler_options: Sequence[float] | None = None
+    crop_trials: int = 40
+    iou_trials: int = 1000
+    prob: float = 0.8
 
 
 class DINOv2LTDetrObjectDetectionRandomFlipArgs(RandomFlipArgs):
@@ -86,6 +98,9 @@ class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     random_zoom_out: DINOv2LTDetrObjectDetectionRandomZoomOutArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionRandomZoomOutArgs
     )
+    random_iou_crop: DINOv2LTDetrObjectDetectionRandomIoUCropArgs | None = Field(
+        default_factory=DINOv2LTDetrObjectDetectionRandomIoUCropArgs
+    )
     random_flip: DINOv2LTDetrObjectDetectionRandomFlipArgs | None = Field(
         default_factory=DINOv2LTDetrObjectDetectionRandomFlipArgs
     )
@@ -109,6 +124,7 @@ class DINOv2LTDetrObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: None = None
     random_zoom_out: None = None
+    random_iou_crop: None = None
     random_flip: None = None
     image_size: tuple[int, int] = (644, 644)
     stop_policy: None = None

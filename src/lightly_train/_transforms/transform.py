@@ -58,6 +58,17 @@ class RandomFlipArgs(PydanticConfig):
     vertical_prob: float = 0.0
 
 
+class RandomIoUCropArgs(PydanticConfig):
+    min_scale: float
+    max_scale: float
+    min_aspect_ratio: float
+    max_aspect_ratio: float
+    sampler_options: Sequence[float] | None
+    crop_trials: int
+    iou_trials: int
+    prob: float
+
+
 class RandomPhotometricDistortArgs(PydanticConfig):
     brightness: tuple[float, float] = Field(strict=False)
     contrast: tuple[float, float] = Field(strict=False)

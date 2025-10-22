@@ -89,9 +89,11 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
     def get_params(self) -> dict[str, Any]:
         if self.step_seeding:
             rng = np.random.default_rng(self.step + self.seed_offset)
-            return {"idx": rng.integers(0, len(self.transforms))}
+            idx = int(rng.integers(0, len(self.transforms)))
+            return {"idx": idx}
         else:
-            return {"idx": np.random.randint(0, len(self.transforms))}
+            idx = int(np.random.randint(0, len(self.transforms)))
+            return {"idx": idx}
 
     def apply(
         self, img: NDArray[np.int64], idx: int, **params: Any
