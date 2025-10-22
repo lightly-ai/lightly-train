@@ -119,9 +119,6 @@ class MaskSemanticSegmentationDataset(TaskDataset):
             )
         }
 
-    def __len__(self) -> int:
-        return len(self.image_info)
-
     def get_binary_masks(self, mask: Tensor) -> BinaryMasksDict:
         # This follows logic from:
         # https://github.com/tue-mps/eomt/blob/716cbd562366b9746804579b48b866da487d9485/datasets/ade20k_semantic.py#L47-L48

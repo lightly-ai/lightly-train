@@ -40,9 +40,6 @@ class YOLOObjectDetectionDataset(TaskDataset):
             transform=transform, dataset_args=dataset_args, image_info=image_info
         )
 
-    def __len__(self) -> int:
-        return len(self.image_info)
-
     def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
         # Load the image.
         image_path = Path(self.image_info[index]["image_path"])

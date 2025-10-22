@@ -44,7 +44,7 @@ class TaskDataset(Dataset[TaskDatasetItem]):
         return self._transform
 
     def __len__(self) -> int:
-        raise NotImplementedError()
+        return len(self.image_info)
 
     def __getitem__(self, index: int) -> TaskDatasetItem:
         raise NotImplementedError()
