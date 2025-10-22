@@ -97,8 +97,8 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
         if self.num_joint_blocks == "auto":
             if num_joint_blocks := model_init_args.get("num_joint_blocks"):
+                assert isinstance(num_joint_blocks, int)  # for mypy
                 self.num_joint_blocks = num_joint_blocks
-                assert isinstance(self.num_joint_blocks, int)  # for mypy
             else:
                 match = re.match(
                     r"dinov3/(?P<model_size>vit(s|l|b|g|h|7b)).*", model_name
