@@ -20,6 +20,7 @@ from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
+from pydantic import ConfigDict
 from torch import Tensor
 from torch.utils.data import DataLoader
 
@@ -90,6 +91,8 @@ class CheckpointMetadata(PydanticConfig):
 
 
 class BaseCheckpointContext(PydanticConfig):
+    model_config = ConfigDict(arbitrary_types_allowed=True) # relax validation for Tensor and DataLoader
+
     path: Path
     metadata: CheckpointMetadata
     train_model_state: dict[str, Tensor]

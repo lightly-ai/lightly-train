@@ -133,13 +133,26 @@ class DINOv2LTDetrObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_zoom_out: None = None
     random_iou_crop: None = None
     random_flip: None = None
-    image_size: tuple[int, int] = (644, 644)
+    image_size: tuple[int, int] | Literal["auto"] = "auto"
     stop_policy: None = None
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
             format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0
         ),
     )
+
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
+        super().resolve_auto(model_init_args=model_init_args)
+        if self.image_size == "auto":
+            image_size = model_init_args.get("image_size", (644, 644))
+            assert isinstance(image_size, tuple)
+            self.image_size = image_size
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
 
 
 class DINOv2LTDetrObjectDetectionTrainTransform(ObjectDetectionTransform):
