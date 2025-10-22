@@ -61,7 +61,7 @@ class DINOv2LTDetrObjectDetectionTrainModelArgs(TrainModelArgs):
     backbone_args: dict[str, Any] = {}
 
 
-class DINOv2LTDetrObjectDetectionTrain(TrainModel):
+class DINOv2LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
     train_model_args_cls = DINOv2LTDetrObjectDetectionTrainModelArgs
     task_model_cls = DINOv2LTDetrObjectDetection

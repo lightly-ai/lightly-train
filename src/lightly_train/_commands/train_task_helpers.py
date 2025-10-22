@@ -43,7 +43,7 @@ from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model 
     DINOv2LinearSemanticSegmentationTrain,
 )
 from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
-    DINOv2LTDetrObjectDetectionTrain,
+    DINOv2LTDETRObjectDetectionTrain,
 )
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
