@@ -171,6 +171,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         self.model_args = model_args
         num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
+        image_size = no_auto(val_transform_args.image_size)
 
         self.model = DINOv2EoMTSemanticSegmentation(
             # TODO(Guarin, 10/25): Make configurable and pass all args.
@@ -179,7 +180,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             class_ignore_index=(
                 data_args.ignore_index if data_args.ignore_classes else None
             ),
-            image_size=val_transform_args.image_size,
+            image_size=image_size,
             image_normalize=val_transform_args.normalize.model_dump(),
             num_queries=num_queries,
             num_joint_blocks=num_joint_blocks,

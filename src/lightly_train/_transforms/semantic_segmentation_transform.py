@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from albumentations import (
@@ -62,7 +62,7 @@ class SemanticSegmentationTransformOutput(TaskTransformOutput):
 
 class SemanticSegmentationTransformArgs(TaskTransformArgs):
     ignore_index: int
-    image_size: tuple[int, int]
+    image_size: tuple[int, int] | Literal["auto"]
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
     normalize: NormalizeArgs
@@ -73,18 +73,12 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
     smallest_max_size: SmallestMaxSizeArgs | None
     random_crop: RandomCropArgs | None
 
-    def resolve_auto(self) -> None:
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         if self.num_channels == "auto":
             if self.channel_drop is not None:
                 self.num_channels = self.channel_drop.num_channels_keep
             else:
                 self.num_channels = len(self.normalize.mean)
-
-        height, width = self.image_size
-        for field_name in self.__class__.model_fields:
-            field = getattr(self, field_name)
-            if hasattr(field, "resolve_auto"):
-                field.resolve_auto(height=height, width=width)
 
     def resolve_incompatible(self) -> None:
         # Adjust normalization mean and std to match num_channels.

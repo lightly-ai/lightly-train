@@ -136,11 +136,9 @@ class CheckpointContext(PydanticConfig):
         logger.info(f"Loading metadata of the checkpoint from '{ckpt_path}'")
 
         checkpoint = fabric.load(path=ckpt_path)
-        metadata = CheckpointMetadata.model_validate(
-            {
-                "model_init_args": checkpoint.get("model_init_args") or {},
-                "model_class_path": checkpoint.get("model_class_path") or "",
-            }
+        metadata = CheckpointMetadata(
+            model_init_args=checkpoint.get("model_init_args") or {},
+            model_class_path=checkpoint.get("model_class_path") or "",
         )
 
         return cls(
@@ -344,6 +342,7 @@ def get_transform_args(
     train_model_cls: type[TrainModel],
     transform_args: dict[str, Any] | None,
     ignore_index: int | None,
+    model_init_args: dict[str, Any],
 ) -> tuple[TaskTransformArgs, TaskTransformArgs]:
     if train_model_cls.task != "semantic_segmentation" and ignore_index is not None:
         raise ValueError(
@@ -369,7 +368,9 @@ def get_transform_args(
     train_transform_args = validate.pydantic_model_validate(
         train_transform_args_cls, transform_args
     )
-    train_transform_args.resolve_auto()
+    train_transform_args.resolve_auto(
+        model_init_args=model_init_args,
+    )
     train_transform_args.resolve_incompatible()
 
     # Take defaults from train transform.
@@ -386,7 +387,9 @@ def get_transform_args(
     val_transform_args = validate.pydantic_model_validate(
         val_transform_args_cls, val_args_dict
     )
-    val_transform_args.resolve_auto()
+    val_transform_args.resolve_auto(
+        model_init_args=model_init_args,
+    )
     val_transform_args.resolve_incompatible()
 
     logger.debug(
