@@ -31,6 +31,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.torchvision.convnext import ConvNeXtModelWrapper
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -57,7 +58,10 @@ def get_teacher(
     wrapped_model = package_helpers.get_wrapped_model(
         model=teacher_name, num_input_channels=num_input_channels, model_args=model_args
     )
-    assert isinstance(wrapped_model, (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper))
+    assert isinstance(
+        wrapped_model,
+        (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper, ConvNeXtModelWrapper),
+    )
     wrapped_model.make_teacher()
     teacher_embedding_model = wrapped_model.get_model()
 

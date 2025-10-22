@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 
 import pytest
 import torch
@@ -22,10 +22,17 @@ from lightly_train._methods.distillationv2.distillationv2 import (
     DistillationV2LARSArgs,
 )
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 
-from ...helpers import DummyCustomModel, create_images, dummy_vit_model
+from ...helpers import (
+    DummyCustomModel,
+    create_images,
+    dummy_dinov2_vit_model,
+    dummy_dinov3_convnext_model,
+    dummy_dinov3_vit_model,
+)
 
 
 class TestDistillationV2:
@@ -102,19 +109,31 @@ class TestDistillationV2:
             "Mixup should only produce 0, 1, lambda and 1 - lambda when fed with binary images."
         )
 
-    def test_forward_student_output_shape(self, mocker: MockerFixture) -> None:
+    @pytest.mark.parametrize(
+        "teacher_model, patch_size",
+        [
+            (dummy_dinov2_vit_model, 14),
+            (dummy_dinov3_vit_model, 2),
+            (dummy_dinov3_convnext_model, 2),
+        ],
+    )
+    def test_forward_student_output_shape(
+        self,
+        mocker: MockerFixture,
+        teacher_model: Callable[[int], ModelWrapper],
+        patch_size: int,
+    ) -> None:
         """Test that _forward_student returns expected shape."""
         # Set constants.
         batch_size, channels, height, width = 2, 3, 224, 224
         student_embed_dim = 32
         n_blocks = 2
-        patch_size = 14
         n_tokens = (height // patch_size) * (width // patch_size)
 
         # Create dummy images.
         x = torch.randn(batch_size, channels, height, width)
 
-        teacher_model = dummy_vit_model(patch_size=patch_size).get_model().eval()
+        teacher_model = teacher_model(patch_size=patch_size).get_model().eval()
 
         # Patch the teacher model.
         mock_get_teacher = mocker.patch(
@@ -139,8 +158,14 @@ class TestDistillationV2:
         )
         mock_get_teacher.assert_called_once()
 
+        _, _, teacher_features_h, teacher_features_w = distill._forward_teacher(x).shape
+
         # Run _forward_student.
-        out = distill._forward_student(x)
+        out = distill._forward_student(
+            x,
+            teacher_features_h=teacher_features_h,
+            teacher_features_w=teacher_features_w,
+        )
 
         # Expected shape: (batch_size, n_tokens, teacher_embedding_dim).
         assert out.shape == (batch_size, n_tokens, distill.teacher_embedding_dim)
@@ -205,7 +230,7 @@ class TestDistillationV2:
 
         # Dummy teacher model with real params.
         teacher_model = EmbeddingModel(
-            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+            wrapped_model=dummy_dinov2_vit_model(), embed_dim=teacher_embed_dim
         ).eval()
 
         # Patch get_teacher.
@@ -255,7 +280,7 @@ class TestDistillationV2:
 
         # Dummy teacher model with real params.
         teacher_model = EmbeddingModel(
-            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+            wrapped_model=dummy_dinov2_vit_model(), embed_dim=teacher_embed_dim
         ).eval()
 
         # Patch get_teacher.
@@ -306,7 +331,7 @@ class TestDistillationV2:
 
         # Dummy teacher model with real params.
         teacher_model = EmbeddingModel(
-            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+            wrapped_model=dummy_dinov2_vit_model(), embed_dim=teacher_embed_dim
         ).eval()
 
         # Patch get_teacher.
@@ -426,6 +451,9 @@ class TestDistillationV2:
 
         # Verify that all parameter groups have the expected scaled learning rate.
         for param_group in optimizer.param_groups:
+            assert param_group["initial_lr"] == pytest.approx(expected_lr, rel=1e-6), (
+                f"Expected learning rate {expected_lr}, but got {param_group['initial_lr']}."
+            )
             assert param_group["initial_lr"] == pytest.approx(expected_lr, rel=1e-6), (
                 f"Expected learning rate {expected_lr}, but got {param_group['initial_lr']}."
             )
