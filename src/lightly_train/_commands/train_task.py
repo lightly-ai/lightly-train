@@ -222,7 +222,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         overwrite=config.overwrite,
     )
 
-    checkpoint_ctx = helpers.CheckpointContext.from_config(
+    checkpoint_ctx = helpers.BaseCheckpointContext.from_config(
         fabric=fabric, config=config, out_dir=out_dir
     )
     model_init_args = checkpoint_ctx.metadata.model_init_args if checkpoint_ctx else {}
@@ -387,16 +387,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_init_args=train_model.get_task_model().init_args,
         )
 
-        if checkpoint_ctx:
-            if config.checkpoint:  # Load from user provided checkpoint path.
-                checkpoint_ctx.load_checkpoint_from_file(
-                    state=state,
-                    reuse_class_head=config.reuse_class_head,
-                )
-            else:  # Resume from last checkpoint in out_dir.
-                checkpoint_ctx.load_checkpoint_from_interrupted(
-                    state=state,
-                )
+        if isinstance(checkpoint_ctx, helpers.ResumeCheckpointContext):
+            checkpoint_ctx.load_resume(
+                state=state,
+            )
+            fabric.setup_dataloaders(checkpoint_ctx.train_dataloader)
+        elif isinstance(checkpoint_ctx, helpers.FinetuneCheckpointContext):
+            checkpoint_ctx.load_finetune(
+                state=state,
+                reuse_class_head=config.reuse_class_head,
+            )
 
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
