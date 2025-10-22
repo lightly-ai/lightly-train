@@ -60,7 +60,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     random_zoom_out: RandomZoomOutArgs | None
     random_iou_crop: RandomIoUCropArgs | None
     random_flip: RandomFlipArgs | None
-    image_size: tuple[int, int] | Literal["auto"]
+    image_size: tuple[int, int]
     # TODO: Lionel (09/25): Add Normalize
     stop_policy: StopPolicyArgs | None
     scale_jitter: ScaleJitterArgs | None
@@ -76,6 +76,12 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
             else:
                 # TODO: Lionel (09/25): Get num_channels from normalization.
                 self.num_channels = 3
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
 
     def resolve_incompatible(self) -> None:
         # TODO: Lionel (09/25): Add checks for incompatible args.
