@@ -134,7 +134,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_flip, scale_jitter, resize, random_iou_crop",
+        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, scale_jitter, resize",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -144,8 +144,8 @@ class TestObjectDetectionTransform:
         random_zoom_out: RandomZoomOutArgs | None,
         random_flip: RandomFlipArgs | None,
         scale_jitter: ScaleJitterArgs | None,
-        resize: ResizeArgs | None = None,
-        random_iou_crop: RandomIoUCropArgs | None = None,
+        resize: ResizeArgs | None,
+        random_iou_crop: RandomIoUCropArgs | None,
     ) -> None:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
@@ -194,6 +194,7 @@ class TestObjectDetectionTransform:
             num_channels="auto",
             photometric_distort=_get_photometric_distort_args(),
             random_zoom_out=_get_random_zoom_out_args(),
+            random_iou_crop=_get_random_iou_crop_args(),
             random_flip=_get_random_flip_args(),
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
