@@ -18,6 +18,7 @@ from torch.optim.lr_scheduler import LRScheduler, MultiStepLR
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._distributed import reduce_dict
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
     DINOv2LTDetrObjectDetection,
@@ -170,6 +171,10 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             world_size=fabric.world_size,
         )
         total_loss = sum(loss_dict.values())
+
+        # Average loss dict across devices.
+        loss_dict = reduce_dict(loss_dict)
+
         return TaskStepResult(
             loss=total_loss,
             log_dict={**{"train_total_loss": total_loss.item()}, **loss_dict},
@@ -202,6 +207,9 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             )
 
         total_loss = sum(loss_dict.values())
+
+        # Average loss dict across devices.
+        loss_dict = reduce_dict(loss_dict)
 
         return TaskStepResult(
             loss=total_loss,
