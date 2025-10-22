@@ -199,8 +199,8 @@ def queries_adjust_num_queries_hook(
     if queries_weight is None:
         return
 
-    query_embed_module = module.queries
-    num_queries_module = module.num_queries
+    query_embed_module = getattr(module, "queries", None)
+    num_queries_module = getattr(module, "num_queries", None)
     if query_embed_module is None or num_queries_module is None:
         return
 
