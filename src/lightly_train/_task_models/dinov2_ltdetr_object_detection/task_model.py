@@ -37,7 +37,7 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-class DINOv2LTDetrObjectDetection(TaskModel):
+class DINOv2LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
 
     def __init__(
@@ -233,7 +233,7 @@ class DINOv2LTDetrObjectDetection(TaskModel):
         return x_
 
 
-class DINOv2LTDetrDSPObjectDetectionTaskModel(DINOv2LTDetrObjectDetection):
+class DINOv2LTDETRDSPObjectDetectionTaskModel(DINOv2LTDETRObjectDetection):
     model_suffix = "ltdetr-dsp"
 
     def __init__(
@@ -246,7 +246,7 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(DINOv2LTDetrObjectDetection):
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
-        super(DINOv2LTDetrObjectDetection, self).__init__(
+        super(DINOv2LTDETRObjectDetection, self).__init__(
             init_args=locals(), ignore_args={"backbone_weights"}
         )
         parsed_name = self.parse_model_name(model_name=model_name)

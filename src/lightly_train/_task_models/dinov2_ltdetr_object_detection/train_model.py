@@ -21,12 +21,12 @@ from lightly_train._data.yolo_object_detection_dataset import (
 from lightly_train._distributed import reduce_dict
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
-    DINOv2LTDetrObjectDetection,
+    DINOv2LTDETRObjectDetection,
 )
 from lightly_train._task_models.dinov2_ltdetr_object_detection.transforms import (
-    DINOv2LTDetrObjectDetectionTrainTransform,
-    DINOv2LTDetrObjectDetectionValTransform,
-    DINOv2LTDetrObjectDetectionValTransformArgs,
+    DINOv2LTDETRObjectDetectionTrainTransform,
+    DINOv2LTDETRObjectDetectionValTransform,
+    DINOv2LTDETRObjectDetectionValTransformArgs,
 )
 from lightly_train._task_models.object_detection_components.matcher import (
     HungarianMatcher,
@@ -43,19 +43,19 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
-class DINOv2LTDetrObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
+class DINOv2LTDETRObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
     watch_metric: str = "val_total_loss"
     mode: Literal["min", "max"] = "min"
 
 
-class DINOv2LTDetrObjectDetectionTrainModelArgs(TrainModelArgs):
+class DINOv2LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     default_steps: ClassVar[int] = (
         100_000 // 16 * 72
     )  # TODO (Lionel, 10/25): Adjust default steps.
 
     save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        DINOv2LTDetrObjectDetectionTaskSaveCheckpointArgs
+        DINOv2LTDETRObjectDetectionTaskSaveCheckpointArgs
     )
 
     backbone_weights: PathLike | None = None
@@ -102,23 +102,23 @@ class DINOv2LTDetrObjectDetectionTrainModelArgs(TrainModelArgs):
 
 class DINOv2LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
-    train_model_args_cls = DINOv2LTDetrObjectDetectionTrainModelArgs
-    task_model_cls = DINOv2LTDetrObjectDetection
-    train_transform_cls = DINOv2LTDetrObjectDetectionTrainTransform
-    val_transform_cls = DINOv2LTDetrObjectDetectionValTransform
-    save_checkpoint_args_cls = DINOv2LTDetrObjectDetectionTaskSaveCheckpointArgs
+    train_model_args_cls = DINOv2LTDETRObjectDetectionTrainModelArgs
+    task_model_cls = DINOv2LTDETRObjectDetection
+    train_transform_cls = DINOv2LTDETRObjectDetectionTrainTransform
+    val_transform_cls = DINOv2LTDETRObjectDetectionValTransform
+    save_checkpoint_args_cls = DINOv2LTDETRObjectDetectionTaskSaveCheckpointArgs
 
     def __init__(
         self,
         *,
         model_name: str,
-        model_args: DINOv2LTDetrObjectDetectionTrainModelArgs,
+        model_args: DINOv2LTDETRObjectDetectionTrainModelArgs,
         data_args: YOLOObjectDetectionDataArgs,
-        val_transform_args: DINOv2LTDetrObjectDetectionValTransformArgs,
+        val_transform_args: DINOv2LTDETRObjectDetectionValTransformArgs,
     ) -> None:
         super().__init__()
         self.model_args = model_args
-        self.model = DINOv2LTDetrObjectDetection(
+        self.model = DINOv2LTDETRObjectDetection(
             model_name=model_name,
             image_size=val_transform_args.image_size,
             classes=data_args.names,
