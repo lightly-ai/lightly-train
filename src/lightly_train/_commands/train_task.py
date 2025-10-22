@@ -225,7 +225,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     checkpoint_ctx = helpers.BaseCheckpointContext.from_config(
         fabric=fabric, config=config, out_dir=out_dir
     )
-    model_init_args = checkpoint_ctx.metadata.model_init_args if checkpoint_ctx else {}
+    if checkpoint_ctx:
+        model_init_args = checkpoint_ctx.metadata.model_init_args
+        if (saved_model_name := model_init_args.get("model_name")) != config.model:
+            raise ValueError(
+                f"The model name in the checkpoint or model weights file('{saved_model_name}') "
+                f"does not match the provided model name ('{config.model}')."
+            )
+    else:
+        model_init_args = {}
 
     # Set up logging.
     _warnings.filter_train_warnings()
@@ -285,6 +293,18 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             transform=val_transform,
             mmap_filepath=val_mmap_filepath,
         )
+
+        if (
+            config.checkpoint
+            and config.reuse_class_head
+            and config.data.included_classes != model_init_args.get("classes")
+        ):
+            raise ValueError(
+                f"The included classes in the data configuration ({config.data.included_classes}) "
+                f"do not match the classes used in the checkpoint or model weights file ({model_init_args.get('classes')}). "
+                f"It is not advisable to reuse the class head when you have a different classes config."
+            )
+
         logger.info(
             f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}"
         )
@@ -391,7 +411,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             checkpoint_ctx.load_resume(
                 state=state,
             )
-            fabric.setup_dataloaders(checkpoint_ctx.train_dataloader)
+            train_dataloader = checkpoint_ctx.train_dataloader
         elif isinstance(checkpoint_ctx, helpers.FinetuneCheckpointContext):
             checkpoint_ctx.load_finetune(
                 state=state,
