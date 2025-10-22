@@ -222,6 +222,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         overwrite=config.overwrite,
     )
 
+    # Set up logging.
+    _warnings.filter_train_warnings()
+    _logging.set_up_console_logging()
+    _logging.set_up_file_logging(out_dir / "train.log")
+    _logging.set_up_filters()
+    logger.info(f"Args: {helpers.pretty_format_args(args=initial_config)}")
+    logger.info(f"Using output directory: '{out_dir}")
+
+    # Load checkpoint context if resuming or further fine-tuning.
     checkpoint_ctx = helpers.BaseCheckpointContext.from_config(
         fabric=fabric, config=config, out_dir=out_dir
     )
@@ -234,14 +243,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             )
     else:
         model_init_args = {}
-
-    # Set up logging.
-    _warnings.filter_train_warnings()
-    _logging.set_up_console_logging()
-    _logging.set_up_file_logging(out_dir / "train.log")
-    _logging.set_up_filters()
-    logger.info(f"Args: {helpers.pretty_format_args(args=initial_config)}")
-    logger.info(f"Using output directory: '{out_dir}")
 
     # Log system information.
     system_information = _system.get_system_information()
