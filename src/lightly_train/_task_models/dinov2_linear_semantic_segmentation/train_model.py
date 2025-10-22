@@ -98,6 +98,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         )
 
         image_size = no_auto(val_transform_args.image_size)
+        normalize = no_auto(val_transform_args.normalize)
 
         self.model_args = model_args
         self.model = DINOv2LinearSemanticSegmentation(
@@ -112,7 +113,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
                 "drop_path_rate": model_args.drop_path_rate,
             },
             image_size=image_size,
-            image_normalize=val_transform_args.normalize.model_dump(),
+            image_normalize=normalize.model_dump(),
         )
         self.criterion = CrossEntropyLoss(ignore_index=data_args.ignore_index)
 
