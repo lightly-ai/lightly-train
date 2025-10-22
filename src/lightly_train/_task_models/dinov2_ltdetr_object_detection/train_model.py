@@ -6,6 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 import re
+from dataclasses import field
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -60,6 +61,25 @@ class DINOv2LTDetrObjectDetectionTrainModelArgs(TrainModelArgs):
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
 
+    # Matcher configuration
+    matcher_weight_dict: dict[str, float] = field(
+        default_factory=lambda: {"cost_class": 2, "cost_bbox": 5, "cost_giou": 2}
+    )
+    matcher_use_focal_loss: bool = True
+    matcher_alpha: float = 0.25
+    matcher_gamma: float = 2.0
+
+    # Criterion configuration
+    criterion_weight_dict: dict[str, float] = field(
+        default_factory=lambda: {"loss_vfl": 1, "loss_bbox": 5, "loss_giou": 2}
+    )
+    criterion_losses: list[str] = field(default_factory=lambda: ["vfl", "boxes"])
+    criterion_alpha: float = 0.75
+    criterion_gamma: float = 2.0
+
+    # Miscellaneous
+    clip_max_norm: float = 0.1
+
 
 class DINOv2LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
@@ -88,22 +108,22 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
         )
 
-        matcher = HungarianMatcher(  # type: ignore[no-untyped-call]
-            weight_dict={"cost_class": 2, "cost_bbox": 5, "cost_giou": 2},
-            use_focal_loss=True,
-            alpha=0.25,
-            gamma=2.0,
+        matcher = HungarianMatcher(
+            weight_dict=model_args.matcher_weight_dict,
+            use_focal_loss=model_args.matcher_use_focal_loss,
+            alpha=model_args.matcher_alpha,
+            gamma=model_args.matcher_gamma,
         )
 
-        self.criterion = RTDETRCriterionv2(  # type: ignore[no-untyped-call]
+        self.criterion = RTDETRCriterionv2(
             matcher=matcher,
-            weight_dict={"loss_vfl": 1, "loss_bbox": 5, "loss_giou": 2},
-            losses=["vfl", "boxes"],
-            alpha=0.75,
-            gamma=2.0,
+            weight_dict=model_args.criterion_weight_dict,
+            losses=model_args.criterion_losses,
+            alpha=model_args.criterion_alpha,
+            gamma=model_args.criterion_gamma,
         )
 
-        self.clip_max_norm = 0.1
+        self.clip_max_norm = model_args.clip_max_norm
 
     def set_train_mode(self) -> None:
         super().set_train_mode()
