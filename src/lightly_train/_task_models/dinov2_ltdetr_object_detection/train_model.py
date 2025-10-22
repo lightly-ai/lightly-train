@@ -80,6 +80,24 @@ class DINOv2LTDetrObjectDetectionTrainModelArgs(TrainModelArgs):
     # Miscellaneous
     clip_max_norm: float = 0.1
 
+    # Optimizer configuration
+    optimizer_lr: float = 1e-4
+    optimizer_betas: tuple[float, float] = (0.9, 0.999)
+    optimizer_weight_decay: float = 1e-4
+
+    # Per-parameter-group overrides
+    backbone_lr: float = 1e-6
+    backbone_weight_decay: float | None = None  # Use default if None
+
+    detector_weight_decay: float = 0.0
+
+    # Scheduler configuration
+    scheduler_milestones: list[int] = field(default_factory=lambda: [1000])
+    scheduler_gamma: float = 0.1
+    scheduler_warmup_steps: int | None = (
+        None  # TODO (Thomas, 10/25): Change to flat-cosine with warmup.
+    )
+
 
 class DINOv2LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
@@ -191,6 +209,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         )
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+        # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
         param_groups = [
             {
                 "name": "backbone",
@@ -199,7 +218,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                     for n, p in self.model.named_parameters()
                     if re.match(r"^(?=.*backbone)(?!.*norm).*$", n)
                 ],
-                "lr": 1e-6,
+                "lr": self.model_args.backbone_lr,
             },
             {
                 "name": "detector",
@@ -208,16 +227,20 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                     for n, p in self.model.named_parameters()
                     if re.match(r"^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$", n)
                 ],
-                "weight_decay": 0.0,
+                "weight_decay": self.model_args.detector_weight_decay,
             },
         ]
         optim = AdamW(
             param_groups,
-            lr=1e-4,
-            betas=(0.9, 0.999),
-            weight_decay=1e-4,
+            lr=self.model_args.optimizer_lr,
+            betas=self.model_args.optimizer_betas,
+            weight_decay=self.model_args.optimizer_weight_decay,
         )
-        scheduler = MultiStepLR(optimizer=optim, milestones=[1000], gamma=0.1)
+        scheduler = MultiStepLR(
+            optimizer=optim,
+            milestones=self.model_args.scheduler_milestones,
+            gamma=self.model_args.scheduler_gamma,
+        )
         # TODO (Lionel, 10/25): Use the warmup scheduler.
         return optim, scheduler
 
