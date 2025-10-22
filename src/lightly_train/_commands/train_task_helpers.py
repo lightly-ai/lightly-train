@@ -74,7 +74,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
-    DINOv2LTDetrObjectDetectionTrain,
+    DINOv2LTDETRObjectDetectionTrain,
 ]
 
 
