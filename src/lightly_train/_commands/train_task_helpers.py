@@ -89,20 +89,15 @@ class CheckpointMetadata(PydanticConfig):
     model_class_path: str
 
 
-class CheckpointContext(PydanticConfig):
+class BaseCheckpointContext(PydanticConfig):
     path: Path
     metadata: CheckpointMetadata
-
-    train_model_state: dict[str, Tensor] | None
-    optimizer_state: dict[str, Any] | None = None
-    scheduler_state: dict[str, Any] | None = None
-    train_dataloader: dict[str, Any] | None = None
-    step: int | None = None
+    train_model_state: dict[str, Tensor]
 
     @classmethod
     def from_config(
         cls, *, fabric: Fabric, config: "TrainTaskConfig", out_dir: Path
-    ) -> "CheckpointContext | None":
+    ) -> "ResumeCheckpointContext | FinetuneCheckpointContext | None":
         """Build a checkpoint context from the current run configuration.
 
         Args:
@@ -142,17 +137,48 @@ class CheckpointContext(PydanticConfig):
             model_class_path=checkpoint.get("model_class_path") or "",
         )
 
-        return cls(
+        train_model_state = checkpoint.get("train_model")
+        if train_model_state is None:
+            raise ValueError(
+                f"Checkpoint file '{ckpt_path}' does not contain a train model state."
+            )
+
+        if config.resume_interrupted:
+            optimizer_state = checkpoint.get("optimizer")
+            scheduler_state = checkpoint.get("scheduler")
+            train_dataloader = checkpoint.get("train_dataloader")
+            step = checkpoint.get("step")
+            if optimizer_state is None or scheduler_state is None:
+                raise ValueError(
+                    f"Checkpoint file '{ckpt_path}' does not contain optimizer or scheduler state."
+                )
+            if train_dataloader is None:
+                raise ValueError(
+                    f"Checkpoint file '{ckpt_path}' does not contain train dataloader."
+                )
+            if step is None:
+                raise ValueError(
+                    f"Checkpoint file '{ckpt_path}' does not contain training step."
+                )
+            return ResumeCheckpointContext(
+                path=ckpt_path,
+                metadata=metadata,
+                train_model_state=train_model_state,
+                optimizer_state=optimizer_state,
+                scheduler_state=scheduler_state,
+                train_dataloader=train_dataloader,
+                step=step,
+            )
+
+        return FinetuneCheckpointContext(
             path=ckpt_path,
             metadata=metadata,
-            train_model_state=checkpoint.get("train_model"),
-            optimizer_state=checkpoint.get("optimizer"),
-            scheduler_state=checkpoint.get("scheduler"),
-            train_dataloader=checkpoint.get("train_dataloader"),
-            step=checkpoint.get("step"),
+            train_model_state=train_model_state,
         )
 
-    def load_checkpoint_from_file(
+
+class FinetuneCheckpointContext(BaseCheckpointContext):
+    def load_finetune(
         self,
         *,
         state: TrainTaskState,
@@ -167,12 +193,8 @@ class CheckpointContext(PydanticConfig):
         Raises:
             ValueError: If expected components are missing from the checkpoint.
         """
-        train_model = state["train_model"]
-        train_model_grads = {
-            n: p.requires_grad for n, p in train_model.named_parameters()
-        }
-        train_model_trainings = {n: m.training for n, m in train_model.named_modules()}
 
+        train_model = state["train_model"]
         train_model_state_keys = set(train_model.state_dict().keys())
         if reuse_class_head:
             incompatible = train_model.load_state_dict(
@@ -211,16 +233,14 @@ class CheckpointContext(PydanticConfig):
                 incompatible.unexpected_keys,
             )
 
-        # Ensure that no new objects were created during loading.
-        assert state["train_model"] is train_model
-        assert {
-            n: p.requires_grad for n, p in state["train_model"].named_parameters()
-        } == train_model_grads
-        assert {
-            n: m.training for n, m in state["train_model"].named_modules()
-        } == train_model_trainings
 
-    def load_checkpoint_from_interrupted(
+class ResumeCheckpointContext(BaseCheckpointContext):
+    optimizer_state: dict[str, Any]
+    scheduler_state: dict[str, Any]
+    train_dataloader: DataLoader[TaskDatasetItem]
+    step: int
+
+    def load_resume(
         self,
         *,
         state: TrainTaskState,
@@ -233,37 +253,16 @@ class CheckpointContext(PydanticConfig):
         Raises:
             ValueError: If expected components are missing from the checkpoint.
         """
+
         train_model = state["train_model"]
         optimizer = state["optimizer"]
         scheduler = state["scheduler"]
-        train_dataloader = state["train_dataloader"]
 
-        train_model_grads = {
-            n: p.requires_grad for n, p in train_model.named_parameters()
-        }
-        train_model_trainings = {n: m.training for n, m in train_model.named_modules()}
-
-        if self.optimizer_state is None or self.scheduler_state is None:
-            raise ValueError(
-                f"Checkpoint file '{self.path}' does not contain optimizer or scheduler state."
-            )
+        train_model.load_state_dict(self.train_model_state)
         optimizer.load_state_dict(self.optimizer_state)
         scheduler.load_state_dict(self.scheduler_state)
 
-        # if self.step is not None:
-        #     state["step"] = self.step
-
-        # Ensure that no new objects were created during loading.
-        assert state["train_model"] is train_model
-        assert {
-            n: p.requires_grad for n, p in state["train_model"].named_parameters()
-        } == train_model_grads
-        assert {
-            n: m.training for n, m in state["train_model"].named_modules()
-        } == train_model_trainings
-        assert state["optimizer"] is optimizer
-        assert state["scheduler"] is scheduler
-        assert state["train_dataloader"] is train_dataloader
+        state["step"] = self.step
 
 
 def get_out_dir(
