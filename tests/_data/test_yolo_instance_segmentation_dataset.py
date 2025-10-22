@@ -33,7 +33,7 @@ class TestYOLOInstanceSegmentationDataset:
             path=tmp_path,
             train="train/images",
             val="val/images",
-            names={0: "class_0", 1: "class_1"},
+            names={1: "class_0", 2: "class_1"},
         )
         train_args = args.get_train_args()
         val_args = args.get_val_args()
@@ -65,6 +65,8 @@ class TestYOLOInstanceSegmentationDataset:
         assert sample["bboxes"].shape == (1, 4)
         assert sample["classes"].dtype == torch.long
         assert sample["classes"].shape == (1,)
+        # Classes are mapped to internal class ids in [0, num_included_classes - 1]
+        assert torch.all(sample["classes"] <= 1)
 
         sample = val_dataset[0]
         assert sample["image"].shape == (3, 64, 128)
@@ -82,7 +84,7 @@ class TestYOLOInstanceSegmentationDataset:
             path=tmp_path,
             train="images/train",
             val="images/val",
-            names={0: "class_0", 1: "class_1"},
+            names={1: "class_0", 2: "class_1"},
         )
 
         train_args = args.get_train_args()
@@ -112,6 +114,8 @@ class TestYOLOInstanceSegmentationDataset:
         assert sample["bboxes"].shape == (1, 4)
         assert sample["classes"].dtype == torch.long
         assert sample["classes"].shape == (1,)
+        # Classes are mapped to internal class ids in [0, num_included_classes - 1]
+        assert torch.all(sample["classes"] <= 1)
 
         sample = val_dataset[0]
         assert sample["image"].shape == (3, 64, 128)
