@@ -131,7 +131,7 @@ def load_model_from_checkpoint(
             needs_download = False
 
         if needs_download:
-            torch.hub.download_url_to_file(url=model_url, dst=checkpoint)
+            torch.hub.download_url_to_file(url=model_url, dst=str(checkpoint))
             logger.info("Downloaded checkpoint. Hash: {checkpoint_hash(checkpoint)}")
 
     ckpt = torch.load(checkpoint, weights_only=False, map_location=device)
