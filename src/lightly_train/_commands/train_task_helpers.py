@@ -497,8 +497,6 @@ def get_dataset(
     image_info = dataset_args.list_image_info()
 
     dataset_cls = dataset_args.get_dataset_cls()
-    # TODO(Guarin, 08/25): Relax this when we add object detection.
-    assert isinstance(transform, TaskTransform)
     return dataset_cls(
         dataset_args=dataset_args,
         image_info=get_dataset_mmap_file(
