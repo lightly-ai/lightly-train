@@ -19,6 +19,8 @@ from lightly_train._transforms.object_detection_transform import (
 from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.task_transform import TaskTransformArgs
 from lightly_train.types import (
+    InstanceSegmentationBatch,
+    InstanceSegmentationDatasetItem,
     MaskSemanticSegmentationBatch,
     MaskSemanticSegmentationDatasetItem,
     ObjectDetectionBatch,
@@ -49,6 +51,26 @@ class MaskSemanticSegmentationCollateFunction(BaseCollateFunction):
             "image": torch.stack(images) if self.split == "train" else images,
             "mask": torch.stack(masks) if self.split == "train" else masks,
             "binary_masks": [item["binary_masks"] for item in batch],
+        }
+
+        return out
+
+
+class InstanceSegmentationCollateFunction(BaseCollateFunction):
+    def __call__(
+        self, batch: list[InstanceSegmentationDatasetItem]
+    ) -> InstanceSegmentationBatch:
+        # Prepare the batch without any stacking.
+        images = [item["image"] for item in batch]
+
+        out: InstanceSegmentationBatch = {
+            "image_path": [item["image_path"] for item in batch],
+            # Stack images during training as they all have the same shape.
+            # During validation every image can have a different shape.
+            "image": torch.stack(images) if self.split == "train" else images,
+            "binary_masks": [item["binary_masks"] for item in batch],
+            "bboxes": [item["bboxes"] for item in batch],
+            "classes": [item["classes"] for item in batch],
         }
 
         return out

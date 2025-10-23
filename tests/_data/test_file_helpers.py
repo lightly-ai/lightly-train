@@ -237,3 +237,63 @@ def test_open_image_numpy__mask(
     assert isinstance(result, np.ndarray)
     assert result.shape == (32, 32)
     assert result.dtype == expected_dtype
+
+
+def test_open_yolo_object_detection_label_numpy(tmp_path: Path) -> None:
+    with open(tmp_path / "label.txt", "w") as f:
+        f.write("2 0.1 0.1 0.2 0.2\n1 0.3 0.3 0.4 0.4\n")
+    bboxes, class_labels = file_helpers.open_yolo_object_detection_label_numpy(
+        label_path=tmp_path / "label.txt"
+    )
+    np.testing.assert_array_almost_equal(
+        bboxes, np.array([[0.1, 0.1, 0.2, 0.2], [0.3, 0.3, 0.4, 0.4]])
+    )
+    np.testing.assert_array_equal(class_labels, np.array([2, 1]))
+
+
+def test_open_yolo_object_detection_label_numpy__empty(
+    tmp_path: Path,
+) -> None:
+    with open(tmp_path / "label.txt", "w") as f:
+        f.write("")
+    bboxes, class_labels = file_helpers.open_yolo_object_detection_label_numpy(
+        label_path=tmp_path / "label.txt"
+    )
+    assert bboxes.shape == (0, 4)
+    assert class_labels.shape == (0,)
+
+
+def test_open_yolo_instance_segmentation_label_numpy(tmp_path: Path) -> None:
+    with open(tmp_path / "label.txt", "w") as f:
+        f.write("2 0.1 0.1 0.1 0.2 0.2 0.2\n1 0.3 0.3 0.3 0.4 0.4 0.4\n")
+    polygons, bboxes, class_labels = (
+        file_helpers.open_yolo_instance_segmentation_label_numpy(
+            label_path=tmp_path / "label.txt"
+        )
+    )
+    assert len(polygons) == 2
+    np.testing.assert_array_almost_equal(
+        polygons[0], np.array([0.1, 0.1, 0.1, 0.2, 0.2, 0.2])
+    )
+    np.testing.assert_array_almost_equal(
+        polygons[1], np.array([0.3, 0.3, 0.3, 0.4, 0.4, 0.4])
+    )
+    np.testing.assert_array_almost_equal(
+        bboxes, np.array([[0.15, 0.15, 0.1, 0.1], [0.35, 0.35, 0.1, 0.1]])
+    )
+    np.testing.assert_array_equal(class_labels, np.array([2, 1]))
+
+
+def test_open_yolo_instance_segmentation_label_numpy__empty(
+    tmp_path: Path,
+) -> None:
+    with open(tmp_path / "label.txt", "w") as f:
+        f.write("")
+    polygons, bboxes, class_labels = (
+        file_helpers.open_yolo_instance_segmentation_label_numpy(
+            label_path=tmp_path / "label.txt"
+        )
+    )
+    assert len(polygons) == 0
+    assert bboxes.shape == (0, 4)
+    assert class_labels.shape == (0,)

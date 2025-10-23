@@ -32,7 +32,7 @@ from lightly_train._transforms.transform import (
     StopPolicyArgs,
 )
 
-from ..helpers import create_yolo_dataset
+from ..helpers import create_yolo_object_detection_dataset
 
 
 class DummyTransformArgs(ObjectDetectionTransformArgs):
@@ -54,7 +54,7 @@ class DummyTransformArgs(ObjectDetectionTransformArgs):
 
 class TestYoloObjectDetectionDataset:
     def test__split_first(self, tmp_path: Path) -> None:
-        create_yolo_dataset(tmp_path=tmp_path, split_first=True)
+        create_yolo_object_detection_dataset(tmp_path=tmp_path, split_first=True)
 
         args = YOLOObjectDetectionDataArgs(
             path=tmp_path,
@@ -107,7 +107,7 @@ class TestYoloObjectDetectionDataset:
         assert sample["classes"].shape == (1,)
 
     def test__split_last(self, tmp_path: Path) -> None:
-        create_yolo_dataset(tmp_path=tmp_path, split_first=False)
+        create_yolo_object_detection_dataset(tmp_path=tmp_path, split_first=False)
 
         args = YOLOObjectDetectionDataArgs(
             path=tmp_path,

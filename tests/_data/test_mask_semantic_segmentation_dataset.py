@@ -656,7 +656,7 @@ class TestMaskSemanticSegmentationDataset:
             transform=transform,
         )
 
-        assert dataset.class_mapping == expected_mapping
+        assert dataset.class_id_to_internal_class_id == expected_mapping
 
     def test_get_class_mapping__ignore_classes__labels(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
@@ -689,7 +689,7 @@ class TestMaskSemanticSegmentationDataset:
             transform=transform,
         )
 
-        assert dataset.class_mapping == expected_mapping
+        assert dataset.class_id_to_internal_class_id == expected_mapping
 
     def test_get_class_mapping__multi_channel_masks(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
@@ -721,7 +721,7 @@ class TestMaskSemanticSegmentationDataset:
             transform=transform,
         )
 
-        assert dataset.class_mapping == expected_mapping
+        assert dataset.class_id_to_internal_class_id == expected_mapping
 
     def test_get_class_mapping__ignore_classes__multi_channel_masks(
         self, tmp_path: Path
@@ -759,4 +759,4 @@ class TestMaskSemanticSegmentationDataset:
             transform=transform,
         )
 
-        assert dataset.class_mapping == expected_mapping
+        assert dataset.class_id_to_internal_class_id == expected_mapping

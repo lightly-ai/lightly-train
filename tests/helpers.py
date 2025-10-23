@@ -219,9 +219,11 @@ def create_image(
     max_value: int = 255,
     num_channels: int = 3,
 ) -> None:
-    size = (width, height, num_channels) if num_channels > 0 else (width, height)
+    size = (height, width, num_channels) if num_channels > 0 else (width, height)
     img_np = np.random.uniform(min_value, max_value, size=size)
     img = Image.fromarray(img_np.astype(dtype), mode=mode).convert(mode=convert_mode)
+    assert img.height == height
+    assert img.width == width
     path.parent.mkdir(parents=True, exist_ok=True)
     img.save(path)
 
@@ -354,14 +356,31 @@ def create_videos(
         )
 
 
-def create_normalized_yolo_labels(labels_dir: Path, image_paths: list[Path]) -> None:
+def create_normalized_yolo_object_detection_labels(
+    labels_dir: Path, image_paths: list[Path]
+) -> None:
     for image_path in image_paths:
         label_path = labels_dir / f"{image_path.stem}.txt"
         with open(label_path, "w") as f:
             f.write("2 0.375 0.5 0.25 0.5\n")
 
 
-def create_yolo_dataset(tmp_path: Path, split_first: bool) -> None:
+def create_normalized_yolo_instance_segmentation_labels(
+    labels_dir: Path, image_paths: list[Path]
+) -> None:
+    for image_path in image_paths:
+        label_path = labels_dir / f"{image_path.stem}.txt"
+        with open(label_path, "w") as f:
+            f.write("2 0.30 0.30 0.45 0.27 0.49 0.50 0.44 0.70 0.31 0.73 0.26 0.50\n")
+
+
+def create_yolo_object_detection_dataset(
+    tmp_path: Path,
+    split_first: bool,
+    num_files: int = 2,
+    height: int = 128,
+    width: int = 128,
+) -> None:
     """Create a minimal YOLO object detection dataset.
 
     Args:
@@ -387,14 +406,58 @@ def create_yolo_dataset(tmp_path: Path, split_first: bool) -> None:
         dir.mkdir(parents=True, exist_ok=True)
 
     # Create images.
-    create_images(image_dir=train_images, files=2)
-    create_images(image_dir=val_images, files=2)
+    create_images(image_dir=train_images, files=num_files, height=height, width=width)
+    create_images(image_dir=val_images, files=num_files, height=height, width=width)
 
     # Create labels.
-    create_normalized_yolo_labels(
+    create_normalized_yolo_object_detection_labels(
         labels_dir=train_labels, image_paths=list(train_images.glob("*.png"))
     )
-    create_normalized_yolo_labels(
+    create_normalized_yolo_object_detection_labels(
+        labels_dir=val_labels, image_paths=list(val_images.glob("*.png"))
+    )
+
+
+def create_yolo_instance_segmentation_dataset(
+    tmp_path: Path,
+    split_first: bool,
+    num_files: int = 2,
+    height: int = 128,
+    width: int = 128,
+) -> None:
+    """Create a minimal YOLO instance segmentation dataset.
+
+    Args:
+        split_first: If set to True, the dataset will have the "train" and "val"
+            directories at the top level, and the "images" and "labels" directories
+            will be nested within them. If set to False, "images" and "labels" will be
+            at the top.
+    """
+    # Define directories.
+    if split_first:
+        train_images = tmp_path / "train" / "images"
+        val_images = tmp_path / "val" / "images"
+        train_labels = tmp_path / "train" / "labels"
+        val_labels = tmp_path / "val" / "labels"
+    else:
+        train_images = tmp_path / "images" / "train"
+        val_images = tmp_path / "images" / "val"
+        train_labels = tmp_path / "labels" / "train"
+        val_labels = tmp_path / "labels" / "val"
+
+    # Create directories.
+    for dir in [train_images, val_images, train_labels, val_labels]:
+        dir.mkdir(parents=True, exist_ok=True)
+
+    # Create images.
+    create_images(image_dir=train_images, files=num_files, height=height, width=width)
+    create_images(image_dir=val_images, files=num_files, height=height, width=width)
+
+    # Create labels.
+    create_normalized_yolo_instance_segmentation_labels(
+        labels_dir=train_labels, image_paths=list(train_images.glob("*.png"))
+    )
+    create_normalized_yolo_instance_segmentation_labels(
         labels_dir=val_labels, image_paths=list(val_images.glob("*.png"))
     )
 
