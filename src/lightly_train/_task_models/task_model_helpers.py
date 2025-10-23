@@ -92,14 +92,21 @@ def load_model_from_checkpoint(
     checkpoint: PathLike,
     device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
 ) -> TaskModel:
-    """Load a model from an exported model file (in .pt format) or a checkpoint file (in .ckpt format).
+    """
+    Either load model from an exported model file (in .pt format) or a checkpoint file (in .ckpt format) or download
+    if from our model repository.
+
+    First check if `checkpoint` points to a valid file. If not and `checkpoint` is a `str` try to match that name
+    to one of the models in our repository and download it. Downloaded models are cached under the location specified by
+    the environment variable `LIGHTLY_TRAIN_MODEL_CACHE_DIR`.
 
     Args:
         checkpoint:
-            Path to the exported model file or checkpoint file.
+            Either a path to the exported model/checkpoint file or the name of a model in our model repository.
         device:
             Device to load the model on. If None, the model will be loaded onto a GPU
             (`"cuda"` or `"mps"`) if available, and otherwise fall back to CPU.
+
 
     Returns:
         The loaded model.
