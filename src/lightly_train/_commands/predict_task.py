@@ -1,0 +1,169 @@
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
+from __future__ import annotations
+
+import logging
+from typing import Any, Literal, Sequence
+
+from lightning_fabric import Fabric
+from lightning_fabric.accelerators.accelerator import Accelerator
+from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
+from pydantic import ConfigDict
+
+from lightly_train import _logging, _system
+from lightly_train._commands import (
+    _warnings,
+    common_helpers,
+    predict_task_helpers,
+    train_task_helpers,
+)
+from lightly_train._configs import validate
+from lightly_train._configs.config import PydanticConfig
+from lightly_train._task_models import task_model_helpers
+from lightly_train.types import PathLike
+
+logger = logging.getLogger(__name__)
+
+
+def predict_semantic_segmentation(
+    *,
+    out: PathLike,
+    data: PathLike | Sequence[PathLike],
+    model: PathLike,
+    batch_size: int = 1,  # Set this to 16 as default when we add predict_batch
+    num_workers: int | Literal["auto"] = "auto",
+    accelerator: str | Accelerator = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    overwrite: bool = False,
+    loader_args: dict[str, Any] | None = None,
+) -> None:
+    """Predict with a semantic segmentation model to generate output masks.
+
+    Args:
+        out:
+            The output directory where the output masks will be stored
+        data:
+            The path to a directory or a list of filenames/directories from which images must be loaded
+        model:
+            The path to a semantic segmentation checkpoint created by train_semantic_segmentation. This can either be a path to the checkpoint or a pretrained model name.
+        batch_size:
+            Global batch size. The batch size per device/GPU is inferred from this value
+            and the number of devices and nodes.
+        num_workers:
+            Number of workers for the dataloader per device/GPU. 'auto' automatically
+            sets the number of workers based on the available CPU cores.
+        accelerator:
+            Hardware accelerator. Can be one of ['cpu', 'gpu', 'mps', 'auto'].
+            'auto' will automatically select the best accelerator available.
+        precision:
+            Inference precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
+            for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
+        overwrite:
+            Overwrite the output directory if it already exists. Warning, this might
+            overwrite existing files in the directory!
+        loader_args:
+            Arguments for the PyTorch DataLoader. Should only be used in special cases
+            as default values are automatically set. Prefer to use the `batch_size` and
+            `num_workers` arguments instead. For details, see:
+            https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader
+    """
+    config = validate.pydantic_model_validate(PredictTaskConfig, locals())
+    _predict_task_from_config(config=config)
+
+
+def _predict_task_from_config(config: PredictTaskConfig) -> None:
+    config = validate.pydantic_model_validate(PredictTaskConfig, dict(config))
+    initial_config = config.model_dump()
+    # TODO(Guarin, 07/25): Validate and initialize arguments passed to Fabric properly.
+    fabric = Fabric(
+        accelerator=config.accelerator,
+        precision=config.precision,
+    )
+    fabric.launch()
+    config.accelerator = fabric.accelerator
+    config.precision = fabric.strategy.precision.precision
+
+    out_dir = predict_task_helpers.get_out_dir(
+        fabric=fabric,
+        out=config.out,
+        overwrite=config.overwrite,
+    )
+
+    # Set up logging.
+    _warnings.filter_train_warnings()
+    _logging.set_up_console_logging()
+    _logging.set_up_file_logging(out_dir / "train.log")
+    _logging.set_up_filters()
+    logger.info(f"Args: {train_task_helpers.pretty_format_args(args=initial_config)}")
+    logger.info(f"Using output directory: '{out_dir}")
+
+    # Log system information.x
+    system_information = _system.get_system_information()
+    _system.log_system_information(system_information=system_information)
+
+    # Load model
+    model = task_model_helpers.load_model_from_checkpoint(
+        checkpoint=config.model,
+    )
+    # model = fabric.setup_module(model) #TODO: register predict as a forward function in Fabric
+
+    transform_args = predict_task_helpers.get_transform_args(
+        model=model,
+    )
+    transform = predict_task_helpers.get_transform(
+        transform_args=transform_args,
+    )
+
+    dataset = predict_task_helpers.get_dataset(
+        data=config.data,
+        transform=transform,
+    )
+
+    config.batch_size = common_helpers.get_global_batch_size(
+        global_batch_size=config.batch_size,
+        dataset=dataset,
+        total_num_devices=fabric.world_size,
+        loader_args=config.loader_args,
+    )
+    config.num_workers = common_helpers.get_num_workers(
+        num_workers=config.num_workers,
+        num_devices_per_node=fabric.world_size,
+    )
+
+    # TODO(Guarin, 07/25): Handle auto num_workers.
+    dataloader = predict_task_helpers.get_dataloader(
+        fabric=fabric,
+        dataset=dataset,
+        batch_size=config.batch_size,
+        num_workers=config.num_workers,
+        loader_args=config.loader_args,
+    )
+    logger.info(
+        f"Resolved Args: {train_task_helpers.pretty_format_args(args=config.model_dump())}"
+    )
+
+    # TODO: actual prediction logic to be implemented
+    for batch in dataloader:
+        model.predict(batch)  # Replace with prediction logic
+
+    logger.info("Prediction completed.")
+
+
+class PredictTaskConfig(PydanticConfig):
+    out: PathLike
+    data: PathLike | Sequence[PathLike]
+    model: PathLike
+    batch_size: int = 16  # Set this to 1 for the initial implementation
+    num_workers: int | Literal["auto"] = "auto"
+    accelerator: str | Accelerator = "auto"
+    precision: _PRECISION_INPUT = "bf16-mixed"
+    overwrite: bool = False
+    loader_args: dict[str, Any] | None = None
+
+    # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
+    model_config = ConfigDict(arbitrary_types_allowed=True)
