@@ -209,17 +209,13 @@ def queries_adjust_num_queries_hook(
         return
     elif num_queries_state > num_queries_module:
         logger.info(
-            "Checkpoint provides %d queries but module expects %d. Truncating.",
-            num_queries_state,
-            num_queries_module,
+            f"Checkpoint provides {num_queries_state} queries but module expects {num_queries_module}. Truncating.",
         )
 
         queries_weight = queries_weight[:num_queries_module, :]
     else:
         logger.info(
-            "Checkpoint provides %d queries but module expects %d. Repeating entries.",
-            num_queries_state,
-            num_queries_module,
+            f"Checkpoint provides {num_queries_state} queries but module expects {num_queries_module}. Repeating entries.",
         )
 
         repeated_times, remainder = divmod(num_queries_module, num_queries_state)

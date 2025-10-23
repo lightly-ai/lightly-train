@@ -234,15 +234,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     checkpoint_ctx = helpers.BaseCheckpointContext.from_config(
         fabric=fabric, config=config, out_dir=out_dir
     )
-    if checkpoint_ctx:
-        model_init_args = checkpoint_ctx.metadata.model_init_args
-        if (saved_model_name := model_init_args.get("model_name")) != config.model:
-            raise ValueError(
-                f"The model name in the checkpoint or model weights file('{saved_model_name}') "
-                f"does not match the provided model name ('{config.model}')."
-            )
-    else:
-        model_init_args = {}
 
     # Log system information.
     system_information = _system.get_system_information()
@@ -261,6 +252,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     train_model_cls = helpers.get_train_model_cls(
         model_name=config.model,
     )
+
+    if checkpoint_ctx:
+        model_init_args = checkpoint_ctx.metadata.model_init_args
+        if (saved_model_name := model_init_args.get("model_name")) != config.model:
+            raise ValueError(
+                f"The model name in the checkpoint or model weights file('{saved_model_name}') "
+                f"does not match the provided model name ('{config.model}')."
+            )
+    else:
+        model_init_args = {}
 
     train_transform_args, val_transform_args = helpers.get_transform_args(
         train_model_cls=train_model_cls,
