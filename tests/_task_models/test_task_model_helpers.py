@@ -10,6 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import torch
+from packaging import version
 from pytest import MonkeyPatch
 from torch.hub import download_url_to_file
 
@@ -19,6 +21,10 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model imp
 )
 
 
+@pytest.mark.skipif(
+    version.parse(torch.__version__) < version.parse("2.1.0"),
+    reason="Model loading currently fails for PyTorch < 2.1.0. See https://github.com/lightly-ai/lightly-train/issues/323",
+)
 def test_load_model_from_checkpoint__download(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
