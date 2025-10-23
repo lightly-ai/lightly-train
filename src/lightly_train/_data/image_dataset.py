@@ -25,7 +25,7 @@ class ImageDataset(Dataset[DatasetItem]):
     def __init__(
         self,
         image_dir: Path | None,
-        image_filenames: Sequence[Mapping[str, ImageFilename]],
+        image_filenames: Sequence[str] | Sequence[Mapping[str, ImageFilename]],
         transform: Transform,
         num_channels: int,
         mask_dir: Path | None = None,
@@ -54,7 +54,10 @@ class ImageDataset(Dataset[DatasetItem]):
         self.image_mode = image_mode
 
     def __getitem__(self, idx: int) -> DatasetItem:
-        filename = self.image_filenames[idx]["filenames"]
+        filename = self.image_filenames[idx]
+        if isinstance(filename, Mapping):
+            filename = filename["filenames"]
+
         if self.image_dir is None:
             image = file_helpers.open_image_numpy(Path(filename), mode=self.image_mode)
         else:
