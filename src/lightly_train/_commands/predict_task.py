@@ -40,6 +40,7 @@ def predict_semantic_segmentation(
     accelerator: str | Accelerator = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     overwrite: bool = False,
+    num_channels: int = 3,
     loader_args: dict[str, Any] | None = None,
 ) -> None:
     """Predict with a semantic segmentation model to generate output masks.
@@ -66,6 +67,8 @@ def predict_semantic_segmentation(
         overwrite:
             Overwrite the output directory if it already exists. Warning, this might
             overwrite existing files in the directory!
+        num_channels:
+            Number of input channels of the images. Default is 3 (RGB).
         loader_args:
             Arguments for the PyTorch DataLoader. Should only be used in special cases
             as default values are automatically set. Prefer to use the `batch_size` and
@@ -106,7 +109,7 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     system_information = _system.get_system_information()
     _system.log_system_information(system_information=system_information)
 
-    # Load model
+    # Load model from checkpoint to Fabric.
     model = task_model_helpers.load_model_from_checkpoint(
         checkpoint=config.model,
     )
@@ -119,6 +122,7 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     dataset = predict_task_helpers.get_dataset(
         data=config.data,
         transform=transform,
+        num_channels=config.num_channels,
     )
 
     config.batch_size = common_helpers.get_global_batch_size(
@@ -132,7 +136,6 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
         num_devices_per_node=fabric.world_size,
     )
 
-    # TODO(Guarin, 07/25): Handle auto num_workers.
     dataloader = predict_task_helpers.get_dataloader(
         fabric=fabric,
         dataset=dataset,
@@ -160,6 +163,7 @@ class PredictTaskConfig(PydanticConfig):
     accelerator: str | Accelerator = "auto"
     precision: _PRECISION_INPUT = "bf16-mixed"
     overwrite: bool = False
+    num_channels: int = 3
     loader_args: dict[str, Any] | None = None
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
