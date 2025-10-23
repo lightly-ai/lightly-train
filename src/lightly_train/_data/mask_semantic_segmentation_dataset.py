@@ -17,14 +17,14 @@ from pydantic import AliasChoices, Field, TypeAdapter, field_validator
 from torch import Tensor
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import file_helpers
+from lightly_train._data import file_helpers, label_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_batch_collation import (
     BaseCollateFunction,
     MaskSemanticSegmentationCollateFunction,
 )
 from lightly_train._data.task_data_args import TaskDataArgs
-from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._env import Env
 from lightly_train._transforms.semantic_segmentation_transform import (
     SemanticSegmentationTransform,
@@ -70,15 +70,21 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         image_info: Sequence[dict[str, str]],
         transform: SemanticSegmentationTransform,
     ):
-        super().__init__(
-            transform=transform, image_info=image_info, dataset_args=dataset_args
-        )
-        assert isinstance(self.dataset_args, MaskSemanticSegmentationDatasetArgs)
+        super().__init__(transform=transform)
+        self.args = dataset_args
+        self.filepaths = image_info
         self.ignore_index = dataset_args.ignore_index
 
         # Get the class mapping.
-        self.class_mapping = self.get_class_mapping()
-        self.valid_classes = torch.tensor(list(self.class_mapping.keys()))
+        self.class_id_to_internal_class_id = (
+            label_helpers.get_class_id_to_internal_class_id_mapping(
+                class_ids=self.args.classes.keys(),
+                ignore_classes=self.args.ignore_classes,
+            )
+        )
+        self.valid_classes = torch.tensor(
+            list(self.class_id_to_internal_class_id.keys())
+        )
 
         transform_args = transform.transform_args
         assert isinstance(transform_args, SemanticSegmentationTransformArgs)
@@ -107,17 +113,8 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         unique_classes: Tensor = mask.unique()  # type: ignore[no-untyped-call]
         return bool(torch.isin(unique_classes, self.valid_classes).any())
 
-    def get_class_mapping(self) -> dict[int, int]:
-        assert isinstance(self.dataset_args, MaskSemanticSegmentationDatasetArgs)
-        ignore_classes = self.dataset_args.ignore_classes or set()
-        return {
-            class_id: i
-            for i, class_id in enumerate(
-                class_id
-                for class_id in self.dataset_args.classes.keys()
-                if class_id not in ignore_classes
-            )
-        }
+    def __len__(self) -> int:
+        return len(self.filepaths)
 
     def get_binary_masks(self, mask: Tensor) -> BinaryMasksDict:
         # This follows logic from:
@@ -130,14 +127,14 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         # Iterate over the labels present in the mask.
         for class_id in class_ids:
             # Check if the class id is the valid classes.
-            if class_id not in self.class_mapping:
+            if class_id not in self.class_id_to_internal_class_id:
                 continue
 
             # Create binary mask for the class.
             img_masks.append(mask == class_id)
 
             # Store the class label.
-            img_labels.append(self.class_mapping[class_id])
+            img_labels.append(self.class_id_to_internal_class_id[class_id])
 
         binary_masks: BinaryMasksDict = {
             "masks": (
@@ -162,7 +159,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         lut = mask.new_full((max_class + 1,), self.ignore_index, dtype=torch.long)
 
         # Fill in valid mappings
-        for old_class, new_class in self.class_mapping.items():
+        for old_class, new_class in self.class_id_to_internal_class_id.items():
             if old_class <= max_class:
                 lut[old_class] = new_class
 
@@ -175,8 +172,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         self,
         mask_with_labels: NDArrayImage,
     ) -> NDArrayImage:
-        assert isinstance(self.dataset_args, MaskSemanticSegmentationDatasetArgs)
-        class_infos = self.dataset_args.classes
+        class_infos = self.args.classes
         # Always compare against a 3D mask: expand (H, W) -> (H, W, 1)
         mask_with_labels = (
             mask_with_labels
@@ -201,7 +197,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         return mask_with_class_ids
 
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
-        row = self.image_info[index]
+        row = self.filepaths[index]
 
         image_path = row["image_filepaths"]
         mask_path = row["mask_filepaths"]
@@ -221,8 +217,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
             )
 
         # Local alias to enable type narrowing with TypeGuard
-        assert isinstance(self.dataset_args, MaskSemanticSegmentationDatasetArgs)
-        classes = self.dataset_args.classes
+        classes = self.args.classes
 
         # Check that if the mask is multi-channel, then the class info must be MultiChannelClassInfo
         if len(mask.shape) == 3:
@@ -273,7 +268,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         }
 
 
-class MaskSemanticSegmentationDatasetArgs(TaskDatasetArgs):
+class MaskSemanticSegmentationDatasetArgs(PydanticConfig):
     image_dir: Path
     mask_dir_or_file: str
     classes: dict[int, ClassInfo]
@@ -317,12 +312,6 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     val: SplitArgs
     classes: dict[int, ClassInfo]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
-
-    def train_imgs_path(self) -> Path:
-        return Path(self.train.images)
-
-    def val_imgs_path(self) -> Path:
-        return Path(self.val.images)
 
     @field_validator("classes", mode="before")
     @classmethod
