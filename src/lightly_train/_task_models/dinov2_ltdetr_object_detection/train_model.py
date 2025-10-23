@@ -7,7 +7,7 @@
 #
 import re
 from dataclasses import field
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Dict, List, Literal, Tuple
 
 import torch
 from lightning_fabric import Fabric
@@ -60,10 +60,10 @@ class DINOv2LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
 
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
-    backbone_args: dict[str, Any] = {}
+    backbone_args: Dict[str, Any] = {}
 
     # Matcher configuration
-    matcher_weight_dict: dict[str, float] = field(
+    matcher_weight_dict: Dict[str, float] = field(
         default_factory=lambda: {"cost_class": 2, "cost_bbox": 5, "cost_giou": 2}
     )
     matcher_use_focal_loss: bool = True
@@ -71,10 +71,10 @@ class DINOv2LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
     matcher_gamma: float = 2.0
 
     # Criterion configuration
-    criterion_weight_dict: dict[str, float] = field(
+    criterion_weight_dict: Dict[str, float] = field(
         default_factory=lambda: {"loss_vfl": 1, "loss_bbox": 5, "loss_giou": 2}
     )
-    criterion_losses: list[str] = field(default_factory=lambda: ["vfl", "boxes"])
+    criterion_losses: List[str] = field(default_factory=lambda: ["vfl", "boxes"])
     criterion_alpha: float = 0.75
     criterion_gamma: float = 2.0
 
@@ -83,7 +83,7 @@ class DINOv2LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
 
     # Optimizer configuration
     optimizer_lr: float = 1e-4
-    optimizer_betas: tuple[float, float] = (0.9, 0.999)
+    optimizer_betas: Tuple[float, float] = (0.9, 0.999)
     optimizer_weight_decay: float = 1e-4
 
     # Per-parameter-group overrides
@@ -93,7 +93,7 @@ class DINOv2LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
     detector_weight_decay: float = 0.0
 
     # Scheduler configuration
-    scheduler_milestones: list[int] = field(default_factory=lambda: [1000])
+    scheduler_milestones: List[int] = field(default_factory=lambda: [1000])
     scheduler_gamma: float = 0.1
     scheduler_warmup_steps: int | None = (
         None  # TODO (Thomas, 10/25): Change to flat-cosine with warmup.
@@ -127,14 +127,14 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
         )
 
-        matcher = HungarianMatcher(
+        matcher = HungarianMatcher(  # type: ignore[no-untyped-call]
             weight_dict=model_args.matcher_weight_dict,
             use_focal_loss=model_args.matcher_use_focal_loss,
             alpha=model_args.matcher_alpha,
             gamma=model_args.matcher_gamma,
         )
 
-        self.criterion = RTDETRCriterionv2(
+        self.criterion = RTDETRCriterionv2(  # type: ignore[no-untyped-call]
             matcher=matcher,
             weight_dict=model_args.criterion_weight_dict,
             losses=model_args.criterion_losses,
