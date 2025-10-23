@@ -71,12 +71,12 @@ class TestYoloObjectDetectionDataset:
             transform=ObjectDetectionTransform(DummyTransformArgs()),
             image_info=[
                 {
-                    "image_filepaths": str(tmp_path / "train/images/0.png"),
-                    "label_filepaths": str(tmp_path / "train/labels/0.txt"),
+                    "image_path": str(tmp_path / "train/images/0.png"),
+                    "label_path": str(tmp_path / "train/labels/0.txt"),
                 },
                 {
-                    "image_filepaths": str(tmp_path / "train/images/1.png"),
-                    "label_filepaths": str(tmp_path / "train/labels/1.txt"),
+                    "image_path": str(tmp_path / "train/images/1.png"),
+                    "label_path": str(tmp_path / "train/labels/1.txt"),
                 },
             ],
         )
@@ -86,12 +86,12 @@ class TestYoloObjectDetectionDataset:
             transform=ObjectDetectionTransform(DummyTransformArgs()),
             image_info=[
                 {
-                    "image_filepaths": str(tmp_path / "val/images/0.png"),
-                    "label_filepaths": str(tmp_path / "val/labels/0.txt"),
+                    "image_path": str(tmp_path / "val/images/0.png"),
+                    "label_path": str(tmp_path / "val/labels/0.txt"),
                 },
                 {
-                    "image_filepaths": str(tmp_path / "val/images/1.png"),
-                    "label_filepaths": str(tmp_path / "val/labels/1.txt"),
+                    "image_path": str(tmp_path / "val/images/1.png"),
+                    "label_path": str(tmp_path / "val/labels/1.txt"),
                 },
             ],
         )
@@ -124,12 +124,12 @@ class TestYoloObjectDetectionDataset:
             transform=ObjectDetectionTransform(DummyTransformArgs()),
             image_info=[
                 {
-                    "image_filepaths": str(tmp_path / "images/train/0.png"),
-                    "label_filepaths": str(tmp_path / "labels/train/0.txt"),
+                    "image_path": str(tmp_path / "images/train/0.png"),
+                    "label_path": str(tmp_path / "labels/train/0.txt"),
                 },
                 {
-                    "image_filepaths": str(tmp_path / "images/train/1.png"),
-                    "label_filepaths": str(tmp_path / "labels/train/1.txt"),
+                    "image_path": str(tmp_path / "images/train/1.png"),
+                    "label_path": str(tmp_path / "labels/train/1.txt"),
                 },
             ],
         )
@@ -139,12 +139,12 @@ class TestYoloObjectDetectionDataset:
             transform=ObjectDetectionTransform(DummyTransformArgs()),
             image_info=[
                 {
-                    "image_filepaths": str(tmp_path / "images/val/0.png"),
-                    "label_filepaths": str(tmp_path / "labels/val/0.txt"),
+                    "image_path": str(tmp_path / "images/val/0.png"),
+                    "label_path": str(tmp_path / "labels/val/0.txt"),
                 },
                 {
-                    "image_filepaths": str(tmp_path / "images/val/1.png"),
-                    "label_filepaths": str(tmp_path / "labels/val/1.txt"),
+                    "image_path": str(tmp_path / "images/val/1.png"),
+                    "label_path": str(tmp_path / "labels/val/1.txt"),
                 },
             ],
         )
