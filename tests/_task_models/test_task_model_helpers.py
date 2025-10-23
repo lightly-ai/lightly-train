@@ -12,7 +12,7 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model imp
 )
 
 
-def test_load_model_from_checkpoint__download(tmp_path: Path, monkeypatch: MonkeyPatch):
+def test_load_model_from_checkpoint__download(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("LIGHTLY_TRAIN_MODEL_CACHE_DIR", str(tmp_path))
     model_name = "dinov3/vits16-eomt-coco"
     model_file_name = "lightlytrain_dinov3_eomt_vits16_cocostuff.pt"
