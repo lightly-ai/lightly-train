@@ -70,16 +70,16 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         image_info: Sequence[dict[str, str]],
         transform: SemanticSegmentationTransform,
     ):
-        super().__init__(transform=transform)
-        self.args = dataset_args
-        self.filepaths = image_info
+        super().__init__(
+            transform=transform, dataset_args=dataset_args, image_info=image_info
+        )
         self.ignore_index = dataset_args.ignore_index
 
         # Get the class mapping.
         self.class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
-                class_ids=self.args.classes.keys(),
-                ignore_classes=self.args.ignore_classes,
+                class_ids=self.dataset_args.classes.keys(),
+                ignore_classes=self.dataset_args.ignore_classes,
             )
         )
         self.valid_classes = torch.tensor(
@@ -112,9 +112,6 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         # Check if at least one value in the mask is in the valid classes.
         unique_classes: Tensor = mask.unique()  # type: ignore[no-untyped-call]
         return bool(torch.isin(unique_classes, self.valid_classes).any())
-
-    def __len__(self) -> int:
-        return len(self.filepaths)
 
     def get_binary_masks(self, mask: Tensor) -> BinaryMasksDict:
         # This follows logic from:
@@ -172,7 +169,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         self,
         mask_with_labels: NDArrayImage,
     ) -> NDArrayImage:
-        class_infos = self.args.classes
+        class_infos = self.dataset_args.classes
         # Always compare against a 3D mask: expand (H, W) -> (H, W, 1)
         mask_with_labels = (
             mask_with_labels
@@ -197,7 +194,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         return mask_with_class_ids
 
     def __getitem__(self, index: int) -> MaskSemanticSegmentationDatasetItem:
-        row = self.filepaths[index]
+        row = self.image_info[index]
 
         image_path = row["image_filepaths"]
         mask_path = row["mask_filepaths"]
@@ -217,7 +214,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
             )
 
         # Local alias to enable type narrowing with TypeGuard
-        classes = self.args.classes
+        classes = self.dataset_args.classes
 
         # Check that if the mask is multi-channel, then the class info must be MultiChannelClassInfo
         if len(mask.shape) == 3:

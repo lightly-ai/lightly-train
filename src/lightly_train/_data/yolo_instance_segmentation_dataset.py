@@ -52,15 +52,14 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
         image_info: Sequence[dict[str, str]],
         transform: InstanceSegmentationTransform,
     ) -> None:
-        super().__init__(transform=transform)
-        self.args = dataset_args
-        self.image_info = image_info
-
+        super().__init__(
+            transform=transform, dataset_args=dataset_args, image_info=image_info
+        )
         # Get the class mapping.
         self.class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
-                class_ids=self.args.classes.keys(),
-                ignore_classes=self.args.ignore_classes,
+                class_ids=self.dataset_args.classes.keys(),
+                ignore_classes=self.dataset_args.ignore_classes,
             )
         )
 
@@ -85,9 +84,6 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
                 f"Supported modes are '{[ImageMode.RGB.value, ImageMode.UNCHANGED.value]}'."
             )
         self.image_mode = image_mode
-
-    def __len__(self) -> int:
-        return len(self.image_info)
 
     def __getitem__(self, index: int) -> InstanceSegmentationDatasetItem:
         # Load the image.
