@@ -8,14 +8,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import ClassVar, Literal, Sequence
+from typing import ClassVar, Sequence
 
 import numpy as np
 import pydantic
 import torch
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import file_helpers
+from lightly_train._data import file_helpers, yolo_helpers
 from lightly_train._data.task_batch_collation import (
     BaseCollateFunction,
     ObjectDetectionCollateFunction,
@@ -55,14 +55,16 @@ class YOLOObjectDetectionDataset(TaskDataset):
         if not label_path.exists():
             raise FileNotFoundError(f"Label file {label_path} does not exist.")
 
-        image_ = file_helpers.open_image_numpy(image_path)
-        bboxes_, class_labels_ = file_helpers.open_yolo_label_numpy(label_path)
+        image_np = file_helpers.open_image_numpy(image_path)
+        bboxes_np, class_labels_np = (
+            file_helpers.open_yolo_object_detection_label_numpy(label_path)
+        )
 
         transformed = self.transform(
             {
-                "image": image_,
-                "bboxes": bboxes_,  # Shape (n_boxes, 4)
-                "class_labels": class_labels_,  # Shape (n_boxes,)
+                "image": image_np,
+                "bboxes": bboxes_np,  # Shape (n_boxes, 4)
+                "class_labels": class_labels_np,  # Shape (n_boxes,)
             }
         )
 
@@ -101,7 +103,7 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
     def get_train_args(
         self,
     ) -> YOLOObjectDetectionDatasetArgs:
-        image_dir, label_dir = self._get_image_and_labels_dirs(
+        image_dir, label_dir = yolo_helpers.get_image_and_labels_dirs(
             path=Path(self.path),
             train=Path(self.train),
             val=Path(self.val),
@@ -115,7 +117,7 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
         )
 
     def get_val_args(self) -> YOLOObjectDetectionDatasetArgs:
-        image_dir, label_dir = self._get_image_and_labels_dirs(
+        image_dir, label_dir = yolo_helpers.get_image_and_labels_dirs(
             path=Path(self.path),
             train=Path(self.train),
             val=Path(self.val),
@@ -127,44 +129,6 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
         return YOLOObjectDetectionDatasetArgs(
             image_dir=image_dir, label_dir=label_dir, classes=self.names
         )
-
-    def _get_image_and_labels_dirs(
-        self,
-        path: Path,
-        train: Path,
-        val: Path,
-        test: Path | None,
-        mode: Literal["train", "val", "test"],
-    ) -> tuple[Path | None, Path | None]:
-        train_img_dir = path / train
-        val_img_dir = path / val
-        test_img_dir = path / test if test else None
-
-        def _replace_first_images_with_labels(path: Path) -> Path:
-            """Replaces only the first occurrence of 'images' with 'labels' in a Path."""
-            parts = list(path.parts)
-            for i, part in enumerate(parts):
-                if part == "images":
-                    parts[i] = "labels"
-                    break
-            return Path(*parts)
-
-        train_label_path = _replace_first_images_with_labels(train)
-        val_label_path = _replace_first_images_with_labels(val)
-        test_label_path = _replace_first_images_with_labels(test) if test else None
-
-        train_label_dir = path / train_label_path
-        val_label_dir = path / val_label_path
-        test_label_dir = path / test_label_path if test_label_path else None
-
-        if mode == "train":
-            return train_img_dir, train_label_dir
-        elif mode == "val":
-            return val_img_dir, val_label_dir
-        elif mode == "test":
-            return test_img_dir, test_label_dir
-        else:
-            raise ValueError(f"Unknown mode: {mode}")
 
 
 class YOLOObjectDetectionDatasetArgs(PydanticConfig):

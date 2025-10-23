@@ -25,6 +25,11 @@ PackageModel = Any
 NDArrayImage = NDArray[Union[np.uint8, np.int32, np.int64]]
 NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
 NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
+# Array with x0, y0, x1, y1, x2, y2, ... coordinates of the polygon points. Coordinates
+# are in [0, 1].
+NDArrayPolygon = NDArray[np.float64]  # (n_points*2,)
+NDArrayBinaryMask = NDArray[np.bool_]  # (H, W)
+NDArrayBinaryMasks = NDArray[np.bool_]  # (n_instances, H, W)
 
 
 class TransformInput(TypedDict):
@@ -108,6 +113,26 @@ class ObjectDetectionBatch(TypedDict):
     image: Tensor  # Tensor with shape (batch_size, 3, H, W).
     bboxes: list[Tensor]  # One tensor per image, each of shape (n_boxes, 4).
     classes: list[Tensor]  # One tensor per image, each of shape (n_boxes,).
+
+
+class InstanceSegmentationDatasetItem(TaskDatasetItem):
+    image_path: ImageFilename
+    image: Tensor
+    binary_masks: BinaryMasksDict  # Dict with (n_instances,) masks and labels.
+    bboxes: (
+        Tensor  # Of shape (n_instances, 4) with (x_center, y_center, w, h) coordinates.
+    )
+    classes: Tensor  # Of shape (n_instances,) with class labels.
+
+
+class InstanceSegmentationBatch(TypedDict):
+    image_path: list[ImageFilename]  # length==batch_size
+    # Tensor with shape (batch_size, C, H, W) or list of Tensors with shape (C, H, W).
+    image: Tensor | list[Tensor]
+    # One dict per image, each dict contains (n_instances,) masks and labels.
+    binary_masks: list[BinaryMasksDict]
+    bboxes: list[Tensor]  # One tensor per image, each of shape (n_instances, 4).
+    classes: list[Tensor]  # One tensor per image, each of shape (n_instances,).
 
 
 # Replaces torch.optim.optimizer.ParamsT
