@@ -20,7 +20,6 @@ from lightly_train._commands import (
     _warnings,
     common_helpers,
     predict_task_helpers,
-    train_task_helpers,
 )
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
@@ -102,7 +101,9 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     _logging.set_up_console_logging()
     _logging.set_up_file_logging(out_dir / "train.log")
     _logging.set_up_filters()
-    logger.info(f"Args: {train_task_helpers.pretty_format_args(args=initial_config)}")
+    logger.info(
+        f"Args: {common_helpers.pretty_format_args(args=initial_config, limit_keys={'data'})}"
+    )
     logger.info(f"Using output directory: '{out_dir}")
 
     # Log system information.x
@@ -144,7 +145,7 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
         loader_args=config.loader_args,
     )
     logger.info(
-        f"Resolved Args: {train_task_helpers.pretty_format_args(args=config.model_dump())}"
+        f"Resolved Args: {common_helpers.pretty_format_args(args=config.model_dump(), limit_keys={'data'})}"
     )
 
     # TODO: actual prediction logic to be implemented

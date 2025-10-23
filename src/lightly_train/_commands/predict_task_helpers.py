@@ -28,11 +28,12 @@ from lightly_train.types import DatasetItem, PathLike
 
 logger = logging.getLogger(__name__)
 
-TASK_MODEL_TRANSFROM_CLASSES: dict[str, type[PredictTransform]] = {
-    "DINOv2EoMTSemanticSegmentation": PredictSemanticSegmentationTransform,
-    "DINOv2LinearSemanticSegmentation": PredictSemanticSegmentationTransform,
-    "DINOv3EoMTSemanticSegmentation": PredictSemanticSegmentationTransform,
-}
+# List of semantic segmentation model class names
+SEM_SEG_TASK_MODEL_CLASSES = [
+    "DINOv2EoMTSemanticSegmentation",
+    "DINOv2LinearSemanticSegmentation",
+    "DINOv3EoMTSemanticSegmentation",
+]
 
 
 def get_out_dir(
@@ -86,9 +87,10 @@ def get_out_dir(
 
 
 def get_transform_cls(model_cls_name: str) -> type[PredictTransform]:
-    for task_model_cls, transform_cls in TASK_MODEL_TRANSFROM_CLASSES.items():
+    for task_model_cls in SEM_SEG_TASK_MODEL_CLASSES:
         if task_model_cls == model_cls_name:
-            return transform_cls
+            return PredictSemanticSegmentationTransform
+    # TODO(Yutong, 10/25): add more task model classes here once implemented
     raise ValueError(f"Unsupported model class '{model_cls_name}'.")
 
 
