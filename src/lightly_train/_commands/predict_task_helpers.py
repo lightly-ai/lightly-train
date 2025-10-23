@@ -18,13 +18,21 @@ from lightly_train._data import file_helpers
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._env import Env
 from lightly_train._task_models.task_model import TaskModel
+from lightly_train._transforms.predict_semantic_segmentation_transform import (
+    PredictSemanticSegmentationTransform,
+)
 from lightly_train._transforms.predict_transform import (
     PredictTransform,
-    PredictTransformArgs,
 )
 from lightly_train.types import DatasetItem, PathLike
 
 logger = logging.getLogger(__name__)
+
+TASK_MODEL_TRANSFROM_CLASSES: dict[str, type[PredictTransform]] = {
+    "DINOv2EoMTSemanticSegmentation": PredictSemanticSegmentationTransform,
+    "DINOv2LinearSemanticSegmentation": PredictSemanticSegmentationTransform,
+    "DINOv3EoMTSemanticSegmentation": PredictSemanticSegmentationTransform,
+}
 
 
 def get_out_dir(
@@ -77,16 +85,22 @@ def get_out_dir(
     return out_dir
 
 
-def get_transform_args(
-    model: TaskModel,
-) -> PredictTransformArgs:
-    return PredictTransformArgs()
+def get_transform_cls(model_cls_name: str) -> type[PredictTransform]:
+    for task_model_cls, transform_cls in TASK_MODEL_TRANSFROM_CLASSES.items():
+        if task_model_cls == model_cls_name:
+            return transform_cls
+    raise ValueError(f"Unsupported model class '{model_cls_name}'.")
 
 
 def get_transform(
-    transform_args: PredictTransformArgs,
+    model: TaskModel,
 ) -> PredictTransform:
-    return PredictTransform(transform_args=transform_args)
+    model_cls_name = model.class_path.split(".")[-1]
+    transform_cls = get_transform_cls(model_cls_name)
+
+    transform_args = transform_cls.transform_args_cls.from_model(model)
+
+    return transform_cls(transform_args=transform_args)
 
 
 def get_dataset(
