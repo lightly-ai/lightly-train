@@ -106,8 +106,9 @@ def get_transform(
 def get_dataset(
     data: PathLike | Sequence[PathLike] | Dataset[DatasetItem],
     transform: PredictTransform,
+    num_channels: int,
 ) -> Dataset[DatasetItem]:
-    # TODO: mmap file handling
+    # TODO(Yutong, 10/25): implement mmap file handling
     if isinstance(data, Dataset):
         logger.debug("Using provided dataset.")
         return data
@@ -124,18 +125,22 @@ def get_dataset(
         filenames = file_helpers.list_image_filenames_from_dir(image_dir=data)
         return ImageDataset(
             image_dir=data,
-            image_filenames=list(filenames),  # TODO: implement mmap file handling
+            image_filenames=list(
+                filenames
+            ),  # TODO(Yutong, 10/25): implement mmap file handling
             transform=transform,
-            num_channels=3,  # TODO
+            num_channels=num_channels,
         )
 
     elif isinstance(data, Sequence):
         filenames = file_helpers.list_image_filenames_from_iterable(imgs_and_dirs=data)
         return ImageDataset(
             image_dir=None,
-            image_filenames=list(filenames),  # TODO: implement mmap file handling
+            image_filenames=list(
+                filenames
+            ),  # TODO(Yutong, 10/25): implement mmap file handling
             transform=transform,
-            num_channels=3,  # TODO
+            num_channels=num_channels,
         )
     else:
         raise ValueError(
@@ -180,4 +185,5 @@ def get_dataloader(
         dataloader_kwargs.update(**loader_args)
 
     dataloader = DataLoader(**dataloader_kwargs)
+
     return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]

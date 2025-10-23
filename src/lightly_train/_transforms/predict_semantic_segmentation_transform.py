@@ -8,9 +8,6 @@
 from albumentations import (
     BasicTransform,
     Compose,
-    Normalize,
-    Resize,
-    ToFloat,
 )
 from albumentations.pytorch import ToTensorV2
 
@@ -65,16 +62,17 @@ class PredictSemanticSegmentationTransform(PredictTransform):
         super().__init__(transform_args=transform_args)
 
         transform: list[BasicTransform] = [
-            ToFloat(),
-            Normalize(
-                mean=transform_args.normalize.mean,
-                std=transform_args.normalize.std,
-                max_pixel_value=1.0,
-            ),
-            Resize(
-                height=transform_args.image_size[0],
-                width=transform_args.image_size[1],
-            ),
+            # TODO(Yutong, 10/25): enable them once predict_batch is implemented
+            # ToFloat(),
+            # Normalize(
+            #     mean=transform_args.normalize.mean,
+            #     std=transform_args.normalize.std,
+            #     max_pixel_value=1.0,
+            # ),
+            # Resize(
+            #     height=transform_args.image_size[0],
+            #     width=transform_args.image_size[1],
+            # ),
             ToTensorV2(),
         ]
         self.transform = Compose(transform)
