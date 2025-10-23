@@ -157,27 +157,14 @@ def get_dataloader(
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
 ) -> DataLoader[DatasetItem]:
-    """Creates a dataloader for the given dataset.
-
-    Args:
-        dataset:
-            Dataset.
-        batch_size:
-            Batch size per dataloader. This is the batch size per device.
-        num_workers:
-            Number of workers for the dataloader.
-        loader_args:
-            Additional arguments for the DataLoader. Additional arguments have priority
-            over other arguments.
-    """
-    logger.debug(f"Using batch size per device {batch_size}.")
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
-        batch_size=batch_size,
+        batch_size=batch_size // fabric.world_size,
+        shuffle=False,
         num_workers=num_workers,
         timeout=timeout,
-    )  # TODO: add a collate_fn
+    )  # TODO(Yutong, 10/25): add a collate_fn
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
         # Ignore batch_size from loader_args. It is already handled in
@@ -185,7 +172,5 @@ def get_dataloader(
         loader_args.pop("batch_size", None)
         loader_args.pop("num_workers", None)
         dataloader_kwargs.update(**loader_args)
-
     dataloader = DataLoader(**dataloader_kwargs)
-
     return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
