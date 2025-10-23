@@ -5,11 +5,20 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from typing import Any
+
+from pydantic import ConfigDict
+
+from lightly_train._configs.config import PydanticConfig
+from lightly_train._task_models.task_model import TaskModel
+from lightly_train.types import TransformInput, TransformOutput
 
 
-class PredictTransformArgs:
-    pass
+class PredictTransformArgs(PydanticConfig):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @classmethod
+    def from_model(cls, model: TaskModel) -> "PredictTransformArgs":
+        raise NotImplementedError
 
 
 class PredictTransform:
@@ -19,12 +28,7 @@ class PredictTransform:
         self,
         transform_args: PredictTransformArgs,
     ) -> None:
-        if not isinstance(transform_args, self.transform_args_cls):
-            raise TypeError(
-                f"transform_args must be of type {self.transform_args_cls.__name__}, "
-                f"got {type(transform_args).__name__} instead."
-            )
         self.transform_args = transform_args
 
-    def __call__(self, input: Any) -> Any:
-        raise NotImplementedError()
+    def __call__(self, input: TransformInput) -> TransformOutput:
+        raise NotImplementedError

@@ -112,11 +112,8 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     )
     # model = fabric.setup_module(model) #TODO: register predict as a forward function in Fabric
 
-    transform_args = predict_task_helpers.get_transform_args(
-        model=model,
-    )
     transform = predict_task_helpers.get_transform(
-        transform_args=transform_args,
+        model=model,
     )
 
     dataset = predict_task_helpers.get_dataset(
