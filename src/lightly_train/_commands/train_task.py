@@ -31,7 +31,9 @@ from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModelArgs
-from lightly_train._train_task_state import TrainTaskState
+from lightly_train._train_task_state import (
+    TrainTaskState,
+)
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -257,7 +259,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     )
 
     if checkpoint:
-        model_init_args = checkpoint.metadata.model_init_args
+        model_init_args = checkpoint["model_init_args"]
         if (saved_model_name := model_init_args.get("model_name")) != config.model:
             raise ValueError(
                 f"The model name in the checkpoint or model weights file('{saved_model_name}') "
@@ -412,16 +414,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_init_args=train_model.get_task_model().init_args,
         )
 
-        if isinstance(checkpoint, helpers.ResumeCheckpoint):
+        if config.resume_interrupted and checkpoint:
             helpers.resume_from_checkpoint(
                 state=state,
-                checkpoint=checkpoint,
+                checkpoint=checkpoint,  # type: ignore[arg-type]
             )
-            train_dataloader = checkpoint.train_dataloader
-        elif isinstance(checkpoint, helpers.FinetuneCheckpoint):
+            train_dataloader = checkpoint["train_dataloader"]  # type: ignore[typeddict-item]
+        elif config.checkpoint and checkpoint:
             helpers.finetune_from_checkpoint(
                 state=state,
-                checkpoint=checkpoint,
+                checkpoint=checkpoint,  # type: ignore[arg-type]
                 reuse_class_head=config.reuse_class_head,
             )
 
