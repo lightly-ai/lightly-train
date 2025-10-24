@@ -23,7 +23,7 @@ class TaskTransformOutput(TypedDict):
 
 
 class TaskTransformArgs(PydanticConfig):
-    def resolve_auto(self) -> None:
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         """Resolve any arguments set to "auto"."""
         pass
 

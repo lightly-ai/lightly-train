@@ -8,13 +8,16 @@
 from __future__ import annotations
 
 import importlib
-from typing import Literal
+import logging
+from typing import Any, Literal
 
 import torch
 
 from lightly_train._commands import common_helpers
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
+
+logger = logging.getLogger(__name__)
 
 
 def load_model_from_checkpoint(
@@ -70,3 +73,45 @@ def _resolve_device(device: str | torch.device | None) -> torch.device:
         raise ValueError(
             f"Invalid device: {device}. Must be 'cpu', 'cuda', 'mps', a torch.device, or None."
         )
+
+
+def queries_adjust_num_queries_hook(
+    module: torch.Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """Resize query embeddings from the checkpoint to match the module configuration."""
+    queries_weight_key = f"{prefix}queries.weight"
+    queries_weight = state_dict.get(queries_weight_key)
+    if queries_weight is None:
+        return
+
+    query_embed_module = getattr(module, "queries", None)
+    num_queries_module = getattr(module, "num_queries", None)
+    if query_embed_module is None or num_queries_module is None:
+        return
+
+    num_queries_state = queries_weight.shape[0]
+    if num_queries_state == num_queries_module:
+        return
+    elif num_queries_state > num_queries_module:
+        logger.info(
+            f"Checkpoint provides {num_queries_state} queries but module expects {num_queries_module}. Truncating.",
+        )
+
+        queries_weight = queries_weight[:num_queries_module, :]
+    else:
+        logger.info(
+            f"Checkpoint provides {num_queries_state} queries but module expects {num_queries_module}. Repeating entries.",
+        )
+
+        repeated_times, remainder = divmod(num_queries_module, num_queries_state)
+        queries_weight = queries_weight.repeat(repeated_times, 1)
+        if remainder > 0:
+            queries_weight = torch.cat(
+                [queries_weight, queries_weight[:remainder, :]], dim=0
+            )
+
+    state_dict[queries_weight_key] = queries_weight

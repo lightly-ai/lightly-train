@@ -52,7 +52,11 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
-from lightly_train._train_task_state import TrainTaskState
+from lightly_train._train_task_state import (
+    ExportedCheckpoint,
+    TrainCheckpoint,
+    TrainTaskState,
+)
 from lightly_train._transforms.semantic_segmentation_transform import (
     SemanticSegmentationTransform,
 )
@@ -270,6 +274,7 @@ def get_transform_args(
     train_model_cls: type[TrainModel],
     transform_args: dict[str, Any] | None,
     ignore_index: int | None,
+    model_init_args: dict[str, Any],
 ) -> tuple[TaskTransformArgs, TaskTransformArgs]:
     if train_model_cls.task != "semantic_segmentation" and ignore_index is not None:
         raise ValueError(
@@ -295,7 +300,9 @@ def get_transform_args(
     train_transform_args = validate.pydantic_model_validate(
         train_transform_args_cls, transform_args
     )
-    train_transform_args.resolve_auto()
+    train_transform_args.resolve_auto(
+        model_init_args=model_init_args,
+    )
     train_transform_args.resolve_incompatible()
 
     # Take defaults from train transform.
@@ -312,7 +319,9 @@ def get_transform_args(
     val_transform_args = validate.pydantic_model_validate(
         val_transform_args_cls, val_args_dict
     )
-    val_transform_args.resolve_auto()
+    val_transform_args.resolve_auto(
+        model_init_args=model_init_args,
+    )
     val_transform_args.resolve_incompatible()
 
     logger.debug(
@@ -591,12 +600,15 @@ def get_train_model_args(
     model_args_cls: type[TrainModelArgs],
     total_steps: int,
     model_name: str,
+    model_init_args: dict[str, Any],
 ) -> TrainModelArgs:
     if isinstance(model_args, TrainModelArgs):
         return model_args
     model_args = {} if model_args is None else model_args
     args = validate.pydantic_model_validate(model_args_cls, model_args)
-    args.resolve_auto(total_steps=total_steps, model_name=model_name)
+    args.resolve_auto(
+        total_steps=total_steps, model_name=model_name, model_init_args=model_init_args
+    )
     return args
 
 
@@ -696,59 +708,133 @@ def export_model(
     torch.save(model_dict, model_path)
 
 
-def load_checkpoint_from_interrupted(
-    fabric: Fabric, out_dir: PathLike, state: TrainTaskState
-) -> None:
-    ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
+def load_checkpoint(
+    fabric: Fabric, out_dir: Path, resume_interrupted: bool, ckpt_path: PathLike | None
+) -> TrainCheckpoint | ExportedCheckpoint | None:
+    """Build a checkpoint context from the current run configuration.
+
+    Args:
+        fabric: Fabric instance used to load checkpoint files.
+        out_dir: Output directory where checkpoints are stored.
+        resume_interrupted: Whether to resume from an interrupted run.
+        ckpt_path: Path to a specific checkpoint file to fine-tune from.
+
+    Returns:
+        A populated checkpoint context when resuming or fine-tuning, otherwise ``None``.
+
+    Raises:
+        ValueError: If resume and checkpoint options are requested simultaneously.
+        FileNotFoundError: If the resolved checkpoint file does not exist.
+    """
+    if (not resume_interrupted) and (ckpt_path is None):
+        # Not resuming or fine-tuning from a checkpoint.
+        return None
+    elif resume_interrupted and (ckpt_path is not None):
+        # Both resume and checkpoint specified.
+        raise ValueError(
+            f"resume_interrupted={resume_interrupted} and checkpoint='{ckpt_path}' "
+            "cannot be set at the same time! Please set only one of them. "
+        )
+    elif ckpt_path is not None:
+        ckpt_path = Path(ckpt_path).resolve()
+    else:
+        ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
+
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
 
+    logger.info(f"Loading checkpoint from '{ckpt_path}'")
+
+    checkpoint = fabric.load(path=ckpt_path)
+
+    model_init_args = checkpoint.get("model_init_args", {})
+    model_class_path = checkpoint.get("model_class_path", "")
+
+    train_model_state_dict = checkpoint.get("train_model")
+    if train_model_state_dict is None:
+        raise ValueError(
+            f"Checkpoint file '{ckpt_path}' does not contain a train model state."
+        )
+
+    if resume_interrupted:
+        optimizer_state = checkpoint.get("optimizer")
+        scheduler_state = checkpoint.get("scheduler")
+        if optimizer_state is None or scheduler_state is None:
+            raise ValueError(
+                f"Checkpoint file '{ckpt_path}' does not contain optimizer or scheduler state."
+            )
+
+        train_dataloader = checkpoint.get("train_dataloader")
+        if train_dataloader is None:
+            raise ValueError(
+                f"Checkpoint file '{ckpt_path}' does not contain train dataloader."
+            )
+
+        step = checkpoint.get("step")
+        if step is None:
+            raise ValueError(
+                f"Checkpoint file '{ckpt_path}' does not contain training step."
+            )
+        return TrainCheckpoint(
+            train_model_state_dict=train_model_state_dict,
+            optimizer_state_dict=optimizer_state,
+            scheduler_state_dict=scheduler_state,
+            train_dataloader=train_dataloader,
+            step=step,
+            model_class_path=model_class_path,
+            model_init_args=model_init_args,
+        )
+
+    return ExportedCheckpoint(
+        train_model_state_dict=train_model_state_dict,
+        model_class_path=model_class_path,
+        model_init_args=model_init_args,
+    )
+
+
+def resume_from_checkpoint(
+    state: TrainTaskState,
+    checkpoint: TrainCheckpoint,
+) -> None:
+    """Restore model, optimizer, scheduler, dataloader, and step state from the checkpoint for resuming training.
+
+    Args:
+        state: Training state container to populate with checkpoint data.
+        checkpoint: Checkpoint containing the state dicts to load.
+    """
+
     train_model = state["train_model"]
-    train_model_grads = {n: p.requires_grad for n, p in train_model.named_parameters()}
-    train_model_trainings = {n: m.training for n, m in train_model.named_modules()}
     optimizer = state["optimizer"]
     scheduler = state["scheduler"]
-    train_dataloader = state["train_dataloader"]
 
-    logger.info(f"Loading checkpoint from '{ckpt_path}'")
-    fabric.load(path=ckpt_path, state=state)  # type: ignore[arg-type]
+    train_model.load_state_dict(checkpoint["train_model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
-    # Sanity check to make sure that checkpoint loading didn't create new objects or
-    # changed the model state.
-    assert state["train_model"] is train_model
-    assert {
-        n: p.requires_grad for n, p in state["train_model"].named_parameters()
-    } == train_model_grads
-    assert {
-        n: m.training for n, m in state["train_model"].named_modules()
-    } == train_model_trainings
-    assert state["optimizer"] is optimizer
-    assert state["scheduler"] is scheduler
-    assert state["train_dataloader"] is train_dataloader
+    state["train_dataloader"] = checkpoint["train_dataloader"]
+    state["step"] = checkpoint["step"]
 
 
-def load_checkpoint_from_file(
-    fabric: Fabric,
-    ckpt_path: PathLike,
+def finetune_from_checkpoint(
     state: TrainTaskState,
+    checkpoint: ExportedCheckpoint,
     reuse_class_head: bool,
 ) -> None:
-    ckpt_path = Path(ckpt_path).resolve()
-    if not ckpt_path.exists():
-        raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
+    """Restore model state from the checkpoint for fine-tuning.
+
+    Args:
+        state: Training state container to populate with checkpoint data.
+        checkpoint: Checkpoint context the state dicts to load.
+        reuse_class_head: Whether to keep class-specific layers when fine-tuning.
+    """
 
     train_model = state["train_model"]
-    train_model_grads = {n: p.requires_grad for n, p in train_model.named_parameters()}
-    train_model_trainings = {n: m.training for n, m in train_model.named_modules()}
-    logger.info(f"Loading checkpoint from '{ckpt_path}'")
-
+    train_model_state_keys = set(train_model.state_dict().keys())
     if reuse_class_head:
-        fabric.load(path=ckpt_path, state={"train_model": train_model})  # type: ignore[arg-type]
+        incompatible = train_model.load_state_dict(
+            checkpoint["train_model_state_dict"],
+        )
     else:
-        checkpoint = fabric.load(path=ckpt_path)
-        checkpoint_train_model = checkpoint["train_model"]
-
-        train_model_state_keys = set(train_model.state_dict().keys())
         class_head_keys = {
             key
             for key in train_model_state_keys
@@ -758,26 +844,25 @@ def load_checkpoint_from_file(
             key for key in train_model_state_keys if "criterion.empty_weight" in key
         }
         checkpoint_keys_to_skip = class_head_keys | criterion_keys
-
         if checkpoint_keys_to_skip:
             logger.debug(
                 "Skipping class-dependent parameters from checkpoint: %s",
                 sorted(checkpoint_keys_to_skip),
             )
-
         filtered_state = {
             key: value
-            for key, value in checkpoint_train_model.items()
+            for key, value in checkpoint["train_model_state_dict"].items()
             if key not in checkpoint_keys_to_skip
         }
-        train_model.load_state_dict(filtered_state, strict=reuse_class_head)
+        incompatible = train_model.load_state_dict(filtered_state, strict=False)
 
-    # Sanity check to make sure that checkpoint loading didn't create new objects or
-    # changed the model state.
-    assert state["train_model"] is train_model
-    assert {
-        n: p.requires_grad for n, p in state["train_model"].named_parameters()
-    } == train_model_grads
-    assert {
-        n: m.training for n, m in state["train_model"].named_modules()
-    } == train_model_trainings
+    if reuse_class_head and incompatible.missing_keys:
+        logger.warning(
+            "Missing keys after loading checkpoint: %s",
+            incompatible.missing_keys,
+        )
+    if incompatible.unexpected_keys:
+        logger.warning(
+            "Unexpected keys after loading checkpoint: %s",
+            incompatible.unexpected_keys,
+        )

@@ -48,7 +48,7 @@ def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
         smallest_max_size=SmallestMaxSizeArgs(max_size=32, prob=1.0),
         random_crop=None,
     )
-    args.resolve_auto()
+    args.resolve_auto(model_init_args={})
     args.resolve_incompatible()
     return SemanticSegmentationTransform(args)
 
