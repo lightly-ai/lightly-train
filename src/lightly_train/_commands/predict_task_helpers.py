@@ -10,8 +10,10 @@ import logging
 from pathlib import Path
 from typing import Any, Sequence
 
+import numpy as np
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
+from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
 from lightly_train._data import file_helpers
@@ -24,7 +26,7 @@ from lightly_train._transforms.predict_semantic_segmentation_transform import (
 from lightly_train._transforms.predict_transform import (
     PredictTransform,
 )
-from lightly_train.types import DatasetItem, PathLike
+from lightly_train.types import DatasetItem, NDArrayImage, PathLike
 
 logger = logging.getLogger(__name__)
 
@@ -174,3 +176,25 @@ def get_dataloader(
         dataloader_kwargs.update(**loader_args)
     dataloader = DataLoader(**dataloader_kwargs)
     return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
+
+
+def compute_mask_filepath(
+    out: PathLike,
+    data: PathLike | Sequence[PathLike],
+    image_filename: str,
+) -> Path:
+    if isinstance(
+        data, str | Path
+    ):  # save the image to the same relative path as in data
+        return Path(out) / Path(image_filename).with_suffix(".png")
+    else:  # just save the image filename in out
+        return Path(out) / Path(image_filename).with_suffix(".png").name
+
+
+def save_mask(mask: NDArrayImage, mask_filepath: Path) -> None:
+    mask_np = np.asarray(mask)
+
+    dtype = np.uint8 if mask_np.max() <= 255 else np.uint16
+    mask_np = mask_np.astype(dtype, copy=False)
+
+    Image.fromarray(mask_np).save(mask_filepath)

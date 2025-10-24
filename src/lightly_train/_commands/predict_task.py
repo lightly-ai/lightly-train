@@ -14,6 +14,7 @@ from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from pydantic import ConfigDict
+from torch import Tensor
 
 from lightly_train import _logging, _system
 from lightly_train._commands import (
@@ -24,7 +25,7 @@ from lightly_train._commands import (
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._task_models import task_model_helpers
-from lightly_train.types import PathLike
+from lightly_train.types import ImageFilename, PathLike
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,6 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     model = task_model_helpers.load_model_from_checkpoint(
         checkpoint=config.model,
     )
-    # model = fabric.setup_module(model) #TODO: register predict as a forward function in Fabric
 
     transform = predict_task_helpers.get_transform(
         model=model,
@@ -148,9 +148,21 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
         f"Resolved Args: {common_helpers.pretty_format_args(args=config.model_dump(), limit_keys={'data'})}"
     )
 
-    # TODO: actual prediction logic to be implemented
+    predict_model = fabric.setup_module(model)
+    predict_model.mark_forward_method("predict")
+
+    # TODO(Yutong, 10/25): re-implement with predict_batch
     for batch in dataloader:
-        model.predict(batch)  # Replace with prediction logic
+        image_filename: ImageFilename = batch["filename"][0]
+        image: Tensor = batch["views"][0]
+
+        mask: Tensor = predict_model.predict(image)
+
+        mask_numpy = mask.detach().cpu().numpy()
+        mask_filepath = predict_task_helpers.compute_mask_filepath(
+            config.out, config.data, image_filename
+        )
+        predict_task_helpers.save_mask(mask_numpy, mask_filepath)
 
     logger.info("Prediction completed.")
 
@@ -159,7 +171,7 @@ class PredictTaskConfig(PydanticConfig):
     out: PathLike
     data: PathLike | Sequence[PathLike]
     model: PathLike
-    batch_size: int = 16  # Set this to 1 for the initial implementation
+    batch_size: int = 1  # Set this to 16 when we add predict_batch
     num_workers: int | Literal["auto"] = "auto"
     accelerator: str | Accelerator = "auto"
     precision: _PRECISION_INPUT = "bf16-mixed"
