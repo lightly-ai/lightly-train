@@ -310,6 +310,12 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     classes: dict[int, ClassInfo]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
+    def train_imgs_path(self) -> Path:
+        return Path(self.train.images)
+
+    def val_imgs_path(self) -> Path:
+        return Path(self.val.images)
+
     @field_validator("classes", mode="before")
     @classmethod
     def validate_classes(
