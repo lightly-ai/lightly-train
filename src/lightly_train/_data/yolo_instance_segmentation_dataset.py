@@ -15,7 +15,6 @@ import numpy as np
 import pydantic
 import torch
 
-from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_batch_collation import (
@@ -23,7 +22,7 @@ from lightly_train._data.task_batch_collation import (
     InstanceSegmentationCollateFunction,
 )
 from lightly_train._data.task_data_args import TaskDataArgs
-from lightly_train._data.task_dataset import TaskDataset
+from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._transforms.instance_segmentation_transform import (
     InstanceSegmentationTransform,
@@ -42,6 +41,9 @@ from lightly_train.types import (
 
 
 class YOLOInstanceSegmentationDataset(TaskDataset):
+    # Narrow the type of dataset_args.
+    dataset_args: YOLOInstanceSegmentationDatasetArgs
+
     batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
         InstanceSegmentationCollateFunction
     )
@@ -243,7 +245,7 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
         )
 
 
-class YOLOInstanceSegmentationDatasetArgs(PydanticConfig):
+class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
     image_dir: Path
     label_dir: Path
     classes: dict[int, str]

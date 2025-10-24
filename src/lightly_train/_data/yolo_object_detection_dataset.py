@@ -26,6 +26,9 @@ from lightly_train.types import ObjectDetectionDatasetItem, PathLike
 
 
 class YOLOObjectDetectionDataset(TaskDataset):
+    # Narrow the type of dataset_args.
+    dataset_args: YOLOObjectDetectionDatasetArgs  # type: ignore[assignment]
+
     batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
         ObjectDetectionCollateFunction
     )
