@@ -100,6 +100,7 @@ def dump_transform_args_for_methods(dest_dir: Path) -> None:
 def dump_transform_args_for_tasks(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
+        # TODO(Thomas, 10/25): Allow to dump transform args for object detection tasks too.
         if train_model_cls in {
             DINOv2LinearSemanticSegmentationTrain,
             DINOv2LTDETRObjectDetectionTrain,
