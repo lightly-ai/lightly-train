@@ -27,3 +27,24 @@ class TrainTaskState(TypedDict):
     # Used to reconstruct the model after training.
     model_class_path: str
     model_init_args: dict[str, Any]
+
+
+class CheckpointDict(TypedDict):
+    train_model_state_dict: dict[str, Any]
+    # Model class path and initialization arguments for serialization.
+    # Used to reconstruct the model after training.
+    model_class_path: str
+    model_init_args: dict[str, Any]
+
+
+# Checkpoint as saved in out/checkpoints/last.ckpt
+class TrainCheckpoint(CheckpointDict):
+    optimizer_state_dict: dict[str, Any]
+    scheduler_state_dict: dict[str, Any]
+    train_dataloader: DataLoader[TaskBatch]
+    step: int
+
+
+# Checkpoint as saved in out/exported/last.pt
+class ExportedCheckpoint(CheckpointDict):
+    pass

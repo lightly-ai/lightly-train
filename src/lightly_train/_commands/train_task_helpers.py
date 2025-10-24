@@ -20,12 +20,10 @@ from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
-from pydantic import ConfigDict
 from torch import Tensor
 from torch.utils.data import DataLoader
 
 from lightly_train._configs import validate
-from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import cache
 from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data._serialize.memory_mapped_sequence import (
@@ -54,7 +52,11 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
-from lightly_train._train_task_state import TrainTaskState
+from lightly_train._train_task_state import (
+    ExportedCheckpoint,
+    TrainCheckpoint,
+    TrainTaskState,
+)
 from lightly_train._transforms.semantic_segmentation_transform import (
     SemanticSegmentationTransform,
 )
@@ -80,27 +82,6 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
 ]
-
-
-class CheckpointMetadata(PydanticConfig):
-    model_init_args: dict[str, Any]
-    model_class_path: str
-
-
-class FinetuneCheckpoint(PydanticConfig):
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True
-    )  # relax validation for Tensor and DataLoader
-
-    metadata: CheckpointMetadata
-    train_model_state_dict: dict[str, Tensor]
-
-
-class ResumeCheckpoint(FinetuneCheckpoint):
-    optimizer_state_dict: dict[str, Any]
-    scheduler_state_dict: dict[str, Any]
-    train_dataloader: DataLoader[TaskDatasetItem]
-    step: int
 
 
 def get_out_dir(
@@ -729,7 +710,7 @@ def export_model(
 
 def load_checkpoint(
     fabric: Fabric, out_dir: Path, resume_interrupted: bool, ckpt_path: PathLike | None
-) -> FinetuneCheckpoint | ResumeCheckpoint | None:
+) -> TrainCheckpoint | ExportedCheckpoint | None:
     """Build a checkpoint context from the current run configuration.
 
     Args:
@@ -765,10 +746,9 @@ def load_checkpoint(
     logger.info(f"Loading checkpoint from '{ckpt_path}'")
 
     checkpoint = fabric.load(path=ckpt_path)
-    metadata = CheckpointMetadata(
-        model_init_args=checkpoint.get("model_init_args") or {},
-        model_class_path=checkpoint.get("model_class_path") or "",
-    )
+
+    model_init_args = checkpoint.get("model_init_args", {})
+    model_class_path = checkpoint.get("model_class_path", "")
 
     train_model_state_dict = checkpoint.get("train_model")
     if train_model_state_dict is None:
@@ -795,54 +775,56 @@ def load_checkpoint(
             raise ValueError(
                 f"Checkpoint file '{ckpt_path}' does not contain training step."
             )
-        return ResumeCheckpoint(
-            metadata=metadata,
+        return TrainCheckpoint(
             train_model_state_dict=train_model_state_dict,
             optimizer_state_dict=optimizer_state,
             scheduler_state_dict=scheduler_state,
             train_dataloader=train_dataloader,
             step=step,
+            model_class_path=model_class_path,
+            model_init_args=model_init_args,
         )
 
-    return FinetuneCheckpoint(
-        metadata=metadata,
+    return ExportedCheckpoint(
         train_model_state_dict=train_model_state_dict,
+        model_class_path=model_class_path,
+        model_init_args=model_init_args,
     )
 
 
 def resume_from_checkpoint(
     state: TrainTaskState,
-    checkpoint: ResumeCheckpoint,
+    checkpoint: TrainCheckpoint,
 ) -> None:
     """Restore model, optimizer, scheduler, dataloader, and step state from the checkpoint for resuming training.
 
     Args:
         state: Training state container to populate with checkpoint data.
-        checkpoint: Checkpoint context containing the state to load.
+        checkpoint: Checkpoint containing the state dicts to load.
     """
 
     train_model = state["train_model"]
     optimizer = state["optimizer"]
     scheduler = state["scheduler"]
 
-    train_model.load_state_dict(checkpoint.train_model_state_dict)
-    optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-    scheduler.load_state_dict(checkpoint.scheduler_state_dict)
+    train_model.load_state_dict(checkpoint["train_model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
-    state["train_dataloader"] = checkpoint.train_dataloader
-    state["step"] = checkpoint.step
+    state["train_dataloader"] = checkpoint["train_dataloader"]
+    state["step"] = checkpoint["step"]
 
 
 def finetune_from_checkpoint(
     state: TrainTaskState,
-    checkpoint: FinetuneCheckpoint,
+    checkpoint: ExportedCheckpoint,
     reuse_class_head: bool,
 ) -> None:
     """Restore model state from the checkpoint for fine-tuning.
 
     Args:
         state: Training state container to populate with checkpoint data.
-        checkpoint: Checkpoint context containing the state to load.
+        checkpoint: Checkpoint context the state dicts to load.
         reuse_class_head: Whether to keep class-specific layers when fine-tuning.
     """
 
@@ -850,7 +832,7 @@ def finetune_from_checkpoint(
     train_model_state_keys = set(train_model.state_dict().keys())
     if reuse_class_head:
         incompatible = train_model.load_state_dict(
-            checkpoint.train_model_state_dict,
+            checkpoint["train_model_state_dict"],
         )
     else:
         class_head_keys = {
@@ -869,7 +851,7 @@ def finetune_from_checkpoint(
             )
         filtered_state = {
             key: value
-            for key, value in checkpoint.train_model_state_dict.items()
+            for key, value in checkpoint["train_model_state_dict"].items()
             if key not in checkpoint_keys_to_skip
         }
         incompatible = train_model.load_state_dict(filtered_state, strict=False)
