@@ -232,7 +232,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
     # Load checkpoint context if resuming or further fine-tuning.
     checkpoint_ctx = helpers.BaseCheckpointContext.from_config(
-        fabric=fabric, config=config, out_dir=out_dir
+        fabric=fabric,
+        out_dir=out_dir,
+        resume_interrupted=config.resume_interrupted,
+        ckpt_path=config.checkpoint,
     )
 
     # Log system information.
