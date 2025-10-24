@@ -153,10 +153,7 @@ class NormalizeArgs(PydanticConfig):
 
     @classmethod
     def from_dict(cls, config: dict[str, list[float]]) -> NormalizeArgs:
-        return cls(
-            mean=(config["mean"][0], config["mean"][1], config["mean"][2]),
-            std=(config["std"][0], config["std"][1], config["std"][2]),
-        )
+        return cls(mean=tuple(config["mean"]), std=tuple(config["std"]))
 
 
 class ScaleJitterArgs(PydanticConfig):
