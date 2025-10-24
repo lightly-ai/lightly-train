@@ -186,9 +186,11 @@ def compute_mask_filepath(
     if isinstance(
         data, str | Path
     ):  # save the image to the same relative path as in data
-        return Path(out) / Path(image_filename).with_suffix(".png")
+        mask_filepath = Path(out) / Path(image_filename).with_suffix(".png")
     else:  # just save the image filename in out
-        return Path(out) / Path(image_filename).with_suffix(".png").name
+        mask_filepath = Path(out) / Path(image_filename).with_suffix(".png").name
+    mask_filepath.parent.mkdir(parents=True, exist_ok=True)
+    return mask_filepath
 
 
 def save_mask(mask: NDArrayImage, mask_filepath: Path) -> None:
