@@ -14,7 +14,7 @@ import numpy as np
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 from lightly_train._data import file_helpers
 from lightly_train._data.image_dataset import ImageDataset
@@ -108,12 +108,12 @@ def get_transform(
 
 
 def get_dataset(
-    data: PathLike | Sequence[PathLike] | Dataset[DatasetItem],
+    data: PathLike | Sequence[PathLike] | ImageDataset,
     transform: PredictTransform,
     num_channels: int,
-) -> Dataset[DatasetItem]:
+) -> ImageDataset:
     # TODO(Yutong, 10/25): implement mmap file handling
-    if isinstance(data, Dataset):
+    if isinstance(data, ImageDataset):
         logger.debug("Using provided dataset.")
         return data
 
@@ -154,7 +154,7 @@ def get_dataset(
 
 def get_dataloader(
     fabric: Fabric,
-    dataset: Dataset[DatasetItem],
+    dataset: ImageDataset,
     batch_size: int,
     num_workers: int,
     loader_args: dict[str, Any] | None = None,

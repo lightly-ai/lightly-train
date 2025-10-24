@@ -41,6 +41,7 @@ def predict_semantic_segmentation(
     accelerator: str | Accelerator = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     overwrite: bool = False,
+    log_every_num_steps: int = 100,
     num_channels: int = 3,
     loader_args: dict[str, Any] | None = None,
 ) -> None:
@@ -68,6 +69,8 @@ def predict_semantic_segmentation(
         overwrite:
             Overwrite the output directory if it already exists. Warning, this might
             overwrite existing files in the directory!
+        log_every_num_steps:
+            Log progress every `log_every_num_steps` steps.
         num_channels:
             Number of input channels of the images. Default is 3 (RGB).
         loader_args:
@@ -101,7 +104,7 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     # Set up logging.
     _warnings.filter_train_warnings()
     _logging.set_up_console_logging()
-    _logging.set_up_file_logging(out_dir / "train.log")
+    _logging.set_up_file_logging(out_dir / "predict.log")
     _logging.set_up_filters()
     logger.info(f"Args: {train_task_helpers.pretty_format_args(args=initial_config)}")
     logger.info(f"Using output directory: '{out_dir}")
@@ -124,6 +127,9 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
         transform=transform,
         num_channels=config.num_channels,
     )
+
+    num_images = len(dataset)
+    logger.info(f"Number of images to label: {num_images}")
 
     config.batch_size = common_helpers.get_global_batch_size(
         global_batch_size=config.batch_size,
@@ -151,7 +157,8 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     predict_model.mark_forward_method("predict")
 
     # TODO(Yutong, 10/25): re-implement with predict_batch
-    for batch in dataloader:
+    logger.info("Starting prediction...")
+    for idx, batch in enumerate(dataloader):
         image_filename: ImageFilename = batch["filename"][0]
         image: Tensor = batch["views"][0][0]
 
@@ -161,7 +168,15 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
         mask_filepath = predict_task_helpers.compute_mask_filepath(
             config.out, config.data, image_filename
         )
-        predict_task_helpers.save_mask(mask_numpy, mask_filepath)
+        try:
+            predict_task_helpers.save_mask(mask_numpy, mask_filepath)
+        except Exception as e:
+            logger.error(
+                f"Could not save predicted mask for image "
+                f"'{image_filename}' at '{mask_filepath}': {e}"
+            )
+        if idx % config.log_every_num_steps == 0:
+            logger.info(f"{idx}/{num_images} completed.")
 
     logger.info("Prediction completed.")
 
@@ -175,6 +190,7 @@ class PredictTaskConfig(PydanticConfig):
     accelerator: str | Accelerator = "auto"
     precision: _PRECISION_INPUT = "bf16-mixed"
     overwrite: bool = False
+    log_every_num_steps: int = 100
     num_channels: int = 3
     loader_args: dict[str, Any] | None = None
 
