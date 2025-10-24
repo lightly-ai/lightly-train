@@ -78,4 +78,4 @@ class PredictSemanticSegmentationTransform(PredictTransform):
         self.transform = Compose(transform)
 
     def __call__(self, input: TransformInput) -> TransformOutput:
-        return [self.transform(input)]
+        return [self.transform(**input)]
