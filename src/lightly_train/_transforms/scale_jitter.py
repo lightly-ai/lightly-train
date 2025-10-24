@@ -30,7 +30,7 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
     ):
         super().__init__(p=1.0)
         if sizes is not None and any(
-            [s is None for s in [target_size, scale_range, num_scales]]
+            [s is not None for s in [target_size, scale_range, num_scales]]
         ):
             raise ValueError(
                 "If sizes is provided, target_size, scale_range, num_scales must be None."

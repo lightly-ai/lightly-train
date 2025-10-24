@@ -8,6 +8,10 @@
 from __future__ import annotations
 
 import os
+from typing import Any
+
+import torch
+import torch.distributed as dist
 
 from lightly_train import _lightning_rank_zero
 
@@ -52,3 +56,32 @@ def is_node_rank_zero() -> bool:
     """Check if the current process is running on the node rank zero."""
     node_rank = get_node_rank()
     return node_rank == 0 or node_rank is None
+
+
+def reduce_dict(data: dict[str, Any], average: bool = True) -> dict[str, torch.Tensor]:
+    """Reduce a dictionary of tensors across all distributed processes."""
+    if not dist.is_available() or not dist.is_initialized():
+        return data
+
+    world_size = dist.get_world_size()
+    if world_size < 2:
+        return data
+
+    with torch.no_grad():
+        keys = sorted(data.keys())
+        values = [data[k] for k in keys]
+
+        # Ensure all values are tensors on the same device
+        values = [
+            v.detach().to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            for v in values
+        ]
+        stacked = torch.stack(values, dim=0)
+
+        dist.all_reduce(stacked)
+
+        if average:
+            stacked /= world_size
+
+        reduced = {k: v for k, v in zip(keys, stacked)}
+        return reduced

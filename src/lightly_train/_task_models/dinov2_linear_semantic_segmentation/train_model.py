@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import torch
 from lightly.models.utils import get_weight_decay_parameters
@@ -22,6 +22,7 @@ from torch.optim.optimizer import Optimizer
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
+from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.task_model import (
     DINOv2LinearSemanticSegmentation,
 )
@@ -38,10 +39,19 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
+class DINOv2LinearSemanticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
+    watch_metric: str = "val_metric/miou"
+    mode: Literal["min", "max"] = "max"
+
+
 class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from PVOC12
     default_steps: ClassVar[int] = 80_000
+
+    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
+        DINOv2LinearSemanticSegmentationTaskSaveCheckpointArgs
+    )
 
     backbone_freeze: bool = True
     backbone_weights: PathLike | None = None
