@@ -13,7 +13,7 @@ import json
 import logging
 from json import JSONEncoder
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generator, Iterable, Literal, Mapping
+from typing import Any, Generator, Iterable, Literal, Mapping
 
 import torch
 from filelock import FileLock
@@ -74,9 +74,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from lightly_train._commands.train_task import TrainTaskConfig
-
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv2EoMTSemanticSegmentationTrain,
@@ -95,20 +92,25 @@ class BaseCheckpointContext(PydanticConfig):
         arbitrary_types_allowed=True
     )  # relax validation for Tensor and DataLoader
 
-    path: Path
     metadata: CheckpointMetadata
-    train_model_state: dict[str, Tensor]
+    train_model_state_dict: dict[str, Tensor]
 
     @classmethod
     def from_config(
-        cls, *, fabric: Fabric, config: "TrainTaskConfig", out_dir: Path
+        cls,
+        *,
+        fabric: Fabric,
+        out_dir: Path,
+        resume_interrupted: bool,
+        ckpt_path: str | Path | None,
     ) -> "ResumeCheckpointContext | FinetuneCheckpointContext | None":
         """Build a checkpoint context from the current run configuration.
 
         Args:
             fabric: Fabric instance used to load checkpoint files.
-            config: Training configuration holding resume and checkpoint flags.
             out_dir: Output directory where checkpoints are stored.
+            resume_interrupted: Whether to resume from an interrupted run.
+            ckpt_path: Path to a specific checkpoint file to fine-tune from.
 
         Returns:
             A populated checkpoint context when resuming or fine-tuning, otherwise ``None``.
@@ -117,17 +119,17 @@ class BaseCheckpointContext(PydanticConfig):
             ValueError: If resume and checkpoint options are requested simultaneously.
             FileNotFoundError: If the resolved checkpoint file does not exist.
         """
-        if (not config.resume_interrupted) and (config.checkpoint is None):
+        if (not resume_interrupted) and (ckpt_path is None):
             # Not resuming or fine-tuning from a checkpoint.
             return None
-        elif config.resume_interrupted and (config.checkpoint is not None):
+        elif resume_interrupted and (ckpt_path is not None):
             # Both resume and checkpoint specified.
             raise ValueError(
-                f"resume_interrupted={config.resume_interrupted} and checkpoint='{config.checkpoint}' "
+                f"resume_interrupted={resume_interrupted} and checkpoint='{ckpt_path}' "
                 "cannot be set at the same time! Please set only one of them. "
             )
-        elif config.checkpoint is not None:
-            ckpt_path = Path(config.checkpoint).resolve()
+        elif ckpt_path is not None:
+            ckpt_path = Path(ckpt_path).resolve()
         else:
             ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
 
@@ -148,7 +150,7 @@ class BaseCheckpointContext(PydanticConfig):
                 f"Checkpoint file '{ckpt_path}' does not contain a train model state."
             )
 
-        if config.resume_interrupted:
+        if resume_interrupted:
             optimizer_state = checkpoint.get("optimizer")
             scheduler_state = checkpoint.get("scheduler")
             train_dataloader = checkpoint.get("train_dataloader")
@@ -166,19 +168,17 @@ class BaseCheckpointContext(PydanticConfig):
                     f"Checkpoint file '{ckpt_path}' does not contain training step."
                 )
             return ResumeCheckpointContext(
-                path=ckpt_path,
                 metadata=metadata,
-                train_model_state=train_model_state,
-                optimizer_state=optimizer_state,
-                scheduler_state=scheduler_state,
+                train_model_state_dict=train_model_state,
+                optimizer_state_dict=optimizer_state,
+                scheduler_state_dict=scheduler_state,
                 train_dataloader=train_dataloader,
                 step=step,
             )
 
         return FinetuneCheckpointContext(
-            path=ckpt_path,
             metadata=metadata,
-            train_model_state=train_model_state,
+            train_model_state_dict=train_model_state,
         )
 
 
@@ -200,7 +200,7 @@ class FinetuneCheckpointContext(BaseCheckpointContext):
         train_model_state_keys = set(train_model.state_dict().keys())
         if reuse_class_head:
             incompatible = train_model.load_state_dict(
-                self.train_model_state,
+                self.train_model_state_dict,
             )
         else:
             class_head_keys = {
@@ -219,7 +219,7 @@ class FinetuneCheckpointContext(BaseCheckpointContext):
                 )
             filtered_state = {
                 key: value
-                for key, value in self.train_model_state.items()
+                for key, value in self.train_model_state_dict.items()
                 if key not in checkpoint_keys_to_skip
             }
             incompatible = train_model.load_state_dict(filtered_state, strict=False)
@@ -237,8 +237,8 @@ class FinetuneCheckpointContext(BaseCheckpointContext):
 
 
 class ResumeCheckpointContext(BaseCheckpointContext):
-    optimizer_state: dict[str, Any]
-    scheduler_state: dict[str, Any]
+    optimizer_state_dict: dict[str, Any]
+    scheduler_state_dict: dict[str, Any]
     train_dataloader: DataLoader[TaskDatasetItem]
     step: int
 
@@ -257,9 +257,9 @@ class ResumeCheckpointContext(BaseCheckpointContext):
         optimizer = state["optimizer"]
         scheduler = state["scheduler"]
 
-        train_model.load_state_dict(self.train_model_state)
-        optimizer.load_state_dict(self.optimizer_state)
-        scheduler.load_state_dict(self.scheduler_state)
+        train_model.load_state_dict(self.train_model_state_dict)
+        optimizer.load_state_dict(self.optimizer_state_dict)
+        scheduler.load_state_dict(self.scheduler_state_dict)
 
         state["train_dataloader"] = self.train_dataloader
         state["step"] = self.step
