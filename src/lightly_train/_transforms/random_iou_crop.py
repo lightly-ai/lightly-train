@@ -220,7 +220,7 @@ class RandomIoUCropV2(RandomIoUCropBase):
                     "crop_coords": (
                         0,
                         0,
-                        orig_image_shape[0], # TODO(Thomas, 10/25): Check order
+                        orig_image_shape[0],  # TODO(Thomas, 10/25): Check order
                         orig_image_shape[1],
                     ),
                     "orig_img_shape": orig_image_shape,
@@ -232,7 +232,7 @@ class RandomIoUCropV2(RandomIoUCropBase):
         self, img: NDArray[np.uint8 | np.float32 | np.float64], **params: Any
     ) -> NDArray[np.float32 | np.float64]:
         crop_coords = params["crop_coords"]
-        y_min, x_min, y_max, x_max = crop_coords # TODO(Thomas, 10/25): Check order
+        y_min, x_min, y_max, x_max = crop_coords  # TODO(Thomas, 10/25): Check order
         cropped = F.crop(
             img,
             x_min=x_min,
@@ -247,7 +247,7 @@ class RandomIoUCropV2(RandomIoUCropBase):
         self, bboxes: NDArray[np.float32 | np.float64], **params: Any
     ) -> NDArray[np.float32 | np.float64]:
         crop_coords = params["crop_coords"]
-        y_min, x_min, y_max, x_max = crop_coords # TODO(Thomas, 10/25): Check order
+        y_min, x_min, y_max, x_max = crop_coords  # TODO(Thomas, 10/25): Check order
 
         cropped = F.crop_bboxes_by_coords(
             bboxes,
@@ -300,7 +300,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
                     "crop_coords": (
                         0,
                         0,
-                        orig_image_shape[0], # TODO(Thomas, 10/25): Check order
+                        orig_image_shape[0],  # TODO(Thomas, 10/25): Check order
                         orig_image_shape[1],
                     ),
                     "orig_img_shape": orig_image_shape,
@@ -312,7 +312,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
         self, img: NDArray[np.uint8 | np.float32 | np.float64], **params: Any
     ) -> NDArray[np.float32 | np.float64]:
         crop_coords = params["crop_coords"]
-        y_min, x_min, y_max, x_max = crop_coords # TODO(Thomas, 10/25): Check order
+        y_min, x_min, y_max, x_max = crop_coords  # TODO(Thomas, 10/25): Check order
         cropped = F.crop(
             img,
             x_min=x_min,
@@ -327,7 +327,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
         self, bbox: tuple[float, float, float, float], **params: Any
     ) -> tuple[float, float, float, float]:
         crop_coords = params["crop_coords"]
-        y_min, x_min, y_max, x_max = crop_coords # TODO(Thomas, 10/25): Check order
+        y_min, x_min, y_max, x_max = crop_coords  # TODO(Thomas, 10/25): Check order
 
         if not ALBUMENTATIONS_GEQ_1_4_11:
             tr_bbox = F.crop_bbox_by_coords(
@@ -335,7 +335,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
                 crop_coords=(x_min, y_min, x_max, y_max),
                 crop_height=y_max - y_min,
                 crop_width=x_max - x_min,
-                rows=params["orig_img_shape"][0], # TODO(Thomas, 10/25): Check order
+                rows=params["orig_img_shape"][0],  # TODO(Thomas, 10/25): Check order
                 cols=params["orig_img_shape"][1],
             )
             assert isinstance(tr_bbox, tuple)
