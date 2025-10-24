@@ -231,7 +231,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     logger.info(f"Using output directory: '{out_dir}")
 
     # Load checkpoint context if resuming or further fine-tuning.
-    checkpoint_ctx = helpers.BaseCheckpointContext.from_config(
+    checkpoint = helpers.load_checkpoint(
         fabric=fabric,
         out_dir=out_dir,
         resume_interrupted=config.resume_interrupted,
@@ -256,8 +256,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         model_name=config.model,
     )
 
-    if checkpoint_ctx:
-        model_init_args = checkpoint_ctx.metadata.model_init_args
+    if checkpoint:
+        model_init_args = checkpoint.metadata.model_init_args
         if (saved_model_name := model_init_args.get("model_name")) != config.model:
             raise ValueError(
                 f"The model name in the checkpoint or model weights file('{saved_model_name}') "
@@ -412,14 +412,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_init_args=train_model.get_task_model().init_args,
         )
 
-        if isinstance(checkpoint_ctx, helpers.ResumeCheckpointContext):
-            checkpoint_ctx.load_resume(
+        if isinstance(checkpoint, helpers.ResumeCheckpoint):
+            helpers.resume_from_checkpoint(
                 state=state,
+                checkpoint=checkpoint,
             )
-            train_dataloader = checkpoint_ctx.train_dataloader
-        elif isinstance(checkpoint_ctx, helpers.FinetuneCheckpointContext):
-            checkpoint_ctx.load_finetune(
+            train_dataloader = checkpoint.train_dataloader
+        elif isinstance(checkpoint, helpers.FinetuneCheckpoint):
+            helpers.finetune_from_checkpoint(
                 state=state,
+                checkpoint=checkpoint,
                 reuse_class_head=config.reuse_class_head,
             )
 

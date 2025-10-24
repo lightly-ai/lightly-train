@@ -87,7 +87,7 @@ class CheckpointMetadata(PydanticConfig):
     model_class_path: str
 
 
-class BaseCheckpointContext(PydanticConfig):
+class FinetuneCheckpoint(PydanticConfig):
     model_config = ConfigDict(
         arbitrary_types_allowed=True
     )  # relax validation for Tensor and DataLoader
@@ -95,174 +95,12 @@ class BaseCheckpointContext(PydanticConfig):
     metadata: CheckpointMetadata
     train_model_state_dict: dict[str, Tensor]
 
-    @classmethod
-    def from_config(
-        cls,
-        *,
-        fabric: Fabric,
-        out_dir: Path,
-        resume_interrupted: bool,
-        ckpt_path: str | Path | None,
-    ) -> "ResumeCheckpointContext | FinetuneCheckpointContext | None":
-        """Build a checkpoint context from the current run configuration.
 
-        Args:
-            fabric: Fabric instance used to load checkpoint files.
-            out_dir: Output directory where checkpoints are stored.
-            resume_interrupted: Whether to resume from an interrupted run.
-            ckpt_path: Path to a specific checkpoint file to fine-tune from.
-
-        Returns:
-            A populated checkpoint context when resuming or fine-tuning, otherwise ``None``.
-
-        Raises:
-            ValueError: If resume and checkpoint options are requested simultaneously.
-            FileNotFoundError: If the resolved checkpoint file does not exist.
-        """
-        if (not resume_interrupted) and (ckpt_path is None):
-            # Not resuming or fine-tuning from a checkpoint.
-            return None
-        elif resume_interrupted and (ckpt_path is not None):
-            # Both resume and checkpoint specified.
-            raise ValueError(
-                f"resume_interrupted={resume_interrupted} and checkpoint='{ckpt_path}' "
-                "cannot be set at the same time! Please set only one of them. "
-            )
-        elif ckpt_path is not None:
-            ckpt_path = Path(ckpt_path).resolve()
-        else:
-            ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
-
-        if not ckpt_path.exists():
-            raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
-
-        logger.info(f"Loading checkpoint from '{ckpt_path}'")
-
-        checkpoint = fabric.load(path=ckpt_path)
-        metadata = CheckpointMetadata(
-            model_init_args=checkpoint.get("model_init_args") or {},
-            model_class_path=checkpoint.get("model_class_path") or "",
-        )
-
-        train_model_state = checkpoint.get("train_model")
-        if train_model_state is None:
-            raise ValueError(
-                f"Checkpoint file '{ckpt_path}' does not contain a train model state."
-            )
-
-        if resume_interrupted:
-            optimizer_state = checkpoint.get("optimizer")
-            scheduler_state = checkpoint.get("scheduler")
-            train_dataloader = checkpoint.get("train_dataloader")
-            step = checkpoint.get("step")
-            if optimizer_state is None or scheduler_state is None:
-                raise ValueError(
-                    f"Checkpoint file '{ckpt_path}' does not contain optimizer or scheduler state."
-                )
-            if train_dataloader is None:
-                raise ValueError(
-                    f"Checkpoint file '{ckpt_path}' does not contain train dataloader."
-                )
-            if step is None:
-                raise ValueError(
-                    f"Checkpoint file '{ckpt_path}' does not contain training step."
-                )
-            return ResumeCheckpointContext(
-                metadata=metadata,
-                train_model_state_dict=train_model_state,
-                optimizer_state_dict=optimizer_state,
-                scheduler_state_dict=scheduler_state,
-                train_dataloader=train_dataloader,
-                step=step,
-            )
-
-        return FinetuneCheckpointContext(
-            metadata=metadata,
-            train_model_state_dict=train_model_state,
-        )
-
-
-class FinetuneCheckpointContext(BaseCheckpointContext):
-    def load_finetune(
-        self,
-        *,
-        state: TrainTaskState,
-        reuse_class_head: bool,
-    ) -> None:
-        """Restore model state from the checkpoint for fine-tuning.
-
-        Args:
-            state: Training state container to populate with checkpoint data.
-            reuse_class_head: Whether to keep class-specific layers when fine-tuning.
-        """
-
-        train_model = state["train_model"]
-        train_model_state_keys = set(train_model.state_dict().keys())
-        if reuse_class_head:
-            incompatible = train_model.load_state_dict(
-                self.train_model_state_dict,
-            )
-        else:
-            class_head_keys = {
-                key
-                for key in train_model_state_keys
-                if key.startswith("class_head") or ".class_head" in key
-            }
-            criterion_keys = {
-                key for key in train_model_state_keys if "criterion.empty_weight" in key
-            }
-            checkpoint_keys_to_skip = class_head_keys | criterion_keys
-            if checkpoint_keys_to_skip:
-                logger.debug(
-                    "Skipping class-dependent parameters from checkpoint: %s",
-                    sorted(checkpoint_keys_to_skip),
-                )
-            filtered_state = {
-                key: value
-                for key, value in self.train_model_state_dict.items()
-                if key not in checkpoint_keys_to_skip
-            }
-            incompatible = train_model.load_state_dict(filtered_state, strict=False)
-
-        if reuse_class_head and incompatible.missing_keys:
-            logger.warning(
-                "Missing keys after loading checkpoint: %s",
-                incompatible.missing_keys,
-            )
-        if incompatible.unexpected_keys:
-            logger.warning(
-                "Unexpected keys after loading checkpoint: %s",
-                incompatible.unexpected_keys,
-            )
-
-
-class ResumeCheckpointContext(BaseCheckpointContext):
+class ResumeCheckpoint(FinetuneCheckpoint):
     optimizer_state_dict: dict[str, Any]
     scheduler_state_dict: dict[str, Any]
     train_dataloader: DataLoader[TaskDatasetItem]
     step: int
-
-    def load_resume(
-        self,
-        *,
-        state: TrainTaskState,
-    ) -> None:
-        """Restore model, optimizer, scheduler, dataloader, and step state from the checkpoint for resuming training.
-
-        Args:
-            state: Training state container to populate with checkpoint data.
-        """
-
-        train_model = state["train_model"]
-        optimizer = state["optimizer"]
-        scheduler = state["scheduler"]
-
-        train_model.load_state_dict(self.train_model_state_dict)
-        optimizer.load_state_dict(self.optimizer_state_dict)
-        scheduler.load_state_dict(self.scheduler_state_dict)
-
-        state["train_dataloader"] = self.train_dataloader
-        state["step"] = self.step
 
 
 def get_out_dir(
@@ -887,3 +725,162 @@ def export_model(
 
     logger.info(f"Exporting the {best_or_last} model to '{model_path}'")
     torch.save(model_dict, model_path)
+
+
+def load_checkpoint(
+    fabric: Fabric, out_dir: Path, resume_interrupted: bool, ckpt_path: PathLike | None
+) -> FinetuneCheckpoint | ResumeCheckpoint | None:
+    """Build a checkpoint context from the current run configuration.
+
+    Args:
+        fabric: Fabric instance used to load checkpoint files.
+        out_dir: Output directory where checkpoints are stored.
+        resume_interrupted: Whether to resume from an interrupted run.
+        ckpt_path: Path to a specific checkpoint file to fine-tune from.
+
+    Returns:
+        A populated checkpoint context when resuming or fine-tuning, otherwise ``None``.
+
+    Raises:
+        ValueError: If resume and checkpoint options are requested simultaneously.
+        FileNotFoundError: If the resolved checkpoint file does not exist.
+    """
+    if (not resume_interrupted) and (ckpt_path is None):
+        # Not resuming or fine-tuning from a checkpoint.
+        return None
+    elif resume_interrupted and (ckpt_path is not None):
+        # Both resume and checkpoint specified.
+        raise ValueError(
+            f"resume_interrupted={resume_interrupted} and checkpoint='{ckpt_path}' "
+            "cannot be set at the same time! Please set only one of them. "
+        )
+    elif ckpt_path is not None:
+        ckpt_path = Path(ckpt_path).resolve()
+    else:
+        ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
+
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
+
+    logger.info(f"Loading checkpoint from '{ckpt_path}'")
+
+    checkpoint = fabric.load(path=ckpt_path)
+    metadata = CheckpointMetadata(
+        model_init_args=checkpoint.get("model_init_args") or {},
+        model_class_path=checkpoint.get("model_class_path") or "",
+    )
+
+    train_model_state_dict = checkpoint.get("train_model")
+    if train_model_state_dict is None:
+        raise ValueError(
+            f"Checkpoint file '{ckpt_path}' does not contain a train model state."
+        )
+
+    if resume_interrupted:
+        optimizer_state = checkpoint.get("optimizer")
+        scheduler_state = checkpoint.get("scheduler")
+        if optimizer_state is None or scheduler_state is None:
+            raise ValueError(
+                f"Checkpoint file '{ckpt_path}' does not contain optimizer or scheduler state."
+            )
+
+        train_dataloader = checkpoint.get("train_dataloader")
+        if train_dataloader is None:
+            raise ValueError(
+                f"Checkpoint file '{ckpt_path}' does not contain train dataloader."
+            )
+
+        step = checkpoint.get("step")
+        if step is None:
+            raise ValueError(
+                f"Checkpoint file '{ckpt_path}' does not contain training step."
+            )
+        return ResumeCheckpoint(
+            metadata=metadata,
+            train_model_state_dict=train_model_state_dict,
+            optimizer_state_dict=optimizer_state,
+            scheduler_state_dict=scheduler_state,
+            train_dataloader=train_dataloader,
+            step=step,
+        )
+
+    return FinetuneCheckpoint(
+        metadata=metadata,
+        train_model_state_dict=train_model_state_dict,
+    )
+
+
+def resume_from_checkpoint(
+    state: TrainTaskState,
+    checkpoint: ResumeCheckpoint,
+) -> None:
+    """Restore model, optimizer, scheduler, dataloader, and step state from the checkpoint for resuming training.
+
+    Args:
+        state: Training state container to populate with checkpoint data.
+        checkpoint: Checkpoint context containing the state to load.
+    """
+
+    train_model = state["train_model"]
+    optimizer = state["optimizer"]
+    scheduler = state["scheduler"]
+
+    train_model.load_state_dict(checkpoint.train_model_state_dict)
+    optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+    scheduler.load_state_dict(checkpoint.scheduler_state_dict)
+
+    state["train_dataloader"] = checkpoint.train_dataloader
+    state["step"] = checkpoint.step
+
+
+def finetune_from_checkpoint(
+    state: TrainTaskState,
+    checkpoint: FinetuneCheckpoint,
+    reuse_class_head: bool,
+) -> None:
+    """Restore model state from the checkpoint for fine-tuning.
+
+    Args:
+        state: Training state container to populate with checkpoint data.
+        checkpoint: Checkpoint context containing the state to load.
+        reuse_class_head: Whether to keep class-specific layers when fine-tuning.
+    """
+
+    train_model = state["train_model"]
+    train_model_state_keys = set(train_model.state_dict().keys())
+    if reuse_class_head:
+        incompatible = train_model.load_state_dict(
+            checkpoint.train_model_state_dict,
+        )
+    else:
+        class_head_keys = {
+            key
+            for key in train_model_state_keys
+            if key.startswith("class_head") or ".class_head" in key
+        }
+        criterion_keys = {
+            key for key in train_model_state_keys if "criterion.empty_weight" in key
+        }
+        checkpoint_keys_to_skip = class_head_keys | criterion_keys
+        if checkpoint_keys_to_skip:
+            logger.debug(
+                "Skipping class-dependent parameters from checkpoint: %s",
+                sorted(checkpoint_keys_to_skip),
+            )
+        filtered_state = {
+            key: value
+            for key, value in checkpoint.train_model_state_dict.items()
+            if key not in checkpoint_keys_to_skip
+        }
+        incompatible = train_model.load_state_dict(filtered_state, strict=False)
+
+    if reuse_class_head and incompatible.missing_keys:
+        logger.warning(
+            "Missing keys after loading checkpoint: %s",
+            incompatible.missing_keys,
+        )
+    if incompatible.unexpected_keys:
+        logger.warning(
+            "Unexpected keys after loading checkpoint: %s",
+            incompatible.unexpected_keys,
+        )
