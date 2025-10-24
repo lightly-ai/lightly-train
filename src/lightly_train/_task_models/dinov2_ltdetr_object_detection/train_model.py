@@ -64,6 +64,7 @@ class DINOv2LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
 
+    # TODO(Thomas, 10/25): use separate dataclass for optimizer, matcher, etc.
     # Matcher configuration
     matcher_weight_dict: dict[str, float] = field(
         default_factory=lambda: {"cost_class": 2, "cost_bbox": 5, "cost_giou": 2}
@@ -271,7 +272,7 @@ def _yolo_to_xyxy(batch_boxes: list[Tensor]) -> list[Tensor]:
     (normalized x_min, y_min, x_max, y_max) format.
 
     Args:
-        boxes: Bounding boxes in YOLO format of shape (n_boxes, 4) with values
+        batch_boxes: Bounding boxes in YOLO format of shape (n_boxes, 4) with values
             normalized between 0 and 1.
 
     Returns:
