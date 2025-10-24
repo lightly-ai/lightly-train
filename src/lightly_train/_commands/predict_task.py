@@ -129,8 +129,6 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     )
 
     num_images = len(dataset)
-    logger.info(f"Number of images to label: {num_images}")
-
     config.batch_size = common_helpers.get_global_batch_size(
         global_batch_size=config.batch_size,
         dataset=dataset,
@@ -149,9 +147,21 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
         num_workers=config.num_workers,
         loader_args=config.loader_args,
     )
+    resolved_config = config.model_dump()
     logger.info(
-        f"Resolved Args: {train_task_helpers.pretty_format_args(args=config.model_dump())}"
+        f"Resolved Args: {train_task_helpers.pretty_format_args(args=resolved_config)}"
     )
+
+    initial_data = initial_config["data"]
+    resolved_data = resolved_config["data"]
+    if (
+        isinstance(initial_data, list)
+        and isinstance(resolved_data, list)
+        and (diff := (set(initial_data) - set(resolved_data)))
+    ):
+        logger.error(
+            f"Some data paths could not be found: {diff}. Skipping them during prediction."
+        )
 
     predict_model = fabric.setup_module(model)
     predict_model.mark_forward_method("predict")
