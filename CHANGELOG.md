@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Support newer RF-DETR versions, such as RF-DETR Medium and Nano.
+
 ### Changed
 
 - Widen PyTorch constraint — remove `<2.6` upper bound to allow PyTorch 2.6 and later that is officially supported by PyTorch Lightning 2.5.
@@ -16,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 
 ### Removed
+
+- Drop support for older versions of RF-DETR which had issues with frozen backbones.
 
 ### Fixed
 
