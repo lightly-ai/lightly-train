@@ -17,7 +17,7 @@ from pydantic import AliasChoices, Field, TypeAdapter, field_validator
 from torch import Tensor
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import file_helpers
+from lightly_train._data import file_helpers, label_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_batch_collation import (
     BaseCollateFunction,
@@ -76,8 +76,15 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         self.ignore_index = dataset_args.ignore_index
 
         # Get the class mapping.
-        self.class_mapping = self.get_class_mapping()
-        self.valid_classes = torch.tensor(list(self.class_mapping.keys()))
+        self.class_id_to_internal_class_id = (
+            label_helpers.get_class_id_to_internal_class_id_mapping(
+                class_ids=self.args.classes.keys(),
+                ignore_classes=self.args.ignore_classes,
+            )
+        )
+        self.valid_classes = torch.tensor(
+            list(self.class_id_to_internal_class_id.keys())
+        )
 
         transform_args = transform.transform_args
         assert isinstance(transform_args, SemanticSegmentationTransformArgs)
@@ -106,17 +113,6 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         unique_classes: Tensor = mask.unique()  # type: ignore[no-untyped-call]
         return bool(torch.isin(unique_classes, self.valid_classes).any())
 
-    def get_class_mapping(self) -> dict[int, int]:
-        ignore_classes = self.args.ignore_classes or set()
-        return {
-            class_id: i
-            for i, class_id in enumerate(
-                class_id
-                for class_id in self.args.classes.keys()
-                if class_id not in ignore_classes
-            )
-        }
-
     def __len__(self) -> int:
         return len(self.filepaths)
 
@@ -131,14 +127,14 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         # Iterate over the labels present in the mask.
         for class_id in class_ids:
             # Check if the class id is the valid classes.
-            if class_id not in self.class_mapping:
+            if class_id not in self.class_id_to_internal_class_id:
                 continue
 
             # Create binary mask for the class.
             img_masks.append(mask == class_id)
 
             # Store the class label.
-            img_labels.append(self.class_mapping[class_id])
+            img_labels.append(self.class_id_to_internal_class_id[class_id])
 
         binary_masks: BinaryMasksDict = {
             "masks": (
@@ -163,7 +159,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         lut = mask.new_full((max_class + 1,), self.ignore_index, dtype=torch.long)
 
         # Fill in valid mappings
-        for old_class, new_class in self.class_mapping.items():
+        for old_class, new_class in self.class_id_to_internal_class_id.items():
             if old_class <= max_class:
                 lut[old_class] = new_class
 
