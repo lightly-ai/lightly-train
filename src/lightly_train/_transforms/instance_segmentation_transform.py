@@ -238,7 +238,11 @@ class InstanceSegmentationTransform(TaskTransform):
         transform += [ToTensorV2()]
 
         # Create the final transform.
-        self.transform = Compose(transform, additional_targets={"mask": "mask"})
+        self.transform = Compose(
+            transform,
+            additional_targets={"binary_masks": "binary_masks"},
+            bbox_params=transform_args.bbox_params,
+        )
 
     def __call__(
         self, input: InstanceSegmentationTransformInput
