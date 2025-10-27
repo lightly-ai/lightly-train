@@ -1,5 +1,25 @@
 /* Modern styling for both light and dark themes using Furo's CSS variables */
 
+/* Custom color variables */
+:root {
+    --color-light-bg-primary: #f8f8fa;
+    --color-light-bg-secondary: #f0e6f6;
+    --color-light-bg-tertiary: #f7e6f6;
+    --color-light-bg-blue: #e6f0fa;
+    --color-light-text: #2d2d2d;
+    --color-light-border: #ececec;
+    --color-light-brand: #a72264;
+    --color-light-brand-dark: #7d174b;
+    --color-light-accent: #f0b3e0;
+    
+    --color-dark-bg-primary: #2a2a2a;
+    --color-dark-bg-secondary: #3a2a3a;
+    --color-dark-bg-tertiary: #2a3a3a;
+    --color-dark-text: #e5e5e5;
+    --color-dark-border: #404040;
+    --color-dark-brand: #e6a3d3;
+}
+
 /* Sidebar version styling - works with both themes */
 .sidebar-version {
     display: flex;
@@ -45,12 +65,12 @@
 
 /* Light theme sidebar styles */
 [data-theme="light"] .sidebar-version {
-    background: linear-gradient(90deg, #f8f8fa 0%, #f0e6f6 100%);
+    background: linear-gradient(90deg, var(--color-light-bg-primary) 0%, var(--color-light-bg-secondary) 100%);
     box-shadow: 0 1px 4px rgba(167, 34, 100, 0.07);
 }
 
 [data-theme="light"] .sidebar-brand {
-    background: #f8f8fa;
+    background: var(--color-light-bg-primary);
     box-shadow: 0 1px 4px rgba(167, 34, 100, 0.07);
 }
 
@@ -74,8 +94,8 @@
 /* Light theme navigation */
 [data-theme="light"] .sidebar-tree .sidebar-tree__item:hover,
 [data-theme="light"] .sidebar-tree .sidebar-tree__item--current {
-    background: linear-gradient(90deg, #f7e6f6 0%, #e6f0fa 100%);
-    color: #a72264;
+    background: linear-gradient(90deg, var(--color-light-bg-tertiary) 0%, var(--color-light-bg-blue) 100%);
+    color: var(--color-light-brand);
     box-shadow: 0 2px 8px rgba(167, 34, 100, 0.06);
 }
 
@@ -97,7 +117,7 @@ div.admonition, .sd-card {
 /* Light theme cards */
 [data-theme="light"] div.admonition,
 [data-theme="light"] .sd-card {
-    background: linear-gradient(120deg, #fff 80%, #f7e6f6 100%);
+    background: linear-gradient(120deg, #fff 80%, var(--color-light-bg-tertiary) 100%);
     box-shadow: 0 2px 16px rgba(167, 34, 100, 0.08);
 }
 
@@ -109,7 +129,7 @@ div.admonition, .sd-card {
 /* Dark theme cards */
 [data-theme="dark"] div.admonition,
 [data-theme="dark"] .sd-card {
-    background: linear-gradient(120deg, #2a2a2a 80%, #3a2a3a 100%);
+    background: linear-gradient(120deg, var(--color-dark-bg-primary) 80%, var(--color-dark-bg-secondary) 100%);
     box-shadow: 0 2px 16px rgba(230, 163, 211, 0.12);
 }
 
@@ -174,30 +194,30 @@ h4, h5, h6 {
 [data-theme="light"] .highlight,
 [data-theme="light"] pre,
 [data-theme="light"] code {
-    background: #f8f8fa !important;
-    color: #2d2d2d;
+    background: var(--color-light-bg-primary) !important;
+    color: var(--color-light-text);
     box-shadow: 0 1px 4px rgba(167, 34, 100, 0.04);
 }
 
 [data-theme="light"] .highlight:hover,
 [data-theme="light"] pre:hover,
 [data-theme="light"] code:hover {
-    background: #f0e6f6 !important;
+    background: var(--color-light-bg-secondary) !important;
 }
 
 /* Dark theme code blocks */
 [data-theme="dark"] .highlight,
 [data-theme="dark"] pre,
 [data-theme="dark"] code {
-    background: #2a2a2a !important;
-    color: #e5e5e5;
+    background: var(--color-dark-bg-primary) !important;
+    color: var(--color-dark-text);
     box-shadow: 0 1px 4px rgba(230, 163, 211, 0.08);
 }
 
 [data-theme="dark"] .highlight:hover,
 [data-theme="dark"] pre:hover,
 [data-theme="dark"] code:hover {
-    background: #3a2a3a !important;
+    background: var(--color-dark-bg-secondary) !important;
 }
 
 /* Inline code: match code blocks */
@@ -210,16 +230,16 @@ h4, h5, h6 {
 /* Light theme inline code */
 [data-theme="light"] .rst-content code,
 [data-theme="light"] .docutils.literal.notranslate {
-    background: #f8f8fa !important;
-    color: #2d2d2d;
+    background: var(--color-light-bg-primary) !important;
+    color: var(--color-light-text);
     box-shadow: 0 1px 4px rgba(167, 34, 100, 0.04);
 }
 
 /* Dark theme inline code */
 [data-theme="dark"] .rst-content code,
 [data-theme="dark"] .docutils.literal.notranslate {
-    background: #2a2a2a !important;
-    color: #e5e5e5;
+    background: var(--color-dark-bg-primary) !important;
+    color: var(--color-dark-text);
     box-shadow: 0 1px 4px rgba(230, 163, 211, 0.08);
 }
 
@@ -231,13 +251,13 @@ a {
 
 /* Light theme links */
 [data-theme="light"] a {
-    color: #a72264;
+    color: var(--color-light-brand);
 }
 
 [data-theme="light"] a:hover,
 [data-theme="light"] a:focus {
-    color: #7d174b;
-    background: #f7e6f6;
+    color: var(--color-light-brand-dark);
+    background: var(--color-light-bg-tertiary);
 }
 
 /* Dark theme links */
@@ -247,8 +267,8 @@ a {
 
 [data-theme="dark"] a:hover,
 [data-theme="dark"] a:focus {
-    color: #f0b3e0;
-    background: #3a2a3a;
+    color: var(--color-light-accent);
+    background: var(--color-dark-bg-secondary);
 }
 
 /* Table styling with gradient background */
@@ -261,45 +281,45 @@ table.docutils {
 
 /* Light theme tables */
 [data-theme="light"] table.docutils {
-    background: linear-gradient(120deg, #fff 80%, #f7e6f6 100%);
+    background: linear-gradient(120deg, #fff 80%, var(--color-light-bg-tertiary) 100%);
     box-shadow: 0 1px 8px rgba(167, 34, 100, 0.06);
 }
 
 [data-theme="light"] table.docutils th,
 [data-theme="light"] table.docutils td {
-    border: 0.2px solid #ececec;
+    border: 0.2px solid var(--color-light-border);
     border-left: none;
     border-right: none;
 }
 
 [data-theme="light"] table.docutils th {
-    background: #f0e6f6;
-    color: #a72264;
+    background: var(--color-light-bg-secondary);
+    color: var(--color-light-brand);
     font-weight: 600;
-    border-top: 1px solid #ececec;
-    border-bottom: 1px solid #ececec;
+    border-top: 1px solid var(--color-light-border);
+    border-bottom: 1px solid var(--color-light-border);
 }
 
 /* Dark theme tables */
 [data-theme="dark"] table.docutils {
-    background: linear-gradient(120deg, #2a2a2a 80%, #3a2a3a 100%);
+    background: linear-gradient(120deg, var(--color-dark-bg-primary) 80%, var(--color-dark-bg-secondary) 100%);
     box-shadow: 0 1px 8px rgba(230, 163, 211, 0.12);
 }
 
 [data-theme="dark"] table.docutils th,
 [data-theme="dark"] table.docutils td {
-    border: 0.2px solid #404040;
+    border: 0.2px solid var(--color-dark-border);
     border-left: none;
     border-right: none;
-    color: #e5e5e5;
+    color: var(--color-dark-text);
 }
 
 [data-theme="dark"] table.docutils th {
-    background: #3a2a3a;
+    background: var(--color-dark-bg-secondary);
     color: var(--color-brand-primary);
     font-weight: 600;
-    border-top: 1px solid #404040;
-    border-bottom: 1px solid #404040;
+    border-top: 1px solid var(--color-dark-border);
+    border-bottom: 1px solid var(--color-dark-border);
 }
 
 /* Improve spacing for lists */
@@ -342,17 +362,17 @@ main, .content, .document {
 
 /* Light theme scrollbar */
 [data-theme="light"] ::-webkit-scrollbar {
-    background: #f0e6f6;
+    background: var(--color-light-bg-secondary);
 }
 
 [data-theme="light"] ::-webkit-scrollbar-thumb {
-    background: #a72264;
+    background: var(--color-light-brand);
     border-radius: 8px;
 }
 
 /* Dark theme scrollbar */
 [data-theme="dark"] ::-webkit-scrollbar {
-    background: #2a2a2a;
+    background: var(--color-dark-bg-primary);
 }
 
 [data-theme="dark"] ::-webkit-scrollbar-thumb {
@@ -390,7 +410,7 @@ details,
 [data-theme="light"] details,
 [data-theme="light"] .sd-dropdown,
 [data-theme="light"] .myst-dropdown {
-    background: linear-gradient(120deg, #fff 80%, #f7e6f6 100%);
+    background: linear-gradient(120deg, #fff 80%, var(--color-light-bg-tertiary) 100%);
     box-shadow: 0 2px 16px rgba(167, 34, 100, 0.08);
 }
 
@@ -404,7 +424,7 @@ details,
 [data-theme="dark"] details,
 [data-theme="dark"] .sd-dropdown,
 [data-theme="dark"] .myst-dropdown {
-    background: linear-gradient(120deg, #2a2a2a 80%, #3a2a3a 100%);
+    background: linear-gradient(120deg, var(--color-dark-bg-primary) 80%, var(--color-dark-bg-secondary) 100%);
     box-shadow: 0 2px 16px rgba(230, 163, 211, 0.12);
 }
 
@@ -412,3 +432,4 @@ details,
 [data-theme="dark"] .sd-dropdown[open],
 [data-theme="dark"] .myst-dropdown[open] {
     box-shadow: 0 6px 24px rgba(230, 163, 211, 0.2);
+}
