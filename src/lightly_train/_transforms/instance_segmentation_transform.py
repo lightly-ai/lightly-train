@@ -226,7 +226,8 @@ class InstanceSegmentationTransform(TaskTransform):
         # Normalize the images.
         transform += [
             Normalize(
-                mean=transform_args.normalize.mean, std=transform_args.normalize.std
+                mean=no_auto(transform_args.normalize).mean,
+                std=no_auto(transform_args.normalize).std,
             )
         ]
 

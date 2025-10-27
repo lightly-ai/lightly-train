@@ -73,10 +73,10 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     Defines default transform arguments for instance segmentation training with DINOv3.
     """
 
-    image_size: tuple[int, int] = (640, 640)
+    image_size: tuple[int, int] | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
-    normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
+    normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     color_jitter: DINOv3EoMTInstanceSegmentationColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
@@ -91,7 +91,7 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (518, 518))
+            image_size = model_init_args.get("image_size", (640, 640))
             assert isinstance(image_size, tuple)
             self.image_size = image_size
 
@@ -121,10 +121,10 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
     Defines default transform arguments for instance segmentation validation with DINOv3.
     """
 
-    image_size: tuple[int, int] = (640, 640)
+    image_size: tuple[int, int] | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
-    normalize: NormalizeArgs = Field(default_factory=NormalizeArgs)
+    normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = None
     color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
@@ -136,7 +136,7 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (518, 518))
+            image_size = model_init_args.get("image_size", (640, 640))
             assert isinstance(image_size, tuple)
             self.image_size = image_size
 
