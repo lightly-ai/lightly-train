@@ -232,14 +232,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     logger.info(f"Args: {helpers.pretty_format_args(args=initial_config)}")
     logger.info(f"Using output directory: '{out_dir}")
 
-    # Load checkpoint context if resuming or further fine-tuning.
-    checkpoint = helpers.load_checkpoint(
-        fabric=fabric,
-        out_dir=out_dir,
-        resume_interrupted=config.resume_interrupted,
-        ckpt_path=config.checkpoint,
-    )
-
     # Log system information.
     system_information = _system.get_system_information()
     _system.log_system_information(system_information=system_information)
@@ -256,6 +248,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     )
     train_model_cls = helpers.get_train_model_cls(
         model_name=config.model,
+    )
+
+    # Load checkpoint context if resuming or further fine-tuning.
+    checkpoint = helpers.load_checkpoint(
+        fabric=fabric,
+        out_dir=out_dir,
+        resume_interrupted=config.resume_interrupted,
+        ckpt_path=config.checkpoint,
     )
 
     if checkpoint:
