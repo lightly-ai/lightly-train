@@ -71,10 +71,10 @@ class InstanceSegmentationTransformOutput(TaskTransformOutput):
 
 class InstanceSegmentationTransformArgs(TaskTransformArgs):
     ignore_index: int
-    image_size: tuple[int, int]
+    image_size: tuple[int, int] | Literal["auto"]
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
-    normalize: NormalizeArgs
+    normalize: NormalizeArgs | Literal["auto"]
     random_flip: RandomFlipArgs | None
     color_jitter: ColorJitterArgs | None
     # TODO: Lionel(09/25): These are currently not fully used.
