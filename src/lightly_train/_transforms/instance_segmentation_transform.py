@@ -12,6 +12,7 @@ import logging
 import numpy as np
 from albumentations import (
     BasicTransform,
+    BboxParams,
     ColorJitter,
     Compose,
     HorizontalFlip,
@@ -79,6 +80,7 @@ class InstanceSegmentationTransformArgs(TaskTransformArgs):
     scale_jitter: ScaleJitterArgs | None
     smallest_max_size: SmallestMaxSizeArgs | None
     random_crop: RandomCropArgs | None
+    bbox_params: BboxParams
 
     def resolve_auto(self) -> None:
         if self.num_channels == "auto":

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Literal, Sequence
 
+from albumentations import BboxParams
 from pydantic import Field
 
 from lightly_train._transforms.instance_segmentation_transform import (
@@ -85,6 +86,7 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     random_crop: RandomCropArgs = Field(
         default_factory=DINOv3EoMTInstanceSegmentationRandomCropArgs
     )
+    bbox_params = BboxParams(format="yolo", label_fields=["class_labels"])
 
 
 class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransformArgs):

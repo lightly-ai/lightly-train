@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
+from albumentations import BboxParams
 
 from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
@@ -136,5 +137,6 @@ def _get_transform() -> InstanceSegmentationTransform:
         scale_jitter=None,
         smallest_max_size=None,
         random_crop=None,
+        bbox_params=BboxParams(format="yolo", label_fields=["class_labels"]),
     )
     return InstanceSegmentationTransform(transform_args)
