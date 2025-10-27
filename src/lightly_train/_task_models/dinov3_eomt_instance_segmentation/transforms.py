@@ -69,7 +69,7 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     InstanceSegmentationTransformArgs
 ):
     """
-    Defines default transform arguments for semantic segmentation training with DINOv3.
+    Defines default transform arguments for instance segmentation training with DINOv3.
     """
 
     image_size: tuple[int, int] = (640, 640)
@@ -89,7 +89,7 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
 
 class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransformArgs):
     """
-    Defines default transform arguments for semantic segmentation validation with DINOv3.
+    Defines default transform arguments for instance segmentation validation with DINOv3.
     """
 
     image_size: tuple[int, int] = (640, 640)
