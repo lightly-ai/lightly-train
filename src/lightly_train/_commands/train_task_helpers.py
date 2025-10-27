@@ -82,6 +82,30 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
 ]
 
 
+TASK_TO_METRICS: dict[str, dict[str, str]] = {
+    "semantic_segmentation": {
+        "train_metric/miou": "Train mIoU",
+        "val_metric/miou": "Val mIoU",
+    },
+    "object_detection": {
+        "val_metric/map": "Val mAP@0.5:0.95",
+        "val_metric/map_50": "Val mAP@0.5",
+        "val_metric/map_75": "Val mAP@0.75",
+        "val_metric/map_small": "Val mAP (small)",
+        "val_metric/map_medium": "Val mAP (medium)",
+        "val_metric/map_large": "Val mAP (large)",
+        "val_metric/mar_1": "Val mAR@1",
+        "val_metric/mar_10": "Val mAR@10",
+        "val_metric/mar_100": "Val mAR@100",
+        "val_metric/mar_small": "Val mAR (small)",
+        "val_metric/mar_medium": "Val mAR (medium)",
+        "val_metric/mar_large": "Val mAR (large)",
+        "val_metric/map_per_class": "Val mAP per class",
+        "val_metric/mar_100_per_class": "Val mAR@100 per class",
+    },
+}
+
+
 def get_out_dir(
     fabric: Fabric,
     out: PathLike,
@@ -601,15 +625,19 @@ def get_train_model_args(
 
 
 def log_step(
-    split: Literal["train", "val"], step: int, max_steps: int, log_dict: dict[str, Any]
+    split: Literal["train", "val"],
+    step: int,
+    max_steps: int,
+    log_dict: dict[str, Any],
+    task: str,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
         "train_loss": "Train Loss",
-        "train_metric/miou": "Train mIoU",
         "val_loss": "Val Loss",
-        "val_metric/miou": "Val mIoU",
     }
+    name_to_display_name |= TASK_TO_METRICS.get(task, {})
+
     parts = [
         f"{split_cap} Step {step + 1}/{max_steps}",
     ]
@@ -633,6 +661,10 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
                 metrics[f"{name}_{i}"] = v.item()
         if isinstance(value, dict):
             for class_name, class_value in value.items():
+                # Only log scalar values.
+                if isinstance(class_value, Tensor) and class_value.numel() != 1:
+                    continue
+
                 metrics[f"{name}{class_name}"] = class_value.item()
         else:
             metrics[name] = value
