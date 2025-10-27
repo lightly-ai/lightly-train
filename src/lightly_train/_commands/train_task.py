@@ -552,7 +552,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             logger.info(f"Training for {config.steps} steps...")
 
         fabric.barrier()
-        best_metric = 0.0 if config.save_checkpoint_args.mode == "max" else float("inf")
+        best_metric = (
+            -float("inf") if config.save_checkpoint_args.mode == "max" else float("inf")
+        )
         for step in range(start_step, config.steps):
             state["step"] = step
             is_last_step = step + 1 == config.steps
