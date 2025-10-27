@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import torch
 from lightly.models.utils import get_weight_decay_parameters
@@ -19,6 +19,7 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
@@ -43,9 +44,10 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     # Default comes from PVOC12
     default_steps: ClassVar[int] = 80_000
 
+    # Model args
     backbone_freeze: bool = True
     backbone_weights: PathLike | None = None
-    drop_path_rate: float = 0.0
+    drop_path_rate: float | Literal["auto"] = "auto"
 
     # Gradient clipping. Same value as DINOv2.
     gradient_clip_val: float = 3.0
@@ -58,8 +60,19 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     metric_log_classwise: bool = True
     metric_log_debug: bool = False
 
-    def resolve_auto(self, total_steps: int, model_name: str) -> None:
-        pass
+    def resolve_auto(
+        self,
+        total_steps: int,
+        model_name: str,
+        model_init_args: dict[str, Any],
+    ) -> None:
+        if self.drop_path_rate == "auto":
+            backbone_args = model_init_args.get("backbone_args", {})
+            assert isinstance(backbone_args, dict)  # for mypy
+
+            drop_path_rate = backbone_args.get("drop_path_rate", 0.0)
+            assert isinstance(drop_path_rate, float)  # for mypy
+            self.drop_path_rate = drop_path_rate
 
 
 class DINOv2LinearSemanticSegmentationTrain(TrainModel):
@@ -84,6 +97,9 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             MulticlassJaccardIndex,
         )
 
+        image_size = no_auto(val_transform_args.image_size)
+        normalize = no_auto(val_transform_args.normalize)
+
         self.model_args = model_args
         self.model = DINOv2LinearSemanticSegmentation(
             model_name=model_name,
@@ -96,8 +112,8 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             backbone_args={
                 "drop_path_rate": model_args.drop_path_rate,
             },
-            image_size=val_transform_args.image_size,
-            image_normalize=val_transform_args.normalize.model_dump(),
+            image_size=image_size,
+            image_normalize=normalize.model_dump(),
         )
         self.criterion = CrossEntropyLoss(ignore_index=data_args.ignore_index)
 

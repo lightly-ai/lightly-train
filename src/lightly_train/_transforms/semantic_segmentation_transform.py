@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from albumentations import (
@@ -62,10 +62,10 @@ class SemanticSegmentationTransformOutput(TaskTransformOutput):
 
 class SemanticSegmentationTransformArgs(TaskTransformArgs):
     ignore_index: int
-    image_size: tuple[int, int]
+    image_size: tuple[int, int] | Literal["auto"]
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
-    normalize: NormalizeArgs
+    normalize: NormalizeArgs | Literal["auto"]
     random_flip: RandomFlipArgs | None
     color_jitter: ColorJitterArgs | None
     # TODO: Lionel(09/25): These are currently not fully used.
@@ -73,49 +73,44 @@ class SemanticSegmentationTransformArgs(TaskTransformArgs):
     smallest_max_size: SmallestMaxSizeArgs | None
     random_crop: RandomCropArgs | None
 
-    def resolve_auto(self) -> None:
-        if self.num_channels == "auto":
-            if self.channel_drop is not None:
-                self.num_channels = self.channel_drop.num_channels_keep
-            else:
-                self.num_channels = len(self.normalize.mean)
-
-        height, width = self.image_size
-        for field_name in self.__class__.model_fields:
-            field = getattr(self, field_name)
-            if hasattr(field, "resolve_auto"):
-                field.resolve_auto(height=height, width=width)
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
+        pass
 
     def resolve_incompatible(self) -> None:
+        self.normalize = no_auto(self.normalize)
+        assert isinstance(self.normalize, NormalizeArgs)
+        num_channels = no_auto(self.num_channels)
+        assert isinstance(num_channels, int)
+
         # Adjust normalization mean and std to match num_channels.
-        if len(self.normalize.mean) != no_auto(self.num_channels):
+        if len(self.normalize.mean) != num_channels:
             logger.debug(
                 "Adjusting mean of normalize transform to match num_channels. "
-                f"num_channels is {self.num_channels} but "
+                f"num_channels is {num_channels} but "
                 f"normalize.mean has length {len(self.normalize.mean)}."
             )
             # Repeat the values until they match num_channels.
             self.normalize.mean = tuple(
                 self.normalize.mean[i % len(self.normalize.mean)]
-                for i in range(no_auto(self.num_channels))
+                for i in range(num_channels)
             )
-        if len(self.normalize.std) != no_auto(self.num_channels):
+        if len(self.normalize.std) != num_channels:
             logger.debug(
                 "Adjusting std of normalize transform to match num_channels. "
-                f"num_channels is {self.num_channels} but "
+                f"num_channels is {num_channels} but "
                 f"normalize.std has length {len(self.normalize.std)}."
             )
             # Repeat the values until they match num_channels.
             self.normalize.std = tuple(
                 self.normalize.std[i % len(self.normalize.std)]
-                for i in range(no_auto(self.num_channels))
+                for i in range(num_channels)
             )
 
         # Disable color jitter if necessary.
-        if self.color_jitter is not None and no_auto(self.num_channels) != 3:
+        if self.color_jitter is not None and num_channels != 3:
             logger.debug(
                 "Disabling color jitter transform as it only supports 3-channel "
-                f"images but num_channels is {self.num_channels}."
+                f"images but num_channels is {num_channels}."
             )
             self.color_jitter = None
 
@@ -221,7 +216,8 @@ class SemanticSegmentationTransform(TaskTransform):
         # Normalize the images.
         transform += [
             Normalize(
-                mean=transform_args.normalize.mean, std=transform_args.normalize.std
+                mean=no_auto(transform_args.normalize).mean,
+                std=no_auto(transform_args.normalize).std,
             )
         ]
 
