@@ -11,6 +11,12 @@
     --color-light-brand: #a72264;
     --color-light-brand-dark: #7d174b;
     --color-light-accent: #f0b3e0;
+    --color-light-shadow: rgba(167, 34, 100, 0.07);
+    --color-light-shadow-sm: rgba(167, 34, 100, 0.04);
+    --color-light-shadow-md: rgba(167, 34, 100, 0.06);
+    --color-light-shadow-lg: rgba(167, 34, 100, 0.08);
+    --color-light-shadow-xl: rgba(167, 34, 100, 0.14);
+    --color-light-white: #fff;
     
     --color-dark-bg-primary: #2a2a2a;
     --color-dark-bg-secondary: #3a2a3a;
@@ -18,6 +24,12 @@
     --color-dark-text: #e5e5e5;
     --color-dark-border: #404040;
     --color-dark-brand: #e6a3d3;
+    --color-dark-shadow: rgba(230, 163, 211, 0.15);
+    --color-dark-shadow-sm: rgba(230, 163, 211, 0.08);
+    --color-dark-shadow-md: rgba(230, 163, 211, 0.12);
+    --color-dark-shadow-lg: rgba(230, 163, 211, 0.12);
+    --color-dark-shadow-xl: rgba(230, 163, 211, 0.2);
+    --color-dark-black: #000;
 }
 
 /* Sidebar version styling - works with both themes */
@@ -66,23 +78,23 @@
 /* Light theme sidebar styles */
 [data-theme="light"] .sidebar-version {
     background: linear-gradient(90deg, var(--color-light-bg-primary) 0%, var(--color-light-bg-secondary) 100%);
-    box-shadow: 0 1px 4px rgba(167, 34, 100, 0.07);
+    box-shadow: 0 1px 4px var(--color-light-shadow);
 }
 
 [data-theme="light"] .sidebar-brand {
     background: var(--color-light-bg-primary);
-    box-shadow: 0 1px 4px rgba(167, 34, 100, 0.07);
+    box-shadow: 0 1px 4px var(--color-light-shadow);
 }
 
 /* Dark theme sidebar styles */
 [data-theme="dark"] .sidebar-version {
-    background: linear-gradient(90deg, #2a2a2a 0%, #3a2a3a 100%);
-    box-shadow: 0 1px 4px rgba(230, 163, 211, 0.15);
+    background: linear-gradient(90deg, var(--color-dark-bg-primary) 0%, var(--color-dark-bg-secondary) 100%);
+    box-shadow: 0 1px 4px var(--color-dark-shadow);
 }
 
 [data-theme="dark"] .sidebar-brand {
-    background: #2a2a2a;
-    box-shadow: 0 1px 4px rgba(230, 163, 211, 0.15);
+    background: var(--color-dark-bg-primary);
+    box-shadow: 0 1px 4px var(--color-dark-shadow);
 }
 
 /* Sidebar navigation enhancements */
@@ -96,15 +108,15 @@
 [data-theme="light"] .sidebar-tree .sidebar-tree__item--current {
     background: linear-gradient(90deg, var(--color-light-bg-tertiary) 0%, var(--color-light-bg-blue) 100%);
     color: var(--color-light-brand);
-    box-shadow: 0 2px 8px rgba(167, 34, 100, 0.06);
+    box-shadow: 0 2px 8px var(--color-light-shadow-md);
 }
 
 /* Dark theme navigation */
 [data-theme="dark"] .sidebar-tree .sidebar-tree__item:hover,
 [data-theme="dark"] .sidebar-tree .sidebar-tree__item--current {
-    background: linear-gradient(90deg, #3a2a3a 0%, #2a3a3a 100%);
+    background: linear-gradient(90deg, var(--color-dark-bg-secondary) 0%, var(--color-dark-bg-tertiary) 100%);
     color: var(--color-brand-primary);
-    box-shadow: 0 2px 8px rgba(230, 163, 211, 0.12);
+    box-shadow: 0 2px 8px var(--color-dark-shadow-md);
 }
 
 /* Card-like effect for content blocks */
@@ -117,25 +129,25 @@ div.admonition, .sd-card {
 /* Light theme cards */
 [data-theme="light"] div.admonition,
 [data-theme="light"] .sd-card {
-    background: linear-gradient(120deg, #fff 80%, var(--color-light-bg-tertiary) 100%);
-    box-shadow: 0 2px 16px rgba(167, 34, 100, 0.08);
+    background: linear-gradient(120deg, var(--color-light-white) 80%, var(--color-light-bg-tertiary) 100%);
+    box-shadow: 0 2px 16px var(--color-light-shadow-lg);
 }
 
 [data-theme="light"] div.admonition:hover,
 [data-theme="light"] .sd-card:hover {
-    box-shadow: 0 6px 24px rgba(167, 34, 100, 0.14);
+    box-shadow: 0 6px 24px var(--color-light-shadow-xl);
 }
 
 /* Dark theme cards */
 [data-theme="dark"] div.admonition,
 [data-theme="dark"] .sd-card {
     background: linear-gradient(120deg, var(--color-dark-bg-primary) 80%, var(--color-dark-bg-secondary) 100%);
-    box-shadow: 0 2px 16px rgba(230, 163, 211, 0.12);
+    box-shadow: 0 2px 16px var(--color-dark-shadow-md);
 }
 
 [data-theme="dark"] div.admonition:hover,
 [data-theme="dark"] .sd-card:hover {
-    box-shadow: 0 6px 24px rgba(230, 163, 211, 0.2);
+    box-shadow: 0 6px 24px var(--color-dark-shadow-xl);
 }
 
 /* Modern typography using Furo's color variables */
@@ -170,7 +182,7 @@ h4, h5, h6 {
 [data-theme="light"] h4,
 [data-theme="light"] h5,
 [data-theme="light"] h6 {
-    text-shadow: 0 1px 0 #fff, 0 2px 8px rgba(167, 34, 100, 0.04);
+    text-shadow: 0 1px 0 var(--color-light-white), 0 2px 8px var(--color-light-shadow-sm);
 }
 
 /* Dark theme text shadows */
@@ -180,7 +192,7 @@ h4, h5, h6 {
 [data-theme="dark"] h4,
 [data-theme="dark"] h5,
 [data-theme="dark"] h6 {
-    text-shadow: 0 1px 0 #000, 0 2px 8px rgba(230, 163, 211, 0.08);
+    text-shadow: 0 1px 0 var(--color-dark-black), 0 2px 8px var(--color-dark-shadow-sm);
 }
 
 /* Code blocks: Modern, with subtle background and rounded corners */
@@ -196,7 +208,7 @@ h4, h5, h6 {
 [data-theme="light"] code {
     background: var(--color-light-bg-primary) !important;
     color: var(--color-light-text);
-    box-shadow: 0 1px 4px rgba(167, 34, 100, 0.04);
+    box-shadow: 0 1px 4px var(--color-light-shadow-sm);
 }
 
 [data-theme="light"] .highlight:hover,
@@ -211,7 +223,7 @@ h4, h5, h6 {
 [data-theme="dark"] code {
     background: var(--color-dark-bg-primary) !important;
     color: var(--color-dark-text);
-    box-shadow: 0 1px 4px rgba(230, 163, 211, 0.08);
+    box-shadow: 0 1px 4px var(--color-dark-shadow-sm);
 }
 
 [data-theme="dark"] .highlight:hover,
@@ -232,7 +244,7 @@ h4, h5, h6 {
 [data-theme="light"] .docutils.literal.notranslate {
     background: var(--color-light-bg-primary) !important;
     color: var(--color-light-text);
-    box-shadow: 0 1px 4px rgba(167, 34, 100, 0.04);
+    box-shadow: 0 1px 4px var(--color-light-shadow-sm);
 }
 
 /* Dark theme inline code */
@@ -240,7 +252,7 @@ h4, h5, h6 {
 [data-theme="dark"] .docutils.literal.notranslate {
     background: var(--color-dark-bg-primary) !important;
     color: var(--color-dark-text);
-    box-shadow: 0 1px 4px rgba(230, 163, 211, 0.08);
+    box-shadow: 0 1px 4px var(--color-dark-shadow-sm);
 }
 
 /* Links: colored, but no underline */
@@ -281,8 +293,8 @@ table.docutils {
 
 /* Light theme tables */
 [data-theme="light"] table.docutils {
-    background: linear-gradient(120deg, #fff 80%, var(--color-light-bg-tertiary) 100%);
-    box-shadow: 0 1px 8px rgba(167, 34, 100, 0.06);
+    background: linear-gradient(120deg, var(--color-light-white) 80%, var(--color-light-bg-tertiary) 100%);
+    box-shadow: 0 1px 8px var(--color-light-shadow-md);
 }
 
 [data-theme="light"] table.docutils th,
@@ -303,7 +315,7 @@ table.docutils {
 /* Dark theme tables */
 [data-theme="dark"] table.docutils {
     background: linear-gradient(120deg, var(--color-dark-bg-primary) 80%, var(--color-dark-bg-secondary) 100%);
-    box-shadow: 0 1px 8px rgba(230, 163, 211, 0.12);
+    box-shadow: 0 1px 8px var(--color-dark-shadow-md);
 }
 
 [data-theme="dark"] table.docutils th,
@@ -387,12 +399,12 @@ main, .content, .document {
 
 /* Light theme sidebar shadow */
 [data-theme="light"] .sidebar {
-    box-shadow: 2px 0 12px rgba(167, 34, 100, 0.07);
+    box-shadow: 2px 0 12px var(--color-light-shadow);
 }
 
 /* Dark theme sidebar shadow */
 [data-theme="dark"] .sidebar {
-    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3);
+    box-shadow: 2px 0 12px var(--color-dark-black);
 }
 
 /* Gradient background for dropdown/FAQ blocks */
@@ -410,14 +422,14 @@ details,
 [data-theme="light"] details,
 [data-theme="light"] .sd-dropdown,
 [data-theme="light"] .myst-dropdown {
-    background: linear-gradient(120deg, #fff 80%, var(--color-light-bg-tertiary) 100%);
-    box-shadow: 0 2px 16px rgba(167, 34, 100, 0.08);
+    background: linear-gradient(120deg, var(--color-light-white) 80%, var(--color-light-bg-tertiary) 100%);
+    box-shadow: 0 2px 16px var(--color-light-shadow-lg);
 }
 
 [data-theme="light"] details[open],
 [data-theme="light"] .sd-dropdown[open],
 [data-theme="light"] .myst-dropdown[open] {
-    box-shadow: 0 6px 24px rgba(167, 34, 100, 0.14);
+    box-shadow: 0 6px 24px var(--color-light-shadow-xl);
 }
 
 /* Dark theme dropdowns */
@@ -425,11 +437,11 @@ details,
 [data-theme="dark"] .sd-dropdown,
 [data-theme="dark"] .myst-dropdown {
     background: linear-gradient(120deg, var(--color-dark-bg-primary) 80%, var(--color-dark-bg-secondary) 100%);
-    box-shadow: 0 2px 16px rgba(230, 163, 211, 0.12);
+    box-shadow: 0 2px 16px var(--color-dark-shadow-md);
 }
 
 [data-theme="dark"] details[open],
 [data-theme="dark"] .sd-dropdown[open],
 [data-theme="dark"] .myst-dropdown[open] {
-    box-shadow: 0 6px 24px rgba(230, 163, 211, 0.2);
+    box-shadow: 0 6px 24px var(--color-dark-shadow-xl);
 }
