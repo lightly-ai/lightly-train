@@ -31,11 +31,22 @@ logger = logging.getLogger(__name__)
 
 class _DINOv3Getter(TypedDict):
     builder: Callable[..., DinoVisionTransformer | ConvNeXt]
-    default_weights: str
-    local_path: str
+    default_weights: str | None
+    local_path: str | None
 
 
 MODEL_NAME_TO_GETTER: dict[str, _DINOv3Getter] = {
+    # Test model for development purposes only.
+    "_vittest16": _DINOv3Getter(
+        builder=backbones._dinov3_vit_test,
+        default_weights=None,
+        local_path=None,
+    ),
+    "_convnexttest": _DINOv3Getter(
+        builder=backbones._dinov3_convnext_test,
+        default_weights=None,
+        local_path=None,
+    ),
     # LVD-1689M ViT models
     "vits16": _DINOv3Getter(
         builder=backbones.dinov3_vits16,
@@ -59,8 +70,9 @@ MODEL_NAME_TO_GETTER: dict[str, _DINOv3Getter] = {
     ),
     "vit7b16": _DINOv3Getter(
         builder=backbones.dinov3_vit7b16,
-        default_weights="",
-        local_path="",
+        # TODO (Lionel, 10/2025): Add real weights when available.
+        default_weights=None,
+        local_path=None,
     ),
     # SAT-493M ViT models
     "vitl16-sat493m": _DINOv3Getter(
@@ -70,8 +82,9 @@ MODEL_NAME_TO_GETTER: dict[str, _DINOv3Getter] = {
     ),
     "vit7b16-sat493m": _DINOv3Getter(
         builder=backbones.dinov3_vit7b16,
-        default_weights="",
-        local_path="",
+        # TODO (Lionel, 10/2025): Add real weights when available.
+        default_weights=None,
+        local_path=None,
     ),
     # ConvNeXt LVD-1689M models
     "convnext-tiny": _DINOv3Getter(
@@ -154,7 +167,7 @@ class DINOv3Package(Package):
             args.update(model_args)
         model_getter = MODEL_NAME_TO_GETTER[model_name]
         model_builder = model_getter["builder"]
-        if "weights" not in args:
+        if ("weights" not in args) and model_getter["default_weights"] is not None:
             weight_path = _maybe_download_weights(model_getter=model_getter)
             args["weights"] = str(weight_path)
         model = model_builder(**args)
@@ -205,6 +218,8 @@ class DINOv3Package(Package):
 def _maybe_download_weights(model_getter: _DINOv3Getter) -> Path:
     download_dir: Path = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
     url = model_getter["default_weights"]
+    assert model_getter["local_path"] is not None
+    assert url is not None
     download_dest = download_dir / model_getter["local_path"]
     if not download_dest.exists():
         download_dir.mkdir(parents=True, exist_ok=True)
