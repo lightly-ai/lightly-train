@@ -25,13 +25,13 @@ With LightlyTrain you can train your very own foundation model like DINOv2 on yo
 
 #### COCO Dataset
 
-Implementation | Backbone Model | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Input Size | Checkpoint |
-:------------: | :--------: | :----------------: | :----------: | :----------: | :--------: | :-----------: |
-| LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2_ltdetr/ltdetr_vits14dinov2_coco.ckpt) |
-| LightlyTrain | dinov3/convnext-tiny-ltdetr | 54.4 | 13.29 | 61.1 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-tiny_coco.ckpt) |
-| LightlyTrain | dinov3/convnext-small-ltdetr | 56.9 | 17.65 | 82.7 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-small_coco.ckpt) |
-| LightlyTrain | dinov3/convnext-base-ltdetr | 58.6 | 24.68 | 121.0 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-base_coco.ckpt) |
-| LightlyTrain | dinov3/convnext-large-ltdetr | 60.0 | 42.30 | 230.0 | 640×640 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_ltdetr/ltdetr_convnext-large_coco.ckpt) |
+| Implementation | Backbone Model | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Input Size | Checkpoint Name |
+|:--------------:|:----------------------------:|:------------------:|:------------:|:------------:|:----------:|:---------------------------------:|
+| LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 | dinov2/vits14-ltdetr-coco |
+| LightlyTrain | dinov3/convnext-tiny-ltdetr | 54.4 | 13.29 | 61.1 | 640×640 | dinov3/convnext-tiny-ltdetr-coco |
+| LightlyTrain | dinov3/convnext-small-ltdetr | 56.9 | 17.65 | 82.7 | 640×640 | dinov3/convnext-small-ltdetr-coco |
+| LightlyTrain | dinov3/convnext-base-ltdetr | 58.6 | 24.68 | 121.0 | 640×640 | dinov3/convnext-base-ltdetr-coco |
+| LightlyTrain | dinov3/convnext-large-ltdetr | 60.0 | 42.30 | 230.0 | 640×640 | dinov3/convnext-large-ltdetr-coco |
 
 Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `tensorrt==10.13.3.9`.
 
@@ -39,33 +39,32 @@ Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are 
 
 #### COCO-Stuff Dataset
 
-| Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint |
-|:--------------:|:--------------:|:--------:|:--------:|:-------------:|:----------:|:----------:|
-| LightlyTrain | dinov3/vits16-eomt | 0.465 | 88.7 | 21.6 | 518×518 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
-| LightlyTrain | dinov3/vitb16-eomt | 0.520 | 43.3 | 85.7 | 518×518 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
-| LightlyTrain | dinov3/vitl16-eomt | **0.544** | 20.4 | 303.2 | 518×518 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
-
+| Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint Name |
+|:--------------:|:------------------:|:---------:|:--------:|:------------:|:----------:|:-----------------------:|
+| LightlyTrain | dinov3/vits16-eomt | 0.465 | 88.7 | 21.6 | 518×518 | dinov3/vits16-eomt-coco |
+| LightlyTrain | dinov3/vitb16-eomt | 0.520 | 43.3 | 85.7 | 518×518 | dinov3/vitb16-eomt-coco |
+| LightlyTrain | dinov3/vitl16-eomt | **0.544** | 20.4 | 303.2 | 518×518 | dinov3/vitl16-eomt-coco |
 Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `torch.compile`.
 
 #### Cityscapes Dataset
 
-| Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint |
-|:--------------:|:--------------:|:--------:|:--------:|:-------------:|:----------:|:----------:|
-| LightlyTrain | dinov3/vits16-eomt | 0.786 | 18.6 | 21.6 | 1024×1024 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
-| LightlyTrain | dinov3/vitb16-eomt | 0.810 | 8.7 | 85.7 | 1024×1024 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
-| LightlyTrain | dinov3/vitl16-eomt | **0.844** | 3.9 | 303.2 | 1024×1024 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
+| Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint Name |
+|:------------------------------------:|:------------------:|:---------:|:--------:|:------------:|:----------:|:-----------------------------:|
+| LightlyTrain | dinov3/vits16-eomt | 0.786 | 18.6 | 21.6 | 1024×1024 | dinov3/vits16-eomt-cityscapes |
+| LightlyTrain | dinov3/vitb16-eomt | 0.810 | 8.7 | 85.7 | 1024×1024 | dinov3/vitb16-eomt-cityscapes |
+| LightlyTrain | dinov3/vitl16-eomt | **0.844** | 3.9 | 303.2 | 1024×1024 | dinov3/vitl16-eomt-cityscapes |
 | EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 | - |
 
 Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `torch.compile`.
 
 #### ADE20k Dataset
 
-| Implementation | Backbone Model | Val mIoU (direct FT) | Val mIoU (FT + SUN397 masks) | # Params (M) | Input Size | Checkpoint |
-|:--------------:|:--------------:|:--------------------:|:----------------------------:|:-------------:|:----------:|:----------:|
-| LightlyTrain | dinov3/vits16-eomt | 0.466 | 0.533 | 21.6 | 518×518 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_autolabel_sun397.pt) |
-| LightlyTrain | dinov3/vitb16-eomt | 0.544 | 0.573 | 85.7 | 518×518 | [🔗](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_autolabel_sun397.pt) |
+| Implementation | Backbone Model | Val mIoU (direct FT) | Val mIoU (FT + SUN397 masks) | # Params (M) | Input Size | Checkpoint Name |
+|:--------------:|:------------------:|:--------------------:|:----------------------------:|:------------:|:----------:|:-------------------------:|
+| LightlyTrain | dinov3/vits16-eomt | 0.466 | 0.533 | 21.6 | 518×518 | dinov3/vits16-eomt-ade20k |
+| LightlyTrain | dinov3/vitb16-eomt | 0.544 | 0.573 | 85.7 | 518×518 | dinov3/vitb16-eomt-ade20k |
 
-The better results for the respective models were archieved by fine-tuning a ViT-H+ on the ADE20k dataset, which reaches 0.595 validation mIoU. We then used the checkpoint to create pseudo masks for the SUN397 dataset (~100k images). Using these masks, we subsequently fine-tuned the smaller models, and then used the ADE20k dataset for validation.
+The better results for the respective models were achieved by fine-tuning a ViT-H+ on the ADE20k dataset, which reaches 0.595 validation mIoU. We then used the checkpoint to create pseudo masks for the SUN397 dataset (~100k images). Using these masks, we subsequently fine-tuned the smaller models, and then used the ADE20k dataset for validation.
 
 ## News
 
@@ -147,17 +146,13 @@ LightlyTrain’s LT-DETR models, powered by DINOv2 and DINOv3 backbones, demonst
 
 🚀 We are actively working on new models with improved speed and accuracy. Updates coming soon, so stay tuned!
 
-```bash
-wget <MODEL-WEIGHTS-URL> -O model.ckpt
-```
-
 ```python
 import lightly_train
 from torchvision import utils, io
 import matplotlib.pyplot as plt
 
 model = lightly_train.load_model_from_checkpoint(
-    checkpoint="model.ckpt",
+    checkpoint="dinov3/convnext-tiny-ltdetr-coco"
 )
 
 labels, boxes, scores = model.predict("<image>.jpg").values()
