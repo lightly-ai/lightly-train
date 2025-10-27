@@ -94,7 +94,7 @@ def load_model_from_checkpoint(
 ) -> TaskModel:
     """
     Either load model from an exported model file (in .pt format) or a checkpoint file (in .ckpt format) or download
-    if from our model repository.
+    it from our model repository.
 
     First check if `checkpoint` points to a valid file. If not and `checkpoint` is a `str` try to match that name
     to one of the models in our repository and download it. Downloaded models are cached under the location specified by
