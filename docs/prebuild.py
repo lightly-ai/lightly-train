@@ -94,7 +94,9 @@ def dump_transform_args_for_methods(dest_dir: Path) -> None:
 def dump_transform_args_for_tasks(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
-        if train_model_cls in {DINOv2LinearSemanticSegmentationTrain}:
+        if train_model_cls in {
+            DINOv2LinearSemanticSegmentationTrain,
+        }:
             continue
         train_transform_args = train_model_cls.train_transform_cls.transform_args_cls(
             ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
