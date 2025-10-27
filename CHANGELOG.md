@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add support for distilling from ConvNext backbones in the distillation methods.
+- Automatically download DINOv3 weights when using distillation or fine-tuning.
 
 ### Changed
 
@@ -21,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+
+- Fix issue with loading DINOv3 SAT493m checkpoints without the correct hash in the filename.
 
 ## [0.11.4] - 2025-10-08
 
