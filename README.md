@@ -146,17 +146,13 @@ LightlyTrain’s LT-DETR models, powered by DINOv2 and DINOv3 backbones, demonst
 
 🚀 We are actively working on new models with improved speed and accuracy. Updates coming soon, so stay tuned!
 
-```bash
-wget <MODEL-WEIGHTS-URL> -O model.ckpt
-```
-
 ```python
 import lightly_train
 from torchvision import utils, io
 import matplotlib.pyplot as plt
 
 model = lightly_train.load_model_from_checkpoint(
-    checkpoint="model.ckpt",
+    checkpoint="dinov3/convnext-tiny-ltdetr-coco"
 )
 
 labels, boxes, scores = model.predict("<image>.jpg").values()
