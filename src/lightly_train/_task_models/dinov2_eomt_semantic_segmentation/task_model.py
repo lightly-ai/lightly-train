@@ -26,6 +26,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Att
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
 )
@@ -164,6 +165,16 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         self.register_buffer(
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
+
+        if hasattr(self, "register_load_state_dict_pre_hook"):
+            self.register_load_state_dict_pre_hook(
+                task_model_helpers.queries_adjust_num_queries_hook
+            )
+        else:
+            # Backwards compatibility for PyTorch <= 2.4
+            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.queries_adjust_num_queries_hook, with_module=True
+            )
 
     @classmethod
     def list_model_names(cls) -> list[str]:
