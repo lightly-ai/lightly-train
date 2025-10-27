@@ -338,6 +338,7 @@ def dinov3_vitl16(
     weights: Union[Weights, str] = Weights.LVD1689M,
     check_hash: bool = False,
     in_chans: int = 3,
+    is_sat493m_weights: bool = False,
     **kwargs,
 ):
     untie_global_and_local_cls_norm = False
@@ -348,18 +349,10 @@ def dinov3_vitl16(
         if "hash" not in kwargs:
             kwargs["hash"] = "eadcf0ff"
         untie_global_and_local_cls_norm = True
-    elif type(weights) is str:
-        import re
-
-        pattern = r"-(.{8}).pth"
-        matches = re.findall(pattern, weights)
-        if len(matches) != 1:
-            raise ValueError(
-                f"Unexpected weights specification for the ViT-L backbone: {weights}"
-            )
-        hash = matches[0]
-        if hash == "eadcf0ff":
-            untie_global_and_local_cls_norm = True
+    elif type(weights) is str and is_sat493m_weights:
+        if "hash" not in kwargs:
+            kwargs["hash"] = "eadcf0ff"
+        untie_global_and_local_cls_norm = True
     kwargs["version"] = None
     return _make_dinov3_vit(
         img_size=224,

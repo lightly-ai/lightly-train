@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any
+import functools
 
 import torch
 
@@ -22,21 +23,82 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
+from typing import Callable, TypedDict
+from lightly_train._env import Env
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME_TO_GETTER = {
-    "vits16": backbones.dinov3_vits16,
-    "vits16plus": backbones.dinov3_vits16plus,
-    "vitb16": backbones.dinov3_vitb16,
-    "vitl16": backbones.dinov3_vitl16,
-    "vitl16plus": backbones.dinov3_vitl16plus,
-    "vith16plus": backbones.dinov3_vith16plus,
-    "vit7b16": backbones.dinov3_vit7b16,
-    "convnext-tiny": backbones.dinov3_convnext_tiny,
-    "convnext-small": backbones.dinov3_convnext_small,
-    "convnext-base": backbones.dinov3_convnext_base,
-    "convnext-large": backbones.dinov3_convnext_large,
+MODEL_DOWNLOAD_LINKS: dict[str, str | None] = {
+    # ViT LVD-1689M models
+    "vit7b16-lvd1689m": None,
+    # ViT SAT-493M models
+    "vit7b16-sat493m": None,
+}
+
+class _DINOv3Getter(TypedDict):
+    builder: Callable[..., DinoVisionTransformer | ConvNeXt]
+    default_weights: str
+    local_path: str
+
+MODEL_NAME_TO_GETTER: dict[str, _DINOv3Getter] = {
+    # LVD-1689M ViT models
+    "vits16": _DINOv3Getter(
+        builder=backbones.dinov3_vits16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vits16_lvd1689m.pth",
+        local_path="dinov3_vits16_lvd1689m.pth",
+    ),
+    "vits16plus": _DINOv3Getter(
+        builder=backbones.dinov3_vits16plus,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vits16plus_lvd1689m.pth",
+        local_path="dinov3_vits16plus_lvd1689m.pth",
+    ),
+    "vitb16": _DINOv3Getter(
+        builder=backbones.dinov3_vitb16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitb16_lvd1689m.pth",
+        local_path="dinov3_vitb16_lvd1689m.pth",
+    ),
+    "vitl16": _DINOv3Getter(
+        builder=backbones.dinov3_vitl16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitl16_lvd1689m.pth",
+        local_path="dinov3_vitl16_lvd1689m.pth",
+    ),
+    "vit7b16": _DINOv3Getter(
+        builder=backbones.dinov3_vit7b16,
+        default_weights="",
+        local_path="",
+    ),
+    # SAT-493M ViT models
+    "vitl16-sat493m": _DINOv3Getter(
+        builder=functools.partial(backbones.dinov3_vitl16, is_sat493m_weights=True),
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitl16_sat493m.pth",
+        local_path="dinov3_vitl16_sat493m.pth",
+    ),
+    "vit7b16-sat493m": _DINOv3Getter(
+        builder=backbones.dinov3_vit7b16,
+        default_weights="",
+        local_path="",
+    ),
+    # ConvNeXt LVD-1689M models
+    "convnext-tiny": _DINOv3Getter(
+        builder=backbones.dinov3_convnext_tiny,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_tiny_lvd1689m.pth",
+        local_path="dinov3_convnext_tiny_lvd1689m.pth",
+    ),
+    "convnext-small": _DINOv3Getter(
+        builder=backbones.dinov3_convnext_small,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_small_lvd1689m.pth",
+        local_path="dinov3_convnext_small_lvd1689m.pth",
+    ),
+    "convnext-base": _DINOv3Getter(
+        builder=backbones.dinov3_convnext_base,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_base_lvd1689m.pth",
+        local_path="dinov3_convnext_base_lvd1689m.pth",
+    ),
+    "convnext-large": _DINOv3Getter(
+        builder=backbones.dinov3_convnext_large,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_large_lvd1689m.pth",
+        local_path="dinov3_convnext_large_lvd1689m.pth",
+    ),
 }
 
 MODEL_CLS_TO_WRAPPER = {
@@ -58,8 +120,8 @@ class DINOv3Package(Package):
         cls, model: DinoVisionTransformer | ConvNeXt | ModelWrapper | Any
     ) -> bool:
         if isinstance(model, ModelWrapper):
-            return isinstance(model.get_model(), DinoVisionTransformer)
-        return isinstance(model, DinoVisionTransformer)
+            return isinstance(model.get_model(), (DinoVisionTransformer, ConvNeXt))
+        return isinstance(model, (DinoVisionTransformer, ConvNeXt))
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> str:
@@ -94,7 +156,12 @@ class DINOv3Package(Package):
         args: dict[str, Any] = {"in_chans": num_input_channels}
         if model_args is not None:
             args.update(model_args)
-        model = MODEL_NAME_TO_GETTER[model_name](**args)  # type: ignore[operator]
+        model_getter = MODEL_NAME_TO_GETTER[model_name]
+        model_builder= model_getter["builder"]
+        if "weights" not in args:
+            weight_path = _maybe_download_weights(model_getter=model_getter)
+            args["weights"] = str(weight_path)
+        model = model_builder(**args)
         assert isinstance(model, (DinoVisionTransformer, ConvNeXt))
         return model
 
@@ -136,6 +203,17 @@ class DINOv3Package(Package):
                 log_usage_example.format_log_msg_model_usage_example(log_message_code)
             )
 
+
+def _maybe_download_weights(model_getter: _DINOv3Getter) -> Path:
+    download_dir: Path = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
+    url = model_getter["default_weights"]
+    download_dest = download_dir / model_getter["local_path"]
+    print(download_dest)
+    if not download_dest.exists():
+        download_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"DINOv3 weights not found locally. Downloading from {url}...")
+        torch.hub.download_url_to_file(url, dst=str(download_dest))
+    return download_dest
 
 # Create singleton instance of the package. The singleton should be used whenever
 # possible.
