@@ -7,14 +7,16 @@
 #
 from __future__ import annotations
 
+import functools
 import logging
 from pathlib import Path
-from typing import Any
-import functools
+from typing import Any, Callable, TypedDict
 
 import torch
 
+from lightly_train._env import Env
 from lightly_train._models import log_usage_example
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_src.hub import backbones
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
@@ -23,22 +25,15 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
-from typing import Callable, TypedDict
-from lightly_train._env import Env
 
 logger = logging.getLogger(__name__)
 
-MODEL_DOWNLOAD_LINKS: dict[str, str | None] = {
-    # ViT LVD-1689M models
-    "vit7b16-lvd1689m": None,
-    # ViT SAT-493M models
-    "vit7b16-sat493m": None,
-}
 
 class _DINOv3Getter(TypedDict):
     builder: Callable[..., DinoVisionTransformer | ConvNeXt]
     default_weights: str
     local_path: str
+
 
 MODEL_NAME_TO_GETTER: dict[str, _DINOv3Getter] = {
     # LVD-1689M ViT models
@@ -103,6 +98,7 @@ MODEL_NAME_TO_GETTER: dict[str, _DINOv3Getter] = {
 
 MODEL_CLS_TO_WRAPPER = {
     DinoVisionTransformer: DINOv3ViTModelWrapper,
+    ConvNeXt: DINOv3VConvNeXtModelWrapper,
 }
 
 
@@ -157,7 +153,7 @@ class DINOv3Package(Package):
         if model_args is not None:
             args.update(model_args)
         model_getter = MODEL_NAME_TO_GETTER[model_name]
-        model_builder= model_getter["builder"]
+        model_builder = model_getter["builder"]
         if "weights" not in args:
             weight_path = _maybe_download_weights(model_getter=model_getter)
             args["weights"] = str(weight_path)
@@ -166,7 +162,9 @@ class DINOv3Package(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: DinoVisionTransformer) -> DINOv3ViTModelWrapper:
+    def get_model_wrapper(
+        cls, model: DinoVisionTransformer | ConvNeXt
+    ) -> DINOv3ViTModelWrapper | DINOv3VConvNeXtModelWrapper:
         return MODEL_CLS_TO_WRAPPER[model.__class__](model=model)
 
     @classmethod
@@ -208,12 +206,12 @@ def _maybe_download_weights(model_getter: _DINOv3Getter) -> Path:
     download_dir: Path = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
     url = model_getter["default_weights"]
     download_dest = download_dir / model_getter["local_path"]
-    print(download_dest)
     if not download_dest.exists():
         download_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"DINOv3 weights not found locally. Downloading from {url}...")
         torch.hub.download_url_to_file(url, dst=str(download_dest))
     return download_dest
+
 
 # Create singleton instance of the package. The singleton should be used whenever
 # possible.

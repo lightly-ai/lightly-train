@@ -51,7 +51,8 @@ def get_teacher(
     teacher_weights: str | Path | None = None,
 ) -> Module:
     wrapped_model = package_helpers.get_wrapped_model(
-        model=teacher_name, num_input_channels=num_input_channels,
+        model=teacher_name,
+        num_input_channels=num_input_channels,
     )
     assert isinstance(
         wrapped_model,

@@ -8,14 +8,8 @@
 from pathlib import Path
 
 import pytest
-import torch
 
 from lightly_train._models.dinov3.dinov3_package import DINOv3Package
-from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
-from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
-from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
-    DinoVisionTransformer,
-)
 
 from ...helpers import DummyCustomModel
 
