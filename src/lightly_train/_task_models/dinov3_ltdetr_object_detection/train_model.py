@@ -46,8 +46,8 @@ from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
 class DINOv3LTDETRObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_total_loss"
-    mode: Literal["min", "max"] = "min"
+    watch_metric: str = "val_metric/map"
+    mode: Literal["min", "max"] = "max"
 
 
 class DINOv3LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
@@ -119,6 +119,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         val_transform_args: DINOv3LTDETRObjectDetectionValTransformArgs,
     ) -> None:
         super().__init__()
+        # Lazy import torchmetrics because it is an optional dependency.
+        from torchmetrics.detection.mean_ap import MeanAveragePrecision
+
         self.model_args = model_args
         self.model = DINOv3LTDETRObjectDetectionTaskModel(
             model_name=model_name,
@@ -145,6 +148,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         )
 
         self.clip_max_norm = model_args.clip_max_norm
+
+        # Validation metric.
+        self.map_metric = MeanAveragePrecision()
 
     def set_train_mode(self) -> None:
         super().set_train_mode()
@@ -213,9 +219,32 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
+        # Convert model outputs into torchmetrics-compatible format
+        preds = []
+        for bboxes, logits in zip(outputs["pred_boxes"], outputs["pred_logits"]):
+            scores = logits.softmax(dim=-1).max(dim=-1)
+            preds.append(
+                {
+                    "boxes": bboxes,  # [N, 4] in xyxy
+                    "scores": scores.values,  # [N]
+                    "labels": scores.indices,  # [N]
+                }
+            )
+
+        # Update mAP metric
+        self.map_metric.update(preds, targets)
+
+        metrics: dict[str, Any] = {
+            "val_metric/": self.map_metric,
+        }
+
         return TaskStepResult(
             loss=total_loss,
-            log_dict={**{"val_total_loss": total_loss.item()}, **loss_dict},
+            log_dict={
+                **{"val_total_loss": total_loss.item()},
+                **loss_dict,
+                **metrics,
+            },
         )
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
