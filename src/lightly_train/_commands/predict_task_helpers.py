@@ -100,7 +100,7 @@ def get_transform(
         # Validate that the model config has the required fields for the transform
         transform_args_dict = {
             "image_size": model.image_size,
-            "normalize": model.normalize,
+            "normalize": model.image_normalize,
         }
 
     transform_args = pydantic_model_validate(

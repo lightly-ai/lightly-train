@@ -10,16 +10,11 @@ from __future__ import annotations
 from pydantic import ConfigDict
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import TransformInput, TransformOutput
 
 
 class PredictTransformArgs(PydanticConfig):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @classmethod
-    def from_model(cls, model: TaskModel) -> "PredictTransformArgs":
-        raise NotImplementedError
 
 
 class PredictTransform:
