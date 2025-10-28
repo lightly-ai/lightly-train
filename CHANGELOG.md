@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Same train and validation mmap file.
+
 ## [0.11.4] - 2025-10-08
 
 ### Added
