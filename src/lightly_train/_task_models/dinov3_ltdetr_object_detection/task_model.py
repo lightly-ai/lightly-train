@@ -205,7 +205,7 @@ class _DINOv3LTDETRObjectDetectionTinyConfig(_DINOv3LTDETRObjectDetectionConfig)
     )
 
 
-class DINOv3LTDETRObjectDetectionTaskModel(TaskModel):
+class DINOv3LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
 
     def __init__(
