@@ -87,6 +87,10 @@ def dinov2_vits14_eomt_4_channels_checkpoint(
 #         "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
 #     ),
 # )
+@pytest.mark.skipif(
+    sys.version_info < (3, 9),
+    reason="Requires Python 3.9 or higher for image preprocessing.",
+)
 @pytest.mark.parametrize("num_channels", [3, 4])
 def test_predict_semantic_segmentation(
     tmp_path: Path,
