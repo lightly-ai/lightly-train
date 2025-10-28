@@ -139,7 +139,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         self.ema_model: ModelEMA | None = None
         if model_args.use_ema_model:
             self.ema_model = ModelEMA(
-                model=self.model,
+                model=self,
                 decay=model_args.ema_momentum,
                 warmups=model_args.ema_warmup_steps,
             )
