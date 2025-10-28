@@ -22,7 +22,7 @@ from lightly_train._models.model_wrapper import (
 )
 
 if TYPE_CHECKING:
-    from ultralytics import YOLO
+    from ultralytics import YOLO  # type: ignore[attr-defined]
     from ultralytics.nn.modules.block import SPPF, C2f
     from ultralytics.nn.modules.conv import Conv
 
