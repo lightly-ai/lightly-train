@@ -159,7 +159,12 @@ and checkpoints organized.
 ## Data
 
 Lightly**Train** supports training object detection models with images and bounding boxes.
-Every image must have a corresponding annotation file (in [YOLO format](https://labelformat.com/formats/object-detection/yolov5/)) that contains on every line 4 normalized bounding box coordinates (x_center, y_center, width, height) and class IDs for each object in the image.
+Every image must have a corresponding annotation file (in [YOLO format](https://labelformat.com/formats/object-detection/yolov5/)) that contains for every object in the image a line with the class ID and 4 normalized bounding box coordinates (x_center, y_center, width, height). The file should have the `.txt` extension and an example annotation file for an image with two objects could look like this:
+
+```text
+0 0.716797 0.395833 0.216406 0.147222
+1 0.687500 0.379167 0.255208 0.175000
+```
 
 The following image formats are supported:
 
