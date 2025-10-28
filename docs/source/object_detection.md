@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
 During training, both the
 
-- best (with highest validation mIoU) and
+- best (with highest validation mAP<sub>50:95</sub>) and
 - last (last validation round as determined by `save_checkpoint_args.save_every_num_steps`)
 
 model weights are exported to `out/my_experiment/exported_models/`, unless disabled in `save_checkpoint_args`. You can use these weights to continue fine-tuning on another task by loading the weights via the `checkpoint` parameter:
@@ -65,7 +65,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov2/vitl14-eomt", 
+        model="dinov3/convnext-small-ltdetr", 
         checkpoint="out/my_experiment/exported_models/exported_best.pt", # use the best model to continue training
         data={...},
     )
@@ -84,6 +84,17 @@ import lightly_train
 
 model = lightly_train.load_model_from_checkpoint(
     "out/my_experiment/exported_models/exported_best.pt"
+)
+masks = model.predict("path/to/image.jpg")
+```
+
+Or use one of the pre-trained model weights directly from LightlyTrain:
+
+```python
+import lightly_train
+
+model = lightly_train.load_model_from_checkpoint(
+    checkpoint="dinov3/convnext-tiny-ltdetr-coco"
 )
 masks = model.predict("path/to/image.jpg")
 ```
@@ -116,8 +127,7 @@ ax.imshow(image_with_boxes.permute(1, 2, 0))
 fig.savefig(f"predictions.png")
 ```
 
-The predicted masks have shape `(height, width)` and each value corresponds to a class
-ID as defined in the `classes` dictionary in the dataset.
+The predicted boxes are in the normalized (x_min, y_min, x_max, y_max) format.
 
 ## Out
 
