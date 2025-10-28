@@ -45,14 +45,10 @@ def get_teacher(
     teacher_name: str,
     num_input_channels: int,
     teacher_weights: str | Path | None = None,
-    method_args: DistillationV2Args | None = None,
 ) -> Module:
-    model_args: dict[str, Any] = {}
-    if "dinov3" in teacher_name and method_args is not None:
-        model_args["weights"] = method_args.teacher_url
-
     wrapped_model = package_helpers.get_wrapped_model(
-        model=teacher_name, num_input_channels=num_input_channels, model_args=model_args
+        model=teacher_name,
+        num_input_channels=num_input_channels,
     )
     assert isinstance(
         wrapped_model,
@@ -173,7 +169,6 @@ class DistillationV2(Method):
             teacher_name=method_args.teacher,
             num_input_channels=num_input_channels,
             teacher_weights=method_args.teacher_weights,
-            method_args=method_args,
         )
         self.teacher_embedding_dim = (
             method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim
@@ -226,7 +221,9 @@ class DistillationV2(Method):
 
     @torch.no_grad()
     def _forward_teacher(self, x: Tensor) -> Tensor:
-        # Forward the images through the teacher model.
+        """Forward the images through the teacher model and return them in the
+        (B, D, H, W) format.
+        """
         x_list = self.teacher_embedding_model.get_intermediate_layers(
             x, n=self.method_args.n_teacher_blocks, reshape=True
         )
@@ -236,6 +233,9 @@ class DistillationV2(Method):
     def _forward_student(
         self, x: Tensor, teacher_features_h: int, teacher_features_w: int
     ) -> Tensor:
+        """Forward the images through the student model and return them in the
+        (B, H*W, D) format.
+        """
         # Forward the images through the student model.
         x = self.student_embedding_model(x, pool=False)
 
