@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import typing
 from pathlib import Path
 from typing import Any, Callable, TypedDict
 
@@ -109,11 +110,6 @@ MODEL_NAME_TO_GETTER: dict[str, _DINOv3Getter] = {
     ),
 }
 
-MODEL_CLS_TO_WRAPPER = {
-    DinoVisionTransformer: DINOv3ViTModelWrapper,
-    ConvNeXt: DINOv3VConvNeXtModelWrapper,
-}
-
 
 class DINOv3Package(Package):
     name = "dinov3"
@@ -178,7 +174,15 @@ class DINOv3Package(Package):
     def get_model_wrapper(
         cls, model: DinoVisionTransformer | ConvNeXt
     ) -> DINOv3ViTModelWrapper | DINOv3VConvNeXtModelWrapper:
-        return MODEL_CLS_TO_WRAPPER[model.__class__](model=model)
+        if isinstance(model, DinoVisionTransformer):
+            return DINOv3ViTModelWrapper(model=model)
+        elif isinstance(model, ConvNeXt):
+            return DINOv3VConvNeXtModelWrapper(model=model)
+        else:
+            raise ValueError(
+                f"DINOv3Package cannot create a model wrapper for model of type {type(model)}. "
+                "The model must be a DinoVisionTransformer or ConvNeXt."
+            )
 
     @classmethod
     def export_model(
