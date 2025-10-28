@@ -28,30 +28,32 @@ DOWNLOADABLE_MODEL_BASE_URL = (
     "https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com"
 )
 
+LIGHTLY_TRAIN_PRETRAINED_MODEL = str
+
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     "dinov2/vits14-ltdetr-coco": (
-        "/dinov2_ltdetr_2/ltdetr_vits14dinov2_coco.ckpt",
-        "bfa2adf2b4dc6527947f9f361e47933959a4e9461efa54e02fd39062cd01aac5",
+        "/dinov2_ltdetr_2/ltdetr_vits14dinov2_coco.pt",
+        "03ab76172b7173b68ab246958662800930d89185c0f4f185ca1f480d002186e1",
     ),
     "dinov2/vits14-ltdetr-dsp-coco": (
-        "/dinov2_ltdetr_2/ltdetr_vits14dinov2_coco_dsp.ckpt",
-        "3115eeee80f1ff9edae3a3956ec3d7204ca7912453f21a4848954e7c1c73db02",
+        "/dinov2_ltdetr_2/ltdetr_vits14dinov2_coco_dsp.pt",
+        "0e5bffe45eb2c20c121c4244834add09eab932aaa47ad425cb0446015976b8a7",
     ),
     "dinov3/convnext-tiny-ltdetr-coco": (
-        "/dinov3_ltdetr_2/ltdetr_convnext-tiny_coco.ckpt",
+        "/dinov3_ltdetr_2/ltdetr_convnext-tiny_coco.pt",
         "a976d45a8512c80d88b764f179755b4c91e42b97e7cf7061ddf0283900924aff",
     ),
     "dinov3/convnext-small-ltdetr-coco": (
-        "/dinov3_ltdetr_2/ltdetr_convnext-small_coco.ckpt",
-        "509d3de9759950dc72cf53f1a435bb6b0d8a7acf4c4883bd1ee74d8bae27310b",
+        "/dinov3_ltdetr_2/ltdetr_convnext-small_coco.pt",
+        "1f8b97f1de85f8ba35d3550bf4abba962ccf3cc24e22a7a2e57c9ce97ff614d6",
     ),
     "dinov3/convnext-base-ltdetr-coco": (
-        "/dinov3_ltdetr_2/ltdetr_convnext-base_coco.ckpt",
-        "542c788dd1b0eec7873243667a8761a766e87c6922ab59a59896b67ad6d802c3",
+        "/dinov3_ltdetr_2/ltdetr_convnext-base_coco.pt",
+        "eddc33a09f1b59b1e7599b37c19628f5a91a3839a3a2a398e2229756a193e7d5",
     ),
     "dinov3/convnext-large-ltdetr-coco": (
-        "/dinov3_ltdetr_2/ltdetr_convnext-large_coco.ckpt",
-        "1c862670adeeb11c7ae4a1e4c422bf3c71df2d3193e0c5c5c6f6ffc640244ae1",
+        "/dinov3_ltdetr_2/ltdetr_convnext-large_coco.pt",
+        "5fd59e417fc2fc0c13e097e3dddcdbb6727e3b208a17ec0d9c61dd825d615fc5",
     ),
     "dinov3/vits16-eomt-coco": (
         "/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt",
@@ -112,7 +114,8 @@ def load_model_from_checkpoint(
         The loaded model.
     """
     device = _resolve_device(device)
-    if isinstance(checkpoint, Path) or Path(checkpoint).exists():
+    checkpoint_path = Path(checkpoint).resolve()
+    if checkpoint_path.exists():
         checkpoint = common_helpers.get_checkpoint_path(checkpoint=checkpoint)
     else:
         assert isinstance(checkpoint, str)
@@ -138,6 +141,7 @@ def load_model_from_checkpoint(
             needs_download = False
 
         if needs_download:
+            download_dir.mkdir(parents=True, exist_ok=True)
             torch.hub.download_url_to_file(url=model_url, dst=str(checkpoint))
             logger.info(f"Downloaded checkpoint. Hash: {checkpoint_hash(checkpoint)}")
 
@@ -150,6 +154,7 @@ def load_model_from_checkpoint(
 
     # Create model instance
     model: TaskModel = model_class(**ckpt["model_init_args"])
+    print(ckpt["train_model"].keys())
     model.load_train_state_dict(state_dict=ckpt["train_model"])
     model.eval()
 

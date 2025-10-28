@@ -224,7 +224,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             raise_invalid_name()
 
         return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}",
             "backbone_name": backbone_name,
         }
 

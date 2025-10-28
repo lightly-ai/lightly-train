@@ -39,9 +39,9 @@ class ModelEMA(Module):
     ):
         super().__init__()
 
-        self.module = deepcopy(model).eval()
+        self.model = deepcopy(model).eval()
         # if next(model.parameters()).device.type != 'cpu':
-        #     self.module.half()  # FP16 EMA
+        #     self.model.half()  # FP16 EMA
 
         self.decay = decay
         self.warmups = warmups
@@ -50,7 +50,7 @@ class ModelEMA(Module):
             1 - math.exp(-x / warmups)
         )  # decay exponential ramp (to help early epochs)
 
-        for p in self.module.parameters():
+        for p in self.model.parameters():
             p.requires_grad_(False)
 
     def update(self, model: nn.Module):
@@ -59,7 +59,7 @@ class ModelEMA(Module):
             self.updates += 1
             d = self.decay_fn(self.updates)
             msd = model.state_dict()
-            for k, v in self.module.state_dict().items():
+            for k, v in self.model.state_dict().items():
                 if v.dtype.is_floating_point:
                     v *= d
                     v += (1 - d) * msd[k].detach()

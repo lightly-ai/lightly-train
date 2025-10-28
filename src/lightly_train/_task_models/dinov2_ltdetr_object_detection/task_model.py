@@ -176,8 +176,8 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         """Load the EMA state dict from a training checkpoint."""
         new_state_dict = {}
         for name, param in state_dict.items():
-            if name.startswith("model.ema."):
-                name = name[len("model.ema.") :]
+            if name.startswith("model.ema.model."):
+                name = name[len("model.ema.model.") :]
                 new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)
 

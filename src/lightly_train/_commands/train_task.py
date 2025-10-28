@@ -605,15 +605,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     fabric=fabric, out_dir=out_dir, state=state, best_or_last="last"
                 )
 
-                export_model = (
-                    train_model.get_ema_model()
-                    if train_model.get_ema_model()
-                    else train_model
-                )
                 model_dict = {
                     "model_class_path": state["model_class_path"],
                     "model_init_args": state["model_init_args"],
-                    "train_model": export_model.state_dict(),
+                    "train_model": train_model.state_dict(),
                 }
 
                 helpers.export_model(
