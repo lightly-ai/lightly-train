@@ -97,7 +97,7 @@ import lightly_train
 model = lightly_train.load_model_from_checkpoint(
     checkpoint="dinov3/convnext-tiny-ltdetr-coco"
 )
-masks = model.predict("path/to/image.jpg")
+results = model.predict("path/to/image.jpg")
 ```
 
 ### Visualize the Result
