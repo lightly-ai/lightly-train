@@ -535,19 +535,15 @@ def assert_same_params(
         assert a_defaults == b_defaults
 
 
-def dummy_dinov2_vit_model(
-    patch_size: int = 14, **kwargs: Any
-) -> DINOv2ViTModelWrapper:
+def dummy_dinov2_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv2ViTModelWrapper:
     return DINOv2ViTModelWrapper(model=_vit_test(patch_size, **kwargs))
 
 
 def dummy_dinov3_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv3ViTModelWrapper:
-    assert patch_size == 2
-    return DINOv3ViTModelWrapper(model=_dinov3_vit_test(**kwargs))
+    return DINOv3ViTModelWrapper(
+        model=_dinov3_vit_test(patch_size=patch_size, **kwargs)
+    )
 
 
-def dummy_dinov3_convnext_model(
-    patch_size: int = 2, **kwargs: Any
-) -> DINOv3VConvNeXtModelWrapper:
-    assert patch_size == 2
+def dummy_dinov3_convnext_model(**kwargs: Any) -> DINOv3VConvNeXtModelWrapper:
     return DINOv3VConvNeXtModelWrapper(model=_dinov3_convnext_test(**kwargs))
