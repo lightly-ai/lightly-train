@@ -69,20 +69,20 @@ class TestDINOv3Package:
         model = DummyCustomModel()
         assert not DINOv3Package.is_supported_model(model)
 
-    def test_get_model__vit(self):
+    def test_get_model__vit(self) -> None:
         model = DINOv3Package.get_model("_vittest16")
         assert isinstance(model, DinoVisionTransformer)
 
-    def test_get_model__convnext(self):
+    def test_get_model__convnext(self) -> None:
         model = DINOv3Package.get_model("_convnexttest")
         assert isinstance(model, ConvNeXt)
 
-    def test_get_model_wrapper__vit(self):
+    def test_get_model_wrapper__vit(self) -> None:
         model = backbones._dinov3_vit_test()
         model_wrapper = DINOv3Package.get_model_wrapper(model=model)
         assert isinstance(model_wrapper, DINOv3ViTModelWrapper)
 
-    def test_get_model_wrapper__convnext(self):
+    def test_get_model_wrapper__convnext(self) -> None:
         model = backbones._dinov3_convnext_test()
         model_wrapper = DINOv3Package.get_model_wrapper(model=model)
         assert isinstance(model_wrapper, DINOv3VConvNeXtModelWrapper)
@@ -114,7 +114,11 @@ class TestDINOv3Package:
     )
     def test_export_model__wrapped_model(self, model_name: str, tmp_path: Path) -> None:
         model = DINOv3Package.get_model(model_name=model_name)
-        wrapped_model = DINOv3ViTModelWrapper(model=model)
+        wrapped_model: DINOv3ViTModelWrapper | DINOv3VConvNeXtModelWrapper
+        if isinstance(model, ConvNeXt):
+            wrapped_model = DINOv3VConvNeXtModelWrapper(model=model)
+        else:
+            wrapped_model = DINOv3ViTModelWrapper(model=model)
         out_path = tmp_path / "model.pt"
         DINOv3Package.export_model(model=wrapped_model, out=out_path, log_example=False)
 
