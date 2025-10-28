@@ -185,7 +185,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         return TaskStepResult(
             loss=total_loss,
-            log_dict={**{"train_total_loss": total_loss.item()}, **loss_dict},
+            log_dict={**{"train_loss": total_loss.item()}, **loss_dict},
         )
 
     def validation_step(
@@ -241,7 +241,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         return TaskStepResult(
             loss=total_loss,
             log_dict={
-                **{"val_total_loss": total_loss.item()},
+                **{"val_loss": total_loss.item()},
                 **loss_dict,
                 **metrics,
             },
