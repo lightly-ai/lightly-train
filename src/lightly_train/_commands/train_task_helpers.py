@@ -94,14 +94,6 @@ TASK_TO_METRICS: dict[str, dict[str, str]] = {
         "val_metric/map_small": "Val mAP (small)",
         "val_metric/map_medium": "Val mAP (medium)",
         "val_metric/map_large": "Val mAP (large)",
-        "val_metric/mar_1": "Val mAR@1",
-        "val_metric/mar_10": "Val mAR@10",
-        "val_metric/mar_100": "Val mAR@100",
-        "val_metric/mar_small": "Val mAR (small)",
-        "val_metric/mar_medium": "Val mAR (medium)",
-        "val_metric/mar_large": "Val mAR (large)",
-        "val_metric/map_per_class": "Val mAP per class",
-        "val_metric/mar_100_per_class": "Val mAR@100 per class",
     },
 }
 
