@@ -86,6 +86,10 @@ add-header:
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		-x src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
+		-x src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/mask_loss.py \
+		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/mask_loss.py \
+		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scale_block.py \
+		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scheduler.py \
 		-x src/lightly_train/_models/dinov3/dinov3_src \
 		-x src/lightly_train/_task_models/object_detection_components \
 		-E py
@@ -116,6 +120,10 @@ add-header:
 		-f src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
+		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/mask_loss.py \
+		src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/mask_loss.py \
+		src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scale_block.py \
+		src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scheduler.py \
 		-E py
 	
 	# Apply the DINOv3 license header to the DINOv3 derived files
