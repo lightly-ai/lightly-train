@@ -628,7 +628,7 @@ def log_step(
         "train_loss": "Train Loss",
         "val_loss": "Val Loss",
     }
-    name_to_display_name |= TASK_TO_METRICS.get(task, {})
+    name_to_display_name = {**name_to_display_name, **TASK_TO_METRICS.get(task, {})}
 
     parts = [
         f"{split_cap} Step {step + 1}/{max_steps}",
