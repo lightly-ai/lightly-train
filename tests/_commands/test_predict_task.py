@@ -80,13 +80,10 @@ def dinov2_vits14_eomt_4_channels_checkpoint(
     return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp, num_channels=4)
 
 
-# @pytest.mark.skipif(
-#     sys.platform.startswith("win") or is_self_hosted_docker_runner,
-#     reason=(
-#         "Fails on Windows since switching to Jaccard index "
-#         "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
-#     ),
-# )
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason=("Fails on Windows because of potential memory issues"),
+)
 @pytest.mark.skipif(
     sys.version_info < (3, 9),
     reason="Requires Python 3.9 or higher for image preprocessing.",
