@@ -129,7 +129,7 @@ ax.imshow(image_with_boxes.permute(1, 2, 0))
 fig.savefig("predictions.png")
 ```
 
-The predicted boxes are in the normalized (x_min, y_min, x_max, y_max) format.
+The predicted boxes are in the absolute (x_min, y_min, x_max, y_max) format, i.e. represent the size of the dimension of the bounding boxes in pixels.
 
 ## Out
 
