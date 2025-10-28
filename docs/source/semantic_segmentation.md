@@ -20,6 +20,27 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
 
+### COCO-Stuff
+
+| Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint Name |
+|:--------------:|:------------------:|:---------:|:--------:|:------------:|:----------:|:-----------------------:|
+| LightlyTrain | dinov3/vits16-eomt | 0.465 | 88.7 | 21.6 | 518×518 | dinov3/vits16-eomt-coco |
+| LightlyTrain | dinov3/vitb16-eomt | 0.520 | 43.3 | 85.7 | 518×518 | dinov3/vitb16-eomt-coco |
+| LightlyTrain | dinov3/vitl16-eomt | **0.544** | 20.4 | 303.2 | 518×518 | dinov3/vitl16-eomt-coco |
+
+We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
+
+### Cityscapes
+
+| Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size | Checkpoint Name |
+|:------------------------------------:|:------------------:|:---------:|:--------:|:------------:|:----------:|:-----------------------------:|
+| LightlyTrain | dinov3/vits16-eomt | 0.786 | 18.6 | 21.6 | 1024×1024 | dinov3/vits16-eomt-cityscapes |
+| LightlyTrain | dinov3/vitb16-eomt | 0.810 | 8.7 | 85.7 | 1024×1024 | dinov3/vitb16-eomt-cityscapes |
+| LightlyTrain | dinov3/vitl16-eomt | **0.844** | 3.9 | 303.2 | 1024×1024 | dinov3/vitl16-eomt-cityscapes |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 | - |
+
+We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
+
 ### ADE20k
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
@@ -31,26 +52,20 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 We trained the models with 40k steps and `num_queries=100` , as in the setting of the original EoMT paper.
 
-### COCO-Stuff
+### ADE20k with Pseudo-Labeling of SUN397
 
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
-|----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 512×512 | 0.465 | 88.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
-| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
-| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.544** | 20.4 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
+| Implementation | Backbone Model | Val mIoU (direct FT) | Val mIoU (FT + SUN397 masks) | # Params (M) | Input Size | Checkpoint Name |
+|:--------------:|:------------------:|:--------------------:|:----------------------------:|:------------:|:----------:|:-------------------------:|
+| LightlyTrain | dinov3/vits16-eomt | 0.466 | 0.533 | 21.6 | 518×518 | dinov3/vits16-eomt-ade20k |
+| LightlyTrain | dinov3/vitb16-eomt | 0.544 | 0.573 | 85.7 | 518×518 | dinov3/vitb16-eomt-ade20k |
 
-We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
+The better results for the respective models were achieved by fine-tuning a ViT-H+ on the ADE20k dataset, which reaches 0.595 validation mIoU. We then used the checkpoint to create pseudo masks for the SUN397 dataset (~100k images). Using these masks, we subsequently fine-tuned the smaller models, and then used the ADE20k dataset for validation. The worse results are the same as reported in the above *ADE20k* section.
 
-### Cityscapes
+## Semantic Segmentation with EoMT
 
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
-|----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 1024×1024 | 0.786 | 18.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
-| dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
-| dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
-| dinov2/vitl16-eomt (original) | 319 | 1024×1024 | 0.842 | - | - |
-
-We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
+Training a semantic segmentation model with LightlyTrain is straightforward and
+only requires a few lines of code. See [data](#semantic-segmentation-data)
+for more details on how to prepare your dataset.
 
 ## Semantic Segmentation with EoMT
 
