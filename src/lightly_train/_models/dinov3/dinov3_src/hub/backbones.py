@@ -639,11 +639,12 @@ def _dinov3_vit_test(
     pretrained: bool = False,
     weights: Union[Weights, str] = Weights.LVD1689M,
     in_chans: int = 3,
+    patch_size: int = 2,
     **kwargs,
 ):
     return _make_dinov3_vit(
         img_size=32,
-        patch_size=2,
+        patch_size=patch_size,
         in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
