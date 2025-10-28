@@ -382,7 +382,7 @@ def get_dataset_temp_mmap_path(
         # Use data as identifier to share the mmap file across multiple runs.
         # NOTE(Guarin, 09/25): Hash of data might be slow if data is a long list of
         # filenames or directories.
-        identifier = Path(data).resolve()
+        identifier = str(Path(data).resolve())
     else:
         # Use out as identifier to create a unique mmap file for each run. We assume
         # that only one run is using a specific out directory at a time.
