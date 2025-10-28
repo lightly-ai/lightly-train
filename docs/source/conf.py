@@ -26,7 +26,7 @@ extensions = [
     "sphinxcontrib.googleanalytics",  # Google Analytics
 ]
 
-autodoc_class_signature = "separated" # Show __init__ signature separately from class.
+autodoc_class_signature = "separated"  # Show __init__ signature separately from class.
 
 googleanalytics_id = "G-9ZFQ8ZQS6H"
 templates_path = ["_templates"]

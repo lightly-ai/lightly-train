@@ -49,7 +49,8 @@ if __name__ == "__main__":
                 1: "bicycle",
                 # ...
             },
-        },
+        }
+    )
 ```
 
 During training, both the
@@ -105,9 +106,10 @@ After making the predictions with the model weights, you can visualize the predi
 
 ```python
 # ruff: noqa: F821
-import lightly_train
-from torchvision import utils, io
 import matplotlib.pyplot as plt
+from torchvision import io, utils
+
+import lightly_train
 
 model = lightly_train.load_model_from_checkpoint(
     checkpoint="dinov3/convnext-tiny-ltdetr-coco"
@@ -124,7 +126,7 @@ image_with_boxes = utils.draw_bounding_boxes(
 
 fig, ax = plt.subplots(figsize=(30, 30))
 ax.imshow(image_with_boxes.permute(1, 2, 0))
-fig.savefig(f"predictions.png")
+fig.savefig("predictions.png")
 ```
 
 The predicted boxes are in the normalized (x_min, y_min, x_max, y_max) format.
