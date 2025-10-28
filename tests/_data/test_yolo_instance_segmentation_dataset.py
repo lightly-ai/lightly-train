@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
+from albumentations import BboxParams
 
 from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
@@ -19,6 +20,7 @@ from lightly_train._transforms.instance_segmentation_transform import (
     InstanceSegmentationTransform,
     InstanceSegmentationTransformArgs,
 )
+from lightly_train._transforms.transform import NormalizeArgs
 
 from .. import helpers
 
@@ -54,8 +56,7 @@ class TestYOLOInstanceSegmentationDataset:
         assert len(val_dataset) == 2
 
         sample = train_dataset[0]
-        # Switch to float32 after normalization is added
-        assert sample["image"].dtype == torch.uint8
+        assert sample["image"].dtype == torch.float32
         assert sample["image"].shape == (3, 64, 128)
         assert sample["binary_masks"]["masks"].dtype == torch.bool
         assert sample["binary_masks"]["masks"].shape == (1, 64, 128)
@@ -103,8 +104,7 @@ class TestYOLOInstanceSegmentationDataset:
         )
 
         sample = train_dataset[0]
-        # Switch to float32 after normalization is added
-        assert sample["image"].dtype == torch.uint8
+        assert sample["image"].dtype == torch.float32
         assert sample["image"].shape == (3, 64, 128)
         assert sample["binary_masks"]["masks"].dtype == torch.bool
         assert sample["binary_masks"]["masks"].shape == (1, 64, 128)
@@ -127,6 +127,16 @@ class TestYOLOInstanceSegmentationDataset:
 
 def _get_transform() -> InstanceSegmentationTransform:
     transform_args = InstanceSegmentationTransformArgs(
+        ignore_index=-100,
+        image_size=(32, 32),
+        channel_drop=None,
         num_channels="auto",
+        normalize=NormalizeArgs(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        random_flip=None,
+        color_jitter=None,
+        scale_jitter=None,
+        smallest_max_size=None,
+        random_crop=None,
+        bbox_params=BboxParams(format="yolo", label_fields=["class_labels"]),
     )
     return InstanceSegmentationTransform(transform_args)
