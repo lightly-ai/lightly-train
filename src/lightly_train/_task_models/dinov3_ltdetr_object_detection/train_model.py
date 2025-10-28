@@ -23,7 +23,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
 from lightly_train._distributed import reduce_dict
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
-    DINOv3LTDETRObjectDetectionTaskModel,
+    DINOv3LTDETRObjectDetection,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
     DINOv3LTDETRObjectDetectionTrainTransform,
@@ -105,7 +105,7 @@ class DINOv3LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
     train_model_args_cls = DINOv3LTDETRObjectDetectionTrainModelArgs
-    task_model_cls = DINOv3LTDETRObjectDetectionTaskModel
+    task_model_cls = DINOv3LTDETRObjectDetection
     train_transform_cls = DINOv3LTDETRObjectDetectionTrainTransform
     val_transform_cls = DINOv3LTDETRObjectDetectionValTransform
     save_checkpoint_args_cls = DINOv3LTDETRObjectDetectionTaskSaveCheckpointArgs
@@ -120,7 +120,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     ) -> None:
         super().__init__()
         self.model_args = model_args
-        self.model = DINOv3LTDETRObjectDetectionTaskModel(
+        self.model = DINOv3LTDETRObjectDetection(
             model_name=model_name,
             image_size=val_transform_args.image_size,
             classes=data_args.names,

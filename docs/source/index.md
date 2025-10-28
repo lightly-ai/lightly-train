@@ -245,6 +245,7 @@ quick_start
 installation
 train/index
 semantic_segmentation
+object_detection
 export
 embed
 models/index
