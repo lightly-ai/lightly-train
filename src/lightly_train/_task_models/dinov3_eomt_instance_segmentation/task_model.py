@@ -311,7 +311,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         )
 
         # Map internal class IDs to class IDs.
-        masks = self.internal_class_to_class[masks]
+        labels = self.internal_class_to_class[labels]
         return labels, masks, scores
 
     # TODO(Guarin, 07/25): Refactor to take attn_mask_probs as input.
