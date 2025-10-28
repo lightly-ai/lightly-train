@@ -13,43 +13,17 @@ from albumentations import (
 )
 from albumentations.pytorch import ToTensorV2
 
-from lightly_train._configs.config import PydanticConfig
-from lightly_train._configs.validate import pydantic_model_validate
-from lightly_train._task_models.task_model import TaskModel
 from lightly_train._transforms.predict_transform import (
     PredictTransform,
     PredictTransformArgs,
 )
+from lightly_train._transforms.transform import NormalizeArgs
 from lightly_train.types import TransformInput, TransformOutput
-
-
-class PredictSemanticSegmentationNormalizeArgs(PydanticConfig):
-    mean: tuple[float, ...]
-    std: tuple[float, ...]
 
 
 class PredictSemanticSegmentationTransformArgs(PredictTransformArgs):
     image_size: tuple[int, int]
-    normalize: PredictSemanticSegmentationNormalizeArgs
-
-    @classmethod
-    def from_model(cls, model: TaskModel) -> "PredictSemanticSegmentationTransformArgs":
-        if not (image_size := getattr(model, "image_size", None)):
-            raise ValueError(
-                "The model does not have an 'image_size' attribute required for prediction transforms."
-            )
-        if not (normalize := getattr(model, "image_normalize", None)):
-            raise ValueError(
-                "The model does not have a 'image_normalize' attribute required for prediction transforms."
-            )
-
-        return pydantic_model_validate(
-            model=PredictSemanticSegmentationTransformArgs,
-            obj={
-                "image_size": image_size,
-                "normalize": normalize,
-            },
-        )
+    normalize: NormalizeArgs
 
 
 class PredictSemanticSegmentationTransform(PredictTransform):

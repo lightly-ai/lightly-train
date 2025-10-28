@@ -152,22 +152,11 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
         f"Resolved Args: {train_task_helpers.pretty_format_args(args=resolved_config)}"
     )
 
-    initial_data = initial_config["data"]
-    resolved_data = resolved_config["data"]
-    if (
-        isinstance(initial_data, list)
-        and isinstance(resolved_data, list)
-        and (diff := (set(initial_data) - set(resolved_data)))
-    ):
-        logger.error(
-            f"Some data paths could not be found: {diff}. Skipping them during prediction."
-        )
-
     predict_model = fabric.setup_module(model)
     predict_model.mark_forward_method("predict")
 
     # TODO(Yutong, 10/25): re-implement with predict_batch
-    logger.info("Starting prediction...")
+    logger.info(f"Creating predictions for {num_images} images...")
     for idx, batch in enumerate(dataloader):
         image_filename: ImageFilename = batch["filename"][0]
         image: Tensor = batch["views"][0][0]
@@ -186,7 +175,7 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
                 f"'{image_filename}' at '{mask_filepath}': {e}"
             )
         if idx % config.log_every_num_steps == 0:
-            logger.info(f"{idx}/{num_images} completed.")
+            logger.info(f"Images {(idx + 1) * config.batch_size}/{num_images}")
 
     logger.info("Prediction completed.")
 

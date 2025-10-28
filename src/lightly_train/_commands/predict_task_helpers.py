@@ -17,6 +17,7 @@ from lightning_fabric import utilities as fabric_utilities
 from PIL import Image
 from torch.utils.data import DataLoader
 
+from lightly_train._configs.validate import pydantic_model_validate
 from lightly_train._data import file_helpers
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._env import Env
@@ -30,13 +31,6 @@ from lightly_train._transforms.predict_transform import (
 from lightly_train.types import DatasetItem, NDArrayImage, PathLike
 
 logger = logging.getLogger(__name__)
-
-# List of semantic segmentation model class names
-SEM_SEG_TASK_MODEL_CLASSES = [
-    "DINOv2EoMTSemanticSegmentation",
-    "DINOv2LinearSemanticSegmentation",
-    "DINOv3EoMTSemanticSegmentation",
-]
 
 
 def get_out_dir(
@@ -90,9 +84,8 @@ def get_out_dir(
 
 
 def get_transform_cls(model_cls_name: str) -> type[PredictTransform]:
-    for task_model_cls in SEM_SEG_TASK_MODEL_CLASSES:
-        if task_model_cls == model_cls_name:
-            return PredictSemanticSegmentationTransform
+    if "semanticsegmentation" in model_cls_name.lower():
+        return PredictSemanticSegmentationTransform
     # TODO(Yutong, 10/25): add more task model classes here once implemented
     raise ValueError(f"Unsupported model class '{model_cls_name}'.")
 
@@ -103,7 +96,17 @@ def get_transform(
     model_cls_name = model.class_path.split(".")[-1]
     transform_cls = get_transform_cls(model_cls_name)
 
-    transform_args = transform_cls.transform_args_cls.from_model(model)
+    if "semanticsegmentation" in model_cls_name.lower():
+        # Validate that the model config has the required fields for the transform
+        transform_args_dict = {
+            "image_size": model.image_size,
+            "normalize": model.normalize,
+        }
+
+    transform_args = pydantic_model_validate(
+        model=transform_cls.transform_args_cls,
+        obj=transform_args_dict,
+    )
 
     return transform_cls(transform_args=transform_args)
 
