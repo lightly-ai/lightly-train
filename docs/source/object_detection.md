@@ -86,7 +86,7 @@ import lightly_train
 model = lightly_train.load_model_from_checkpoint(
     "out/my_experiment/exported_models/exported_best.pt"
 )
-masks = model.predict("path/to/image.jpg")
+results = model.predict("path/to/image.jpg")
 ```
 
 Or use one of the pre-trained model weights directly from LightlyTrain:
