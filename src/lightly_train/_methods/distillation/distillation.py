@@ -28,10 +28,10 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.torchvision.convnext import ConvNeXtModelWrapper
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -56,7 +56,7 @@ def get_teacher(
     )
     assert isinstance(
         wrapped_model,
-        (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper, ConvNeXtModelWrapper),
+        (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper, DINOv3VConvNeXtModelWrapper),
     )
     wrapped_model.make_teacher()
     teacher_embedding_model = wrapped_model.get_model()
@@ -160,7 +160,6 @@ class Distillation(Method):
             method_args.teacher,
             num_input_channels=num_input_channels,
             teacher_weights=method_args.teacher_weights,
-            method_args=method_args,
         )
 
         # Store the student model.
