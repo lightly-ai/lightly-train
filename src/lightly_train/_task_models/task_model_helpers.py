@@ -154,7 +154,6 @@ def load_model_from_checkpoint(
 
     # Create model instance
     model: TaskModel = model_class(**ckpt["model_init_args"])
-    print(ckpt["train_model"].keys())
     model.load_train_state_dict(state_dict=ckpt["train_model"])
     model.eval()
 
