@@ -185,9 +185,9 @@ def compute_mask_filepath(
 ) -> Path:
     if isinstance(
         data, str | Path
-    ):  # save the image to the same relative path as in data
+    ):  # Save the image to the same relative path as in data.
         mask_filepath = Path(out) / Path(image_filename).with_suffix(".png")
-    else:  # just save the image filename in out
+    else:  # Just save the image filename in out.
         mask_filepath = Path(out) / Path(image_filename).with_suffix(".png").name
     mask_filepath.parent.mkdir(parents=True, exist_ok=True)
     return mask_filepath

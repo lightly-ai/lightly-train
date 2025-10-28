@@ -109,7 +109,7 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     logger.info(f"Args: {train_task_helpers.pretty_format_args(args=initial_config)}")
     logger.info(f"Using output directory: '{out_dir}")
 
-    # Log system information.x
+    # Log system information.
     system_information = _system.get_system_information()
     _system.log_system_information(system_information=system_information)
 
