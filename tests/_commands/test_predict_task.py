@@ -96,7 +96,7 @@ def test_predict_semantic_segmentation(
 ) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
-    
+
     mode = "RGB" if num_channels == 3 else "RGBA"
     num_images = 5
     helpers.create_images(data, num_channels=num_channels, mode=mode, files=num_images)
@@ -120,6 +120,6 @@ def test_predict_semantic_segmentation(
     assert out.exists()
     assert out.is_dir()
     assert (out / "predict.log").exists()
-    
+
     for i in range(num_images):
-        assert (out / f"{i}.png").exists() 
+        assert (out / f"{i}.png").exists()
