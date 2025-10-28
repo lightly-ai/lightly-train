@@ -18,7 +18,7 @@ from lightly_train._models.ultralytics.ultralytics_package import UltralyticsPac
 if importlib_util.find_spec("ultralytics") is None:
     pytest.skip("ultralytics is not installed", allow_module_level=True)
 
-from ultralytics import RTDETR, YOLO
+from ultralytics import RTDETR, YOLO  # type: ignore[attr-defined]
 
 
 class TestUltralyticsPackage:

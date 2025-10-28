@@ -22,7 +22,7 @@ from lightly_train._models.ultralytics.ultralytics import (
 if importlib_util.find_spec("ultralytics") is None:
     pytest.skip("ultralytics is not installed", allow_module_level=True)
 
-from ultralytics import YOLO
+from ultralytics import YOLO  # type: ignore[attr-defined]
 from ultralytics.nn.modules.block import SPPF, C2f
 
 
