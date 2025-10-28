@@ -1,9 +1,8 @@
 #
-# Copyright (c) Lightly AG and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# ---------------------------------------------------------------
+# © 2025 Mobile Perception Systems Lab at TU/e. All rights reserved.
+# Licensed under the MIT License.
+# ---------------------------------------------------------------
 #
 
 # Modifications Copyright 2025 Lightly AG:
