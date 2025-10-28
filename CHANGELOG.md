@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Collision between the train and validation mmap files when using `out` as the sole filename identifier during fine-tuning.
+- Fixed an issue where dataset cache files were incorrectly saved.
 
 ## [0.11.4] - 2025-10-08
 
