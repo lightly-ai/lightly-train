@@ -267,7 +267,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         # Loss
-        num_blocks = len(self.model.backbone.blocks)
+        num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
@@ -374,7 +374,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
             crops, return_logits_per_layer=True
         )
-        num_blocks = len(self.model.backbone.blocks)
+        num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
         for i, (block_idx, mask_logits, class_logits) in enumerate(
             zip(
@@ -478,7 +478,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         metrics: ModuleList,
     ) -> None:
         for i in range(len(preds)):
-            metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])
+            metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])  # type: ignore[operator]
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         # TODO(Guarin, 07/25): It seems like EoMT doesn't exclude norm/bias params
@@ -486,7 +486,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         backbone_params = set(self.model.backbone.parameters())
         backbone_param_groups = []
         other_param_groups = []
-        backbone_blocks = len(self.model.backbone.blocks)
+        backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         block_i = backbone_blocks
 
         for name, param in reversed(list(self.named_parameters())):
