@@ -12,7 +12,7 @@ import contextvars
 import logging
 from collections.abc import Iterator
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import torch
 from torch import distributed
@@ -180,12 +180,12 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     height = config.height
     width = config.width
     # TODO we might also use task_model.backbone.in_chans
-    num_channels = len(task_model.image_normalize["mean"])
+    num_channels = len(task_model.image_normalize["mean"]) # type: ignore[index]
 
     if height is None:
-        height = task_model.image_size[0]
+        height = cast(int, task_model.image_size[0]) # type: ignore
     if width is None:
-        width = task_model.image_size[1]
+        width = cast(int, task_model.image_size[1]) # type: ignore
 
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
@@ -193,7 +193,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
         # The DinoVisionTransformer _predict method currently raises a RuntimeException when the image size is not
         # divisible by the patch size. This only occurs during ONNX export as otherwise we interpolate the input
         # image to the correct size.
-        patch_size = task_model.backbone.patch_size
+        patch_size: int = task_model.backbone.patch_size # type: ignore
         if not (height % patch_size == 0 and width % patch_size == 0):
             raise ValueError(
                 f"Height {height} and width {width} must be a multiple of patch size {patch_size}."

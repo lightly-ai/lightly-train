@@ -221,6 +221,7 @@ def get_optimizer_with_decay(
 
             decay_rate = 1.0
             if is_backbone:
+                assert isinstance(module, DinoVisionTransformer)
                 decay_rate = get_vit_lr_decay_rate(
                     name=name,
                     lr_decay_rate=layerwise_decay,

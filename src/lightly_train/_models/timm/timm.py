@@ -37,7 +37,7 @@ class TIMMModelWrapper(Module, ModelWrapper):
         self._forward_features = _get_forward_features_fn(model=model)
 
     def feature_dim(self) -> int:
-        num_features: int = self._model.num_features
+        num_features: int = self._model.num_features # type: ignore[assignment]
         return num_features
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
@@ -78,14 +78,14 @@ def _get_forward_features_fn(model: Module) -> Callable[[Module, Tensor], Tensor
 
 
 def _forward_features(model: Module, x: Tensor) -> Tensor:
-    x = model.forward_features(x)
+    x = model.forward_features(x) #     type: ignore[operator]
     x = _drop_prefix_tokens(model, x)
     x = _to_nchw(x)
     return x
 
 
 def _forward_get_intermediate_layers(model: Module, x: Tensor) -> Tensor:
-    intermediates: Tensor = model.get_intermediate_layers(
+    intermediates: Tensor = model.get_intermediate_layers( # type: ignore[operator]
         x,
         n=1,  # Only return the n=1 last layers.
         reshape=True,  # Reshape the output to NCHW format.
@@ -95,7 +95,7 @@ def _forward_get_intermediate_layers(model: Module, x: Tensor) -> Tensor:
 
 
 def _forward_intermediates(model: Module, x: Tensor) -> Tensor:
-    intermediates: Tensor = model.forward_intermediates(
+    intermediates: Tensor = model.forward_intermediates( # type: ignore[operator]
         x,
         indices=1,  # Only return the indices=1 last layers.
         output_fmt="NCHW",

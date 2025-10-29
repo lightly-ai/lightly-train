@@ -176,12 +176,13 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # TODO(Guarin, 07/25): Move all attention mask handling to the train module.
         # Attention mask prob can be passed as argument to forward_train. No need to
         # store it as a parameter here.
+        self.attn_mask_probs: Tensor
         self.register_buffer(
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
 
         if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook(
+            self.register_load_state_dict_pre_hook( # type: ignore[no-untyped-call]
                 task_model_helpers.queries_adjust_num_queries_hook
             )
         else:
@@ -309,16 +310,17 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         assert patch_size is not None
         grid_size = (H // patch_size, W // patch_size)
 
-        x, image_size = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
+        x, image_size = self.backbone.prepare_tokens_with_masks(x)  # type: ignore
         mask_logits_per_layer, class_logits_per_layer = [], []
-        for i, block in enumerate(self.backbone.blocks):
+        num_backbone_blocks = len(self.backbone.blocks)  # type: ignore
+        for i, block in enumerate(self.backbone.blocks): # type: ignore[arg-type]
             attn_mask = None
 
             rope_sincos: tuple[Tensor, Tensor] | None = None
             if self.backbone.rope_embed is not None:
                 rope_sincos = self.backbone.rope_embed(H=image_size[0], W=image_size[1])  # type: ignore
 
-            if i == len(self.backbone.blocks) - self.num_joint_blocks:
+            if i == num_backbone_blocks - self.num_joint_blocks:
                 # Prepend query tokens.
                 x = torch.cat(
                     (self.queries.weight[None, :, :].expand(x.shape[0], -1, -1), x),
@@ -327,7 +329,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
             if (
                 return_logits_per_layer
-                and i >= len(self.backbone.blocks) - self.num_joint_blocks
+                and i >= num_backbone_blocks - self.num_joint_blocks
             ):
                 mask_logits, class_logits = self._predict(
                     self.backbone.norm(x), grid_size=grid_size
@@ -368,7 +370,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                     attn_mask = self._disable_attn_mask(
                         attn_mask=attn_mask,
                         prob=self.attn_mask_probs[
-                            i - len(self.backbone.blocks) + self.num_joint_blocks
+                            i - num_backbone_blocks + self.num_joint_blocks
                         ],
                     )
 

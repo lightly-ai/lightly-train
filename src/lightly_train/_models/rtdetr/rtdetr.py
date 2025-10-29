@@ -28,13 +28,13 @@ class RTDETRModelWrapper(Module, ModelWrapper):
         return self._model[0]
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
-        features = self._backbone(x)[-1]
+        features = self._backbone(x)[-1] # type: ignore[operator]
         return {"features": features}
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
 
     def feature_dim(self) -> int:
-        feat_dim = self._backbone.out_channels[-1]
+        feat_dim = self._backbone.out_channels[-1] # type: ignore
         assert isinstance(feat_dim, int)
         return feat_dim
