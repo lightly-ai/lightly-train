@@ -116,6 +116,7 @@ def test_predict_semantic_segmentation(
         batch_size=1,
         num_workers=2,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+        devices=1,
         num_channels=num_channels,
     )
     assert out.exists()
