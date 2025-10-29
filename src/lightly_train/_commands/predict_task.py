@@ -39,6 +39,7 @@ def predict_semantic_segmentation(
     batch_size: int = 1,  # Set this to 16 as default when we add predict_batch
     num_workers: int | Literal["auto"] = "auto",
     accelerator: str | Accelerator = "auto",
+    devices: int | str | list[int] = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     overwrite: bool = False,
     log_every_num_steps: int = 100,
@@ -63,6 +64,10 @@ def predict_semantic_segmentation(
         accelerator:
             Hardware accelerator. Can be one of ['cpu', 'gpu', 'mps', 'auto'].
             'auto' will automatically select the best accelerator available.
+        devices:
+            Number of devices/GPUs for training. 'auto' automatically selects all
+            available devices. The device type is determined by the ``accelerator``
+            parameter.
         precision:
             Inference precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
             for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
@@ -89,7 +94,7 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     # TODO(Guarin, 07/25): Validate and initialize arguments passed to Fabric properly.
     fabric = Fabric(
         accelerator=config.accelerator,
-        devices=1,
+        devices=config.devices,
         precision=config.precision,
     )
     fabric.launch()
@@ -188,6 +193,7 @@ class PredictTaskConfig(PydanticConfig):
     batch_size: int = 1  # Set this to 16 when we add predict_batch
     num_workers: int | Literal["auto"] = "auto"
     accelerator: str | Accelerator = "auto"
+    devices: int | str | list[int] = "auto"
     precision: _PRECISION_INPUT = "bf16-mixed"
     overwrite: bool = False
     log_every_num_steps: int = 100
