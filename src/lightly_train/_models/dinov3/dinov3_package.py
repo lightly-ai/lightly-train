@@ -215,7 +215,7 @@ class DINOv3Package(Package):
                 log_usage_example.format_log_msg_model_usage_example(log_message_code)
             )
 
-
+# TODO(Guarin, 10/25): Check hash of downloaded weights.
 def _maybe_download_weights(model_getter: _DINOv3ModelInfo) -> Path:
     download_dir: Path = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
     url = model_getter["default_weights"]
@@ -224,7 +224,10 @@ def _maybe_download_weights(model_getter: _DINOv3ModelInfo) -> Path:
     download_dest = download_dir / model_getter["local_path"]
     if not download_dest.exists():
         download_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"DINOv3 weights not found locally. Downloading from {url}...")
+        logger.info(
+            f"DINOv3 weights not found locally. Downloading weights from {url} to "
+            f"{download_dest}"
+        )
         torch.hub.download_url_to_file(url, dst=str(download_dest))
     return download_dest
 
