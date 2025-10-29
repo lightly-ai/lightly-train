@@ -2,7 +2,7 @@
 
 # Predict & Autolabel
 
-LightlyTrain provides a simple interface to perform batch prediction on a full dataset. You can use this feature to generate predictions for your images using a pretrained model checkpoint, which can then be used as e.g. pseudo labels for further training.
+LightlyTrain provides a simple interface to perform batch prediction on a full dataset. You can use this feature to generate predictions for your unlabeled images using a pretrained model checkpoint, which can then be used as e.g. pseudo labels for further training. This allows you to improve model performance by leveraging **all your unlabeled images**.
 
 ## Benchmark Results
 
@@ -16,14 +16,16 @@ The pseudo masks were generated in the following way:
 - we then used the checkpoint to create pseudo masks for the SUN397 dataset (~100k images);
 - we subsequently fine-tuned the smaller models using these masks.
 
-The validation results are listed in the table below:
+The validation results are listed in the table below, where you can notice significant improvements when using the auto-labeled data:
 
-| Implementation | Checkpoint Name | Val mIoU (direct FT) | Val mIoU (FT + SUN397 masks) | # Params (M) | Input Size |
-|:--------------:|:------------------:|:--------------------:|:----------------------------:|:------------:|:----------:|
-| LightlyTrain | dinov3/vits16-eomt-ade20k | 0.466 | 0.533 | 21.6 | 518×518 |
-| LightlyTrain | dinov3/vitb16-eomt-ade20k | 0.544 | 0.573 | 85.7 | 518×518 |
+| Implementation | Model Name | Autolabel | Val mIoU | # Params (M) | Input Size | Checkpoint Name |
+|:--------------:|:------------------:|:------:|:--------------------:|:------------:|:----------:| :----------------:|
+| LightlyTrain | dinov3/vits16-eomt | ❌ | 0.466 | 21.6 | 518×518 | |
+| LightlyTrain | dinov3/vits16-eomt | ✅ | **0.533** | 21.6 | 518×518 | dinov3/vits16-eomt-ade20k |
+| LightlyTrain | dinov3/vitb16-eomt | ❌ | 0.544 | 85.7 | 518×518 | |
+| LightlyTrain | dinov3/vitb16-eomt-ade20k | ✅ | **0.573** | 85.7 | 518×518 | dinov3/vitb16-eomt-ade20k |
 
-We released the model checkpoints mentioned in the table above for semantic segmentation tasks. You can use these checkpoints by specifying the checkpoint name in the `model` argument of the `predict_semantic_segmentation` function. See the [Predict Semantic Segmentation Masks](#predict-semantic-segmentation) section below for more details.
+We also released the model checkpoints fine-tuned with auto-labeled SUN397 dataset in the table above. You can use these checkpoints by specifying the checkpoint name in the `model` argument of the `predict_semantic_segmentation` function. See the [Predict Semantic Segmentation Masks](#predict-semantic-segmentation) section below for more details.
 
 ## Predict Model Checkpoint
 
@@ -40,7 +42,20 @@ if __name__ == "__main__":
     lightly_train.predict_semantic_segmentation(
         out="out/my_experiment",
         data="my_data_dir",
-        model="dinov3/vits16-eomt-ade20k",
+        model="dinov3/vits16-eomt-ade20k", # use a pretrained checkpoint name
+    )
+```
+
+or if you want to use a local checkpoint file:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.predict_semantic_segmentation(
+        out="out/my_experiment",
+        data="my_data_dir",
+        model="path/to/my/checkpoint_file.pt", # use a local checkpoint file
     )
 ```
 
@@ -76,3 +91,16 @@ The path to a model checkpoint. This can be:
 
 - a path to an exported checkpoint file (in `.pt`), or
 - a checkpoint name that points to a model pretrained by LightlyTrain.
+
+### Supported Checkpoint Names
+
+The following checkpoint names are supported for semantic segmentation:
+
+- `dinov3/vits16-eomt-ade20k`
+- `dinov3/vits16-eomt-coco`
+- `dinov3/vits16-eomt-cityscapes`
+- `dinov3/vitb16-eomt-ade20k`
+- `dinov3/vitb16-eomt-coco`
+- `dinov3/vitb16-eomt-cityscapes`
+- `dinov3/vitl16-eomt-coco`
+- `dinov3/vitl16-eomt-cityscapes`
