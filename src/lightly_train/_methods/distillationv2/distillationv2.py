@@ -170,8 +170,8 @@ class DistillationV2(Method):
             num_input_channels=num_input_channels,
             teacher_weights=method_args.teacher_weights,
         )
-        self.teacher_embedding_dim = (
-            method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim
+        self.teacher_embedding_dim: int = (
+            method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim  # type: ignore
         )
 
         # Store the student model.
@@ -224,7 +224,7 @@ class DistillationV2(Method):
         """
         # (n_teacher_blocks, B, D, H, W)
         x_list = list(
-            self.teacher_embedding_model.get_intermediate_layers(
+            self.teacher_embedding_model.get_intermediate_layers(  # type: ignore[operator]
                 x, n=self.method_args.n_teacher_blocks, reshape=True
             )
         )
