@@ -215,6 +215,7 @@ class DINOv3Package(Package):
                 log_usage_example.format_log_msg_model_usage_example(log_message_code)
             )
 
+
 # TODO(Guarin, 10/25): Check hash of downloaded weights.
 def _maybe_download_weights(model_getter: _DINOv3ModelInfo) -> Path:
     download_dir: Path = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
