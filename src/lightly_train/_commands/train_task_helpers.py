@@ -619,6 +619,7 @@ def log_step(
     name_to_display_name = {
         "train_loss": "Train Loss",
         "train_metric/miou": "Train mIoU",
+        "train_metric/map/map": "Train mAP",
         "val_loss": "Val Loss",
         "val_metric/miou": "Val mIoU",
     }
@@ -644,8 +645,18 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
             for i, v in enumerate(value):
                 metrics[f"{name}_{i}"] = v.item()
         if isinstance(value, dict):
-            for class_name, class_value in value.items():
-                metrics[f"{name}{class_name}"] = class_value.item()
+            if "map" in value:
+                # Special case for detection metrics which return results like this:
+                # {"map": 0.5, "map_50": 0.7, ...}
+                if name.endswith("map"):
+                    name = name[:-3]
+                for key, val in value.items():
+                    metrics[f"{name}/{key}"] = val.item()
+            else:
+                # Class-wise metrics that look like this:
+                # {"class 1": 0.5, "class 2": 0.7, ...}
+                for key, val in value.items():
+                    metrics[f"{name}{key}"] = val.item()
         else:
             metrics[name] = value
     return metrics

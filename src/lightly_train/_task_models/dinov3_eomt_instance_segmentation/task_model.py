@@ -267,16 +267,8 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
-        # Resize and pad image to self.image_size while keeping aspect ratio constant.
-        resize_factor = min(self.image_size[0] / image_h, self.image_size[1] / image_w)
-        crop_h = round(image_h * resize_factor)
-        crop_w = round(image_w * resize_factor)
-        pad_h = max(0, self.image_size[0] - crop_h)
-        pad_w = max(0, self.image_size[1] - crop_w)
-        # (C, crop_h, crop_w)
-        x = transforms_functional.resize(x, size=[crop_h, crop_w])
-        # (C, H', W')
-        x = transforms_functional.pad(x, padding=[0, 0, pad_w, pad_h])
+
+        x, (crop_h, crop_w) = self.resize_and_pad(x)
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         # (1, Q, H', W'), (1, Q, K+1), Q = num_queries, K = len(self.classes)
@@ -290,7 +282,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         )
 
         # (1, Q), (1, Q, H, W), (1, Q)
-        labels, masks, scores = self._get_labels_masks_scores(
+        labels, masks, scores = self.get_labels_masks_scores(
             mask_logits=mask_logits, class_logits=class_logits
         )
 
@@ -306,7 +298,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         # Function used for ONNX export
         # (1, Q, H, W), (1, Q, K+1), Q = num_queries, K = len(self.classes)
         mask_logits, class_logits = self._forward_logits(x)
-        labels, masks, scores = self._get_labels_masks_scores(
+        labels, masks, scores = self.get_labels_masks_scores(
             mask_logits=mask_logits, class_logits=class_logits
         )
 
@@ -443,7 +435,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         return mask_logits, class_logits
 
-    def _get_labels_masks_scores(
+    def get_labels_masks_scores(
         self, mask_logits: Tensor, class_logits: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
         # Get score and label for each query.
@@ -459,6 +451,30 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         # (1, Q), (1, Q, H, W), (1, Q)
         return labels, masks, scores
+
+    def resize_and_pad(self, image: Tensor) -> tuple[Tensor, tuple[int, int]]:
+        """Resize and pad image to self.image_size while keeping aspect ratio constant.
+
+        Args:
+            image:
+                A tensor of shape (..., C, H, W).
+
+        Returns:
+            An (image, (crop_h, crop_w)) tuple where image is a tensor of shape
+            (..., C, H', W') with H'==self.image_size[0] and W'==self.image_size[1], and
+            (crop_h, crop_w) are the height and width of the resized (non-padded) image.
+        """
+        image_h, image_w = image.shape[-2:]
+        resize_factor = min(self.image_size[0] / image_h, self.image_size[1] / image_w)
+        crop_h = round(image_h * resize_factor)
+        crop_w = round(image_w * resize_factor)
+        pad_h = max(0, self.image_size[0] - crop_h)
+        pad_w = max(0, self.image_size[1] - crop_w)
+        # (..., C, crop_h, crop_w)
+        image = transforms_functional.resize(image, size=[crop_h, crop_w])
+        # (..., C, H', W')
+        image = transforms_functional.pad(image, padding=[0, 0, pad_w, pad_h])
+        return image, (crop_h, crop_w)
 
     # TODO(Guarin, 07/25): No need for attention mask handling in this module. Move it
     # to DINOv3InstanceSegmentationTrain.
