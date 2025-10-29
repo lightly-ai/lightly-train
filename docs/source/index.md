@@ -245,6 +245,7 @@ quick_start
 installation
 train/index
 semantic_segmentation
+predict_autolabel
 export
 embed
 models/index
