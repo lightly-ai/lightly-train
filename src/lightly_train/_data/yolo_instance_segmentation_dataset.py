@@ -131,11 +131,11 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
         image = transformed["image"]
         # Some albumentations versions return lists of tuples instead of arrays.
         if isinstance(transformed["binary_masks"], list):
-            transformed["binary_masks"] = np.ndarray(transformed["binary_masks"])
+            transformed["binary_masks"] = np.array(transformed["binary_masks"])
         if isinstance(transformed["bboxes"], list):
-            transformed["bboxes"] = np.ndarray(transformed["bboxes"])
+            transformed["bboxes"] = np.array(transformed["bboxes"])
         if isinstance(transformed["class_labels"], list):
-            transformed["class_labels"] = np.ndarray(transformed["class_labels"])
+            transformed["class_labels"] = np.array(transformed["class_labels"])
 
         bboxes = torch.from_numpy(transformed["bboxes"]).float()
         class_labels = torch.from_numpy(transformed["class_labels"]).long()

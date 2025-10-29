@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from typing import Any, Literal, Sequence
 
+from albumentations import BboxParams
 from pydantic import Field
 
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
-    SemanticSegmentationTransformArgs,
+from lightly_train._transforms.instance_segmentation_transform import (
+    InstanceSegmentationTransform,
+    InstanceSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -26,7 +27,7 @@ from lightly_train._transforms.transform import (
 )
 
 
-class DINOv3EoMTSemanticSegmentationColorJitterArgs(ColorJitterArgs):
+class DINOv3EoMTInstanceSegmentationColorJitterArgs(ColorJitterArgs):
     # Differences between EoMT and this transform:
     # - EoMT always applies brightness before contrast/saturation/hue.
     # - EoMT applies all transforms indedenently with probability 0.5. We apply either
@@ -39,9 +40,9 @@ class DINOv3EoMTSemanticSegmentationColorJitterArgs(ColorJitterArgs):
     hue: float = 18.0 / 360.0
 
 
-class DINOv3EoMTSemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
+class DINOv3EoMTInstanceSegmentationScaleJitterArgs(ScaleJitterArgs):
     sizes: Sequence[tuple[int, int]] | None = None
-    min_scale: float | None = 0.5
+    min_scale: float | None = 0.1
     max_scale: float | None = 2.0
     num_scales: int | None = 20
     prob: float = 1.0
@@ -51,12 +52,12 @@ class DINOv3EoMTSemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
     seed_offset: int = 0
 
 
-class DINOv3EoMTSemanticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
+class DINOv3EoMTInstanceSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
     max_size: int | list[int] | Literal["auto"] = "auto"
     prob: float = 1.0
 
 
-class DINOv3EoMTSemanticSegmentationRandomCropArgs(RandomCropArgs):
+class DINOv3EoMTInstanceSegmentationRandomCropArgs(RandomCropArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
     pad_if_needed: bool = True
@@ -65,34 +66,32 @@ class DINOv3EoMTSemanticSegmentationRandomCropArgs(RandomCropArgs):
     prob: float = 1.0
 
 
-class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
-    SemanticSegmentationTransformArgs
+class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
+    InstanceSegmentationTransformArgs
 ):
     """
-    Defines default transform arguments for semantic segmentation training with DINOv3.
+    Defines default transform arguments for instance segmentation training with DINOv3.
     """
 
-    # TODO(Guarin, 08/25): Check if we should change default to 512.
     image_size: tuple[int, int] | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
-    color_jitter: DINOv3EoMTSemanticSegmentationColorJitterArgs | None = Field(
-        default_factory=DINOv3EoMTSemanticSegmentationColorJitterArgs
-    )
+    color_jitter: DINOv3EoMTInstanceSegmentationColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
-        default_factory=DINOv3EoMTSemanticSegmentationScaleJitterArgs
+        default_factory=DINOv3EoMTInstanceSegmentationScaleJitterArgs
     )
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs = Field(
-        default_factory=DINOv3EoMTSemanticSegmentationRandomCropArgs
+        default_factory=DINOv3EoMTInstanceSegmentationRandomCropArgs
     )
+    bbox_params = BboxParams(format="yolo", label_fields=["class_labels"])
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (518, 518))
+            image_size = model_init_args.get("image_size", (640, 640))
             assert isinstance(image_size, tuple)
             self.image_size = image_size
 
@@ -117,9 +116,9 @@ class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransformArgs):
+class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransformArgs):
     """
-    Defines default transform arguments for semantic segmentation validation with DINOv3.
+    Defines default transform arguments for instance segmentation validation with DINOv3.
     """
 
     image_size: tuple[int, int] | Literal["auto"] = "auto"
@@ -130,14 +129,14 @@ class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
     color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
     smallest_max_size: SmallestMaxSizeArgs = Field(
-        default_factory=DINOv3EoMTSemanticSegmentationSmallestMaxSizeArgs
+        default_factory=DINOv3EoMTInstanceSegmentationSmallestMaxSizeArgs
     )
     random_crop: RandomCropArgs | None = None
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (518, 518))
+            image_size = model_init_args.get("image_size", (640, 640))
             assert isinstance(image_size, tuple)
             self.image_size = image_size
 
@@ -162,9 +161,9 @@ class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3EoMTSemanticSegmentationTrainTransform(SemanticSegmentationTransform):
-    transform_args_cls = DINOv3EoMTSemanticSegmentationTrainTransformArgs
+class DINOv3EoMTInstanceSegmentationTrainTransform(InstanceSegmentationTransform):
+    transform_args_cls = DINOv3EoMTInstanceSegmentationTrainTransformArgs
 
 
-class DINOv3EoMTSemanticSegmentationValTransform(SemanticSegmentationTransform):
-    transform_args_cls = DINOv3EoMTSemanticSegmentationValTransformArgs
+class DINOv3EoMTInstanceSegmentationValTransform(InstanceSegmentationTransform):
+    transform_args_cls = DINOv3EoMTInstanceSegmentationValTransformArgs

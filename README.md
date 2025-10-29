@@ -44,6 +44,7 @@ Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are 
 | LightlyTrain | dinov3/vits16-eomt | 0.465 | 88.7 | 21.6 | 518×518 | dinov3/vits16-eomt-coco |
 | LightlyTrain | dinov3/vitb16-eomt | 0.520 | 43.3 | 85.7 | 518×518 | dinov3/vitb16-eomt-coco |
 | LightlyTrain | dinov3/vitl16-eomt | **0.544** | 20.4 | 303.2 | 518×518 | dinov3/vitl16-eomt-coco |
+
 Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using `torch.compile`.
 
 #### Cityscapes Dataset
