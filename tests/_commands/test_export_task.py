@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pytest
 import torch
@@ -131,9 +132,9 @@ def test_onnx_export(
     }[num_channels]
     model = lightly_train.load_model_from_checkpoint(checkpoint, device="cpu")
     if height is None:
-        height: int = model.image_size[0]  # type: ignore
+        height = cast(int, model.image_size[0])  # type: ignore
     if width is None:
-        width: int = model.image_size[1]  # type: ignore
+        width = cast(int, model.image_size[1])  # type: ignore
     onnx_path = tmp_path / "model.onnx"
     validation_input = torch.randn(
         batch_size,
