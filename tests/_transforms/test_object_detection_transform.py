@@ -212,12 +212,14 @@ class TestObjectDetectionTransform:
             "image": torch.randn(3, 128, 128),
             "bboxes": torch.tensor([[10.0, 10.0, 50.0, 50.0]]),
             "classes": torch.tensor([1]),
+            "original_size": (128, 128),
         }
         sample2: ObjectDetectionDatasetItem = {
             "image_path": "img2.png",
             "image": torch.randn(3, 64, 64),
             "bboxes": torch.tensor([[20.0, 20.0, 40.0, 40.0]]),
             "classes": torch.tensor([2]),
+            "original_size": (64, 64),
         }
         batch = [sample1, sample2]
 
