@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add support for distilling from ConvNext backbones in the distillation methods.
 - Automatically download DINOv3 weights when using distillation or fine-tuning.
-- Predict masks for a full dataset with a semantic segmentation model checkpoint with 
+- Predict masks for a full dataset with a semantic segmentation model checkpoint with
   the `predict_semantic_segmentation` command. It can be used for e.g. auto-labeling
   datasets.
 

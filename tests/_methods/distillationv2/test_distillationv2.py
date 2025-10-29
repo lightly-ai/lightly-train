@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
 
 import pytest
 import torch
@@ -22,7 +22,6 @@ from lightly_train._methods.distillationv2.distillationv2 import (
     DistillationV2LARSArgs,
 )
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 
@@ -109,83 +108,31 @@ class TestDistillationV2:
             "Mixup should only produce 0, 1, lambda and 1 - lambda when fed with binary images."
         )
 
-    def test_forward_teacher_output_shape_convnext(
-        self,
-        mocker: MockerFixture,
-    ) -> None:
-        """Test that _forward_teacher returns expected shape."""
-        # Set constants.
-        batch_size, channels, height, width = 2, 3, 224, 224
-        student_embed_dim = 32
-        n_blocks = 2
-
-        # Create dummy images.
-        x = torch.randn(batch_size, channels, height, width)
-
-        teacher_model = (
-            dummy_dinov3_convnext_model().get_model().eval()
-        )
-
-        # Patch the teacher model.
-        mock_get_teacher = mocker.patch(
-            "lightly_train._methods.distillationv2.distillationv2.get_teacher"
-        )
-        mock_get_teacher.return_value = teacher_model
-
-        # Patch the student embedding model.
-        mock_student_model = mocker.Mock()
-        mock_student_model.embed_dim = student_embed_dim
-        mock_student_model.return_value = torch.randn(
-            batch_size, student_embed_dim, 7, 7
-        )
-
-        # Init distillation method.
-        distill = DistillationV2(
-            method_args=DistillationV2Args(n_teacher_blocks=n_blocks),
-            optimizer_args=DistillationV2LARSArgs(),
-            embedding_model=mock_student_model,
-            global_batch_size=batch_size,
-            num_input_channels=3,
-        )
-        mock_get_teacher.assert_called_once()
-
-        _, _, teacher_features_h, teacher_features_w = distill._forward_teacher(x).shape
-
-        # Run _forward_student.
-        out = distill._forward_student(
-            x,
-            teacher_features_h=teacher_features_h,
-            teacher_features_w=teacher_features_w,
-        )
-
-        n_tokens = teacher_features_h * teacher_features_w
-        # Expected shape: (batch_size, n_tokens, teacher_embedding_dim).
-        assert out.shape == (batch_size, n_tokens, distill.teacher_embedding_dim)
-
     @pytest.mark.parametrize(
-        "teacher_model, patch_size",
+        "teacher_model_fn, kwargs, expected_num_tokens",
         [
-            (dummy_dinov2_vit_model, 14),
-            (dummy_dinov3_vit_model, 16),
+            (dummy_dinov2_vit_model, {"patch_size": 14}, 256),
+            (dummy_dinov3_vit_model, {"patch_size": 16}, 196),
+            (dummy_dinov3_convnext_model, {}, 49),
         ],
     )
-    def test_forward_student_output_shape_vit(
+    def test__forward_teacher_student__output_shape(
         self,
         mocker: MockerFixture,
-        teacher_model: Callable[[int], ModelWrapper],
-        patch_size: int,
+        teacher_model_fn,
+        kwargs: dict[str, int],
+        expected_num_tokens: int,
     ) -> None:
         """Test that _forward_student returns expected shape."""
         # Set constants.
         batch_size, channels, height, width = 2, 3, 224, 224
         student_embed_dim = 32
         n_blocks = 2
-        n_tokens = (height // patch_size) * (width // patch_size)
 
         # Create dummy images.
         x = torch.randn(batch_size, channels, height, width)
 
-        teacher_model = teacher_model(patch_size=patch_size).get_model().eval()
+        teacher_model = teacher_model_fn(**kwargs).get_model().eval()
 
         # Patch the teacher model.
         mock_get_teacher = mocker.patch(
@@ -210,19 +157,27 @@ class TestDistillationV2:
         )
         mock_get_teacher.assert_called_once()
 
-        _, _, teacher_features_h, teacher_features_w = distill._forward_teacher(x).shape
+        out_teacher, (teacher_features_h, teacher_features_w) = (
+            distill._forward_teacher(x)
+        )
 
         # Run _forward_student.
-        out = distill._forward_student(
+        out_student = distill._forward_student(
             x,
             teacher_features_h=teacher_features_h,
             teacher_features_w=teacher_features_w,
         )
 
-        n_tokens = teacher_features_h * teacher_features_w
-
-        # Expected shape: (batch_size, n_tokens, teacher_embedding_dim).
-        assert out.shape == (batch_size, n_tokens, distill.teacher_embedding_dim)
+        assert out_teacher.shape == (
+            batch_size,
+            expected_num_tokens,
+            distill.teacher_embedding_dim,
+        )
+        assert out_student.shape == (
+            batch_size,
+            expected_num_tokens,
+            distill.teacher_embedding_dim,
+        )
 
     def test_load_state_dict_from_pretrained_teacher(
         self, tmp_path: Path, mocker: MockerFixture
@@ -505,9 +460,6 @@ class TestDistillationV2:
 
         # Verify that all parameter groups have the expected scaled learning rate.
         for param_group in optimizer.param_groups:
-            assert param_group["initial_lr"] == pytest.approx(expected_lr, rel=1e-6), (
-                f"Expected learning rate {expected_lr}, but got {param_group['initial_lr']}."
-            )
             assert param_group["initial_lr"] == pytest.approx(expected_lr, rel=1e-6), (
                 f"Expected learning rate {expected_lr}, but got {param_group['initial_lr']}."
             )

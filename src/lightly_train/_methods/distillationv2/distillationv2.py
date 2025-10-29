@@ -85,7 +85,7 @@ class DistillationV2Args(MethodArgs):
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None
 
-    # Optional teacher url.
+    # Deprecated. Does not have any effect.
     teacher_url: str | None = None
 
     # Number of projection layers in the projection head.
@@ -197,12 +197,10 @@ class DistillationV2(Method):
         # Mixup the data.
         views = self._mixup_data(views)
 
-        # Get the (B, D, H, W) teacher features.
-        x_teacher = self._forward_teacher(views)
-        _, _, teacher_features_h, teacher_features_w = x_teacher.shape
-        # (B, D, H, W) -> (B, H*W, D)
-        x_teacher = x_teacher.permute(0, 2, 3, 1).flatten(start_dim=1, end_dim=2)
-        assert x_teacher.ndim == 3
+        # Get the (B, H*W, D) teacher features.
+        x_teacher, (teacher_features_h, teacher_features_w) = self._forward_teacher(
+            views
+        )
 
         # Get the (B, H*W, D) student features.
         x_student = self._forward_student(
@@ -220,21 +218,45 @@ class DistillationV2(Method):
         return TrainingStepResult(loss=loss)
 
     @torch.no_grad()
-    def _forward_teacher(self, x: Tensor) -> Tensor:
+    def _forward_teacher(self, x: Tensor) -> tuple[Tensor, tuple[int, int]]:
         """Forward the images through the teacher model and return them in the
-        (B, D, H, W) format.
+        (B, H * W, D * n_teacher_blocks) format.
         """
-        x_list = self.teacher_embedding_model.get_intermediate_layers(
-            x, n=self.method_args.n_teacher_blocks, reshape=True
+        # (n_teacher_blocks, B, D, H, W)
+        x_list = list(
+            self.teacher_embedding_model.get_intermediate_layers(
+                x, n=self.method_args.n_teacher_blocks, reshape=True
+            )
         )
-        x = torch.cat(x_list, dim=-1)
-        return x
+
+        # Make sure all feature maps have the same spatial size as the last layer.
+        # For ViTs this is always the case. But ConvNeXts return feature maps of
+        # different sizes. E.g. 14x14 and 7x7.
+        teacher_features_h, teacher_features_w = x_list[-1].shape[-2:]
+        for i in range(len(x_list)):
+            x = x_list[i]
+            h, w = x.shape[-2:]
+            if (h != teacher_features_h) or (w != teacher_features_w):
+                x = F.interpolate(
+                    x,
+                    size=(teacher_features_h, teacher_features_w),
+                    mode="bilinear",
+                    align_corners=False,
+                )
+            x_list[i] = x
+
+        # Concat along the feature dimension.
+        # (n_teacher_blocks, B, D, H, W) -> (B, D * n_teacher_blocks, H, W)
+        x = torch.cat(x_list, dim=1)
+        # (B, D * n_teacher_blocks, H, W) -> (B, H * W, D * n_teacher_blocks)
+        x = x.permute(0, 2, 3, 1).flatten(start_dim=1, end_dim=2)
+        return (x, (teacher_features_h, teacher_features_w))
 
     def _forward_student(
         self, x: Tensor, teacher_features_h: int, teacher_features_w: int
     ) -> Tensor:
         """Forward the images through the student model and return them in the
-        (B, H*W, D) format.
+        (B, H*W, D) format where D = teacher_embedding_dim.
         """
         # Forward the images through the student model.
         x = self.student_embedding_model(x, pool=False)
