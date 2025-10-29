@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
@@ -22,6 +23,7 @@ from lightly_train._methods.distillationv2.distillationv2 import (
     DistillationV2LARSArgs,
 )
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 
@@ -119,7 +121,7 @@ class TestDistillationV2:
     def test__forward_teacher_student__output_shape(
         self,
         mocker: MockerFixture,
-        teacher_model_fn,
+        teacher_model_fn: Callable[..., ModelWrapper],
         kwargs: dict[str, int],
         expected_num_tokens: int,
     ) -> None:
