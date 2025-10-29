@@ -131,12 +131,16 @@ def test_onnx_export(
     }[num_channels]
     model = lightly_train.load_model_from_checkpoint(checkpoint, device="cpu")
     if height is None:
-        height: int = model.image_size[0] # type: ignore
+        height: int = model.image_size[0]  # type: ignore
     if width is None:
-        width: int = model.image_size[1] # type: ignore
+        width: int = model.image_size[1]  # type: ignore
     onnx_path = tmp_path / "model.onnx"
     validation_input = torch.randn(
-        batch_size, num_channels, height, width, device="cpu" # type: ignore[arg-type]
+        batch_size,
+        num_channels,
+        height,
+        width,
+        device="cpu",  # type: ignore[arg-type]
     )
     expected_outputs = model(validation_input)
     expected_output_dtypes = [torch.int64, precision.torch()]
@@ -195,7 +199,7 @@ def test_onnx_export__height_not_patch_size_multiple_fails(
         dinov2_vits14_eomt_checkpoint, device="cpu"
     )
     onnx_path = tmp_path / "model.onnx"
-    patch_size: int = model.backbone.patch_size # type: ignore
+    patch_size: int = model.backbone.patch_size  # type: ignore
     height = patch_size - 1
     width = patch_size
 
@@ -237,7 +241,7 @@ def test_onnx_export__width_not_patch_size_multiple_fails(
         dinov2_vits14_eomt_checkpoint, device="cpu"
     )
     onnx_path = tmp_path / "model.onnx"
-    patch_size: int = model.backbone.patch_size # type: ignore
+    patch_size: int = model.backbone.patch_size  # type: ignore
     height = patch_size
     width = patch_size - 1
 

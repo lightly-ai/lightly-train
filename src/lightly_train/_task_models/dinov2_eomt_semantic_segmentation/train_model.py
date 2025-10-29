@@ -482,7 +482,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         metrics: ModuleList,
     ) -> None:
         for i in range(len(preds)):
-            metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...]) # type: ignore
+            metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])  # type: ignore
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         # TODO(Guarin, 07/25): It seems like EoMT doesn't exclude norm/bias params

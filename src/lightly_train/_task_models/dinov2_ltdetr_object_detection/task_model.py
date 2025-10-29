@@ -193,7 +193,7 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
         self.eval()
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
-                m.convert_to_deploy() # type: ignore[operator]
+                m.convert_to_deploy()  # type: ignore[operator]
         return self
 
     def forward(

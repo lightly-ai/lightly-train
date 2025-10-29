@@ -182,7 +182,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         )
 
         if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook( # type: ignore[no-untyped-call]
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
                 task_model_helpers.queries_adjust_num_queries_hook
             )
         else:
@@ -313,7 +313,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         x, image_size = self.backbone.prepare_tokens_with_masks(x)  # type: ignore
         mask_logits_per_layer, class_logits_per_layer = [], []
         num_backbone_blocks = len(self.backbone.blocks)  # type: ignore
-        for i, block in enumerate(self.backbone.blocks): # type: ignore[arg-type]
+        for i, block in enumerate(self.backbone.blocks):  # type: ignore[arg-type]
             attn_mask = None
 
             rope_sincos: tuple[Tensor, Tensor] | None = None

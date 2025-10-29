@@ -11,8 +11,8 @@ import logging
 from typing import Any
 
 import torch
-from torch.nn import Module
 from torch import Tensor
+from torch.nn import Module
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def patch_embed_adjust_input_channels_hook(
     """Hook to adjust the number of channels in the state dict to the number of
     channels in the module.
     """
-    in_chans: Tensor = module.in_chans # type: ignore
+    in_chans: Tensor = module.in_chans  # type: ignore
     proj_weight_key = f"{prefix}proj.weight"
     proj_weight = state_dict.get(proj_weight_key)
     if proj_weight is not None:
@@ -39,7 +39,7 @@ def patch_embed_adjust_input_channels_hook(
                 f"but model has {in_chans} input channels. Keeping only the "
                 f"first {in_chans} channels of the pretrained weights."
             )
-            proj_weight = proj_weight[:, : in_chans, :, :]
+            proj_weight = proj_weight[:, :in_chans, :, :]
         elif weights_in_chans < in_chans:
             # Repeat channels to initialize extra channels
             logger.info(

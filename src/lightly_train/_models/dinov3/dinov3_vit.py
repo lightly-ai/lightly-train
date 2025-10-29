@@ -62,7 +62,7 @@ class DINOv3ViTModelWrapper(Module, ModelWrapper):
     def make_teacher(self) -> None:
         if self._model.chunked_blocks:
             for chunked_blocks in self._model.blocks:
-                update_blocks_student_to_teacher(chunked_blocks) # type: ignore[arg-type]
+                update_blocks_student_to_teacher(chunked_blocks)  # type: ignore[arg-type]
         else:
             update_blocks_student_to_teacher(self._model.blocks)
 

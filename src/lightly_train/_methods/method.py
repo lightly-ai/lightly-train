@@ -89,8 +89,8 @@ class Method(LightningModule):
     # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
     def configure_optimizers(self) -> OptimizerLRScheduler:
         # Scale the learning rate based on the global batch size.
-        lr_scale: float = self.global_batch_size / self.method_args.reference_batch_size # type: ignore
-        if self.method_args.lr_scale_method == "sqrt": # type: ignore
+        lr_scale: float = self.global_batch_size / self.method_args.reference_batch_size  # type: ignore
+        if self.method_args.lr_scale_method == "sqrt":  # type: ignore
             lr_scale = math.sqrt(lr_scale)
 
         optim = optimizer_helpers.get_optimizer(

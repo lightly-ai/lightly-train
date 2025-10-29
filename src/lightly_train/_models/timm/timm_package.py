@@ -91,7 +91,7 @@ class TIMMPackage(Package):
         torch.save(model.state_dict(), out)
 
         if log_example:
-            model_name = model.pretrained_cfg.get("architecture", None) # type: ignore
+            model_name = model.pretrained_cfg.get("architecture", None)  # type: ignore
             if not model_name:
                 logger.warning(
                     "Usage example can not be constructed since the model name is unknown."

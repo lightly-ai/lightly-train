@@ -168,7 +168,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         )
 
         if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook( # type: ignore[no-untyped-call]
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
                 task_model_helpers.queries_adjust_num_queries_hook
             )
         else:
@@ -357,14 +357,14 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                     )
 
             # This mirrors forward of DINOv2 Block.
-            if self.training and block.sample_drop_ratio > 0: # type: ignore[operator]
-                x = x + block.drop_path1( # type: ignore[operator]
-                    block.ls1(self._attn(block.attn, block.norm1(x), attn_mask)) # type: ignore
+            if self.training and block.sample_drop_ratio > 0:  # type: ignore[operator]
+                x = x + block.drop_path1(  # type: ignore[operator]
+                    block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
                 )
-                x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x)))) # type: ignore[operator]
+                x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x))))  # type: ignore[operator]
             else:
-                x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask)) # type: ignore
-                x = x + block.ls2(block.mlp(block.norm2(x))) # type: ignore[operator]
+                x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
+                x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore[operator]
 
         mask_logits, class_logits = self._predict(
             self.backbone.norm(x), grid_size=grid_size

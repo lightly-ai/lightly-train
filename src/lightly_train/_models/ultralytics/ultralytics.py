@@ -101,15 +101,15 @@ def _get_backbone(model: YOLO) -> tuple[Sequential, int]:
         if (
             type(last_module) is C3 and type(module) is SPPF
         ):  # YOLOv5 ends with C3 before SPPF
-            backbone = seq[:module_idx] # type: ignore
+            backbone = seq[:module_idx]  # type: ignore
             feature_dim = last_module.cv3.conv.out_channels  # C3 block
             return backbone, feature_dim
 
         if (
             type(last_module) is Sequential and type(module) is SPPF
         ):  # YOLOv6 ends with a Sequential of Conv blocks before SPPF
-            backbone = seq[:module_idx] # type: ignore
-            # Sequential of Conv blocks 
+            backbone = seq[:module_idx]  # type: ignore
+            # Sequential of Conv blocks
             feature_dim: int = last_module[-1].conv.out_channels  # type: ignore
             return backbone, feature_dim
 
@@ -117,7 +117,7 @@ def _get_backbone(model: YOLO) -> tuple[Sequential, int]:
             SPPF,
             Classify,
         ):  # YOLOv8 ends with C2f before SPPF or Classify
-            backbone = seq[:module_idx] # type: ignore
+            backbone = seq[:module_idx]  # type: ignore
             feature_dim = last_module.cv2.conv.out_channels  # C2f block
             return backbone, feature_dim
 
@@ -128,7 +128,7 @@ def _get_backbone(model: YOLO) -> tuple[Sequential, int]:
                 Upsample,
                 Classify,
             ):  # YOLOv11 ends with C2PSA before Upsample or Classify
-                backbone = seq[:module_idx] # type: ignore
+                backbone = seq[:module_idx]  # type: ignore
                 feature_dim = last_module.cv2.conv.out_channels  # C2PSA block
                 return backbone, feature_dim
 
@@ -139,7 +139,7 @@ def _get_backbone(model: YOLO) -> tuple[Sequential, int]:
                 Upsample,
                 Classify,
             ):  # YOLOv12 ends with A2C2f before Upsample or Classify
-                backbone = seq[:module_idx] # type: ignore
+                backbone = seq[:module_idx]  # type: ignore
                 feature_dim = last_module.cv2.conv.out_channels  # A2C2f block
                 return backbone, feature_dim
 

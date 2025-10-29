@@ -172,7 +172,8 @@ class Distillation(Method):
 
         # Instantiate a linear projection head that performs the mapping from the student embedding space to the teacher embedding space.
         self.student_projection_head = Linear(
-            embedding_model.embed_dim, self.teacher_embedding_model.embed_dim # type: ignore
+            embedding_model.embed_dim,
+            self.teacher_embedding_model.embed_dim,  # type: ignore
         )
 
         # Initialize the weights of the linear projection head with a truncated normal.
@@ -189,7 +190,7 @@ class Distillation(Method):
             torch.zeros(
                 [
                     no_auto(method_args.queue_size),
-                    self.teacher_embedding_model.embed_dim, # type: ignore
+                    self.teacher_embedding_model.embed_dim,  # type: ignore
                 ]
             ),
         )

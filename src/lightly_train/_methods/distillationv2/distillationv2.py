@@ -173,7 +173,7 @@ class DistillationV2(Method):
             method_args=method_args,
         )
         self.teacher_embedding_dim: int = (
-            method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim # type: ignore
+            method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim  # type: ignore
         )
 
         # Store the student model.
@@ -216,7 +216,7 @@ class DistillationV2(Method):
     @torch.no_grad()
     def _forward_teacher(self, x: Tensor) -> Tensor:
         # Forward the images through the teacher model.
-        x_list = self.teacher_embedding_model.get_intermediate_layers( # type: ignore[operator]
+        x_list = self.teacher_embedding_model.get_intermediate_layers(  # type: ignore[operator]
             x, n=self.method_args.n_teacher_blocks
         )
         x = torch.cat(x_list, dim=-1)
@@ -227,13 +227,9 @@ class DistillationV2(Method):
         b, _, image_h, image_w = x.shape
 
         # Infer the spatial size of the teacher features.
-        patch_size: int = self.teacher_embedding_model.patch_size # type: ignore
-        teacher_features_h = math.ceil(
-            image_h / patch_size
-        )
-        teacher_features_w = math.ceil(
-            image_w / patch_size
-        )
+        patch_size: int = self.teacher_embedding_model.patch_size  # type: ignore
+        teacher_features_h = math.ceil(image_h / patch_size)
+        teacher_features_w = math.ceil(image_w / patch_size)
 
         # Forward the images through the student model.
         x = self.student_embedding_model(x, pool=False)

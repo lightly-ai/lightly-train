@@ -92,10 +92,10 @@ class TestDINOv2ViTModelWrapper:
         for student_block, teacher_block in zip(student.blocks, teacher.blocks):
             assert isinstance(student_block.drop_path1, DropPath)
             assert isinstance(student_block.drop_path2, DropPath)
-            assert student_block.sample_drop_ratio > 0.0 # type: ignore[operator]
+            assert student_block.sample_drop_ratio > 0.0  # type: ignore[operator]
             assert isinstance(teacher_block.drop_path1, torch.nn.Identity)
             assert isinstance(teacher_block.drop_path2, torch.nn.Identity)
-            assert teacher_block.sample_drop_ratio == 0.0 # type: ignore[operator]
+            assert teacher_block.sample_drop_ratio == 0.0  # type: ignore[operator]
 
     def test__device(self) -> None:
         # If this test fails it means the wrapped model doesn't move all required
