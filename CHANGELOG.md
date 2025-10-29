@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed an issue where dataset cache files were incorrectly saved.
+
 ## [0.11.4] - 2025-10-08
 
 ### Added
