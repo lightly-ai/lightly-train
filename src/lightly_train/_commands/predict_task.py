@@ -89,6 +89,7 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     # TODO(Guarin, 07/25): Validate and initialize arguments passed to Fabric properly.
     fabric = Fabric(
         accelerator=config.accelerator,
+        devices=1,
         precision=config.precision,
     )
     fabric.launch()
