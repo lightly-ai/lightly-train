@@ -39,7 +39,7 @@ def predict_semantic_segmentation(
     batch_size: int = 1,  # Set this to 16 as default when we add predict_batch
     num_workers: int | Literal["auto"] = "auto",
     accelerator: str | Accelerator = "auto",
-    devices: int | str | list[int] = "auto",
+    devices: int | str | list[int] = 1,
     precision: _PRECISION_INPUT = "bf16-mixed",
     overwrite: bool = False,
     log_every_num_steps: int = 100,
@@ -65,8 +65,7 @@ def predict_semantic_segmentation(
             Hardware accelerator. Can be one of ['cpu', 'gpu', 'mps', 'auto'].
             'auto' will automatically select the best accelerator available.
         devices:
-            Number of devices/GPUs for training. 'auto' automatically selects all
-            available devices. The device type is determined by the ``accelerator``
+            Number of devices/GPUs for prediction. The device type is determined by the ``accelerator``
             parameter.
         precision:
             Inference precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
@@ -193,7 +192,7 @@ class PredictTaskConfig(PydanticConfig):
     batch_size: int = 1  # Set this to 16 when we add predict_batch
     num_workers: int | Literal["auto"] = "auto"
     accelerator: str | Accelerator = "auto"
-    devices: int | str | list[int] = "auto"
+    devices: int | str | list[int] = 1
     precision: _PRECISION_INPUT = "bf16-mixed"
     overwrite: bool = False
     log_every_num_steps: int = 100
