@@ -142,7 +142,9 @@ def convert_linears_to_fp8(
     out = named_replace(replace, root_module)
     assert total_count > 0, "fp8: no layer found to convert"
     # Force re-compile everything
-    torch._dynamo.reset_code_caches()
+    reset_code_caches = getattr(torch._dynamo, "reset_code_caches")
+    if reset_code_caches is not None:
+        reset_code_caches()
     from torch._inductor.cudagraph_trees import reset_cudagraph_trees
 
     reset_cudagraph_trees()
