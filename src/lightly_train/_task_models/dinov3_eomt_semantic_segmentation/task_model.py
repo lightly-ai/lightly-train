@@ -93,7 +93,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
-        super().__init__(locals(), ignore_args={"backbone_weights", "backbone_url"})
+        super().__init__(
+            locals(), ignore_args={"backbone_weights", "backbone_url", "load_weights"}
+        )
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes

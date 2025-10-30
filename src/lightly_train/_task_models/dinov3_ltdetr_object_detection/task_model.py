@@ -219,7 +219,9 @@ class DINOv3LTDetrObjectDetectionTaskModel(TaskModel):
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
     ) -> None:
-        super().__init__(init_args=locals(), ignore_args={"backbone_weights"})
+        super().__init__(
+            init_args=locals(), ignore_args={"backbone_weights", "load_weights"}
+        )
         parsed_name = self.parse_model_name(model_name=model_name)
 
         self.model_name = parsed_name["model_name"]

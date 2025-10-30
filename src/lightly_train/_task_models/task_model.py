@@ -29,7 +29,6 @@ class TaskModel(Module):
         self,
         init_args: dict[str, Any],
         ignore_args: set[str] | None = None,
-        load_weights: bool = True,
     ) -> None:
         """
         Args:
@@ -41,12 +40,10 @@ class TaskModel(Module):
                 arguments that are not relevant for serialization, such as
                 `backbone_weights` which is not relevant anymore after the model is
                 loaded for the first time.
-            load_weights:
-                If False, then no pretrained weights are loaded.
         """
         super().__init__()
         ignore_args = set() if ignore_args is None else ignore_args
-        ignore_args.update({"self", "__class__", "load_weights"})
+        ignore_args.update({"self", "__class__"})
         unknown_keys = ignore_args - init_args.keys()
         if unknown_keys:
             raise ValueError(
