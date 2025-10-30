@@ -62,6 +62,7 @@ class TorchvisionPackage(Package):
         model_name: str,
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> Module:
         if num_input_channels != 3:
             raise ValueError(
@@ -71,6 +72,8 @@ class TorchvisionPackage(Package):
         args = dict()
         if model_args is not None:
             args.update(model_args)
+        if not load_weights:
+            args["weights"] = None
         model: Module = torchvision_models.get_model(model_name, **args)
         return model
 

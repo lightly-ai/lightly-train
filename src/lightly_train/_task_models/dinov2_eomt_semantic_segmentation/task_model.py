@@ -51,6 +51,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         num_joint_blocks: int,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> None:
         """
         Args:
@@ -83,8 +84,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 using LightlyTrain.
             backbone_args:
                 Additional arguments to pass to the DINOv2 backbone.
+            load_weights:
+                If False, then no pretrained weights are loaded.
         """
-        super().__init__(locals(), ignore_args={"backbone_weights"})
+        super().__init__(locals(), ignore_args={"backbone_weights", "load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
@@ -120,6 +123,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_model_args,
+            load_weights=load_weights,
         )
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
@@ -131,7 +135,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.
-        if backbone_weights is not None:
+        if load_weights and backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
         if len(self.backbone.blocks) < num_joint_blocks:

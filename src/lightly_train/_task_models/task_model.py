@@ -25,7 +25,11 @@ class TaskModel(Module):
 
     model_suffix: str
 
-    def __init__(self, init_args: dict[str, Any], ignore_args: set[str] | None = None):
+    def __init__(
+        self,
+        init_args: dict[str, Any],
+        ignore_args: set[str] | None = None,
+    ) -> None:
         """
         Args:
             init_args:
