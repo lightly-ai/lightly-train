@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Predict masks for a full dataset with a semantic segmentation model checkpoint with the `predict_semantic_segmentation` command. It can be used for e.g. auto-labeling datasets.
-- Added `CITATION.cff` file to enable "Cite this repository" support on GitHub.
 
 ### Changed
 
@@ -25,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed an issue where dataset cache files were incorrectly saved.
 
-## \[0.11.4\] - 2025-10-08
+## [0.11.4] - 2025-10-08
 
 ### Added
 
@@ -46,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix warning about too few epochs for DINOv2 which occurs with the default epoch calculation.
 - Fix PyTorch bus errors caused by memory-map file write conflicts when launching multiple runs with `.train_semantic_segmentation()`.
 
-## \[0.11.3\] - 2025-09-25
+## [0.11.3] - 2025-09-25
 
 ### Added
 
@@ -61,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix a bug in `model.predict()` with `ignore_index`.
 - Speed up listing of filenames in large datasets.
 
-## \[0.11.2\] - 2025-09-08
+## [0.11.2] - 2025-09-08
 
 ### Added
 
@@ -77,7 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix issue with mmap cache when multiple runs use the same dataset on the same machine.
 - Speed up logging of datasets with many files.
 
-## \[0.11.1\] - 2025-08-28
+## [0.11.1] - 2025-08-28
 
 ### Added
 
@@ -118,7 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   key error.
 - Fix MLFlow logging on AzureML.
 
-## \[0.11.0\] - 2025-08-15
+## [0.11.0] - 2025-08-15
 
 🚀 **New DINOv3 Support:** Pretrain your own model with [distillation](https://docs.lightly.ai/train/stable/methods/distillation.html#methods-distillation-dinov3) from DINOv3 weights. Or fine-tune our SOTA [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) with a DINOv3 backbone! 🚀
 
@@ -131,7 +130,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - LightlyTrain now infers the best number of epochs based on the chosen method, dataset size and batch size.
 
-## \[0.10.0\] - 2025-08-04
+## [0.10.0] - 2025-08-04
 
 🔥 **New: Train state-of-the-art semantic segmentation models** with our new
 [**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html) fine-tuning method! 🔥
@@ -161,7 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `dinov2_vit/vits14_pretrain` model name is deprecated and will be removed in a
   future release. Use `dinov2/vits14` instead.
 
-## \[0.9.0\] - 2025-07-21
+## [0.9.0] - 2025-07-21
 
 ### Added
 
@@ -179,7 +178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Remove a note and specific recommendation for using DINOv2 with pretrained weights in the documentation.
 
-## \[0.8.1\] - 2025-06-23
+## [0.8.1] - 2025-06-23
 
 ### Added
 
@@ -191,7 +190,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add option to load multi-channel images with `LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"`.
 - Add option to reuse memmap dataset file via environment variable: `LIGHTLY_TRAIN_MMAP_REUSE_FILE=True`.
 
-## \[0.8.0\] - 2025-06-10
+## [0.8.0] - 2025-06-10
 
 ### Added
 
@@ -216,7 +215,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [the documentation](https://docs.lightly.ai/train/stable/train/index.html#resume-training)
   for more information.
 
-## \[0.7.0\] - 2025-05-26
+## [0.7.0] - 2025-05-26
 
 ### Added
 
@@ -245,7 +244,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `num_workers="auto"` now limits the number of workers to a maximum of 8 workers/GPU
   to avoid overloading systems with many CPU cores.
 
-## \[0.6.3\] - 2025-04-23
+## [0.6.3] - 2025-04-23
 
 ### Added
 
@@ -256,7 +255,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix image size mismatch issue when using TIMM models and DINO.
 
-## \[0.6.2\] - 2025-04-09
+## [0.6.2] - 2025-04-09
 
 ### Added
 
@@ -275,7 +274,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Remove Albumentations versions `1.4.18-1.4.22` support.
 
-## \[0.6.1\] - 2025-03-31
+## [0.6.1] - 2025-03-31
 
 ### Added
 
@@ -292,7 +291,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Remove DenseCL from the documentation.
 
-## \[0.6.0\] - 2025-03-24
+## [0.6.0] - 2025-03-24
 
 ### Added
 
@@ -313,7 +312,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Ensures proper usage of the `blur_limit` parameter in the `GaussianBlur` transforms.
 
-## \[0.5.0\] - 2025-03-04
+## [0.5.0] - 2025-03-04
 
 ### Added
 
@@ -340,7 +339,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix that the export command may fail when called in the same script as a train command using DDP.
 - Fix the logging of the `train_loss` to report the batch_size correctly.
 
-## \[0.4.0\] - 2024-12-05
+## [0.4.0] - 2024-12-05
 
 ### Added
 
@@ -375,7 +374,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove DenseCLDINO method
 - Remove DINO `teacher_freeze_last_layer_epochs` argument
 
-## \[0.3.2\] - 2024-11-06
+## [0.3.2] - 2024-11-06
 
 ### Added
 
@@ -391,7 +390,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Datasets support symlinks again
 
-## \[0.3.1\] - 2024-10-29
+## [0.3.1] - 2024-10-29
 
 ### Added
 
@@ -405,7 +404,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Log config instead of locals
 - Skip pooling in DenseCLDino
 
-## \[0.3.0\] - 2024-10-22
+## [0.3.0] - 2024-10-22
 
 ### Added
 
