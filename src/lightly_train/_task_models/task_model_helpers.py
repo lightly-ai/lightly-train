@@ -87,7 +87,7 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     ),
     "dinov3/vitl16-eomt-ade20k": (
         "/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
-        "f433f06d7892a31aba4ab9c83897db4f3048ca711a2a62baf4f7f055f0f5bb6d",
+        "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
     ),
 }
 

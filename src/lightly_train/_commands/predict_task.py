@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal, Sequence
 
+import torch
 from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
@@ -181,6 +182,11 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
             )
         if idx % config.log_every_num_steps == 0:
             logger.info(f"Images {(idx + 1) * config.batch_size}/{num_images}")
+
+        # free memory
+        del batch, mask
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     logger.info("Prediction completed.")
 
