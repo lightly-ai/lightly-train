@@ -234,8 +234,12 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
             target["boxes"] = sample_denormalized_boxes
 
-        orig_target_sizes = torch.tensor(orig_target_sizes, device=samples.device)
-        results = self.model.postprocessor(outputs, orig_target_sizes=orig_target_sizes)
+        orig_target_sizes_tensor = torch.tensor(
+            orig_target_sizes, device=samples.device
+        )
+        results = self.model.postprocessor(
+            outputs, orig_target_sizes=orig_target_sizes_tensor
+        )
 
         # Update mAP metric
         self.map_metric.update(results, targets)
