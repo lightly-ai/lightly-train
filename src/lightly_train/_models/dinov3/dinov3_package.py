@@ -68,11 +68,15 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitl16_lvd1689m.pth",
         local_path="dinov3_vitl16_lvd1689m.pth",
     ),
+    "vith16plus": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vith16plus,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vith16plus_lvd1689m.pth",
+        local_path="dinov3_vith16plus_lvd1689m.pth",
+    ),
     "vit7b16": _DINOv3ModelInfo(
         builder=backbones.dinov3_vit7b16,
-        # TODO (Lionel, 10/2025): Add real weights when available.
-        default_weights=None,
-        local_path=None,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vit7b16_lvd1689m.pth",
+        local_path="dinov3_vit7b16_lvd1689m.pth",
     ),
     # SAT-493M ViT models
     "vitl16-sat493m": _DINOv3ModelInfo(
