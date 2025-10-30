@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - name: "Lightly Team"
+title: "LightlyTrain"
+type: software
+url: "https://github.com/lightly-ai/lightly-train"
+date-released: 2025

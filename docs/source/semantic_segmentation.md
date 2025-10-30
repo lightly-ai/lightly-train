@@ -20,17 +20,6 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
 
-### ADE20k
-
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
-|----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 103.5 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
-| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.544 | 48.1 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
-| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.591** | 22.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
-| dinov2/vitl16-eomt (original) | 319 | 512×512 | 0.584 | - | - |
-
-We trained the models with 40k steps and `num_queries=100` , as in the setting of the original EoMT paper.
-
 ### COCO-Stuff
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |

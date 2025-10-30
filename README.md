@@ -60,12 +60,14 @@ Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are
 
 #### ADE20k Dataset
 
-| Implementation | Backbone Model | Val mIoU (direct FT) | Val mIoU (FT + SUN397 masks) | # Params (M) | Input Size | Checkpoint Name |
-|:--------------:|:------------------:|:--------------------:|:----------------------------:|:------------:|:----------:|:-------------------------:|
-| LightlyTrain | dinov3/vits16-eomt | 0.466 | 0.533 | 21.6 | 518×518 | dinov3/vits16-eomt-ade20k |
-| LightlyTrain | dinov3/vitb16-eomt | 0.544 | 0.573 | 85.7 | 518×518 | dinov3/vitb16-eomt-ade20k |
+| Implementation | Model Name | Autolabel | Val mIoU | # Params (M) | Input Size | Checkpoint Name |
+|:--------------:|:------------------:|:------:|:--------------------:|:------------:|:----------:| :----------------:|
+| LightlyTrain | dinov3/vits16-eomt | ❌ | 0.466 | 21.6 | 518×518 | |
+| LightlyTrain | dinov3/vits16-eomt | ✅ | **0.533** | 21.6 | 518×518 | dinov3/vits16-eomt-ade20k |
+| LightlyTrain | dinov3/vitb16-eomt | ❌ | 0.544 | 85.7 | 518×518 | |
+| LightlyTrain | dinov3/vitb16-eomt-ade20k | ✅ | **0.573** | 85.7 | 518×518 | dinov3/vitb16-eomt-ade20k |
 
-The better results for the respective models were achieved by fine-tuning a ViT-H+ on the ADE20k dataset, which reaches 0.595 validation mIoU. We then used the checkpoint to create pseudo masks for the SUN397 dataset (~100k images). Using these masks, we subsequently fine-tuned the smaller models, and then used the ADE20k dataset for validation.
+The better results with auto-labeling were achieved by fine-tuning a ViT-H+ on the ADE20k dataset, which reaches 0.595 validation mIoU. We then used the checkpoint to create pseudo masks for the SUN397 dataset (~100k images). Using these masks, we subsequently fine-tuned the smaller models, and then used the ADE20k dataset for validation.
 
 ## News
 

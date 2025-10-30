@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Predict masks for a full dataset with a semantic segmentation model checkpoint with the `predict_semantic_segmentation` command. It can be used for e.g. auto-labeling datasets.
+
 ### Changed
 
 - Widen PyTorch constraint — remove `<2.6` upper bound to allow PyTorch 2.6 and later that is officially supported by PyTorch Lightning 2.5.
@@ -19,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+
+- Fixed an issue where dataset cache files were incorrectly saved.
 
 ## [0.11.4] - 2025-10-08
 

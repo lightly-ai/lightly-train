@@ -32,7 +32,7 @@ from lightly_train._models.ultralytics.ultralytics_package import ULTRALYTICS_PA
 from .. import helpers
 
 if importlib_util.find_spec("ultralytics") is not None:
-    from ultralytics import YOLO
+    from ultralytics import YOLO  # type: ignore[attr-defined]
 else:
     YOLO = None  # type: ignore
 
