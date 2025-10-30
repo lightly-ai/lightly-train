@@ -86,8 +86,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                 The path to the DINOv3 backbone weights. The weights must be exported
                 using LightlyTrain.
             backbone_url:
-                The URL to the DINOv3 backbone weights. This is used to download the
-                weights.
+                Deprecated, weights are now automatically downloaded based on model name.
+                The URL to the DINOv3 backbone weights.
             backbone_args:
                 Additional arguments to pass to the DINOv3 backbone.
             load_weights:
@@ -126,11 +126,6 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         }
         if load_weights and backbone_url is not None:
             backbone_model_args["weights"] = backbone_url
-        else:
-            # Set pretrained to false when loading the model for inference. This skips
-            # loading the pretrained weights from Meta as we'll be loading weights with
-            # load_train_state_dict instead.
-            backbone_model_args["pretrained"] = False
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
 

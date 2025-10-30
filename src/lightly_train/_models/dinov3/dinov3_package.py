@@ -168,6 +168,9 @@ class DINOv3Package(Package):
         ):
             weight_path = _maybe_download_weights(model_getter=model_info)
             args["weights"] = str(weight_path)
+        if not load_weights:
+            args["weights"] = None
+            args["pretrained"] = False
         model = model_builder(**args)
         assert isinstance(model, (DinoVisionTransformer, ConvNeXt))
         return model
