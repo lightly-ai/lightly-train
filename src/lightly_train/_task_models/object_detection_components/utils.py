@@ -12,8 +12,10 @@
 # limitations under the License.#
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
 
+from __future__ import annotations
+
 import math
-from typing import List
+from typing import list
 
 import torch
 import torch.nn as nn
@@ -38,8 +40,8 @@ def deformable_attention_core_func(
     """
     Args:
         value (Tensor): [bs, value_length, n_head, c]
-        value_spatial_shapes (Tensor|List): [n_levels, 2]
-        value_level_start_index (Tensor|List): [n_levels]
+        value_spatial_shapes (Tensor|list): [n_levels, 2]
+        value_level_start_index (Tensor|list): [n_levels]
         sampling_locations (Tensor): [bs, query_length, n_head, n_levels, n_points, 2]
         attention_weights (Tensor): [bs, query_length, n_head, n_levels, n_points]
 
@@ -89,14 +91,14 @@ def deformable_attention_core_func_v2(
     value_spatial_shapes,
     sampling_locations: torch.Tensor,
     attention_weights: torch.Tensor,
-    num_points_list: List[int],
+    num_points_list: list[int],
     method="default",
 ):
     """
     Args:
         value (Tensor): [bs, value_length, n_head, c]
-        value_spatial_shapes (Tensor|List): [n_levels, 2]
-        value_level_start_index (Tensor|List): [n_levels]
+        value_spatial_shapes (Tensor|list): [n_levels, 2]
+        value_level_start_index (Tensor|list): [n_levels]
         sampling_locations (Tensor): [bs, query_length, n_head, n_levels * n_points, 2]
         attention_weights (Tensor): [bs, query_length, n_head, n_levels * n_points]
 
