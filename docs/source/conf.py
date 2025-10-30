@@ -26,6 +26,8 @@ extensions = [
     "sphinxcontrib.googleanalytics",  # Google Analytics
 ]
 
+autodoc_class_signature = "separated"  # Show __init__ signature separately from class.
+
 googleanalytics_id = "G-9ZFQ8ZQS6H"
 templates_path = ["_templates"]
 exclude_patterns = []
@@ -43,10 +45,12 @@ html_theme_options = {
     "light_css_variables": {
         "color-brand-primary": "#a72264",
     },
-    # TODO(Guarin, 09/24): Find better color for dark mode. The current one is a bit
-    # too dark.
     "dark_css_variables": {
-        "color-brand-primary": "#a72264",
+        "color-brand-primary": "#e6a3d3",
+        "color-background-primary": "#1a1a1a",
+        "color-background-secondary": "#2a2a2a",
+        "color-foreground-primary": "#e5e5e5",
+        "color-foreground-secondary": "#b8b8b8",
     },
     "light_logo": "lightly_train_light.svg",
     "dark_logo": "lightly_train_dark.svg",

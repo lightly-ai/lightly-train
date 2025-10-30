@@ -68,6 +68,7 @@ class DINOv2LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
 
+    # TODO(Thomas, 10/25): use separate dataclass for optimizer, matcher, etc.
     # Matcher configuration
     matcher_weight_dict: dict[str, float] = field(
         default_factory=lambda: {"cost_class": 2, "cost_bbox": 5, "cost_giou": 2}
