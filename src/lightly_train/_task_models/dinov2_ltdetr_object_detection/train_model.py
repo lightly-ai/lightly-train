@@ -136,10 +136,10 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
         )
 
-        self.model.ema: ModelEMA | None = None
+        self.ema_model: ModelEMA | None = None
         if model_args.use_ema_model:
-            self.model.ema = ModelEMA(
-                model=self,
+            self.ema_model = ModelEMA(
+                model=self.model,
                 decay=model_args.ema_momentum,
                 warmups=model_args.ema_warmup_steps,
             )
@@ -197,12 +197,12 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             log_dict={**{"train_total_loss": total_loss.item()}, **loss_dict},
         )
 
-    def update_ema_model(self) -> None:
-        if self.model.ema is not None:
-            self.model.ema.update(self)
+    def on_train_batch_end(self) -> None:
+        if self.ema_model is not None:
+            self.ema_model.update(self)
 
-    def get_ema_model(self) -> Module | None:
-        return self.model.ema.model if self.model.ema is not None else None
+    # def get_ema_model(self) -> Module | None:
+    #     return self.ema_model.model if self.ema_model is not None else None
 
     def validation_step(
         self,
@@ -216,10 +216,10 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             for boxes, classes in zip(boxes, classes)
         ]
 
-        if self.model.ema is not None:
-            model_to_use = self.model.ema.model
+        if self.ema_model is not None:
+            model_to_use = self.ema_model.model
         else:
-            model_to_use = self
+            model_to_use = self.model
 
         with torch.no_grad():
             outputs = model_to_use.model._forward_train(

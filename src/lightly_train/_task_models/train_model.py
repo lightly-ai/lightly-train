@@ -88,12 +88,8 @@ class TrainModel(Module):
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         pass
 
-    def update_ema_model(self) -> None:
+    def on_train_batch_end(self) -> None:
         pass
-
-    def get_ema_model(self) -> Module | None:
-        return None
-
 
 @dataclass
 class TaskStepResult:
