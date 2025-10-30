@@ -220,9 +220,9 @@ class DistillationV2(Method):
     @torch.no_grad()
     def _forward_teacher(self, x: Tensor) -> tuple[Tensor, tuple[int, int]]:
         """Forward the images through the teacher model and return them in the
-        (B, H * W, D * n_teacher_blocks) format.
+        (B, H * W, n_teacher_blocks * D) format.
         """
-        # (n_teacher_blocks, B, D, H, W)
+        # List with n_teacher_blocks tensors with shape (B, D, H, W)
         x_list = list(
             self.teacher_embedding_model.get_intermediate_layers(  # type: ignore[operator]
                 x, n=self.method_args.n_teacher_blocks, reshape=True
@@ -246,9 +246,9 @@ class DistillationV2(Method):
             x_list[i] = x
 
         # Concat along the feature dimension.
-        # (n_teacher_blocks, B, D, H, W) -> (B, D * n_teacher_blocks, H, W)
+        # (B, n_teacher_blocks * D, H, W)
         x = torch.cat(x_list, dim=1)
-        # (B, D * n_teacher_blocks, H, W) -> (B, H * W, D * n_teacher_blocks)
+        # (B, n_teacher_blocks * D, H, W) -> (B, H * W, n_teacher_blocks * D)
         x = x.permute(0, 2, 3, 1).flatten(start_dim=1, end_dim=2)
         return (x, (teacher_features_h, teacher_features_w))
 

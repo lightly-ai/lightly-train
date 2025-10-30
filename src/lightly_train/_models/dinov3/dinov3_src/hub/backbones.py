@@ -3,6 +3,10 @@
 #
 # This software may be used and distributed in accordance with
 # the terms of the DINOv3 License Agreement.#
+
+# Modifications Copyright 2025 Lightly AG:
+# - Add is_sat493m_weights parameter to allow SAT493M weights with different filenames
+# - Add small test models
 from __future__ import annotations
 
 import os

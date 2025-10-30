@@ -4,6 +4,9 @@
 # This software may be used and distributed in accordance with
 # the terms of the DINOv3 License Agreement.#
 
+# Modifications Copyright 2025 Lightly AG:
+# - Add compatibility for PyTorch < 2.2
+
 from __future__ import annotations
 
 import logging
