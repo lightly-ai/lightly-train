@@ -199,7 +199,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
 
     def on_train_batch_end(self) -> None:
         if self.ema_model is not None:
-            self.ema_model.update(self)
+            self.ema_model.update(self.model)
 
     # def get_ema_model(self) -> Module | None:
     #     return self.ema_model.model if self.ema_model is not None else None
@@ -222,7 +222,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             model_to_use = self.model
 
         with torch.no_grad():
-            outputs = model_to_use.model._forward_train(
+            outputs = model_to_use._forward_train(
                 x=samples,
                 targets=targets,
             )

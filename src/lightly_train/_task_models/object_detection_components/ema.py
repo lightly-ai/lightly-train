@@ -64,7 +64,7 @@ class ModelEMA(Module):
                     v *= d
                     v += (1 - d) * msd[k].detach()
 
-    def forwad(
+    def forward(
         self,
     ):
         raise RuntimeError("ema...")
