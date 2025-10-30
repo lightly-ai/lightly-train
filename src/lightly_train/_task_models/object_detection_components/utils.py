@@ -229,7 +229,7 @@ def _yolo_to_xyxy(batch_boxes: list[Tensor]) -> list[Tensor]:
 
 
 def _denormalize_xyxy_boxes(
-    boxes: Tensor,
+    boxes: list[Tensor],
     sizes: list[tuple[int, int]],
 ) -> Tensor:
     """De-normalize bounding boxes from (normalized x_min, y_min, x_max, y_max) format."""
