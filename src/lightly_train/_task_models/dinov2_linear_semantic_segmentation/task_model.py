@@ -45,6 +45,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         image_normalize: dict[str, tuple[float, ...]],
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> None:
         """
         Args:
@@ -106,6 +107,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=args,
+            load_weights=load_weights,
         )
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
@@ -117,7 +119,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
 
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.
-        if backbone_weights is not None:
+        if load_weights and backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
         if self.backbone_freeze:

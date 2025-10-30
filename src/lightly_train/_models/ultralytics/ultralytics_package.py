@@ -88,6 +88,7 @@ class UltralyticsPackage(Package):
         model_name: str,
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> Module:
         try:
             from ultralytics import YOLO  # type: ignore[attr-defined]

@@ -151,6 +151,7 @@ class DINOv3Package(Package):
         model_name: str,
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> DinoVisionTransformer | ConvNeXt:
         """
         Get a DINOv3 ViT model by name. Here the student version is build.
@@ -160,7 +161,11 @@ class DINOv3Package(Package):
             args.update(model_args)
         model_info = MODEL_NAME_TO_INFO[model_name]
         model_builder = model_info["builder"]
-        if ("weights" not in args) and model_info["default_weights"] is not None:
+        if (
+            load_weights
+            and ("weights" not in args)
+            and model_info["default_weights"] is not None
+        ):
             weight_path = _maybe_download_weights(model_getter=model_info)
             args["weights"] = str(weight_path)
         model = model_builder(**args)

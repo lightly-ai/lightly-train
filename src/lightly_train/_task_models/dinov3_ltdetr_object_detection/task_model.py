@@ -217,6 +217,7 @@ class DINOv3LTDetrObjectDetectionTaskModel(TaskModel):
         image_normalize: dict[str, Any] | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> None:
         super().__init__(init_args=locals(), ignore_args={"backbone_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
@@ -245,6 +246,7 @@ class DINOv3LTDetrObjectDetectionTaskModel(TaskModel):
         dinov3 = DINOV3_PACKAGE.get_model(
             parsed_name["backbone_name"],
             model_args=backbone_args,
+            load_weights=load_weights,
         )
         assert isinstance(dinov3, ConvNeXt)
         self.backbone: DINOv3ConvNextWrapper = DINOv3ConvNextWrapper(model=dinov3)
