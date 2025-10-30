@@ -46,7 +46,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         *,
         model_name: str,
         classes: dict[int, str],
-        class_ignore_index: int | None,
         image_size: tuple[int, int],
         image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
@@ -63,10 +62,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                 A dict mapping the class ID to the class name. The dict must only
                 contain the classes that the model should predict. It must NOT contain
                 classes that are in the dataset but should be ignored by the model.
-            class_ignore_index:
-                The class ID assigned to pixels that do not belong to any of the
-                classes in `classes`. If None, the model will not ignore any classes and
-                always assign a class to each pixel.
             image_size:
                 The size of the input images.
             image_normalize:
@@ -94,7 +89,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
-        self.class_ignore_index = class_ignore_index
         self.image_size = image_size
         self.image_normalize = image_normalize
 
@@ -102,8 +96,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         # This list maps the internal class id to the class id in `classes`.
         # An additional class is added to represent "unknown/ignored classes" if needed.
         internal_class_to_class = list(self.classes.keys())
-        if self.class_ignore_index is not None:
-            internal_class_to_class.append(self.class_ignore_index)
 
         # Efficient lookup for converting internal class IDs to class IDs.
         # Registered as buffer to be automatically moved to the correct device.
