@@ -142,6 +142,7 @@ def convert_linears_to_fp8(
     out = named_replace(replace, root_module)
     assert total_count > 0, "fp8: no layer found to convert"
     # Force re-compile everything
+    # Requires torch>=2.2
     reset_code_caches = getattr(torch._dynamo, "reset_code_caches")
     if reset_code_caches is not None:
         reset_code_caches()

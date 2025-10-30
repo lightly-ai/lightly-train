@@ -93,6 +93,7 @@ def update_24sparsity(root_module: nn.Module, enabled: bool) -> int:
 
     named_apply(maybe_apply_sparsity, root_module)
     # Force re-compile everything
+    # Requires torch>=2.2
     reset_code_caches = getattr(torch._dynamo, "reset_code_caches")
     if reset_code_caches is not None:
         reset_code_caches()

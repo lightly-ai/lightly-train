@@ -97,6 +97,7 @@ class DinoVisionTransformer(nn.Module):
         **ignored_kwargs,
     ):
         super().__init__()
+        # Requires torch>=2.2
         if hasattr(torch._dynamo.config, "automatic_dynamic_shapes"):
             torch._dynamo.config.automatic_dynamic_shapes = False
         if hasattr(torch._dynamo.config, "accumulated_cache_size_limit"):
