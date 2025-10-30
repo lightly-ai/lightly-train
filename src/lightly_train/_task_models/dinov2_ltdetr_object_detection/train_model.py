@@ -36,6 +36,10 @@ from lightly_train._task_models.object_detection_components.matcher import (
 from lightly_train._task_models.object_detection_components.rtdetrv2_criterion import (
     RTDETRCriterionv2,
 )
+from lightly_train._task_models.object_detection_components.utils import (
+    _denormalize_xyxy_boxes,
+    _yolo_to_xyxy,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._task_models.train_model import (
     TaskStepResult,
@@ -193,7 +197,12 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         fabric: Fabric,
         batch: ObjectDetectionBatch,
     ) -> TaskStepResult:
-        samples, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
+        samples, boxes, classes, orig_target_sizes = (
+            batch["image"],
+            batch["bboxes"],
+            batch["classes"],
+            batch["original_size"],
+        )
         boxes = _yolo_to_xyxy(boxes)
         targets = [
             {"boxes": boxes, "labels": classes}
@@ -219,20 +228,16 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
-        # Convert model outputs into torchmetrics-compatible format
-        preds = []
-        for bboxes, logits in zip(outputs["pred_boxes"], outputs["pred_logits"]):
-            scores = logits.softmax(dim=-1).max(dim=-1)
-            preds.append(
-                {
-                    "boxes": bboxes,  # [N, 4] in xyxy
-                    "scores": scores.values,  # [N]
-                    "labels": scores.indices,  # [N]
-                }
-            )
+        # De-normalize boxes target boxes.
+        boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
+        for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
+            target["boxes"] = sample_denormalized_boxes
+
+        orig_target_sizes = torch.tensor(orig_target_sizes, device=samples.device)
+        results = self.model.postprocessor(outputs, orig_target_sizes=orig_target_sizes)
 
         # Update mAP metric
-        self.map_metric.update(preds, targets)
+        self.map_metric.update(results, targets)
 
         metrics: dict[str, Any] = {
             "val_metric/": self.map_metric,
@@ -240,7 +245,11 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
 
         return TaskStepResult(
             loss=total_loss,
-            log_dict={**{"val_loss": total_loss.item()}, **loss_dict, **metrics},
+            log_dict={
+                **{"val_loss": total_loss.item()},
+                **loss_dict,
+                **metrics,
+            },
         )
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
@@ -289,25 +298,3 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 optimizer=optimizer,
                 max_norm=self.clip_max_norm,
             )
-
-
-def _yolo_to_xyxy(batch_boxes: list[Tensor]) -> list[Tensor]:
-    """Convert bounding boxes from YOLO (normalized cx, cy, w, h) format to
-    (normalized x_min, y_min, x_max, y_max) format.
-
-    Args:
-        boxes: Bounding boxes in YOLO format of shape (n_boxes, 4) with values
-            normalized between 0 and 1.
-
-    Returns:
-        Bounding boxes in (normalized x_min, y_min, x_max, y_max) format.
-    """
-    converted_boxes = []
-    for sample_boxes in batch_boxes:
-        cxcywh = sample_boxes
-        x_min = cxcywh[:, 0] - cxcywh[:, 2] / 2
-        y_min = cxcywh[:, 1] - cxcywh[:, 3] / 2
-        x_max = cxcywh[:, 0] + cxcywh[:, 2] / 2
-        y_max = cxcywh[:, 1] + cxcywh[:, 3] / 2
-        converted_boxes.append(torch.stack([x_min, y_min, x_max, y_max], dim=-1))
-    return converted_boxes
