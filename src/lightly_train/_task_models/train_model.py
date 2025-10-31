@@ -91,6 +91,7 @@ class TrainModel(Module):
     def on_train_batch_end(self) -> None:
         pass
 
+
 @dataclass
 class TaskStepResult:
     loss: Tensor

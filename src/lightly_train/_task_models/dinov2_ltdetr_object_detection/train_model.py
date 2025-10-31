@@ -14,7 +14,6 @@ from typing import Any, ClassVar, Literal
 import torch
 from lightning_fabric import Fabric
 from torch import Tensor
-from torch.nn import Module
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
 from torch.optim.lr_scheduler import LRScheduler, MultiStepLR
 
