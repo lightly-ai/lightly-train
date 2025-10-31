@@ -38,7 +38,12 @@ lightly-train train out=out/my_experiment data=my_data_dir model="torchvision/re
 
 ### 🔥 Distill from DINOv3 🔥
 
-To distill from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script as shown below.
+To distill from DINOv3 you have to set the `teacher` argument in `method_args` to one of
+the [supported models](#methods-distillation-supported-models).
+
+```{note}
+DINOv3 models are released under the [DINOv3 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md).
+```
 
 ````{tab} Python
 ```python
@@ -52,8 +57,6 @@ if __name__ == "__main__":
         method="distillationv1",
         method_args={
             "teacher": "dinov3/vitb16",
-            # Replace with your own url
-            "teacher_url": "https://dinov3.llamameta.net/dinov3_vitb16/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth<SOME-KEY>",
         }
     )
 ```

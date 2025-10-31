@@ -140,7 +140,11 @@ ID as defined in the `classes` dictionary in the dataset.
 
 ## 🔥 Use EoMT with DINOv3 🔥
 
-To fine-tune EoMT from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script.
+To fine-tune EoMT from DINOv3, you have to set `model` to one of the [DINOv3 models](#dinov3-models).
+
+```{note}
+DINOv3 models are released under the [DINOv3 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md).
+```
 
 ```python
 import lightly_train
@@ -149,10 +153,6 @@ if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
         model="dinov3/vits16-eomt",
-        model_args={
-            # Replace with your own url
-            "backbone_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
-        },
         data={
             "train": {
                 "images": "my_data_dir/train/images",   # Path to training images
@@ -175,8 +175,6 @@ if __name__ == "__main__":
     )
 ```
 
-See [here](#dinov3-models) for the list of available DINOv3 models.
-
 (semantic-segmentation-eomt-dinov3-model-weights)=
 
 ### Use the LightlyTrain Model Checkpoints
@@ -190,12 +188,6 @@ if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
         model="dinov3/vits16-eomt",
-        model_args={
-            # Replace with your own url
-            "backbone_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
-            # For COCO-Stuff and Cityscapes dataset, we use num_queries=200 instead of the default 100
-            "num_queries": 200,
-        },
         checkpoint="/path/to/your/downloaded/model/lightlytrain_dinov3_eomt_vits16_cocostuff.pt", # use the COCO-Stuff model checkpoint for further fine-tuning
         data={...},
     )
