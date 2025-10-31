@@ -76,6 +76,7 @@ class SuperGradientsPackage(Package):
         model_name: str,
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> Module:
         try:
             from super_gradients.training import models
@@ -89,9 +90,13 @@ class SuperGradientsPackage(Package):
                 f"SuperGradients models only support 3 input channels, but got "
                 f"{num_input_channels}."
             )
-        args = dict(num_classes=10)
+        args: dict[str, Any] = dict(num_classes=10)
         if model_args is not None:
             args.update(model_args)
+        if not load_weights:
+            args["checkpoint_path"] = None
+            args["pretrained_weights"] = None
+
         model: Module = models.get(model_name=model_name, **args)
         return model
 

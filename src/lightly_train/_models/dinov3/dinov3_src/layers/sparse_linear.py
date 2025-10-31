@@ -4,6 +4,9 @@
 # This software may be used and distributed in accordance with
 # the terms of the DINOv3 License Agreement.#
 
+# Modifications Copyright 2025 Lightly AG:
+# - Add compatibility with PyTorch < 2.2
+
 from __future__ import annotations
 
 import logging
@@ -93,7 +96,10 @@ def update_24sparsity(root_module: nn.Module, enabled: bool) -> int:
 
     named_apply(maybe_apply_sparsity, root_module)
     # Force re-compile everything
-    torch._dynamo.reset_code_caches()
+    # Requires torch>=2.2
+    reset_code_caches = getattr(torch._dynamo, "reset_code_caches", None)
+    if reset_code_caches is not None:
+        reset_code_caches()
     from torch._inductor.cudagraph_trees import reset_cudagraph_trees
 
     reset_cudagraph_trees()

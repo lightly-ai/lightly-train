@@ -26,7 +26,7 @@ from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train.types import Batch
 
-from ...helpers import dummy_vit_model
+from ...helpers import dummy_dinov2_vit_model
 
 
 def setup_dinov2_helper(
@@ -90,7 +90,7 @@ class TestDINOv2:
         ibot_separate_head: bool,
         center_method: Literal["softmax", "sinkhorn_knopp"],
     ) -> None:
-        emb_model = EmbeddingModel(wrapped_model=dummy_vit_model())
+        emb_model = EmbeddingModel(wrapped_model=dummy_dinov2_vit_model())
         b = 16
 
         views = [torch.rand(b, 3, 8, 8) for _ in range(2)] + [
@@ -135,7 +135,7 @@ class TestDINOv2:
         assert out.log_dict["train_loss/koleo_loss"].shape == Size([])
 
     def test_layerwise_decay_optimizer(self, mocker: MockerFixture) -> None:
-        emb_model = EmbeddingModel(wrapped_model=dummy_vit_model())
+        emb_model = EmbeddingModel(wrapped_model=dummy_dinov2_vit_model())
         b = 16
 
         dinov2_args = DINOv2Args(warmup_steps=2)
@@ -230,6 +230,6 @@ class TestDINOv2Args:
         args.resolve_auto(
             scaling_info=ScalingInfo(dataset_size=IMAGENET_SIZE, epochs=100),
             optimizer_args=DINOv2AdamWViTArgs(),
-            wrapped_model=dummy_vit_model(),
+            wrapped_model=dummy_dinov2_vit_model(),
         )
         assert not args.has_auto()

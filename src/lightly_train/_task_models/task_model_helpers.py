@@ -151,13 +151,14 @@ def load_model_from_checkpoint(
     module_path, class_name = ckpt["model_class_path"].rsplit(".", 1)
     module = importlib.import_module(module_path)
     model_class = getattr(module, class_name)
+    model_init_args = ckpt["model_init_args"]
+    model_init_args["load_weights"] = False
 
     # Create model instance
-    model: TaskModel = model_class(**ckpt["model_init_args"])
+    model: TaskModel = model_class(**model_init_args)
+    model = model.to(device)
     model.load_train_state_dict(state_dict=ckpt["train_model"])
     model.eval()
-
-    model = model.to(device)
     return model
 
 

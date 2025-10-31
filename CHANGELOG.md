@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Predict masks for a full dataset with a semantic segmentation model checkpoint with the `predict_semantic_segmentation` command. It can be used for e.g. auto-labeling datasets.
+- Add support for DINOv3 ConvNeXt models.
+- Automatically download DINOv3 weights.
+- Predict masks for a full dataset with a semantic segmentation model checkpoint with
+  the `predict_semantic_segmentation` command. It can be used for e.g. auto-labeling
+  datasets.
 
 ### Changed
 
@@ -22,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix issue with loading DINOv3 SAT493m checkpoints.
 - Fixed an issue where dataset cache files were incorrectly saved.
 
 ## [0.11.4] - 2025-10-08

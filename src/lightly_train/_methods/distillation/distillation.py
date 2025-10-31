@@ -28,6 +28,7 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -48,16 +49,15 @@ def get_teacher(
     teacher_name: str,
     num_input_channels: int,
     teacher_weights: str | Path | None = None,
-    method_args: DistillationArgs | None = None,
 ) -> Module:
-    model_args: dict[str, Any] = {}
-    if "dinov3" in teacher_name and method_args is not None:
-        model_args["weights"] = method_args.teacher_url
-
     wrapped_model = package_helpers.get_wrapped_model(
-        model=teacher_name, num_input_channels=num_input_channels, model_args=model_args
+        model=teacher_name,
+        num_input_channels=num_input_channels,
     )
-    assert isinstance(wrapped_model, (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper))
+    assert isinstance(
+        wrapped_model,
+        (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper, DINOv3VConvNeXtModelWrapper),
+    )
     wrapped_model.make_teacher()
     teacher_embedding_model = wrapped_model.get_model()
 
@@ -92,7 +92,7 @@ class DistillationArgs(MethodArgs):
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None
 
-    # Optional teacher url.
+    # Deprecated. Does not have any effect.
     teacher_url: str | None = None
 
     # Scaling method for the learning rate.
@@ -163,7 +163,6 @@ class Distillation(Method):
             method_args.teacher,
             num_input_channels=num_input_channels,
             teacher_weights=method_args.teacher_weights,
-            method_args=method_args,
         )
 
         # Store the student model.
