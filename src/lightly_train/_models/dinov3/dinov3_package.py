@@ -7,13 +7,16 @@
 #
 from __future__ import annotations
 
+import functools
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TypedDict
 
 import torch
 
+from lightly_train._env import Env
 from lightly_train._models import log_usage_example
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_src.hub import backbones
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
@@ -25,22 +28,88 @@ from lightly_train._models.package import Package
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME_TO_GETTER = {
-    "vits16": backbones.dinov3_vits16,
-    "vits16plus": backbones.dinov3_vits16plus,
-    "vitb16": backbones.dinov3_vitb16,
-    "vitl16": backbones.dinov3_vitl16,
-    "vitl16plus": backbones.dinov3_vitl16plus,
-    "vith16plus": backbones.dinov3_vith16plus,
-    "vit7b16": backbones.dinov3_vit7b16,
-    "convnext-tiny": backbones.dinov3_convnext_tiny,
-    "convnext-small": backbones.dinov3_convnext_small,
-    "convnext-base": backbones.dinov3_convnext_base,
-    "convnext-large": backbones.dinov3_convnext_large,
-}
 
-MODEL_CLS_TO_WRAPPER = {
-    DinoVisionTransformer: DINOv3ViTModelWrapper,
+class _DINOv3ModelInfo(TypedDict):
+    builder: Callable[..., DinoVisionTransformer | ConvNeXt]
+    default_weights: str | None
+    local_path: str | None
+
+
+MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
+    # Test model for development purposes only.
+    "_vittest16": _DINOv3ModelInfo(
+        builder=backbones._dinov3_vit_test,
+        default_weights=None,
+        local_path=None,
+    ),
+    "_convnexttest": _DINOv3ModelInfo(
+        builder=backbones._dinov3_convnext_test,
+        default_weights=None,
+        local_path=None,
+    ),
+    # LVD-1689M ViT models
+    "vits16": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vits16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vits16_lvd1689m.pth",
+        local_path="dinov3_vits16_lvd1689m.pth",
+    ),
+    "vits16plus": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vits16plus,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vits16plus_lvd1689m.pth",
+        local_path="dinov3_vits16plus_lvd1689m.pth",
+    ),
+    "vitb16": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitb16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitb16_lvd1689m.pth",
+        local_path="dinov3_vitb16_lvd1689m.pth",
+    ),
+    "vitl16": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitl16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitl16_lvd1689m.pth",
+        local_path="dinov3_vitl16_lvd1689m.pth",
+    ),
+    "vith16plus": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vith16plus,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vith16plus_lvd1689m.pth",
+        local_path="dinov3_vith16plus_lvd1689m.pth",
+    ),
+    "vit7b16": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vit7b16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vit7b16_lvd1689m.pth",
+        local_path="dinov3_vit7b16_lvd1689m.pth",
+    ),
+    # SAT-493M ViT models
+    "vitl16-sat493m": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_vitl16, is_sat493m_weights=True),
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitl16_sat493m.pth",
+        local_path="dinov3_vitl16_sat493m.pth",
+    ),
+    "vit7b16-sat493m": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vit7b16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vit7b16_sat493m.pth",
+        local_path="dinov3_vit7b16_sat493m.pth",
+    ),
+    # ConvNeXt LVD-1689M models
+    "convnext-tiny": _DINOv3ModelInfo(
+        builder=backbones.dinov3_convnext_tiny,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_tiny_lvd1689m.pth",
+        local_path="dinov3_convnext_tiny_lvd1689m.pth",
+    ),
+    "convnext-small": _DINOv3ModelInfo(
+        builder=backbones.dinov3_convnext_small,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_small_lvd1689m.pth",
+        local_path="dinov3_convnext_small_lvd1689m.pth",
+    ),
+    "convnext-base": _DINOv3ModelInfo(
+        builder=backbones.dinov3_convnext_base,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_base_lvd1689m.pth",
+        local_path="dinov3_convnext_base_lvd1689m.pth",
+    ),
+    "convnext-large": _DINOv3ModelInfo(
+        builder=backbones.dinov3_convnext_large,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_large_lvd1689m.pth",
+        local_path="dinov3_convnext_large_lvd1689m.pth",
+    ),
 }
 
 
@@ -49,17 +118,15 @@ class DINOv3Package(Package):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [
-            f"{cls.name}/{model_name}" for model_name in MODEL_NAME_TO_GETTER.keys()
-        ]
+        return [f"{cls.name}/{model_name}" for model_name in MODEL_NAME_TO_INFO.keys()]
 
     @classmethod
     def is_supported_model(
         cls, model: DinoVisionTransformer | ConvNeXt | ModelWrapper | Any
     ) -> bool:
         if isinstance(model, ModelWrapper):
-            return isinstance(model.get_model(), DinoVisionTransformer)
-        return isinstance(model, DinoVisionTransformer)
+            return isinstance(model.get_model(), (DinoVisionTransformer, ConvNeXt))
+        return isinstance(model, (DinoVisionTransformer, ConvNeXt))
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> str:
@@ -87,6 +154,7 @@ class DINOv3Package(Package):
         model_name: str,
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> DinoVisionTransformer | ConvNeXt:
         """
         Get a DINOv3 ViT model by name. Here the student version is build.
@@ -94,13 +162,35 @@ class DINOv3Package(Package):
         args: dict[str, Any] = {"in_chans": num_input_channels}
         if model_args is not None:
             args.update(model_args)
-        model = MODEL_NAME_TO_GETTER[model_name](**args)  # type: ignore[operator]
+        model_info = MODEL_NAME_TO_INFO[model_name]
+        model_builder = model_info["builder"]
+        if (
+            load_weights
+            and ("weights" not in args)
+            and model_info["default_weights"] is not None
+        ):
+            weight_path = _maybe_download_weights(model_getter=model_info)
+            args["weights"] = str(weight_path)
+        if not load_weights:
+            args["weights"] = None
+            args["pretrained"] = False
+        model = model_builder(**args)
         assert isinstance(model, (DinoVisionTransformer, ConvNeXt))
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: DinoVisionTransformer) -> DINOv3ViTModelWrapper:
-        return MODEL_CLS_TO_WRAPPER[model.__class__](model=model)
+    def get_model_wrapper(
+        cls, model: DinoVisionTransformer | ConvNeXt
+    ) -> DINOv3ViTModelWrapper | DINOv3VConvNeXtModelWrapper:
+        if isinstance(model, DinoVisionTransformer):
+            return DINOv3ViTModelWrapper(model=model)
+        elif isinstance(model, ConvNeXt):
+            return DINOv3VConvNeXtModelWrapper(model=model)
+        else:
+            raise ValueError(
+                f"DINOv3Package cannot create a model wrapper for model of type {type(model)}. "
+                "The model must be a DinoVisionTransformer or ConvNeXt."
+            )
 
     @classmethod
     def export_model(
@@ -135,6 +225,23 @@ class DINOv3Package(Package):
             logger.info(
                 log_usage_example.format_log_msg_model_usage_example(log_message_code)
             )
+
+
+# TODO(Guarin, 10/25): Check hash of downloaded weights.
+def _maybe_download_weights(model_getter: _DINOv3ModelInfo) -> Path:
+    download_dir: Path = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
+    url = model_getter["default_weights"]
+    assert model_getter["local_path"] is not None
+    assert url is not None
+    download_dest = download_dir / model_getter["local_path"]
+    if not download_dest.exists():
+        download_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(
+            f"DINOv3 weights not found locally. Downloading weights from {url} to "
+            f"{download_dest}"
+        )
+        torch.hub.download_url_to_file(url, dst=str(download_dest))
+    return download_dest
 
 
 # Create singleton instance of the package. The singleton should be used whenever

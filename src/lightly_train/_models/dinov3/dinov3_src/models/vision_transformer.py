@@ -4,6 +4,9 @@
 # This software may be used and distributed in accordance with
 # the terms of the DINOv3 License Agreement.#
 
+# Modifications Copyright 2025 Lightly AG:
+# - Add compatibility for PyTorch < 2.2
+
 from __future__ import annotations
 
 import logging
@@ -97,8 +100,11 @@ class DinoVisionTransformer(nn.Module):
         **ignored_kwargs,
     ):
         super().__init__()
-        torch._dynamo.config.automatic_dynamic_shapes = False
-        torch._dynamo.config.accumulated_cache_size_limit = 1024
+        # Requires torch>=2.2
+        if hasattr(torch._dynamo.config, "automatic_dynamic_shapes"):
+            torch._dynamo.config.automatic_dynamic_shapes = False
+        if hasattr(torch._dynamo.config, "accumulated_cache_size_limit"):
+            torch._dynamo.config.accumulated_cache_size_limit = 1024
 
         if len(ignored_kwargs) > 0:
             logger.warning(f"Ignored kwargs: {ignored_kwargs}")

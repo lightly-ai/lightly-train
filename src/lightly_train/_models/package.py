@@ -54,6 +54,7 @@ class Package(BasePackage):
         model_name: str,
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> PackageModel:
         """Get the underlying model of the package by its name."""
         ...
