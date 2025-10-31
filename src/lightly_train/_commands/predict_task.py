@@ -41,6 +41,7 @@ def predict_semantic_segmentation(
     num_workers: int | Literal["auto"] = "auto",
     accelerator: str | Accelerator = "auto",
     devices: int | str | list[int] = 1,
+    remove_cache: bool = False,  # TODO(Yutong, 10/25): remove/improve this when re-implementing with predict_batch
     precision: _PRECISION_INPUT = "bf16-mixed",
     overwrite: bool = False,
     log_every_num_steps: int = 100,
@@ -184,9 +185,11 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
             logger.info(f"Images {(idx + 1) * config.batch_size}/{num_images}")
 
         # free memory
-        del batch, mask
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # TODO(Yutong, 10/25): remove/improve this when re-implementing with predict_batch
+        if config.remove_cache:
+            del batch, mask
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     logger.info("Prediction completed.")
 
@@ -199,6 +202,7 @@ class PredictTaskConfig(PydanticConfig):
     num_workers: int | Literal["auto"] = "auto"
     accelerator: str | Accelerator = "auto"
     devices: int | str | list[int] = 1
+    remove_cache: bool = False  # TODO(Yutong, 10/25): remove/improve this when re-implementing with predict_batch
     precision: _PRECISION_INPUT = "bf16-mixed"
     overwrite: bool = False
     log_every_num_steps: int = 100
