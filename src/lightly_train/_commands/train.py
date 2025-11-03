@@ -31,6 +31,7 @@ from lightly_train._commands.common_helpers import ModelFormat
 from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
+from lightly_train._events.event_info import TrainingEventInfo
 from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.logger_args import LoggerArgs
 from lightly_train._methods import method_helpers
@@ -333,6 +334,13 @@ def train_from_config(config: TrainConfig) -> None:
         config.callbacks = callback_helpers.get_callback_args(
             callback_args=config.callbacks
         )
+        event_info = TrainingEventInfo(
+            method=config.method,
+            model=str(config.model),
+            epochs=config.epochs,
+            batch_size=config.batch_size,
+            devices=config.devices if isinstance(config.devices, int) else 1,
+        )
         callback_instances = callback_helpers.get_callbacks(
             callback_args=config.callbacks,
             out=out_dir,
@@ -340,6 +348,7 @@ def train_from_config(config: TrainConfig) -> None:
             embedding_model=embedding_model,
             normalize_args=transform_instance.transform_args.normalize,
             loggers=logger_instances,
+            event_info=event_info,
         )
         config.accelerator = common_helpers.get_accelerator(
             accelerator=config.accelerator
