@@ -17,6 +17,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._transforms.task_transform import TaskTransform
 
@@ -27,6 +28,8 @@ class TrainModelArgs(PydanticConfig):
     # are ClassVar because they have to be accessed before the class is instantiated.
     default_batch_size: ClassVar[int]
     default_steps: ClassVar[int]
+
+    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]]
 
     def resolve_auto(
         self, total_steps: int, model_name: str, model_init_args: dict[str, Any]
@@ -85,6 +88,9 @@ class TrainModel(Module):
         raise NotImplementedError()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
+        pass
+
+    def on_train_batch_end(self) -> None:
         pass
 
 
