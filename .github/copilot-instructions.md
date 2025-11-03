@@ -13,6 +13,7 @@ When importing:
   - Third-party imports
   - Local imports
     and group them accordingly with a blank line between each group.
+- Always add `from __future__ import annotations` at the top of the file.
 
 ## File Layout
 

@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from albumentations import BboxParams, Compose, HorizontalFlip, Resize, VerticalFlip
@@ -71,7 +71,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     # Necessary for the StopPolicyArgs, which are not serializable by pydantic.
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def resolve_auto(self) -> None:
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         if self.num_channels == "auto":
             if self.channel_drop is not None:
                 self.num_channels = self.channel_drop.num_channels_keep

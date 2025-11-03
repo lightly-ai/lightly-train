@@ -31,7 +31,9 @@ class TrainModelArgs(PydanticConfig):
 
     save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]]
 
-    def resolve_auto(self, total_steps: int, model_name: str) -> None:
+    def resolve_auto(
+        self, total_steps: int, model_name: str, model_init_args: dict[str, Any]
+    ) -> None:
         pass
 
 

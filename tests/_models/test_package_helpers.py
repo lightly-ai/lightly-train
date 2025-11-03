@@ -87,7 +87,7 @@ def test_get_model__super_gradients() -> None:
 
 def test_get_model__ultralytics() -> None:
     pytest.importorskip("ultralytics")
-    from ultralytics import YOLO
+    from ultralytics import YOLO  # type: ignore[attr-defined]
 
     model = package_helpers.get_wrapped_model(
         "ultralytics/yolov8s.yaml", num_input_channels=3

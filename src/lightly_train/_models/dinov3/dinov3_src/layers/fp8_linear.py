@@ -4,6 +4,10 @@
 # This software may be used and distributed in accordance with
 # the terms of the DINOv3 License Agreement.#
 
+# Modifications Copyright 2025 Lightly AG:
+# - Add compatibility with PyTorch < 2.2
+
+
 from __future__ import annotations
 
 import re
@@ -142,7 +146,10 @@ def convert_linears_to_fp8(
     out = named_replace(replace, root_module)
     assert total_count > 0, "fp8: no layer found to convert"
     # Force re-compile everything
-    torch._dynamo.reset_code_caches()
+    # Requires torch>=2.2
+    reset_code_caches = getattr(torch._dynamo, "reset_code_caches", None)
+    if reset_code_caches is not None:
+        reset_code_caches()
     from torch._inductor.cudagraph_trees import reset_cudagraph_trees
 
     reset_cudagraph_trees()

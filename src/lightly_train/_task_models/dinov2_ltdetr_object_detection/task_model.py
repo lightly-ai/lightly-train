@@ -49,8 +49,11 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         image_normalize: dict[str, Any] | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> None:
-        super().__init__(init_args=locals(), ignore_args={"backbone_weights"})
+        super().__init__(
+            init_args=locals(), ignore_args={"backbone_weights", "load_weights"}
+        )
         parsed_name = self.parse_model_name(model_name=model_name)
 
         self.model_name = parsed_name["model_name"]
@@ -74,6 +77,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         dinov2 = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_args,
+            load_weights=load_weights,
         )
         self.backbone: DINOv2ViTWrapper = DINOv2ViTWrapper(
             model=dinov2,
@@ -212,7 +216,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self.eval()
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
-                m.convert_to_deploy()
+                m.convert_to_deploy()  # type: ignore[operator]
         return self
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]

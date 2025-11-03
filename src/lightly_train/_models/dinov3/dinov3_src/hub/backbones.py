@@ -3,6 +3,10 @@
 #
 # This software may be used and distributed in accordance with
 # the terms of the DINOv3 License Agreement.#
+
+# Modifications Copyright 2025 Lightly AG:
+# - Add is_sat493m_weights parameter to allow SAT493M weights with different filenames
+# - Add small test models
 from __future__ import annotations
 
 import os
@@ -338,6 +342,7 @@ def dinov3_vitl16(
     weights: Union[Weights, str] = Weights.LVD1689M,
     check_hash: bool = False,
     in_chans: int = 3,
+    is_sat493m_weights: bool = False,
     **kwargs,
 ):
     untie_global_and_local_cls_norm = False
@@ -348,18 +353,10 @@ def dinov3_vitl16(
         if "hash" not in kwargs:
             kwargs["hash"] = "eadcf0ff"
         untie_global_and_local_cls_norm = True
-    elif type(weights) is str:
-        import re
-
-        pattern = r"-(.{8}).pth"
-        matches = re.findall(pattern, weights)
-        if len(matches) != 1:
-            raise ValueError(
-                f"Unexpected weights specification for the ViT-L backbone: {weights}"
-            )
-        hash = matches[0]
-        if hash == "eadcf0ff":
-            untie_global_and_local_cls_norm = True
+    elif type(weights) is str and is_sat493m_weights:
+        if "hash" not in kwargs:
+            kwargs["hash"] = "eadcf0ff"
+        untie_global_and_local_cls_norm = True
     kwargs["version"] = None
     return _make_dinov3_vit(
         img_size=224,
@@ -630,6 +627,66 @@ def dinov3_convnext_large(
         depths=size_dict["depths"],
         dims=size_dict["dims"],
         compact_arch_name="convnext_large",
+        drop_path_rate=0,
+        layer_scale_init_value=1e-6,
+        pretrained=pretrained,
+        weights=weights,
+        **kwargs,
+    )
+    if not pretrained:
+        model.init_weights()
+    return model
+
+
+def _dinov3_vit_test(
+    *,
+    pretrained: bool = False,
+    weights: Union[Weights, str] = Weights.LVD1689M,
+    in_chans: int = 3,
+    patch_size: int = 2,
+    **kwargs,
+):
+    return _make_dinov3_vit(
+        img_size=32,
+        patch_size=patch_size,
+        in_chans=in_chans,
+        pos_embed_rope_base=100,
+        pos_embed_rope_normalize_coords="separate",
+        pos_embed_rope_rescale_coords=2,
+        pos_embed_rope_dtype="fp32",
+        embed_dim=64,
+        depth=2,
+        num_heads=4,
+        ffn_ratio=4,
+        qkv_bias=True,
+        drop_path_rate=0.0,
+        layerscale_init=1.0e-05,
+        norm_layer="layernormbf16",
+        ffn_layer="mlp",
+        ffn_bias=True,
+        proj_bias=True,
+        n_storage_tokens=0,
+        mask_k_bias=False,
+        pretrained=pretrained,
+        weights=weights,
+        compact_arch_name="vits",
+        check_hash=False,
+        **kwargs,
+    )
+
+
+def _dinov3_convnext_test(
+    *,
+    pretrained: bool = False,
+    weights: Union[Weights, str] = Weights.LVD1689M,
+    in_chans: int = 3,
+    **kwargs,
+):
+    model = _make_dinov3_convnext(
+        in_chans=in_chans,
+        depths=[2, 2, 2, 2],
+        dims=[16, 16, 32, 32],
+        compact_arch_name="convnext_tiny",
         drop_path_rate=0,
         layer_scale_init_value=1e-6,
         pretrained=pretrained,

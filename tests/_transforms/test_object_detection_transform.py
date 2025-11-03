@@ -163,7 +163,7 @@ class TestObjectDetectionTransform:
             resize=resize,
             scale_jitter=scale_jitter,
         )
-        transform_args.resolve_auto()
+        transform_args.resolve_auto(model_init_args={})
         transform = ObjectDetectionTransform(transform_args)
 
         # Create a synthetic image and bounding boxes.
@@ -202,7 +202,7 @@ class TestObjectDetectionTransform:
             scale_jitter=_get_scale_jitter_args(),
             resize=_get_resize_args(),
         )
-        transform_args.resolve_auto()
+        transform_args.resolve_auto(model_init_args={})
         collate_fn = ObjectDetectionCollateFunction(
             split="train", transform_args=transform_args
         )

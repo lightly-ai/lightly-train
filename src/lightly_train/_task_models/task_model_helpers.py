@@ -13,7 +13,7 @@ import logging
 import os
 import urllib.parse
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import torch
 
@@ -87,6 +87,10 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_autolabel_sun397.pt",
         "400f7a1b42a7b67babf253d6aade0be334173d70e7351a01159698ac2d2335ca",
     ),
+    "dinov3/vitl16-eomt-ade20k": (
+        "/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
+        "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
+    ),
 }
 
 
@@ -151,13 +155,14 @@ def load_model_from_checkpoint(
     module_path, class_name = ckpt["model_class_path"].rsplit(".", 1)
     module = importlib.import_module(module_path)
     model_class = getattr(module, class_name)
+    model_init_args = ckpt["model_init_args"]
+    model_init_args["load_weights"] = False
 
     # Create model instance
-    model: TaskModel = model_class(**ckpt["model_init_args"])
+    model: TaskModel = model_class(**model_init_args)
+    model = model.to(device)
     model.load_train_state_dict(state_dict=ckpt["train_model"])
     model.eval()
-
-    model = model.to(device)
     return model
 
 
@@ -188,3 +193,45 @@ def _resolve_device(device: str | torch.device | None) -> torch.device:
         raise ValueError(
             f"Invalid device: {device}. Must be 'cpu', 'cuda', 'mps', a torch.device, or None."
         )
+
+
+def queries_adjust_num_queries_hook(
+    module: torch.Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """Resize query embeddings from the checkpoint to match the module configuration."""
+    queries_weight_key = f"{prefix}queries.weight"
+    queries_weight = state_dict.get(queries_weight_key)
+    if queries_weight is None:
+        return
+
+    query_embed_module = getattr(module, "queries", None)
+    num_queries_module = getattr(module, "num_queries", None)
+    if query_embed_module is None or num_queries_module is None:
+        return
+
+    num_queries_state = queries_weight.shape[0]
+    if num_queries_state == num_queries_module:
+        return
+    elif num_queries_state > num_queries_module:
+        logger.info(
+            f"Checkpoint provides {num_queries_state} queries but module expects {num_queries_module}. Truncating.",
+        )
+
+        queries_weight = queries_weight[:num_queries_module, :]
+    else:
+        logger.info(
+            f"Checkpoint provides {num_queries_state} queries but module expects {num_queries_module}. Repeating entries.",
+        )
+
+        repeated_times, remainder = divmod(num_queries_module, num_queries_state)
+        queries_weight = queries_weight.repeat(repeated_times, 1)
+        if remainder > 0:
+            queries_weight = torch.cat(
+                [queries_weight, queries_weight[:remainder, :]], dim=0
+            )
+
+    state_dict[queries_weight_key] = queries_weight

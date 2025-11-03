@@ -26,6 +26,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Att
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
 )
@@ -50,6 +51,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         num_joint_blocks: int,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> None:
         """
         Args:
@@ -82,8 +84,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 using LightlyTrain.
             backbone_args:
                 Additional arguments to pass to the DINOv2 backbone.
+            load_weights:
+                If False, then no pretrained weights are loaded.
         """
-        super().__init__(locals(), ignore_args={"backbone_weights"})
+        super().__init__(locals(), ignore_args={"backbone_weights", "load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
@@ -119,6 +123,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_model_args,
+            load_weights=load_weights,
         )
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
@@ -130,7 +135,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.
-        if backbone_weights is not None:
+        if load_weights and backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
         if len(self.backbone.blocks) < num_joint_blocks:
@@ -161,9 +166,20 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # TODO(Guarin, 07/25): Move all attention mask handling to the train module.
         # Attention mask prob can be passed as argument to forward_train. No need to
         # store it as a parameter here.
+        self.attn_mask_probs: Tensor
         self.register_buffer(
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
+
+        if hasattr(self, "register_load_state_dict_pre_hook"):
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.queries_adjust_num_queries_hook
+            )
+        else:
+            # Backwards compatibility for PyTorch <= 2.4
+            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.queries_adjust_num_queries_hook, with_module=True
+            )
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -345,14 +361,14 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                     )
 
             # This mirrors forward of DINOv2 Block.
-            if self.training and block.sample_drop_ratio > 0:
-                x = x + block.drop_path1(
-                    block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))
+            if self.training and block.sample_drop_ratio > 0:  # type: ignore[operator]
+                x = x + block.drop_path1(  # type: ignore[operator]
+                    block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
                 )
-                x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x))))
+                x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x))))  # type: ignore[operator]
             else:
-                x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))
-                x = x + block.ls2(block.mlp(block.norm2(x)))
+                x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
+                x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore[operator]
 
         mask_logits, class_logits = self._predict(
             self.backbone.norm(x), grid_size=grid_size

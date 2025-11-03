@@ -58,10 +58,11 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
         DINOv3EoMTSemanticSegmentationTaskSaveCheckpointArgs
     )
 
+    # Model args
     backbone_weights: PathLike | None = None
-    backbone_url: str = ""
-
-    num_queries: int = 100  # Default for ADE20K
+    # Deprecated. Weights are now automatically loaded based on model name.
+    backbone_url: str | None = None
+    num_queries: int | Literal["auto"] = "auto"
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int | Literal["auto"] = "auto"
@@ -94,26 +95,42 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     metric_log_classwise: bool = True
     metric_log_debug: bool = False
 
-    def resolve_auto(self, total_steps: int, model_name: str) -> None:
+    def resolve_auto(
+        self,
+        total_steps: int,
+        model_name: str,
+        model_init_args: dict[str, Any],
+    ) -> None:
+        if self.num_queries == "auto":
+            num_queries = model_init_args.get("num_queries", 100)
+            assert isinstance(num_queries, int)  # for mypy
+            self.num_queries = num_queries
+
         if self.num_joint_blocks == "auto":
-            match = re.match(r"dinov3/(?P<model_size>vit(s|l|b|g|h|7b)).*", model_name)
-            if match is None:
-                raise ValueError(
-                    f"Unknown model name '{model_name}', "
-                    "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
-                    "for all supported models."
+            if num_joint_blocks := model_init_args.get("num_joint_blocks"):
+                assert isinstance(num_joint_blocks, int)  # for mypy
+                self.num_joint_blocks = num_joint_blocks
+            else:
+                match = re.match(
+                    r"dinov3/(?P<model_size>vit(s|l|b|g|h|7b)).*", model_name
                 )
-            model_size = match.group("model_size")
-            self.num_joint_blocks = {
-                "vits": 3,
-                "vitb": 3,
-                "vitl": 4,
-                "vitg": 5,
-                "vith": 5,
-                # TODO: Verify the number of blocks. EoMT has an experiment with a
-                # model of comparable size.
-                "vit7b": 5,
-            }[model_size]
+                if match is None:
+                    raise ValueError(
+                        f"Unknown model name '{model_name}', "
+                        "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
+                        "for all supported models."
+                    )
+                model_size = match.group("model_size")
+                self.num_joint_blocks = {
+                    "vits": 3,
+                    "vitb": 3,
+                    "vitl": 4,
+                    "vitg": 5,
+                    "vith": 5,
+                    # TODO: Verify the number of blocks. EoMT has an experiment with a
+                    # model of comparable size.
+                    "vit7b": 5,
+                }[model_size]
 
         # Infer the number of training phases from the number of joint blocks.
         num_training_phases = self.num_joint_blocks + 2
@@ -162,7 +179,10 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         self.model_args = model_args
+        num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
+        image_size = no_auto(val_transform_args.image_size)
+        normalize = no_auto(val_transform_args.normalize)
 
         self.model = DINOv3EoMTSemanticSegmentation(
             model_name=model_name,
@@ -170,9 +190,9 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             class_ignore_index=(
                 data_args.ignore_index if data_args.ignore_classes else None
             ),
-            image_size=val_transform_args.image_size,
-            image_normalize=val_transform_args.normalize.model_dump(),
-            num_queries=model_args.num_queries,
+            image_size=image_size,
+            image_normalize=normalize.model_dump(),
+            num_queries=num_queries,
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
@@ -259,7 +279,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         # Loss
-        num_blocks = len(self.model.backbone.blocks)
+        num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
@@ -366,7 +386,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
             crops, return_logits_per_layer=True
         )
-        num_blocks = len(self.model.backbone.blocks)
+        num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
         for i, (block_idx, mask_logits, class_logits) in enumerate(
             zip(
@@ -470,7 +490,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         metrics: ModuleList,
     ) -> None:
         for i in range(len(preds)):
-            metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])
+            metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])  # type: ignore[operator]
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         # TODO(Guarin, 07/25): It seems like EoMT doesn't exclude norm/bias params
@@ -478,7 +498,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         backbone_params = set(self.model.backbone.parameters())
         backbone_param_groups = []
         other_param_groups = []
-        backbone_blocks = len(self.model.backbone.blocks)
+        backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         block_i = backbone_blocks
 
         for name, param in reversed(list(self.named_parameters())):

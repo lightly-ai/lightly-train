@@ -34,7 +34,9 @@ from lightly_train._data.yolo_object_detection_dataset import (
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModelArgs
-from lightly_train._train_task_state import TrainTaskState
+from lightly_train._train_task_state import (
+    TrainTaskState,
+)
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -380,6 +382,24 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_model_cls=train_model_cls, checkpoint_args=config.save_checkpoint_args
     )
 
+    # Load checkpoint context if resuming or further fine-tuning.
+    checkpoint = helpers.load_checkpoint(
+        fabric=fabric,
+        out_dir=out_dir,
+        resume_interrupted=config.resume_interrupted,
+        ckpt_path=config.checkpoint,
+    )
+
+    if checkpoint:
+        model_init_args = checkpoint["model_init_args"]
+        if (saved_model_name := model_init_args.get("model_name")) != config.model:
+            raise ValueError(
+                f"The model name in the checkpoint or model weights file('{saved_model_name}') "
+                f"does not match the provided model name ('{config.model}')."
+            )
+    else:
+        model_init_args = {}
+
     train_transform_args, val_transform_args = helpers.get_transform_args(
         train_model_cls=train_model_cls,
         transform_args=config.transform_args,
@@ -387,6 +407,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         ignore_index=config.data.ignore_index
         if hasattr(config.data, "ignore_index")
         else None,
+        model_init_args=model_init_args,
     )
     train_transform = helpers.get_train_transform(
         train_model_cls=train_model_cls,
@@ -414,6 +435,18 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             transform=val_transform,
             mmap_filepath=val_mmap_filepath,
         )
+
+        if (
+            config.checkpoint
+            and config.reuse_class_head
+            and config.data.included_classes != model_init_args.get("classes")
+        ):
+            raise ValueError(
+                f"The included classes in the data configuration ({config.data.included_classes}) "
+                f"do not match the classes used in the checkpoint or model weights file ({model_init_args.get('classes')}). "
+                f"It is not advisable to reuse the class head when you have a different classes config."
+            )
+
         logger.info(
             f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}"
         )
@@ -443,6 +476,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_args_cls=train_model_args_cls,
             total_steps=no_auto(config.steps),
             model_name=config.model,
+            model_init_args=model_init_args,
         )
 
         # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
@@ -514,27 +548,18 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_init_args=train_model.get_task_model().init_args,
         )
 
-        if config.checkpoint and config.resume_interrupted:
-            raise ValueError(
-                f"resume_interrupted={config.resume_interrupted} and checkpoint='{config.checkpoint}' "
-                "cannot be set at the same time! Please set only one of them. "
-            )
-
-        if config.checkpoint:  # Load from user provided checkpoint path.
-            helpers.load_checkpoint_from_file(
-                fabric=fabric,
-                ckpt_path=config.checkpoint,
+        if config.resume_interrupted and checkpoint:
+            helpers.resume_from_checkpoint(
                 state=state,
+                checkpoint=checkpoint,  # type: ignore[arg-type]
+            )
+            train_dataloader = checkpoint["train_dataloader"]  # type: ignore[typeddict-item]
+        elif config.checkpoint and checkpoint:
+            helpers.finetune_from_checkpoint(
+                state=state,
+                checkpoint=checkpoint,  # type: ignore[arg-type]
                 reuse_class_head=config.reuse_class_head,
             )
-        elif config.resume_interrupted:  # Resume from last checkpoint in out_dir.
-            helpers.load_checkpoint_from_interrupted(
-                fabric=fabric,
-                out_dir=out_dir,
-                state=state,
-            )
-        else:
-            pass
 
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?

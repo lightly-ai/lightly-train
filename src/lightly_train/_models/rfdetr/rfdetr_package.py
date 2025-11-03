@@ -56,6 +56,7 @@ class RFDETRPackage(Package):
         model_name: str,
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> RFDETR:
         try:
             from rfdetr import RFDETRBase, RFDETRLarge
@@ -74,6 +75,8 @@ class RFDETRPackage(Package):
         # Remove these arguments so that get_model() only returns the full model
         args.pop("encoder_only", None)
         args.pop("backbone_only", None)
+        if not load_weights:
+            args["pretrain_weights"] = None
 
         model_names = [model_name.split(".")[0] for model_name in HOSTED_MODELS.keys()]
         if model_name not in model_names:
