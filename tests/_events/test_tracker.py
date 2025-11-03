@@ -38,48 +38,25 @@ def clear_tracker_state() -> None:
     tracker._system_info = None
 
 
-def test_track_event__disabled(mock_events_disabled: None) -> None:
-    """Test that events are not tracked when disabled."""
+def test_track_event__success(mock_events_enabled: None) -> None:
+    """Test that events are tracked successfully."""
     tracker.track_event(event_name="test_event", properties={"key": "value"})
 
-    assert len(tracker._events) == 0
-    assert "test_event" not in tracker._last_event_time
-
-
-def test_track_event__rate_limited(
-    mock_events_enabled: None, mocker: MockerFixture
-) -> None:
-    """Test that events within 30s are rate limited."""
-    mock_time = mocker.patch("lightly_train._events.tracker.time.time")
-
-    # First event at t=0
-    mock_time.return_value = 0.0
-    tracker.track_event(event_name="test_event", properties={"key": "value1"})
-
-    # Second event at t=10 (within 30s) - should be ignored
-    mock_time.return_value = 10.0
-    tracker.track_event(event_name="test_event", properties={"key": "value2"})
-
-    # Third event at t=31 (after 30s) - should be tracked
-    mock_time.return_value = 31.0
-    tracker.track_event(event_name="test_event", properties={"key": "value3"})
-
-    assert len(tracker._events) == 2
-    assert tracker._events[0]["properties"]["key"] == "value1"
-    assert tracker._events[1]["properties"]["key"] == "value3"
+    assert len(tracker._events) == 1
+    assert tracker._events[0]["event"] == "test_event"
+    assert tracker._events[0]["properties"]["key"] == "value"
 
 
 def test_track_event__structure(
     mock_events_enabled: None, mocker: MockerFixture
 ) -> None:
-    """Test that event data has correct structure."""
+    """Test that tracked events contain all required fields."""
     mocker.patch("lightly_train._events.config.POSTHOG_API_KEY", "test_key")
 
     tracker.track_event(event_name="test_event", properties={"prop1": "value1"})
 
     assert len(tracker._events) == 1
     event_data = tracker._events[0]
-
     assert event_data["api_key"] == "test_key"
     assert event_data["event"] == "test_event"
     assert event_data["distinct_id"] == tracker._session_id
@@ -88,8 +65,66 @@ def test_track_event__structure(
     assert "os" in event_data["properties"]
 
 
+def test_track_event__rate_limited(
+    mock_events_enabled: None, mocker: MockerFixture
+) -> None:
+    """Test that duplicate events within 30 seconds are rate limited."""
+    mock_time = mocker.patch("lightly_train._events.tracker.time.time")
+
+    mock_time.return_value = 0.0
+    tracker.track_event(event_name="test_event", properties={"key": "value1"})
+
+    mock_time.return_value = 10.0
+    tracker.track_event(event_name="test_event", properties={"key": "value2"})
+
+    mock_time.return_value = 31.0
+    tracker.track_event(event_name="test_event", properties={"key": "value3"})
+
+    assert len(tracker._events) == 2
+    assert tracker._events[0]["properties"]["key"] == "value1"
+    assert tracker._events[1]["properties"]["key"] == "value3"
+
+
+def test_track_event__disabled(mock_events_disabled: None) -> None:
+    """Test that events are not tracked when tracking is disabled."""
+    tracker.track_event(event_name="test_event", properties={"key": "value"})
+
+    assert len(tracker._events) == 0
+    assert "test_event" not in tracker._last_event_time
+
+
+def test_track_event__queue_size_limit(
+    mock_events_enabled: None, mocker: MockerFixture
+) -> None:
+    """Test that queue drops new events when maximum size is reached."""
+    mock_time = mocker.patch("lightly_train._events.tracker.time.time")
+
+    for i in range(tracker._MAX_QUEUE_SIZE):
+        mock_time.return_value = float(i * 100)
+        tracker.track_event(event_name=f"event_{i}", properties={"index": i})
+
+    assert len(tracker._events) == tracker._MAX_QUEUE_SIZE
+
+    mock_time.return_value = float(tracker._MAX_QUEUE_SIZE * 100)
+    tracker.track_event(
+        event_name=f"event_{tracker._MAX_QUEUE_SIZE}",
+        properties={"index": tracker._MAX_QUEUE_SIZE},
+    )
+
+    assert len(tracker._events) == tracker._MAX_QUEUE_SIZE
+
+
+def test__get_system_info__structure() -> None:
+    """Test that system info contains required fields."""
+    info = tracker._get_system_info()
+
+    assert "os" in info
+    assert "gpu_name" in info
+    assert isinstance(info["os"], str)
+
+
 def test__get_system_info__cached(mocker: MockerFixture) -> None:
-    """Test that system info is cached."""
+    """Test that system info is cached after first call."""
     mock_cuda = mocker.patch("torch.cuda.is_available", return_value=False)
 
     info1 = tracker._get_system_info()
@@ -99,40 +134,9 @@ def test__get_system_info__cached(mocker: MockerFixture) -> None:
     assert mock_cuda.call_count == 1
 
 
-def test__get_system_info__structure() -> None:
-    """Test that system info has correct structure."""
-    info = tracker._get_system_info()
-
-    assert "os" in info
-    assert "gpu_name" in info
-    assert isinstance(info["os"], str)
-
-
 def test_session_id_consistent() -> None:
-    """Test that session_id is consistent across events."""
+    """Test that session ID remains consistent across calls."""
     session_id = tracker._session_id
+
     assert isinstance(session_id, str)
     assert len(session_id) > 0
-
-
-def test_track_event__queue_size_limit(
-    mock_events_enabled: None, mocker: MockerFixture
-) -> None:
-    """Test that queue size is limited to prevent memory leak."""
-    mock_time = mocker.patch("lightly_train._events.tracker.time.time")
-
-    # Fill the queue to max capacity
-    for i in range(tracker._MAX_QUEUE_SIZE):
-        mock_time.return_value = float(i * 100)
-        tracker.track_event(event_name=f"event_{i}", properties={"index": i})
-
-    assert len(tracker._events) == tracker._MAX_QUEUE_SIZE
-
-    # Try to add one more event - should be dropped
-    mock_time.return_value = float(tracker._MAX_QUEUE_SIZE * 100)
-    tracker.track_event(
-        event_name=f"event_{tracker._MAX_QUEUE_SIZE}",
-        properties={"index": tracker._MAX_QUEUE_SIZE},
-    )
-
-    assert len(tracker._events) == tracker._MAX_QUEUE_SIZE
