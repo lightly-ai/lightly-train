@@ -80,7 +80,10 @@ class YOLOObjectDetectionDataset(TaskDataset):
             image=image,
             bboxes=bboxes,
             classes=class_labels,
-            original_size=(w, h),
+            original_size=(
+                w,
+                h,
+            ),  # TODO (Thomas, 10/25): Switch to (h, w) for consistency.
         )
 
 
