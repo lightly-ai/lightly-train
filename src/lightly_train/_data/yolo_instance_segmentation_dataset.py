@@ -181,7 +181,7 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
 
 
 class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
-    ignore_index: ClassVar[int] = -100
+    ignore_index: ClassVar[int | None] = None
     path: PathLike
     train: PathLike
     val: PathLike
@@ -191,6 +191,12 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
     names: dict[int, str]
     # TODO(Guarin, 10/25): Implement ignore classes.
     ignore_classes: None = None
+
+    def train_imgs_path(self) -> Path:
+        return Path(self.path) / self.train
+
+    def val_imgs_path(self) -> Path:
+        return Path(self.path) / self.val
 
     @pydantic.field_validator("train", "val", mode="after")
     def validate_paths(cls, v: PathLike) -> Path:

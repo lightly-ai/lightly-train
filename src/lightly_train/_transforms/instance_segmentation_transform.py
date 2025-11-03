@@ -70,7 +70,6 @@ class InstanceSegmentationTransformOutput(TaskTransformOutput):
 
 
 class InstanceSegmentationTransformArgs(TaskTransformArgs):
-    ignore_index: int
     image_size: tuple[int, int] | Literal["auto"]
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
@@ -193,7 +192,6 @@ class InstanceSegmentationTransform(TaskTransform):
                     pad_if_needed=transform_args.random_crop.pad_if_needed,
                     pad_position=transform_args.random_crop.pad_position,
                     fill=transform_args.random_crop.fill,
-                    fill_mask=transform_args.ignore_index,
                     p=transform_args.random_crop.prob,
                 )
             ]

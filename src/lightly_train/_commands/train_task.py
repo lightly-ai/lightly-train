@@ -376,6 +376,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     )
     train_model_cls = helpers.get_train_model_cls(
         model_name=config.model,
+        task=config.task,
     )
 
     # Load checkpoint context if resuming or further fine-tuning.
