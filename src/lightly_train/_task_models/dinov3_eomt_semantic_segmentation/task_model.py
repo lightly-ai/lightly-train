@@ -378,10 +378,10 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
             # TODO(Guarin, 08/25): Double check if sample_drop_ratio > 0 sometimes.
             # This is usually not the case in EoMT but should be verified.
-            x = x + block.ls1(
-                self._attn(block.attn, block.norm1(x), rope=rope_sincos, mask=attn_mask)
+            x = x + block.ls1(  # type: ignore
+                self._attn(block.attn, block.norm1(x), rope=rope_sincos, mask=attn_mask)  # type: ignore
             )
-            x = x + block.ls2(block.mlp(block.norm2(x)))
+            x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore
 
         mask_logits, class_logits = self._predict(
             self.backbone.norm(x), grid_size=grid_size

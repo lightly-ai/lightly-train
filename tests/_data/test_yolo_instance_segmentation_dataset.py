@@ -127,7 +127,6 @@ class TestYOLOInstanceSegmentationDataset:
 
 def _get_transform() -> InstanceSegmentationTransform:
     transform_args = InstanceSegmentationTransformArgs(
-        ignore_index=-100,
         image_size=(32, 32),
         channel_drop=None,
         num_channels="auto",
