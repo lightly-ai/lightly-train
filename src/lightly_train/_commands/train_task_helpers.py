@@ -92,6 +92,14 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
 
 # TODO(Thomas, 10/25): Create a type for the metrics.
 TASK_TO_METRICS: dict[str, dict[str, str]] = {
+    "instance_segmentation": {
+        "val_metric/map": "Val mAP@0.5:0.95",
+        "val_metric/map_50": "Val mAP@0.5",
+        "val_metric/map_75": "Val mAP@0.75",
+        "val_metric/map_small": "Val mAP (small)",
+        "val_metric/map_medium": "Val mAP (medium)",
+        "val_metric/map_large": "Val mAP (large)",
+    },
     "semantic_segmentation": {
         "train_metric/miou": "Train mIoU",
         "val_metric/miou": "Val mIoU",
