@@ -15,7 +15,6 @@ import numpy as np
 import pydantic
 import torch
 
-from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_batch_collation import (
@@ -23,7 +22,7 @@ from lightly_train._data.task_batch_collation import (
     InstanceSegmentationCollateFunction,
 )
 from lightly_train._data.task_data_args import TaskDataArgs
-from lightly_train._data.task_dataset import TaskDataset
+from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._transforms.instance_segmentation_transform import (
     InstanceSegmentationTransform,
@@ -42,6 +41,9 @@ from lightly_train.types import (
 
 
 class YOLOInstanceSegmentationDataset(TaskDataset):
+    # Narrow the type of dataset_args.
+    dataset_args: YOLOInstanceSegmentationDatasetArgs
+
     batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
         InstanceSegmentationCollateFunction
     )
@@ -52,15 +54,15 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
         image_info: Sequence[dict[str, str]],
         transform: InstanceSegmentationTransform,
     ) -> None:
-        super().__init__(transform=transform)
-        self.args = dataset_args
-        self.image_info = image_info
+        super().__init__(
+            transform=transform, dataset_args=dataset_args, image_info=image_info
+        )
 
         # Get the class mapping.
         self.class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
-                class_ids=self.args.classes.keys(),
-                ignore_classes=self.args.ignore_classes,
+                class_ids=self.dataset_args.classes.keys(),
+                ignore_classes=self.dataset_args.ignore_classes,
             )
         )
 
@@ -85,9 +87,6 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
                 f"Supported modes are '{[ImageMode.RGB.value, ImageMode.UNCHANGED.value]}'."
             )
         self.image_mode = image_mode
-
-    def __len__(self) -> int:
-        return len(self.image_info)
 
     def __getitem__(self, index: int) -> InstanceSegmentationDatasetItem:
         # Load the image.
@@ -247,7 +246,7 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
         )
 
 
-class YOLOInstanceSegmentationDatasetArgs(PydanticConfig):
+class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
     image_dir: Path
     label_dir: Path
     classes: dict[int, str]

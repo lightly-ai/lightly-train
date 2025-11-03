@@ -106,6 +106,7 @@ class ObjectDetectionDatasetItem(TypedDict):
     image: Tensor
     bboxes: Tensor  # Of shape (n_boxes, 4) with (x_center, y_center, w, h) coordinates.
     classes: Tensor  # Of shape (n_boxes,) with class labels.
+    original_size: tuple[int, int]  # (width, height) of the original image.
 
 
 class ObjectDetectionBatch(TypedDict):
@@ -113,6 +114,7 @@ class ObjectDetectionBatch(TypedDict):
     image: Tensor  # Tensor with shape (batch_size, 3, H, W).
     bboxes: list[Tensor]  # One tensor per image, each of shape (n_boxes, 4).
     classes: list[Tensor]  # One tensor per image, each of shape (n_boxes,).
+    original_size: list[tuple[int, int]]  # One (width, height) per image.
 
 
 class InstanceSegmentationDatasetItem(TaskDatasetItem):

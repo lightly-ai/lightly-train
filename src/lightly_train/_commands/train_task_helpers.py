@@ -34,6 +34,9 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDatasetArgs,
 )
 from lightly_train._data.task_dataset import TaskDataset
+from lightly_train._data.yolo_instance_segmentation_dataset import (
+    YOLOInstanceSegmentationDatasetArgs,
+)
 from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
@@ -56,9 +59,6 @@ from lightly_train._train_task_state import (
     ExportedCheckpoint,
     TrainCheckpoint,
     TrainTaskState,
-)
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
 )
 from lightly_train._transforms.task_transform import (
     TaskTransform,
@@ -501,23 +501,22 @@ def get_dataset_mmap_file(
 
 def get_dataset(
     fabric: Fabric,
-    dataset_args: MaskSemanticSegmentationDatasetArgs,
+    dataset_args: MaskSemanticSegmentationDatasetArgs
+    | YOLOInstanceSegmentationDatasetArgs,
     transform: TaskTransform,
     mmap_filepath: Path,
 ) -> TaskDataset:
     image_info = dataset_args.list_image_info()
 
     dataset_cls = dataset_args.get_dataset_cls()
-    # TODO(Guarin, 08/25): Relax this when we add object detection.
-    assert isinstance(transform, SemanticSegmentationTransform)
     return dataset_cls(
-        dataset_args=dataset_args,
+        dataset_args=dataset_args,  # type: ignore
         image_info=get_dataset_mmap_file(
             fabric=fabric,
             items=image_info,
             mmap_filepath=mmap_filepath,
         ),
-        transform=transform,
+        transform=transform,  # type: ignore
     )
 
 
