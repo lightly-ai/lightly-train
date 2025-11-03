@@ -54,10 +54,10 @@ class YOLOObjectDetectionDataset(TaskDataset):
             raise FileNotFoundError(f"Label file {label_path} does not exist.")
 
         image_np = file_helpers.open_image_numpy(image_path)
+        h, w, _ = image_np.shape
         bboxes_np, class_labels_np = (
             file_helpers.open_yolo_object_detection_label_numpy(label_path)
         )
-
         transformed = self.transform(
             {
                 "image": image_np,
@@ -80,6 +80,10 @@ class YOLOObjectDetectionDataset(TaskDataset):
             image=image,
             bboxes=bboxes,
             classes=class_labels,
+            original_size=(
+                w,
+                h,
+            ),  # TODO (Thomas, 10/25): Switch to (h, w) for consistency.
         )
 
 

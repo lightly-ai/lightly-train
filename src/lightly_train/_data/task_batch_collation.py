@@ -123,6 +123,7 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
                     "image": item["image"].permute(1, 2, 0).numpy(),
                     "bboxes": item["bboxes"].numpy(),
                     "classes": item["classes"].numpy(),
+                    "original_size": item["original_size"],
                 }
                 for item in batch
             ]
@@ -166,6 +167,7 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
                 "image": torch.stack(images),
                 "bboxes": bboxes,
                 "classes": classes,
+                "original_size": [item["original_size"] for item in batch],
             }
             return out_
         else:
@@ -174,5 +176,6 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
                 "image": torch.stack([item["image"] for item in batch]),
                 "bboxes": [item["bboxes"] for item in batch],
                 "classes": [item["classes"] for item in batch],
+                "original_size": [item["original_size"] for item in batch],
             }
             return out_

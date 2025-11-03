@@ -589,6 +589,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     step=step,
                     max_steps=config.steps,
                     log_dict=train_log_dict,
+                    task=config.task,
                 )
                 for group in optimizer.param_groups:
                     train_log_dict[f"learning_rate/{group['name']}"] = group["lr"]
@@ -637,6 +638,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             step=val_step,
                             max_steps=len(val_dataloader),
                             log_dict=val_log_dict,
+                            task=config.task,
                         )
                         fabric.log_dict(val_log_dict, step=step)
                         helpers.reset_metrics(val_result.log_dict)
@@ -686,6 +688,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             step=val_step,
                             max_steps=len(val_dataloader),
                             log_dict={},
+                            task=config.task,
                         )
                 train_model.set_train_mode()
                 fabric.barrier()

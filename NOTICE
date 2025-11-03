@@ -35,6 +35,7 @@ This project incorporates the following third-party components:
   - `hybrid_encoder.py` is modified to handle single resolutions features from ViTs.
   - `rtdetrv2_criterion.py` contains a new function `is_dist_available_and_initialized`.
   - Additional argument `world_size` to the `forward` method in `rtdetrv2_criterion.py`.
+  - Added `_yolo_to_xyxy` and `_denormalize_xyxy_boxes`functions to `utils.py`.
   - Remove `de_parallel` usage and `ExponentialMovingAverage` class in `ema.py`.
   - Let `ModelEMA` inherit from `torch.nn.Module` in `ema.py`.
   - Remove `to`, `state_dict`, and `load_state_dict` methods from `ModelEMA` in `ema.py`.
