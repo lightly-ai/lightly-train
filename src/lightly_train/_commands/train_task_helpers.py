@@ -619,7 +619,7 @@ def log_step(
     name_to_display_name = {
         "train_loss": "Train Loss",
         "train_metric/miou": "Train mIoU",
-        "train_metric/map/map": "Train mAP",
+        "train_metric/map": "Train mAP@0.5:0.95",
         "val_loss": "Val Loss",
         "val_metric/miou": "Val mIoU",
     }
