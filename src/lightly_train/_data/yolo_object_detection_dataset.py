@@ -138,6 +138,11 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
             image_dir=image_dir, label_dir=label_dir, classes=self.names
         )
 
+    @property
+    def included_classes(self) -> dict[int, str]:
+        """Returns included classes."""
+        return self.names
+
 
 class YOLOObjectDetectionDatasetArgs(TaskDatasetArgs):
     image_dir: Path
