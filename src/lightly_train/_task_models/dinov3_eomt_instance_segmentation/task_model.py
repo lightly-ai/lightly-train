@@ -50,9 +50,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
         num_joint_blocks: int,
-        backbone_url: str | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> None:
         """
         Args:
@@ -79,13 +79,12 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             backbone_weights:
                 The path to the DINOv3 backbone weights. The weights must be exported
                 using LightlyTrain.
-            backbone_url:
-                The URL to the DINOv3 backbone weights. This is used to download the
-                weights.
             backbone_args:
                 Additional arguments to pass to the DINOv3 backbone.
+            load_weights:
+                If False, then no pretrained weights are loaded.
         """
-        super().__init__(locals(), ignore_args={"backbone_weights", "backbone_url"})
+        super().__init__(locals(), ignore_args={"backbone_weights", "load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
@@ -111,13 +110,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         backbone_model_args: dict[str, Any] = {
             "in_chans": len(self.image_normalize["mean"]),
         }
-        if backbone_url is not None:
-            backbone_model_args["weights"] = backbone_url
-        else:
-            # Set pretrained to false when loading the model for inference. This skips
-            # loading the pretrained weights from Meta as we'll be loading weights with
-            # load_train_state_dict instead.
-            backbone_model_args["pretrained"] = False
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
 
@@ -125,6 +117,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         backbone = DINOV3_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_model_args,
+            load_weights=load_weights,
         )
         assert isinstance(backbone, DinoVisionTransformer)
         self.backbone = backbone
@@ -139,7 +132,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.
-        if backbone_weights is not None:
+        if load_weights and backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
         if len(self.backbone.blocks) < num_joint_blocks:

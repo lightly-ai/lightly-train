@@ -47,7 +47,7 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import (
     NDArrayBBoxes,
-    NDArrayBinaryMasks,
+    NDArrayBinaryMasksInt,
     NDArrayClasses,
     NDArrayImage,
 )
@@ -57,14 +57,14 @@ logger = logging.getLogger(__name__)
 
 class InstanceSegmentationTransformInput(TaskTransformInput):
     image: NDArrayImage
-    binary_masks: NDArrayBinaryMasks
+    binary_masks: NDArrayBinaryMasksInt
     bboxes: NDArrayBBoxes
     class_labels: NDArrayClasses
 
 
 class InstanceSegmentationTransformOutput(TaskTransformOutput):
     image: Tensor
-    binary_masks: NDArrayBinaryMasks
+    binary_masks: NDArrayBinaryMasksInt
     bboxes: NDArrayBBoxes
     class_labels: NDArrayClasses
 
@@ -235,22 +235,24 @@ class InstanceSegmentationTransform(TaskTransform):
         # Create the final transform.
         self.transform = Compose(
             transform,
-            additional_targets={"binary_masks": "binary_masks"},
             bbox_params=transform_args.bbox_params,
         )
 
     def __call__(
         self, input: InstanceSegmentationTransformInput
     ) -> InstanceSegmentationTransformOutput:
+        # Mask augmentations only work correctly when passed as `masks` to albumentations.
+        # Passing as `binary_masks` and adding `additional_targets={"binary_masks": "masks"}`
+        # doesn't work. "mask" also doesn't work as target.
         transformed = self.transform(
             image=input["image"],
-            binary_masks=input["binary_masks"],
+            masks=input["binary_masks"],
             bboxes=input["bboxes"],
             class_labels=input["class_labels"],
         )
         return {
             "image": transformed["image"],
-            "binary_masks": transformed["binary_masks"],
+            "binary_masks": transformed["masks"],
             "bboxes": transformed["bboxes"],
             "class_labels": transformed["class_labels"],
         }

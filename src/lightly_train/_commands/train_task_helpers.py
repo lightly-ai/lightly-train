@@ -48,7 +48,9 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model im
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
     DINOv2LinearSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import DINOv3EoMTInstanceSegmentationTrain
+from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
+    DINOv3EoMTInstanceSegmentationTrain,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
 )
@@ -591,7 +593,10 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
 
 def get_train_model_cls(model_name: str, task: str) -> type[TrainModel]:
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
-        if train_model_cls.task == task and train_model_cls.task_model_cls.is_supported_model(model_name):
+        if (
+            train_model_cls.task == task
+            and train_model_cls.task_model_cls.is_supported_model(model_name)
+        ):
             return train_model_cls
     raise ValueError(f"Unsupported model name '{model_name}' for task '{task}'.")
 
@@ -649,10 +654,26 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
             if "map" in value:
                 # Special case for detection metrics which return results like this:
                 # {"map": 0.5, "map_50": 0.7, ...}
+                agg_metrics = {
+                    "map",
+                    "map_50",
+                    "map_75",
+                    "map_small",
+                    "map_medium",
+                    "map_large",
+                    "mar_1",
+                    "mar_10",
+                    "mar_100",
+                    "mar_small",
+                    "mar_medium",
+                    "mar_large",
+                }
+                # cls_metrics = {"map_per_class", "mar_100_per_class", "classes"}
                 if name.endswith("/map"):
                     name = name[:-4]
                 for key, val in value.items():
-                    metrics[f"{name}/{key}"] = val.item()
+                    if key in agg_metrics:
+                        metrics[f"{name}/{key}"] = val.item()
             else:
                 # Class-wise metrics that look like this:
                 # {"class 1": 0.5, "class 2": 0.7, ...}

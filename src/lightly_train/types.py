@@ -30,6 +30,9 @@ NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
 NDArrayPolygon = NDArray[np.float64]  # (n_points*2,)
 NDArrayBinaryMask = NDArray[np.bool_]  # (H, W)
 NDArrayBinaryMasks = NDArray[np.bool_]  # (n_instances, H, W)
+# Binary masks as integers for compatibility with albumentations as it doesn't support
+# boolean masks.
+NDArrayBinaryMasksInt = NDArray[np.int_]  # (n_instances, H, W)
 
 
 class TransformInput(TypedDict):
