@@ -60,9 +60,6 @@ from lightly_train._train_task_state import (
     TrainCheckpoint,
     TrainTaskState,
 )
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
-)
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
