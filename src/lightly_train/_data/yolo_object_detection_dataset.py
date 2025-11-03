@@ -7,8 +7,9 @@
 #
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import ClassVar, Iterable, Sequence
+from typing import ClassVar
 
 import numpy as np
 import pydantic
@@ -45,8 +46,9 @@ class YOLOObjectDetectionDataset(TaskDataset):
 
     def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
         # Load the image.
-        image_path = Path(self.image_info[index]["image_path"])
-        label_path = Path(self.image_info[index]["label_path"]).with_suffix(".txt")
+        image_info = self.image_info[index]
+        image_path = Path(image_info["image_path"])
+        label_path = Path(image_info["label_path"]).with_suffix(".txt")
 
         if not image_path.exists():
             raise FileNotFoundError(f"Image file {image_path} does not exist.")

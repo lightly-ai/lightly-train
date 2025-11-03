@@ -117,7 +117,9 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
 
         transform_input: InstanceSegmentationTransformInput = {
             "image": image_np,
-            "binary_masks": binary_masks_np,  # Shape (n_instances, H, W)
+            "binary_masks": binary_masks_np.astype(
+                np.int_
+            ),  # Shape (n_instances, H, W)
             "bboxes": bboxes_np,  # Shape (n_instances, 4)
             "class_labels": class_labels_np,  # Shape (n_instances,)
         }
@@ -128,8 +130,6 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
 
         image = transformed["image"]
         # Some albumentations versions return lists of tuples instead of arrays.
-        if isinstance(transformed["binary_masks"], list):
-            transformed["binary_masks"] = np.array(transformed["binary_masks"])
         if isinstance(transformed["bboxes"], list):
             transformed["bboxes"] = np.array(transformed["bboxes"])
         if isinstance(transformed["class_labels"], list):
@@ -139,7 +139,7 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
         class_labels = torch.from_numpy(transformed["class_labels"]).long()
         # Match format from MaskSemanticSegmentationDatasetItem
         binary_masks: BinaryMasksDict = {
-            "masks": torch.from_numpy(transformed["binary_masks"]).bool(),
+            "masks": transformed["binary_masks"].bool(),
             "labels": class_labels,
         }
 
@@ -180,7 +180,7 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
 
 
 class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
-    ignore_index: ClassVar[int] = -100
+    ignore_index: ClassVar[int | None] = None
     path: PathLike
     train: PathLike
     val: PathLike
@@ -190,6 +190,12 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
     names: dict[int, str]
     # TODO(Guarin, 10/25): Implement ignore classes.
     ignore_classes: None = None
+
+    def train_imgs_path(self) -> Path:
+        return Path(self.path) / self.train
+
+    def val_imgs_path(self) -> Path:
+        return Path(self.path) / self.val
 
     @pydantic.field_validator("train", "val", mode="after")
     def validate_paths(cls, v: PathLike) -> Path:

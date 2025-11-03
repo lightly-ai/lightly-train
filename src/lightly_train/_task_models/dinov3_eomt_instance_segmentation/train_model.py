@@ -49,7 +49,6 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
 
     # Model args
     backbone_weights: PathLike | None = None
-    backbone_url: str = ""
     num_queries: int | Literal["auto"] = "auto"
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
@@ -181,7 +180,6 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             num_queries=num_queries,
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
-            backbone_url=model_args.backbone_url,
         )
 
         self.criterion = MaskClassificationLoss(
@@ -200,6 +198,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
 
         # Type ignore because old torchmetrics have different formats for iou_type.
         self.train_map = MeanAveragePrecision(iou_type="segm")  # type: ignore[arg-type]
+        self.train_map.warn_on_many_detections = False
         self.val_map = self.train_map.clone()
 
     def get_task_model(self) -> DINOv3EoMTInstanceSegmentation:
@@ -321,10 +320,12 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             for logits, (crop_h, crop_w), (image_h, image_w) in zip(
                 mask_logits, crop_sizes, image_sizes
             ):
+                logits = logits.unsqueeze(0)  # Add batch dim for interpolate
                 logits = logits[..., :crop_h, :crop_w]
                 logits = F.interpolate(logits, (image_h, image_w), mode="bilinear")
+                logits = logits.squeeze(0)  # Remove batch dim
                 layer_mask_logits.append(logits)
-            mask_logits_per_layer.append(mask_logits)
+            mask_logits_per_layer.append(layer_mask_logits)
 
         # Losses.
         num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]

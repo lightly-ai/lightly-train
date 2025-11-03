@@ -76,7 +76,6 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         super().__init__(
             transform=transform, dataset_args=dataset_args, image_info=image_info
         )
-
         self.ignore_index = dataset_args.ignore_index
 
         # Get the class mapping.
