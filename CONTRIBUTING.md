@@ -2,11 +2,13 @@
 
 ## Development
 
+### Setting up the Development Environment
+
 ```
 git clone https://github.com/lightly-ai/lightly-train.git
-uv venv
-make install-dev
+uv venv .venv
 source .venv/bin/activate
+make install-dev
 ```
 
 Make sure the environment is activated before running the following commands.
@@ -14,9 +16,18 @@ Make sure the environment is activated before running the following commands.
 > [!WARNING]\
 > Prepending commands with `uv run` might not work properly. Activate the environment directly instead.
 
+### Running Checks and Tests
+
+Before committing code, make sure all tests and checks pass:
+
 ```
 make format
 make static-checks
+```
+
+and if you want to run all the tests:
+
+```
 make test
 ```
 
