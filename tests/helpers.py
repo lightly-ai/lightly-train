@@ -38,6 +38,12 @@ from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     _vit_test,
 )
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
+from lightly_train._models.dinov3.dinov3_src.hub.backbones import (
+    _dinov3_convnext_test,
+    _dinov3_vit_test,
+)
+from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
@@ -529,5 +535,15 @@ def assert_same_params(
         assert a_defaults == b_defaults
 
 
-def dummy_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv2ViTModelWrapper:
+def dummy_dinov2_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv2ViTModelWrapper:
     return DINOv2ViTModelWrapper(model=_vit_test(patch_size, **kwargs))
+
+
+def dummy_dinov3_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv3ViTModelWrapper:
+    return DINOv3ViTModelWrapper(
+        model=_dinov3_vit_test(patch_size=patch_size, **kwargs)
+    )
+
+
+def dummy_dinov3_convnext_model(**kwargs: Any) -> DINOv3VConvNeXtModelWrapper:
+    return DINOv3VConvNeXtModelWrapper(model=_dinov3_convnext_test(**kwargs))

@@ -8,12 +8,9 @@
 from __future__ import annotations
 
 from torch import Tensor
-from torch.nn import AdaptiveAvgPool2d, Identity, Module, ModuleList
+from torch.nn import AdaptiveAvgPool2d, Module
 
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.block import Block
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    DinoVisionTransformer,
-)
+from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
@@ -21,8 +18,8 @@ from lightly_train._models.model_wrapper import (
 )
 
 
-class DINOv2ViTModelWrapper(Module, ModelWrapper):
-    def __init__(self, model: DinoVisionTransformer) -> None:
+class DINOv3VConvNeXtModelWrapper(Module, ModelWrapper):
+    def __init__(self, model: ConvNeXt) -> None:
         super().__init__()
         self._model = model
         self._feature_dim = int(self._model.embed_dim)
@@ -39,12 +36,9 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
             x_norm_patchtokens = rt["x_norm_patchtokens"]
             b = x_norm_patchtokens.shape[0]
             d = x_norm_patchtokens.shape[2]
-            h = x.shape[2] // self._model.patch_size
-            w = x.shape[3] // self._model.patch_size
+            h, w = rt["x_norm_patchtokens_hw"]
 
             features_reshaped = x_norm_patchtokens.permute(0, 2, 1).reshape(b, d, h, w)
-        elif rt["x_norm_patchtokens"].dim() == 4:
-            features_reshaped = rt["x_norm_patchtokens"]
         else:
             raise ValueError(
                 f"Unexpected shape for x_norm_patchtokens: {rt['x_norm_patchtokens'].shape}"
@@ -54,26 +48,8 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
 
-    def get_model(self) -> DinoVisionTransformer:
+    def get_model(self) -> ConvNeXt:
         return self._model
 
     def make_teacher(self) -> None:
-        if self._model.chunked_blocks:
-            for chunked_blocks in self._model.blocks:
-                update_blocks_student_to_teacher(chunked_blocks)  # type: ignore[arg-type]
-        else:
-            update_blocks_student_to_teacher(self._model.blocks)
-
-
-def update_blocks_student_to_teacher(blocks: ModuleList) -> None:
-    for block in blocks:
-        # For FSDP the blocks are grouped in chunks to reduce the peak
-        # memory usage after un-sharding. The chunking makes it more
-        # complicated to access the individual blocks as a consequence,
-        # chunks are padded with Identity layers.
-        assert isinstance(block, Block) or isinstance(block, Identity)
-        if isinstance(block, Identity):
-            continue
-        block.drop_path1 = Identity()
-        block.drop_path2 = Identity()
-        block.sample_drop_ratio = 0.0
+        pass

@@ -27,7 +27,7 @@ from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import ScalingInfo
 
-from ...helpers import DummyCustomModel, create_images, dummy_vit_model
+from ...helpers import DummyCustomModel, create_images, dummy_dinov2_vit_model
 
 
 class TestDistillationArgs:
@@ -187,7 +187,7 @@ class TestDistillation:
         batch_size = 2
 
         teacher_model = EmbeddingModel(
-            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+            wrapped_model=dummy_dinov2_vit_model(), embed_dim=teacher_embed_dim
         ).eval()
 
         # Mock the getter of the teacher model.
@@ -239,7 +239,7 @@ class TestDistillation:
         batch_size = 12
 
         teacher_model = EmbeddingModel(
-            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+            wrapped_model=dummy_dinov2_vit_model(), embed_dim=teacher_embed_dim
         ).eval()
 
         # Mock the getter of the teacher model.
@@ -341,7 +341,7 @@ class TestDistillation:
 
         # Dummy teacher model with real params.
         teacher_model = EmbeddingModel(
-            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+            wrapped_model=dummy_dinov2_vit_model(), embed_dim=teacher_embed_dim
         ).eval()
 
         # Patch get_teacher.
@@ -392,7 +392,7 @@ class TestDistillation:
 
         # Dummy teacher model with real params.
         teacher_model = EmbeddingModel(
-            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+            wrapped_model=dummy_dinov2_vit_model(), embed_dim=teacher_embed_dim
         ).eval()
 
         # Patch get_teacher.
@@ -444,7 +444,7 @@ class TestDistillation:
 
         # Dummy teacher model with real params.
         teacher_model = EmbeddingModel(
-            wrapped_model=dummy_vit_model(), embed_dim=teacher_embed_dim
+            wrapped_model=dummy_dinov2_vit_model(), embed_dim=teacher_embed_dim
         ).eval()
 
         # Patch get_teacher.

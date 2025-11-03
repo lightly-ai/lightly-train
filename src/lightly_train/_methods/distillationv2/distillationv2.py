@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from pathlib import Path
 from typing import Any, Literal, Mapping, cast
 
@@ -27,6 +26,7 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim.lars_args import LARSArgs
@@ -45,16 +45,15 @@ def get_teacher(
     teacher_name: str,
     num_input_channels: int,
     teacher_weights: str | Path | None = None,
-    method_args: DistillationV2Args | None = None,
 ) -> Module:
-    model_args: dict[str, Any] = {}
-    if "dinov3" in teacher_name and method_args is not None:
-        model_args["weights"] = method_args.teacher_url
-
     wrapped_model = package_helpers.get_wrapped_model(
-        model=teacher_name, num_input_channels=num_input_channels, model_args=model_args
+        model=teacher_name,
+        num_input_channels=num_input_channels,
     )
-    assert isinstance(wrapped_model, (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper))
+    assert isinstance(
+        wrapped_model,
+        (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper, DINOv3VConvNeXtModelWrapper),
+    )
     wrapped_model.make_teacher()
     teacher_embedding_model = wrapped_model.get_model()
 
@@ -86,7 +85,7 @@ class DistillationV2Args(MethodArgs):
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None
 
-    # Optional teacher url.
+    # Deprecated. Does not have any effect.
     teacher_url: str | None = None
 
     # Number of projection layers in the projection head.
@@ -170,10 +169,9 @@ class DistillationV2(Method):
             teacher_name=method_args.teacher,
             num_input_channels=num_input_channels,
             teacher_weights=method_args.teacher_weights,
-            method_args=method_args,
         )
-        self.teacher_embedding_dim = (
-            method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim
+        self.teacher_embedding_dim: int = (
+            method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim  # type: ignore
         )
 
         # Store the student model.
@@ -199,11 +197,17 @@ class DistillationV2(Method):
         # Mixup the data.
         views = self._mixup_data(views)
 
-        # Get the [B, D] teacher features.
-        x_teacher = self._forward_teacher(views)
+        # Get the (B, H*W, D) teacher features.
+        x_teacher, (teacher_features_h, teacher_features_w) = self._forward_teacher(
+            views
+        )
 
-        # Get the [B, D] student features.
-        x_student = self._forward_student(views)
+        # Get the (B, H*W, D) student features.
+        x_student = self._forward_student(
+            views,
+            teacher_features_h=teacher_features_h,
+            teacher_features_w=teacher_features_w,
+        )
 
         # Compute the loss.
         loss = self.criterion(
@@ -214,26 +218,46 @@ class DistillationV2(Method):
         return TrainingStepResult(loss=loss)
 
     @torch.no_grad()
-    def _forward_teacher(self, x: Tensor) -> Tensor:
-        # Forward the images through the teacher model.
-        x_list = self.teacher_embedding_model.get_intermediate_layers(
-            x, n=self.method_args.n_teacher_blocks
-        )
-        x = torch.cat(x_list, dim=-1)
-        return x
-
-    def _forward_student(self, x: Tensor) -> Tensor:
-        # Store the image size.
-        b, _, image_h, image_w = x.shape
-
-        # Infer the spatial size of the teacher features.
-        teacher_features_h = math.ceil(
-            image_h / self.teacher_embedding_model.patch_size
-        )
-        teacher_features_w = math.ceil(
-            image_w / self.teacher_embedding_model.patch_size
+    def _forward_teacher(self, x: Tensor) -> tuple[Tensor, tuple[int, int]]:
+        """Forward the images through the teacher model and return them in the
+        (B, H * W, n_teacher_blocks * D) format.
+        """
+        # List with n_teacher_blocks tensors with shape (B, D, H, W)
+        x_list = list(
+            self.teacher_embedding_model.get_intermediate_layers(  # type: ignore[operator]
+                x, n=self.method_args.n_teacher_blocks, reshape=True
+            )
         )
 
+        # Make sure all feature maps have the same spatial size as the last layer.
+        # For ViTs this is always the case. But ConvNeXts return feature maps of
+        # different sizes. E.g. 14x14 and 7x7.
+        teacher_features_h, teacher_features_w = x_list[-1].shape[-2:]
+        for i in range(len(x_list)):
+            x = x_list[i]
+            h, w = x.shape[-2:]
+            if (h != teacher_features_h) or (w != teacher_features_w):
+                x = F.interpolate(
+                    x,
+                    size=(teacher_features_h, teacher_features_w),
+                    mode="bilinear",
+                    align_corners=False,
+                )
+            x_list[i] = x
+
+        # Concat along the feature dimension.
+        # (B, n_teacher_blocks * D, H, W)
+        x = torch.cat(x_list, dim=1)
+        # (B, n_teacher_blocks * D, H, W) -> (B, H * W, n_teacher_blocks * D)
+        x = x.permute(0, 2, 3, 1).flatten(start_dim=1, end_dim=2)
+        return (x, (teacher_features_h, teacher_features_w))
+
+    def _forward_student(
+        self, x: Tensor, teacher_features_h: int, teacher_features_w: int
+    ) -> Tensor:
+        """Forward the images through the student model and return them in the
+        (B, H*W, D) format where D = teacher_embedding_dim.
+        """
         # Forward the images through the student model.
         x = self.student_embedding_model(x, pool=False)
 
@@ -253,7 +277,7 @@ class DistillationV2(Method):
 
         # Flatten the spatial dimensions to match the teacher features:
         # (B, D, H, W) -> (B, H * W, D).
-        x = x.permute(0, 2, 3, 1).view(b, -1, self.teacher_embedding_dim)
+        x = x.permute(0, 2, 3, 1).flatten(start_dim=1, end_dim=2)
 
         return x
 

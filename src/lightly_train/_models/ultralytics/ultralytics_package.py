@@ -16,7 +16,7 @@ import torch
 from torch.nn import Module
 
 if TYPE_CHECKING:
-    from ultralytics import YOLO
+    from ultralytics import YOLO  # type: ignore[attr-defined]
 
 from lightly_train._models import log_usage_example
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -75,7 +75,7 @@ class UltralyticsPackage(Package):
     @classmethod
     def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
         try:
-            from ultralytics import YOLO
+            from ultralytics import YOLO  # type: ignore[attr-defined]
         except ImportError:
             return False
         if isinstance(model, ModelWrapper):
@@ -88,9 +88,10 @@ class UltralyticsPackage(Package):
         model_name: str,
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> Module:
         try:
-            from ultralytics import YOLO
+            from ultralytics import YOLO  # type: ignore[attr-defined]
         except ImportError:
             raise ValueError(
                 f"Cannot create model '{model_name}' because '{cls.name}' is not "

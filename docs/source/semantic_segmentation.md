@@ -20,17 +20,6 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
 
-### ADE20k
-
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
-|----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 512×512 | 0.466 | 103.5 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vits16_ade20k.ckpt) |
-| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.544 | 48.1 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitb16_ade20k.ckpt) |
-| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.591** | 22.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/dinov3_eomt_vitl16_ade20k.ckpt) |
-| dinov2/vitl16-eomt (original) | 319 | 512×512 | 0.584 | - | - |
-
-We trained the models with 40k steps and `num_queries=100` , as in the setting of the original EoMT paper.
-
 ### COCO-Stuff
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
@@ -151,7 +140,11 @@ ID as defined in the `classes` dictionary in the dataset.
 
 ## 🔥 Use EoMT with DINOv3 🔥
 
-To fine-tune EoMT from DINOv3, you have to [sign up and accept the terms of use](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) from Meta to get access to the DINOv3 checkpoints. After signing up, you will receive an email with the download links. You can then use these links in your training script.
+To fine-tune EoMT from DINOv3, you have to set `model` to one of the [DINOv3 models](#dinov3-models).
+
+```{note}
+DINOv3 models are released under the [DINOv3 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md).
+```
 
 ```python
 import lightly_train
@@ -160,10 +153,6 @@ if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
         model="dinov3/vits16-eomt",
-        model_args={
-            # Replace with your own url
-            "backbone_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
-        },
         data={
             "train": {
                 "images": "my_data_dir/train/images",   # Path to training images
@@ -186,8 +175,6 @@ if __name__ == "__main__":
     )
 ```
 
-See [here](#dinov3-models) for the list of available DINOv3 models.
-
 (semantic-segmentation-eomt-dinov3-model-weights)=
 
 ### Use the LightlyTrain Model Checkpoints
@@ -201,12 +188,6 @@ if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
         model="dinov3/vits16-eomt",
-        model_args={
-            # Replace with your own url
-            "backbone_url": "https://dinov3.llamameta.net/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth<SOME-KEY>",
-            # For COCO-Stuff and Cityscapes dataset, we use num_queries=200 instead of the default 100
-            "num_queries": 200,
-        },
         checkpoint="/path/to/your/downloaded/model/lightlytrain_dinov3_eomt_vits16_cocostuff.pt", # use the COCO-Stuff model checkpoint for further fine-tuning
         data={...},
     )

@@ -49,7 +49,7 @@ class TestTIMMModelWrapper:
         extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 64, 64)
 
-        predictions = model.forward_head(extractor.forward_features(x)["features"])
+        predictions = model.forward_head(extractor.forward_features(x)["features"])  # type: ignore[operator]
         predictions_direct = model(x)
 
         torch.testing.assert_close(predictions, predictions_direct)
@@ -131,7 +131,7 @@ def test__forward_features(
     x = torch.rand(1, 3, 224, 224)
     features = fn(model, x)
     assert features.shape == (1, 192, 14, 14)
-    expected = model.forward_features(x)
+    expected = model.forward_features(x)  # type: ignore[operator]
     expected = expected[:, 3:]  # Drop class token + 2 reg tokens
     expected = timm_feature_extractor._to_nchw(expected)
     testing.assert_close(features, expected)
@@ -152,7 +152,7 @@ def test__drop_prefix_tokens(
         global_pool=global_pool,
     )
     x = torch.rand(1, 3, 224, 224)
-    features = model.forward_features(x)
+    features = model.forward_features(x)  # type: ignore[operator]
     features = timm_feature_extractor._drop_prefix_tokens(model, features)
     assert features.shape == (1, 14 * 14, 192)
 

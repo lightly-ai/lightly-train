@@ -54,6 +54,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         backbone_url: str | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> None:
         """
         Args:
@@ -85,12 +86,16 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                 The path to the DINOv3 backbone weights. The weights must be exported
                 using LightlyTrain.
             backbone_url:
-                The URL to the DINOv3 backbone weights. This is used to download the
-                weights.
+                Deprecated, weights are now automatically downloaded based on model name.
+                The URL to the DINOv3 backbone weights.
             backbone_args:
                 Additional arguments to pass to the DINOv3 backbone.
+            load_weights:
+                If False, then no pretrained weights are loaded.
         """
-        super().__init__(locals(), ignore_args={"backbone_weights", "backbone_url"})
+        super().__init__(
+            locals(), ignore_args={"backbone_weights", "backbone_url", "load_weights"}
+        )
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
@@ -119,13 +124,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         backbone_model_args: dict[str, Any] = {
             "in_chans": len(self.image_normalize["mean"]),
         }
-        if backbone_url is not None:
+        if load_weights and backbone_url is not None:
             backbone_model_args["weights"] = backbone_url
-        else:
-            # Set pretrained to false when loading the model for inference. This skips
-            # loading the pretrained weights from Meta as we'll be loading weights with
-            # load_train_state_dict instead.
-            backbone_model_args["pretrained"] = False
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
 
@@ -133,6 +133,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         self.backbone = DINOV3_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_model_args,
+            load_weights=load_weights,
         )
         assert isinstance(self.backbone, DinoVisionTransformer)
         embed_dim = self.backbone.embed_dim
@@ -176,12 +177,13 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # TODO(Guarin, 07/25): Move all attention mask handling to the train module.
         # Attention mask prob can be passed as argument to forward_train. No need to
         # store it as a parameter here.
+        self.attn_mask_probs: Tensor
         self.register_buffer(
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
 
         if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook(
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
                 task_model_helpers.queries_adjust_num_queries_hook
             )
         else:
@@ -309,16 +311,17 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         assert patch_size is not None
         grid_size = (H // patch_size, W // patch_size)
 
-        x, image_size = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
+        x, image_size = self.backbone.prepare_tokens_with_masks(x)  # type: ignore
         mask_logits_per_layer, class_logits_per_layer = [], []
-        for i, block in enumerate(self.backbone.blocks):
+        num_backbone_blocks = len(self.backbone.blocks)  # type: ignore
+        for i, block in enumerate(self.backbone.blocks):  # type: ignore[arg-type]
             attn_mask = None
 
             rope_sincos: tuple[Tensor, Tensor] | None = None
             if self.backbone.rope_embed is not None:
                 rope_sincos = self.backbone.rope_embed(H=image_size[0], W=image_size[1])  # type: ignore
 
-            if i == len(self.backbone.blocks) - self.num_joint_blocks:
+            if i == num_backbone_blocks - self.num_joint_blocks:
                 # Prepend query tokens.
                 x = torch.cat(
                     (self.queries.weight[None, :, :].expand(x.shape[0], -1, -1), x),
@@ -327,7 +330,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
             if (
                 return_logits_per_layer
-                and i >= len(self.backbone.blocks) - self.num_joint_blocks
+                and i >= num_backbone_blocks - self.num_joint_blocks
             ):
                 mask_logits, class_logits = self._predict(
                     self.backbone.norm(x), grid_size=grid_size
@@ -368,7 +371,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                     attn_mask = self._disable_attn_mask(
                         attn_mask=attn_mask,
                         prob=self.attn_mask_probs[
-                            i - len(self.backbone.blocks) + self.num_joint_blocks
+                            i - num_backbone_blocks + self.num_joint_blocks
                         ],
                     )
 
