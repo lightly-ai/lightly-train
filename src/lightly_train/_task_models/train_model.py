@@ -88,6 +88,9 @@ class TrainModel(Module):
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         pass
 
+    def on_train_batch_end(self) -> None:
+        pass
+
 
 @dataclass
 class TaskStepResult:

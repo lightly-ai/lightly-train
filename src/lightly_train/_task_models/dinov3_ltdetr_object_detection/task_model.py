@@ -280,7 +280,13 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         ]
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
-        self.load_state_dict(state_dict)
+        """Load the EMA state dict from a training checkpoint."""
+        new_state_dict = {}
+        for name, param in state_dict.items():
+            if name.startswith("ema_model.model."):
+                name = name[len("ema_model.model.") :]
+                new_state_dict[name] = param
+        self.load_state_dict(new_state_dict, strict=True)
 
     def deploy(self) -> Self:
         self.eval()

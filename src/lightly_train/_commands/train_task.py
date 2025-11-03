@@ -579,6 +579,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             optimizer.zero_grad()
             scheduler.step()
 
+            # Call the on_train_batch_end hook.
+            train_model.on_train_batch_end()
+
             if is_log_step or is_last_step:
                 train_log_dict = helpers.compute_metrics(train_result.log_dict)
                 helpers.log_step(

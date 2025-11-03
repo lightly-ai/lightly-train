@@ -31,6 +31,7 @@ from lightly_train._task_models.dinov2_ltdetr_object_detection.transforms import
     DINOv2LTDETRObjectDetectionValTransform,
     DINOv2LTDETRObjectDetectionValTransformArgs,
 )
+from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.object_detection_components.matcher import (
     HungarianMatcher,
 )
@@ -68,6 +69,10 @@ class DINOv2LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
+
+    use_ema_model: bool = True
+    ema_momentum: float = 0.9999
+    ema_warmup_steps: int = 2000
 
     # TODO(Thomas, 10/25): use separate dataclass for optimizer, matcher, etc.
     # Matcher configuration
@@ -136,6 +141,14 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
         )
 
+        self.ema_model: ModelEMA | None = None
+        if model_args.use_ema_model:
+            self.ema_model = ModelEMA(
+                model=self.model,
+                decay=model_args.ema_momentum,
+                warmups=model_args.ema_warmup_steps,
+            )
+
         matcher = HungarianMatcher(  # type: ignore[no-untyped-call]
             weight_dict=model_args.matcher_weight_dict,
             use_focal_loss=model_args.matcher_use_focal_loss,
@@ -192,6 +205,13 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             log_dict={**{"train_loss": total_loss.item()}, **loss_dict},
         )
 
+    def on_train_batch_end(self) -> None:
+        if self.ema_model is not None:
+            self.ema_model.update(self.model)
+
+    # def get_ema_model(self) -> Module | None:
+    #     return self.ema_model.model if self.ema_model is not None else None
+
     def validation_step(
         self,
         fabric: Fabric,
@@ -208,8 +228,14 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
         ]
+
+        if self.ema_model is not None:
+            model_to_use = self.ema_model.model
+        else:
+            model_to_use = self.model
+
         with torch.no_grad():
-            outputs = self.model._forward_train(
+            outputs = model_to_use._forward_train(
                 x=samples,
                 targets=targets,
             )
