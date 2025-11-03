@@ -174,9 +174,6 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         self.model = DINOv3EoMTInstanceSegmentation(
             model_name=model_name,
             classes=data_args.included_classes,
-            class_ignore_index=(
-                data_args.ignore_index if data_args.ignore_classes else None
-            ),
             image_size=image_size,
             image_normalize=normalize.model_dump(),
             num_queries=num_queries,
