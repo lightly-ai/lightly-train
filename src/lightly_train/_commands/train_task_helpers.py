@@ -82,6 +82,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
 ]
 
 
+# TODO(Thomas, 10/25): Create a type for the metrics.
 TASK_TO_METRICS: dict[str, dict[str, str]] = {
     "semantic_segmentation": {
         "train_metric/miou": "Train mIoU",
