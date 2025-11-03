@@ -250,9 +250,14 @@ class InstanceSegmentationTransform(TaskTransform):
             bboxes=input["bboxes"],
             class_labels=input["class_labels"],
         )
+        # Remove binary masks that are all zero after transformation.
+        # Albumentations doesn't do this automatically, but it removes bboxes and
+        # class labels that correspond to such masks.
+        masks = transformed["masks"]
+        masks = masks[masks.sum(dim=(1, 2)) > 0]
         return {
             "image": transformed["image"],
-            "binary_masks": transformed["masks"],
+            "binary_masks": masks,
             "bboxes": transformed["bboxes"],
             "class_labels": transformed["class_labels"],
         }

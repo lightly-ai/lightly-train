@@ -117,9 +117,8 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
 
         transform_input: InstanceSegmentationTransformInput = {
             "image": image_np,
-            "binary_masks": binary_masks_np.astype(
-                np.int_
-            ),  # Shape (n_instances, H, W)
+            # Shape (n_instances, H, W)
+            "binary_masks": binary_masks_np.astype(np.int_),
             "bboxes": bboxes_np,  # Shape (n_instances, 4)
             "class_labels": class_labels_np,  # Shape (n_instances,)
         }
