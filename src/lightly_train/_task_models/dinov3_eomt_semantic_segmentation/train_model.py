@@ -50,7 +50,8 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
     # Model args
     backbone_weights: PathLike | None = None
-    backbone_url: str = ""
+    # Deprecated. Weights are now automatically loaded based on model name.
+    backbone_url: str | None = None
     num_queries: int | Literal["auto"] = "auto"
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.

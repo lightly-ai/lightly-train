@@ -49,6 +49,7 @@ class TIMMPackage(Package):
         model_name: str,
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> Module:
         try:
             import timm
@@ -56,7 +57,7 @@ class TIMMPackage(Package):
             raise ValueError(
                 f"Cannot create model '{model_name}' because timm is not installed."
             )
-        args = dict(pretrained=False, in_chans=num_input_channels)
+        args: dict[str, Any] = dict(pretrained=False, in_chans=num_input_channels)
         # vit and eva models have dynamic_img_size defaulting to False, which would not allow inputs with varying image sizes, e.g., for DINO
         if (
             model_name.startswith("vit")
@@ -66,6 +67,9 @@ class TIMMPackage(Package):
             args.update({"dynamic_img_size": True})
         if model_args is not None:
             args.update(model_args)
+        if not load_weights:
+            args["pretrained"] = False
+            args["checkpoint_path"] = None
 
         # Type ignore as typing **args correctly is too complex
         model: Module = timm.create_model(model_name, **args)  # type: ignore[arg-type]

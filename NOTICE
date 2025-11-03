@@ -23,6 +23,10 @@ This project incorporates the following third-party components:
 - Source: https://github.com/facebookresearch/dinov3
 - License: DINOv3 License (custom)
 - License file: licences/DINOv3_LICENSE.md
+- Modifications:
+  - Added compatibility for PyTorch < 2.2.
+  - Added parameter to load SAT493M weights with different filenames.
+  - Added small test models.
 
 **RT-DETR**
 - Source: https://github.com/lyuwenyu/RT-DETR
