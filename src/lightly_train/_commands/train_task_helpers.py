@@ -30,13 +30,6 @@ from lightly_train._data._serialize.memory_mapped_sequence import (
     MemoryMappedSequence,
     Primitive,
 )
-from lightly_train._data.mask_semantic_segmentation_dataset import (
-    MaskSemanticSegmentationDatasetArgs,
-)
-from lightly_train._data.task_dataset import TaskDataset
-from lightly_train._data.yolo_instance_segmentation_dataset import (
-    YOLOInstanceSegmentationDatasetArgs,
-)
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
@@ -49,10 +42,11 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model im
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
     DINOv2LinearSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
-    DINOv3EoMTInstanceSegmentationTrain,
 from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrain,
+)
+from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
+    DINOv3EoMTInstanceSegmentationTrain,
 )
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,

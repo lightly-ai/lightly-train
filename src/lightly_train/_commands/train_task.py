@@ -169,6 +169,7 @@ def train_instance_segmentation(
     """
     return _train_task(task="instance_segmentation", **locals())
 
+
 def train_object_detection(
     *,
     out: PathLike,
@@ -860,7 +861,11 @@ def _is_better_metric(
 
 class TrainTaskConfig(PydanticConfig):
     out: PathLike
-    data: MaskSemanticSegmentationDataArgs | YOLOInstanceSegmentationDataArgs | YOLOObjectDetectionDataArgs
+    data: (
+        MaskSemanticSegmentationDataArgs
+        | YOLOInstanceSegmentationDataArgs
+        | YOLOObjectDetectionDataArgs
+    )
     model: str
     task: Literal["instance_segmentation", "semantic_segmentation", "object_detection"]
     steps: int | Literal["auto"] = "auto"

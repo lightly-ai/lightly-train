@@ -10,7 +10,6 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import ClassVar
-from typing import ClassVar, Iterable, Sequence
 
 import numpy as np
 import pydantic
@@ -145,6 +144,7 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
     def included_classes(self) -> dict[int, str]:
         """Returns included classes."""
         return self.names
+
 
 class YOLOObjectDetectionDatasetArgs(TaskDatasetArgs):
     image_dir: Path
