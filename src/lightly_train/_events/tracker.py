@@ -63,7 +63,10 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     global _last_flush
 
     current_time = time.time()
-    if config.EVENTS_DISABLED or current_time - _last_event_time.get(event_name, -100.0) < _RATE_LIMIT_SECONDS:
+    if (
+        config.EVENTS_DISABLED
+        or current_time - _last_event_time.get(event_name, -100.0) < _RATE_LIMIT_SECONDS
+    ):
         return
 
     _last_event_time[event_name] = current_time

@@ -46,7 +46,9 @@ def test_track_event__disabled(mock_events_disabled: None) -> None:
     assert "test_event" not in tracker._last_event_time
 
 
-def test_track_event__rate_limited(mock_events_enabled: None, mocker: MockerFixture) -> None:
+def test_track_event__rate_limited(
+    mock_events_enabled: None, mocker: MockerFixture
+) -> None:
     """Test that events within 30s are rate limited."""
     mock_time = mocker.patch("lightly_train._events.tracker.time.time")
 
