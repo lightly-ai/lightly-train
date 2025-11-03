@@ -648,8 +648,8 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
             if "map" in value:
                 # Special case for detection metrics which return results like this:
                 # {"map": 0.5, "map_50": 0.7, ...}
-                if name.endswith("map"):
-                    name = name[:-3]
+                if name.endswith("/map"):
+                    name = name[:-4]
                 for key, val in value.items():
                     metrics[f"{name}/{key}"] = val.item()
             else:
