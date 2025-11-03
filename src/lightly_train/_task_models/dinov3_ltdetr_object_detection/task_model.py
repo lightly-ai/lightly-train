@@ -151,13 +151,13 @@ class _RTDETRPostProcessorConfig(PydanticConfig):
     num_top_queries: int = 300
 
 
-class _DINOv3LTDetrObjectDetectionConfig(PydanticConfig):
+class _DINOv3LTDETRObjectDetectionConfig(PydanticConfig):
     hybrid_encoder: _HybridEncoderConfig
     rtdetr_transformer: _RTDETRTransformerv2Config
     rtdetr_postprocessor: _RTDETRPostProcessorConfig
 
 
-class _DINOv3LTDetrObjectDetectionLargeConfig(_DINOv3LTDetrObjectDetectionConfig):
+class _DINOv3LTDETRObjectDetectionLargeConfig(_DINOv3LTDETRObjectDetectionConfig):
     hybrid_encoder: _HybridEncoderLargeConfig = Field(
         default_factory=_HybridEncoderLargeConfig
     )
@@ -169,7 +169,7 @@ class _DINOv3LTDetrObjectDetectionLargeConfig(_DINOv3LTDetrObjectDetectionConfig
     )
 
 
-class _DINOv3LTDetrObjectDetectionBaseConfig(_DINOv3LTDetrObjectDetectionConfig):
+class _DINOv3LTDETRObjectDetectionBaseConfig(_DINOv3LTDETRObjectDetectionConfig):
     hybrid_encoder: _HybridEncoderBaseConfig = Field(
         default_factory=_HybridEncoderBaseConfig
     )
@@ -181,7 +181,7 @@ class _DINOv3LTDetrObjectDetectionBaseConfig(_DINOv3LTDetrObjectDetectionConfig)
     )
 
 
-class _DINOv3LTDetrObjectDetectionSmallConfig(_DINOv3LTDetrObjectDetectionConfig):
+class _DINOv3LTDETRObjectDetectionSmallConfig(_DINOv3LTDETRObjectDetectionConfig):
     hybrid_encoder: _HybridEncoderSmallConfig = Field(
         default_factory=_HybridEncoderSmallConfig
     )
@@ -193,7 +193,7 @@ class _DINOv3LTDetrObjectDetectionSmallConfig(_DINOv3LTDetrObjectDetectionConfig
     )
 
 
-class _DINOv3LTDetrObjectDetectionTinyConfig(_DINOv3LTDetrObjectDetectionConfig):
+class _DINOv3LTDETRObjectDetectionTinyConfig(_DINOv3LTDETRObjectDetectionConfig):
     hybrid_encoder: _HybridEncoderTinyConfig = Field(
         default_factory=_HybridEncoderTinyConfig
     )
@@ -205,7 +205,7 @@ class _DINOv3LTDetrObjectDetectionTinyConfig(_DINOv3LTDetrObjectDetectionConfig)
     )
 
 
-class DINOv3LTDetrObjectDetectionTaskModel(TaskModel):
+class DINOv3LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
 
     def __init__(
@@ -213,7 +213,7 @@ class DINOv3LTDetrObjectDetectionTaskModel(TaskModel):
         *,
         model_name: str,
         image_size: tuple[int, int],
-        classes: dict[str, int] | None = None,
+        classes: dict[int, str] | None = None,
         image_normalize: dict[str, Any] | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
@@ -254,10 +254,10 @@ class DINOv3LTDetrObjectDetectionTaskModel(TaskModel):
         self.backbone: DINOv3ConvNextWrapper = DINOv3ConvNextWrapper(model=dinov3)
 
         config_mapping = {
-            "convnext-tiny": _DINOv3LTDetrObjectDetectionTinyConfig,
-            "convnext-small": _DINOv3LTDetrObjectDetectionSmallConfig,
-            "convnext-base": _DINOv3LTDetrObjectDetectionBaseConfig,
-            "convnext-large": _DINOv3LTDetrObjectDetectionLargeConfig,
+            "convnext-tiny": _DINOv3LTDETRObjectDetectionTinyConfig,
+            "convnext-small": _DINOv3LTDETRObjectDetectionSmallConfig,
+            "convnext-base": _DINOv3LTDETRObjectDetectionBaseConfig,
+            "convnext-large": _DINOv3LTDETRObjectDetectionLargeConfig,
         }
         config = config_mapping[parsed_name["backbone_name"]]()
 
@@ -284,7 +284,13 @@ class DINOv3LTDetrObjectDetectionTaskModel(TaskModel):
         ]
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
-        self.load_state_dict(state_dict)
+        """Load the EMA state dict from a training checkpoint."""
+        new_state_dict = {}
+        for name, param in state_dict.items():
+            if name.startswith("ema_model.model."):
+                name = name[len("ema_model.model.") :]
+                new_state_dict[name] = param
+        self.load_state_dict(new_state_dict, strict=True)
 
     def deploy(self) -> Self:
         self.eval()
@@ -369,3 +375,18 @@ class DINOv3LTDetrObjectDetectionTaskModel(TaskModel):
             "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
         }
+
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        try:
+            cls.parse_model_name(model_name=model)
+        except ValueError:
+            return False
+        else:
+            return True
+
+    def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
+        x = self.backbone(x)
+        x = self.encoder(x)
+        x = self.decoder(feats=x, targets=targets)
+        return x

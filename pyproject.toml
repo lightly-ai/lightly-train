@@ -34,7 +34,7 @@ dependencies = [
     "pytorch_lightning>=2.1",
     "tensorboard>=2.10.0",
     "torch>=2.1.0",    
-    "torchmetrics>=0.8",    # Torchmetrics is needed for fine-tuning.
+    "torchmetrics[detection]>=0.8",    # Torchmetrics is needed for fine-tuning.
                             # 0.8 is required by SuperGradients
                             # 1.5.2 is the last version that supports Python 3.8
                             # 1.7 is recommended version
