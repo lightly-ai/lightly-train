@@ -37,6 +37,7 @@ from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDatasetArgs,
 )
+from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
@@ -50,9 +51,14 @@ from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model 
 )
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
     DINOv3EoMTInstanceSegmentationTrain,
+from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
+    DINOv2LTDETRObjectDetectionTrain,
 )
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
+    DINOv3LTDETRObjectDetectionTrain,
 )
 from lightly_train._task_models.train_model import (
     TrainModel,
@@ -85,7 +91,26 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
+    DINOv2LTDETRObjectDetectionTrain,
+    DINOv3LTDETRObjectDetectionTrain,
 ]
+
+
+# TODO(Thomas, 10/25): Create a type for the metrics.
+TASK_TO_METRICS: dict[str, dict[str, str]] = {
+    "semantic_segmentation": {
+        "train_metric/miou": "Train mIoU",
+        "val_metric/miou": "Val mIoU",
+    },
+    "object_detection": {
+        "val_metric/map": "Val mAP@0.5:0.95",
+        "val_metric/map_50": "Val mAP@0.5",
+        "val_metric/map_75": "Val mAP@0.75",
+        "val_metric/map_small": "Val mAP (small)",
+        "val_metric/map_medium": "Val mAP (medium)",
+        "val_metric/map_large": "Val mAP (large)",
+    },
+}
 
 
 def get_out_dir(
@@ -505,8 +530,7 @@ def get_dataset_mmap_file(
 
 def get_dataset(
     fabric: Fabric,
-    dataset_args: MaskSemanticSegmentationDatasetArgs
-    | YOLOInstanceSegmentationDatasetArgs,
+    dataset_args: TaskDatasetArgs,
     transform: TaskTransform,
     mmap_filepath: Path,
 ) -> TaskDataset:
@@ -619,16 +643,19 @@ def get_train_model_args(
 
 
 def log_step(
-    split: Literal["train", "val"], step: int, max_steps: int, log_dict: dict[str, Any]
+    split: Literal["train", "val"],
+    step: int,
+    max_steps: int,
+    log_dict: dict[str, Any],
+    task: str,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
         "train_loss": "Train Loss",
-        "train_metric/miou": "Train mIoU",
-        "train_metric/map": "Train mAP@0.5:0.95",
         "val_loss": "Val Loss",
-        "val_metric/miou": "Val mIoU",
     }
+    name_to_display_name = {**name_to_display_name, **TASK_TO_METRICS.get(task, {})}
+
     parts = [
         f"{split_cap} Step {step + 1}/{max_steps}",
     ]
@@ -694,12 +721,18 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
 
 
 def get_save_checkpoint_args(
+    train_model_cls: type[TrainModel],
     checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None,
 ) -> TaskSaveCheckpointArgs:
     if isinstance(checkpoint_args, TaskSaveCheckpointArgs):
         return checkpoint_args
-    checkpoint_args = {} if checkpoint_args is None else checkpoint_args
-    args = validate.pydantic_model_validate(TaskSaveCheckpointArgs, checkpoint_args)
+    checkpoint_args_cls = train_model_cls.train_model_args_cls.save_checkpoint_args_cls
+    # Merge with possible overrides from checkpoint_args.
+    default_checkpoint_args = checkpoint_args_cls().model_dump()  # type: ignore[call-arg]
+    default_checkpoint_args.update(checkpoint_args or {})
+    args = validate.pydantic_model_validate(
+        TaskSaveCheckpointArgs, default_checkpoint_args
+    )
     return args
 
 

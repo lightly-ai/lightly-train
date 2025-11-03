@@ -57,7 +57,6 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
         super().__init__(
             transform=transform, dataset_args=dataset_args, image_info=image_info
         )
-
         # Get the class mapping.
         self.class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(

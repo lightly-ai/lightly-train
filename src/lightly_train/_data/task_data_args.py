@@ -12,7 +12,7 @@ from lightly_train._configs.config import PydanticConfig
 
 class TaskDataArgs(PydanticConfig):
     def train_imgs_path(self) -> Path:
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def val_imgs_path(self) -> Path:
-        raise NotImplementedError
+        raise NotImplementedError()

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from typing import ClassVar
+from typing import ClassVar, Iterable, Sequence
 
 from torch.utils.data import Dataset
 

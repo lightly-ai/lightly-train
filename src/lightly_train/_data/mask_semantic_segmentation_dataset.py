@@ -420,6 +420,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
 
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if this makes sense to have in data args.
+
     def get_train_args(
         self,
     ) -> MaskSemanticSegmentationDatasetArgs:

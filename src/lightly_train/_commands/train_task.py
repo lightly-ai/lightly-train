@@ -31,6 +31,9 @@ from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
 )
+from lightly_train._data.yolo_object_detection_dataset import (
+    YOLOObjectDetectionDataArgs,
+)
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModelArgs
@@ -166,6 +169,134 @@ def train_instance_segmentation(
     """
     return _train_task(task="instance_segmentation", **locals())
 
+def train_object_detection(
+    *,
+    out: PathLike,
+    data: dict[str, Any],
+    model: str,
+    steps: int | Literal["auto"] = "auto",
+    batch_size: int | Literal["auto"] = "auto",
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    resume_interrupted: bool = False,
+    checkpoint: PathLike | None = None,
+    reuse_class_head: bool = False,
+    overwrite: bool = False,
+    accelerator: str = "auto",
+    strategy: str = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    seed: int | None = 0,
+    logger_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
+) -> None:
+    """Train an object detection model.
+
+    See the documentation for more information: https://docs.lightly.ai/train/stable/object_detection.html
+
+        The training process can be monitored with TensorBoard:
+
+    .. code-block:: bash
+
+        tensorboard --logdir out
+
+    After training, the last model checkpoint is saved in the out directory to:
+    ``out/checkpoints/last.ckpt`` and also exported to ``out/exported_models/exported_last.pt``.
+
+    Args:
+        out:
+            The output directory where the model checkpoints and logs are saved.
+        data:
+            The dataset configuration. See the documentation for more information:
+            https://docs.lightly.ai/train/stable/object_detection.html#data
+        model:
+            The model to train. For example, "dinov2/vits14-ltdetr".
+        steps:
+            The number of training steps.
+        batch_size:
+            Global batch size. The batch size per device/GPU is inferred from this value
+            and the number of devices and nodes.
+        num_workers:
+            Number of workers for the dataloader per device/GPU. 'auto' automatically
+            sets the number of workers based on the available CPU cores.
+        devices:
+            Number of devices/GPUs for training. 'auto' automatically selects all
+            available devices. The device type is determined by the ``accelerator``
+            parameter.
+        num_nodes:
+            Number of nodes for distributed training.
+        checkpoint:
+            Use this parameter to further fine-tune a model from a previous fine-tuned checkpoint.
+            The checkpoint must be a path to a checkpoint file, for example "checkpoints/model.ckpt".
+            This will only load the model weights from the previous run. All other
+            training state (e.g. optimizer state, epochs) from the previous run are not
+            loaded.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
+        reuse_class_head:
+            Set this to True if you want to keep the class head from the provided
+            checkpoint. The default behavior removes the class head before loading so
+            that a new head can be initialized for the current task.
+        resume_interrupted:
+            Set this to True if you want to resume training from an **interrupted or
+            crashed** training run. This will pick up exactly where the training left
+            off, including the optimizer state and the current step.
+
+            - You must use the same ``out`` directory as the interrupted run.
+            - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
+            - This is intended for continuing the same run without modification.
+        overwrite:
+            Overwrite the output directory if it already exists. Warning, this might
+            overwrite existing files in the directory!
+        accelerator:
+            Hardware accelerator. Can be one of ['cpu', 'gpu', 'mps', 'auto'].
+            'auto' will automatically select the best accelerator available.
+        strategy:
+            Training strategy. For example 'ddp' or 'auto'. 'auto' automatically
+            selects the best strategy available.
+        precision:
+            Training precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
+            for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication. Can be one of ['auto',
+            'highest', 'high', 'medium']. See https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
+            for more information.
+        seed:
+            Random seed for reproducibility.
+        logger_args:
+            Logger arguments. Either None or a dictionary of logger names to either
+            None or a dictionary of logger arguments. None uses the default loggers.
+            To disable a logger, set it to None: ``logger_args={"tensorboard": None}``.
+            To configure a logger, pass the respective arguments:
+            ``logger_args={"mlflow": {"experiment_name": "my_experiment", ...}}``.
+            See https://docs.lightly.ai/train/stable/semantic_segmentation.html#logging
+            for more information.
+        model_args:
+            Model training arguments. Either None or a dictionary of model arguments.
+        transform_args:
+            Transform arguments. Either None or a dictionary of transform arguments.
+            The image size and normalization parameters can be set with
+            ``transform_args={"image_size": (height, width), "normalize": {"mean": (r, g, b), "std": (r, g, b)}}``
+        loader_args:
+            Arguments for the PyTorch DataLoader. Should only be used in special cases
+            as default values are automatically set. Prefer to use the `batch_size` and
+            `num_workers` arguments instead. For details, see:
+            https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader
+        save_checkpoint_args:
+            Arguments to configure the saving of checkpoints. The checkpoint frequency
+            can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+    """
+    if reuse_class_head:
+        raise NotImplementedError(
+            "Reusing the class head is not yet implemented for object detection models."
+        )
+    return _train_task(task="object_detection", **locals())
+
 
 def train_semantic_segmentation(
     *,
@@ -297,7 +428,7 @@ def _train_task(
     out: PathLike,
     data: dict[str, Any],
     model: str,
-    task: Literal["instance_segmentation", "semantic_segmentation"],
+    task: Literal["instance_segmentation", "object_detection", "semantic_segmentation"],
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
     num_workers: int | Literal["auto"] = "auto",
@@ -371,12 +502,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             float32_matmul_precision=config.float32_matmul_precision,
         )
     )
-    config.save_checkpoint_args = helpers.get_save_checkpoint_args(
-        checkpoint_args=config.save_checkpoint_args
-    )
     train_model_cls = helpers.get_train_model_cls(
         model_name=config.model,
         task=config.task,
+    )
+    config.save_checkpoint_args = helpers.get_save_checkpoint_args(
+        train_model_cls=train_model_cls, checkpoint_args=config.save_checkpoint_args
     )
 
     # Load checkpoint context if resuming or further fine-tuning.
@@ -400,7 +531,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     train_transform_args, val_transform_args = helpers.get_transform_args(
         train_model_cls=train_model_cls,
         transform_args=config.transform_args,
-        ignore_index=config.data.ignore_index,
+        # TODO (Lionel, 10/25): Handle ignore_index properly for object detection.
+        ignore_index=config.data.ignore_index
+        if hasattr(config.data, "ignore_index")
+        else None,
         model_init_args=model_init_args,
     )
     train_transform = helpers.get_train_transform(
@@ -491,7 +625,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             num_workers=config.num_workers,
             loader_args=config.loader_args,
         )
-
         config.logger_args = helpers.get_logger_args(
             steps=config.steps,
             val_steps=len(val_dataloader),
@@ -572,7 +705,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             logger.info(f"Training for {config.steps} steps...")
 
         fabric.barrier()
-        max_val_miou = 0.0
+        best_metric = (
+            -float("inf") if config.save_checkpoint_args.mode == "max" else float("inf")
+        )
         for step in range(start_step, config.steps):
             state["step"] = step
             is_last_step = step + 1 == config.steps
@@ -597,6 +732,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             optimizer.zero_grad()
             scheduler.step()
 
+            # Call the on_train_batch_end hook.
+            train_model.on_train_batch_end()
+
             if is_log_step or is_last_step:
                 train_log_dict = helpers.compute_metrics(train_result.log_dict)
                 helpers.log_step(
@@ -604,6 +742,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     step=step,
                     max_steps=config.steps,
                     log_dict=train_log_dict,
+                    task=config.task,
                 )
                 for group in optimizer.param_groups:
                     train_log_dict[f"learning_rate/{group['name']}"] = group["lr"]
@@ -652,19 +791,26 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             step=val_step,
                             max_steps=len(val_dataloader),
                             log_dict=val_log_dict,
+                            task=config.task,
                         )
                         fabric.log_dict(val_log_dict, step=step)
                         helpers.reset_metrics(val_result.log_dict)
 
-                        val_miou = val_log_dict.get("val_metric/miou")
-                        if val_miou is None:
+                        watch_metric = val_log_dict.get(
+                            config.save_checkpoint_args.watch_metric
+                        )
+                        if watch_metric is None:
                             logger.warning(
-                                "Validation metric 'val_metric/miou' not found in val_log_dict. Skipping best model checkpoint update."
+                                f"Validation metric '{config.save_checkpoint_args.watch_metric}' not found in val_log_dict. Skipping best model checkpoint update."
                             )
-                        elif val_miou > max_val_miou:
+                        elif _is_better_metric(
+                            current_metric=watch_metric,
+                            best_metric=best_metric,
+                            mode=config.save_checkpoint_args.mode,
+                        ):
                             if config.save_checkpoint_args.save_best:
                                 logger.info(
-                                    f"The best validation metric 'val_metric/miou'={val_miou:.4f} was reached."
+                                    f"The best validation metric '{config.save_checkpoint_args.watch_metric}'={watch_metric:.4f} was reached."
                                 )
                                 helpers.save_checkpoint(
                                     fabric=fabric,
@@ -685,7 +831,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                     best_or_last="best",
                                 )
 
-                            max_val_miou = val_miou
+                            best_metric = watch_metric
 
                     elif is_val_log_step:
                         # Show that we are making progress. Metrics are only calculated
@@ -695,17 +841,28 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             step=val_step,
                             max_steps=len(val_dataloader),
                             log_dict={},
+                            task=config.task,
                         )
                 train_model.set_train_mode()
                 fabric.barrier()
         logger.info("Training completed.")
 
 
+def _is_better_metric(
+    current_metric: float, best_metric: float, mode: Literal["min", "max"]
+) -> bool:
+    if mode == "min":
+        return current_metric < best_metric
+    elif mode == "max":
+        return current_metric > best_metric
+    raise ValueError(f"Unknown mode: {mode}")
+
+
 class TrainTaskConfig(PydanticConfig):
     out: PathLike
-    data: MaskSemanticSegmentationDataArgs | YOLOInstanceSegmentationDataArgs
+    data: MaskSemanticSegmentationDataArgs | YOLOInstanceSegmentationDataArgs | YOLOObjectDetectionDataArgs
     model: str
-    task: Literal["semantic_segmentation", "instance_segmentation"]
+    task: Literal["instance_segmentation", "semantic_segmentation", "object_detection"]
     steps: int | Literal["auto"] = "auto"
     batch_size: int | Literal["auto"] = "auto"
     num_workers: int | Literal["auto"] = "auto"
