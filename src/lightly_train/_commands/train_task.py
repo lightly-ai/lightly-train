@@ -27,6 +27,7 @@ from lightly_train._data.infinite_cycle_iterator import InfiniteCycleIterator
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
+from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
@@ -167,7 +168,7 @@ def train_instance_segmentation(
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
     """
-    return _train_task(task="instance_segmentation", **locals())
+    return _train_task(config_cls=InstanceSegmentationTrainTaskConfig, **locals())
 
 
 def train_object_detection(
@@ -296,7 +297,7 @@ def train_object_detection(
         raise NotImplementedError(
             "Reusing the class head is not yet implemented for object detection models."
         )
-    return _train_task(task="object_detection", **locals())
+    return _train_task(config_cls=ObjectDetectionTrainTaskConfig, **locals())
 
 
 def train_semantic_segmentation(
@@ -421,15 +422,15 @@ def train_semantic_segmentation(
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
     """
-    return _train_task(task="semantic_segmentation", **locals())
+    return _train_task(config_cls=SemanticSegmentationTrainTaskConfig, **locals())
 
 
 def _train_task(
     *,
+    config_cls: type[TrainTaskConfig],
     out: PathLike,
     data: dict[str, Any],
     model: str,
-    task: Literal["instance_segmentation", "object_detection", "semantic_segmentation"],
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
     num_workers: int | Literal["auto"] = "auto",
@@ -450,7 +451,7 @@ def _train_task(
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
-    config = validate.pydantic_model_validate(TrainTaskConfig, locals())
+    config = validate.pydantic_model_validate(config_cls, locals())
     _train_task_from_config(config=config)
 
 
@@ -861,11 +862,7 @@ def _is_better_metric(
 
 class TrainTaskConfig(PydanticConfig):
     out: PathLike
-    data: (
-        MaskSemanticSegmentationDataArgs
-        | YOLOInstanceSegmentationDataArgs
-        | YOLOObjectDetectionDataArgs
-    )
+    data: TaskDataArgs
     model: str
     task: Literal["instance_segmentation", "semantic_segmentation", "object_detection"]
     steps: int | Literal["auto"] = "auto"
@@ -890,3 +887,18 @@ class TrainTaskConfig(PydanticConfig):
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):
+    data: YOLOInstanceSegmentationDataArgs
+    task: Literal["instance_segmentation"] = "instance_segmentation"
+
+
+class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
+    data: YOLOObjectDetectionDataArgs
+    task: Literal["object_detection"] = "object_detection"
+
+
+class SemanticSegmentationTrainTaskConfig(TrainTaskConfig):
+    data: MaskSemanticSegmentationDataArgs
+    task: Literal["semantic_segmentation"] = "semantic_segmentation"

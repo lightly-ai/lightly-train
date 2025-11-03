@@ -8,11 +8,26 @@
 from pathlib import Path
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._data.task_dataset import TaskDatasetArgs
 
 
 class TaskDataArgs(PydanticConfig):
+    @property
+    def included_classes(self) -> dict[int, str]:
+        raise NotImplementedError()
+
     def train_imgs_path(self) -> Path:
         raise NotImplementedError()
 
     def val_imgs_path(self) -> Path:
+        raise NotImplementedError()
+
+    def get_train_args(
+        self,
+    ) -> TaskDatasetArgs:
+        raise NotImplementedError()
+
+    def get_val_args(
+        self,
+    ) -> TaskDatasetArgs:
         raise NotImplementedError()
