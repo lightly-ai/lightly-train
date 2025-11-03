@@ -64,7 +64,7 @@ class InstanceSegmentationTransformInput(TaskTransformInput):
 
 class InstanceSegmentationTransformOutput(TaskTransformOutput):
     image: Tensor
-    binary_masks: NDArrayBinaryMasksInt
+    binary_masks: Tensor
     bboxes: NDArrayBBoxes
     class_labels: NDArrayClasses
 
