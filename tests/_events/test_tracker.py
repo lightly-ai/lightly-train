@@ -15,43 +15,63 @@ from pytest_mock import MockerFixture
 from lightly_train._events import tracker
 
 
-def test_track_event__disabled(mocker: MockerFixture) -> None:
-    """Test that events are not tracked when disabled."""
+@pytest.fixture
+def mock_events_disabled(mocker: MockerFixture) -> None:
+    """Mock events as disabled."""
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_EVENTS_DISABLED": "1"})
     mocker.patch("lightly_train._events.config.EVENTS_DISABLED", True)
 
-    tracker._events.clear()
-    tracker._sent_event_names.clear()
 
+@pytest.fixture
+def mock_events_enabled(mocker: MockerFixture) -> None:
+    """Mock events as enabled and prevent background threads."""
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_EVENTS_DISABLED": "0"})
+    mocker.patch("lightly_train._events.config.EVENTS_DISABLED", False)
+    mocker.patch("threading.Thread")
+
+
+@pytest.fixture(autouse=True)
+def clear_tracker_state() -> None:
+    """Clear tracker state before each test."""
+    tracker._events.clear()
+    tracker._last_event_time.clear()
+    tracker._system_info = None
+
+
+def test_track_event__disabled(mock_events_disabled: None) -> None:
+    """Test that events are not tracked when disabled."""
     tracker.track_event(event_name="test_event", properties={"key": "value"})
 
     assert len(tracker._events) == 0
-    assert "test_event" not in tracker._sent_event_names
+    assert "test_event" not in tracker._last_event_time
 
 
-def test_track_event__duplicate(mocker: MockerFixture) -> None:
-    """Test that duplicate events are ignored."""
-    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_EVENTS_DISABLED": "0"})
-    mocker.patch("lightly_train._events.config.EVENTS_DISABLED", False)
+def test_track_event__rate_limited(mock_events_enabled: None, mocker: MockerFixture) -> None:
+    """Test that events within 30s are rate limited."""
+    mock_time = mocker.patch("lightly_train._events.tracker.time.time")
 
-    tracker._events.clear()
-    tracker._sent_event_names.clear()
-
+    # First event at t=0
+    mock_time.return_value = 0.0
     tracker.track_event(event_name="test_event", properties={"key": "value1"})
+
+    # Second event at t=10 (within 30s) - should be ignored
+    mock_time.return_value = 10.0
     tracker.track_event(event_name="test_event", properties={"key": "value2"})
 
-    assert len(tracker._events) == 1
-    assert "test_event" in tracker._sent_event_names
+    # Third event at t=31 (after 30s) - should be tracked
+    mock_time.return_value = 31.0
+    tracker.track_event(event_name="test_event", properties={"key": "value3"})
+
+    assert len(tracker._events) == 2
+    assert tracker._events[0]["properties"]["key"] == "value1"
+    assert tracker._events[1]["properties"]["key"] == "value3"
 
 
-def test_track_event__structure(mocker: MockerFixture) -> None:
+def test_track_event__structure(
+    mock_events_enabled: None, mocker: MockerFixture
+) -> None:
     """Test that event data has correct structure."""
-    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_EVENTS_DISABLED": "0"})
-    mocker.patch("lightly_train._events.config.EVENTS_DISABLED", False)
     mocker.patch("lightly_train._events.config.POSTHOG_API_KEY", "test_key")
-
-    tracker._events.clear()
-    tracker._sent_event_names.clear()
 
     tracker.track_event(event_name="test_event", properties={"prop1": "value1"})
 
@@ -68,7 +88,6 @@ def test_track_event__structure(mocker: MockerFixture) -> None:
 
 def test__get_system_info__cached(mocker: MockerFixture) -> None:
     """Test that system info is cached."""
-    tracker._system_info = None
     mock_cuda = mocker.patch("torch.cuda.is_available", return_value=False)
 
     info1 = tracker._get_system_info()
@@ -80,7 +99,6 @@ def test__get_system_info__cached(mocker: MockerFixture) -> None:
 
 def test__get_system_info__structure() -> None:
     """Test that system info has correct structure."""
-    tracker._system_info = None
     info = tracker._get_system_info()
 
     assert "os" in info

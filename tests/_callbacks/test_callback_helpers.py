@@ -16,7 +16,9 @@ from pytorch_lightning.callbacks import DeviceStatsMonitor, EarlyStopping
 from lightly_train._callbacks import callback_helpers
 from lightly_train._callbacks.callback_args import CallbackArgs, DeviceStatsMonitorArgs
 from lightly_train._callbacks.checkpoint import ModelCheckpoint, ModelCheckpointArgs
+from lightly_train._callbacks.events import EventsCallback
 from lightly_train._callbacks.mlflow_logging import MLFlowLogging
+from lightly_train._events.event_info import TrainingEventInfo
 from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._transforms.transform import NormalizeArgs
@@ -28,6 +30,17 @@ try:
     import mlflow
 except ImportError:
     mlflow = None  # type: ignore[assignment]
+
+
+def _get_test_event_info() -> TrainingEventInfo:
+    """Helper to create TrainingEventInfo for tests."""
+    return TrainingEventInfo(
+        method="distillation",
+        model="resnet50",
+        epochs=100,
+        batch_size=256,
+        devices=1,
+    )
 
 
 @pytest.mark.parametrize(
@@ -72,14 +85,16 @@ def test_get_callbacks__default(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
         loggers=[],
+        event_info=_get_test_event_info(),
     )
-    assert len(callbacks) == 5
+    assert len(callbacks) == 6
     early_stopping = next(c for c in callbacks if isinstance(c, EarlyStopping))
     model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert early_stopping.monitor == "train_loss"
     assert early_stopping.patience == int(1e12)
     assert model_checkpoint.save_last
     assert str(model_checkpoint.dirpath) == str(tmp_path / "checkpoints")
+    assert any(isinstance(c, EventsCallback) for c in callbacks)
 
 
 @pytest.mark.skipif(mlflow is None, reason="MLFlow is not installed")
@@ -95,8 +110,9 @@ def test_get_callbacks__mlflow(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
         loggers=loggers,
+        event_info=_get_test_event_info(),
     )
-    assert len(callbacks) == 6
+    assert len(callbacks) == 7
     early_stopping = next(c for c in callbacks if isinstance(c, EarlyStopping))
     model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert early_stopping.monitor == "train_loss"
@@ -119,8 +135,9 @@ def test_get_callbacks__enable_devicestatsmonitor(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
         loggers=[],
+        event_info=_get_test_event_info(),
     )
-    assert len(callbacks) == 6
+    assert len(callbacks) == 7
     assert any(isinstance(c, DeviceStatsMonitor) for c in callbacks)
 
 
@@ -138,8 +155,9 @@ def test_get_callbacks__disable(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
         loggers=[],
+        event_info=_get_test_event_info(),
     )
-    assert len(callbacks) == 3
+    assert len(callbacks) == 4
     assert any(isinstance(c, ModelCheckpoint) for c in callbacks)
     assert not any(isinstance(c, MLFlowLogging) for c in callbacks)
 
@@ -157,6 +175,7 @@ def test_get_callbacks__user_config(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
         loggers=[],
+        event_info=_get_test_event_info(),
     )
     model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert str(model_checkpoint.dirpath) == str(tmp_path / "checkpoints")

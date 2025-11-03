@@ -13,22 +13,24 @@ import threading
 import time
 import urllib.request
 import uuid
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 import torch
 
 from lightly_train._events import config
 
+_RATE_LIMIT_SECONDS: float = 30.0
+
 _events: List[Dict[str, Any]] = []
-_sent_event_names: Set[str] = set()
+_last_event_time: Dict[str, float] = {}
 _last_flush: float = 0.0
 _system_info: Optional[Dict[str, Any]] = None
 _session_id: str = str(uuid.uuid4())
 
 
 def _flush() -> None:
-    """Flush events from queue with 30s timeout."""
-    end_time = time.time() + 30.0
+    """Flush events from queue with timeout."""
+    end_time = time.time() + _RATE_LIMIT_SECONDS
     while _events and time.time() < end_time:
         event_data = _events.pop(0)
         try:
@@ -60,10 +62,11 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     """Track an event."""
     global _last_flush
 
-    if config.EVENTS_DISABLED or event_name in _sent_event_names:
+    current_time = time.time()
+    if config.EVENTS_DISABLED or current_time - _last_event_time.get(event_name, -100.0) < _RATE_LIMIT_SECONDS:
         return
 
-    _sent_event_names.add(event_name)
+    _last_event_time[event_name] = current_time
 
     event_data = {
         "api_key": config.POSTHOG_API_KEY,
@@ -73,6 +76,6 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     }
     _events.append(event_data)
 
-    if time.time() - _last_flush >= 30.0:
-        _last_flush = time.time()
+    if current_time - _last_flush >= _RATE_LIMIT_SECONDS:
+        _last_flush = current_time
         threading.Thread(target=_flush, daemon=True).start()
