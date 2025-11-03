@@ -814,7 +814,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         ):
                             if config.save_checkpoint_args.save_best:
                                 logger.info(
-                                    f"The best validation metric '{config.save_checkpoint_args.watch_metric}'={watch_metric:.4f} was reached."
+                                    f"The best validation metric {config.save_checkpoint_args.watch_metric}={watch_metric:.4f} was reached."
                                 )
                                 helpers.save_checkpoint(
                                     fabric=fabric,
