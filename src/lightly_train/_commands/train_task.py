@@ -451,7 +451,9 @@ def _train_task(
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
-    config = validate.pydantic_model_validate(config_cls, locals())
+    kwargs = locals()
+    kwargs.pop("config_cls")
+    config = validate.pydantic_model_validate(config_cls, kwargs)
     _train_task_from_config(config=config)
 
 
