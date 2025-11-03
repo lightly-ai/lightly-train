@@ -230,18 +230,10 @@ def open_yolo_object_detection_label_numpy(
     for line in _iter_yolo_label_lines(label_path=label_path):
         parts = [float(x) for x in line.split()]
         class_id = parts[0]
-        # Box format: class_id x_center y_center width height
-        if len(parts) == 5:
-            x_center = parts[1]
-            y_center = parts[2]
-            width = parts[3]
-            height = parts[4]
-        # Polygon format: class_id x0 y0 x1 y1 ...
-        else:
-            x_center, y_center, width, height = _bbox_from_polygon(
-                polygon=np.array(parts[1:], dtype=np.float64)
-            )
-
+        x_center = parts[1]
+        y_center = parts[2]
+        width = parts[3]
+        height = parts[4]
         bboxes.append([x_center, y_center, width, height])
         classes.append(int(class_id))
     bboxes_np = np.array(bboxes) if bboxes else np.zeros((0, 4), dtype=np.float64)
