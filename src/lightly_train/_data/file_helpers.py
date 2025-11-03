@@ -179,12 +179,18 @@ def open_image_numpy(
 ) -> NDArrayImage:
     """Returns image as (H, W, C) or (H, W) numpy array."""
     image_np: NDArrayImage
-    if image_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+    # Torchvision supported images
+    if (suffix := image_path.suffix.lower()) in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             image_np = _open_image_numpy__with_torch(image_path=image_path, mode=mode)
         except RuntimeError:
             # RuntimeError can happen for truncated images. Fall back to PIL.
             image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
+    # DICOM images. ImageMode is not relevant here. It will always be loaded as is.
+    # NOTE: We do not support loading DICOM images as segmentation masks.
+    elif suffix == ".dcm":
+        image_np = _open_image_numpy__with_pydicom(image_path=image_path)
+    # Pillow images
     else:
         image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
 
@@ -214,6 +220,55 @@ def _open_image_numpy__with_torch(
         image_torch = F.to_dtype(image_torch, torch.float32, scale=True)
 
     image_np = image_torch.numpy()
+    return image_np
+
+
+def _open_image_numpy__with_pydicom(
+    image_path: Path,
+) -> NDArrayImage:
+    from lightning_utilities.core.imports import RequirementCache
+
+    if not RequirementCache("pydicom"):
+        raise ImportError(
+            "pydicom is required to read DICOM images. "
+            "Please install it with 'pip install lightly-train[dicom]'."
+        )
+    from pydicom import Dataset
+
+    if RequirementCache("pydicom>=3.0.0"):
+        from pydicom.pixels.utils import (  # type: ignore[no-redef]
+            get_nr_frames,
+            pixel_array,
+        )
+    else:
+        from pydicom.pixel_data_handlers.util import (  # type: ignore[no-redef]
+            get_nr_frames,
+            pixel_array,
+        )
+
+    image_np: NDArrayImage
+
+    dataset = Dataset()
+    array = pixel_array(image_path, ds_out=dataset)
+
+    num_frames = get_nr_frames(dataset)
+    if num_frames > 1:
+        raise ValueError("Multi-frame DICOM images are not supported.")
+
+    image_np = array
+    original_dtype = array.dtype
+    if not any(
+        np.issubdtype(original_dtype, allowed) for allowed in get_args(ImageDtypes)
+    ):
+        # Convert to float32 image in [0, 1] range for non-uint8 types because albumentations only supports
+        # np.float32 and np.uint8 types.
+        image_np = image_np.astype(np.float32)
+
+        # Here we assume that all the other images uses integer types.
+        # See https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes for more details.
+        info = np.iinfo(original_dtype)  # type: ignore[type-var]
+        image_np = (image_np - float(info.min)) / float(info.max - info.min)
+
     return image_np
 
 

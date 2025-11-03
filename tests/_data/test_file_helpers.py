@@ -20,6 +20,11 @@ from lightly_train._data.file_helpers import TORCHVISION_GEQ_0_20_0, ImageMode
 
 from .. import helpers
 
+try:
+    import pydicom
+except ImportError:
+    pydicom = None  # type: ignore[assignment]
+
 
 def test_list_image_filenames_from_iterable(
     tmp_path: Path, monkeypatch: MonkeyPatch
@@ -191,6 +196,7 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
         (".tiff", "pil", np.int32, 0, "I"),
         (".tiff", "pil", np.uint16, 0, "I;16"),
         (".tiff", "pil", np.float32, 0, "F"),
+        (".dcm", "pydicom", np.float32, 0, ""),
     ],
 )
 def test_open_image_numpy(
@@ -202,18 +208,26 @@ def test_open_image_numpy(
     pil_mode: str,
     mocker: MockerFixture,
 ) -> None:
-    image_path = tmp_path / f"image{extension}"
+    if extension == ".dcm" and pydicom is None:
+        pytest.skip("pydicom not installed")
 
-    max_value = int(np.iinfo(dtype).max) if np.issubdtype(dtype, np.integer) else 1
-    helpers.create_image(
-        path=image_path,
-        height=32,
-        width=32,
-        mode=pil_mode,
-        dtype=dtype,
-        max_value=max_value,
-        num_channels=num_channels,
-    )
+    if extension == ".dcm":
+        from pydicom.examples import get_path
+
+        image_path = Path(get_path("mr"))  # Use example DICOM file
+    else:
+        image_path = tmp_path / f"image{extension}"
+
+        max_value = int(np.iinfo(dtype).max) if np.issubdtype(dtype, np.integer) else 1
+        helpers.create_image(
+            path=image_path,
+            height=32,
+            width=32,
+            mode=pil_mode,
+            dtype=dtype,
+            max_value=max_value,
+            num_channels=num_channels,
+        )
 
     open_mode = (
         ImageMode.RGB
@@ -222,12 +236,16 @@ def test_open_image_numpy(
     )
     torch_spy = mocker.spy(file_helpers, "_open_image_numpy__with_torch")
     pil_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pil")
+    pydicom_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pydicom")
     result = file_helpers.open_image_numpy(image_path=image_path, mode=open_mode)
     assert isinstance(result, np.ndarray)
 
     expected_shape = (32, 32) if num_channels == 0 else (32, 32, num_channels)
     expected_dtype = np.uint8 if dtype == np.uint8 else np.float32
-    assert result.shape == expected_shape
+    if extension != ".dcm":
+        assert result.shape == expected_shape
+    else:
+        assert result.shape == (64, 64)  # Shape of the example DICOM file
     assert result.dtype == expected_dtype
 
     if expected_dtype == np.float32:
@@ -236,9 +254,15 @@ def test_open_image_numpy(
     if expected_backend == "torch":
         torch_spy.assert_called_once()
         pil_spy.assert_not_called()
-    else:
+        pydicom_spy.assert_not_called()
+    elif expected_backend == "pil":
         torch_spy.assert_not_called()
         pil_spy.assert_called_once()
+        pydicom_spy.assert_not_called()
+    else:
+        torch_spy.assert_not_called()
+        pil_spy.assert_not_called()
+        pydicom_spy.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -356,3 +380,29 @@ def test_open_yolo_instance_segmentation_label_numpy__empty(
     assert len(polygons) == 0
     assert bboxes.shape == (0, 4)
     assert class_labels.shape == (0,)
+
+
+@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.parametrize(
+    ("module_attribute", "expected_shape", "expected_dtype"),
+    [
+        ("ct", (128, 128), np.float32),
+        ("overlay", (300, 484), np.float32),
+        ("rgb_color", (240, 320, 3), np.uint8),
+        ("palette_color", (350, 800), np.uint8),
+        ("jpeg2k", (480, 640, 3), np.uint8),
+    ],
+)
+def test_open_image_numpy__with_pydicom__examples(
+    module_attribute: str,
+    expected_shape: tuple[int, ...],
+    expected_dtype: np.dtype,
+) -> None:
+    from pydicom.examples import get_path
+
+    image_path = Path(get_path(module_attribute))
+    result = file_helpers._open_image_numpy__with_pydicom(image_path=image_path)
+
+    assert isinstance(result, np.ndarray)
+    assert result.shape == expected_shape
+    assert result.dtype == expected_dtype
