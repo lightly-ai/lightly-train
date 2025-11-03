@@ -113,3 +113,26 @@ def test_session_id_consistent() -> None:
     session_id = tracker._session_id
     assert isinstance(session_id, str)
     assert len(session_id) > 0
+
+
+def test_track_event__queue_size_limit(
+    mock_events_enabled: None, mocker: MockerFixture
+) -> None:
+    """Test that queue size is limited to prevent memory leak."""
+    mock_time = mocker.patch("lightly_train._events.tracker.time.time")
+
+    # Fill the queue to max capacity
+    for i in range(tracker._MAX_QUEUE_SIZE):
+        mock_time.return_value = float(i * 100)
+        tracker.track_event(event_name=f"event_{i}", properties={"index": i})
+
+    assert len(tracker._events) == tracker._MAX_QUEUE_SIZE
+
+    # Try to add one more event - should be dropped
+    mock_time.return_value = float(tracker._MAX_QUEUE_SIZE * 100)
+    tracker.track_event(
+        event_name=f"event_{tracker._MAX_QUEUE_SIZE}",
+        properties={"index": tracker._MAX_QUEUE_SIZE},
+    )
+
+    assert len(tracker._events) == tracker._MAX_QUEUE_SIZE

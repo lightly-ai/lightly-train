@@ -20,6 +20,7 @@ import torch
 from lightly_train._events import config
 
 _RATE_LIMIT_SECONDS: float = 30.0
+_MAX_QUEUE_SIZE: int = 100
 
 _events: List[Dict[str, Any]] = []
 _last_event_time: Dict[str, float] = {}
@@ -67,6 +68,9 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
         config.EVENTS_DISABLED
         or current_time - _last_event_time.get(event_name, -100.0) < _RATE_LIMIT_SECONDS
     ):
+        return
+
+    if len(_events) >= _MAX_QUEUE_SIZE:
         return
 
     _last_event_time[event_name] = current_time
