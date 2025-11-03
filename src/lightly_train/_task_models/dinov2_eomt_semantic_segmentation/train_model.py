@@ -163,7 +163,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         # Lazy import because MaskClassificationLoss depends on optional transformers
-        # dependeny.
+        # dependency.
         from lightly_train._task_models.dinov2_eomt_semantic_segmentation.mask_loss import (
             MaskClassificationLoss,
         )

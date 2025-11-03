@@ -157,10 +157,12 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
         from torchmetrics import MeanMetric
-        from torchmetrics.detection import MeanAveragePrecision
+
+        # Type ignore because torchmetrics < 1.0 doesn't explicitly export MeanAveragePrecision
+        from torchmetrics.detection import MeanAveragePrecision  # type: ignore
 
         # Lazy import because MaskClassificationLoss depends on optional transformers
-        # dependeny.
+        # dependency.
         from lightly_train._task_models.dinov3_eomt_instance_segmentation.mask_loss import (
             MaskClassificationLoss,
         )
@@ -196,7 +198,8 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         # Metrics
         self.val_loss = MeanMetric()
 
-        self.train_map = MeanAveragePrecision(iou_type="segm")
+        # Type ignore because old torchmetrics have different formats for iou_type.
+        self.train_map = MeanAveragePrecision(iou_type="segm")  # type: ignore[arg-type]
         self.val_map = self.train_map.clone()
 
     def get_task_model(self) -> DINOv3EoMTInstanceSegmentation:
