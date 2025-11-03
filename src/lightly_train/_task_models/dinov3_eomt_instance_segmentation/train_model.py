@@ -219,7 +219,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         )
 
         # Loss
-        num_blocks = len(self.model.backbone.blocks)
+        num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
@@ -260,7 +260,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 }
                 for i in range(len(labels))
             ],
-            target=binary_masks,
+            target=binary_masks,  # type: ignore[arg-type]
         )
 
         metrics: dict[str, Any] = {
@@ -327,7 +327,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             mask_logits_per_layer.append(mask_logits)
 
         # Losses.
-        num_blocks = len(self.model.backbone.blocks)
+        num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
         for block_idx, mask_logits, class_logits in zip(
             # Add +1 to num_blocks for final output.
@@ -414,7 +414,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         backbone_params = set(self.model.backbone.parameters())
         backbone_param_groups = []
         other_param_groups = []
-        backbone_blocks = len(self.model.backbone.blocks)
+        backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         block_i = backbone_blocks
 
         for name, param in reversed(list(self.named_parameters())):
