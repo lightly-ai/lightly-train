@@ -107,11 +107,16 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
             DINOv3LTDETRObjectDetectionTrain,
         }:
             continue
+        transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
+        kwargs = {}
+        if "ignore_index" in transform_args_cls.model_fields:
+            kwargs["ignore_index"] = MaskSemanticSegmentationDataArgs.ignore_index
+
         train_transform_args = train_model_cls.train_transform_cls.transform_args_cls(
-            ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
+            **kwargs
         )
         val_transform_args = train_model_cls.val_transform_cls.transform_args_cls(
-            ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
+            **kwargs
         )
         train_args = train_task_helpers.pretty_format_args(
             train_transform_args.model_dump(),
