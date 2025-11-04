@@ -11,6 +11,7 @@ import logging
 from typing import Any
 
 import numpy as np
+import torch
 from albumentations import (
     BasicTransform,
     BboxParams,
@@ -254,10 +255,11 @@ class InstanceSegmentationTransform(TaskTransform):
         # Albumentations doesn't do this automatically, but it removes bboxes and
         # class labels that correspond to such masks.
         masks = transformed["masks"]
-        masks = masks[masks.sum(dim=(1, 2)) > 0]
+        masks_tensor = masks if isinstance(masks, Tensor) else torch.stack(masks)
+        masks_tensor = masks_tensor[masks_tensor.sum(dim=(1, 2)) > 0]
         return {
             "image": transformed["image"],
-            "binary_masks": masks,
+            "binary_masks": masks_tensor,
             "bboxes": transformed["bboxes"],
             "class_labels": transformed["class_labels"],
         }
