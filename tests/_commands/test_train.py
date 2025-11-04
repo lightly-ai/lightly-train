@@ -553,26 +553,38 @@ def test_train__multichannel(
     )
 
 
+@pytest.mark.parametrize(
+    ("module_attribute, num_channels"),
+    [
+        ("ct", 1),
+        ("mr", 1),
+        ("overlay", 1),
+        ("rgb_color", 3),
+        ("palette_color", 3),
+        ("jpeg2k", 3),
+    ],
+)
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
 def test_train__dicom(
     tmp_path: Path,
+    module_attribute: str,
+    num_channels: int,
 ) -> None:
     from pydicom.examples import get_path
 
-    data = []
-    for module_attr in ["ct", "mr", "overlay", "rgb_color", "palette_color", "jpeg2k"]:
-        data_path: Path = get_path(module_attr)
-        data.append(str(data_path))
+    data_path = str(get_path(module_attribute))
+    data = [data_path] * 8  # Create a list of 8 identical DICOM files.
 
     out = tmp_path / "out"
     train.train(
         out=out,
         data=data,
-        model="torchvision/resnet18",
-        method="dino",
+        model="dinov2/_vittest14",
+        method="dinov2",
         batch_size=4,
         num_workers=0,
         epochs=1,
         devices=1,
         embed_dim=64,
+        transform_args={"num_channels": num_channels},
     )
