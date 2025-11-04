@@ -128,9 +128,7 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
     random_flip: RandomFlipArgs | None = None
     color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
-    smallest_max_size: SmallestMaxSizeArgs = Field(
-        default_factory=DINOv3EoMTInstanceSegmentationSmallestMaxSizeArgs
-    )
+    smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs | None = None
     bbox_params: BboxParams = BboxParams(format="yolo", label_fields=["class_labels"])
 
