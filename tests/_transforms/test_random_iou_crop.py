@@ -233,3 +233,40 @@ class TestRandomIoUCrop:
         assert np.array_equal(transformed_image, image)
         assert np.array_equal(transformed_boxes_arr, boxes)
         assert np.array_equal(transformed_classes_arr, classes)
+
+    def test_crop_identity_on_non_square_image(self, bbox_params: BboxParams) -> None:
+        """For non-square images and min_scale=max_scale=1.0, the crop should be identity.
+        If h/w are swapped anywhere, this will either crash or change output shape.
+        """
+        transform = Compose(
+            [
+                RandomIoUCrop(
+                    min_scale=1.0,
+                    max_scale=1.0,
+                    sampler_options=[0.0],
+                    p=1.0,
+                )
+            ],
+            bbox_params=bbox_params,
+        )
+
+        # Non-square image: height != width
+        h, w = 64, 128
+        image = (np.random.rand(h, w, 3) * 255).astype(np.uint8)
+        boxes = np.array([[10, 10, 50, 40]], dtype=np.float64)
+        classes = np.array([1], dtype=np.int64)
+
+        data = {"image": image, "bboxes": boxes, "classes": classes}
+        transformed = transform(**data)
+
+        transformed_image = transformed["image"]
+        transformed_boxes = np.array(transformed["bboxes"])
+        transformed_classes = np.array(transformed["classes"])
+
+        # ✅ Expect exact identity, because crop covers full image
+        assert np.array_equal(transformed_image, image), "Image changed unexpectedly"
+        assert np.array_equal(transformed_boxes, boxes), "Boxes changed unexpectedly"
+        assert np.array_equal(transformed_classes, classes)
+        assert transformed_image.shape == (h, w, 3), (
+            "Shape mismatch (h/w may be swapped)"
+        )
