@@ -23,6 +23,7 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
+from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -42,11 +43,20 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
+class DINOv3EoMTSemanticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
+    watch_metric: str = "val_metric/miou"
+    mode: Literal["min", "max"] = "max"
+
+
 class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from ADE20K dataset:
     # 20210 images / batch size 16 * 31 epochs ~= 40k steps.
     default_steps: ClassVar[int] = 40_000
+
+    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
+        DINOv3EoMTSemanticSegmentationTaskSaveCheckpointArgs
+    )
 
     # Model args
     backbone_weights: PathLike | None = None
@@ -186,6 +196,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
+            # TODO (Lionel, 10/25): Pass backbone args.
         )
 
         self.criterion = MaskClassificationLoss(

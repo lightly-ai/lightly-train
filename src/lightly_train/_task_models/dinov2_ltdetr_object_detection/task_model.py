@@ -37,7 +37,7 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
+class DINOv2LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
 
     def __init__(
@@ -83,6 +83,10 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
             model=dinov2,
             keep_indices=[5, 8, 11],
         )
+        # TODO(Lionel, 07/25): Improve how mask tokens are handled for fine-tuning.
+        # Should we drop them from the model? We disable grads here for DDP to work
+        # without find_unused_parameters=True.
+        self.backbone.backbone.mask_token.requires_grad = False
 
         self.encoder: HybridEncoder = HybridEncoder(  # type: ignore[no-untyped-call]
             in_channels=[384, 384, 384],
@@ -120,6 +124,15 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
             num_top_queries=300,
         )
+
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        try:
+            cls.parse_model_name(model_name=model)
+        except ValueError:
+            return False
+        else:
+            return True
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
@@ -164,7 +177,13 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
         ]
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
-        self.load_state_dict(state_dict)
+        """Load the EMA state dict from a training checkpoint."""
+        new_state_dict = {}
+        for name, param in state_dict.items():
+            if name.startswith("ema_model.model."):
+                name = name[len("ema_model.model.") :]
+                new_state_dict[name] = param
+        self.load_state_dict(new_state_dict, strict=True)
 
     @torch.no_grad()
     def predict(
@@ -200,6 +219,12 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
                 m.convert_to_deploy()  # type: ignore[operator]
         return self
 
+    def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
+        x = self.backbone(x)
+        x = self.encoder(x)
+        x = self.decoder(feats=x, targets=targets)
+        return x
+
     def forward(
         self, x: Tensor, orig_target_size: tuple[int, int] | None = None
     ) -> list[Tensor]:
@@ -218,7 +243,7 @@ class DINOv2LTDetrObjectDetectionTaskModel(TaskModel):
         return x_
 
 
-class DINOv2LTDetrDSPObjectDetectionTaskModel(DINOv2LTDetrObjectDetectionTaskModel):
+class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
     model_suffix = "ltdetr-dsp"
 
     def __init__(
@@ -231,7 +256,7 @@ class DINOv2LTDetrDSPObjectDetectionTaskModel(DINOv2LTDetrObjectDetectionTaskMod
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
-        super(DINOv2LTDetrObjectDetectionTaskModel, self).__init__(
+        super(DINOv2LTDETRObjectDetection, self).__init__(
             init_args=locals(), ignore_args={"backbone_weights"}
         )
         parsed_name = self.parse_model_name(model_name=model_name)
