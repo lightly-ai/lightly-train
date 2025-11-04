@@ -28,6 +28,7 @@ from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import
 )
 from lightly_train._task_models.dinov2_ltdetr_object_detection.transforms import (
     DINOv2LTDETRObjectDetectionTrainTransform,
+    DINOv2LTDETRObjectDetectionTrainTransformArgs,
     DINOv2LTDETRObjectDetectionValTransform,
     DINOv2LTDETRObjectDetectionValTransformArgs,
 )
@@ -127,6 +128,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         model_name: str,
         model_args: DINOv2LTDETRObjectDetectionTrainModelArgs,
         data_args: YOLOObjectDetectionDataArgs,
+        train_transform_args: DINOv2LTDETRObjectDetectionTrainTransformArgs,
         val_transform_args: DINOv2LTDETRObjectDetectionValTransformArgs,
     ) -> None:
         super().__init__()

@@ -645,6 +645,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_name=config.model,
             model_args=config.model_args,
             data_args=config.data,
+            train_transform_args=train_transform_args,
             val_transform_args=val_transform_args,
         )
 

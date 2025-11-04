@@ -71,7 +71,7 @@ class InstanceSegmentationTransformOutput(TaskTransformOutput):
 
 
 class InstanceSegmentationTransformArgs(TaskTransformArgs):
-    image_size: tuple[int, int] | Literal["auto"]
+    image_size: tuple[int, int] | Literal["auto"] | None
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
     normalize: NormalizeArgs | Literal["auto"]
@@ -155,6 +155,7 @@ class InstanceSegmentationTransform(TaskTransform):
             assert transform_args.scale_jitter.min_scale is not None
             assert transform_args.scale_jitter.max_scale is not None
             assert transform_args.scale_jitter.num_scales is not None
+            assert isinstance(transform_args.image_size, tuple)
             scales = np.linspace(
                 start=transform_args.scale_jitter.min_scale,
                 stop=transform_args.scale_jitter.max_scale,
