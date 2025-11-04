@@ -235,7 +235,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             model_to_use = self.model
 
         with torch.no_grad():
-            outputs = model_to_use._forward_train(
+            outputs = model_to_use._forward_train(  # type: ignore
                 x=samples,
                 targets=targets,
             )

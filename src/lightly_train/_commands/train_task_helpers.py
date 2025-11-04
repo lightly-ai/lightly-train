@@ -45,6 +45,9 @@ from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model 
 from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrain,
 )
+from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
+    DINOv3EoMTInstanceSegmentationTrain,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
 )
@@ -78,6 +81,7 @@ logger = logging.getLogger(__name__)
 
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
+    DINOv3EoMTInstanceSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
@@ -88,6 +92,14 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
 
 # TODO(Thomas, 10/25): Create a type for the metrics.
 TASK_TO_METRICS: dict[str, dict[str, str]] = {
+    "instance_segmentation": {
+        "val_metric/map": "Val mAP@0.5:0.95",
+        "val_metric/map_50": "Val mAP@0.5",
+        "val_metric/map_75": "Val mAP@0.75",
+        "val_metric/map_small": "Val mAP (small)",
+        "val_metric/map_medium": "Val mAP (medium)",
+        "val_metric/map_large": "Val mAP (large)",
+    },
     "semantic_segmentation": {
         "train_metric/miou": "Train mIoU",
         "val_metric/miou": "Val mIoU",
@@ -528,13 +540,13 @@ def get_dataset(
 
     dataset_cls = dataset_args.get_dataset_cls()
     return dataset_cls(
-        dataset_args=dataset_args,
+        dataset_args=dataset_args,  # type: ignore
         image_info=get_dataset_mmap_file(
             fabric=fabric,
             items=image_info,
             mmap_filepath=mmap_filepath,
         ),
-        transform=transform,
+        transform=transform,  # type: ignore
     )
 
 
@@ -605,11 +617,14 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
     return default_steps if steps == "auto" else steps
 
 
-def get_train_model_cls(model_name: str) -> type[TrainModel]:
+def get_train_model_cls(model_name: str, task: str) -> type[TrainModel]:
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
-        if train_model_cls.task_model_cls.is_supported_model(model_name):
+        if (
+            train_model_cls.task == task
+            and train_model_cls.task_model_cls.is_supported_model(model_name)
+        ):
             return train_model_cls
-    raise ValueError(f"Unsupported model name '{model_name}'.")
+    raise ValueError(f"Unsupported model name '{model_name}' for task '{task}'.")
 
 
 def get_train_model_args(
@@ -665,12 +680,34 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
             for i, v in enumerate(value):
                 metrics[f"{name}_{i}"] = v.item()
         if isinstance(value, dict):
-            for class_name, class_value in value.items():
-                # Only log scalar values.
-                if isinstance(class_value, Tensor) and class_value.numel() != 1:
-                    continue
-
-                metrics[f"{name}{class_name}"] = class_value.item()
+            if "map" in value:
+                # Special case for detection metrics which return results like this:
+                # {"map": 0.5, "map_50": 0.7, ...}
+                agg_metrics = {
+                    "map",
+                    "map_50",
+                    "map_75",
+                    "map_small",
+                    "map_medium",
+                    "map_large",
+                    "mar_1",
+                    "mar_10",
+                    "mar_100",
+                    "mar_small",
+                    "mar_medium",
+                    "mar_large",
+                }
+                # cls_metrics = {"map_per_class", "mar_100_per_class", "classes"}
+                if name.endswith("/map"):
+                    name = name[:-4]
+                for key, val in value.items():
+                    if key in agg_metrics:
+                        metrics[f"{name}/{key}"] = val.item()
+            else:
+                # Class-wise metrics that look like this:
+                # {"class 1": 0.5, "class 2": 0.7, ...}
+                for key, val in value.items():
+                    metrics[f"{name}{key}"] = val.item()
         else:
             metrics[name] = value
     return metrics

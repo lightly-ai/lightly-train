@@ -11,6 +11,7 @@ import logging
 from typing import Any
 
 import numpy as np
+import torch
 from albumentations import (
     BasicTransform,
     BboxParams,
@@ -47,7 +48,7 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import (
     NDArrayBBoxes,
-    NDArrayBinaryMasks,
+    NDArrayBinaryMasksInt,
     NDArrayClasses,
     NDArrayImage,
 )
@@ -57,20 +58,19 @@ logger = logging.getLogger(__name__)
 
 class InstanceSegmentationTransformInput(TaskTransformInput):
     image: NDArrayImage
-    binary_masks: NDArrayBinaryMasks
+    binary_masks: NDArrayBinaryMasksInt
     bboxes: NDArrayBBoxes
     class_labels: NDArrayClasses
 
 
 class InstanceSegmentationTransformOutput(TaskTransformOutput):
     image: Tensor
-    binary_masks: NDArrayBinaryMasks
+    binary_masks: Tensor
     bboxes: NDArrayBBoxes
     class_labels: NDArrayClasses
 
 
 class InstanceSegmentationTransformArgs(TaskTransformArgs):
-    ignore_index: int
     image_size: tuple[int, int] | Literal["auto"]
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
@@ -193,7 +193,6 @@ class InstanceSegmentationTransform(TaskTransform):
                     pad_if_needed=transform_args.random_crop.pad_if_needed,
                     pad_position=transform_args.random_crop.pad_position,
                     fill=transform_args.random_crop.fill,
-                    fill_mask=transform_args.ignore_index,
                     p=transform_args.random_crop.prob,
                 )
             ]
@@ -237,22 +236,30 @@ class InstanceSegmentationTransform(TaskTransform):
         # Create the final transform.
         self.transform = Compose(
             transform,
-            additional_targets={"binary_masks": "binary_masks"},
             bbox_params=transform_args.bbox_params,
         )
 
     def __call__(
         self, input: InstanceSegmentationTransformInput
     ) -> InstanceSegmentationTransformOutput:
+        # Mask augmentations only work correctly when passed as `masks` to albumentations.
+        # Passing as `binary_masks` and adding `additional_targets={"binary_masks": "masks"}`
+        # doesn't work. "mask" also doesn't work as target.
         transformed = self.transform(
             image=input["image"],
-            binary_masks=input["binary_masks"],
+            masks=input["binary_masks"],
             bboxes=input["bboxes"],
             class_labels=input["class_labels"],
         )
+        # Remove binary masks that are all zero after transformation.
+        # Albumentations doesn't do this automatically, but it removes bboxes and
+        # class labels that correspond to such masks.
+        masks = transformed["masks"]
+        masks_tensor = masks if isinstance(masks, Tensor) else torch.stack(masks)
+        masks_tensor = masks_tensor[masks_tensor.sum(dim=(1, 2)) > 0]
         return {
             "image": transformed["image"],
-            "binary_masks": transformed["binary_masks"],
+            "binary_masks": masks_tensor,
             "bboxes": transformed["bboxes"],
             "class_labels": transformed["class_labels"],
         }

@@ -18,6 +18,9 @@ from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model 
 from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrain,
 )
+from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
+    DINOv3EoMTInstanceSegmentationTrain,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
 )
@@ -101,17 +104,24 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
         # TODO(Thomas, 10/25): Allow to dump transform args for object detection tasks too.
+        # TODO(Guarin, 11/25): Allow to dump transform args for instance segmentation tasks too.
         if train_model_cls in {
             DINOv2LinearSemanticSegmentationTrain,
             DINOv2LTDETRObjectDetectionTrain,
+            DINOv3EoMTInstanceSegmentationTrain,
             DINOv3LTDETRObjectDetectionTrain,
         }:
             continue
+        transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
+        kwargs = {}
+        if "ignore_index" in transform_args_cls.model_fields:
+            kwargs["ignore_index"] = MaskSemanticSegmentationDataArgs.ignore_index
+
         train_transform_args = train_model_cls.train_transform_cls.transform_args_cls(
-            ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
+            **kwargs
         )
         val_transform_args = train_model_cls.val_transform_cls.transform_args_cls(
-            ignore_index=MaskSemanticSegmentationDataArgs.ignore_index
+            **kwargs
         )
         train_args = train_task_helpers.pretty_format_args(
             train_transform_args.model_dump(),
