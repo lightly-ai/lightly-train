@@ -199,6 +199,62 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
         (".dcm", "pydicom", np.float32, 0, ""),
     ],
 )
+def test_open_image_tensor(
+    tmp_path: Path, extension: str, expected_backend: str, mocker: MockerFixture
+) -> None:
+    if extension == ".dcm" and pydicom is None:
+        pytest.skip("pydicom not installed")
+
+    if extension == ".dcm":
+        from pydicom.examples import get_path
+
+        image_path = Path(get_path("mr"))  # Use example DICOM file
+    else:
+        image_path = tmp_path / f"image{extension}"
+        helpers.create_image(path=image_path, height=32, width=32)
+
+    import torchvision.io
+    from torch import Tensor
+    from torchvision.transforms.v2 import functional as F
+
+    torch_spy = mocker.spy(torchvision.io, "read_image")
+    pil_spy = mocker.spy(F, "pil_to_tensor")
+    pydicom_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pydicom")
+
+    result = file_helpers.open_image_tensor(image_path=image_path)
+    assert isinstance(result, Tensor)
+    if extension != ".dcm":
+        assert result.shape == (3, 32, 32)
+    else:
+        assert result.shape == (1, 64, 64)
+
+    if expected_backend == "torch":
+        torch_spy.assert_called_once()
+        pil_spy.assert_not_called()
+        pydicom_spy.assert_not_called()
+    elif expected_backend == "pil":
+        torch_spy.assert_not_called()
+        pil_spy.assert_called_once()
+        pydicom_spy.assert_not_called()
+    else:
+        torch_spy.assert_not_called()
+        pil_spy.assert_not_called()
+        pydicom_spy.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "extension, expected_backend",
+    [
+        (".jpg", "torch"),
+        (".jpeg", "torch"),
+        (".png", "torch"),
+        (".bmp", "pil"),
+        (".gif", "pil"),
+        (".tiff", "pil"),
+        (".webp", "pil"),
+        (".dcm", "pydicom"),
+    ],
+)
 def test_open_image_numpy(
     tmp_path: Path,
     extension: str,

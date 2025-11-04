@@ -157,7 +157,7 @@ def open_image_tensor(image_path: PathLike) -> Tensor:
         image_path: Path to the image file. Can be a local path or URL.
     """
     image: Tensor
-    if Path(image_path).suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+    if (suffix := Path(image_path).suffix.lower()) in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             # Fast path when loading local file with torch.
             image = load_image(str(image_path))
@@ -166,6 +166,15 @@ def open_image_tensor(image_path: PathLike) -> Tensor:
             pass
         else:
             return image
+    elif suffix == ".dcm":
+        image_np = _open_image_numpy__with_pydicom(image_path=image_path)
+        if image_np.ndim == 2:
+            # (H, W) -> (H, W, C)
+            image_np = np.expand_dims(image_np, axis=2)
+        # (H, W, C) -> (C, H, W)
+        image_np = np.transpose(image_np, (2, 0, 1))
+        image = Tensor(image_np)
+        return image
 
     with fsspec.open(image_path, "rb") as file:
         image_bytes = file.read()
