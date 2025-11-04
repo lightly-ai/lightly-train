@@ -246,9 +246,10 @@ def _open_image_numpy__with_pydicom(
         from pydicom.pixels import (  # type: ignore[no-redef]
             utils,
         )
-        from pydicom.pixels.processing import apply_modality_lut
+        from pydicom.pixels.processing import apply_color_lut, apply_modality_lut
     else:
         from pydicom.pixel_data_handlers import (  # type: ignore[no-redef]
+            apply_color_lut,
             apply_modality_lut,
             utils,
         )
@@ -261,6 +262,9 @@ def _open_image_numpy__with_pydicom(
     num_frames = utils.get_nr_frames(dataset)
     if num_frames > 1:
         raise ValueError("Multi-frame DICOM images are not supported.")
+
+    if dataset.PhotometricInterpretation == "PALETTE COLOR":
+        pixel_array = apply_color_lut(pixel_array, dataset)
 
     rescaled_array = apply_modality_lut(pixel_array, dataset)
 
