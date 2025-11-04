@@ -68,7 +68,7 @@ def list_image_filenames_from_iterable(
         An iterable of image filenames starting from the given paths. The given paths
         are always included in the output filenames.
     """
-    supported_extensions = _pil_supported_image_extensions()
+    supported_extensions = _supported_image_extensions()
     for img_or_dir in imgs_and_dirs:
         _, ext = os.path.splitext(img_or_dir)
         # Only check image extension. This is faster than checking isfile() because it
@@ -109,12 +109,12 @@ def list_image_filenames_from_dir(image_dir: PathLike) -> Iterable[ImageFilename
         yield ImageFilename(filename)
 
 
-def _pil_supported_image_extensions() -> set[str]:
+def _supported_image_extensions() -> set[str]:
     return {
         ex
         for ex, format in Image.registered_extensions().items()
         if format in Image.OPEN
-    }
+    } | {".dcm"}
 
 
 def _get_image_filenames(
@@ -122,9 +122,7 @@ def _get_image_filenames(
 ) -> Iterable[str]:
     """Returns image filenames relative to image_dir."""
     image_extensions = (
-        _pil_supported_image_extensions()
-        if image_extensions is None
-        else image_extensions
+        _supported_image_extensions() if image_extensions is None else image_extensions
     )
     for dirpath, _, filenames in os.walk(image_dir, followlinks=True):
         # Make paths relative to image_dir. `dirpath` is absolute.
