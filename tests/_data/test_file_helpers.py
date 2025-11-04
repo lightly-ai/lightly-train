@@ -11,14 +11,33 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import torch
 from numpy.typing import DTypeLike
 from pytest import LogCaptureFixture, MonkeyPatch
 from pytest_mock import MockerFixture
+from torch import Tensor
+from torchvision.transforms.v2 import functional as F
 
 from lightly_train._data import file_helpers
 from lightly_train._data.file_helpers import TORCHVISION_GEQ_0_20_0, ImageMode
 
 from .. import helpers
+
+numpy_to_torch_dtype_dict = {
+    np.bool_: torch.bool,
+    np.uint8: torch.uint8,
+    np.uint16: torch.uint16,
+    np.uint32: torch.uint32,
+    np.uint64: torch.uint64,
+    np.int8: torch.int8,
+    np.int16: torch.int16,
+    np.int32: torch.int32,
+    np.int64: torch.int64,
+    np.float16: torch.float16,
+    np.float32: torch.float32,
+    np.float64: torch.float64,
+}
+
 
 try:
     import pydicom
@@ -191,7 +210,7 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
         (".png", "torch", np.uint8, 3, "RGB"),
         (".png", "torch", np.uint8, 4, "RGBA"),
         (".bmp", "pil", np.uint8, 3, "RGB"),
-        (".gif", "pil", np.uint8, 3, "RGB"),
+        (".gif", "pil", np.uint8, 0, "P"),
         (".webp", "pil", np.uint8, 4, "RGBA"),
         (".tiff", "pil", np.int32, 0, "I"),
         (".tiff", "pil", np.uint16, 0, "I;16"),
@@ -200,7 +219,13 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
     ],
 )
 def test_open_image_tensor(
-    tmp_path: Path, extension: str, expected_backend: str, mocker: MockerFixture
+    tmp_path: Path,
+    extension: str,
+    expected_backend: str,
+    dtype: DTypeLike,
+    num_channels: int,
+    pil_mode: str,
+    mocker: MockerFixture,
 ) -> None:
     if extension == ".dcm" and pydicom is None:
         pytest.skip("pydicom not installed")
@@ -211,22 +236,37 @@ def test_open_image_tensor(
         image_path = Path(get_path("mr"))  # Use example DICOM file
     else:
         image_path = tmp_path / f"image{extension}"
-        helpers.create_image(path=image_path, height=32, width=32)
 
-    import torchvision.io
-    from torch import Tensor
-    from torchvision.transforms.v2 import functional as F
+        max_value = int(np.iinfo(dtype).max) if np.issubdtype(dtype, np.integer) else 1
+        helpers.create_image(
+            path=image_path,
+            height=32,
+            width=32,
+            mode=pil_mode,
+            dtype=dtype,
+            max_value=max_value,
+            num_channels=num_channels,
+        )
 
-    torch_spy = mocker.spy(torchvision.io, "read_image")
+    torch_spy = mocker.spy(file_helpers, "load_image")
     pil_spy = mocker.spy(F, "pil_to_tensor")
     pydicom_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pydicom")
 
     result = file_helpers.open_image_tensor(image_path=image_path)
     assert isinstance(result, Tensor)
+
+    expected_shape = (1, 32, 32) if num_channels == 0 else (num_channels, 32, 32)
+    expected_dtype = (
+        torch.float32 if dtype == np.float32 else numpy_to_torch_dtype_dict[dtype]  # type: ignore[index]
+    )
     if extension != ".dcm":
-        assert result.shape == (3, 32, 32)
+        assert result.shape == expected_shape
     else:
         assert result.shape == (1, 64, 64)
+    assert result.dtype == expected_dtype
+
+    if expected_dtype == torch.float32:
+        assert result.min() >= 0.0 and result.max() <= 1.0
 
     if expected_backend == "torch":
         torch_spy.assert_called_once()
@@ -243,16 +283,19 @@ def test_open_image_tensor(
 
 
 @pytest.mark.parametrize(
-    "extension, expected_backend",
+    ("extension", "expected_backend", "dtype", "num_channels", "pil_mode"),
     [
-        (".jpg", "torch"),
-        (".jpeg", "torch"),
-        (".png", "torch"),
-        (".bmp", "pil"),
-        (".gif", "pil"),
-        (".tiff", "pil"),
-        (".webp", "pil"),
-        (".dcm", "pydicom"),
+        (".jpg", "torch", np.uint8, 3, "RGB"),
+        (".jpeg", "torch", np.uint8, 3, "RGB"),
+        (".png", "torch", np.uint8, 3, "RGB"),
+        (".png", "torch", np.uint8, 4, "RGBA"),
+        (".bmp", "pil", np.uint8, 3, "RGB"),
+        (".gif", "pil", np.uint8, 0, "P"),
+        (".webp", "pil", np.uint8, 4, "RGBA"),
+        (".tiff", "pil", np.int32, 0, "I"),
+        (".tiff", "pil", np.uint16, 0, "I;16"),
+        (".tiff", "pil", np.float32, 0, "F"),
+        (".dcm", "pydicom", np.float32, 0, ""),
     ],
 )
 def test_open_image_numpy(
@@ -293,6 +336,7 @@ def test_open_image_numpy(
     torch_spy = mocker.spy(file_helpers, "_open_image_numpy__with_torch")
     pil_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pil")
     pydicom_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pydicom")
+
     result = file_helpers.open_image_numpy(image_path=image_path, mode=open_mode)
     assert isinstance(result, np.ndarray)
 
@@ -442,6 +486,7 @@ def test_open_yolo_instance_segmentation_label_numpy__empty(
 @pytest.mark.parametrize(
     ("module_attribute", "expected_shape", "expected_dtype"),
     [
+        ("mr", (64, 64), np.float32),
         ("ct", (128, 128), np.float32),
         ("overlay", (300, 484), np.float32),
         ("rgb_color", (240, 320, 3), np.uint8),
@@ -449,7 +494,7 @@ def test_open_yolo_instance_segmentation_label_numpy__empty(
         ("jpeg2k", (480, 640, 3), np.uint8),
     ],
 )
-def test_open_image_numpy__with_pydicom__examples(
+def test__open_image_numpy__with_pydicom(
     module_attribute: str,
     expected_shape: tuple[int, ...],
     expected_dtype: np.dtype,
