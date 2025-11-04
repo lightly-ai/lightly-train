@@ -35,6 +35,11 @@ from lightly_train._scaling import ScalingInfo
 from .. import helpers
 from ..helpers import DummyCustomModel
 
+try:
+    import pydicom
+except ImportError:
+    pydicom = None  # type: ignore[assignment]
+
 
 def test_train__cpu(tmp_path: Path) -> None:
     out = tmp_path / "out"
@@ -540,6 +545,31 @@ def test_train__multichannel(
         model=model,
         method=method,
         method_args=method_args,
+        batch_size=4,
+        num_workers=0,
+        epochs=1,
+        devices=1,
+        embed_dim=64,
+    )
+
+
+@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+def test_train__dicom(
+    tmp_path: Path,
+) -> None:
+    from pydicom.examples import get_path
+
+    data = []
+    for module_attr in ["ct", "mr", "overlay", "rgb_color", "palette_color", "jpeg2k"]:
+        data_path: Path = get_path(module_attr)
+        data.append(str(data_path))
+
+    out = tmp_path / "out"
+    train.train(
+        out=out,
+        data=data,
+        model="torchvision/resnet18",
+        method="dino",
         batch_size=4,
         num_workers=0,
         epochs=1,
