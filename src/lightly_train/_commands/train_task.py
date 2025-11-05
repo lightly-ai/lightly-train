@@ -91,7 +91,11 @@ def train_instance_segmentation(
             The dataset configuration. See the documentation for more information:
             https://docs.lightly.ai/train/stable/instance_segmentation.html#data
         model:
-            The model to train. For example, "dinov2/vits14-eomt".
+            The model to train. For example, "dinov2/vits14-eomt",
+            "dinov3/vits16-eomt-coco", or a path to a local model checkpoint.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter.
         steps:
             The number of training steps.
         batch_size:
@@ -107,11 +111,13 @@ def train_instance_segmentation(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Use this parameter to further fine-tune a model from a previous fine-tuned checkpoint.
-            The checkpoint must be a path to a checkpoint file, for example "checkpoints/model.ckpt".
-            This will only load the model weights from the previous run. All other
-            training state (e.g. optimizer state, epochs) from the previous run are not
-            loaded.
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint. The checkpoint must be a path to a checkpoint file, for example
+            "checkpoints/model.ckpt". This will only load the model weights from the
+            previous run. All other training state (e.g. optimizer state, epochs) from
+            the previous run are not loaded.
+
+            This option is equivalent to setting ``model="<path_to_checkpoint>"``.
 
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
@@ -216,7 +222,11 @@ def train_object_detection(
             The dataset configuration. See the documentation for more information:
             https://docs.lightly.ai/train/stable/object_detection.html#data
         model:
-            The model to train. For example, "dinov2/vits14-ltdetr".
+            The model to train. For example, "dinov3/convnext-tiny-ltdetr-coco",
+            "dinov2/vits14-ltdetr", or a path to a local model checkpoint.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter.
         steps:
             The number of training steps.
         batch_size:
@@ -232,11 +242,13 @@ def train_object_detection(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Use this parameter to further fine-tune a model from a previous fine-tuned checkpoint.
-            The checkpoint must be a path to a checkpoint file, for example "checkpoints/model.ckpt".
-            This will only load the model weights from the previous run. All other
-            training state (e.g. optimizer state, epochs) from the previous run are not
-            loaded.
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint. The checkpoint must be a path to a checkpoint file, for example
+            "checkpoints/model.ckpt". This will only load the model weights from the
+            previous run. All other training state (e.g. optimizer state, epochs) from
+            the previous run are not loaded.
+
+            This option is equivalent to setting ``model="<path_to_checkpoint>"``.
 
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
@@ -345,7 +357,11 @@ def train_semantic_segmentation(
             The dataset configuration. See the documentation for more information:
             https://docs.lightly.ai/train/stable/semantic_segmentation.html#data
         model:
-            The model to train. For example, "dinov2/vits14-eomt".
+            The model to train. For example, "dinov2/vits14-eomt",
+            "dinov3/vits16-eomt-coco", or a path to a local model checkpoint.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter.
         steps:
             The number of training steps.
         batch_size:
@@ -361,11 +377,13 @@ def train_semantic_segmentation(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Use this parameter to further fine-tune a model from a previous fine-tuned checkpoint.
-            The checkpoint must be a path to a checkpoint file, for example "checkpoints/model.ckpt".
-            This will only load the model weights from the previous run. All other
-            training state (e.g. optimizer state, epochs) from the previous run are not
-            loaded.
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint. The checkpoint must be a path to a checkpoint file, for example
+            "checkpoints/model.ckpt". This will only load the model weights from the
+            previous run. All other training state (e.g. optimizer state, epochs) from
+            the previous run are not loaded.
+
+            This option is equivalent to setting ``model="<path_to_checkpoint>"``.
 
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
