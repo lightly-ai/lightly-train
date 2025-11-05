@@ -230,6 +230,9 @@ def test_open_image_numpy(
     assert result.shape == expected_shape
     assert result.dtype == expected_dtype
 
+    if expected_dtype == np.float32:
+        assert result.min() >= 0.0 and result.max() <= 1.0
+
     if expected_backend == "torch":
         torch_spy.assert_called_once()
         pil_spy.assert_not_called()

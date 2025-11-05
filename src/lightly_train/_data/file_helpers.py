@@ -168,23 +168,6 @@ def open_image_numpy(
     return image_np
 
 
-def open_mask_numpy(
-    mask_path: Path,
-) -> NDArrayMask:
-    """Returns mask as (H, W, C) or (H, W) numpy array."""
-    mask_np: NDArrayMask
-    if mask_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
-        try:
-            mask_np = _open_mask_numpy__with_torch(mask_path=mask_path)
-        except RuntimeError:
-            # RuntimeError can happen for truncated images. Fall back to PIL.
-            mask_np = _open_mask_numpy__with_pil(mask_path=mask_path)
-    else:
-        mask_np = _open_mask_numpy__with_pil(mask_path=mask_path)
-
-    return mask_np
-
-
 def _open_image_numpy__with_torch(
     image_path: Path,
     mode: ImageMode = ImageMode.RGB,
@@ -211,23 +194,6 @@ def _open_image_numpy__with_torch(
     return image_np
 
 
-def _open_mask_numpy__with_torch(
-    mask_path: Path,
-) -> NDArrayMask:
-    mask_np: NDArrayMask
-
-    mask_torch = io.decode_image(str(mask_path))
-    mask_torch = mask_torch.permute(1, 2, 0)
-
-    if mask_torch.shape[2] == 1:
-        # Squeeze channel dimension for single-channel masks.
-        # (H, W, 1) -> (H, W)
-        mask_torch = mask_torch.squeeze(2)
-
-    mask_np = mask_torch.numpy()
-    return mask_np
-
-
 def _open_image_numpy__with_pil(
     image_path: Path,
     mode: ImageMode = ImageMode.RGB,
@@ -251,6 +217,40 @@ def _open_image_numpy__with_pil(
         image_np = (image_np - float(info.min)) / float(info.max - info.min)
 
     return image_np
+
+
+def open_mask_numpy(
+    mask_path: Path,
+) -> NDArrayMask:
+    """Returns mask as (H, W, C) or (H, W) numpy array."""
+    mask_np: NDArrayMask
+    if mask_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+        try:
+            mask_np = _open_mask_numpy__with_torch(mask_path=mask_path)
+        except RuntimeError:
+            # RuntimeError can happen for truncated images. Fall back to PIL.
+            mask_np = _open_mask_numpy__with_pil(mask_path=mask_path)
+    else:
+        mask_np = _open_mask_numpy__with_pil(mask_path=mask_path)
+
+    return mask_np
+
+
+def _open_mask_numpy__with_torch(
+    mask_path: Path,
+) -> NDArrayMask:
+    mask_np: NDArrayMask
+
+    mask_torch = io.decode_image(str(mask_path))
+    mask_torch = mask_torch.permute(1, 2, 0)
+
+    if mask_torch.shape[2] == 1:
+        # Squeeze channel dimension for single-channel masks.
+        # (H, W, 1) -> (H, W)
+        mask_torch = mask_torch.squeeze(2)
+
+    mask_np = mask_torch.numpy()
+    return mask_np
 
 
 def _open_mask_numpy__with_pil(
