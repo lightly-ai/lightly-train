@@ -186,7 +186,7 @@ def _open_image_numpy__with_torch(
         # (H, W, 1) -> (H, W, 3)
         image_torch = image_torch.repeat(1, 1, 3)
     if image_torch.dtype != torch.uint8:
-        # Convert to float32 image in [0, 1] range for non-uint8 types cuz albumentations only supports
+        # Convert to float32 image in [0, 1] range for non-uint8 types because albumentations only supports
         # np.float32 and np.uint8 types.
         image_torch = F.to_dtype(image_torch, torch.float32, scale=True)
 
@@ -206,8 +206,10 @@ def _open_image_numpy__with_pil(
 
     image_np = np.array(image)
     original_dtype = image_np.dtype
-    if not np.isdtype(original_dtype, get_args(ImageDtypes)):
-        # Convert to float32 image in [0, 1] range for non-uint8 types cuz albumentations only supports
+    if not any(
+        np.issubdtype(original_dtype, allowed) for allowed in get_args(ImageDtypes)
+    ):
+        # Convert to float32 image in [0, 1] range for non-uint8 types because albumentations only supports
         # np.float32 and np.uint8 types.
         image_np = image_np.astype(np.float32)
 
