@@ -185,7 +185,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             targets=targets,
         )
 
-        # Additional kwargs are anyway ignore in RTDETRCriterionv2.
+        # Additional kwargs are anyway ignored in RTDETRCriterionv2.
         # The loss expects gt boxes in cxcywh format normalized in [0,1].
         loss_dict = self.criterion(
             outputs=outputs,
@@ -236,7 +236,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 targets=targets,
             )
             # TODO (Lionel, 10/25): Pass epoch, step, global_step.
-            # The loss expects gt boxes in cxcywh format normalized in [0,1]
+            # The loss expects gt boxes in cxcywh format normalized in [0,1].
             loss_dict = self.criterion(
                 outputs=outputs,
                 targets=targets,
