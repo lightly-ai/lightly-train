@@ -121,30 +121,27 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
     Defines default transform arguments for instance segmentation validation with DINOv3.
     """
 
-    image_size: tuple[int, int] | Literal["auto"] = "auto"
+    image_size: tuple[int, int] | Literal["auto"] | None = None
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = None
     color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
-    smallest_max_size: SmallestMaxSizeArgs = Field(
-        default_factory=DINOv3EoMTInstanceSegmentationSmallestMaxSizeArgs
-    )
+    smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs | None = None
     bbox_params: BboxParams = BboxParams(format="yolo", label_fields=["class_labels"])
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (640, 640))
-            assert isinstance(image_size, tuple)
-            self.image_size = image_size
+            self.image_size = None
 
-        height, width = self.image_size
         for field_name in self.__class__.model_fields:
             field = getattr(self, field_name)
             if hasattr(field, "resolve_auto"):
+                assert isinstance(self.image_size, tuple)
+                height, width = self.image_size
                 field.resolve_auto(height=height, width=width)
 
         if self.normalize == "auto":

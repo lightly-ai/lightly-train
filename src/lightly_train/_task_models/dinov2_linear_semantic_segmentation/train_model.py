@@ -29,6 +29,7 @@ from lightly_train._task_models.dinov2_linear_semantic_segmentation.task_model i
 )
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.transforms import (
     DINOv2LinearSemanticSegmentationTrainTransform,
+    DINOv2LinearSemanticSegmentationTrainTransformArgs,
     DINOv2LinearSemanticSegmentationValTransform,
     DINOv2LinearSemanticSegmentationValTransformArgs,
 )
@@ -98,6 +99,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         model_name: str,
         model_args: DINOv2LinearSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
+        train_transform_args: DINOv2LinearSemanticSegmentationTrainTransformArgs,
         val_transform_args: DINOv2LinearSemanticSegmentationValTransformArgs,
     ) -> None:
         super().__init__()
