@@ -176,7 +176,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
     ) -> TaskStepResult:
         samples, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
-        boxes = _yolo_to_xyxy(boxes)
         targets: list[dict[str, Tensor]] = [
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
@@ -185,7 +184,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             x=samples,
             targets=targets,
         )
+
         # Additional kwargs are anyway ignore in RTDETRCriterionv2.
+        # The loss expects gt boxes in cxcywh format normalized in [0,1].
         loss_dict = self.criterion(
             outputs=outputs,
             targets=targets,
@@ -219,7 +220,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             batch["classes"],
             batch["original_size"],
         )
-        boxes = _yolo_to_xyxy(boxes)
         targets = [
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
@@ -236,6 +236,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 targets=targets,
             )
             # TODO (Lionel, 10/25): Pass epoch, step, global_step.
+            # The loss expects gt boxes in cxcywh format normalized in [0,1]
             loss_dict = self.criterion(
                 outputs=outputs,
                 targets=targets,
@@ -250,7 +251,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
-        # De-normalize boxes target boxes.
+        # Convert to xyxy format and de-normalize the boxes.
+        boxes = _yolo_to_xyxy(boxes)
         boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
         for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
             target["boxes"] = sample_denormalized_boxes
