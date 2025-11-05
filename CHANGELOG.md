@@ -9,17 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Object detection metrics tracking and required dependencies.
+- Add support for DINOv3 object detection model training.
 - Add support for DINOv3 ConvNeXt models.
 - Automatically download DINOv3 weights.
 - Predict masks for a full dataset with a semantic segmentation model checkpoint with
   the `predict_semantic_segmentation` command. It can be used for e.g. auto-labeling
   datasets.
+- Add support for passing pretrained model names or checkpoint paths as `model` argument
+  to the model training functions like `train_semantic_segmentation`.
 
 ### Changed
 
 - Widen PyTorch constraint — remove `<2.6` upper bound to allow PyTorch 2.6 and later that is officially supported by PyTorch Lightning 2.5.
-- `load_model_from_checkpoint` now tries to download a checkpoint if it does not exist
+- Rename `load_model_from_checkpoint` to `load_model`. The function now downloads
+  checkpoints that do not exist locally.
 
 ### Deprecated
 

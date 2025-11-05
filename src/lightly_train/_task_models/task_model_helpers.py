@@ -123,6 +123,7 @@ def load_model(
     model_instance = init_model_from_checkpoint(checkpoint=ckpt, device=device)
     return model_instance
 
+
 def load_model_from_checkpoint(
     checkpoint: PathLike,
     device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,

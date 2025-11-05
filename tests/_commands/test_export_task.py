@@ -196,9 +196,7 @@ def test_onnx_export__height_not_patch_size_multiple_fails(
     dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:
     # arrange
-    model = lightly_train.load_model(
-        dinov2_vits14_eomt_checkpoint, device="cpu"
-    )
+    model = lightly_train.load_model(dinov2_vits14_eomt_checkpoint, device="cpu")
     onnx_path = tmp_path / "model.onnx"
     patch_size: int = model.backbone.patch_size  # type: ignore
     height = patch_size - 1
@@ -238,9 +236,7 @@ def test_onnx_export__width_not_patch_size_multiple_fails(
     dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:
     # arrange
-    model = lightly_train.load_model(
-        dinov2_vits14_eomt_checkpoint, device="cpu"
-    )
+    model = lightly_train.load_model(dinov2_vits14_eomt_checkpoint, device="cpu")
     onnx_path = tmp_path / "model.onnx"
     patch_size: int = model.backbone.patch_size  # type: ignore
     height = patch_size

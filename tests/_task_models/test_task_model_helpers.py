@@ -25,9 +25,7 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model imp
     version.parse(torch.__version__) < version.parse("2.2.0"),
     reason="Model loading currently fails for PyTorch < 2.2.0. See https://github.com/lightly-ai/lightly-train/issues/323",
 )
-def test_load_model__download(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
+def test_load_model__download(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("LIGHTLY_TRAIN_MODEL_CACHE_DIR", str(tmp_path))
     model_name = "dinov3/vits16-eomt-coco"
     model_file_name = "lightlytrain_dinov3_eomt_vits16_cocostuff.pt"
