@@ -12,8 +12,10 @@ import os
 from collections.abc import Iterable, Set
 from enum import Enum
 from pathlib import Path
+from typing import get_args
 
 import numpy as np
+import torch
 from PIL import Image, ImageFile
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -22,10 +24,12 @@ from torchvision.io import ImageReadMode
 from torchvision.transforms.v2 import functional as F
 
 from lightly_train.types import (
+    ImageDtypes,
     ImageFilename,
     NDArrayBBoxes,
     NDArrayClasses,
     NDArrayImage,
+    NDArrayMask,
     NDArrayPolygon,
     PathLike,
 )
@@ -161,18 +165,25 @@ def open_image_numpy(
             image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
     else:
         image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
-    dtype = image_np.dtype
-    if np.issubdtype(dtype, np.unsignedinteger) and dtype != np.uint8:
-        # Convert uint16, uint32, uint64 to signed integer type because torch has only
-        # limited support for these types.
-        dtype_str = str(dtype)  # Str in case dtype is not supported on platform.
-        target_dtype = {
-            "uint16": np.int32,
-            "uint32": np.int64,
-            "uint64": np.int64,  # int128 is not supported by numpy and torch.
-        }[dtype_str]
-        image_np = image_np.astype(target_dtype)
+
     return image_np
+
+
+def open_mask_numpy(
+    mask_path: Path,
+) -> NDArrayMask:
+    """Returns mask as (H, W, C) or (H, W) numpy array."""
+    mask_np: NDArrayMask
+    if mask_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+        try:
+            mask_np = _open_mask_numpy__with_torch(mask_path=mask_path)
+        except RuntimeError:
+            # RuntimeError can happen for truncated images. Fall back to PIL.
+            mask_np = _open_mask_numpy__with_pil(mask_path=mask_path)
+    else:
+        mask_np = _open_mask_numpy__with_pil(mask_path=mask_path)
+
+    return mask_np
 
 
 def _open_image_numpy__with_torch(
@@ -180,23 +191,42 @@ def _open_image_numpy__with_torch(
     mode: ImageMode = ImageMode.RGB,
 ) -> NDArrayImage:
     image_np: NDArrayImage
+
     mode_torch = {
         ImageMode.RGB: ImageReadMode.RGB,
         ImageMode.UNCHANGED: ImageReadMode.UNCHANGED,
-        ImageMode.MASK: ImageReadMode.UNCHANGED,
     }[mode]
-    image_torch = io.read_image(str(image_path), mode=mode_torch)
+    image_torch = io.decode_image(str(image_path), mode=mode_torch)
     image_torch = image_torch.permute(1, 2, 0)
+
     if image_torch.shape[2] == 1 and mode == ImageMode.RGB:
         # Convert single-channel grayscale to 3-channel RGB.
         # (H, W, 1) -> (H, W, 3)
         image_torch = image_torch.repeat(1, 1, 3)
-    if image_torch.shape[2] == 1 and mode == ImageMode.MASK:
-        # Squeeze channel dimension for single-channel masks.
-        # (H, W, 1) -> (H, W)
-        image_torch = image_torch.squeeze(2)
+    if image_torch.dtype != torch.uint8:
+        # Convert to float32 image in [0, 1] range for non-uint8 types cuz albumentations only supports
+        # np.float32 and np.uint8 types.
+        image_torch = F.to_dtype(image_torch, torch.float32, scale=True)
+
     image_np = image_torch.numpy()
     return image_np
+
+
+def _open_mask_numpy__with_torch(
+    mask_path: Path,
+) -> NDArrayMask:
+    mask_np: NDArrayMask
+
+    mask_torch = io.decode_image(str(mask_path))
+    mask_torch = mask_torch.permute(1, 2, 0)
+
+    if mask_torch.shape[2] == 1:
+        # Squeeze channel dimension for single-channel masks.
+        # (H, W, 1) -> (H, W)
+        mask_torch = mask_torch.squeeze(2)
+
+    mask_np = mask_torch.numpy()
+    return mask_np
 
 
 def _open_image_numpy__with_pil(
@@ -204,16 +234,35 @@ def _open_image_numpy__with_pil(
     mode: ImageMode = ImageMode.RGB,
 ) -> NDArrayImage:
     image_np: NDArrayImage
-    convert_mode = {
-        ImageMode.RGB: "RGB",
-        ImageMode.UNCHANGED: None,
-        ImageMode.MASK: None,
-    }[mode]
+
     image: PILImage | ImageFile.ImageFile = Image.open(image_path)
-    if convert_mode is not None:
-        image = image.convert(convert_mode)
+    if mode != ImageMode.UNCHANGED:
+        image = image.convert(mode.value)
+
     image_np = np.array(image)
+    original_dtype = image_np.dtype
+    if not np.isdtype(original_dtype, get_args(ImageDtypes)):
+        # Convert to float32 image in [0, 1] range for non-uint8 types cuz albumentations only supports
+        # np.float32 and np.uint8 types.
+        image_np = image_np.astype(np.float32)
+
+        # Here we assume that all the other images uses integer types.
+        # See https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes for more details.
+        info = np.iinfo(original_dtype)  # type: ignore[type-var]
+        image_np = (image_np - float(info.min)) / float(info.max - info.min)
+
     return image_np
+
+
+def _open_mask_numpy__with_pil(
+    mask_path: Path,
+) -> NDArrayMask:
+    mask_np: NDArrayMask
+
+    mask: PILImage | ImageFile.ImageFile = Image.open(mask_path)
+    mask_np = np.array(mask)
+
+    return mask_np
 
 
 def open_yolo_object_detection_label_numpy(

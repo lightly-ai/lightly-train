@@ -22,7 +22,9 @@ from typing_extensions import NotRequired
 PackageModel = Any
 
 # Types for the new transforms.
-NDArrayImage = NDArray[Union[np.uint8, np.uint16, np.int32, np.int64]]
+ImageDtypes = Union[np.uint8, np.float32]
+NDArrayImage = NDArray[ImageDtypes]  # (H, W) or (H, W, C)
+NDArrayMask = NDArray[np.integer]  # (H, W) or (H, W, C)
 NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
 NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
 # Array with x0, y0, x1, y1, x2, y2, ... coordinates of the polygon points. Coordinates
