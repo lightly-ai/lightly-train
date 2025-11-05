@@ -52,7 +52,9 @@ def test_load_model_from_checkpoint__download(
 
 def test_load_model_from_checkpoint__download_invalid_model__fails() -> None:
     invalid_model_name = "definitely-not-a-valid-model-name"
-    expected_error_message = f"No downloadable model named {invalid_model_name}."
+    expected_error_message = (
+        f"Unknown model name or checkpoint path: '{invalid_model_name}'"
+    )
 
     with pytest.raises(ValueError, match=re.escape(expected_error_message)):
         load_model_from_checkpoint(invalid_model_name)
