@@ -507,7 +507,9 @@ logger_args={"tensorboard": None}
 
 ## Resume Training
 
-Like in pretraining, there are two distinct ways to continue training, depending on your intention. Therefore, the `resume_interrupted=True` and the `checkpoint` parameter cannot be used simultaneously.
+Like in pretraining, there are two distinct ways to continue training, depending on your
+intention. Therefore, the `resume_interrupted=True` parameter cannot be combined with
+passing a checkpoint path to the `model` parameter.
 
 ### Resume Interrupted Training
 
@@ -522,7 +524,7 @@ This will utilize the `.ckpt` checkpoint file `out/my_experiment/checkpoints/las
 
 ### Load Weights for a New Run
 
-As stated above, you can specify the `checkpoint` parameter to further fine-tune a model from a previous run.
+As stated above, you can specify `model="<checkpoint path">` to further fine-tune a model from a previous run.
 
 - You are free to **change training parameters**.
 - This is useful for continuing training with a different setup.
