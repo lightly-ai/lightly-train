@@ -292,7 +292,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         backbone_params = [
             p
             for n, p in self.model.named_parameters()
-            if re.match(r"^(?=.*backbone)(?!.*norm|bn).*$", n)
+            if re.match(r"^(?=.*backbone)(?!.*(norm|bn)).*$", n)
         ]
         if backbone_params:
             param_groups.append(
