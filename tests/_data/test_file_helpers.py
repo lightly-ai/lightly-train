@@ -16,7 +16,7 @@ from pytest import LogCaptureFixture, MonkeyPatch
 from pytest_mock import MockerFixture
 
 from lightly_train._data import file_helpers
-from lightly_train._data.file_helpers import ImageMode
+from lightly_train._data.file_helpers import TORCHVISION_GEQ_0_20_0, ImageMode
 
 from .. import helpers
 
@@ -259,6 +259,15 @@ def test_open_mask_numpy(
     pil_mode: str,
     mocker: MockerFixture,
 ) -> None:
+    if (
+        (not TORCHVISION_GEQ_0_20_0)
+        and expected_backend == "torch"
+        and dtype == np.uint16
+    ):
+        pytest.skip(
+            "torchvision<0.20.0 does not support uint16 masks with torchvision."
+        )
+
     mask_path = tmp_path / f"mask{extension}"
 
     max_value = int(np.iinfo(dtype).max)

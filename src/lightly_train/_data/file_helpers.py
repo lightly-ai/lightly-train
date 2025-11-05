@@ -16,10 +16,10 @@ from typing import get_args
 
 import numpy as np
 import torch
+from lightning_utilities.core.imports import RequirementCache
 from PIL import Image, ImageFile
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torchvision import io
 from torchvision.io import ImageReadMode
 from torchvision.transforms.v2 import functional as F
 
@@ -35,6 +35,15 @@ from lightly_train.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+TORCHVISION_GEQ_0_20_0 = RequirementCache("torchvision>=0.20.0")
+if TORCHVISION_GEQ_0_20_0:
+    # `read_image` is marked as obsolete in torchvision>=0.20.0 in favor of `decode_image`.
+    # `decode_image` can additionally load uint16 masks, but can only accept str inputs in torchvision>=0.20.0
+    # so we use `decode_image` for torchvision>=0.20.0 and fall back to `read_image` otherwise.
+    from torchvision.io import decode_image as load_image
+else:
+    from torchvision.io import read_image as load_image  # type: ignore[no-redef]
 
 
 class ImageMode(Enum):
@@ -143,7 +152,7 @@ def open_image_tensor(image_path: Path) -> Tensor:
     """Returns image as (C, H, W) tensor."""
     image: Tensor
     if image_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
-        image = io.decode_image(str(image_path))
+        image = load_image(str(image_path))
         return image
     else:
         image = F.pil_to_tensor(Image.open(image_path))
@@ -178,7 +187,7 @@ def _open_image_numpy__with_torch(
         ImageMode.RGB: ImageReadMode.RGB,
         ImageMode.UNCHANGED: ImageReadMode.UNCHANGED,
     }[mode]
-    image_torch = io.decode_image(str(image_path), mode=mode_torch)
+    image_torch = load_image(str(image_path), mode=mode_torch)
     image_torch = image_torch.permute(1, 2, 0)
 
     if image_torch.shape[2] == 1 and mode == ImageMode.RGB:
@@ -243,7 +252,7 @@ def _open_mask_numpy__with_torch(
 ) -> NDArrayMask:
     mask_np: NDArrayMask
 
-    mask_torch = io.decode_image(str(mask_path))
+    mask_torch = load_image(str(mask_path))
     mask_torch = mask_torch.permute(1, 2, 0)
 
     if mask_torch.shape[2] == 1:
