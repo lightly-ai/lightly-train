@@ -154,7 +154,7 @@ import lightly_train
 from torchvision import utils, io
 import matplotlib.pyplot as plt
 
-model = lightly_train.load_model_from_checkpoint(
+model = lightly_train.load_model(
     checkpoint="dinov3/convnext-tiny-ltdetr-coco"
 )
 

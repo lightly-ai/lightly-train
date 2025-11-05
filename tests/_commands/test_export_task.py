@@ -130,7 +130,7 @@ def test_onnx_export(
         3: dinov2_vits14_eomt_checkpoint,
         4: dinov2_vits14_eomt_4_channels_checkpoint,
     }[num_channels]
-    model = lightly_train.load_model_from_checkpoint(checkpoint, device="cpu")
+    model = lightly_train.load_model(checkpoint, device="cpu")
     if height is None:
         height = cast(int, model.image_size[0])  # type: ignore
     if width is None:
@@ -196,7 +196,7 @@ def test_onnx_export__height_not_patch_size_multiple_fails(
     dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:
     # arrange
-    model = lightly_train.load_model_from_checkpoint(
+    model = lightly_train.load_model(
         dinov2_vits14_eomt_checkpoint, device="cpu"
     )
     onnx_path = tmp_path / "model.onnx"
@@ -238,7 +238,7 @@ def test_onnx_export__width_not_patch_size_multiple_fails(
     dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:
     # arrange
-    model = lightly_train.load_model_from_checkpoint(
+    model = lightly_train.load_model(
         dinov2_vits14_eomt_checkpoint, device="cpu"
     )
     onnx_path = tmp_path / "model.onnx"

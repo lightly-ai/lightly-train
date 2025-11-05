@@ -121,7 +121,7 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     _system.log_system_information(system_information=system_information)
 
     # Load model from checkpoint to Fabric.
-    model = task_model_helpers.load_model_from_checkpoint(
+    model = task_model_helpers.load_model(
         checkpoint=config.model,
     )
 

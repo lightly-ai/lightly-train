@@ -97,7 +97,7 @@ def test_train_semantic_segmentation(
     assert out.is_dir()
     assert (out / "train.log").exists()
 
-    model = lightly_train.load_model_from_checkpoint(
+    model = lightly_train.load_model(
         checkpoint=out / "exported_models" / "exported_last.pt"
     )
     # Check forward pass
@@ -169,10 +169,10 @@ def test_train_semantic_segmentation__export(
     )
 
     # Check that last.ckpt and exported_model.pt contain same information.
-    ckpt_model_state_dict = lightly_train.load_model_from_checkpoint(
+    ckpt_model_state_dict = lightly_train.load_model(
         out / "checkpoints" / "last.ckpt"
     ).state_dict()
-    exported_model_state_dict = lightly_train.load_model_from_checkpoint(
+    exported_model_state_dict = lightly_train.load_model(
         out / "exported_models" / "exported_last.pt"
     ).state_dict()
     assert ckpt_model_state_dict.keys() == exported_model_state_dict.keys()

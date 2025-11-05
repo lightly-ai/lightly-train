@@ -109,9 +109,7 @@ After the training completes, you can load the best model checkpoints for infere
 ```python
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    "out/my_experiment/exported_models/exported_best.pt"
-)
+model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 masks = model.predict("path/to/image.jpg")
 ```
 

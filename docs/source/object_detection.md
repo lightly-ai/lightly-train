@@ -83,9 +83,7 @@ After the training completes, you can load the best model checkpoints for infere
 ```python
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    "out/my_experiment/exported_models/exported_best.pt"
-)
+model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 results = model.predict("path/to/image.jpg")
 ```
 
@@ -94,9 +92,7 @@ Or use one of the pre-trained model weights directly from LightlyTrain:
 ```python
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    checkpoint="dinov3/convnext-tiny-ltdetr-coco"
-)
+model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
 results = model.predict("path/to/image.jpg")
 ```
 
@@ -111,10 +107,7 @@ from torchvision import io, utils
 
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    checkpoint="dinov3/convnext-tiny-ltdetr-coco"
-)
-
+model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
 labels, boxes, scores = model.predict("<image>.jpg").values()
 
 # Visualize predictions.

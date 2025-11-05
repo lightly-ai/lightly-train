@@ -9,7 +9,7 @@ Documentation of the public API of the `lightly_train` package.
 ```{eval-rst}
 
 .. automodule:: lightly_train
-    :members: embed, export, export_onnx, load_model_from_checkpoint, list_methods, list_models, train, train_semantic_segmentation, train_object_detection
+    :members: embed, export, export_onnx, load_model, list_methods, list_models, train, train_semantic_segmentation, train_object_detection
 
 ```
 

@@ -94,21 +94,22 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
 }
 
 
-def load_model_from_checkpoint(
-    checkpoint: PathLike,
+def load_model(
+    model: PathLike,
     device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
 ) -> TaskModel:
-    """
-    Either load model from an exported model file (in .pt format) or a checkpoint file (in .ckpt format) or download
-    it from our model repository.
+    """Either load model from an exported model file (in .pt format) or a checkpoint file
+    (in .ckpt format) or download it from the Lightly model repository.
 
-    First check if `checkpoint` points to a valid file. If not and `checkpoint` is a `str` try to match that name
-    to one of the models in our repository and download it. Downloaded models are cached under the location specified by
-    the environment variable `LIGHTLY_TRAIN_MODEL_CACHE_DIR`.
+    First check if `model` points to a valid file. If not and `model` is a `str` try to
+    match that name to one of the models in the Lightly model repository and download it.
+    Downloaded models are cached under the location specified by the environment variable
+    `LIGHTLY_TRAIN_MODEL_CACHE_DIR`.
 
     Args:
-        checkpoint:
-            Either a path to the exported model/checkpoint file or the name of a model in our model repository.
+        model:
+            Either a path to the exported model/checkpoint file or the name of a model
+            in the Lightly model repository.
         device:
             Device to load the model on. If None, the model will be loaded onto a GPU
             (`"cuda"` or `"mps"`) if available, and otherwise fall back to CPU.
@@ -117,10 +118,17 @@ def load_model_from_checkpoint(
         The loaded model.
     """
     device = _resolve_device(device)
-    ckpt_path = download_checkpoint(checkpoint=checkpoint)
+    ckpt_path = download_checkpoint(checkpoint=model)
     ckpt = torch.load(ckpt_path, weights_only=False, map_location=device)
-    model = init_model_from_checkpoint(checkpoint=ckpt, device=device)
-    return model
+    model_instance = init_model_from_checkpoint(checkpoint=ckpt, device=device)
+    return model_instance
+
+def load_model_from_checkpoint(
+    checkpoint: PathLike,
+    device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
+) -> TaskModel:
+    """Deprecated. Use `load_model` instead."""
+    return load_model(model=checkpoint, device=device)
 
 
 def download_checkpoint(checkpoint: PathLike) -> Path:
