@@ -506,6 +506,18 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             float32_matmul_precision=config.float32_matmul_precision,
         )
     )
+
+    checkpoint, model_name = helpers.load_checkpoint(
+        fabric=fabric,
+        out_dir=out_dir,
+        resume_interrupted=config.resume_interrupted,
+        model=config.model,
+        checkpoint=config.checkpoint,
+        task=config.task,
+    )
+    if model_name is not None:
+        config.model = model_name
+
     train_model_cls = helpers.get_train_model_cls(
         model_name=config.model,
         task=config.task,
@@ -514,31 +526,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_model_cls=train_model_cls, checkpoint_args=config.save_checkpoint_args
     )
 
-    # Load checkpoint context if resuming or further fine-tuning.
-    checkpoint = helpers.load_checkpoint(
-        fabric=fabric,
-        out_dir=out_dir,
-        resume_interrupted=config.resume_interrupted,
-        ckpt_path=config.checkpoint,
+    model_init_args = (
+        {} if checkpoint is None else checkpoint.get("model_init_args", {})
     )
-
-    if checkpoint:
-        model_init_args = checkpoint["model_init_args"]
-        if (saved_model_name := model_init_args.get("model_name")) != config.model:
-            raise ValueError(
-                f"The model name in the checkpoint or model weights file('{saved_model_name}') "
-                f"does not match the provided model name ('{config.model}')."
-            )
-    else:
-        model_init_args = {}
 
     train_transform_args, val_transform_args = helpers.get_transform_args(
         train_model_cls=train_model_cls,
         transform_args=config.transform_args,
         # TODO (Lionel, 10/25): Handle ignore_index properly for object detection.
-        ignore_index=config.data.ignore_index
-        if hasattr(config.data, "ignore_index")
-        else None,
+        ignore_index=getattr(config.data, "ignore_index", None),
         model_init_args=model_init_args,
     )
     train_transform = helpers.get_train_transform(
@@ -569,13 +565,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         if (
-            config.checkpoint
+            checkpoint is not None
             and config.reuse_class_head
             and config.data.included_classes != model_init_args.get("classes")
         ):
-            raise ValueError(
+            logger.warning(
                 f"The included classes in the data configuration ({config.data.included_classes}) "
-                f"do not match the classes used in the checkpoint or model weights file ({model_init_args.get('classes')}). "
+                f"do not match the classes used in the checkpoint weights file ({model_init_args.get('classes')}). "
                 f"It is not advisable to reuse the class head when you have a different classes config."
             )
 
@@ -647,6 +643,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             data_args=config.data,
             train_transform_args=train_transform_args,
             val_transform_args=val_transform_args,
+            load_weights=checkpoint is None,
         )
 
         # Set train mode to make sure that all parameters are in the correct state before
@@ -681,13 +678,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_init_args=train_model.get_task_model().init_args,
         )
 
-        if config.resume_interrupted and checkpoint:
+        if config.resume_interrupted and checkpoint is not None:
             helpers.resume_from_checkpoint(
                 state=state,
                 checkpoint=checkpoint,  # type: ignore[arg-type]
             )
-            train_dataloader = checkpoint["train_dataloader"]  # type: ignore[typeddict-item]
-        elif config.checkpoint and checkpoint:
+            train_dataloader = state["train_dataloader"]  # type: ignore[typeddict-item]
+        elif checkpoint is not None:
             helpers.finetune_from_checkpoint(
                 state=state,
                 checkpoint=checkpoint,  # type: ignore[arg-type]

@@ -36,6 +36,7 @@ from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
@@ -777,86 +778,132 @@ def export_model(
 
 
 def load_checkpoint(
-    fabric: Fabric, out_dir: Path, resume_interrupted: bool, ckpt_path: PathLike | None
-) -> TrainCheckpoint | ExportedCheckpoint | None:
+    fabric: Fabric,
+    out_dir: Path,
+    resume_interrupted: bool,
+    model: str,
+    checkpoint: PathLike | None,
+    task: str,
+) -> tuple[TrainCheckpoint | ExportedCheckpoint | None, str | None]:
     """Build a checkpoint context from the current run configuration.
 
     Args:
         fabric: Fabric instance used to load checkpoint files.
         out_dir: Output directory where checkpoints are stored.
         resume_interrupted: Whether to resume from an interrupted run.
-        ckpt_path: Path to a specific checkpoint file to fine-tune from.
+        model: Model name or path to model checkpoint.
+        ckpt_path: Path to model checkpoint.
+        task: The training task.
 
     Returns:
-        A populated checkpoint context when resuming or fine-tuning, otherwise ``None``.
+        (checkpoint, model_name) tuple.
+        Loaded checkpoint if resume_interrupted is True, or checkpoint is provided, or
+        model is a checkpoint path or pretrained task model name. Otherwise, None.
 
     Raises:
         ValueError: If resume and checkpoint options are requested simultaneously.
         FileNotFoundError: If the resolved checkpoint file does not exist.
     """
-    if (not resume_interrupted) and (ckpt_path is None):
-        # Not resuming or fine-tuning from a checkpoint.
-        return None
-    elif resume_interrupted and (ckpt_path is not None):
-        # Both resume and checkpoint specified.
-        raise ValueError(
-            f"resume_interrupted={resume_interrupted} and checkpoint='{ckpt_path}' "
-            "cannot be set at the same time! Please set only one of them. "
-        )
-    elif ckpt_path is not None:
-        ckpt_path = Path(ckpt_path).resolve()
+    model_path: Path | None
+    model_name: str | None
+    try:
+        get_train_model_cls(model_name=model, task=task)
+    except ValueError:
+        # Unknown model name, assume it is a checkpoint path or name.
+        model_path = task_model_helpers.download_checkpoint(checkpoint=model)
+        model_name = None
     else:
+        model_path = None
+        model_name = model
+
+    ckpt_path: Path | None = None
+    if resume_interrupted:
+        if model_path is not None:
+            logger.warning(
+                "`model` is set to a pretrained checkpoint while `resume_interrupted` "
+                "is True. Loading weights from the interrupted run and ignoring "
+                f"model='{model}'."
+            )
+        if checkpoint is not None:
+            raise ValueError(
+                f"resume_interrupted={resume_interrupted} and checkpoint='{checkpoint}' "
+                "cannot be set at the same time! Please set only one of them. "
+            )
         ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
+    elif checkpoint is not None:
+        if model_path is not None:
+            logger.warning(
+                "`model` is set to a pretrained checkpoint while `checkpoint` is also "
+                "set to a pretrained checkpoint. Loading weights from checkpoint "
+                f"'{checkpoint}' and ignoring model='{model}'."
+            )
+        ckpt_path = Path(checkpoint).resolve()
+    elif model_path is not None:
+        ckpt_path = model_path
+    else:
+        # No checkpoint to load. Backbone will be initialized from model name.
+        return (None, model_name)
 
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
 
-    logger.info(f"Loading checkpoint from '{ckpt_path}'")
+    logger.info(f"Loading model checkpoint from '{ckpt_path}'")
 
-    checkpoint = fabric.load(path=ckpt_path)
+    ckpt = fabric.load(path=ckpt_path)
 
-    model_init_args = checkpoint.get("model_init_args", {})
-    model_class_path = checkpoint.get("model_class_path", "")
+    model_init_args = ckpt.get("model_init_args", {})
+    if model_name is None:
+        model_name = model_init_args.get("model_name")
 
-    train_model_state_dict = checkpoint.get("train_model")
+    model_class_path = ckpt.get("model_class_path", "")
+    train_model_state_dict = ckpt.get("train_model")
     if train_model_state_dict is None:
         raise ValueError(
-            f"Checkpoint file '{ckpt_path}' does not contain a train model state."
+            f"Checkpoint file '{ckpt_path}' does not contain model state dict."
         )
 
     if resume_interrupted:
-        optimizer_state = checkpoint.get("optimizer")
-        scheduler_state = checkpoint.get("scheduler")
-        if optimizer_state is None or scheduler_state is None:
+        optimizer_state = ckpt.get("optimizer")
+        if optimizer_state is None:
             raise ValueError(
-                f"Checkpoint file '{ckpt_path}' does not contain optimizer or scheduler state."
+                f"Checkpoint file '{checkpoint}' does not contain optimizer state."
+            )
+        scheduler_state = ckpt.get("scheduler")
+        if scheduler_state is None:
+            raise ValueError(
+                f"Checkpoint file '{checkpoint}' does not contain scheduler state."
             )
 
-        train_dataloader = checkpoint.get("train_dataloader")
+        train_dataloader = ckpt.get("train_dataloader")
         if train_dataloader is None:
             raise ValueError(
-                f"Checkpoint file '{ckpt_path}' does not contain train dataloader."
+                f"Checkpoint file '{checkpoint}' does not contain train dataloader."
             )
-
-        step = checkpoint.get("step")
+        step = ckpt.get("step")
         if step is None:
             raise ValueError(
-                f"Checkpoint file '{ckpt_path}' does not contain training step."
+                f"Checkpoint file '{checkpoint}' does not contain training step."
             )
-        return TrainCheckpoint(
-            train_model_state_dict=train_model_state_dict,
-            optimizer_state_dict=optimizer_state,
-            scheduler_state_dict=scheduler_state,
-            train_dataloader=train_dataloader,
-            step=step,
-            model_class_path=model_class_path,
-            model_init_args=model_init_args,
+        return (
+            TrainCheckpoint(
+                train_model_state_dict=train_model_state_dict,
+                optimizer_state_dict=optimizer_state,
+                scheduler_state_dict=scheduler_state,
+                train_dataloader=train_dataloader,
+                step=step,
+                model_class_path=model_class_path,
+                model_init_args=model_init_args,
+            ),
+            model_name,
         )
 
-    return ExportedCheckpoint(
-        train_model_state_dict=train_model_state_dict,
-        model_class_path=model_class_path,
-        model_init_args=model_init_args,
+    return (
+        ExportedCheckpoint(
+            train_model_state_dict=train_model_state_dict,
+            model_class_path=model_class_path,
+            model_init_args=model_init_args,
+        ),
+        model_name,
     )
 
 
