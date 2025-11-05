@@ -31,6 +31,7 @@ from lightly_train._task_models.dinov3_eomt_instance_segmentation.task_model imp
 )
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.transforms import (
     DINOv3EoMTInstanceSegmentationTrainTransform,
+    DINOv3EoMTInstanceSegmentationTrainTransformArgs,
     DINOv3EoMTInstanceSegmentationValTransform,
     DINOv3EoMTInstanceSegmentationValTransformArgs,
 )
@@ -161,6 +162,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         model_name: str,
         model_args: DINOv3EoMTInstanceSegmentationTrainArgs,
         data_args: YOLOInstanceSegmentationDataArgs,
+        train_transform_args: DINOv3EoMTInstanceSegmentationTrainTransformArgs,
         val_transform_args: DINOv3EoMTInstanceSegmentationValTransformArgs,
     ) -> None:
         super().__init__()
@@ -179,7 +181,11 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         self.model_args = model_args
         num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
-        image_size = no_auto(val_transform_args.image_size)
+        image_size_train = no_auto(train_transform_args.image_size)
+        image_size_val = no_auto(val_transform_args.image_size)
+        image_size = (
+            image_size_val if isinstance(image_size_val, tuple) else image_size_train
+        )
         normalize = no_auto(val_transform_args.normalize)
 
         self.model = DINOv3EoMTInstanceSegmentation(
