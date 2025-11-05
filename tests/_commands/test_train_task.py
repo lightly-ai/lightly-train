@@ -255,7 +255,7 @@ def test_train_semantic_segmentation__checkpoint(
             overwrite=True,
             checkpoint=last_ckpt_path,
         )
-    assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
+    assert f"Loading model checkpoint from '{last_ckpt_path}'" in caplog.text
 
     # Part 3: check that the class head can be re-initialized when loading from checkpoint.
     with caplog.at_level(logging.DEBUG):
@@ -365,5 +365,5 @@ def test_train_semantic_segmentation__resume_interrupted(
             resume_interrupted=True,
         )
 
-    assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
+    assert f"Loading model checkpoint from '{last_ckpt_path}'" in caplog.text
     assert "Resuming training from step 1/1..." in caplog.text
