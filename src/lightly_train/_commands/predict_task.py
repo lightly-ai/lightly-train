@@ -122,7 +122,7 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
 
     # Load model from checkpoint to Fabric.
     model = task_model_helpers.load_model(
-        checkpoint=config.model,
+        model=config.model,
     )
 
     transform = predict_task_helpers.get_transform(
