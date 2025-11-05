@@ -97,9 +97,7 @@ def test_train_semantic_segmentation(
     assert out.is_dir()
     assert (out / "train.log").exists()
 
-    model = lightly_train.load_model(
-        model=out / "exported_models" / "exported_last.pt"
-    )
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
     # Check forward pass
     dummy_input = torch.randn(1, num_channels, 224, 224)
     prediction = model.predict(dummy_input[0])
