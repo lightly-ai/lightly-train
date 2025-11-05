@@ -792,13 +792,14 @@ def load_checkpoint(
         out_dir: Output directory where checkpoints are stored.
         resume_interrupted: Whether to resume from an interrupted run.
         model: Model name or path to model checkpoint.
-        ckpt_path: Path to model checkpoint.
+        checkpoint: Path to model checkpoint.
         task: The training task.
 
     Returns:
-        (checkpoint, model_name) tuple.
-        Loaded checkpoint if resume_interrupted is True, or checkpoint is provided, or
-        model is a checkpoint path or pretrained task model name. Otherwise, None.
+        (checkpoint, model_name) tuple. Checkpoint contains the loaded checkpoint
+        if available. model_name is the name of the model to initialize the backbone
+        from. Checkpoint is None if no checkpoint was loaded and model name is None if
+        it could not be determined.
 
     Raises:
         ValueError: If resume and checkpoint options are requested simultaneously.
