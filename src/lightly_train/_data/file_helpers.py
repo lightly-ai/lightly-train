@@ -40,7 +40,6 @@ logger = logging.getLogger(__name__)
 class ImageMode(Enum):
     RGB = "RGB"
     UNCHANGED = "UNCHANGED"
-    MASK = "MASK"
 
 
 def list_image_filenames_from_iterable(

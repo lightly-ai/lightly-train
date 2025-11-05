@@ -39,7 +39,7 @@ NDArrayBinaryMasksInt = NDArray[np.int_]  # (n_instances, H, W)
 
 class TransformInput(TypedDict):
     image: NDArrayImage
-    mask: NotRequired[NDArrayImage]
+    mask: NotRequired[NDArrayMask]
     # TODO: bbox: NDArray[np.float64] | None
 
 
