@@ -866,23 +866,23 @@ def load_checkpoint(
         optimizer_state = ckpt.get("optimizer")
         if optimizer_state is None:
             raise ValueError(
-                f"Checkpoint file '{checkpoint}' does not contain optimizer state."
+                f"Checkpoint file '{ckpt_path}' does not contain optimizer state."
             )
         scheduler_state = ckpt.get("scheduler")
         if scheduler_state is None:
             raise ValueError(
-                f"Checkpoint file '{checkpoint}' does not contain scheduler state."
+                f"Checkpoint file '{ckpt_path}' does not contain scheduler state."
             )
 
         train_dataloader = ckpt.get("train_dataloader")
         if train_dataloader is None:
             raise ValueError(
-                f"Checkpoint file '{checkpoint}' does not contain train dataloader."
+                f"Checkpoint file '{ckpt_path}' does not contain train dataloader."
             )
         step = ckpt.get("step")
         if step is None:
             raise ValueError(
-                f"Checkpoint file '{checkpoint}' does not contain training step."
+                f"Checkpoint file '{ckpt_path}' does not contain training step."
             )
         return (
             TrainCheckpoint(
