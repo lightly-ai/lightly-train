@@ -251,16 +251,18 @@ class InstanceSegmentationTransform(TaskTransform):
             masks=input["binary_masks"],
             bboxes=input["bboxes"],
             class_labels=input["class_labels"],
+            indices=np.arange(len(input["bboxes"])),
         )
-        # Remove binary masks that are all zero after transformation.
-        # Albumentations doesn't do this automatically, but it removes bboxes and
-        # class labels that correspond to such masks.
+
+        # Albumentations can drop bboxes if they are out of the image after the transform.
+        # It also automatically drops the corresponding class labels and indices but
+        # this doesn't work for masks. So we need to filter them out manually.
         masks = transformed["masks"]
-        masks_tensor = masks if isinstance(masks, Tensor) else torch.stack(masks)
-        masks_tensor = masks_tensor[masks_tensor.sum(dim=(1, 2)) > 0]
+        masks = [masks[i] for i in transformed["indices"]]
+
         return {
             "image": transformed["image"],
-            "binary_masks": masks_tensor,
+            "binary_masks": torch.stack(masks),
             "bboxes": transformed["bboxes"],
             "class_labels": transformed["class_labels"],
         }
