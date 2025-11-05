@@ -208,9 +208,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         if self.ema_model is not None:
             self.ema_model.update(self.model)
 
-    # def get_ema_model(self) -> Module | None:
-    #     return self.ema_model.model if self.ema_model is not None else None
-
     def validation_step(
         self,
         fabric: Fabric,
