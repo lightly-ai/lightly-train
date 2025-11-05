@@ -15,7 +15,10 @@ import torch
 from lightning_fabric import Fabric
 from torch import Tensor
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
-from torch.optim.lr_scheduler import LRScheduler, MultiStepLR
+from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
+    LinearLR,
+    LRScheduler,
+)
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 from lightly_train._data.yolo_object_detection_dataset import (
@@ -105,11 +108,8 @@ class DINOv3LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
     detector_weight_decay: float = 0.0
 
     # Scheduler configuration
-    scheduler_milestones: list[int] = field(default_factory=lambda: [1000])
-    scheduler_gamma: float = 0.1
-    scheduler_warmup_steps: int | None = (
-        None  # TODO (Thomas, 10/25): Change to flat-cosine with warmup.
-    )
+    scheduler_start_factor: float = 0.01
+    scheduler_warmup_steps: int = 2000
 
 
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
@@ -309,12 +309,13 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             betas=self.model_args.optimizer_betas,
             weight_decay=self.model_args.optimizer_weight_decay,
         )
-        scheduler = MultiStepLR(
+        # TODO (Thomas, 11/25): Change to flat-cosine with warmup.
+        scheduler = LinearLR(
             optimizer=optim,
-            milestones=self.model_args.scheduler_milestones,
-            gamma=self.model_args.scheduler_gamma,
+            total_iters=self.model_args.scheduler_warmup_steps,
+            start_factor=self.model_args.scheduler_start_factor,
         )
-        # TODO (Lionel, 10/25): Use the warmup scheduler.
+
         return optim, scheduler
 
     def get_task_model(self) -> TaskModel:
