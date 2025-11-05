@@ -282,26 +282,64 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
-        param_groups = [
-            {
-                "name": "backbone",
-                "params": [
-                    p
-                    for n, p in self.model.named_parameters()
-                    if re.match(r"^(?=.*backbone)(?!.*norm).*$", n)
-                ],
-                "lr": self.model_args.backbone_lr,
-            },
-            {
-                "name": "detector",
-                "params": [
-                    p
-                    for n, p in self.model.named_parameters()
-                    if re.match(r"^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$", n)
-                ],
-                "weight_decay": self.model_args.detector_weight_decay,
-            },
+        param_groups = []
+        base_weight_decay = self.model_args.optimizer_weight_decay
+        base_lr = self.model_args.optimizer_lr
+        backbone_lr = self.model_args.backbone_lr
+        detector_weight_decay = self.model_args.detector_weight_decay
+
+        # Backbone group without normalization layers.
+        backbone_params = [
+            p
+            for n, p in self.model.named_parameters()
+            if re.match(r"^(?=.*backbone)(?!.*norm|bn).*$", n)
         ]
+        if backbone_params:
+            param_groups.append(
+                {
+                    "name": "backbone",
+                    "params": backbone_params,
+                    "lr": backbone_lr,
+                    "weight_decay": base_weight_decay,
+                }
+            )
+
+        # Normalization layers from the detector (encoder/decoder).
+        # TODO (Thomas, 10/25): Add one extra group for the normalization layers in the backbone.
+        detector_params = [
+            p
+            for n, p in self.model.named_parameters()
+            if re.match(r"^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$", n)
+        ]
+        if detector_params:
+            param_groups.append(
+                {
+                    "name": "detector",
+                    "params": detector_params,
+                    "lr": base_lr,
+                    "weight_decay": detector_weight_decay,
+                }
+            )
+
+        # Default group for all remaining parameters.
+        used_params = set(
+            p
+            for param_group in param_groups
+            for p in param_group["params"]  # type: ignore[attr-defined]
+        )
+        default_params = [
+            p for _, p in self.model.named_parameters() if p not in used_params
+        ]
+
+        if default_params:
+            param_groups.append(
+                {
+                    "name": "default",
+                    "params": default_params,
+                    "lr": base_lr,
+                    "weight_decay": base_weight_decay,
+                }
+            )
         optim = AdamW(
             param_groups,
             lr=self.model_args.optimizer_lr,
