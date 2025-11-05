@@ -660,6 +660,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         hyperparams = helpers.pretty_format_args_dict(config.model_dump())
         hyperparams.pop("resume_interrupted", None)
+        hyperparams.pop("overwrite", None)
         logger_args = hyperparams.get("logger_args")
         if isinstance(logger_args, dict):
             mlflow_logger_args = logger_args.get("mlflow")
@@ -668,6 +669,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         for logger_instance in fabric.loggers:
             if config.resume_interrupted:
                 hyperparams["resume_interrupted"] = True
+            if config.overwrite:
+                hyperparams["overwrite"] = True
             logger_instance.log_hyperparams(hyperparams)
 
         state = TrainTaskState(
