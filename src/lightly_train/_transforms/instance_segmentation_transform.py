@@ -259,10 +259,17 @@ class InstanceSegmentationTransform(TaskTransform):
         # this doesn't work for masks. So we need to filter them out manually.
         masks = transformed["masks"]
         masks = [masks[i] for i in transformed["indices"]]
+        image = transformed["image"]
+        H, W = image.shape[-2:]
+        binary_masks = (
+            torch.stack(masks)
+            if len(masks) > 0
+            else image.new_zeros(0, H, W, dtype=torch.int)
+        )
 
         return {
             "image": transformed["image"],
-            "binary_masks": torch.stack(masks),
+            "binary_masks": binary_masks,
             "bboxes": transformed["bboxes"],
             "class_labels": transformed["class_labels"],
         }
