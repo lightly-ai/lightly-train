@@ -11,9 +11,11 @@ import logging
 import os
 from collections.abc import Iterable, Set
 from enum import Enum
+from io import BytesIO
 from pathlib import Path
 from typing import get_args
 
+import fsspec
 import numpy as np
 import torch
 from lightning_utilities.core.imports import RequirementCache
@@ -145,18 +147,30 @@ def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
         image_tensor: Tensor = F.pil_to_tensor(image)
         return image_tensor
     else:
-        return open_image_tensor(Path(image))
+        return open_image_tensor(image)
 
 
-def open_image_tensor(image_path: Path) -> Tensor:
-    """Returns image as (C, H, W) tensor."""
+def open_image_tensor(image_path: PathLike) -> Tensor:
+    """Returns image as (C, H, W) tensor.
+
+    Args:
+        image_path: Path to the image file. Can be a local path or URL.
+    """
     image: Tensor
-    if image_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
-        image = load_image(str(image_path))
-        return image
-    else:
-        image = F.pil_to_tensor(Image.open(image_path))
-        return image
+    if Path(image_path).suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+        try:
+            # Fast path when loading local file with torch.
+            image = load_image(str(image_path))
+        except RuntimeError:
+            # RuntimeError can happen for images that cannot be read by torch (e.g. URLs).
+            pass
+        else:
+            return image
+
+    with fsspec.open(image_path, "rb") as file:
+        image_bytes = file.read()
+    image = F.pil_to_tensor(Image.open(BytesIO(image_bytes)))
+    return image
 
 
 def open_image_numpy(
