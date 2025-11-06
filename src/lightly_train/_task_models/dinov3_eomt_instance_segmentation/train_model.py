@@ -350,7 +350,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         for block_idx, mask_logits, class_logits in zip(
             # Add +1 to num_blocks for final output.
             range(num_blocks - num_joint_blocks, num_blocks + 1),
-            resized_mask_logits_per_layer,
+            mask_logits_per_layer,
             class_logits_per_layer,
         ):
             # Compute the loss
@@ -374,7 +374,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         }
 
         # Metrics
-        mask_logits = resized_mask_logits_per_layer[-1]
+        mask_logits = mask_logits_per_layer[-1]
         class_logits = class_logits_per_layer[-1]
         # (B, Q), (B, Q, H, W), (B, Q)
         labels, masks, scores = self.model.get_labels_masks_scores(
