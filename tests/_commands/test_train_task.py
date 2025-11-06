@@ -31,6 +31,11 @@ import lightly_train
 
 from .. import helpers
 
+try:
+    import pydicom
+except ImportError:
+    pydicom = None  # type: ignore[assignment]
+
 is_self_hosted_docker_runner = "GH_RUNNER_NAME" in os.environ
 
 
@@ -104,6 +109,91 @@ def test_train_semantic_segmentation(
     assert prediction.shape == (224, 224)
     assert prediction.min() >= 0
     assert prediction.max() <= 1
+
+
+@pytest.mark.parametrize(
+    ("module_attribute, num_channels, height, width"),
+    [
+        ("mr", 1, 64, 64),
+        ("ct", 1, 128, 128),
+        ("overlay", 1, 300, 484),
+        ("rgb_color", 3, 240, 320),
+        ("palette_color", 3, 350, 800),
+        ("jpeg2k", 3, 480, 640),
+    ],
+)
+@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+def test_train_semantic_segmentation__dicom(
+    tmp_path: Path,
+    module_attribute: str,
+    num_channels: int,
+    height: int,
+    width: int,
+) -> None:
+    from pydicom.examples import get_path
+
+    data_path = Path(get_path(module_attribute))
+
+    out = tmp_path / "out"
+    train_images = tmp_path / "train_images"
+    train_masks = tmp_path / "train_masks"
+    val_images = tmp_path / "val_images"
+    val_masks = tmp_path / "val_masks"
+
+    train_images.mkdir(parents=True, exist_ok=True)
+    for index in range(4):
+        image_filename = f"{index}_{data_path.name}"
+        target = train_images / image_filename
+        target.symlink_to(data_path)
+    train_mask_filenames = [f"{index}_{data_path.stem}.png" for index in range(4)]
+    helpers.create_masks(
+        train_masks,
+        files=train_mask_filenames,
+        height=height,
+        width=width,
+    )
+
+    val_images.mkdir(parents=True, exist_ok=True)
+    for index in range(2):
+        image_filename = f"{index}_{data_path.name}"
+        target = val_images / image_filename
+        target.symlink_to(data_path)
+    val_mask_filenames = [f"{index}_{data_path.stem}.png" for index in range(2)]
+    helpers.create_masks(
+        val_masks,
+        files=val_mask_filenames,
+        height=height,
+        width=width,
+    )
+
+    lightly_train.train_semantic_segmentation(
+        out=out,
+        data={
+            "train": {
+                "images": train_images,
+                "masks": train_masks,
+            },
+            "val": {
+                "images": val_images,
+                "masks": val_masks,
+            },
+            "classes": {
+                0: "background",
+                1: "lesion",
+            },
+        },
+        model="dinov3/vits16-eomt",
+        # The operator 'aten::upsample_bicubic2d.out' raises a NotImplementedError
+        # on macOS with MPS backend.
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+        devices=1,
+        batch_size=2,
+        num_workers=2,
+        steps=2,
+        transform_args={
+            "num_channels": num_channels,
+        },
+    )
 
 
 @pytest.mark.skipif(
