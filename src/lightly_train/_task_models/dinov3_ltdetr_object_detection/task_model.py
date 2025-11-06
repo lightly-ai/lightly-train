@@ -321,9 +321,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         keep = scores > threshold
         labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
         return {
-            "labels": labels.squeeze(0),
-            "bboxes": boxes.squeeze(0),
-            "scores": scores.squeeze(0),
+            "labels": labels,
+            "bboxes": boxes,
+            "scores": scores,
         }
 
     def forward(

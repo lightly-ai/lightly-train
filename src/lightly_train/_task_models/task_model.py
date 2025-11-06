@@ -77,8 +77,8 @@ class TaskModel(Module):
 
         Args:
             image:
-                The input image as a path, PIL image, or tensor. Tensors must have shape
-                (C, H, W).
+                The input image as a path, URL, PIL image, or tensor. Tensors must have
+                shape (C, H, W).
         """
         raise NotImplementedError()
 

@@ -239,8 +239,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
         Args:
             image:
-                The input image as a path, PIL image, or tensor. Tensors must have shape
-                (C, H, W).
+                The input image as a path, URL, PIL image, or tensor. Tensors must have
+                shape (C, H, W).
 
         Returns:
             The predicted mask as a tensor of shape (H, W). The values represent the
