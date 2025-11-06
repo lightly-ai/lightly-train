@@ -94,74 +94,107 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
 }
 
 
-def load_model_from_checkpoint(
-    checkpoint: PathLike,
+def load_model(
+    model: PathLike,
     device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
 ) -> TaskModel:
-    """
-    Either load model from an exported model file (in .pt format) or a checkpoint file (in .ckpt format) or download
-    it from our model repository.
+    """Either load model from an exported model file (in .pt format) or a checkpoint file
+    (in .ckpt format) or download it from the Lightly model repository.
 
-    First check if `checkpoint` points to a valid file. If not and `checkpoint` is a `str` try to match that name
-    to one of the models in our repository and download it. Downloaded models are cached under the location specified by
-    the environment variable `LIGHTLY_TRAIN_MODEL_CACHE_DIR`.
+    First check if `model` points to a valid file. If not and `model` is a `str` try to
+    match that name to one of the models in the Lightly model repository and download it.
+    Downloaded models are cached under the location specified by the environment variable
+    `LIGHTLY_TRAIN_MODEL_CACHE_DIR`.
 
     Args:
-        checkpoint:
-            Either a path to the exported model/checkpoint file or the name of a model in our model repository.
+        model:
+            Either a path to the exported model/checkpoint file or the name of a model
+            in the Lightly model repository.
         device:
             Device to load the model on. If None, the model will be loaded onto a GPU
             (`"cuda"` or `"mps"`) if available, and otherwise fall back to CPU.
-
 
     Returns:
         The loaded model.
     """
     device = _resolve_device(device)
-    checkpoint_path = Path(checkpoint).resolve()
-    if checkpoint_path.exists():
-        checkpoint = common_helpers.get_checkpoint_path(checkpoint=checkpoint)
-    else:
-        assert isinstance(checkpoint, str)
+    ckpt_path = download_checkpoint(checkpoint=model)
+    ckpt = torch.load(ckpt_path, weights_only=False, map_location=device)
+    model_instance = init_model_from_checkpoint(checkpoint=ckpt, device=device)
+    return model_instance
 
-        logger.info("No checkpoint file found. Trying to download.")
 
-        if checkpoint not in DOWNLOADABLE_MODEL_URL_AND_HASH:
-            raise ValueError(f"No downloadable model named {checkpoint}.")
-        model_url, model_hash = DOWNLOADABLE_MODEL_URL_AND_HASH[checkpoint]
+def load_model_from_checkpoint(
+    checkpoint: PathLike,
+    device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
+) -> TaskModel:
+    """Deprecated. Use `load_model` instead."""
+    return load_model(model=checkpoint, device=device)
+
+
+def download_checkpoint(checkpoint: PathLike) -> Path:
+    """Downloads a checkpoint and returns the local path to it.
+
+    Supports checkpoints from:
+    - Local file path
+    - Predefined downloadable model names from our repository
+
+    Returns:
+        Path to the local checkpoint file.
+    """
+    ckpt_str = str(checkpoint)
+    ckpt_path = Path(checkpoint).resolve()
+    if ckpt_path.exists():
+        # Local path
+        local_ckpt_path = common_helpers.get_checkpoint_path(checkpoint=ckpt_path)
+    elif ckpt_str in DOWNLOADABLE_MODEL_URL_AND_HASH:
+        # Checkpoint name
+        model_url, model_hash = DOWNLOADABLE_MODEL_URL_AND_HASH[ckpt_str]
         model_url = urllib.parse.urljoin(DOWNLOADABLE_MODEL_BASE_URL, model_url)
         download_dir = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
         model_name = os.path.basename(urllib.parse.urlparse(model_url).path)
-        checkpoint = download_dir / model_name
+        local_ckpt_path = download_dir / model_name
 
         needs_download = True
-        if not checkpoint.is_file():
-            logger.info("No cached checkpoint file found. Downloading...")
-        elif checkpoint_hash(checkpoint) != model_hash:
+        if not local_ckpt_path.is_file():
             logger.info(
-                "Cached checkpoint file found but hash is different. Downloading..."
+                f"No cached checkpoint file found. Downloading from '{model_url}'..."
+            )
+        elif checkpoint_hash(local_ckpt_path) != model_hash:
+            logger.info(
+                "Cached checkpoint file found but hash is different. Downloading from "
+                f"'{model_url}'..."
             )
         else:
             needs_download = False
 
         if needs_download:
             download_dir.mkdir(parents=True, exist_ok=True)
-            torch.hub.download_url_to_file(url=model_url, dst=str(checkpoint))
-            logger.info(f"Downloaded checkpoint. Hash: {checkpoint_hash(checkpoint)}")
+            torch.hub.download_url_to_file(url=model_url, dst=str(local_ckpt_path))
+            logger.info(
+                f"Downloaded checkpoint to '{local_ckpt_path}'. Hash: "
+                f"{checkpoint_hash(local_ckpt_path)}"
+            )
+    else:
+        raise ValueError(f"Unknown model name or checkpoint path: '{checkpoint}'")
+    return local_ckpt_path
 
-    ckpt = torch.load(checkpoint, weights_only=False, map_location=device)
 
+def init_model_from_checkpoint(
+    checkpoint: dict[str, Any],
+    device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
+) -> TaskModel:
     # Import the model class dynamically
-    module_path, class_name = ckpt["model_class_path"].rsplit(".", 1)
+    module_path, class_name = checkpoint["model_class_path"].rsplit(".", 1)
     module = importlib.import_module(module_path)
     model_class = getattr(module, class_name)
-    model_init_args = ckpt["model_init_args"]
+    model_init_args = checkpoint["model_init_args"]
     model_init_args["load_weights"] = False
 
     # Create model instance
     model: TaskModel = model_class(**model_init_args)
     model = model.to(device)
-    model.load_train_state_dict(state_dict=ckpt["train_model"])
+    model.load_train_state_dict(state_dict=checkpoint["train_model"])
     model.eval()
     return model
 

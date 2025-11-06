@@ -101,6 +101,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         data_args: MaskSemanticSegmentationDataArgs,
         train_transform_args: DINOv2LinearSemanticSegmentationTrainTransformArgs,
         val_transform_args: DINOv2LinearSemanticSegmentationValTransformArgs,
+        load_weights: bool,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
@@ -126,6 +127,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             },
             image_size=image_size,
             image_normalize=normalize.model_dump(),
+            load_weights=load_weights,
         )
         self.criterion = CrossEntropyLoss(ignore_index=data_args.ignore_index)
 

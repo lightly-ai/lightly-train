@@ -58,7 +58,9 @@ During training, both the
 - best (with highest validation mAP<sub>50:95</sub>) and
 - last (last validation round as determined by `save_checkpoint_args.save_every_num_steps`)
 
-model weights are exported to `out/my_experiment/exported_models/`, unless disabled in `save_checkpoint_args`. You can use these weights to continue fine-tuning on another task by loading the weights via the `checkpoint` parameter:
+model weights are exported to `out/my_experiment/exported_models/`, unless disabled in
+`save_checkpoint_args`. You can use these weights to continue fine-tuning on another
+task by loading the weights via `model="<checkpoint path>"`:
 
 ```python
 import lightly_train
@@ -66,8 +68,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov3/convnext-small-ltdetr", 
-        checkpoint="out/my_experiment/exported_models/exported_best.pt", # use the best model to continue training
+        model="out/my_experiment/exported_models/exported_best.pt", # Use the best model to continue training
         data={...},
     )
 ```
@@ -83,9 +84,7 @@ After the training completes, you can load the best model checkpoints for infere
 ```python
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    "out/my_experiment/exported_models/exported_best.pt"
-)
+model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 results = model.predict("path/to/image.jpg")
 ```
 
@@ -94,9 +93,7 @@ Or use one of the pre-trained model weights directly from LightlyTrain:
 ```python
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    checkpoint="dinov3/convnext-tiny-ltdetr-coco"
-)
+model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
 results = model.predict("path/to/image.jpg")
 ```
 
@@ -111,10 +108,7 @@ from torchvision import io, utils
 
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    checkpoint="dinov3/convnext-tiny-ltdetr-coco"
-)
-
+model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
 labels, boxes, scores = model.predict("<image>.jpg").values()
 
 # Visualize predictions.

@@ -172,9 +172,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
         out=config.out, overwrite=config.overwrite
     ).as_posix()  # TODO(Yutong, 07/25): make sure the format corrsponds to the output file extension!
     checkpoint_path = common_helpers.get_checkpoint_path(checkpoint=config.checkpoint)
-    task_model = task_model_helpers.load_model_from_checkpoint(
-        checkpoint=checkpoint_path
-    )
+    task_model = task_model_helpers.load_model(model=checkpoint_path)
     task_model.eval()
 
     height = config.height
@@ -252,8 +250,8 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             outputs_onnx = session.run(output_names=output_names, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
 
-            task_model = task_model_helpers.load_model_from_checkpoint(
-                checkpoint=checkpoint_path, device="cpu"
+            task_model = task_model_helpers.load_model(
+                model=checkpoint_path, device="cpu"
             )
             outputs_model = task_model(x_model)
 
