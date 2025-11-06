@@ -585,10 +585,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             and config.reuse_class_head
             and config.data.included_classes != model_init_args.get("classes")
         ):
-            logger.warning(
+            raise ValueError(
                 f"The included classes in the data configuration ({config.data.included_classes}) "
                 f"do not match the classes used in the checkpoint weights file ({model_init_args.get('classes')}). "
-                f"It is not advisable to reuse the class head when you have a different classes config."
+                f"Set reuse_class_head=False when you have a different classes config."
             )
 
         logger.info(
