@@ -525,7 +525,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
     )
 
-    checkpoint, model_name = helpers.load_checkpoint(
+    checkpoint, config.model = helpers.load_checkpoint(
         fabric=fabric,
         out_dir=out_dir,
         resume_interrupted=config.resume_interrupted,
@@ -533,8 +533,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         checkpoint=config.checkpoint,
         task=config.task,
     )
-    if model_name is not None:
-        config.model = model_name
 
     train_model_cls = helpers.get_train_model_cls(
         model_name=config.model,

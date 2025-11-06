@@ -784,7 +784,7 @@ def load_checkpoint(
     model: str,
     checkpoint: PathLike | None,
     task: str,
-) -> tuple[TrainCheckpoint | ExportedCheckpoint | None, str | None]:
+) -> tuple[TrainCheckpoint | ExportedCheckpoint | None, str]:
     """Build a checkpoint context from the current run configuration.
 
     Args:
@@ -806,16 +806,16 @@ def load_checkpoint(
         FileNotFoundError: If the resolved checkpoint file does not exist.
     """
     model_path: Path | None
-    model_name: str | None
+    model_name = model
+    model_name_from_checkpoint = False
     try:
         get_train_model_cls(model_name=model, task=task)
     except ValueError:
         # Unknown model name, assume it is a checkpoint path or name.
         model_path = task_model_helpers.download_checkpoint(checkpoint=model)
-        model_name = None
+        model_name_from_checkpoint = True
     else:
         model_path = None
-        model_name = model
 
     ckpt_path: Path | None = None
     if resume_interrupted:
@@ -853,8 +853,8 @@ def load_checkpoint(
     ckpt = fabric.load(path=ckpt_path)
 
     model_init_args = ckpt.get("model_init_args", {})
-    if model_name is None:
-        model_name = model_init_args.get("model_name")
+    if model_name_from_checkpoint:
+        model_name = model_init_args.get("model_name", model)
 
     model_class_path = ckpt.get("model_class_path", "")
     train_model_state_dict = ckpt.get("train_model")
