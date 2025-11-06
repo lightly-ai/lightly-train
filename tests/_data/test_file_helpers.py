@@ -16,7 +16,7 @@ from pytest import LogCaptureFixture, MonkeyPatch
 from pytest_mock import MockerFixture
 
 from lightly_train._data import file_helpers
-from lightly_train._data.file_helpers import ImageMode
+from lightly_train._data.file_helpers import TORCHVISION_GEQ_0_20_0, ImageMode
 
 from .. import helpers
 
@@ -179,64 +179,123 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "extension, expected_backend",
+    ("extension", "expected_backend", "dtype", "num_channels", "pil_mode"),
     [
-        (".jpg", "torch"),
-        (".jpeg", "torch"),
-        (".png", "torch"),
-        (".bmp", "pil"),
-        (".gif", "pil"),
-        (".tiff", "pil"),
-        (".webp", "pil"),
+        (".jpg", "torch", np.uint8, 3, "RGB"),
+        (".jpeg", "torch", np.uint8, 3, "RGB"),
+        (".png", "torch", np.uint8, 3, "RGB"),
+        (".png", "torch", np.uint8, 4, "RGBA"),
+        (".bmp", "pil", np.uint8, 3, "RGB"),
+        (".gif", "pil", np.uint8, 3, "RGB"),
+        (".webp", "pil", np.uint8, 4, "RGBA"),
+        (".tiff", "pil", np.int32, 0, "I"),
+        (".tiff", "pil", np.uint16, 0, "I;16"),
+        (".tiff", "pil", np.float32, 0, "F"),
     ],
 )
 def test_open_image_numpy(
-    tmp_path: Path, extension: str, expected_backend: str, mocker: MockerFixture
+    tmp_path: Path,
+    extension: str,
+    expected_backend: str,
+    dtype: DTypeLike,
+    num_channels: int,
+    pil_mode: str,
+    mocker: MockerFixture,
 ) -> None:
     image_path = tmp_path / f"image{extension}"
-    helpers.create_image(path=image_path, height=32, width=32)
 
+    max_value = int(np.iinfo(dtype).max) if np.issubdtype(dtype, np.integer) else 1
+    helpers.create_image(
+        path=image_path,
+        height=32,
+        width=32,
+        mode=pil_mode,
+        dtype=dtype,
+        max_value=max_value,
+        num_channels=num_channels,
+    )
+
+    open_mode = (
+        ImageMode.RGB
+        if pil_mode == "RGB" and dtype == np.uint8
+        else ImageMode.UNCHANGED
+    )
     torch_spy = mocker.spy(file_helpers, "_open_image_numpy__with_torch")
     pil_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pil")
-
-    result = file_helpers.open_image_numpy(image_path=image_path, mode=ImageMode.RGB)
+    result = file_helpers.open_image_numpy(image_path=image_path, mode=open_mode)
     assert isinstance(result, np.ndarray)
-    assert result.shape == (32, 32, 3)
+
+    expected_shape = (32, 32) if num_channels == 0 else (32, 32, num_channels)
+    expected_dtype = np.uint8 if dtype == np.uint8 else np.float32
+    assert result.shape == expected_shape
+    assert result.dtype == expected_dtype
+
+    if expected_dtype == np.float32:
+        assert result.min() >= 0.0 and result.max() <= 1.0
 
     if expected_backend == "torch":
         torch_spy.assert_called_once()
         pil_spy.assert_not_called()
     else:
-        pil_spy.assert_called_once()
         torch_spy.assert_not_called()
+        pil_spy.assert_called_once()
 
 
 @pytest.mark.parametrize(
-    "dtype, expected_dtype, mode, max_value",
-    [(np.uint8, np.uint8, "L", 255), (np.uint16, np.int32, "I;16", 65535)],
+    ("extension", "expected_backend", "dtype", "num_channels", "pil_mode"),
+    [
+        (".png", "torch", np.uint8, 0, "L"),
+        (".png", "torch", np.uint8, 3, "RGB"),
+        (".png", "torch", np.uint16, 0, "I;16"),
+        (".bmp", "pil", np.uint8, 0, "L"),
+    ],
 )
-def test_open_image_numpy__mask(
+def test_open_mask_numpy(
     tmp_path: Path,
+    extension: str,
+    expected_backend: str,
     dtype: DTypeLike,
-    expected_dtype: DTypeLike,
-    mode: str,
-    max_value: int,
+    num_channels: int,
+    pil_mode: str,
+    mocker: MockerFixture,
 ) -> None:
-    image_path = tmp_path / "image.png"
+    if (
+        (not TORCHVISION_GEQ_0_20_0)
+        and expected_backend == "torch"
+        and dtype == np.uint16
+    ):
+        pytest.skip(
+            "torchvision<0.20.0 does not support uint16 masks with torchvision."
+        )
+
+    mask_path = tmp_path / f"mask{extension}"
+
+    max_value = int(np.iinfo(dtype).max)
     helpers.create_image(
-        path=image_path,
+        path=mask_path,
         height=32,
         width=32,
-        mode=mode,
-        max_value=max_value,
+        mode=pil_mode,
         dtype=dtype,
-        num_channels=0,
+        max_value=max_value,
+        num_channels=num_channels,
     )
 
-    result = file_helpers.open_image_numpy(image_path=image_path, mode=ImageMode.MASK)
+    torch_spy = mocker.spy(file_helpers, "_open_mask_numpy__with_torch")
+    pil_spy = mocker.spy(file_helpers, "_open_mask_numpy__with_pil")
+    result = file_helpers.open_mask_numpy(mask_path=mask_path)
     assert isinstance(result, np.ndarray)
-    assert result.shape == (32, 32)
-    assert result.dtype == expected_dtype
+
+    expected_shape = (32, 32) if num_channels in (0, 1) else (32, 32, num_channels)
+    assert result.shape == expected_shape
+    assert result.dtype == dtype
+
+    if expected_backend == "torch":
+        torch_spy.assert_called_once()
+        pil_spy.assert_not_called()
+    else:
+        torch_spy.assert_not_called()
+        pil_spy.assert_called_once()
 
 
 def test_open_yolo_object_detection_label_numpy(tmp_path: Path) -> None:

@@ -15,7 +15,10 @@ import torch
 from lightning_fabric import Fabric
 from torch import Tensor
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
-from torch.optim.lr_scheduler import LRScheduler, MultiStepLR
+from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
+    LinearLR,
+    LRScheduler,
+)
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 from lightly_train._data.yolo_object_detection_dataset import (
@@ -106,11 +109,8 @@ class DINOv3LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
     detector_weight_decay: float = 0.0
 
     # Scheduler configuration
-    scheduler_milestones: list[int] = field(default_factory=lambda: [1000])
-    scheduler_gamma: float = 0.1
-    scheduler_warmup_steps: int | None = (
-        None  # TODO (Thomas, 10/25): Change to flat-cosine with warmup.
-    )
+    scheduler_start_factor: float = 0.01
+    scheduler_warmup_steps: int = 2000
 
 
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
@@ -180,7 +180,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
     ) -> TaskStepResult:
         samples, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
-        boxes = _yolo_to_xyxy(boxes)
         targets: list[dict[str, Tensor]] = [
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
@@ -189,7 +188,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             x=samples,
             targets=targets,
         )
-        # Additional kwargs are anyway ignore in RTDETRCriterionv2.
+
+        # Additional kwargs are anyway ignored in RTDETRCriterionv2.
+        # The loss expects gt boxes in cxcywh format normalized in [0,1].
         loss_dict = self.criterion(
             outputs=outputs,
             targets=targets,
@@ -212,9 +213,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         if self.ema_model is not None:
             self.ema_model.update(self.model)
 
-    # def get_ema_model(self) -> Module | None:
-    #     return self.ema_model.model if self.ema_model is not None else None
-
     def validation_step(
         self,
         fabric: Fabric,
@@ -226,7 +224,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             batch["classes"],
             batch["original_size"],
         )
-        boxes = _yolo_to_xyxy(boxes)
         targets = [
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
@@ -243,6 +240,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 targets=targets,
             )
             # TODO (Lionel, 10/25): Pass epoch, step, global_step.
+            # The loss expects gt boxes in cxcywh format normalized in [0,1].
             loss_dict = self.criterion(
                 outputs=outputs,
                 targets=targets,
@@ -257,7 +255,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
-        # De-normalize boxes target boxes.
+        # Convert to xyxy format and de-normalize the boxes.
+        boxes = _yolo_to_xyxy(boxes)
         boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
         for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
             target["boxes"] = sample_denormalized_boxes
@@ -273,7 +272,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.map_metric.update(results, targets)
 
         metrics: dict[str, Any] = {
-            "val_metric/": self.map_metric,
+            "val_metric/map": self.map_metric,
         }
 
         return TaskStepResult(
@@ -287,38 +286,77 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
-        param_groups = [
-            {
-                "name": "backbone",
-                "params": [
-                    p
-                    for n, p in self.model.named_parameters()
-                    if re.match(r"^(?=.*backbone)(?!.*norm).*$", n)
-                ],
-                "lr": self.model_args.backbone_lr,
-            },
-            {
-                "name": "detector",
-                "params": [
-                    p
-                    for n, p in self.model.named_parameters()
-                    if re.match(r"^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$", n)
-                ],
-                "weight_decay": self.model_args.detector_weight_decay,
-            },
+        param_groups = []
+        base_weight_decay = self.model_args.optimizer_weight_decay
+        base_lr = self.model_args.optimizer_lr
+        backbone_lr = self.model_args.backbone_lr
+        detector_weight_decay = self.model_args.detector_weight_decay
+
+        # Backbone group without normalization layers.
+        backbone_params = [
+            p
+            for n, p in self.model.named_parameters()
+            if re.match(r"^(?=.*backbone)(?!.*(norm|bn)).*$", n)
         ]
+        if backbone_params:
+            param_groups.append(
+                {
+                    "name": "backbone",
+                    "params": backbone_params,
+                    "lr": backbone_lr,
+                    "weight_decay": base_weight_decay,
+                }
+            )
+
+        # Normalization layers from the detector (encoder/decoder).
+        # TODO (Thomas, 10/25): Add one extra group for the normalization layers in the backbone.
+        detector_params = [
+            p
+            for n, p in self.model.named_parameters()
+            if re.match(r"^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$", n)
+        ]
+        if detector_params:
+            param_groups.append(
+                {
+                    "name": "detector",
+                    "params": detector_params,
+                    "lr": base_lr,
+                    "weight_decay": detector_weight_decay,
+                }
+            )
+
+        # Default group for all remaining parameters.
+        used_params = set(
+            p
+            for param_group in param_groups
+            for p in param_group["params"]  # type: ignore[attr-defined]
+        )
+        default_params = [
+            p for _, p in self.model.named_parameters() if p not in used_params
+        ]
+
+        if default_params:
+            param_groups.append(
+                {
+                    "name": "default",
+                    "params": default_params,
+                    "lr": base_lr,
+                    "weight_decay": base_weight_decay,
+                }
+            )
         optim = AdamW(
             param_groups,
             lr=self.model_args.optimizer_lr,
             betas=self.model_args.optimizer_betas,
             weight_decay=self.model_args.optimizer_weight_decay,
         )
-        scheduler = MultiStepLR(
+        # TODO (Thomas, 11/25): Change to flat-cosine with warmup.
+        scheduler = LinearLR(
             optimizer=optim,
-            milestones=self.model_args.scheduler_milestones,
-            gamma=self.model_args.scheduler_gamma,
+            total_iters=self.model_args.scheduler_warmup_steps,
+            start_factor=self.model_args.scheduler_start_factor,
         )
-        # TODO (Lionel, 10/25): Use the warmup scheduler.
+
         return optim, scheduler
 
     def get_task_model(self) -> TaskModel:

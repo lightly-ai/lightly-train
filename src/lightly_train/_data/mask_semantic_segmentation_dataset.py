@@ -33,7 +33,7 @@ from lightly_train._transforms.semantic_segmentation_transform import (
 from lightly_train.types import (
     BinaryMasksDict,
     MaskSemanticSegmentationDatasetItem,
-    NDArrayImage,
+    NDArrayMask,
     PathLike,
 )
 
@@ -170,8 +170,8 @@ class MaskSemanticSegmentationDataset(TaskDataset):
 
     def map_mask_labels_to_class_ids(
         self,
-        mask_with_labels: NDArrayImage,
-    ) -> NDArrayImage:
+        mask_with_labels: NDArrayMask,
+    ) -> NDArrayMask:
         class_infos = self.dataset_args.classes
         # Always compare against a 3D mask: expand (H, W) -> (H, W, 1)
         mask_with_labels = (
@@ -206,9 +206,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         image = file_helpers.open_image_numpy(
             image_path=Path(image_path), mode=self.image_mode
         )
-        mask = file_helpers.open_image_numpy(
-            image_path=Path(mask_path), mode=ImageMode.MASK
-        )
+        mask = file_helpers.open_mask_numpy(mask_path=Path(mask_path))
 
         # Verify that the mask and the image have the same shape.
         if image.shape[:2] != mask.shape[:2]:

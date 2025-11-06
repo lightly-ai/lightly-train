@@ -274,7 +274,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         self.map_metric.update(results, targets)
 
         metrics: dict[str, Any] = {
-            "val_metric/": self.map_metric,
+            "val_metric/map": self.map_metric,
         }
 
         return TaskStepResult(
