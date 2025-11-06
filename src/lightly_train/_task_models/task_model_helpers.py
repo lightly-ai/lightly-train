@@ -31,9 +31,9 @@ DOWNLOADABLE_MODEL_BASE_URL = (
 LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
-    "dinov2/vits14-ltdetr-coco": (
+    "dinov2/vits14-noreg-ltdetr-coco": (
         "/dinov2_ltdetr_2/ltdetr_vits14dinov2_coco.pt",
-        "bad9623d41e6fd18142760031459dacb80f5329e7f8df30cbb23231874bebd58",
+        "245e9c52d6f0015822e5c7b239ea3d0ac80141c41cbba99f3350854a35dbdcde",
     ),
     "dinov2/vits14-ltdetr-dsp-coco": (
         "/dinov2_ltdetr_2/ltdetr_vits14dinov2_coco_dsp.pt",
@@ -41,19 +41,19 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     ),
     "dinov3/convnext-tiny-ltdetr-coco": (
         "/dinov3_ltdetr_2/ltdetr_convnext-tiny_coco.pt",
-        "b813e2015bfe3848831c8463021e414e42bea3f80386f9f822c0dd7d04bf31df",
+        "0fd7c5514d19da602980c87be7643574b9704e0af15cd739834d2cf8b38c7348",
     ),
     "dinov3/convnext-small-ltdetr-coco": (
         "/dinov3_ltdetr_2/ltdetr_convnext-small_coco.pt",
-        "9125a7a31431c0091f9df369c1e8e8239117496b99d2698d2682ebfc405ca3b2",
+        "2cfaf0d883c5f53a2171926cf43162198f4846acd317c36968077ea5c9d67737",
     ),
     "dinov3/convnext-base-ltdetr-coco": (
         "/dinov3_ltdetr_2/ltdetr_convnext-base_coco.pt",
-        "36ed06e0c17736a1ed337f7b8dbd076d054a075d8bc552f398208b00e5c2adc8",
+        "00454986af39aeebb9629ca5d5fd7592ae7a73dd94cc54ec02a9f720cc47ad86",
     ),
     "dinov3/convnext-large-ltdetr-coco": (
         "/dinov3_ltdetr_2/ltdetr_convnext-large_coco.pt",
-        "0d5675301d6a360089a9d8bf12c4b0f659c92af020a38adbcf3083caa145ef15",
+        "edc7fbded92692bc5aae1ce407148bf98c997d53be1f649e5e57772cb09b4605",
     ),
     "dinov3/vits16-eomt-coco": (
         "/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt",

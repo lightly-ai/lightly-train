@@ -171,6 +171,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         # Validation metric.
         self.map_metric = MeanAveragePrecision()
+        self.map_metric.warn_on_many_detections = False
 
     def set_train_mode(self) -> None:
         super().set_train_mode()
