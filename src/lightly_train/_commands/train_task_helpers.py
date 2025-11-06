@@ -810,8 +810,9 @@ def load_checkpoint(
     try:
         get_train_model_cls(model_name=model, task=task)
     except ValueError:
-        # Unknown model name, assume it is a checkpoint path or name.
-        model_path = task_model_helpers.download_checkpoint(checkpoint=model)
+        # Download checkpoint only from rank zero. Other ranks will load from cache.
+        with fabric.rank_zero_first():
+            model_path = task_model_helpers.download_checkpoint(checkpoint=model)
         model_name_from_checkpoint = True
     else:
         model_path = None
