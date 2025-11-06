@@ -154,9 +154,7 @@ import lightly_train
 from torchvision import utils, io
 import matplotlib.pyplot as plt
 
-model = lightly_train.load_model(
-    checkpoint="dinov3/convnext-tiny-ltdetr-coco"
-)
+model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
 
 labels, boxes, scores = model.predict("<image>.jpg").values()
 
