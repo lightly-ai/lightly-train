@@ -11,9 +11,7 @@ from typing import Any, Literal
 
 import numpy as np
 from albucore import normalize, normalize_per_image  # type: ignore[import-untyped]
-from albumentations import (
-    Normalize,
-)
+from albumentations import Normalize
 
 from lightly_train.types import NDArrayImage
 
@@ -25,11 +23,31 @@ class NormalizeDtypeAware(Normalize):  # type: ignore[misc]
     is of type float in range [0,1] and max_pixel_value is not set.
 
     Args:
-        mean (Sequence[float]): Mean values for each channel.
-        std (Sequence[float]): Standard deviation values for each channel.
-        max_pixel_value (float): Maximum pixel value. Default is 255.0.
-        always_apply (bool): Whether to always apply this transform. Default is False.
-        p (float): Probability of applying this transform. Default is 1.0.
+        mean (tuple[float, float] | float | None): Mean values for standard normalization.
+            For "standard" normalization, the default values are ImageNet mean values: (0.485, 0.456, 0.406).
+        std (tuple[float, float] | float | None): Standard deviation values for standard normalization.
+            For "standard" normalization, the default values are ImageNet standard deviation :(0.229, 0.224, 0.225).
+        max_pixel_value (float | None): Maximum possible pixel value, used for scaling in standard normalization.
+            Defaults to 255.0.
+        normalization (Literal["standard", "image", "image_per_channel", "min_max", "min_max_per_channel"]):
+            Specifies the normalization technique to apply. Defaults to "standard".
+            - "standard": Applies the formula `(img - mean * max_pixel_value) / (std * max_pixel_value)`.
+                The default mean and std are based on ImageNet. You can use mean and std values of (0.5, 0.5, 0.5)
+                for inception normalization. And mean values of (0, 0, 0) and std values of (1, 1, 1) for YOLO.
+            - "image": Normalizes the whole image based on its global mean and standard deviation.
+            - "image_per_channel": Normalizes the image per channel based on each channel's mean and standard deviation.
+            - "min_max": Scales the image pixel values to a [0, 1] range based on the global
+                minimum and maximum pixel values.
+            - "min_max_per_channel": Scales each channel of the image pixel values to a [0, 1]
+                range based on the per-channel minimum and maximum pixel values.
+
+        p (float): Probability of applying the transform. Defaults to 1.0.
+
+    Targets:
+        image
+
+    Image types:
+        uint8, float32
     """
 
     def __init__(
@@ -46,7 +64,13 @@ class NormalizeDtypeAware(Normalize):  # type: ignore[misc]
         ] = "standard",
         p: float = 1.0,
     ):
-        super().__init__()
+        super().__init__(
+            mean=mean,
+            std=std,
+            max_pixel_value=max_pixel_value,
+            normalization=normalization,
+            p=p,
+        )
 
     def apply(self, img: NDArrayImage, **params: Any) -> NDArrayImage:
         if self.normalization == "standard":

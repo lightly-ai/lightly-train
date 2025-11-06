@@ -233,7 +233,7 @@ def _open_image_numpy__with_torch(
 
 
 def _open_image_numpy__with_pydicom(
-    image_path: Path,
+    image_path: PathLike,
 ) -> NDArrayImage:
     from lightning_utilities.core.imports import RequirementCache
 
@@ -245,9 +245,7 @@ def _open_image_numpy__with_pydicom(
     from pydicom import Dataset
 
     if RequirementCache("pydicom>=3.0.0"):
-        from pydicom.pixels import (  # type: ignore[no-redef]
-            utils,
-        )
+        from pydicom.pixels import utils  # type: ignore[no-redef]
         from pydicom.pixels.processing import (
             apply_color_lut,
             apply_modality_lut,
