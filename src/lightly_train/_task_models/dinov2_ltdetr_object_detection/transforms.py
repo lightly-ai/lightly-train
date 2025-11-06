@@ -114,7 +114,12 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
-            format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0
+            format="yolo",
+            label_fields=["class_labels"],
+            min_width=0.0,
+            min_height=0.0,
+            clip=True,
+            filter_invalid_bboxes=True,
         ),
     )
 
@@ -134,7 +139,12 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     scale_jitter: ScaleJitterArgs | None = None
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
-            format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0
+            format="yolo",
+            label_fields=["class_labels"],
+            min_width=0.0,
+            min_height=0.0,
+            clip=True,
+            filter_invalid_bboxes=True,
         ),
     )
 
