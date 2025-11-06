@@ -271,7 +271,7 @@ def _open_image_numpy__with_pydicom(
     pm = dataset.PhotometricInterpretation
     if (
         pixel_array.shape[-1] == 3
-        and np.isdtype(pixel_array.dtype, np.uint8)
+        and np.issubdtype(pixel_array.dtype, np.uint8)
         and "YBR_FULL" in pm
     ):
         pixel_array = convert_color_space(pixel_array, pm, "RGB")

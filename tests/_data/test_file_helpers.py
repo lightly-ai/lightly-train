@@ -490,7 +490,7 @@ def test_open_yolo_instance_segmentation_label_numpy__empty(
         ("ct", (128, 128), np.float32),
         ("overlay", (300, 484), np.float32),
         ("rgb_color", (240, 320, 3), np.uint8),
-        ("palette_color", (350, 800, 3), np.uint16),
+        ("palette_color", (350, 800, 3), np.uint8),
         ("jpeg2k", (480, 640, 3), np.uint8),
     ],
 )
