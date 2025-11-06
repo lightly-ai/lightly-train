@@ -155,7 +155,9 @@ def open_image_tensor(image_path: PathLike) -> Tensor:
         image_path: Path to the image file. Can be a local path or URL.
     """
     image: Tensor
-    if (suffix := Path(image_path).suffix.lower()) in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+    if (
+        suffix := Path(image_path).suffix.lower()
+    ) in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             # Fast path when loading local file with torch.
             image = load_image(str(image_path))
