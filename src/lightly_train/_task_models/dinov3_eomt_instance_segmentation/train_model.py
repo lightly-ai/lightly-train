@@ -258,13 +258,14 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         }
 
         # Metrics
-        mask_logits = mask_logits_per_layer[-1]
-        class_logits = class_logits_per_layer[-1]
-        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-        # (B, Q), (B, Q, H, W), (B, Q)
-        labels, masks, scores = self.model.get_labels_masks_scores(
-            mask_logits=mask_logits, class_logits=class_logits
-        )
+        with torch.no_grad():
+            mask_logits = mask_logits_per_layer[-1]
+            class_logits = class_logits_per_layer[-1]
+            mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+            # (B, Q), (B, Q, H, W), (B, Q)
+            labels, masks, scores = self.model.get_labels_masks_scores(
+                mask_logits=mask_logits, class_logits=class_logits
+            )
 
         self.train_map.update(
             preds=[

@@ -424,6 +424,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         return mask_logits, class_logits
 
+    @torch.no_grad()
     def get_labels_masks_scores(
         self, mask_logits: Tensor, class_logits: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
