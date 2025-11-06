@@ -798,8 +798,7 @@ def load_checkpoint(
     Returns:
         (checkpoint, model_name) tuple. Checkpoint contains the loaded checkpoint
         if available. model_name is the name of the model to initialize the backbone
-        from. Checkpoint is None if no checkpoint was loaded and model name is None if
-        it could not be determined.
+        from. Checkpoint is None if no checkpoint was loaded.
 
     Raises:
         ValueError: If resume and checkpoint options are requested simultaneously.
