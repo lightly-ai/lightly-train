@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from torch import Tensor
-from torch.nn import Identity, Module, ModuleList
+from torch.nn import AdaptiveAvgPool2d, Identity, Module, ModuleList
 
 from lightly_train._models.dinov3.dinov3_src.layers.block import (
     SelfAttentionBlock,
@@ -53,7 +53,7 @@ class DINOv3ViTModelWrapper(Module, ModelWrapper):
         return {"features": features_reshaped, "cls_token": rt["x_norm_clstoken"]}
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
-        return {"pooled_features": x["cls_token"]}
+        return {"pooled_features": self._pool(x["features"])}
 
     def get_model(self) -> DinoVisionTransformer:
         return self._model
