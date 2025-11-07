@@ -6,6 +6,7 @@
 
 # Modifications Copyright 2025 Lightly AG:
 # - Add compatibility for PyTorch < 2.2
+# - Add return type to model getters.
 
 from __future__ import annotations
 
@@ -379,7 +380,7 @@ class DinoVisionTransformer(nn.Module):
             return self.head(ret["x_norm_clstoken"])
 
 
-def vit_small(patch_size=16, **kwargs):
+def vit_small(patch_size=16, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=384,
@@ -391,7 +392,7 @@ def vit_small(patch_size=16, **kwargs):
     return model
 
 
-def vit_base(patch_size=16, **kwargs):
+def vit_base(patch_size=16, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=768,
@@ -403,7 +404,7 @@ def vit_base(patch_size=16, **kwargs):
     return model
 
 
-def vit_large(patch_size=16, **kwargs):
+def vit_large(patch_size=16, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=1024,
@@ -415,7 +416,7 @@ def vit_large(patch_size=16, **kwargs):
     return model
 
 
-def vit_so400m(patch_size=16, **kwargs):
+def vit_so400m(patch_size=16, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=1152,
@@ -427,7 +428,7 @@ def vit_so400m(patch_size=16, **kwargs):
     return model
 
 
-def vit_huge2(patch_size=16, **kwargs):
+def vit_huge2(patch_size=16, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=1280,
@@ -439,7 +440,7 @@ def vit_huge2(patch_size=16, **kwargs):
     return model
 
 
-def vit_giant2(patch_size=16, **kwargs):
+def vit_giant2(patch_size=16, **kwargs) -> DinoVisionTransformer:
     """
     Close to ViT-giant, with embed-dim 1536 and 24 heads => embed-dim per head 64
     """
@@ -454,7 +455,7 @@ def vit_giant2(patch_size=16, **kwargs):
     return model
 
 
-def vit_7b(patch_size=16, **kwargs):
+def vit_7b(patch_size=16, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=4096,
