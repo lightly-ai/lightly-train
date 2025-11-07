@@ -14,8 +14,6 @@ import pytest
 from lightning_utilities.core.imports import RequirementCache
 from pytest import LogCaptureFixture
 
-from lightly_train._data.file_helpers import PYDICOM_GEQ_3_0_0
-
 if RequirementCache("torchmetrics<1.5"):
     # Skip test if torchmetrics version is too old. This can happen if SuperGradients
     # is installed which requires torchmetrics==0.8
@@ -34,6 +32,11 @@ import lightly_train
 from .. import helpers
 
 is_self_hosted_docker_runner = "GH_RUNNER_NAME" in os.environ
+
+try:
+    import pydicom
+except ImportError:
+    pydicom = None  # type: ignore[assignment]
 
 
 @pytest.mark.skipif(
@@ -108,6 +111,7 @@ def test_train_semantic_segmentation(
     assert prediction.max() <= 1
 
 
+@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
 @pytest.mark.parametrize(
     ("module_attribute, num_channels, height, width"),
     [
@@ -119,7 +123,6 @@ def test_train_semantic_segmentation(
         ("jpeg2k", 3, 480, 640),
     ],
 )
-@pytest.mark.skipif(not PYDICOM_GEQ_3_0_0, reason="pydicom.example not supported")
 def test_train_semantic_segmentation__dicom(
     tmp_path: Path,
     module_attribute: str,

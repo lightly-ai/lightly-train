@@ -247,26 +247,28 @@ def _open_image_numpy__with_pydicom(
     from pydicom import Dataset
 
     if PYDICOM_GEQ_3_0_0:
-        from pydicom.pixels import utils  # type: ignore[no-redef]
-        from pydicom.pixels.processing import (
+        from pydicom.pixels import (
+            utils as pydicom_utils,  # type: ignore[import-not-found]
+        )
+        from pydicom.pixels.processing import (  # type: ignore[import-not-found]
             apply_color_lut,
             apply_modality_lut,
             convert_color_space,
         )
     else:
-        from pydicom.pixel_data_handlers import (  # type: ignore[no-redef]
+        import pydicom.pixel_data_handlers.util as pydicom_utils  # type: ignore[no-redef]
+        from pydicom.pixel_data_handlers.util import (  # type: ignore[no-redef]
             apply_color_lut,
             apply_modality_lut,
             convert_color_space,
-            utils,
         )
 
     image_np: NDArrayImage
 
     dataset = Dataset()
-    pixel_array = utils.pixel_array(image_path, ds_out=dataset)
+    pixel_array = pydicom_utils.pixel_array(image_path, ds_out=dataset)
 
-    num_frames = utils.get_nr_frames(dataset)
+    num_frames = pydicom_utils.get_nr_frames(dataset)
     if num_frames > 1:
         raise ValueError("Multi-frame DICOM images are not supported.")
 

@@ -20,7 +20,6 @@ from torchvision.transforms.v2 import functional as F
 
 from lightly_train._data import file_helpers
 from lightly_train._data.file_helpers import (
-    PYDICOM_GEQ_3_0_0,
     TORCHVISION_GEQ_0_20_0,
     ImageMode,
 )
@@ -291,7 +290,6 @@ def test_open_image_tensor(
         pydicom_spy.assert_called_once()
 
 
-@pytest.mark.skipif(not PYDICOM_GEQ_3_0_0, reason="pydicom.example not supported")
 @pytest.mark.parametrize(
     ("extension", "expected_backend", "dtype", "num_channels", "pil_mode"),
     [
