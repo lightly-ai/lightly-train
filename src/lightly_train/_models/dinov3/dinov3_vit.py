@@ -54,7 +54,7 @@ class DINOv3ViTModelWrapper(Module, ModelWrapper):
         return {"features": features_reshaped, "cls_token": rt["x_norm_clstoken"]}
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
-        return {"pooled_features": self._pool(x["features"])}
+        return {"pooled_features": x["cls_token"]}
 
     def get_model(self) -> DinoVisionTransformer:
         return self._model
