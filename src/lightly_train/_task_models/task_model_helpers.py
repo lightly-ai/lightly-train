@@ -28,30 +28,32 @@ DOWNLOADABLE_MODEL_BASE_URL = (
     "https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com"
 )
 
+LIGHTLY_TRAIN_PRETRAINED_MODEL = str
+
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
-    "dinov2/vits14-ltdetr-coco": (
-        "/dinov2_ltdetr/ltdetr_vits14dinov2_coco.ckpt",
-        "bfa2adf2b4dc6527947f9f361e47933959a4e9461efa54e02fd39062cd01aac5",
+    "dinov2/vits14-noreg-ltdetr-coco": (
+        "/dinov2_ltdetr_2/ltdetr_vits14dinov2_coco.pt",
+        "245e9c52d6f0015822e5c7b239ea3d0ac80141c41cbba99f3350854a35dbdcde",
     ),
     "dinov2/vits14-ltdetr-dsp-coco": (
-        "/dinov2_ltdetr/ltdetr_vits14dinov2_coco_dsp.ckpt",
-        "3115eeee80f1ff9edae3a3956ec3d7204ca7912453f21a4848954e7c1c73db02",
+        "/dinov2_ltdetr_2/ltdetr_vits14dinov2_coco_dsp.pt",
+        "7e1f91b251ba0b796d88fb68276a24a52341aa6e8fb40abe9f730c2a093a5b40",
     ),
     "dinov3/convnext-tiny-ltdetr-coco": (
-        "/dinov3_ltdetr/ltdetr_convnext-tiny_coco.ckpt",
-        "a976d45a8512c80d88b764f179755b4c91e42b97e7cf7061ddf0283900924aff",
+        "/dinov3_ltdetr_2/ltdetr_convnext-tiny_coco.pt",
+        "0fd7c5514d19da602980c87be7643574b9704e0af15cd739834d2cf8b38c7348",
     ),
     "dinov3/convnext-small-ltdetr-coco": (
-        "/dinov3_ltdetr/ltdetr_convnext-small_coco.ckpt",
-        "509d3de9759950dc72cf53f1a435bb6b0d8a7acf4c4883bd1ee74d8bae27310b",
+        "/dinov3_ltdetr_2/ltdetr_convnext-small_coco.pt",
+        "2cfaf0d883c5f53a2171926cf43162198f4846acd317c36968077ea5c9d67737",
     ),
     "dinov3/convnext-base-ltdetr-coco": (
-        "/dinov3_ltdetr/ltdetr_convnext-base_coco.ckpt",
-        "542c788dd1b0eec7873243667a8761a766e87c6922ab59a59896b67ad6d802c3",
+        "/dinov3_ltdetr_2/ltdetr_convnext-base_coco.pt",
+        "00454986af39aeebb9629ca5d5fd7592ae7a73dd94cc54ec02a9f720cc47ad86",
     ),
     "dinov3/convnext-large-ltdetr-coco": (
-        "/dinov3_ltdetr/ltdetr_convnext-large_coco.ckpt",
-        "1c862670adeeb11c7ae4a1e4c422bf3c71df2d3193e0c5c5c6f6ffc640244ae1",
+        "/dinov3_ltdetr_2/ltdetr_convnext-large_coco.pt",
+        "edc7fbded92692bc5aae1ce407148bf98c997d53be1f649e5e57772cb09b4605",
     ),
     "dinov3/vits16-eomt-coco": (
         "/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt",
@@ -87,77 +89,112 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     ),
     "dinov3/vitl16-eomt-ade20k": (
         "/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
-        "f433f06d7892a31aba4ab9c83897db4f3048ca711a2a62baf4f7f055f0f5bb6d",
+        "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
     ),
 }
+
+
+def load_model(
+    model: PathLike,
+    device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
+) -> TaskModel:
+    """Either load model from an exported model file (in .pt format) or a checkpoint file
+    (in .ckpt format) or download it from the Lightly model repository.
+
+    First check if `model` points to a valid file. If not and `model` is a `str` try to
+    match that name to one of the models in the Lightly model repository and download it.
+    Downloaded models are cached under the location specified by the environment variable
+    `LIGHTLY_TRAIN_MODEL_CACHE_DIR`.
+
+    Args:
+        model:
+            Either a path to the exported model/checkpoint file or the name of a model
+            in the Lightly model repository.
+        device:
+            Device to load the model on. If None, the model will be loaded onto a GPU
+            (`"cuda"` or `"mps"`) if available, and otherwise fall back to CPU.
+
+    Returns:
+        The loaded model.
+    """
+    device = _resolve_device(device)
+    ckpt_path = download_checkpoint(checkpoint=model)
+    ckpt = torch.load(ckpt_path, weights_only=False, map_location=device)
+    model_instance = init_model_from_checkpoint(checkpoint=ckpt, device=device)
+    return model_instance
 
 
 def load_model_from_checkpoint(
     checkpoint: PathLike,
     device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
 ) -> TaskModel:
-    """
-    Either load model from an exported model file (in .pt format) or a checkpoint file (in .ckpt format) or download
-    it from our model repository.
+    """Deprecated. Use `load_model` instead."""
+    return load_model(model=checkpoint, device=device)
 
-    First check if `checkpoint` points to a valid file. If not and `checkpoint` is a `str` try to match that name
-    to one of the models in our repository and download it. Downloaded models are cached under the location specified by
-    the environment variable `LIGHTLY_TRAIN_MODEL_CACHE_DIR`.
 
-    Args:
-        checkpoint:
-            Either a path to the exported model/checkpoint file or the name of a model in our model repository.
-        device:
-            Device to load the model on. If None, the model will be loaded onto a GPU
-            (`"cuda"` or `"mps"`) if available, and otherwise fall back to CPU.
+def download_checkpoint(checkpoint: PathLike) -> Path:
+    """Downloads a checkpoint and returns the local path to it.
 
+    Supports checkpoints from:
+    - Local file path
+    - Predefined downloadable model names from our repository
 
     Returns:
-        The loaded model.
+        Path to the local checkpoint file.
     """
-    device = _resolve_device(device)
-    if isinstance(checkpoint, Path) or Path(checkpoint).exists():
-        checkpoint = common_helpers.get_checkpoint_path(checkpoint=checkpoint)
-    else:
-        assert isinstance(checkpoint, str)
-
-        logger.info("No checkpoint file found. Trying to download.")
-
-        if checkpoint not in DOWNLOADABLE_MODEL_URL_AND_HASH:
-            raise ValueError(f"No downloadable model named {checkpoint}.")
-        model_url, model_hash = DOWNLOADABLE_MODEL_URL_AND_HASH[checkpoint]
+    ckpt_str = str(checkpoint)
+    ckpt_path = Path(checkpoint).resolve()
+    if ckpt_path.exists():
+        # Local path
+        local_ckpt_path = common_helpers.get_checkpoint_path(checkpoint=ckpt_path)
+    elif ckpt_str in DOWNLOADABLE_MODEL_URL_AND_HASH:
+        # Checkpoint name
+        model_url, model_hash = DOWNLOADABLE_MODEL_URL_AND_HASH[ckpt_str]
         model_url = urllib.parse.urljoin(DOWNLOADABLE_MODEL_BASE_URL, model_url)
         download_dir = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
         model_name = os.path.basename(urllib.parse.urlparse(model_url).path)
-        checkpoint = download_dir / model_name
+        local_ckpt_path = download_dir / model_name
 
         needs_download = True
-        if not checkpoint.is_file():
-            logger.info("No cached checkpoint file found. Downloading...")
-        elif checkpoint_hash(checkpoint) != model_hash:
+        if not local_ckpt_path.is_file():
             logger.info(
-                "Cached checkpoint file found but hash is different. Downloading..."
+                f"No cached checkpoint file found. Downloading from '{model_url}'..."
+            )
+        elif checkpoint_hash(local_ckpt_path) != model_hash:
+            logger.info(
+                "Cached checkpoint file found but hash is different. Downloading from "
+                f"'{model_url}'..."
             )
         else:
             needs_download = False
 
         if needs_download:
-            torch.hub.download_url_to_file(url=model_url, dst=str(checkpoint))
-            logger.info(f"Downloaded checkpoint. Hash: {checkpoint_hash(checkpoint)}")
+            download_dir.mkdir(parents=True, exist_ok=True)
+            torch.hub.download_url_to_file(url=model_url, dst=str(local_ckpt_path))
+            logger.info(
+                f"Downloaded checkpoint to '{local_ckpt_path}'. Hash: "
+                f"{checkpoint_hash(local_ckpt_path)}"
+            )
+    else:
+        raise ValueError(f"Unknown model name or checkpoint path: '{checkpoint}'")
+    return local_ckpt_path
 
-    ckpt = torch.load(checkpoint, weights_only=False, map_location=device)
 
+def init_model_from_checkpoint(
+    checkpoint: dict[str, Any],
+    device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
+) -> TaskModel:
     # Import the model class dynamically
-    module_path, class_name = ckpt["model_class_path"].rsplit(".", 1)
+    module_path, class_name = checkpoint["model_class_path"].rsplit(".", 1)
     module = importlib.import_module(module_path)
     model_class = getattr(module, class_name)
-    model_init_args = ckpt["model_init_args"]
+    model_init_args = checkpoint["model_init_args"]
     model_init_args["load_weights"] = False
 
     # Create model instance
     model: TaskModel = model_class(**model_init_args)
     model = model.to(device)
-    model.load_train_state_dict(state_dict=ckpt["train_model"])
+    model.load_train_state_dict(state_dict=checkpoint["train_model"])
     model.eval()
     return model
 

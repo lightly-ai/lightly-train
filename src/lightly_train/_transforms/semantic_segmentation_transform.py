@@ -45,14 +45,14 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
-from lightly_train.types import NDArrayImage
+from lightly_train.types import NDArrayImage, NDArrayMask
 
 logger = logging.getLogger(__name__)
 
 
 class SemanticSegmentationTransformInput(TaskTransformInput):
     image: NDArrayImage
-    mask: NotRequired[NDArrayImage]
+    mask: NotRequired[NDArrayMask]
 
 
 class SemanticSegmentationTransformOutput(TaskTransformOutput):

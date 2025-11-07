@@ -28,7 +28,7 @@ from lightly_train._transforms.predict_semantic_segmentation_transform import (
 from lightly_train._transforms.predict_transform import (
     PredictTransform,
 )
-from lightly_train.types import DatasetItem, NDArrayImage, PathLike
+from lightly_train.types import DatasetItem, NDArrayMask, PathLike
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +197,7 @@ def compute_mask_filepath(
     return mask_filepath
 
 
-def save_mask(mask: NDArrayImage, mask_filepath: Path) -> None:
+def save_mask(mask: NDArrayMask, mask_filepath: Path) -> None:
     mask_np = np.asarray(mask)
 
     dtype = np.uint8 if mask_np.max() <= 255 else np.uint16

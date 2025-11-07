@@ -30,23 +30,30 @@ from lightly_train._data._serialize.memory_mapped_sequence import (
     MemoryMappedSequence,
     Primitive,
 )
-from lightly_train._data.mask_semantic_segmentation_dataset import (
-    MaskSemanticSegmentationDatasetArgs,
-)
-from lightly_train._data.task_dataset import TaskDataset
+from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
     DINOv2LinearSemanticSegmentationTrain,
 )
+from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
+    DINOv2LTDETRObjectDetectionTrain,
+)
+from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
+    DINOv3EoMTInstanceSegmentationTrain,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
+    DINOv3LTDETRObjectDetectionTrain,
 )
 from lightly_train._task_models.train_model import (
     TrainModel,
@@ -56,9 +63,6 @@ from lightly_train._train_task_state import (
     ExportedCheckpoint,
     TrainCheckpoint,
     TrainTaskState,
-)
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
 )
 from lightly_train._transforms.task_transform import (
     TaskTransform,
@@ -78,10 +82,38 @@ logger = logging.getLogger(__name__)
 
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
+    DINOv3EoMTInstanceSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
+    DINOv2LTDETRObjectDetectionTrain,
+    DINOv3LTDETRObjectDetectionTrain,
 ]
+
+
+# TODO(Thomas, 10/25): Create a type for the metrics.
+TASK_TO_METRICS: dict[str, dict[str, str]] = {
+    "instance_segmentation": {
+        "val_metric/map": "Val mAP@0.5:0.95",
+        "val_metric/map_50": "Val mAP@0.5",
+        "val_metric/map_75": "Val mAP@0.75",
+        "val_metric/map_small": "Val mAP (small)",
+        "val_metric/map_medium": "Val mAP (medium)",
+        "val_metric/map_large": "Val mAP (large)",
+    },
+    "semantic_segmentation": {
+        "train_metric/miou": "Train mIoU",
+        "val_metric/miou": "Val mIoU",
+    },
+    "object_detection": {
+        "val_metric/map": "Val mAP@0.5:0.95",
+        "val_metric/map_50": "Val mAP@0.5",
+        "val_metric/map_75": "Val mAP@0.75",
+        "val_metric/map_small": "Val mAP (small)",
+        "val_metric/map_medium": "Val mAP (medium)",
+        "val_metric/map_large": "Val mAP (large)",
+    },
+}
 
 
 def get_out_dir(
@@ -501,23 +533,21 @@ def get_dataset_mmap_file(
 
 def get_dataset(
     fabric: Fabric,
-    dataset_args: MaskSemanticSegmentationDatasetArgs,
+    dataset_args: TaskDatasetArgs,
     transform: TaskTransform,
     mmap_filepath: Path,
 ) -> TaskDataset:
     image_info = dataset_args.list_image_info()
 
     dataset_cls = dataset_args.get_dataset_cls()
-    # TODO(Guarin, 08/25): Relax this when we add object detection.
-    assert isinstance(transform, SemanticSegmentationTransform)
     return dataset_cls(
-        dataset_args=dataset_args,
+        dataset_args=dataset_args,  # type: ignore
         image_info=get_dataset_mmap_file(
             fabric=fabric,
             items=image_info,
             mmap_filepath=mmap_filepath,
         ),
-        transform=transform,
+        transform=transform,  # type: ignore
     )
 
 
@@ -588,11 +618,14 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
     return default_steps if steps == "auto" else steps
 
 
-def get_train_model_cls(model_name: str) -> type[TrainModel]:
+def get_train_model_cls(model_name: str, task: str) -> type[TrainModel]:
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
-        if train_model_cls.task_model_cls.is_supported_model(model_name):
+        if (
+            train_model_cls.task == task
+            and train_model_cls.task_model_cls.is_supported_model(model_name)
+        ):
             return train_model_cls
-    raise ValueError(f"Unsupported model name '{model_name}'.")
+    raise ValueError(f"Unsupported model name '{model_name}' for task '{task}'.")
 
 
 def get_train_model_args(
@@ -613,15 +646,19 @@ def get_train_model_args(
 
 
 def log_step(
-    split: Literal["train", "val"], step: int, max_steps: int, log_dict: dict[str, Any]
+    split: Literal["train", "val"],
+    step: int,
+    max_steps: int,
+    log_dict: dict[str, Any],
+    task: str,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
         "train_loss": "Train Loss",
-        "train_metric/miou": "Train mIoU",
         "val_loss": "Val Loss",
-        "val_metric/miou": "Val mIoU",
     }
+    name_to_display_name = {**name_to_display_name, **TASK_TO_METRICS.get(task, {})}
+
     parts = [
         f"{split_cap} Step {step + 1}/{max_steps}",
     ]
@@ -644,8 +681,34 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
             for i, v in enumerate(value):
                 metrics[f"{name}_{i}"] = v.item()
         if isinstance(value, dict):
-            for class_name, class_value in value.items():
-                metrics[f"{name}{class_name}"] = class_value.item()
+            if "map" in value:
+                # Special case for detection metrics which return results like this:
+                # {"map": 0.5, "map_50": 0.7, ...}
+                agg_metrics = {
+                    "map",
+                    "map_50",
+                    "map_75",
+                    "map_small",
+                    "map_medium",
+                    "map_large",
+                    "mar_1",
+                    "mar_10",
+                    "mar_100",
+                    "mar_small",
+                    "mar_medium",
+                    "mar_large",
+                }
+                # cls_metrics = {"map_per_class", "mar_100_per_class", "classes"}
+                if name.endswith("/map"):
+                    name = name[:-4]
+                for key, val in value.items():
+                    if key in agg_metrics:
+                        metrics[f"{name}/{key}"] = val.item()
+            else:
+                # Class-wise metrics that look like this:
+                # {"class 1": 0.5, "class 2": 0.7, ...}
+                for key, val in value.items():
+                    metrics[f"{name}{key}"] = val.item()
         else:
             metrics[name] = value
     return metrics
@@ -661,12 +724,18 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
 
 
 def get_save_checkpoint_args(
+    train_model_cls: type[TrainModel],
     checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None,
 ) -> TaskSaveCheckpointArgs:
     if isinstance(checkpoint_args, TaskSaveCheckpointArgs):
         return checkpoint_args
-    checkpoint_args = {} if checkpoint_args is None else checkpoint_args
-    args = validate.pydantic_model_validate(TaskSaveCheckpointArgs, checkpoint_args)
+    checkpoint_args_cls = train_model_cls.train_model_args_cls.save_checkpoint_args_cls
+    # Merge with possible overrides from checkpoint_args.
+    default_checkpoint_args = checkpoint_args_cls().model_dump()  # type: ignore[call-arg]
+    default_checkpoint_args.update(checkpoint_args or {})
+    args = validate.pydantic_model_validate(
+        TaskSaveCheckpointArgs, default_checkpoint_args
+    )
     return args
 
 
@@ -709,86 +778,133 @@ def export_model(
 
 
 def load_checkpoint(
-    fabric: Fabric, out_dir: Path, resume_interrupted: bool, ckpt_path: PathLike | None
-) -> TrainCheckpoint | ExportedCheckpoint | None:
+    fabric: Fabric,
+    out_dir: Path,
+    resume_interrupted: bool,
+    model: str,
+    checkpoint: PathLike | None,
+    task: str,
+) -> tuple[TrainCheckpoint | ExportedCheckpoint | None, str]:
     """Build a checkpoint context from the current run configuration.
 
     Args:
         fabric: Fabric instance used to load checkpoint files.
         out_dir: Output directory where checkpoints are stored.
         resume_interrupted: Whether to resume from an interrupted run.
-        ckpt_path: Path to a specific checkpoint file to fine-tune from.
+        model: Model name or path to model checkpoint.
+        checkpoint: Path to model checkpoint.
+        task: The training task.
 
     Returns:
-        A populated checkpoint context when resuming or fine-tuning, otherwise ``None``.
+        (checkpoint, model_name) tuple. Checkpoint contains the loaded checkpoint
+        if available. model_name is the name of the model to initialize the backbone
+        from. Checkpoint is None if no checkpoint was loaded.
 
     Raises:
         ValueError: If resume and checkpoint options are requested simultaneously.
         FileNotFoundError: If the resolved checkpoint file does not exist.
     """
-    if (not resume_interrupted) and (ckpt_path is None):
-        # Not resuming or fine-tuning from a checkpoint.
-        return None
-    elif resume_interrupted and (ckpt_path is not None):
-        # Both resume and checkpoint specified.
-        raise ValueError(
-            f"resume_interrupted={resume_interrupted} and checkpoint='{ckpt_path}' "
-            "cannot be set at the same time! Please set only one of them. "
-        )
-    elif ckpt_path is not None:
-        ckpt_path = Path(ckpt_path).resolve()
+    model_path: Path | None
+    model_name = model
+    model_name_from_checkpoint = False
+    try:
+        get_train_model_cls(model_name=model, task=task)
+    except ValueError:
+        # Download checkpoint only from rank zero. Other ranks will load from cache.
+        with fabric.rank_zero_first():
+            model_path = task_model_helpers.download_checkpoint(checkpoint=model)
+        model_name_from_checkpoint = True
     else:
+        model_path = None
+
+    ckpt_path: Path | None = None
+    if resume_interrupted:
+        if model_path is not None:
+            logger.warning(
+                "`model` is set to a pretrained checkpoint while `resume_interrupted` "
+                "is True. Loading weights from the interrupted run and ignoring "
+                f"model='{model}'."
+            )
+        if checkpoint is not None:
+            raise ValueError(
+                f"resume_interrupted={resume_interrupted} and checkpoint='{checkpoint}' "
+                "cannot be set at the same time! Please set only one of them. "
+            )
         ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
+    elif checkpoint is not None:
+        if model_path is not None:
+            logger.warning(
+                "`model` is set to a pretrained checkpoint while `checkpoint` is also "
+                "set to a pretrained checkpoint. Loading weights from checkpoint "
+                f"'{checkpoint}' and ignoring model='{model}'."
+            )
+        ckpt_path = Path(checkpoint).resolve()
+    elif model_path is not None:
+        ckpt_path = model_path
+    else:
+        # No checkpoint to load. Backbone will be initialized from model name.
+        return (None, model_name)
 
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
 
-    logger.info(f"Loading checkpoint from '{ckpt_path}'")
+    logger.info(f"Loading model checkpoint from '{ckpt_path}'")
 
-    checkpoint = fabric.load(path=ckpt_path)
+    ckpt = fabric.load(path=ckpt_path)
 
-    model_init_args = checkpoint.get("model_init_args", {})
-    model_class_path = checkpoint.get("model_class_path", "")
+    model_init_args = ckpt.get("model_init_args", {})
+    if model_name_from_checkpoint:
+        model_name = model_init_args.get("model_name", model)
 
-    train_model_state_dict = checkpoint.get("train_model")
+    model_class_path = ckpt.get("model_class_path", "")
+    train_model_state_dict = ckpt.get("train_model")
     if train_model_state_dict is None:
         raise ValueError(
-            f"Checkpoint file '{ckpt_path}' does not contain a train model state."
+            f"Checkpoint file '{ckpt_path}' does not contain model state dict."
         )
 
     if resume_interrupted:
-        optimizer_state = checkpoint.get("optimizer")
-        scheduler_state = checkpoint.get("scheduler")
-        if optimizer_state is None or scheduler_state is None:
+        optimizer_state = ckpt.get("optimizer")
+        if optimizer_state is None:
             raise ValueError(
-                f"Checkpoint file '{ckpt_path}' does not contain optimizer or scheduler state."
+                f"Checkpoint file '{ckpt_path}' does not contain optimizer state."
+            )
+        scheduler_state = ckpt.get("scheduler")
+        if scheduler_state is None:
+            raise ValueError(
+                f"Checkpoint file '{ckpt_path}' does not contain scheduler state."
             )
 
-        train_dataloader = checkpoint.get("train_dataloader")
+        train_dataloader = ckpt.get("train_dataloader")
         if train_dataloader is None:
             raise ValueError(
                 f"Checkpoint file '{ckpt_path}' does not contain train dataloader."
             )
-
-        step = checkpoint.get("step")
+        step = ckpt.get("step")
         if step is None:
             raise ValueError(
                 f"Checkpoint file '{ckpt_path}' does not contain training step."
             )
-        return TrainCheckpoint(
-            train_model_state_dict=train_model_state_dict,
-            optimizer_state_dict=optimizer_state,
-            scheduler_state_dict=scheduler_state,
-            train_dataloader=train_dataloader,
-            step=step,
-            model_class_path=model_class_path,
-            model_init_args=model_init_args,
+        return (
+            TrainCheckpoint(
+                train_model_state_dict=train_model_state_dict,
+                optimizer_state_dict=optimizer_state,
+                scheduler_state_dict=scheduler_state,
+                train_dataloader=train_dataloader,
+                step=step,
+                model_class_path=model_class_path,
+                model_init_args=model_init_args,
+            ),
+            model_name,
         )
 
-    return ExportedCheckpoint(
-        train_model_state_dict=train_model_state_dict,
-        model_class_path=model_class_path,
-        model_init_args=model_init_args,
+    return (
+        ExportedCheckpoint(
+            train_model_state_dict=train_model_state_dict,
+            model_class_path=model_class_path,
+            model_init_args=model_init_args,
+        ),
+        model_name,
     )
 
 

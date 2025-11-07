@@ -9,20 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add support for DINOv3 ConvNeXt models.
-- Automatically download DINOv3 weights.
-- Predict masks for a full dataset with a semantic segmentation model checkpoint with
-  the `predict_semantic_segmentation` command. It can be used for e.g. auto-labeling
-  datasets.
-
 ### Changed
-
-- Widen PyTorch constraint — remove `<2.6` upper bound to allow PyTorch 2.6 and later that is officially supported by PyTorch Lightning 2.5.
-- `load_model_from_checkpoint` now tries to download a checkpoint if it does not exist
 
 ### Deprecated
 
 ### Removed
+
+### Fixed
+
+### Security
+
+## [0.12.0] - 2025-11-06
+
+💡 **New DINOv3 Object Detection:** Run inference or fine-tune DINOv3 models for [object detection](https://docs.lightly.ai/train/stable/object_detection.html)! 💡
+
+### Added
+
+- Add support for [DINOv3 object detection](https://docs.lightly.ai/train/stable/object_detection.html) model training.
+- Add [semantic segmentation autolabeling](https://docs.lightly.ai/train/stable/predict_autolabel.html) support with `predict_semantic_segmentation`.
+- Add support for DINOv3 ConvNeXt models.
+- Automatically download DINOv3 weights.
+- Add support for passing pretrained model names or checkpoint paths as `model` argument
+  to the model training functions like `train_semantic_segmentation`.
+
+### Changed
+
+- Widen PyTorch constraint — remove `<2.6` upper bound to allow PyTorch 2.6 and later that is officially supported by PyTorch Lightning 2.5.
+- Rename `load_model_from_checkpoint` to `load_model`. The function now downloads
+  checkpoints that do not exist locally.
 
 ### Fixed
 

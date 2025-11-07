@@ -22,7 +22,9 @@ from typing_extensions import NotRequired
 PackageModel = Any
 
 # Types for the new transforms.
-NDArrayImage = NDArray[Union[np.uint8, np.uint16, np.int32, np.int64]]
+ImageDtypes = Union[np.uint8, np.float32]
+NDArrayImage = NDArray[ImageDtypes]  # (H, W) or (H, W, C)
+NDArrayMask = NDArray[Union[np.uint8, np.uint16, np.int_]]  # (H, W) or (H, W, C)
 NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
 NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
 # Array with x0, y0, x1, y1, x2, y2, ... coordinates of the polygon points. Coordinates
@@ -30,11 +32,14 @@ NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
 NDArrayPolygon = NDArray[np.float64]  # (n_points*2,)
 NDArrayBinaryMask = NDArray[np.bool_]  # (H, W)
 NDArrayBinaryMasks = NDArray[np.bool_]  # (n_instances, H, W)
+# Binary masks as integers for compatibility with albumentations as it doesn't support
+# boolean masks.
+NDArrayBinaryMasksInt = NDArray[np.int_]  # (n_instances, H, W)
 
 
 class TransformInput(TypedDict):
     image: NDArrayImage
-    mask: NotRequired[NDArrayImage]
+    mask: NotRequired[NDArrayMask]
     # TODO: bbox: NDArray[np.float64] | None
 
 
@@ -106,6 +111,7 @@ class ObjectDetectionDatasetItem(TypedDict):
     image: Tensor
     bboxes: Tensor  # Of shape (n_boxes, 4) with (x_center, y_center, w, h) coordinates.
     classes: Tensor  # Of shape (n_boxes,) with class labels.
+    original_size: tuple[int, int]  # (width, height) of the original image.
 
 
 class ObjectDetectionBatch(TypedDict):
@@ -113,6 +119,7 @@ class ObjectDetectionBatch(TypedDict):
     image: Tensor  # Tensor with shape (batch_size, 3, H, W).
     bboxes: list[Tensor]  # One tensor per image, each of shape (n_boxes, 4).
     classes: list[Tensor]  # One tensor per image, each of shape (n_boxes,).
+    original_size: list[tuple[int, int]]  # One (width, height) per image.
 
 
 class InstanceSegmentationDatasetItem(TaskDatasetItem):

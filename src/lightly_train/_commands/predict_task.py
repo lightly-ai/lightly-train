@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal, Sequence
 
+import torch
 from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
@@ -40,6 +41,7 @@ def predict_semantic_segmentation(
     num_workers: int | Literal["auto"] = "auto",
     accelerator: str | Accelerator = "auto",
     devices: int | str | list[int] = 1,
+    remove_cache: bool = False,  # TODO(Yutong, 10/25): remove/improve this when re-implementing with predict_batch
     precision: _PRECISION_INPUT = "bf16-mixed",
     overwrite: bool = False,
     log_every_num_steps: int = 100,
@@ -119,8 +121,8 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
     _system.log_system_information(system_information=system_information)
 
     # Load model from checkpoint to Fabric.
-    model = task_model_helpers.load_model_from_checkpoint(
-        checkpoint=config.model,
+    model = task_model_helpers.load_model(
+        model=config.model,
     )
 
     transform = predict_task_helpers.get_transform(
@@ -182,6 +184,13 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
         if idx % config.log_every_num_steps == 0:
             logger.info(f"Images {(idx + 1) * config.batch_size}/{num_images}")
 
+        # free memory
+        # TODO(Yutong, 10/25): remove/improve this when re-implementing with predict_batch
+        if config.remove_cache:
+            del batch, mask
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
     logger.info("Prediction completed.")
 
 
@@ -193,6 +202,7 @@ class PredictTaskConfig(PydanticConfig):
     num_workers: int | Literal["auto"] = "auto"
     accelerator: str | Accelerator = "auto"
     devices: int | str | list[int] = 1
+    remove_cache: bool = False  # TODO(Yutong, 10/25): remove/improve this when re-implementing with predict_batch
     precision: _PRECISION_INPUT = "bf16-mixed"
     overwrite: bool = False
     log_every_num_steps: int = 100
