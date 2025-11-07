@@ -28,7 +28,6 @@ class DINOv3ViTModelWrapper(Module, ModelWrapper):
         super().__init__()
         self._model = model
         self._feature_dim = int(self._model.embed_dim)
-        self._pool = AdaptiveAvgPool2d((1, 1))
 
     def feature_dim(self) -> int:
         return self._feature_dim
