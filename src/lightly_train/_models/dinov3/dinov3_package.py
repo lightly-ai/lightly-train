@@ -47,6 +47,17 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         default_weights=None,
         local_path=None,
     ),
+    # Tiny models
+    "vitt16": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitt16,
+        default_weights=None,
+        local_path=None,
+    ),
+    "vitt16plus": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitt16plus,
+        default_weights=None,
+        local_path=None,
+    ),
     # LVD-1689M ViT models
     "vits16": _DINOv3ModelInfo(
         builder=backbones.dinov3_vits16,
