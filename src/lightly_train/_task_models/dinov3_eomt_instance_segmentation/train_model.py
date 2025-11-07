@@ -320,11 +320,19 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
 
         # Resize and pad images to self.image_size
         resized_images_list = []
+        resized_binary_masks = []
         crop_sizes = []
-        for image in images:
+        for image, binary_mask in zip(images, binary_masks):
             image, (crop_h, crop_w) = self.model.resize_and_pad(image)
+            masks, _ = self.model.resize_and_pad(binary_mask["masks"])
             resized_images_list.append(image)
             crop_sizes.append((crop_h, crop_w))
+            resized_binary_masks.append(
+                {
+                    "labels": binary_mask["labels"],
+                    "masks": masks,
+                }
+            )
         resized_images = torch.stack(resized_images_list, dim=0)
 
         # Forward pass
@@ -332,34 +340,20 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             self.model.forward_train(resized_images, return_logits_per_layer=True)
         )
 
-        # Revert resize and pad for mask logits.
-        mask_logits_per_layer = []
-        for mask_logits in resized_mask_logits_per_layer:
-            layer_mask_logits = []
-            for logits, (crop_h, crop_w), (image_h, image_w) in zip(
-                mask_logits, crop_sizes, image_sizes
-            ):
-                logits = logits.unsqueeze(0)  # Add batch dim for interpolate
-                logits = logits[..., :crop_h, :crop_w]
-                logits = F.interpolate(logits, (image_h, image_w), mode="bilinear")
-                logits = logits.squeeze(0)  # Remove batch dim
-                layer_mask_logits.append(logits)
-            mask_logits_per_layer.append(layer_mask_logits)
-
         # Losses.
         num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
-        for block_idx, mask_logits, class_logits in zip(
+        for block_idx, resized_mask_logits, class_logits in zip(
             # Add +1 to num_blocks for final output.
             range(num_blocks - num_joint_blocks, num_blocks + 1),
-            mask_logits_per_layer,
+            resized_mask_logits_per_layer,
             class_logits_per_layer,
         ):
             # Compute the loss
             block_losses = self.criterion(
-                masks_queries_logits=mask_logits,
+                masks_queries_logits=resized_mask_logits,
                 class_queries_logits=class_logits,
-                targets=binary_masks,
+                targets=resized_binary_masks,
             )
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
@@ -376,22 +370,36 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         }
 
         # Metrics
-        mask_logits = mask_logits_per_layer[-1]
-        class_logits = class_logits_per_layer[-1]
-        # (B, Q), (B, Q, H, W), (B, Q)
-        labels, masks, scores = self.model.get_labels_masks_scores(
-            mask_logits=mask_logits, class_logits=class_logits
-        )
+        # Final layer only
+        resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
+        class_logits_last_layer = class_logits_per_layer[-1]
+        predictions = []
+        # Revert resize and pad for mask logits.
+        for logits, class_logits, (crop_h, crop_w), (image_h, image_w) in zip(
+            resized_mask_logits_last_layer,
+            class_logits_last_layer,
+            crop_sizes,
+            image_sizes,
+        ):
+            logits = logits.unsqueeze(0)  # (1, Q, H', W')
+            class_logits = class_logits.unsqueeze(0)  # (1, Q, num_classes)
+            logits = logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
+            # (1, Q, H, W)
+            logits = F.interpolate(logits, (image_h, image_w), mode="bilinear")
+            # (1, Q), (1, Q, H, W), (1, Q)
+            labels, masks, scores = self.model.get_labels_masks_scores(
+                mask_logits=logits, class_logits=class_logits
+            )
+            predictions.append(
+                {
+                    "labels": labels[0],
+                    "masks": masks[0],
+                    "scores": scores[0],
+                }
+            )
 
         self.val_map.update(
-            preds=[
-                {
-                    "labels": labels[i],
-                    "masks": masks[i],
-                    "scores": scores[i],
-                }
-                for i in range(len(labels))
-            ],
+            preds=predictions,
             target=binary_masks,
         )
 
