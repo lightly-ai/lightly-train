@@ -219,3 +219,51 @@ base_path_to_your_dataset/
         ├── image2.txt
         └── ...
 ```
+
+You can specify the dataset structure in the `data` argument when calling
+`train_object_detection`. Here are some examples:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_object_detection(
+        out="out/my_experiment",
+        model="dinov3/convnext-tiny-ltdetr-coco",
+        data={
+            "path": "base_path_to_your_dataset",
+            "train": "images/train",
+            "val": "images/val",
+            "names": {
+                0: "person",
+                1: "bicycle",
+                # ...
+            },
+        },
+    )
+```
+
+Alternatively, you can provide a path to a YAML file with the dataset configuration:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_object_detection(
+        out="out/my_experiment",
+        model="dinov3/convnext-tiny-ltdetr-coco",
+        data="data.yaml",
+    )
+```
+
+The YAML file should look like this:
+
+```yaml
+path: base_path_to_your_dataset
+train: images/train
+val: images/val
+names:
+    0: person
+    1: bicycle
+    # ...
+```
