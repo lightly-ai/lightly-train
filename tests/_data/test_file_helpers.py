@@ -236,13 +236,13 @@ def test_open_image_tensor(
     pil_mode: str,
     mocker: MockerFixture,
 ) -> None:
-    if extension == ".dcm" and not PYDICOM_GEQ_3_0_0:
-        pytest.skip("pydicom.example not supported")
-
     if extension == ".dcm":
-        from pydicom.examples import get_path
-
-        image_path = Path(get_path("mr"))  # Use example DICOM file
+        pydicom_examples = pytest.importorskip(
+            "pydicom.examples",
+            reason="pydicom examples not supported",
+        )
+        get_path = getattr(pydicom_examples, "get_path")
+        image_path: Path = get_path("mr")
     else:
         image_path = tmp_path / f"image{extension}"
 
@@ -291,6 +291,7 @@ def test_open_image_tensor(
         pydicom_spy.assert_called_once()
 
 
+@pytest.mark.skipif(not PYDICOM_GEQ_3_0_0, reason="pydicom.example not supported")
 @pytest.mark.parametrize(
     ("extension", "expected_backend", "dtype", "num_channels", "pil_mode"),
     [
@@ -316,13 +317,13 @@ def test_open_image_numpy(
     pil_mode: str,
     mocker: MockerFixture,
 ) -> None:
-    if extension == ".dcm" and not PYDICOM_GEQ_3_0_0:
-        pytest.skip("pydicom.example not supported")
-
     if extension == ".dcm":
-        from pydicom.examples import get_path
-
-        image_path = Path(get_path("mr"))  # Use example DICOM file
+        pydicom_examples = pytest.importorskip(
+            "pydicom.examples",
+            reason="pydicom examples not supported",
+        )
+        get_path = getattr(pydicom_examples, "get_path")
+        image_path: Path = get_path("mr")
     else:
         image_path = tmp_path / f"image{extension}"
 
@@ -491,7 +492,6 @@ def test_open_yolo_instance_segmentation_label_numpy__empty(
     assert class_labels.shape == (0,)
 
 
-@pytest.mark.skipif(not PYDICOM_GEQ_3_0_0, reason="pydicom.example not supported")
 @pytest.mark.parametrize(
     ("module_attribute", "expected_shape", "expected_dtype"),
     [
@@ -506,11 +506,15 @@ def test_open_yolo_instance_segmentation_label_numpy__empty(
 def test__open_image_numpy__with_pydicom(
     module_attribute: str,
     expected_shape: tuple[int, ...],
-    expected_dtype: np.dtype,
+    expected_dtype: DTypeLike,
 ) -> None:
-    from pydicom.examples import get_path
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    get_path = getattr(pydicom_examples, "get_path")
+    image_path: Path = get_path(module_attribute)
 
-    image_path = Path(get_path(module_attribute))
     result = file_helpers._open_image_numpy__with_pydicom(image_path=image_path)
 
     assert isinstance(result, np.ndarray)

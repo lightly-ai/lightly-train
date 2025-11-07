@@ -127,9 +127,12 @@ def test_train_semantic_segmentation__dicom(
     height: int,
     width: int,
 ) -> None:
-    from pydicom.examples import get_path
-
-    data_path = Path(get_path(module_attribute))
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    get_path = getattr(pydicom_examples, "get_path")
+    data_path: Path = get_path(module_attribute)
 
     out = tmp_path / "out"
     train_images = tmp_path / "train_images"

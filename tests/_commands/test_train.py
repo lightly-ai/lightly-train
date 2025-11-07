@@ -566,10 +566,13 @@ def test_train__dicom(
     module_attribute: str,
     num_channels: int,
 ) -> None:
-    from pydicom.examples import get_path
-
-    data_path = str(get_path(module_attribute))
-    data = [data_path] * 8  # Create a list of 8 identical DICOM files.
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    get_path = getattr(pydicom_examples, "get_path")
+    data_path: Path = get_path(module_attribute)
+    data = [str(data_path)] * 8  # Create a list of 8 identical DICOM files.
 
     out = tmp_path / "out"
     train.train(
