@@ -15,18 +15,6 @@ from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train.types import NDArrayImage
 
-# Albucore was introduced in albumentations v1.4.15
-if RequirementCache("albumentations>=1.4.15"):
-    from albucore import (  # type: ignore[import-not-found, import-untyped]
-        normalize,
-        normalize_per_image,
-    )
-else:
-    from albumentations.augmentations.functional import (  # type: ignore[import-untyped, no-redef]
-        normalize,
-        normalize_per_image,
-    )
-
 # New inteface for albumentations.Normalize was introduced in v1.4.4
 ALBUMENTATIONS_GEQ_1_4_4 = RequirementCache("albumentations>=1.4.4")
 
@@ -96,51 +84,7 @@ class NormalizeDtypeAware(Normalize):  # type: ignore[misc]
             )
 
     def apply(self, img: NDArrayImage, **params: Any) -> NDArrayImage:
-        if ALBUMENTATIONS_GEQ_1_4_4:
-            return self._apply_geq_1_4_4(img, **params)
-        else:
-            return self._apply_lt_1_4_4(img, **params)
-
-    def _apply_geq_1_4_4(self, img: NDArrayImage, **params: Any) -> NDArrayImage:
-        if self.normalization == "standard":
-            if img.dtype == np.float32:
-                # float32 input is assumed to be in [0.0, 1.0]
-                self.mean_np = np.array(self.mean, dtype=np.float32)
-                self.denominator = np.reciprocal(
-                    np.array(self.std, dtype=np.float32),
-                )
-            else:
-                # uint8 input is assumed to be in [0, 255] unless max_pixel_value is explicitly set
-                self.mean_np = (
-                    np.array(self.mean, dtype=np.float32) * self.max_pixel_value
-                )
-                self.denominator = np.reciprocal(
-                    np.array(self.std, dtype=np.float32) * self.max_pixel_value,
-                )
-
-            return normalize(  # type: ignore[no-any-return]
-                img,
-                self.mean_np,
-                self.denominator,
-            )
-        return normalize_per_image(img, self.normalization)  # type: ignore[no-any-return]
-
-    def _apply_lt_1_4_4(self, img: NDArrayImage, **params: Any) -> NDArrayImage:
         if img.dtype == np.float32:
-            # float32 input is assumed to be in [0.0, 1.0]
-            self.mean_np = np.array(self.mean, dtype=np.float32)
-            self.denominator = np.reciprocal(
-                np.array(self.std, dtype=np.float32),
-            )
-        else:
-            # uint8 input is assumed to be in [0, 255] unless max_pixel_value is explicitly set
-            self.mean_np = np.array(self.mean, dtype=np.float32) * self.max_pixel_value
-            self.denominator = np.reciprocal(
-                np.array(self.std, dtype=np.float32) * self.max_pixel_value,
-            )
-
-        return normalize(  # type: ignore[no-any-return]
-            img,
-            self.mean_np,
-            self.denominator,
-        )
+            # Image is in [0, 1] but albumentations expects [0, self.max_pixel_value]
+            img = img * self.max_pixel_value
+        return super().apply(img, **params)  # type: ignore[no-any-return]
