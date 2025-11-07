@@ -56,6 +56,10 @@ def init_weights_vit(module: nn.Module, name: str = ""):
         torch.nn.init.trunc_normal_(module.weight, std=0.02)
         if module.bias is not None:
             nn.init.zeros_(module.bias)
+        if hasattr(module, "bias_mask") and module.bias_mask is not None:
+            o = module.out_features
+            module.bias_mask.fill_(1)
+            module.bias_mask[o // 3 : 2 * o // 3].fill_(0)
     if isinstance(module, nn.LayerNorm):
         module.reset_parameters()
     if isinstance(module, LayerScale):
