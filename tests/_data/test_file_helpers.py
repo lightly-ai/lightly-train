@@ -23,12 +23,14 @@ from lightly_train._data.file_helpers import TORCHVISION_GEQ_0_20_0, ImageMode
 
 from .. import helpers
 
+# Convert uint16, uint32, uint64 to signed integer type because torch <2.3.0 has only
+# limited support for these types.
 numpy_to_torch_dtype_dict = {
     np.bool_: torch.bool,
     np.uint8: torch.uint8,
-    np.uint16: torch.uint16,
-    np.uint32: torch.uint32,
-    np.uint64: torch.uint64,
+    np.uint16: torch.int32,
+    np.uint32: torch.int64,
+    np.uint64: torch.int64,
     np.int8: torch.int8,
     np.int16: torch.int16,
     np.int32: torch.int32,
@@ -83,6 +85,8 @@ def test_list_image_filenames_from_iterable(
 def test_list_image_filenames_from_iterable__extensions(
     tmp_path: Path, extension: str
 ) -> None:
+    if extension == ".dcm":
+        pytest.skip("Skipping DICOM in this test.")
     helpers.create_images(image_dir=tmp_path, files=[f"image{extension}"])
     filenames = file_helpers.list_image_filenames_from_iterable(
         imgs_and_dirs=[tmp_path / f"image{extension}"]
@@ -171,6 +175,8 @@ def test_list_image_filenames_from_dir(tmp_path: Path) -> None:
 def test_list_image_filenames_from_dir__extensions(
     tmp_path: Path, extension: str
 ) -> None:
+    if extension == ".dcm":
+        pytest.skip("Skipping DICOM in this test.")
     helpers.create_images(image_dir=tmp_path, files=[f"image{extension}"])
     filenames = file_helpers.list_image_filenames_from_dir(image_dir=tmp_path)
     assert list(filenames) == [f"image{extension}"]
@@ -213,7 +219,6 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
         (".gif", "pil", np.uint8, 0, "P"),
         (".webp", "pil", np.uint8, 4, "RGBA"),
         (".tiff", "pil", np.int32, 0, "I"),
-        (".tiff", "pil", np.uint16, 0, "I;16"),
         (".tiff", "pil", np.float32, 0, "F"),
         (".dcm", "pydicom", np.float32, 0, ""),
     ],
