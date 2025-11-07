@@ -116,15 +116,19 @@ class NormalizeDtypeAware(Normalize):  # type: ignore[misc]
     def _apply_lt_1_4_4(self, img: NDArrayImage, **params: Any) -> NDArrayImage:
         if img.dtype == np.float32:
             # float32 input is assumed to be in [0.0, 1.0]
-            mean_np = np.array(self.mean, dtype=np.float32)
-            std_np = np.array(self.std, dtype=np.float32)
+            self.mean_np = np.array(self.mean, dtype=np.float32)
+            self.denominator = np.reciprocal(
+                np.array(self.std, dtype=np.float32),
+            )
         else:
             # uint8 input is assumed to be in [0, 255] unless max_pixel_value is explicitly set
-            mean_np = np.array(self.mean, dtype=np.float32) * self.max_pixel_value
-            std_np = np.array(self.std, dtype=np.float32) * self.max_pixel_value
+            self.mean_np = np.array(self.mean, dtype=np.float32) * self.max_pixel_value
+            self.denominator = np.reciprocal(
+                np.array(self.std, dtype=np.float32) * self.max_pixel_value,
+            )
 
         return normalize(  # type: ignore[no-any-return]
             img,
-            mean_np,
-            std_np,
+            self.mean_np,
+            self.denominator,
         )

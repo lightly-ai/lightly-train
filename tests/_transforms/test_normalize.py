@@ -24,10 +24,10 @@ def test_standard_normalization_float_image() -> None:
 
     result = transform(image=image)["image"]
 
-    expected = (image - np.asarray(transform.mean, dtype=np.float32)) / np.asarray(
-        transform.std,
-        dtype=np.float32,
-    )
+    mean = np.asarray(transform.mean, dtype=np.float32)
+    std = np.asarray(transform.std, dtype=np.float32)
+
+    expected = (image.astype(np.float32) - mean) / std
     np.testing.assert_allclose(result, expected, atol=1e-6)
 
 
@@ -43,7 +43,10 @@ def test_standard_normalization_uint8_image() -> None:
 
     result = transform(image=image)["image"]
 
-    std = np.asarray(transform.std, dtype=np.float32)
-    denominator = 1.0 / (std * float(transform.max_pixel_value))
-    expected = (image.astype(np.float32) - transform.mean_np) * denominator
+    mean = np.asarray(transform.mean, dtype=np.float32) * float(
+        transform.max_pixel_value
+    )
+    std = np.asarray(transform.std, dtype=np.float32) * float(transform.max_pixel_value)
+
+    expected = (image.astype(np.float32) - mean) / std
     np.testing.assert_allclose(result, expected, atol=1e-6)
