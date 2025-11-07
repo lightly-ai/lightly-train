@@ -87,4 +87,10 @@ class NormalizeDtypeAware(Normalize):  # type: ignore[misc]
         if img.dtype == np.float32:
             # Image is in [0, 1] but albumentations expects [0, self.max_pixel_value]
             img = img * self.max_pixel_value
+        elif img.dtype != np.uint8:
+            raise ValueError(
+                f"Unsupported image dtype {img.dtype}. "
+                "Only uint8 and float32 are supported."
+            )
+        
         return super().apply(img, **params)  # type: ignore[no-any-return]

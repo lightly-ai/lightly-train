@@ -111,12 +111,16 @@ def list_image_filenames_from_dir(image_dir: PathLike) -> Iterable[ImageFilename
         yield ImageFilename(filename)
 
 
-def _supported_image_extensions() -> set[str]:
+def _pil_supported_image_extensions() -> set[str]:
     return {
         ex
         for ex, format in Image.registered_extensions().items()
         if format in Image.OPEN
-    } | {".dcm"}
+    }
+
+
+def _supported_image_extensions() -> set[str]:
+    return _pil_supported_image_extensions() | {".dcm"}
 
 
 def _get_image_filenames(
@@ -157,9 +161,9 @@ def open_image_tensor(image_path: PathLike) -> Tensor:
         image_path: Path to the image file. Can be a local path or URL.
     """
     image: Tensor
-    if (
-        suffix := Path(image_path).suffix.lower()
-    ) in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+    
+    suffix = Path(image_path).suffix.lower()
+    if suffix in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             # Fast path when loading local file with torch.
             image = load_image(str(image_path))
@@ -190,8 +194,10 @@ def open_image_numpy(
 ) -> NDArrayImage:
     """Returns image as (H, W, C) or (H, W) numpy array."""
     image_np: NDArrayImage
+
     # Torchvision supported images
-    if (suffix := image_path.suffix.lower()) in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+    suffix = Path(image_path).suffix.lower()
+    if suffix in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             image_np = _open_image_numpy__with_torch(image_path=image_path, mode=mode)
         except RuntimeError:

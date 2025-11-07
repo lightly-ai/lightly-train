@@ -113,7 +113,7 @@ def test_train_semantic_segmentation(
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
 @pytest.mark.parametrize(
-    ("module_attribute, num_channels, height, width"),
+    ("data_format, num_channels, height, width"),
     [
         ("mr", 1, 64, 64),
         ("ct", 1, 128, 128),
@@ -125,7 +125,7 @@ def test_train_semantic_segmentation(
 )
 def test_train_semantic_segmentation__dicom(
     tmp_path: Path,
-    module_attribute: str,
+    data_format: str,
     num_channels: int,
     height: int,
     width: int,
@@ -134,8 +134,7 @@ def test_train_semantic_segmentation__dicom(
         "pydicom.examples",
         reason="pydicom examples not supported",
     )
-    get_path = getattr(pydicom_examples, "get_path")
-    data_path: Path = get_path(module_attribute)
+    data_path: Path = pydicom_examples.get_path(data_format)
 
     out = tmp_path / "out"
     train_images = tmp_path / "train_images"

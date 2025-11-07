@@ -555,7 +555,7 @@ def test_train__multichannel(
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
 @pytest.mark.parametrize(
-    ("module_attribute, num_channels"),
+    ("data_format, num_channels"),
     [
         ("ct", 1),
         ("mr", 1),
@@ -567,15 +567,14 @@ def test_train__multichannel(
 )
 def test_train__dicom(
     tmp_path: Path,
-    module_attribute: str,
+    data_format: str,
     num_channels: int,
 ) -> None:
     pydicom_examples = pytest.importorskip(
         "pydicom.examples",
         reason="pydicom examples not supported",
     )
-    get_path = getattr(pydicom_examples, "get_path")
-    data_path: Path = get_path(module_attribute)
+    data_path: Path = pydicom_examples.get_path(data_format)
     data = [str(data_path)] * 8  # Create a list of 8 identical DICOM files.
 
     out = tmp_path / "out"

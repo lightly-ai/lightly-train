@@ -240,8 +240,7 @@ def test_open_image_tensor(
             "pydicom.examples",
             reason="pydicom examples not supported",
         )
-        get_path = getattr(pydicom_examples, "get_path")
-        image_path: Path = get_path("mr")
+        image_path: Path = pydicom_examples.get_path("mr")
     else:
         image_path = tmp_path / f"image{extension}"
 
@@ -320,8 +319,7 @@ def test_open_image_numpy(
             "pydicom.examples",
             reason="pydicom examples not supported",
         )
-        get_path = getattr(pydicom_examples, "get_path")
-        image_path: Path = get_path("mr")
+        image_path: Path = pydicom_examples.get_path("mr")
     else:
         image_path = tmp_path / f"image{extension}"
 
@@ -491,7 +489,7 @@ def test_open_yolo_instance_segmentation_label_numpy__empty(
 
 
 @pytest.mark.parametrize(
-    ("module_attribute", "expected_shape", "expected_dtype"),
+    ("data_format", "expected_shape", "expected_dtype"),
     [
         ("mr", (64, 64), np.float32),
         ("ct", (128, 128), np.float32),
@@ -502,7 +500,7 @@ def test_open_yolo_instance_segmentation_label_numpy__empty(
     ],
 )
 def test__open_image_numpy__with_pydicom(
-    module_attribute: str,
+    data_format: str,
     expected_shape: tuple[int, ...],
     expected_dtype: DTypeLike,
 ) -> None:
@@ -510,8 +508,7 @@ def test__open_image_numpy__with_pydicom(
         "pydicom.examples",
         reason="pydicom examples not supported",
     )
-    get_path = getattr(pydicom_examples, "get_path")
-    image_path: Path = get_path(module_attribute)
+    image_path: Path = pydicom_examples.get_path(data_format)
 
     result = file_helpers._open_image_numpy__with_pydicom(image_path=image_path)
 

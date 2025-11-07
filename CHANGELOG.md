@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add support for loading DICOM images as input data for training and inference.
+
 ### Changed
 
 ### Deprecated
@@ -31,7 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatically download DINOv3 weights.
 - Add support for passing pretrained model names or checkpoint paths as `model` argument
   to the model training functions like `train_semantic_segmentation`.
-- Add support for loading DICOM images as input data for training and inference.
 
 ### Changed
 
