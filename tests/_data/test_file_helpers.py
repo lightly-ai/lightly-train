@@ -19,7 +19,11 @@ from torch import Tensor
 from torchvision.transforms.v2 import functional as F
 
 from lightly_train._data import file_helpers
-from lightly_train._data.file_helpers import TORCHVISION_GEQ_0_20_0, ImageMode
+from lightly_train._data.file_helpers import (
+    PYDICOM_GEQ_3_0_0,
+    TORCHVISION_GEQ_0_20_0,
+    ImageMode,
+)
 
 from .. import helpers
 
@@ -232,8 +236,8 @@ def test_open_image_tensor(
     pil_mode: str,
     mocker: MockerFixture,
 ) -> None:
-    if extension == ".dcm" and pydicom is None:
-        pytest.skip("pydicom not installed")
+    if extension == ".dcm" and not PYDICOM_GEQ_3_0_0:
+        pytest.skip("pydicom.example not supported")
 
     if extension == ".dcm":
         from pydicom.examples import get_path
@@ -312,8 +316,8 @@ def test_open_image_numpy(
     pil_mode: str,
     mocker: MockerFixture,
 ) -> None:
-    if extension == ".dcm" and pydicom is None:
-        pytest.skip("pydicom not installed")
+    if extension == ".dcm" and not PYDICOM_GEQ_3_0_0:
+        pytest.skip("pydicom.example not supported")
 
     if extension == ".dcm":
         from pydicom.examples import get_path
@@ -487,7 +491,7 @@ def test_open_yolo_instance_segmentation_label_numpy__empty(
     assert class_labels.shape == (0,)
 
 
-@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.skipif(not PYDICOM_GEQ_3_0_0, reason="pydicom.example not supported")
 @pytest.mark.parametrize(
     ("module_attribute", "expected_shape", "expected_dtype"),
     [

@@ -47,6 +47,8 @@ if TORCHVISION_GEQ_0_20_0:
 else:
     from torchvision.io import read_image as load_image  # type: ignore[no-redef]
 
+PYDICOM_GEQ_3_0_0 = RequirementCache("pydicom>=3.0.0")
+
 
 class ImageMode(Enum):
     RGB = "RGB"
@@ -244,7 +246,7 @@ def _open_image_numpy__with_pydicom(
         )
     from pydicom import Dataset
 
-    if RequirementCache("pydicom>=3.0.0"):
+    if PYDICOM_GEQ_3_0_0:
         from pydicom.pixels import utils  # type: ignore[no-redef]
         from pydicom.pixels.processing import (
             apply_color_lut,

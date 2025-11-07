@@ -27,6 +27,7 @@ from lightly_train._commands.train import (
     FunctionTrainConfig,
     TrainConfig,
 )
+from lightly_train._data.file_helpers import PYDICOM_GEQ_3_0_0
 from lightly_train._loggers.jsonl import JSONLLogger
 from lightly_train._methods import method_helpers
 from lightly_train._methods.dino.dino import DINOAdamWArgs, DINOArgs
@@ -34,11 +35,6 @@ from lightly_train._scaling import ScalingInfo
 
 from .. import helpers
 from ..helpers import DummyCustomModel
-
-try:
-    import pydicom
-except ImportError:
-    pydicom = None  # type: ignore[assignment]
 
 
 def test_train__cpu(tmp_path: Path) -> None:
@@ -564,7 +560,7 @@ def test_train__multichannel(
         ("jpeg2k", 3),
     ],
 )
-@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.skipif(not PYDICOM_GEQ_3_0_0, reason="pydicom.example not supported")
 def test_train__dicom(
     tmp_path: Path,
     module_attribute: str,
