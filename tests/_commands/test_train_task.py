@@ -184,7 +184,8 @@ def test_train_semantic_segmentation__dicom(
                 1: "lesion",
             },
         },
-        model="dinov3/vits16-eomt",
+        model="dinov2/_vittest14-eomt",
+        model_args={"num_joint_blocks": 1},
         # The operator 'aten::upsample_bicubic2d.out' raises a NotImplementedError
         # on macOS with MPS backend.
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",

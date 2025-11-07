@@ -92,5 +92,5 @@ class NormalizeDtypeAware(Normalize):  # type: ignore[misc]
                 f"Unsupported image dtype {img.dtype}. "
                 "Only uint8 and float32 are supported."
             )
-        
+
         return super().apply(img, **params)  # type: ignore[no-any-return]
