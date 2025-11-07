@@ -724,6 +724,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             logger.info(f"Resuming training from step {start_step}/{config.steps}...")
         else:
             logger.info(f"Training for {config.steps} steps...")
+        logger.info(f"Logging every {config.logger_args.log_every_num_steps} steps.")
+        logger.info(f"Validating every {config.logger_args.val_every_num_steps} steps.")
+        logger.info(f"Saving checkpoints every {config.save_checkpoint_args.save_every_num_steps} steps.")
 
         fabric.barrier()
         best_metric = (
