@@ -307,6 +307,37 @@ Lightly**Train** will raise an error if an unknown class ID is encountered. If y
 like to ignore some classes during training, you specify their class IDs in the
 `ignore_classes` argument. The trained model will then not predict these classes.
 
+Alternatively, you can provide a path to a YAML file with the dataset configuration:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt",
+        data="data.yaml",
+    )
+```
+
+The YAML file should look like this:
+
+```yaml
+train:
+    images: my_data_dir/train/images
+    masks: my_data_dir/train/masks
+val:
+    images: my_data_dir/val/images
+    masks: my_data_dir/val/masks
+classes:
+    0: background
+    1: car
+    2: bicycle
+    # ...
+ignore_classes:
+    - 0
+```
+
 #### Using a Template against the Image Filepath
 
 We also support loading masks that follow a certain template against the corresponding image filepath. For example, if you have the following directory structure:

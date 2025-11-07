@@ -8,14 +8,17 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Literal
 
+import fsspec
 import torch
+import yaml
 from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
 
 from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._commands import _warnings, common_helpers
@@ -50,7 +53,7 @@ logger = logging.getLogger(__name__)
 def train_instance_segmentation(
     *,
     out: PathLike,
-    data: dict[str, Any],
+    data: dict[str, Any] | str,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -89,7 +92,8 @@ def train_instance_segmentation(
         out:
             The output directory where the model checkpoints and logs are saved.
         data:
-            The dataset configuration. See the documentation for more information:
+            The dataset configuration or path to a YAML file with the configuration.
+            See the documentation for more information:
             https://docs.lightly.ai/train/stable/instance_segmentation.html#data
         model:
             The model to train. For example, "dinov2/vits14-eomt",
@@ -189,7 +193,7 @@ def train_instance_segmentation(
 def train_object_detection(
     *,
     out: PathLike,
-    data: dict[str, Any],
+    data: dict[str, Any] | str,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -228,8 +232,9 @@ def train_object_detection(
         out:
             The output directory where the model checkpoints and logs are saved.
         data:
-            The dataset configuration. See the documentation for more information:
-            https://docs.lightly.ai/train/stable/object_detection.html#data
+            The dataset configuration or path to a YAML file with the configuration.
+            See the documentation for more information:
+            https://docs.lightly.ai/train/stable/instance_segmentation.html#data
         model:
             The model to train. For example, "dinov3/convnext-tiny-ltdetr-coco",
             "dinov2/vits14-ltdetr", or a path to a local model checkpoint.
@@ -371,8 +376,9 @@ def train_semantic_segmentation(
         out:
             The output directory where the model checkpoints and logs are saved.
         data:
-            The dataset configuration. See the documentation for more information:
-            https://docs.lightly.ai/train/stable/semantic_segmentation.html#data
+            The dataset configuration or path to a YAML file with the configuration.
+            See the documentation for more information:
+            https://docs.lightly.ai/train/stable/instance_segmentation.html#data
         model:
             The model to train. For example, "dinov2/vits14-eomt",
             "dinov3/vits16-eomt-coco", or a path to a local model checkpoint.
@@ -472,7 +478,7 @@ def _train_task(
     *,
     config_cls: type[TrainTaskConfig],
     out: PathLike,
-    data: dict[str, Any],
+    data: dict[str, Any] | str,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -936,6 +942,17 @@ class TrainTaskConfig(PydanticConfig):
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def _load_yaml_if_path(cls, v: Any) -> Any:
+        if isinstance(v, (str, Path)):
+            with fsspec.open(v, "r") as file:
+                v = yaml.safe_load(file)
+            # Ignore all fields in YAML file that are not part of the Pydantic model.
+            data_attributes = cls.model_fields["data"].annotation.model_fields  # type: ignore
+            v = {name: value for name, value in v.items() if name in data_attributes}
+        return v
 
 
 class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):
