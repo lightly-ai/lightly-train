@@ -225,7 +225,7 @@ def train_object_detection(
         data:
             The dataset configuration or path to a YAML file with the configuration.
             See the documentation for more information:
-            https://docs.lightly.ai/train/stable/instance_segmentation.html#data
+            https://docs.lightly.ai/train/stable/object_detection.html#data
         model:
             The model to train. For example, "dinov3/convnext-tiny-ltdetr-coco",
             "dinov2/vits14-ltdetr", or a path to a local model checkpoint.
@@ -361,7 +361,7 @@ def train_semantic_segmentation(
         data:
             The dataset configuration or path to a YAML file with the configuration.
             See the documentation for more information:
-            https://docs.lightly.ai/train/stable/instance_segmentation.html#data
+            https://docs.lightly.ai/train/stable/semantic_segmentation.html#data
         model:
             The model to train. For example, "dinov2/vits14-eomt",
             "dinov3/vits16-eomt-coco", or a path to a local model checkpoint.
