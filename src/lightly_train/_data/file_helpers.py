@@ -247,8 +247,8 @@ def _open_image_numpy__with_pydicom(
     from pydicom import Dataset
 
     if PYDICOM_GEQ_3_0_0:
-        from pydicom.pixels import (
-            utils as pydicom_utils,  # type: ignore[import-not-found]
+        from pydicom.pixels import (  # type: ignore[import-not-found]
+            utils as pydicom_utils,
         )
         from pydicom.pixels.processing import (  # type: ignore[import-not-found]
             apply_color_lut,

@@ -12,8 +12,11 @@ from typing import Any, Literal
 import numpy as np
 from albucore import normalize, normalize_per_image  # type: ignore[import-untyped]
 from albumentations import Normalize
+from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train.types import NDArrayImage
+
+ALBUMENTATIONS_GEQ_1_4_4 = RequirementCache("albumentations>=1.4.4")
 
 
 class NormalizeDtypeAware(Normalize):  # type: ignore[misc]
@@ -64,15 +67,29 @@ class NormalizeDtypeAware(Normalize):  # type: ignore[misc]
         ] = "standard",
         p: float = 1.0,
     ):
-        super().__init__(
-            mean=mean,
-            std=std,
-            max_pixel_value=max_pixel_value,
-            normalization=normalization,
-            p=p,
-        )
+        if ALBUMENTATIONS_GEQ_1_4_4:
+            super().__init__(
+                mean=mean,
+                std=std,
+                max_pixel_value=max_pixel_value,
+                normalization=normalization,
+                p=p,
+            )
+        else:
+            super().__init__(
+                mean=mean,
+                std=std,
+                max_pixel_value=max_pixel_value,
+                p=p,
+            )
 
     def apply(self, img: NDArrayImage, **params: Any) -> NDArrayImage:
+        if ALBUMENTATIONS_GEQ_1_4_4:
+            return self._apply_geq_1_4_4(img, **params)
+        else:
+            return self._apply_lt_1_4_4(img, **params)
+
+    def _apply_geq_1_4_4(self, img: NDArrayImage, **params: Any) -> NDArrayImage:
         if self.normalization == "standard":
             if img.dtype == np.float32:
                 # float32 input is assumed to be in [0.0, 1.0]
@@ -95,3 +112,19 @@ class NormalizeDtypeAware(Normalize):  # type: ignore[misc]
                 self.denominator,
             )
         return normalize_per_image(img, self.normalization)  # type: ignore[no-any-return]
+
+    def _apply_lt_1_4_4(self, img: NDArrayImage, **params: Any) -> NDArrayImage:
+        if img.dtype == np.float32:
+            # float32 input is assumed to be in [0.0, 1.0]
+            mean_np = np.array(self.mean, dtype=np.float32)
+            std_np = np.array(self.std, dtype=np.float32)
+        else:
+            # uint8 input is assumed to be in [0, 255] unless max_pixel_value is explicitly set
+            mean_np = np.array(self.mean, dtype=np.float32) * self.max_pixel_value
+            std_np = np.array(self.std, dtype=np.float32) * self.max_pixel_value
+
+        return normalize(  # type: ignore[no-any-return]
+            img,
+            mean_np,
+            std_np,
+        )
