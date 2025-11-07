@@ -19,7 +19,7 @@ Below we provide the model checkpoints and report the validation mAP<sub>50:95</
 
 | Implementation | Backbone Model | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Input Size | Checkpoint Name |
 |:--------------:|:----------------------------:|:------------------:|:------------:|:------------:|:----------:|:---------------------------------:|
-| LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 | dinov2/vits14-ltdetr-coco |
+| LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 | dinov2/vits14-noreg-ltdetr-coco |
 | LightlyTrain | dinov3/convnext-tiny-ltdetr | 54.4 | 13.29 | 61.1 | 640×640 | dinov3/convnext-tiny-ltdetr-coco |
 | LightlyTrain | dinov3/convnext-small-ltdetr | 56.9 | 17.65 | 82.7 | 640×640 | dinov3/convnext-small-ltdetr-coco |
 | LightlyTrain | dinov3/convnext-base-ltdetr | 58.6 | 24.68 | 121.0 | 640×640 | dinov3/convnext-base-ltdetr-coco |
@@ -39,7 +39,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="dinov3/convnext-small-ltdetr",
+        model="dinov3/convnext-small-ltdetr-coco",
         data={
             "path": "base_path_to_your_dataset",
             "train": "images/train2012",
@@ -58,16 +58,17 @@ During training, both the
 - best (with highest validation mAP<sub>50:95</sub>) and
 - last (last validation round as determined by `save_checkpoint_args.save_every_num_steps`)
 
-model weights are exported to `out/my_experiment/exported_models/`, unless disabled in `save_checkpoint_args`. You can use these weights to continue fine-tuning on another task by loading the weights via the `checkpoint` parameter:
+model weights are exported to `out/my_experiment/exported_models/`, unless disabled in
+`save_checkpoint_args`. You can use these weights to continue fine-tuning on another
+task by loading the weights via `model="<checkpoint path>"`:
 
 ```python
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train_semantic_segmentation(
+    lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="dinov3/convnext-small-ltdetr", 
-        checkpoint="out/my_experiment/exported_models/exported_best.pt", # use the best model to continue training
+        model="out/my_experiment/exported_models/exported_best.pt", # Use the best model to continue training
         data={...},
     )
 ```
@@ -83,9 +84,7 @@ After the training completes, you can load the best model checkpoints for infere
 ```python
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    "out/my_experiment/exported_models/exported_best.pt"
-)
+model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 results = model.predict("path/to/image.jpg")
 ```
 
@@ -94,15 +93,13 @@ Or use one of the pre-trained model weights directly from LightlyTrain:
 ```python
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    checkpoint="dinov3/convnext-tiny-ltdetr-coco"
-)
+model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
 results = model.predict("path/to/image.jpg")
 ```
 
 ### Visualize the Result
 
-After making the predictions with the model weights, you can visualize the predicted masks like this:
+After making the predictions with the model weights, you can visualize the predicted bounding boxes like this:
 
 ```python
 # ruff: noqa: F821
@@ -111,10 +108,7 @@ from torchvision import io, utils
 
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    checkpoint="dinov3/convnext-tiny-ltdetr-coco"
-)
-
+model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
 labels, boxes, scores = model.predict("<image>.jpg").values()
 
 # Visualize predictions.

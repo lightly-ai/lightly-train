@@ -166,6 +166,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         data_args: MaskSemanticSegmentationDataArgs,
         train_transform_args: DINOv3EoMTSemanticSegmentationTrainTransformArgs,
         val_transform_args: DINOv3EoMTSemanticSegmentationValTransformArgs,
+        load_weights: bool,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
@@ -199,6 +200,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
             # TODO (Lionel, 10/25): Pass backbone args.
+            load_weights=load_weights,
         )
 
         self.criterion = MaskClassificationLoss(

@@ -233,8 +233,8 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         Args:
             image:
-                The input image as a path, PIL image, or tensor. Tensors must have shape
-                (C, H, W).
+                The input image as a path, URL, PIL image, or tensor. Tensors must have
+                shape (C, H, W).
 
         Returns:
             A {"labels": Tensor, "masks": Tensor, "scores": Tensor} dict. Labels is a

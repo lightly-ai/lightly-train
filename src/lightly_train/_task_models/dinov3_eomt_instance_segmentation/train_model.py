@@ -164,6 +164,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         data_args: YOLOInstanceSegmentationDataArgs,
         train_transform_args: DINOv3EoMTInstanceSegmentationTrainTransformArgs,
         val_transform_args: DINOv3EoMTInstanceSegmentationValTransformArgs,
+        load_weights: bool,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
@@ -196,6 +197,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             num_queries=num_queries,
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
+            load_weights=load_weights,
         )
 
         self.criterion = MaskClassificationLoss(

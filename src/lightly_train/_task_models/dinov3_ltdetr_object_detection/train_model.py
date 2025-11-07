@@ -129,6 +129,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         data_args: YOLOObjectDetectionDataArgs,
         train_transform_args: DINOv3LTDETRObjectDetectionTrainTransformArgs,
         val_transform_args: DINOv3LTDETRObjectDetectionValTransformArgs,
+        load_weights: bool,
     ) -> None:
         super().__init__()
 
@@ -140,6 +141,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             image_normalize=None,  # TODO (Lionel, 10/25): Allow custom normalization.
             backbone_weights=model_args.backbone_weights,
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
+            load_weights=load_weights,
         )
 
         self.ema_model: ModelEMA | None = None
@@ -169,6 +171,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         # Validation metric.
         self.map_metric = MeanAveragePrecision()
+        self.map_metric.warn_on_many_detections = False
 
     def set_train_mode(self) -> None:
         super().set_train_mode()

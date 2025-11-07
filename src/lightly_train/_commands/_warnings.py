@@ -47,6 +47,12 @@ def filter_train_warnings() -> None:
     )
     warnings.filterwarnings(
         "ignore",
+        message="Please use the new API settings to control TF32 behavior",
+        module="torch",
+        category=UserWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
         message="torch.cuda.amp.GradScaler is enabled, but CUDA is not available.",
         module="torch.amp",
         category=UserWarning,
