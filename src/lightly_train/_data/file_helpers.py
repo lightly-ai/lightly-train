@@ -13,7 +13,7 @@ from collections.abc import Iterable, Set
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import get_args
+from typing import BinaryIO, get_args
 
 import fsspec
 import numpy as np
@@ -143,6 +143,14 @@ def _get_image_filenames(
 _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
+def _image_src_from_path(path: PathLike) -> PathLike | BinaryIO:
+    protocol = fsspec.utils.get_protocol(str(path))
+    if protocol == "file":
+        return path
+    with fsspec.open(path, "rb") as file:
+        return BytesIO(file.read())
+
+
 def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
     """Returns image as (C, H, W) tensor."""
     if isinstance(image, Tensor):
@@ -163,6 +171,7 @@ def open_image_tensor(image_path: PathLike) -> Tensor:
     image: Tensor
 
     suffix = Path(image_path).suffix.lower()
+
     if suffix in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             # Fast path when loading local file with torch.
@@ -172,8 +181,10 @@ def open_image_tensor(image_path: PathLike) -> Tensor:
             pass
         else:
             return image
-    elif suffix == ".dcm":
-        image_np = _open_image_numpy__with_pydicom(image_path=image_path)
+    image_src = _image_src_from_path(image_path)
+
+    if suffix == ".dcm":
+        image_np = _open_image_numpy__with_pydicom(image_src=image_src)
         if image_np.ndim == 2:
             # (H, W) -> (H, W, C)
             image_np = np.expand_dims(image_np, axis=2)
@@ -182,9 +193,7 @@ def open_image_tensor(image_path: PathLike) -> Tensor:
         image = Tensor(image_np)
         return image
 
-    with fsspec.open(image_path, "rb") as file:
-        image_bytes = file.read()
-    image = F.pil_to_tensor(Image.open(BytesIO(image_bytes)))
+    image = F.pil_to_tensor(Image.open(image_src))
     return image
 
 
@@ -206,7 +215,7 @@ def open_image_numpy(
     # DICOM images. ImageMode is not relevant here. It will always be loaded as is.
     # NOTE: We do not support loading DICOM images as segmentation masks.
     elif suffix == ".dcm":
-        image_np = _open_image_numpy__with_pydicom(image_path=image_path)
+        image_np = _open_image_numpy__with_pydicom(image_src=image_path)
     # Pillow images
     else:
         image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
@@ -241,7 +250,7 @@ def _open_image_numpy__with_torch(
 
 
 def _open_image_numpy__with_pydicom(
-    image_path: PathLike,
+    image_src: PathLike | BinaryIO,
 ) -> NDArrayImage:
     from lightning_utilities.core.imports import RequirementCache
 
@@ -272,7 +281,7 @@ def _open_image_numpy__with_pydicom(
     image_np: NDArrayImage
 
     dataset = Dataset()
-    pixel_array = pydicom_utils.pixel_array(image_path, ds_out=dataset)
+    pixel_array = pydicom_utils.pixel_array(image_src, ds_out=dataset)
 
     num_frames = pydicom_utils.get_nr_frames(dataset)
     if num_frames > 1:
