@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from torch import Tensor
-from torch.nn import AdaptiveAvgPool2d, Identity, Module, ModuleList
+from torch.nn import Identity, Module, ModuleList
 
 from lightly_train._models.dinov3.dinov3_src.layers.block import (
     SelfAttentionBlock,
