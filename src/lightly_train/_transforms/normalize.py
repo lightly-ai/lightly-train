@@ -10,12 +10,24 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import numpy as np
-from albucore import normalize, normalize_per_image  # type: ignore[import-untyped]
 from albumentations import Normalize
 from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train.types import NDArrayImage
 
+# Albucore was introduced in albumentations v1.4.15
+if RequirementCache("albumentations>=1.4.15"):
+    from albucore import (  # type: ignore[import-not-found, import-untyped]
+        normalize,
+        normalize_per_image,
+    )
+else:
+    from albumentations.augmentations.functional import (  # type: ignore[import-untyped, no-redef]
+        normalize,
+        normalize_per_image,
+    )
+
+# New inteface for albumentations.Normalize was introduced in v1.4.4
 ALBUMENTATIONS_GEQ_1_4_4 = RequirementCache("albumentations>=1.4.4")
 
 
