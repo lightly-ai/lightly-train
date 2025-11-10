@@ -60,7 +60,11 @@ def _get_system_info() -> Dict[str, Any]:
 
 
 def track_event(event_name: str, properties: Dict[str, Any]) -> None:
-    """Track an event."""
+    """Track an event.
+
+    Events are buffered so flushes can send them in batches. This limits how many
+    threads we spawn and ensures no events are dropped while a flush runs.
+    """
     global _last_flush
 
     current_time = time.time()
