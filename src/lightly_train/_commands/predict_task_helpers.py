@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any, Sequence
@@ -204,3 +205,31 @@ def save_mask(mask: NDArrayMask, mask_filepath: Path) -> None:
     mask_np = mask_np.astype(dtype, copy=False)
 
     Image.fromarray(mask_np).save(mask_filepath)
+
+
+def save_coco_json(predictions: dict[str, list[Any]], coco_filepath: Path) -> None:
+    labels: list[int] = predictions["labels"]
+    boxes: list[list[int]] = predictions["bboxes"]
+    scores: list[float] = predictions["scores"]
+
+    entries = []
+    for label, box, score in zip(labels, boxes, scores):
+        x1, y1, x2, y2 = box
+        x = x1
+        y = y1
+        w = max(0, x2 - x1)
+        h = max(0, y2 - y1)
+
+        entries.append(
+            {
+                "category_id": label,
+                "bbox": [x, y, w, h],
+                "score": score,
+            }
+        )
+
+    coco_filepath.parent.mkdir(parents=True, exist_ok=True)
+    coco_filepath.write_text(
+        json.dumps({"predictions": entries}, indent=2) + "\n",
+        encoding="utf-8",
+    )
