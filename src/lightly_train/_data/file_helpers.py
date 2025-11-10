@@ -13,7 +13,7 @@ from collections.abc import Iterable, Set
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import get_args
+from typing import BinaryIO, get_args
 
 import fsspec
 import numpy as np
@@ -47,6 +47,8 @@ if TORCHVISION_GEQ_0_20_0:
 else:
     from torchvision.io import read_image as load_image  # type: ignore[no-redef]
 
+PYDICOM_GEQ_3_0_0 = RequirementCache("pydicom>=3.0.0")
+
 
 class ImageMode(Enum):
     RGB = "RGB"
@@ -68,7 +70,7 @@ def list_image_filenames_from_iterable(
         An iterable of image filenames starting from the given paths. The given paths
         are always included in the output filenames.
     """
-    supported_extensions = _pil_supported_image_extensions()
+    supported_extensions = _supported_image_extensions()
     for img_or_dir in imgs_and_dirs:
         _, ext = os.path.splitext(img_or_dir)
         # Only check image extension. This is faster than checking isfile() because it
@@ -117,14 +119,16 @@ def _pil_supported_image_extensions() -> set[str]:
     }
 
 
+def _supported_image_extensions() -> set[str]:
+    return _pil_supported_image_extensions() | {".dcm"}
+
+
 def _get_image_filenames(
     image_dir: PathLike, image_extensions: Set[str] | None = None
 ) -> Iterable[str]:
     """Returns image filenames relative to image_dir."""
     image_extensions = (
-        _pil_supported_image_extensions()
-        if image_extensions is None
-        else image_extensions
+        _supported_image_extensions() if image_extensions is None else image_extensions
     )
     for dirpath, _, filenames in os.walk(image_dir, followlinks=True):
         # Make paths relative to image_dir. `dirpath` is absolute.
@@ -137,6 +141,14 @@ def _get_image_filenames(
 
 
 _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+
+
+def _image_src_from_path(path: PathLike) -> PathLike | BinaryIO:
+    protocol = fsspec.utils.get_protocol(str(path))
+    if protocol == "file":
+        return path
+    with fsspec.open(path, "rb") as file:
+        return BytesIO(file.read())
 
 
 def as_image_tensor(image: PathLike | PILImage | Tensor) -> Tensor:
@@ -157,7 +169,9 @@ def open_image_tensor(image_path: PathLike) -> Tensor:
         image_path: Path to the image file. Can be a local path or URL.
     """
     image: Tensor
-    if Path(image_path).suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+
+    suffix = Path(image_path).suffix.lower()
+    if suffix in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             # Fast path when loading local file with torch.
             image = load_image(str(image_path))
@@ -166,10 +180,19 @@ def open_image_tensor(image_path: PathLike) -> Tensor:
             pass
         else:
             return image
+    image_src = _image_src_from_path(image_path)
 
-    with fsspec.open(image_path, "rb") as file:
-        image_bytes = file.read()
-    image = F.pil_to_tensor(Image.open(BytesIO(image_bytes)))
+    if suffix == ".dcm":
+        image_np = _open_image_numpy__with_pydicom(image_src=image_src)
+        if image_np.ndim == 2:
+            # (H, W) -> (H, W, C)
+            image_np = np.expand_dims(image_np, axis=2)
+        # (H, W, C) -> (C, H, W)
+        image_np = np.transpose(image_np, (2, 0, 1))
+        image = Tensor(image_np)
+        return image
+
+    image = F.pil_to_tensor(Image.open(image_src))
     return image
 
 
@@ -179,12 +202,20 @@ def open_image_numpy(
 ) -> NDArrayImage:
     """Returns image as (H, W, C) or (H, W) numpy array."""
     image_np: NDArrayImage
-    if image_path.suffix.lower() in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
+
+    # Torchvision supported images
+    suffix = image_path.suffix.lower()
+    if suffix in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             image_np = _open_image_numpy__with_torch(image_path=image_path, mode=mode)
         except RuntimeError:
             # RuntimeError can happen for truncated images. Fall back to PIL.
             image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
+    # DICOM images. ImageMode is not relevant here. It will always be loaded as is.
+    # NOTE: We do not support loading DICOM images as segmentation masks.
+    elif suffix == ".dcm":
+        image_np = _open_image_numpy__with_pydicom(image_src=image_path)
+    # Pillow images
     else:
         image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
 
@@ -214,6 +245,74 @@ def _open_image_numpy__with_torch(
         image_torch = F.to_dtype(image_torch, torch.float32, scale=True)
 
     image_np = image_torch.numpy()
+    return image_np
+
+
+def _open_image_numpy__with_pydicom(
+    image_src: PathLike | BinaryIO,
+) -> NDArrayImage:
+    if not RequirementCache("pydicom"):
+        raise ImportError(
+            "pydicom is required to read DICOM images. "
+            "Please install it with 'pip install lightly-train[dicom]'."
+        )
+    from pydicom import Dataset
+
+    if PYDICOM_GEQ_3_0_0:
+        from pydicom.pixels import (  # type: ignore[import-not-found]
+            utils as pydicom_utils,
+        )
+        from pydicom.pixels.processing import (  # type: ignore[import-not-found]
+            apply_color_lut,
+            apply_modality_lut,
+            convert_color_space,
+        )
+    else:
+        import pydicom.pixel_data_handlers.util as pydicom_utils  # type: ignore[no-redef]
+        from pydicom.pixel_data_handlers.util import (  # type: ignore[no-redef]
+            apply_color_lut,
+            apply_modality_lut,
+            convert_color_space,
+        )
+
+    image_np: NDArrayImage
+
+    dataset = Dataset()
+    pixel_array = pydicom_utils.pixel_array(image_src, ds_out=dataset)
+
+    num_frames = pydicom_utils.get_nr_frames(dataset)
+    if num_frames > 1:
+        raise ValueError("Multi-frame DICOM images are not supported.")
+
+    pm = dataset.PhotometricInterpretation
+    if (
+        pixel_array.shape[-1] == 3
+        and np.issubdtype(pixel_array.dtype, np.uint8)
+        and "YBR_FULL" in pm
+    ):
+        pixel_array = convert_color_space(pixel_array, pm, "RGB")
+
+    if pm == "PALETTE COLOR":
+        pixel_array = apply_color_lut(pixel_array, dataset)
+
+    rescaled_array = apply_modality_lut(pixel_array, dataset)
+
+    image_np = (
+        rescaled_array.astype(np.float32)
+        if not np.issubdtype(rescaled_array.dtype, np.integer)
+        else rescaled_array
+    )
+    original_dtype = image_np.dtype
+    if not any(
+        np.issubdtype(original_dtype, allowed) for allowed in get_args(ImageDtypes)
+    ):
+        # Convert to float32 image in [0, 1] range for non-uint8 types because albumentations only supports
+        # np.float32 and np.uint8 types.
+        image_np = image_np.astype(np.float32)
+
+        info = np.iinfo(original_dtype)  # type: ignore[type-var]
+        image_np = (image_np - float(info.min)) / float(info.max - info.min)
+
     return image_np
 
 
