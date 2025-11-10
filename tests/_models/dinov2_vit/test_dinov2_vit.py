@@ -59,9 +59,11 @@ class TestDINOv2ViTModelWrapper:
         feature_extractor = DINOv2ViTModelWrapper(model=model)
 
         x = torch.rand(1, 384, 14, 14)
-        pooled_features = feature_extractor.forward_pool({"features": x})[
-            "pooled_features"
-        ]
+        x_cls = torch.rand(1, 384)
+        pooled_features = feature_extractor.forward_pool(
+            {"features": x, "cls_token": x_cls}
+        )["pooled_features"]
+        print(pooled_features.shape)
         assert pooled_features.shape == (1, 384, 1, 1)
 
     def test_get_model(self) -> None:
