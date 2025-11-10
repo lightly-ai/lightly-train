@@ -11,8 +11,8 @@ from typing import Any, Dict
 
 from pytorch_lightning import Callback, LightningModule, Trainer
 
+from lightly_train._events import tracker
 from lightly_train._events.event_info import TrainingEventInfo
-from lightly_train._events.tracker import track_event
 
 
 class EventsCallback(Callback):
@@ -35,4 +35,4 @@ class EventsCallback(Callback):
             "batch_size": self.event_info.batch_size,
             "devices": self.event_info.devices,
         }
-        track_event("training_started", properties)
+        tracker.track_event("training_started", properties)
