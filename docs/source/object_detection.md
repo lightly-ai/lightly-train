@@ -27,6 +27,8 @@ Below we provide the model checkpoints and report the validation mAP<sub>50:95</
 
 ## Object Detection with LT-DETR
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
+
 Training an object detection model with LightlyTrain is straightforward and only
 requires a few lines of code. See [data](#object-detection-data) for details on how
 to prepare your dataset.
