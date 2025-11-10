@@ -17,7 +17,8 @@ from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-def
 from pydantic import ConfigDict
 from torch import Tensor
 
-from lightly_train import _events, _logging, _system
+from lightly_train import _logging, _system
+from lightly_train._events.tracker import track_event
 from lightly_train._commands import (
     _warnings,
     common_helpers,
@@ -91,9 +92,7 @@ def predict_semantic_segmentation(
 
 def _predict_task_from_config(config: PredictTaskConfig) -> None:
     # TODO(Igor, 11/25): Update to other tasks (object detection, instance segmentation, etc.) once they are supported.
-    _events.track_event(
-        "inference_started", {"inference_type": "semantic_segmentation"}
-    )
+    track_event("inference_started", {"inference_type": "semantic_segmentation"})
 
     config = validate.pydantic_model_validate(PredictTaskConfig, dict(config))
     initial_config = config.model_dump()
