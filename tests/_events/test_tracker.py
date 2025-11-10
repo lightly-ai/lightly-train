@@ -19,14 +19,12 @@ from lightly_train._events import tracker
 def mock_events_disabled(mocker: MockerFixture) -> None:
     """Mock events as disabled."""
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_EVENTS_DISABLED": "1"})
-    mocker.patch("lightly_train._events.config.EVENTS_DISABLED", True)
 
 
 @pytest.fixture
 def mock_events_enabled(mocker: MockerFixture) -> None:
     """Mock events as enabled and prevent background threads."""
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_EVENTS_DISABLED": "0"})
-    mocker.patch("lightly_train._events.config.EVENTS_DISABLED", False)
     mocker.patch("threading.Thread")
 
 
@@ -51,7 +49,7 @@ def test_track_event__structure(
     mock_events_enabled: None, mocker: MockerFixture
 ) -> None:
     """Test that tracked events contain all required fields."""
-    mocker.patch("lightly_train._events.config.POSTHOG_API_KEY", "test_key")
+    mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_POSTHOG_KEY": "test_key"})
 
     tracker.track_event(event_name="test_event", properties={"prop1": "value1"})
 

@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
-from lightly_train._events import config
+from lightly_train._env import Env
 
 _RATE_LIMIT_SECONDS: float = 30.0
 _MAX_QUEUE_SIZE: int = 100
@@ -64,9 +64,8 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     global _last_flush
 
     current_time = time.time()
-    if (
-        config.EVENTS_DISABLED
-        or current_time - _last_event_time.get(event_name, -100.0) < _RATE_LIMIT_SECONDS
+    if Env.LIGHTLY_TRAIN_EVENTS_DISABLED.value or (
+        current_time - _last_event_time.get(event_name, -100.0) < _RATE_LIMIT_SECONDS
     ):
         return
 
@@ -76,7 +75,7 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     _last_event_time[event_name] = current_time
 
     event_data = {
-        "api_key": config.POSTHOG_API_KEY,
+        "api_key": Env.LIGHTLY_TRAIN_POSTHOG_KEY.value,
         "event": event_name,
         "distinct_id": _session_id,
         "properties": {**properties, **_get_system_info()},

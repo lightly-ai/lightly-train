@@ -159,3 +159,14 @@ class Env:
         _default=None,
         _type=str,
     )
+    # PostHog integration for anonymous usage analytics.
+    LIGHTLY_TRAIN_POSTHOG_KEY: EnvVar[str] = EnvVar(
+        name="LIGHTLY_TRAIN_POSTHOG_KEY",
+        _default="phc_placeholder",
+        _type=str,
+    )
+    LIGHTLY_TRAIN_EVENTS_DISABLED: EnvVar[bool] = EnvVar(
+        name="LIGHTLY_TRAIN_EVENTS_DISABLED",
+        _default=False,
+        _type=lambda x: x == "1",
+    )
