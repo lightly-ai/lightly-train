@@ -171,7 +171,6 @@ def open_image_tensor(image_path: PathLike) -> Tensor:
     image: Tensor
 
     suffix = Path(image_path).suffix.lower()
-
     if suffix in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             # Fast path when loading local file with torch.
@@ -205,7 +204,7 @@ def open_image_numpy(
     image_np: NDArrayImage
 
     # Torchvision supported images
-    suffix = Path(image_path).suffix.lower()
+    suffix = image_path.suffix.lower()
     if suffix in _TORCHVISION_SUPPORTED_IMAGE_EXTENSIONS:
         try:
             image_np = _open_image_numpy__with_torch(image_path=image_path, mode=mode)
@@ -252,8 +251,6 @@ def _open_image_numpy__with_torch(
 def _open_image_numpy__with_pydicom(
     image_src: PathLike | BinaryIO,
 ) -> NDArrayImage:
-    from lightning_utilities.core.imports import RequirementCache
-
     if not RequirementCache("pydicom"):
         raise ImportError(
             "pydicom is required to read DICOM images. "
