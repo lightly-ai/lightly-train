@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+from lightly_train import _distributed
 from lightly_train._env import Env
 
 _RATE_LIMIT_SECONDS: float = 30.0
@@ -70,6 +71,9 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     Events are buffered so flushes can send them in batches. This limits how many
     threads we spawn and ensures no events are dropped while a flush runs.
     """
+    if not _distributed.is_global_rank_zero():
+        return
+
     global _last_flush
 
     current_time = time.time()

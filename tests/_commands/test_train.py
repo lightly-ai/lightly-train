@@ -36,6 +36,32 @@ from .. import helpers
 from ..helpers import DummyCustomModel
 
 
+def test_track_training_started_event(mocker: MockerFixture) -> None:
+    """Ensure training_started analytics payload stays consistent."""
+    mock_track_event = mocker.patch("lightly_train._events.tracker.track_event")
+    model = DummyCustomModel()
+
+    train._track_training_started_event(
+        method="simclr",
+        model=model,
+        epochs=10,
+        batch_size=128,
+        devices="auto",
+    )
+
+    mock_track_event.assert_called_once_with(
+        "training_started",
+        {
+            "method": "simclr",
+            "model_name": model.__class__.__name__,
+            "task_type": "ssl_pretraining",
+            "epochs": 10,
+            "batch_size": 128,
+            "devices": 1,
+        },
+    )
+
+
 def test_train__cpu(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
