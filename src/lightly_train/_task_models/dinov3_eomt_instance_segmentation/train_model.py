@@ -92,6 +92,7 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     # Metrics
     metric_topk_instances: int = 100
     metric_log_classwise: bool = True
+    metric_log_train: bool = False
     metric_log_debug: bool = False
 
     def resolve_auto(
@@ -260,30 +261,28 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         }
 
         # Metrics
-        with torch.no_grad():
-            mask_logits = mask_logits_per_layer[-1]
-            class_logits = class_logits_per_layer[-1]
-            mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-            # (B, Q), (B, Q, H, W), (B, Q)
-            labels, masks, scores = self.model.get_labels_masks_scores(
-                mask_logits=mask_logits, class_logits=class_logits
+        metrics: dict[str, Any] = {}
+        if self.model_args.metric_log_train:
+            with torch.no_grad():
+                mask_logits = mask_logits_per_layer[-1]
+                class_logits = class_logits_per_layer[-1]
+                mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+                # (B, Q), (B, Q, H, W), (B, Q)
+                labels, masks, scores = self.model.get_labels_masks_scores(
+                    mask_logits=mask_logits, class_logits=class_logits
+                )
+            self.train_map.update(
+                preds=[
+                    {
+                        "labels": labels[i],
+                        "masks": masks[i],
+                        "scores": scores[i],
+                    }
+                    for i in range(len(labels))
+                ],
+                target=binary_masks,  # type: ignore[arg-type]
             )
-
-        self.train_map.update(
-            preds=[
-                {
-                    "labels": labels[i],
-                    "masks": masks[i],
-                    "scores": scores[i],
-                }
-                for i in range(len(labels))
-            ],
-            target=binary_masks,  # type: ignore[arg-type]
-        )
-
-        metrics: dict[str, Any] = {
-            "train_metric/map": self.train_map,
-        }
+            metrics["train_metric/map"] = self.train_map
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
