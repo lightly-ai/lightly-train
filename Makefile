@@ -348,7 +348,7 @@ dist: clean
 		echo "Error: LIGHTLY_TRAIN_POSTHOG_KEY is not set."; \
 		exit 1; \
 	fi
-	perl -0pi -e 's/phc_placeholder/'"$(LIGHTLY_TRAIN_POSTHOG_KEY)"'/' src/lightly_train/_env.py
+	perl -0pi -e 's/phc_placeholder/'"$$LIGHTLY_TRAIN_POSTHOG_KEY"'/' src/lightly_train/_env.py
 	python -m build
 	git checkout -- src/lightly_train/_env.py
 	ls -l dist
