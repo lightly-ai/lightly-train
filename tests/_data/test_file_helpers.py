@@ -11,14 +11,43 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import torch
 from numpy.typing import DTypeLike
 from pytest import LogCaptureFixture, MonkeyPatch
 from pytest_mock import MockerFixture
+from torch import Tensor
+from torchvision.transforms.v2 import functional as F
 
 from lightly_train._data import file_helpers
-from lightly_train._data.file_helpers import TORCHVISION_GEQ_0_20_0, ImageMode
+from lightly_train._data.file_helpers import (
+    TORCHVISION_GEQ_0_20_0,
+    ImageMode,
+)
 
 from .. import helpers
+
+# Convert uint16, uint32, uint64 to signed integer type because torch <2.3.0 has only
+# limited support for these types.
+numpy_to_torch_dtype_dict = {
+    np.bool_: torch.bool,
+    np.uint8: torch.uint8,
+    np.uint16: torch.int32,
+    np.uint32: torch.int64,
+    np.uint64: torch.int64,
+    np.int8: torch.int8,
+    np.int16: torch.int16,
+    np.int32: torch.int32,
+    np.int64: torch.int64,
+    np.float16: torch.float16,
+    np.float32: torch.float32,
+    np.float64: torch.float64,
+}
+
+
+try:
+    import pydicom
+except ImportError:
+    pydicom = None  # type: ignore[assignment]
 
 
 def test_list_image_filenames_from_iterable(
@@ -59,6 +88,8 @@ def test_list_image_filenames_from_iterable(
 def test_list_image_filenames_from_iterable__extensions(
     tmp_path: Path, extension: str
 ) -> None:
+    if extension == ".dcm":
+        pytest.skip("Skipping DICOM in this test.")
     helpers.create_images(image_dir=tmp_path, files=[f"image{extension}"])
     filenames = file_helpers.list_image_filenames_from_iterable(
         imgs_and_dirs=[tmp_path / f"image{extension}"]
@@ -147,6 +178,8 @@ def test_list_image_filenames_from_dir(tmp_path: Path) -> None:
 def test_list_image_filenames_from_dir__extensions(
     tmp_path: Path, extension: str
 ) -> None:
+    if extension == ".dcm":
+        pytest.skip("Skipping DICOM in this test.")
     helpers.create_images(image_dir=tmp_path, files=[f"image{extension}"])
     filenames = file_helpers.list_image_filenames_from_dir(image_dir=tmp_path)
     assert list(filenames) == [f"image{extension}"]
@@ -186,11 +219,90 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
         (".png", "torch", np.uint8, 3, "RGB"),
         (".png", "torch", np.uint8, 4, "RGBA"),
         (".bmp", "pil", np.uint8, 3, "RGB"),
-        (".gif", "pil", np.uint8, 3, "RGB"),
+        (".gif", "pil", np.uint8, 0, "P"),
+        (".webp", "pil", np.uint8, 4, "RGBA"),
+        (".tiff", "pil", np.int32, 0, "I"),
+        (".tiff", "pil", np.float32, 0, "F"),
+        (".dcm", "pydicom", np.float32, 0, ""),
+    ],
+)
+def test_open_image_tensor(
+    tmp_path: Path,
+    extension: str,
+    expected_backend: str,
+    dtype: DTypeLike,
+    num_channels: int,
+    pil_mode: str,
+    mocker: MockerFixture,
+) -> None:
+    if extension == ".dcm":
+        pydicom_examples = pytest.importorskip(
+            "pydicom.examples",
+            reason="pydicom examples not supported",
+        )
+        image_path: Path = pydicom_examples.get_path("mr")
+    else:
+        image_path = tmp_path / f"image{extension}"
+
+        max_value = int(np.iinfo(dtype).max) if np.issubdtype(dtype, np.integer) else 1
+        helpers.create_image(
+            path=image_path,
+            height=32,
+            width=32,
+            mode=pil_mode,
+            dtype=dtype,
+            max_value=max_value,
+            num_channels=num_channels,
+        )
+
+    torch_spy = mocker.spy(file_helpers, "load_image")
+    pil_spy = mocker.spy(F, "pil_to_tensor")
+    pydicom_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pydicom")
+
+    result = file_helpers.open_image_tensor(image_path=image_path)
+    assert isinstance(result, Tensor)
+
+    expected_shape = (1, 32, 32) if num_channels == 0 else (num_channels, 32, 32)
+    expected_dtype = (
+        torch.float32 if dtype == np.float32 else numpy_to_torch_dtype_dict[dtype]  # type: ignore[index]
+    )
+    if extension != ".dcm":
+        assert result.shape == expected_shape
+    else:
+        assert result.shape == (1, 64, 64)
+    assert result.dtype == expected_dtype
+
+    if expected_dtype == torch.float32:
+        assert result.min() >= 0.0 and result.max() <= 1.0
+
+    if expected_backend == "torch":
+        torch_spy.assert_called_once()
+        pil_spy.assert_not_called()
+        pydicom_spy.assert_not_called()
+    elif expected_backend == "pil":
+        torch_spy.assert_not_called()
+        pil_spy.assert_called_once()
+        pydicom_spy.assert_not_called()
+    else:
+        torch_spy.assert_not_called()
+        pil_spy.assert_not_called()
+        pydicom_spy.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("extension", "expected_backend", "dtype", "num_channels", "pil_mode"),
+    [
+        (".jpg", "torch", np.uint8, 3, "RGB"),
+        (".jpeg", "torch", np.uint8, 3, "RGB"),
+        (".png", "torch", np.uint8, 3, "RGB"),
+        (".png", "torch", np.uint8, 4, "RGBA"),
+        (".bmp", "pil", np.uint8, 3, "RGB"),
+        (".gif", "pil", np.uint8, 0, "P"),
         (".webp", "pil", np.uint8, 4, "RGBA"),
         (".tiff", "pil", np.int32, 0, "I"),
         (".tiff", "pil", np.uint16, 0, "I;16"),
         (".tiff", "pil", np.float32, 0, "F"),
+        (".dcm", "pydicom", np.float32, 0, ""),
     ],
 )
 def test_open_image_numpy(
@@ -202,18 +314,25 @@ def test_open_image_numpy(
     pil_mode: str,
     mocker: MockerFixture,
 ) -> None:
-    image_path = tmp_path / f"image{extension}"
+    if extension == ".dcm":
+        pydicom_examples = pytest.importorskip(
+            "pydicom.examples",
+            reason="pydicom examples not supported",
+        )
+        image_path: Path = pydicom_examples.get_path("mr")
+    else:
+        image_path = tmp_path / f"image{extension}"
 
-    max_value = int(np.iinfo(dtype).max) if np.issubdtype(dtype, np.integer) else 1
-    helpers.create_image(
-        path=image_path,
-        height=32,
-        width=32,
-        mode=pil_mode,
-        dtype=dtype,
-        max_value=max_value,
-        num_channels=num_channels,
-    )
+        max_value = int(np.iinfo(dtype).max) if np.issubdtype(dtype, np.integer) else 1
+        helpers.create_image(
+            path=image_path,
+            height=32,
+            width=32,
+            mode=pil_mode,
+            dtype=dtype,
+            max_value=max_value,
+            num_channels=num_channels,
+        )
 
     open_mode = (
         ImageMode.RGB
@@ -222,12 +341,17 @@ def test_open_image_numpy(
     )
     torch_spy = mocker.spy(file_helpers, "_open_image_numpy__with_torch")
     pil_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pil")
+    pydicom_spy = mocker.spy(file_helpers, "_open_image_numpy__with_pydicom")
+
     result = file_helpers.open_image_numpy(image_path=image_path, mode=open_mode)
     assert isinstance(result, np.ndarray)
 
     expected_shape = (32, 32) if num_channels == 0 else (32, 32, num_channels)
     expected_dtype = np.uint8 if dtype == np.uint8 else np.float32
-    assert result.shape == expected_shape
+    if extension != ".dcm":
+        assert result.shape == expected_shape
+    else:
+        assert result.shape == (64, 64)  # Shape of the example DICOM file
     assert result.dtype == expected_dtype
 
     if expected_dtype == np.float32:
@@ -236,9 +360,15 @@ def test_open_image_numpy(
     if expected_backend == "torch":
         torch_spy.assert_called_once()
         pil_spy.assert_not_called()
-    else:
+        pydicom_spy.assert_not_called()
+    elif expected_backend == "pil":
         torch_spy.assert_not_called()
         pil_spy.assert_called_once()
+        pydicom_spy.assert_not_called()
+    else:
+        torch_spy.assert_not_called()
+        pil_spy.assert_not_called()
+        pydicom_spy.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -356,3 +486,35 @@ def test_open_yolo_instance_segmentation_label_numpy__empty(
     assert len(polygons) == 0
     assert bboxes.shape == (0, 4)
     assert class_labels.shape == (0,)
+
+
+@pytest.mark.parametrize(
+    ("data_format", "expected_shape", "expected_dtype"),
+    [
+        ("mr", (64, 64), np.float32),
+        ("ct", (128, 128), np.float32),
+        ("overlay", (300, 484), np.float32),
+        (
+            "rgb_color",
+            (240, 320, 3),
+            np.uint8,
+        ),  # skipped test for palette_color as it behaves differently in different python versions
+        ("jpeg2k", (480, 640, 3), np.uint8),
+    ],
+)
+def test__open_image_numpy__with_pydicom(
+    data_format: str,
+    expected_shape: tuple[int, ...],
+    expected_dtype: DTypeLike,
+) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    image_path: Path = pydicom_examples.get_path(data_format)
+
+    result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
+
+    assert isinstance(result, np.ndarray)
+    assert result.shape == expected_shape
+    assert result.dtype == expected_dtype

@@ -14,7 +14,6 @@ from albumentations import (
     Compose,
     GaussianBlur,
     HorizontalFlip,
-    Normalize,
     RandomResizedCrop,
     Rotate,
     Solarize,
@@ -26,6 +25,7 @@ from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._transforms.channel_drop import ChannelDrop
+from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
     ColorJitterArgs,

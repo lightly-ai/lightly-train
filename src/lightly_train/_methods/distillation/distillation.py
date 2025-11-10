@@ -32,6 +32,7 @@ from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWra
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -140,6 +141,11 @@ class DistillationLARSArgs(LARSArgs):
     nesterov: bool = False
     trust_coefficient: float = 0.001
     eps: float = 1e-8
+
+
+class DistillationAdamWArgs(AdamWArgs):
+    lr: float = 0.0005
+    weight_decay: float = 0.0
 
 
 class Distillation(Method):
@@ -283,6 +289,7 @@ class Distillation(Method):
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
             "auto": DistillationLARSArgs,
             OptimizerType.LARS: DistillationLARSArgs,
+            OptimizerType.ADAMW: DistillationAdamWArgs,
         }
         return classes.get(optim_type, Method.optimizer_args_cls(optim_type=optim_type))
 

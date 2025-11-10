@@ -146,6 +146,8 @@ for more details.
 
 ## 🔥 High-Performance Object Detection Models 🔥
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
+
 LightlyTrain’s LT-DETR models, powered by DINOv2 and DINOv3 backbones, demonstrate strong performance across different scales.
 
 🚀 We are actively working on new models with improved speed and accuracy. Updates coming soon, so stay tuned!
