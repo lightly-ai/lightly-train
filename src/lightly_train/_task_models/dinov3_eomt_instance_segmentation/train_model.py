@@ -318,7 +318,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         binary_masks = batch["binary_masks"]
         image_sizes = [(image.shape[-2], image.shape[-1]) for image in images]
 
-        # Resize and pad images to self.image_size
+        # Resize and pad images to self.model.image_size
         resized_images_list = []
         resized_binary_masks = []
         crop_sizes = []
@@ -383,6 +383,10 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         ):
             logits = logits.unsqueeze(0)  # (1, Q, H', W')
             class_logits = class_logits.unsqueeze(0)  # (1, Q, num_classes)
+            # Resize to same size as before passing through the model. This is usually
+            # (1, Q, 640, 640) and depends on self.model.image_size.
+            logits = F.interpolate(logits, resized_images.shape[-2:], mode="bilinear")
+            # Revert resize and pad from self.model.resize_and_pad
             logits = logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
             # (1, Q, H, W)
             logits = F.interpolate(logits, (image_h, image_w), mode="bilinear")
