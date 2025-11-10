@@ -16,6 +16,7 @@ import numpy as np
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from PIL import Image
+from torch import Tensor
 from torch.utils.data import DataLoader
 
 from lightly_train._configs.validate import pydantic_model_validate
@@ -207,27 +208,42 @@ def save_mask(mask: NDArrayMask, mask_filepath: Path) -> None:
     Image.fromarray(mask_np).save(mask_filepath)
 
 
-def save_coco_json(predictions: dict[str, list[Any]], coco_filepath: Path) -> None:
-    labels: list[int] = predictions["labels"]
-    boxes: list[list[int]] = predictions["bboxes"]
-    scores: list[float] = predictions["scores"]
+def prepare_coco_entries(
+    predictions: dict[str, Tensor],
+    image_size: tuple[int, int],
+) -> list[dict[str, Any]]:
+    width, height = image_size
+
+    labels: list[int] = predictions["labels"].detach().cpu().tolist()
+    boxes: list[list[float]] = predictions["bboxes"].detach().cpu().tolist()
+    scores: list[float] = predictions["scores"].detach().cpu().tolist()
 
     entries = []
     for label, box, score in zip(labels, boxes, scores):
         x1, y1, x2, y2 = box
-        x = x1
-        y = y1
-        w = max(0, x2 - x1)
-        h = max(0, y2 - y1)
+        x1 = max(0.0, min(float(x1), float(width)))
+        y1 = max(0.0, min(float(y1), float(height)))
+        x2 = max(0.0, min(float(x2), float(width)))
+        y2 = max(0.0, min(float(y2), float(height)))
+
+        x = int(round(x1))
+        y = int(round(y1))
+        w = int(round(max(0.0, x2 - x1)))
+        h = int(round(max(0.0, y2 - y1)))
+
+        rounded_score = round(score, 2)
 
         entries.append(
             {
                 "category_id": label,
                 "bbox": [x, y, w, h],
-                "score": score,
+                "score": rounded_score,
             }
         )
+    return entries
 
+
+def save_coco_json(entries: list[dict[str, Any]], coco_filepath: Path) -> None:
     coco_filepath.parent.mkdir(parents=True, exist_ok=True)
     coco_filepath.write_text(
         json.dumps({"predictions": entries}, indent=2) + "\n",
