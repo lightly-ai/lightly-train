@@ -130,12 +130,13 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             backbone_model_args.update(backbone_args)
 
         # Get the backbone.
-        self.backbone = DINOV3_PACKAGE.get_model(
+        backbone = DINOV3_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_model_args,
             load_weights=load_weights,
         )
-        assert isinstance(self.backbone, DinoVisionTransformer)
+        assert isinstance(backbone, DinoVisionTransformer)
+        self.backbone = backbone
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
 
@@ -247,8 +248,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         Args:
             image:
-                The input image as a path, PIL image, or tensor. Tensors must have shape
-                (C, H, W).
+                The input image as a path, URL, PIL image, or tensor. Tensors must have
+                shape (C, H, W).
 
         Returns:
             The predicted mask as a tensor of shape (H, W). The values represent the
@@ -377,10 +378,10 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
             # TODO(Guarin, 08/25): Double check if sample_drop_ratio > 0 sometimes.
             # This is usually not the case in EoMT but should be verified.
-            x = x + block.ls1(
-                self._attn(block.attn, block.norm1(x), rope=rope_sincos, mask=attn_mask)
+            x = x + block.ls1(  # type: ignore
+                self._attn(block.attn, block.norm1(x), rope=rope_sincos, mask=attn_mask)  # type: ignore
             )
-            x = x + block.ls2(block.mlp(block.norm2(x)))
+            x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore
 
         mask_logits, class_logits = self._predict(
             self.backbone.norm(x), grid_size=grid_size

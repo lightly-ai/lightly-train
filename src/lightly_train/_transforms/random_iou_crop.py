@@ -113,7 +113,7 @@ def _get_crop_coords(
     for _ in range(iou_trials):
         min_jaccard_overlap = random.choice(sampler_options)
         if min_jaccard_overlap >= 1.0:
-            return (0, 0, orig_h, orig_w)
+            return (0, 0, orig_w, orig_h)
 
         for _ in range(crop_trials):
             r = np.random.uniform(min_scale, max_scale, size=2)
@@ -151,7 +151,7 @@ def _get_crop_coords(
 
             return (left, top, right, bottom)
 
-    return (0, 0, orig_h, orig_w)
+    return (0, 0, orig_w, orig_h)
 
 
 class RandomIoUCropV3(RandomIoUCropBase):
@@ -177,7 +177,7 @@ class RandomIoUCropV3(RandomIoUCropBase):
             return {"crop_coords": crop_coords, "pad_params": None}
         else:
             return {
-                "crop_coords": (0, 0, orig_image_shape[0], orig_image_shape[1]),
+                "crop_coords": (0, 0, orig_image_shape[1], orig_image_shape[0]),
                 "pad_params": None,
             }
 
@@ -220,8 +220,8 @@ class RandomIoUCropV2(RandomIoUCropBase):
                     "crop_coords": (
                         0,
                         0,
-                        orig_image_shape[0],
                         orig_image_shape[1],
+                        orig_image_shape[0],
                     ),
                     "orig_img_shape": orig_image_shape,
                 }
@@ -232,7 +232,7 @@ class RandomIoUCropV2(RandomIoUCropBase):
         self, img: NDArray[np.uint8 | np.float32 | np.float64], **params: Any
     ) -> NDArray[np.float32 | np.float64]:
         crop_coords = params["crop_coords"]
-        y_min, x_min, y_max, x_max = crop_coords
+        x_min, y_min, x_max, y_max = crop_coords
         cropped = F.crop(
             img,
             x_min=x_min,
@@ -247,7 +247,7 @@ class RandomIoUCropV2(RandomIoUCropBase):
         self, bboxes: NDArray[np.float32 | np.float64], **params: Any
     ) -> NDArray[np.float32 | np.float64]:
         crop_coords = params["crop_coords"]
-        y_min, x_min, y_max, x_max = crop_coords
+        x_min, y_min, x_max, y_max = crop_coords
 
         cropped = F.crop_bboxes_by_coords(
             bboxes,
@@ -300,8 +300,8 @@ class RandomIoUCropV1(RandomIoUCropBase):
                     "crop_coords": (
                         0,
                         0,
-                        orig_image_shape[0],
                         orig_image_shape[1],
+                        orig_image_shape[0],
                     ),
                     "orig_img_shape": orig_image_shape,
                 }
@@ -312,7 +312,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
         self, img: NDArray[np.uint8 | np.float32 | np.float64], **params: Any
     ) -> NDArray[np.float32 | np.float64]:
         crop_coords = params["crop_coords"]
-        y_min, x_min, y_max, x_max = crop_coords
+        x_min, y_min, x_max, y_max = crop_coords
         cropped = F.crop(
             img,
             x_min=x_min,
@@ -327,7 +327,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
         self, bbox: tuple[float, float, float, float], **params: Any
     ) -> tuple[float, float, float, float]:
         crop_coords = params["crop_coords"]
-        y_min, x_min, y_max, x_max = crop_coords
+        x_min, y_min, x_max, y_max = crop_coords
 
         if not ALBUMENTATIONS_GEQ_1_4_11:
             tr_bbox = F.crop_bbox_by_coords(

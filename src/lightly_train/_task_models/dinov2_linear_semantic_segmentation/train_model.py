@@ -23,11 +23,13 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
+from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.task_model import (
     DINOv2LinearSemanticSegmentation,
 )
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.transforms import (
     DINOv2LinearSemanticSegmentationTrainTransform,
+    DINOv2LinearSemanticSegmentationTrainTransformArgs,
     DINOv2LinearSemanticSegmentationValTransform,
     DINOv2LinearSemanticSegmentationValTransformArgs,
 )
@@ -39,10 +41,19 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
+class DINOv2LinearSemanticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
+    watch_metric: str = "val_metric/miou"
+    mode: Literal["min", "max"] = "max"
+
+
 class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from PVOC12
     default_steps: ClassVar[int] = 80_000
+
+    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
+        DINOv2LinearSemanticSegmentationTaskSaveCheckpointArgs
+    )
 
     # Model args
     backbone_freeze: bool = True
@@ -88,7 +99,9 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         model_name: str,
         model_args: DINOv2LinearSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
+        train_transform_args: DINOv2LinearSemanticSegmentationTrainTransformArgs,
         val_transform_args: DINOv2LinearSemanticSegmentationValTransformArgs,
+        load_weights: bool,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
@@ -114,6 +127,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             },
             image_size=image_size,
             image_normalize=normalize.model_dump(),
+            load_weights=load_weights,
         )
         self.criterion = CrossEntropyLoss(ignore_index=data_args.ignore_index)
 

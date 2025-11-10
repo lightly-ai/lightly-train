@@ -21,12 +21,13 @@ from lightly_train._transforms.transform import (
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
+    ResizeArgs,
     ScaleJitterArgs,
     StopPolicyArgs,
 )
 
 
-class DINOv2LTDetrObjectDetectionRandomPhotometricDistortArgs(
+class DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgs(
     RandomPhotometricDistortArgs
 ):
     brightness: tuple[float, float] = (0.875, 1.125)
@@ -36,13 +37,13 @@ class DINOv2LTDetrObjectDetectionRandomPhotometricDistortArgs(
     prob: float = 0.5
 
 
-class DINOv2LTDetrObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
+class DINOv2LTDETRObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
     prob: float = 0.5
     fill: float = 0.0
     side_range: tuple[float, float] = (1.0, 4.0)
 
 
-class DINOv2LTDetrObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
+class DINOv2LTDETRObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
     min_scale: float = 0.3
     max_scale: float = 1.0
     min_aspect_ratio: float = 0.5
@@ -53,12 +54,12 @@ class DINOv2LTDetrObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
     prob: float = 0.8
 
 
-class DINOv2LTDetrObjectDetectionRandomFlipArgs(RandomFlipArgs):
+class DINOv2LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
     horizontal_prob: float = 0.5
     vertical_prob: float = 0.0
 
 
-class DINOv2LTDetrObjectDetectionScaleJitterArgs(ScaleJitterArgs):
+class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     sizes: Sequence[tuple[int, int]] | None = [
         (490, 490),
         (518, 518),
@@ -74,46 +75,56 @@ class DINOv2LTDetrObjectDetectionScaleJitterArgs(ScaleJitterArgs):
         (770, 770),
         (812, 812),
     ]
-    min_scale: float | None = 0.76
-    max_scale: float | None = 1.27
-    num_scales: int | None = 13
+    min_scale: float | None = None
+    max_scale: float | None = None
+    num_scales: int | None = None
     prob: float = 1.0
-    # The model is patch 14.
-    divisible_by: int | None = 14
+    divisible_by: int | None = None
     step_seeding: bool = True
     seed_offset: int = 0
 
 
-class DINOv2LTDetrObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
+class DINOv2LTDETRObjectDetectionResizeArgs(ResizeArgs):
+    height: int = 644
+    width: int = 644
+
+
+class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: (
-        DINOv2LTDetrObjectDetectionRandomPhotometricDistortArgs | None
-    ) = Field(default_factory=DINOv2LTDetrObjectDetectionRandomPhotometricDistortArgs)
-    random_zoom_out: DINOv2LTDetrObjectDetectionRandomZoomOutArgs | None = Field(
-        default_factory=DINOv2LTDetrObjectDetectionRandomZoomOutArgs
+        DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgs | None
+    ) = Field(default_factory=DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgs)
+    random_zoom_out: DINOv2LTDETRObjectDetectionRandomZoomOutArgs | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionRandomZoomOutArgs
     )
-    random_iou_crop: DINOv2LTDetrObjectDetectionRandomIoUCropArgs | None = Field(
-        default_factory=DINOv2LTDetrObjectDetectionRandomIoUCropArgs
+    random_iou_crop: DINOv2LTDETRObjectDetectionRandomIoUCropArgs | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionRandomIoUCropArgs
     )
-    random_flip: DINOv2LTDetrObjectDetectionRandomFlipArgs | None = Field(
-        default_factory=DINOv2LTDetrObjectDetectionRandomFlipArgs
+    random_flip: DINOv2LTDETRObjectDetectionRandomFlipArgs | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionRandomFlipArgs
     )
     image_size: tuple[int, int] = (644, 644)
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
+    resize: ResizeArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
-        default_factory=DINOv2LTDetrObjectDetectionScaleJitterArgs
+        default_factory=DINOv2LTDETRObjectDetectionScaleJitterArgs
     )
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
-            format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0
+            format="yolo",
+            label_fields=["class_labels"],
+            min_width=0.0,
+            min_height=0.0,
+            clip=True,
+            filter_invalid_bboxes=True,
         ),
     )
 
 
-class DINOv2LTDetrObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
+class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: None = None
@@ -122,16 +133,25 @@ class DINOv2LTDetrObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_flip: None = None
     image_size: tuple[int, int] = (644, 644)
     stop_policy: None = None
+    resize: ResizeArgs | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionResizeArgs
+    )
+    scale_jitter: ScaleJitterArgs | None = None
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
-            format="yolo", label_fields=["class_labels"], min_width=0.0, min_height=0.0
+            format="yolo",
+            label_fields=["class_labels"],
+            min_width=0.0,
+            min_height=0.0,
+            clip=True,
+            filter_invalid_bboxes=True,
         ),
     )
 
 
-class DINOv2LTDetrObjectDetectionTrainTransform(ObjectDetectionTransform):
-    transform_args_cls = DINOv2LTDetrObjectDetectionTrainTransformArgs
+class DINOv2LTDETRObjectDetectionTrainTransform(ObjectDetectionTransform):
+    transform_args_cls = DINOv2LTDETRObjectDetectionTrainTransformArgs
 
 
-class DINOv2LTDetrObjectDetectionValTransform(ObjectDetectionTransform):
-    transform_args_cls = DINOv2LTDetrObjectDetectionValTransformArgs
+class DINOv2LTDETRObjectDetectionValTransform(ObjectDetectionTransform):
+    transform_args_cls = DINOv2LTDETRObjectDetectionValTransformArgs

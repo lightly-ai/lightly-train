@@ -97,9 +97,7 @@ def test_train_semantic_segmentation(
     assert out.is_dir()
     assert (out / "train.log").exists()
 
-    model = lightly_train.load_model_from_checkpoint(
-        checkpoint=out / "exported_models" / "exported_last.pt"
-    )
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
     # Check forward pass
     dummy_input = torch.randn(1, num_channels, 224, 224)
     prediction = model.predict(dummy_input[0])
@@ -169,10 +167,10 @@ def test_train_semantic_segmentation__export(
     )
 
     # Check that last.ckpt and exported_model.pt contain same information.
-    ckpt_model_state_dict = lightly_train.load_model_from_checkpoint(
+    ckpt_model_state_dict = lightly_train.load_model(
         out / "checkpoints" / "last.ckpt"
     ).state_dict()
-    exported_model_state_dict = lightly_train.load_model_from_checkpoint(
+    exported_model_state_dict = lightly_train.load_model(
         out / "exported_models" / "exported_last.pt"
     ).state_dict()
     assert ckpt_model_state_dict.keys() == exported_model_state_dict.keys()
@@ -257,7 +255,7 @@ def test_train_semantic_segmentation__checkpoint(
             overwrite=True,
             checkpoint=last_ckpt_path,
         )
-    assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
+    assert f"Loading model checkpoint from '{last_ckpt_path}'" in caplog.text
 
     # Part 3: check that the class head can be re-initialized when loading from checkpoint.
     with caplog.at_level(logging.DEBUG):
@@ -367,5 +365,5 @@ def test_train_semantic_segmentation__resume_interrupted(
             resume_interrupted=True,
         )
 
-    assert f"Loading checkpoint from '{last_ckpt_path}'" in caplog.text
+    assert f"Loading model checkpoint from '{last_ckpt_path}'" in caplog.text
     assert "Resuming training from step 1/1..." in caplog.text

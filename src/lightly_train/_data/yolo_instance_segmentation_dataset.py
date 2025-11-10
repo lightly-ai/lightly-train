@@ -15,7 +15,6 @@ import numpy as np
 import pydantic
 import torch
 
-from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_batch_collation import (
@@ -23,7 +22,7 @@ from lightly_train._data.task_batch_collation import (
     InstanceSegmentationCollateFunction,
 )
 from lightly_train._data.task_data_args import TaskDataArgs
-from lightly_train._data.task_dataset import TaskDataset
+from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._transforms.instance_segmentation_transform import (
     InstanceSegmentationTransform,
@@ -42,6 +41,9 @@ from lightly_train.types import (
 
 
 class YOLOInstanceSegmentationDataset(TaskDataset):
+    # Narrow the type of dataset_args.
+    dataset_args: YOLOInstanceSegmentationDatasetArgs
+
     batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
         InstanceSegmentationCollateFunction
     )
@@ -52,15 +54,14 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
         image_info: Sequence[dict[str, str]],
         transform: InstanceSegmentationTransform,
     ) -> None:
-        super().__init__(transform=transform)
-        self.args = dataset_args
-        self.image_info = image_info
-
+        super().__init__(
+            transform=transform, dataset_args=dataset_args, image_info=image_info
+        )
         # Get the class mapping.
         self.class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
-                class_ids=self.args.classes.keys(),
-                ignore_classes=self.args.ignore_classes,
+                class_ids=self.dataset_args.classes.keys(),
+                ignore_classes=self.dataset_args.ignore_classes,
             )
         )
 
@@ -85,9 +86,6 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
                 f"Supported modes are '{[ImageMode.RGB.value, ImageMode.UNCHANGED.value]}'."
             )
         self.image_mode = image_mode
-
-    def __len__(self) -> int:
-        return len(self.image_info)
 
     def __getitem__(self, index: int) -> InstanceSegmentationDatasetItem:
         # Load the image.
@@ -119,7 +117,8 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
 
         transform_input: InstanceSegmentationTransformInput = {
             "image": image_np,
-            "binary_masks": binary_masks_np,  # Shape (n_instances, H, W)
+            # Shape (n_instances, H, W)
+            "binary_masks": binary_masks_np.astype(np.int_),
             "bboxes": bboxes_np,  # Shape (n_instances, 4)
             "class_labels": class_labels_np,  # Shape (n_instances,)
         }
@@ -130,8 +129,6 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
 
         image = transformed["image"]
         # Some albumentations versions return lists of tuples instead of arrays.
-        if isinstance(transformed["binary_masks"], list):
-            transformed["binary_masks"] = np.array(transformed["binary_masks"])
         if isinstance(transformed["bboxes"], list):
             transformed["bboxes"] = np.array(transformed["bboxes"])
         if isinstance(transformed["class_labels"], list):
@@ -141,7 +138,7 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
         class_labels = torch.from_numpy(transformed["class_labels"]).long()
         # Match format from MaskSemanticSegmentationDatasetItem
         binary_masks: BinaryMasksDict = {
-            "masks": torch.from_numpy(transformed["binary_masks"]).bool(),
+            "masks": transformed["binary_masks"].bool(),
             "labels": class_labels,
         }
 
@@ -182,7 +179,7 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
 
 
 class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
-    ignore_index: ClassVar[int] = -100
+    ignore_index: ClassVar[int | None] = None
     path: PathLike
     train: PathLike
     val: PathLike
@@ -192,6 +189,12 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
     names: dict[int, str]
     # TODO(Guarin, 10/25): Implement ignore classes.
     ignore_classes: None = None
+
+    def train_imgs_path(self) -> Path:
+        return Path(self.path) / self.train
+
+    def val_imgs_path(self) -> Path:
+        return Path(self.path) / self.val
 
     @pydantic.field_validator("train", "val", mode="after")
     def validate_paths(cls, v: PathLike) -> Path:
@@ -247,7 +250,7 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
         )
 
 
-class YOLOInstanceSegmentationDatasetArgs(PydanticConfig):
+class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
     image_dir: Path
     label_dir: Path
     classes: dict[int, str]

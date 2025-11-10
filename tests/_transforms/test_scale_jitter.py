@@ -80,9 +80,9 @@ class TestRandomScaleJitter:
         sizes = [(8, 8), (12, 12), (20, 20)]
         transform = ScaleJitter(
             sizes=sizes,
-            target_size=img_size,
-            scale_range=(0.5, 2.0),
-            num_scales=3,
+            target_size=None,
+            scale_range=None,
+            num_scales=None,
             p=1.0,
         )
         bbox_params = BboxParams(format="pascal_voc", label_fields=["class_labels"])

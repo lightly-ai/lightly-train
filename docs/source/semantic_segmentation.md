@@ -24,9 +24,9 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
 |----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 512×512 | 0.465 | 88.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt) |
-| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt) |
-| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.544** | 20.4 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt) |
+| dinov3/vits16-eomt | 21.6 | 512×512 | 0.465 | 88.7 | dinov3/vits16-eomt-coco |
+| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | dinov3/vitb16-eomt-coco |
+| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.544** | 20.4 | dinov3/vitl16-eomt-coco |
 
 We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
 
@@ -34,9 +34,9 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 
 | Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
 |----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 1024×1024 | 0.786 | 18.6 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt) |
-| dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt) |
-| dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | [link](https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt) |
+| dinov3/vits16-eomt | 21.6 | 1024×1024 | 0.786 | 18.6 | dinov3/vits16-eomt-cityscapes |
+| dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | dinov3/vitb16-eomt-cityscapes |
+| dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | dinov3/vitl16-eomt-cityscapes |
 | dinov2/vitl16-eomt (original) | 319 | 1024×1024 | 0.842 | - | - |
 
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
@@ -91,8 +91,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov2/vitl14-eomt", 
-        checkpoint="out/my_experiment/exported_models/exported_best.pt", # use the best model to continue training
+        model="out/my_experiment/exported_models/exported_best.pt",  # Continue training from the best model
         data={...},
     )
 ```
@@ -110,9 +109,7 @@ After the training completes, you can load the best model checkpoints for infere
 ```python
 import lightly_train
 
-model = lightly_train.load_model_from_checkpoint(
-    "out/my_experiment/exported_models/exported_best.pt"
-)
+model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 masks = model.predict("path/to/image.jpg")
 ```
 
@@ -179,7 +176,8 @@ if __name__ == "__main__":
 
 ### Use the LightlyTrain Model Checkpoints
 
-Now you can also start with the DINOv3 model checkpoints that LightlyTrain provides. The download links are listed [here](#semantic-segmentation-benchmark-results) in the "Checkpoint" column of the tables.
+Now you can also start with the DINOv3 model checkpoints that LightlyTrain provides.
+The models are listed [here](#semantic-segmentation-benchmark-results) in the "Checkpoint" column of the tables.
 
 ```python
 import lightly_train
@@ -187,8 +185,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov3/vits16-eomt",
-        checkpoint="/path/to/your/downloaded/model/lightlytrain_dinov3_eomt_vits16_cocostuff.pt", # use the COCO-Stuff model checkpoint for further fine-tuning
+        model="dinov3/vits16-eomt-coco", # Use the COCO-Stuff model checkpoint for further fine-tuning
         data={...},
     )
 ```
@@ -510,7 +507,9 @@ logger_args={"tensorboard": None}
 
 ## Resume Training
 
-Like in pretraining, there are two distinct ways to continue training, depending on your intention. Therefore, the `resume_interrupted=True` and the `checkpoint` parameter cannot be used simultaneously.
+Like in pretraining, there are two distinct ways to continue training, depending on your
+intention. Therefore, the `resume_interrupted=True` parameter cannot be combined with
+passing a checkpoint path to the `model` parameter.
 
 ### Resume Interrupted Training
 
@@ -525,7 +524,7 @@ This will utilize the `.ckpt` checkpoint file `out/my_experiment/checkpoints/las
 
 ### Load Weights for a New Run
 
-As stated above, you can specify the `checkpoint` parameter to further fine-tune a model from a previous run.
+As stated above, you can specify `model="<checkpoint path">` to further fine-tune a model from a previous run.
 
 - You are free to **change training parameters**.
 - This is useful for continuing training with a different setup.

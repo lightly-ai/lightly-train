@@ -14,53 +14,52 @@ import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
 from torch import Tensor
-from torch.nn import ModuleList
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.validate import no_auto
-from lightly_train._data.mask_semantic_segmentation_dataset import (
-    MaskSemanticSegmentationDataArgs,
+from lightly_train._data.yolo_instance_segmentation_dataset import (
+    YOLOInstanceSegmentationDataArgs,
 )
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scheduler import (
+from lightly_train._task_models.dinov3_eomt_instance_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model import (
-    DINOv2EoMTSemanticSegmentation,
+from lightly_train._task_models.dinov3_eomt_instance_segmentation.task_model import (
+    DINOv3EoMTInstanceSegmentation,
 )
-from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms import (
-    DINOv2EoMTSemanticSegmentationTrainTransform,
-    DINOv2EoMTSemanticSegmentationTrainTransformArgs,
-    DINOv2EoMTSemanticSegmentationValTransform,
-    DINOv2EoMTSemanticSegmentationValTransformArgs,
+from lightly_train._task_models.dinov3_eomt_instance_segmentation.transforms import (
+    DINOv3EoMTInstanceSegmentationTrainTransform,
+    DINOv3EoMTInstanceSegmentationTrainTransformArgs,
+    DINOv3EoMTInstanceSegmentationValTransform,
+    DINOv3EoMTInstanceSegmentationValTransformArgs,
 )
 from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
     TrainModelArgs,
 )
-from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
+from lightly_train.types import InstanceSegmentationBatch, PathLike
 
 
-class DINOv2EoMTSemanticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/miou"
+class DINOv3EoMTInstanceSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
+    watch_metric: str = "val_metric/map"
     mode: Literal["min", "max"] = "max"
 
 
-class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
+class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
-    # Default comes from ADE20K dataset:
-    # 20210 images / batch size 16 * 31 epochs ~= 40k steps.
-    default_steps: ClassVar[int] = 40_000
+    # Default comes from COCO dataset:
+    # 118287 images / batch size 16 * 12 epochs ~= 90k steps.
+    default_steps: ClassVar[int] = 90_000
+
     save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        DINOv2EoMTSemanticSegmentationTaskSaveCheckpointArgs
+        DINOv3EoMTInstanceSegmentationTaskSaveCheckpointArgs
     )
 
     # Model args
     backbone_weights: PathLike | None = None
-    drop_path_rate: float | Literal["auto"] = "auto"
     num_queries: int | Literal["auto"] = "auto"
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
@@ -91,22 +90,18 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
     # Metrics
+    metric_topk_instances: int = 100
     metric_log_classwise: bool = True
     metric_log_debug: bool = False
 
     def resolve_auto(
-        self, total_steps: int, model_name: str, model_init_args: dict[str, Any]
+        self,
+        total_steps: int,
+        model_name: str,
+        model_init_args: dict[str, Any],
     ) -> None:
-        if self.drop_path_rate == "auto":
-            backbone_args = model_init_args.get("backbone_args", {})
-            assert isinstance(backbone_args, dict)  # for mypy
-
-            drop_path_rate = backbone_args.get("drop_path_rate", 0.0)
-            assert isinstance(drop_path_rate, float)  # for mypy
-            self.drop_path_rate = drop_path_rate
-
         if self.num_queries == "auto":
-            num_queries = model_init_args.get("num_queries", 100)  # Default for ADE20K
+            num_queries = model_init_args.get("num_queries", 200)
             assert isinstance(num_queries, int)  # for mypy
             self.num_queries = num_queries
 
@@ -116,7 +111,7 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
                 self.num_joint_blocks = num_joint_blocks
             else:
                 match = re.match(
-                    r"(dinov2(?:_vit)?)/(?P<model_size>vit[slbg]).*", model_name
+                    r"dinov3/(?P<model_size>vit(s|l|b|g|h|7b)).*", model_name
                 )
                 if match is None:
                     raise ValueError(
@@ -130,6 +125,10 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
                     "vitb": 3,
                     "vitl": 4,
                     "vitg": 5,
+                    "vith": 5,
+                    # TODO: Verify the number of blocks. EoMT has an experiment with a
+                    # model of comparable size.
+                    "vit7b": 5,
                 }[model_size]
 
         # Infer the number of training phases from the number of joint blocks.
@@ -150,57 +149,54 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
         assert len(self.attn_mask_annealing_steps_end) == self.num_joint_blocks
 
 
-class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
-    task = "semantic_segmentation"
-    train_model_args_cls = DINOv2EoMTSemanticSegmentationTrainArgs
-    task_model_cls = DINOv2EoMTSemanticSegmentation
-    train_transform_cls = DINOv2EoMTSemanticSegmentationTrainTransform
-    val_transform_cls = DINOv2EoMTSemanticSegmentationValTransform
+class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
+    task = "instance_segmentation"
+    train_model_args_cls = DINOv3EoMTInstanceSegmentationTrainArgs
+    task_model_cls = DINOv3EoMTInstanceSegmentation
+    train_transform_cls = DINOv3EoMTInstanceSegmentationTrainTransform
+    val_transform_cls = DINOv3EoMTInstanceSegmentationValTransform
 
     def __init__(
         self,
         *,
         model_name: str,
-        model_args: DINOv2EoMTSemanticSegmentationTrainArgs,
-        data_args: MaskSemanticSegmentationDataArgs,
-        train_transform_args: DINOv2EoMTSemanticSegmentationTrainTransformArgs,
-        val_transform_args: DINOv2EoMTSemanticSegmentationValTransformArgs,
+        model_args: DINOv3EoMTInstanceSegmentationTrainArgs,
+        data_args: YOLOInstanceSegmentationDataArgs,
+        train_transform_args: DINOv3EoMTInstanceSegmentationTrainTransformArgs,
+        val_transform_args: DINOv3EoMTInstanceSegmentationValTransformArgs,
         load_weights: bool,
     ) -> None:
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
-        from torchmetrics import ClasswiseWrapper, JaccardIndex, MeanMetric
-        from torchmetrics.classification import (  # type: ignore[attr-defined]
-            MulticlassJaccardIndex,
-        )
+        from torchmetrics import MeanMetric
+
+        # Type ignore because torchmetrics < 1.0 doesn't explicitly export MeanAveragePrecision
+        from torchmetrics.detection import MeanAveragePrecision  # type: ignore
 
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependency.
-        from lightly_train._task_models.dinov2_eomt_semantic_segmentation.mask_loss import (
+        from lightly_train._task_models.dinov3_eomt_instance_segmentation.mask_loss import (
             MaskClassificationLoss,
         )
 
         self.model_args = model_args
         num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
-        image_size = no_auto(val_transform_args.image_size)
+        image_size_train = no_auto(train_transform_args.image_size)
+        image_size_val = no_auto(val_transform_args.image_size)
+        image_size = (
+            image_size_val if isinstance(image_size_val, tuple) else image_size_train
+        )
         normalize = no_auto(val_transform_args.normalize)
 
-        self.model = DINOv2EoMTSemanticSegmentation(
-            # TODO(Guarin, 10/25): Make configurable and pass all args.
+        self.model = DINOv3EoMTInstanceSegmentation(
             model_name=model_name,
             classes=data_args.included_classes,
-            class_ignore_index=(
-                data_args.ignore_index if data_args.ignore_classes else None
-            ),
             image_size=image_size,
             image_normalize=normalize.model_dump(),
             num_queries=num_queries,
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
-            backbone_args={
-                "drop_path_rate": model_args.drop_path_rate,
-            },
             load_weights=load_weights,
         )
 
@@ -218,64 +214,20 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         # Metrics
         self.val_loss = MeanMetric()
 
-        # TODO(Guarin, 08/25): Speed up metric calculation by not calculating
-        # mIoU and classwise IoU separately. mIoU can be derived from the classwise IoU.
-        self.train_miou = JaccardIndex(
-            task="multiclass",  # type: ignore[arg-type]
-            num_classes=data_args.num_included_classes,
-            ignore_index=data_args.ignore_index,
-        )
-        self.val_miou = self.train_miou.clone()
+        # Type ignore because old torchmetrics have different formats for iou_type.
+        self.train_map = MeanAveragePrecision(iou_type="segm")  # type: ignore[arg-type]
+        self.train_map.warn_on_many_detections = False
+        self.val_map = self.train_map.clone()
 
-        # Classwise MeanIoU for each joint block. Based on EoMT implementation.
-        class_labels = list(data_args.included_classes.values())
-        self.train_classwise_iou = ModuleList(
-            [
-                # Type ignore because old torchmetrics versions (0.8) don't support the
-                # `prefix` argument. We only use the old versions for SuperGradients
-                # support.
-                ClasswiseWrapper(  # type: ignore[call-arg]
-                    MulticlassJaccardIndex(
-                        num_classes=data_args.num_included_classes,
-                        validate_args=False,
-                        ignore_index=data_args.ignore_index,
-                        average=None,
-                    ),
-                    prefix="_",
-                    labels=class_labels,
-                )
-                for _ in range(num_joint_blocks + 1)
-            ]
-        )
-        self.val_classwise_iou = ModuleList(
-            [
-                # Type ignore because old torchmetrics versions (0.8) don't support the
-                # `prefix` argument. We only use the old versions for SuperGradients
-                # support.
-                ClasswiseWrapper(  # type: ignore[call-arg]
-                    MulticlassJaccardIndex(
-                        num_classes=data_args.num_included_classes,
-                        validate_args=False,
-                        ignore_index=data_args.ignore_index,
-                        average=None,
-                    ),
-                    prefix="_",
-                    labels=class_labels,
-                )
-                for _ in range(num_joint_blocks + 1)
-            ]
-        )
-
-    def get_task_model(self) -> DINOv2EoMTSemanticSegmentation:
+    def get_task_model(self) -> DINOv3EoMTInstanceSegmentation:
         return self.model
 
     def training_step(
-        self, fabric: Fabric, batch: MaskSemanticSegmentationBatch, step: int
+        self, fabric: Fabric, batch: InstanceSegmentationBatch, step: int
     ) -> TaskStepResult:
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
         assert isinstance(images, Tensor), "Images must be a single tensor for training"
-        masks = batch["mask"]
         binary_masks = batch["binary_masks"]
         _, _, H, W = images.shape
 
@@ -284,7 +236,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         # Loss
-        num_blocks = len(self.model.backbone.blocks)
+        num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
@@ -308,32 +260,29 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         }
 
         # Metrics
-        for block_idx, (mask_logits, class_logits) in enumerate(
-            list(zip(mask_logits_per_layer, class_logits_per_layer))
-        ):
-            mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-            logits = self.model.to_per_pixel_logits_semantic(mask_logits, class_logits)
-            logits = logits[:, :-1]  # Drop ignore class logits.
-            self.update_metrics_semantic(
-                metrics=self.train_classwise_iou,
-                preds=logits,
-                targets=masks,
-                block_idx=block_idx,
-            )
-        for pred, targ in zip(logits, masks):
-            self.train_miou.update(pred[None, ...], targ[None, ...])
+        mask_logits = mask_logits_per_layer[-1]
+        class_logits = class_logits_per_layer[-1]
+        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+        # (B, Q), (B, Q, H, W), (B, Q)
+        labels, masks, scores = self.model.get_labels_masks_scores(
+            mask_logits=mask_logits, class_logits=class_logits
+        )
+
+        self.train_map.update(
+            preds=[
+                {
+                    "labels": labels[i],
+                    "masks": masks[i],
+                    "scores": scores[i],
+                }
+                for i in range(len(labels))
+            ],
+            target=binary_masks,  # type: ignore[arg-type]
+        )
 
         metrics: dict[str, Any] = {
-            "train_metric/miou": self.train_miou,
+            "train_metric/map": self.train_map,
         }
-        if self.model_args.metric_log_classwise or self.model_args.metric_log_debug:
-            for block_idx, metric in zip(
-                range(num_blocks - num_joint_blocks, num_blocks + 1),
-                self.train_classwise_iou,
-            ):
-                block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
-                if not block_suffix or self.model_args.metric_log_debug:
-                    metrics[f"train_metric_classwise/miou{block_suffix}"] = metric
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -361,71 +310,55 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
 
     def validation_step(
-        self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
+        self, fabric: Fabric, batch: InstanceSegmentationBatch
     ) -> TaskStepResult:
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
-        masks = batch["mask"]
         binary_masks = batch["binary_masks"]
         image_sizes = [(image.shape[-2], image.shape[-1]) for image in images]
 
-        # Tile the images.
-        crops_list, origins = self.model.tile(images)  # type: ignore[arg-type]
-        crops = torch.stack(crops_list)
+        # Resize and pad images to self.image_size
+        resized_images_list = []
+        crop_sizes = []
+        for image in images:
+            image, (crop_h, crop_w) = self.model.resize_and_pad(image)
+            resized_images_list.append(image)
+            crop_sizes.append((crop_h, crop_w))
+        resized_images = torch.stack(resized_images_list, dim=0)
 
-        # Tile the binary masks for the loss
-        binary_masks_labels = [m["labels"] for m in binary_masks]
-        binary_masks_crops, _ = self.model.tile([m["masks"] for m in binary_masks])
-
-        # Compute the target per crop.
-        binary_masks_crops_dicts = []
-        for origin, binary_masks_crop in zip(origins, binary_masks_crops):
-            # Store the binary mask and label for the crop.
-            binary_masks_crops_dicts.append(
-                {
-                    "masks": binary_masks_crop,
-                    "labels": binary_masks_labels[origin[0]],
-                }
-            )
-
-        mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
-            crops, return_logits_per_layer=True
+        # Forward pass
+        resized_mask_logits_per_layer, class_logits_per_layer = (
+            self.model.forward_train(resized_images, return_logits_per_layer=True)
         )
-        num_blocks = len(self.model.backbone.blocks)
+
+        # Revert resize and pad for mask logits.
+        mask_logits_per_layer = []
+        for mask_logits in resized_mask_logits_per_layer:
+            layer_mask_logits = []
+            for logits, (crop_h, crop_w), (image_h, image_w) in zip(
+                mask_logits, crop_sizes, image_sizes
+            ):
+                logits = logits.unsqueeze(0)  # Add batch dim for interpolate
+                logits = logits[..., :crop_h, :crop_w]
+                logits = F.interpolate(logits, (image_h, image_w), mode="bilinear")
+                logits = logits.squeeze(0)  # Remove batch dim
+                layer_mask_logits.append(logits)
+            mask_logits_per_layer.append(layer_mask_logits)
+
+        # Losses.
+        num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
-        for i, (block_idx, mask_logits, class_logits) in enumerate(
-            zip(
-                # Add +1 to num_blocks for final output.
-                range(num_blocks - num_joint_blocks, num_blocks + 1),
-                mask_logits_per_layer,
-                class_logits_per_layer,
-            )
+        for block_idx, mask_logits, class_logits in zip(
+            # Add +1 to num_blocks for final output.
+            range(num_blocks - num_joint_blocks, num_blocks + 1),
+            resized_mask_logits_per_layer,
+            class_logits_per_layer,
         ):
-            h, w = crops.shape[-2:]
-            mask_logits = F.interpolate(mask_logits, (h, w), mode="bilinear")
-            crop_logits = self.model.to_per_pixel_logits_semantic(
-                mask_logits, class_logits
-            )
-            crop_logits = crop_logits[:, :-1]  # Drop ignore class logits.
-
-            # Un-tile the predictions.
-            logits = self.model.untile(
-                crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
-            )
-
-            # Update the metrics.
-            self.update_metrics_semantic(
-                metrics=self.val_classwise_iou,
-                preds=logits,
-                targets=masks,
-                block_idx=i,
-            )
-
             # Compute the loss
             block_losses = self.criterion(
                 masks_queries_logits=mask_logits,
                 class_queries_logits=class_logits,
-                targets=binary_masks_crops_dicts,
+                targets=binary_masks,
             )
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
@@ -441,21 +374,29 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             if "block" not in k or self.model_args.metric_log_debug
         }
 
-        # Update the targets and predictions of the last block.
-        for pred, targ in zip(logits, masks):
-            self.val_miou.update(pred[None, ...], targ[None, ...])
+        # Metrics
+        mask_logits = resized_mask_logits_per_layer[-1]
+        class_logits = class_logits_per_layer[-1]
+        # (B, Q), (B, Q, H, W), (B, Q)
+        labels, masks, scores = self.model.get_labels_masks_scores(
+            mask_logits=mask_logits, class_logits=class_logits
+        )
+
+        self.val_map.update(
+            preds=[
+                {
+                    "labels": labels[i],
+                    "masks": masks[i],
+                    "scores": scores[i],
+                }
+                for i in range(len(labels))
+            ],
+            target=binary_masks,
+        )
 
         metrics: dict[str, Any] = {
-            "val_metric/miou": self.val_miou,
+            "val_metric/map": self.val_map,
         }
-        if self.model_args.metric_log_classwise or self.model_args.metric_log_debug:
-            for block_idx, metric in zip(
-                range(num_blocks - num_joint_blocks, num_blocks + 1),
-                self.val_classwise_iou,
-            ):
-                block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
-                if not block_suffix or self.model_args.metric_log_debug:
-                    metrics[f"val_metric_classwise/miou{block_suffix}"] = metric
 
         return TaskStepResult(
             loss=loss,
@@ -486,24 +427,13 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             )
             return (1.0 - progress).pow(self.model_args.poly_power)  # type: ignore[no-any-return]
 
-    @torch.compiler.disable  # type: ignore[misc]
-    def update_metrics_semantic(
-        self,
-        preds: Tensor,
-        targets: list[torch.Tensor],
-        block_idx: int,
-        metrics: ModuleList,
-    ) -> None:
-        for i in range(len(preds)):
-            metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])  # type: ignore
-
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         # TODO(Guarin, 07/25): It seems like EoMT doesn't exclude norm/bias params
         # from weight decay. We might want to change this.
         backbone_params = set(self.model.backbone.parameters())
         backbone_param_groups = []
         other_param_groups = []
-        backbone_blocks = len(self.model.backbone.blocks)
+        backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         block_i = backbone_blocks
 
         for name, param in reversed(list(self.named_parameters())):

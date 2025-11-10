@@ -50,9 +50,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
         num_joint_blocks: int,
-        backbone_url: str | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        load_weights: bool = True,
     ) -> None:
         """
         Args:
@@ -79,13 +79,12 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             backbone_weights:
                 The path to the DINOv3 backbone weights. The weights must be exported
                 using LightlyTrain.
-            backbone_url:
-                The URL to the DINOv3 backbone weights. This is used to download the
-                weights.
             backbone_args:
                 Additional arguments to pass to the DINOv3 backbone.
+            load_weights:
+                If False, then no pretrained weights are loaded.
         """
-        super().__init__(locals(), ignore_args={"backbone_weights", "backbone_url"})
+        super().__init__(locals(), ignore_args={"backbone_weights", "load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
@@ -111,22 +110,18 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         backbone_model_args: dict[str, Any] = {
             "in_chans": len(self.image_normalize["mean"]),
         }
-        if backbone_url is not None:
-            backbone_model_args["weights"] = backbone_url
-        else:
-            # Set pretrained to false when loading the model for inference. This skips
-            # loading the pretrained weights from Meta as we'll be loading weights with
-            # load_train_state_dict instead.
-            backbone_model_args["pretrained"] = False
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
 
         # Get the backbone.
-        self.backbone = DINOV3_PACKAGE.get_model(
+        backbone = DINOV3_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_model_args,
+            load_weights=load_weights,
         )
-        assert isinstance(self.backbone, DinoVisionTransformer)
+        assert isinstance(backbone, DinoVisionTransformer)
+        self.backbone = backbone
+
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
 
@@ -137,7 +132,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.
-        if backbone_weights is not None:
+        if load_weights and backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
         if len(self.backbone.blocks) < num_joint_blocks:
@@ -168,12 +163,13 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         # TODO(Guarin, 07/25): Move all attention mask handling to the train module.
         # Attention mask prob can be passed as argument to forward_train. No need to
         # store it as a parameter here.
+        self.attn_mask_probs: Tensor
         self.register_buffer(
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
 
         if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook(
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
                 task_model_helpers.queries_adjust_num_queries_hook
             )
         else:
@@ -237,8 +233,8 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         Args:
             image:
-                The input image as a path, PIL image, or tensor. Tensors must have shape
-                (C, H, W).
+                The input image as a path, URL, PIL image, or tensor. Tensors must have
+                shape (C, H, W).
 
         Returns:
             A {"labels": Tensor, "masks": Tensor, "scores": Tensor} dict. Labels is a
@@ -259,16 +255,8 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
-        # Resize and pad image to self.image_size while keeping aspect ratio constant.
-        resize_factor = min(self.image_size[0] / image_h, self.image_size[1] / image_w)
-        crop_h = round(image_h * resize_factor)
-        crop_w = round(image_w * resize_factor)
-        pad_h = max(0, self.image_size[0] - crop_h)
-        pad_w = max(0, self.image_size[1] - crop_w)
-        # (C, crop_h, crop_w)
-        x = transforms_functional.resize(x, size=[crop_h, crop_w])
-        # (C, H', W')
-        x = transforms_functional.pad(x, padding=[0, 0, pad_w, pad_h])
+
+        x, (crop_h, crop_w) = self.resize_and_pad(x)
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         # (1, Q, H', W'), (1, Q, K+1), Q = num_queries, K = len(self.classes)
@@ -282,7 +270,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         )
 
         # (1, Q), (1, Q, H, W), (1, Q)
-        labels, masks, scores = self._get_labels_masks_scores(
+        labels, masks, scores = self.get_labels_masks_scores(
             mask_logits=mask_logits, class_logits=class_logits
         )
 
@@ -298,7 +286,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         # Function used for ONNX export
         # (1, Q, H, W), (1, Q, K+1), Q = num_queries, K = len(self.classes)
         mask_logits, class_logits = self._forward_logits(x)
-        labels, masks, scores = self._get_labels_masks_scores(
+        labels, masks, scores = self.get_labels_masks_scores(
             mask_logits=mask_logits, class_logits=class_logits
         )
 
@@ -312,6 +300,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
     ) -> tuple[list[Tensor], list[Tensor]]:
         _, _, H, W = x.shape
         patch_size = self.backbone.patch_size
+        num_backbone_blocks = len(self.backbone.blocks)  # type: ignore[arg-type]
 
         # Match the logic of the PatchEmbded forward
         # (src/lightly_train/_models/dinov3/dinov3_src/layers/patch_embed.py).
@@ -319,16 +308,16 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         assert patch_size is not None
         grid_size = (H // patch_size, W // patch_size)
 
-        x, image_size = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
+        x, image_size = self.backbone.prepare_tokens_with_masks(x)
         mask_logits_per_layer, class_logits_per_layer = [], []
-        for i, block in enumerate(self.backbone.blocks):
+        for i, block in enumerate(self.backbone.blocks):  # type: ignore[arg-type]
             attn_mask = None
 
             rope_sincos: tuple[Tensor, Tensor] | None = None
             if self.backbone.rope_embed is not None:
                 rope_sincos = self.backbone.rope_embed(H=image_size[0], W=image_size[1])  # type: ignore
 
-            if i == len(self.backbone.blocks) - self.num_joint_blocks:
+            if i == num_backbone_blocks - self.num_joint_blocks:
                 # Prepend query tokens.
                 x = torch.cat(
                     (self.queries.weight[None, :, :].expand(x.shape[0], -1, -1), x),
@@ -337,7 +326,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
             if (
                 return_logits_per_layer
-                and i >= len(self.backbone.blocks) - self.num_joint_blocks
+                and i >= num_backbone_blocks - self.num_joint_blocks
             ):
                 mask_logits, class_logits = self._predict(
                     self.backbone.norm(x), grid_size=grid_size
@@ -378,16 +367,16 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                     attn_mask = self._disable_attn_mask(
                         attn_mask=attn_mask,
                         prob=self.attn_mask_probs[
-                            i - len(self.backbone.blocks) + self.num_joint_blocks
+                            i - num_backbone_blocks + self.num_joint_blocks
                         ],
                     )
 
             # TODO(Guarin, 08/25): Double check if sample_drop_ratio > 0 sometimes.
             # This is usually not the case in EoMT but should be verified.
-            x = x + block.ls1(
-                self._attn(block.attn, block.norm1(x), rope=rope_sincos, mask=attn_mask)
+            x = x + block.ls1(  # type: ignore[operator]
+                self._attn(block.attn, block.norm1(x), rope=rope_sincos, mask=attn_mask)  # type: ignore
             )
-            x = x + block.ls2(block.mlp(block.norm2(x)))
+            x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore[operator]
 
         mask_logits, class_logits = self._predict(
             self.backbone.norm(x), grid_size=grid_size
@@ -435,7 +424,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         return mask_logits, class_logits
 
-    def _get_labels_masks_scores(
+    def get_labels_masks_scores(
         self, mask_logits: Tensor, class_logits: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
         # Get score and label for each query.
@@ -451,6 +440,30 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         # (1, Q), (1, Q, H, W), (1, Q)
         return labels, masks, scores
+
+    def resize_and_pad(self, image: Tensor) -> tuple[Tensor, tuple[int, int]]:
+        """Resize and pad image to self.image_size while keeping aspect ratio constant.
+
+        Args:
+            image:
+                A tensor of shape (..., C, H, W).
+
+        Returns:
+            An (image, (crop_h, crop_w)) tuple where image is a tensor of shape
+            (..., C, H', W') with H'==self.image_size[0] and W'==self.image_size[1], and
+            (crop_h, crop_w) are the height and width of the resized (non-padded) image.
+        """
+        image_h, image_w = image.shape[-2:]
+        resize_factor = min(self.image_size[0] / image_h, self.image_size[1] / image_w)
+        crop_h = round(image_h * resize_factor)
+        crop_w = round(image_w * resize_factor)
+        pad_h = max(0, self.image_size[0] - crop_h)
+        pad_w = max(0, self.image_size[1] - crop_w)
+        # (..., C, crop_h, crop_w)
+        image = transforms_functional.resize(image, size=[crop_h, crop_w])
+        # (..., C, H', W')
+        image = transforms_functional.pad(image, padding=[0, 0, pad_w, pad_h])
+        return image, (crop_h, crop_w)
 
     # TODO(Guarin, 07/25): No need for attention mask handling in this module. Move it
     # to DINOv3InstanceSegmentationTrain.

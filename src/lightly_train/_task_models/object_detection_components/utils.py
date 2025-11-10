@@ -10,14 +10,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.#
-"""Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
+"""Copyright(c) 2023 lyuwenyu. All Rights Reserved.
+
+# Modifications Copyright 2025 Lightly AG:
+- Added _yolo_to_xyxy and _denormalize_xyxy_boxes functions
+"""
+
+from __future__ import annotations
 
 import math
-from typing import List
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 
 
 def inverse_sigmoid(x: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
@@ -37,8 +43,8 @@ def deformable_attention_core_func(
     """
     Args:
         value (Tensor): [bs, value_length, n_head, c]
-        value_spatial_shapes (Tensor|List): [n_levels, 2]
-        value_level_start_index (Tensor|List): [n_levels]
+        value_spatial_shapes (Tensor|list): [n_levels, 2]
+        value_level_start_index (Tensor|list): [n_levels]
         sampling_locations (Tensor): [bs, query_length, n_head, n_levels, n_points, 2]
         attention_weights (Tensor): [bs, query_length, n_head, n_levels, n_points]
 
@@ -88,14 +94,14 @@ def deformable_attention_core_func_v2(
     value_spatial_shapes,
     sampling_locations: torch.Tensor,
     attention_weights: torch.Tensor,
-    num_points_list: List[int],
+    num_points_list: list[int],
     method="default",
 ):
     """
     Args:
         value (Tensor): [bs, value_length, n_head, c]
-        value_spatial_shapes (Tensor|List): [n_levels, 2]
-        value_level_start_index (Tensor|List): [n_levels]
+        value_spatial_shapes (Tensor|list): [n_levels, 2]
+        value_level_start_index (Tensor|list): [n_levels]
         sampling_locations (Tensor): [bs, query_length, n_head, n_levels * n_points, 2]
         attention_weights (Tensor): [bs, query_length, n_head, n_levels * n_points]
 
@@ -203,3 +209,41 @@ def get_activation(act: str, inpace: bool = True):
         m.inplace = inpace
 
     return m
+
+
+def _yolo_to_xyxy(batch_boxes: list[Tensor]) -> list[Tensor]:
+    """Convert bounding boxes from YOLO (normalized cx, cy, w, h) format to
+    (normalized x_min, y_min, x_max, y_max) format.
+
+    Args:
+        boxes: Bounding boxes in YOLO format of shape (n_boxes, 4) with values
+            normalized between 0 and 1.
+
+    Returns:
+        Bounding boxes in (normalized x_min, y_min, x_max, y_max) format.
+    """
+    converted_boxes = []
+    for sample_boxes in batch_boxes:
+        cxcywh = sample_boxes
+        x_min = cxcywh[:, 0] - cxcywh[:, 2] / 2
+        y_min = cxcywh[:, 1] - cxcywh[:, 3] / 2
+        x_max = cxcywh[:, 0] + cxcywh[:, 2] / 2
+        y_max = cxcywh[:, 1] + cxcywh[:, 3] / 2
+        converted_boxes.append(torch.stack([x_min, y_min, x_max, y_max], dim=-1))
+    return converted_boxes
+
+
+def _denormalize_xyxy_boxes(
+    boxes: list[Tensor],
+    sizes: list[tuple[int, int]],
+) -> Tensor:
+    """De-normalize bounding boxes from (normalized x_min, y_min, x_max, y_max) format."""
+    denormalized_boxes = []
+    for sample_boxes, (width, height) in zip(boxes, sizes):
+        sample_boxes_denormalized = sample_boxes.clone()
+        sample_boxes_denormalized[:, 0] = sample_boxes[:, 0] * width
+        sample_boxes_denormalized[:, 1] = sample_boxes[:, 1] * height
+        sample_boxes_denormalized[:, 2] = sample_boxes[:, 2] * width
+        sample_boxes_denormalized[:, 3] = sample_boxes[:, 3] * height
+        denormalized_boxes.append(sample_boxes_denormalized)
+    return denormalized_boxes

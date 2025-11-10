@@ -29,6 +29,7 @@ from lightly_train._transforms.transform import (
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
     RandomZoomOutArgs,
+    ResizeArgs,
     ScaleJitterArgs,
     StopPolicyArgs,
 )
@@ -106,6 +107,13 @@ def _get_scale_jitter_args() -> ScaleJitterArgs:
     )
 
 
+def _get_resize_args() -> ResizeArgs:
+    return ResizeArgs(
+        height=64,
+        width=64,
+    )
+
+
 def _get_image_size() -> tuple[int, int]:
     return (64, 64)
 
@@ -118,6 +126,7 @@ PossibleArgsTuple = (
     [None, _get_random_flip_args()],
     # TODO: Lionel (09/25) Add StopPolicyArgs test cases.
     [None, _get_scale_jitter_args()],
+    [None, _get_resize_args()],
 )
 
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
@@ -125,7 +134,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, scale_jitter",
+        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, scale_jitter, resize",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -135,6 +144,7 @@ class TestObjectDetectionTransform:
         random_zoom_out: RandomZoomOutArgs | None,
         random_flip: RandomFlipArgs | None,
         scale_jitter: ScaleJitterArgs | None,
+        resize: ResizeArgs | None,
         random_iou_crop: RandomIoUCropArgs | None,
     ) -> None:
         image_size = _get_image_size()
@@ -150,6 +160,7 @@ class TestObjectDetectionTransform:
             image_size=image_size,
             bbox_params=bbox_params,
             stop_policy=stop_policy,
+            resize=resize,
             scale_jitter=scale_jitter,
         )
         transform_args.resolve_auto(model_init_args={})
@@ -183,12 +194,13 @@ class TestObjectDetectionTransform:
             num_channels="auto",
             photometric_distort=_get_photometric_distort_args(),
             random_zoom_out=_get_random_zoom_out_args(),
+            random_iou_crop=_get_random_iou_crop_args(),
             random_flip=_get_random_flip_args(),
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
             stop_policy=_get_stop_policy_args(),
             scale_jitter=_get_scale_jitter_args(),
-            random_iou_crop=_get_random_iou_crop_args(),
+            resize=_get_resize_args(),
         )
         transform_args.resolve_auto(model_init_args={})
         collate_fn = ObjectDetectionCollateFunction(
@@ -200,12 +212,14 @@ class TestObjectDetectionTransform:
             "image": torch.randn(3, 128, 128),
             "bboxes": torch.tensor([[10.0, 10.0, 50.0, 50.0]]),
             "classes": torch.tensor([1]),
+            "original_size": (128, 128),
         }
         sample2: ObjectDetectionDatasetItem = {
             "image_path": "img2.png",
             "image": torch.randn(3, 64, 64),
             "bboxes": torch.tensor([[20.0, 20.0, 40.0, 40.0]]),
             "classes": torch.tensor([2]),
+            "original_size": (64, 64),
         }
         batch = [sample1, sample2]
 
