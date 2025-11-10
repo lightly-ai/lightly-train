@@ -46,8 +46,13 @@ def _flush() -> None:
 
 
 def _get_system_info() -> Dict[str, Any]:
-    """Collect minimal system info."""
+    """Collect minimal system info for analytics.
+
+    This lightweight helper avoids the higher overhead of lightly_train._system.get_system_information()
+    which triggers heavy metadata/git lookups.
+    """
     global _system_info
+    # TODO(Igor, 11/25): Check if we can use lightly_train._system.get_system_information() here.
     if _system_info is None:
         gpu_name = None
         if torch.cuda.is_available():
