@@ -108,9 +108,11 @@ The following models for `teacher` are supported:
   - `dinov3/vits16plus`
   - `dinov3/vitb16`
   - `dinov3/vitl16`
+  - `dinov3/vitl16-sat493m`
   - `dinov3/vitl16plus`
   - `dinov3/vith16plus`
   - `dinov3/vit7b16`
+  - `dinov3/vit7b16-sat493m`
 - DINOv2
   - `dinov2/vits14`
   - `dinov2/vitb14`
