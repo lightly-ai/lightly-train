@@ -336,7 +336,9 @@ def train_from_config(config: TrainConfig) -> None:
         )
         event_info = TrainingEventInfo(
             method=config.method,
-            model=config.model if isinstance(config.model, str) else config.model.__class__.__name__,
+            model=config.model
+            if isinstance(config.model, str)
+            else config.model.__class__.__name__,
             epochs=config.epochs,
             batch_size=config.batch_size,
             devices=config.devices if isinstance(config.devices, int) else 1,

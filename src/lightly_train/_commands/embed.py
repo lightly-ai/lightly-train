@@ -21,7 +21,6 @@ from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type
 from torch.utils.data import DataLoader, Dataset
 
 from lightly_train import _logging
-from lightly_train._events.tracker import track_event
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._configs import omegaconf_utils, validate
@@ -32,6 +31,7 @@ from lightly_train._embedding.embedding_transform import EmbeddingTransform
 from lightly_train._embedding.writers import writer_helpers
 from lightly_train._embedding.writers.embedding_writer import EmbeddingWriter
 from lightly_train._env import Env
+from lightly_train._events.tracker import track_event
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._transforms.transform import NormalizeArgs
 from lightly_train.types import DatasetItem, PathLike

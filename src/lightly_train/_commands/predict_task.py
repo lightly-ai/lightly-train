@@ -18,7 +18,6 @@ from pydantic import ConfigDict
 from torch import Tensor
 
 from lightly_train import _logging, _system
-from lightly_train._events.tracker import track_event
 from lightly_train._commands import (
     _warnings,
     common_helpers,
@@ -27,6 +26,7 @@ from lightly_train._commands import (
 )
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._events.tracker import track_event
 from lightly_train._task_models import task_model_helpers
 from lightly_train.types import ImageFilename, PathLike
 
