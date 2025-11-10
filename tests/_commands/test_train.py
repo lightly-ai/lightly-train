@@ -35,6 +35,11 @@ from lightly_train._scaling import ScalingInfo
 from .. import helpers
 from ..helpers import DummyCustomModel
 
+try:
+    import pydicom
+except ImportError:
+    pydicom = None  # type: ignore[assignment]
+
 
 def test_track_training_started_event(mocker: MockerFixture) -> None:
     """Ensure training_started analytics payload stays consistent."""
@@ -571,4 +576,43 @@ def test_train__multichannel(
         epochs=1,
         devices=1,
         embed_dim=64,
+    )
+
+
+@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.parametrize(
+    ("data_format, num_channels"),
+    [
+        ("ct", 1),
+        ("mr", 1),
+        ("overlay", 1),
+        ("rgb_color", 3),
+        ("palette_color", 3),
+        ("jpeg2k", 3),
+    ],
+)
+def test_train__dicom(
+    tmp_path: Path,
+    data_format: str,
+    num_channels: int,
+) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    data_path: Path = pydicom_examples.get_path(data_format)
+    data = [str(data_path)] * 8  # Create a list of 8 identical DICOM files.
+
+    out = tmp_path / "out"
+    train.train(
+        out=out,
+        data=data,
+        model="dinov2/_vittest14",
+        method="dinov2",
+        batch_size=4,
+        num_workers=0,
+        epochs=1,
+        devices=1,
+        embed_dim=64,
+        transform_args={"num_channels": num_channels},
     )
