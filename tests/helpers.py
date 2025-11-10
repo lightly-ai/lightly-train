@@ -63,6 +63,7 @@ SUPPORTED_IMAGE_EXTENSIONS = [
     ".dib",
     ".pcx",
     ".dds",
+    ".dcm",
     ".ps",
     ".eps",
     ".gif",

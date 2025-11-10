@@ -18,7 +18,6 @@ from albumentations import (
     ColorJitter,
     Compose,
     HorizontalFlip,
-    Normalize,
     OneOf,
     RandomCrop,
     Resize,
@@ -31,6 +30,7 @@ from typing_extensions import Literal
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDrop
+from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
