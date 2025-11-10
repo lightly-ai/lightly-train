@@ -11,8 +11,8 @@ from typing import Any, Dict
 
 from pytorch_lightning import Callback, LightningModule, Trainer
 
-from lightly_train import _events
 from lightly_train._events.event_info import TrainingEventInfo
+from lightly_train._events.tracker import track_event
 
 
 class EventsCallback(Callback):
@@ -23,7 +23,10 @@ class EventsCallback(Callback):
         self.event_info = event_info
 
     def on_train_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        """Track training_started event."""
+        """Track training_started"""
+        if trainer.global_rank != 0:
+            return
+
         properties: Dict[str, Any] = {
             "method": self.event_info.method,
             "model_name": self.event_info.model,
@@ -32,4 +35,4 @@ class EventsCallback(Callback):
             "batch_size": self.event_info.batch_size,
             "devices": self.event_info.devices,
         }
-        _events.track_event("training_started", properties)
+        track_event("training_started", properties)
