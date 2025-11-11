@@ -43,7 +43,7 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="dinov3/convnext-small-ltdetr-coco",
         data={
-            "path": "base_path_to_your_dataset",
+            "path": "my_data_dir",
             "train": "images/train2012",
             "val": "images/val2012",
             "names": {
@@ -111,11 +111,11 @@ from torchvision import io, utils
 import lightly_train
 
 model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
-labels, boxes, scores = model.predict("<image>.jpg").values()
+labels, boxes, scores = model.predict("image.jpg").values()
 
 # Visualize predictions.
 image_with_boxes = utils.draw_bounding_boxes(
-    image=io.read_image("<image>.jpg"),
+    image=io.read_image("image.jpg"),
     boxes=boxes,
     labels=[model.classes[i.item()] for i in labels],
 )
@@ -177,7 +177,7 @@ The following image formats are supported:
 Your dataset directory should be organized like this:
 
 ```text
-base_path_to_your_dataset/
+my_data_dir/
 ├── images
 │   ├── train
 │   │   ├── image1.jpg
@@ -201,7 +201,7 @@ base_path_to_your_dataset/
 Alternatively, the splits can also be at the top level:
 
 ```text
-base_path_to_your_dataset/
+my_data_dir/
 ├── train
 │   ├── images
 │   │   ├── image1.jpg
