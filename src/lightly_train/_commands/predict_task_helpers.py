@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any, Sequence
@@ -15,6 +16,7 @@ import numpy as np
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from PIL import Image
+from torch import Tensor
 from torch.utils.data import DataLoader
 
 from lightly_train._configs.validate import pydantic_model_validate
@@ -204,3 +206,48 @@ def save_mask(mask: NDArrayMask, mask_filepath: Path) -> None:
     mask_np = mask_np.astype(dtype, copy=False)
 
     Image.fromarray(mask_np).save(mask_filepath)
+
+
+def prepare_coco_entries(
+    predictions: dict[str, Tensor],
+    image_size: tuple[int, int],
+) -> list[dict[str, Any]]:
+    width, height = image_size
+
+    labels: list[int] = predictions["labels"].detach().cpu().tolist()
+    boxes: list[list[float]] = predictions["bboxes"].detach().cpu().tolist()
+    scores: list[float] = predictions["scores"].detach().cpu().tolist()
+
+    entries = []
+    for label, box, score in zip(labels, boxes, scores):
+        x1, y1, x2, y2 = box
+        x1 = max(0.0, min(float(x1), float(width)))
+        y1 = max(0.0, min(float(y1), float(height)))
+        x2 = max(0.0, min(float(x2), float(width)))
+        y2 = max(0.0, min(float(y2), float(height)))
+
+        x = int(round(x1))
+        y = int(round(y1))
+        x2_rounded = int(round(x2))
+        y2_rounded = int(round(y2))
+        w = max(0, x2_rounded - x)
+        h = max(0, y2_rounded - y)
+
+        rounded_score = round(score, 2)
+
+        entries.append(
+            {
+                "category_id": label,
+                "bbox": [x, y, w, h],
+                "score": rounded_score,
+            }
+        )
+    return entries
+
+
+def save_coco_json(entries: list[dict[str, Any]], coco_filepath: Path) -> None:
+    coco_filepath.parent.mkdir(parents=True, exist_ok=True)
+    coco_filepath.write_text(
+        json.dumps({"predictions": entries}, indent=2) + "\n",
+        encoding="utf-8",
+    )
