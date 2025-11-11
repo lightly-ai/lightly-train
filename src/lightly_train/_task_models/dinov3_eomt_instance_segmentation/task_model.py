@@ -228,13 +228,18 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         }
 
     @torch.no_grad()
-    def predict(self, image: PathLike | PILImage | Tensor) -> dict[str, Tensor]:
+    def predict(
+        self, image: PathLike | PILImage | Tensor, threshold: float = 0.8
+    ) -> dict[str, Tensor]:
         """Returns the predicted mask for the given image.
 
         Args:
             image:
                 The input image as a path, URL, PIL image, or tensor. Tensors must have
                 shape (C, H, W).
+            threshold:
+                The confidence threshold for the predicted masks. Only masks with a
+                confidence score above this threshold are returned.
 
         Returns:
             A {"labels": Tensor, "masks": Tensor, "scores": Tensor} dict. Labels is a
@@ -276,10 +281,22 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         # Map internal class IDs to class IDs.
         labels = self.internal_class_to_class[labels]  # (1, Q)
+
+        # Remove batch dimension.
+        labels = labels.squeeze(0)
+        masks = masks.squeeze(0)
+        scores = scores.squeeze(0)
+
+        # Apply threshold.
+        keep = scores >= threshold
+        labels = labels[keep]
+        masks = masks[keep]
+        scores = scores[keep]
+
         return {
-            "labels": labels.squeeze(0),
-            "masks": masks.squeeze(0),
-            "scores": scores.squeeze(0),
+            "labels": labels,
+            "masks": masks,
+            "scores": scores,
         }
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:

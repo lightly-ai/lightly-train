@@ -104,7 +104,6 @@ results = model.predict("path/to/image.jpg")
 After making the predictions with the model weights, you can visualize the predicted bounding boxes like this:
 
 ```python
-# ruff: noqa: F821
 import matplotlib.pyplot as plt
 from torchvision import io, utils
 
