@@ -83,10 +83,12 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     gradient_clip_val: float = 0.01
 
     # Optim
-    lr: float = 1e-4
-    llrd: float = 0.8  # Layer decay
+    lr: float = 2e-4
+    llrd: float = 0.8  # Layer-wise lr decay
+    # Layer-wise lr decay for joint blocks (1.0 = no decay)
+    llrd_joint_blocks: float = 1.0
     weight_decay: float = 0.05
-    lr_warmup_steps: tuple[int, int] = (500, 1000)
+    lr_warmup_steps: tuple[int, int] = (2000, 3000)
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
     # Metrics
@@ -446,6 +448,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         backbone_param_groups = []
         other_param_groups = []
         backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
+        num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         block_i = backbone_blocks
 
         for name, param in reversed(list(self.named_parameters())):
@@ -453,12 +456,25 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             if param in backbone_params:
                 name_list = name.split(".")
                 is_block = False
+                is_joint_block = False
+                is_norm = False
                 for i, key in enumerate(name_list):
                     if key == "blocks":
                         block_i = int(name_list[i + 1])
                         is_block = True
-                if is_block or block_i == 0:
-                    lr *= self.model_args.llrd ** (backbone_blocks - 1 - block_i)
+                        is_joint_block = block_i >= (backbone_blocks - num_joint_blocks)
+                        is_norm = "norm" in name_list
+                        break
+
+                if (is_block or block_i == 0) and not is_norm:
+                    # Apply layer-wise lr decay except for norm layers.
+                    llrd = (
+                        self.model_args.llrd_joint_blocks
+                        if is_joint_block
+                        else self.model_args.llrd
+                    )
+                    lr *= llrd ** (backbone_blocks - 1 - block_i)
+
                 backbone_param_groups.append(
                     {"params": [param], "lr": lr, "name": name}
                 )
