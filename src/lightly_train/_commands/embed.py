@@ -31,6 +31,7 @@ from lightly_train._embedding.embedding_transform import EmbeddingTransform
 from lightly_train._embedding.writers import writer_helpers
 from lightly_train._embedding.writers.embedding_writer import EmbeddingWriter
 from lightly_train._env import Env
+from lightly_train._events import tracker
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._transforms.transform import NormalizeArgs
 from lightly_train.types import DatasetItem, PathLike
@@ -97,6 +98,8 @@ def embed(
 
 
 def embed_from_config(config: EmbedConfig) -> None:
+    tracker.track_event("inference_started", {"inference_type": "embedding"})
+
     # Set up logging.
     _warnings.filter_embed_warnings()
     _logging.set_up_console_logging()
