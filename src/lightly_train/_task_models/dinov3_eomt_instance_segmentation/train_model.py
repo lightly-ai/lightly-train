@@ -457,17 +457,17 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 name_list = name.split(".")
                 is_block = False
                 is_joint_block = False
-                is_norm = False
+                is_backbone_norm = False
                 for i, key in enumerate(name_list):
                     if key == "blocks":
                         block_i = int(name_list[i + 1])
                         is_block = True
                         is_joint_block = block_i >= (backbone_blocks - num_joint_blocks)
-                        is_norm = "norm" in name_list
+                        is_backbone_norm = "backbone.norm" in name
                         break
 
-                if (is_block or block_i == 0) and not is_norm:
-                    # Apply layer-wise lr decay except for norm layers.
+                if (is_block or block_i == 0) and not is_backbone_norm:
+                    # Apply layer-wise lr decay except for backbone.norm layer.
                     llrd = (
                         self.model_args.llrd_joint_blocks
                         if is_joint_block
