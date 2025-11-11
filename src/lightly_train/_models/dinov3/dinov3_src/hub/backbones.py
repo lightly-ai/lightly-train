@@ -216,6 +216,86 @@ def _make_dinov3_convnext(
     return model
 
 
+def dinov3_vitt16(
+    *,
+    pretrained: bool = True,
+    weights: Union[Weights, str] = Weights.LVD1689M,
+    check_hash: bool = False,
+    in_chans: int = 3,
+    **kwargs,
+):
+    if "hash" not in kwargs:
+        kwargs["hash"] = "08c60483"
+    kwargs["version"] = None
+    return _make_dinov3_vit(
+        img_size=224,
+        patch_size=16,
+        in_chans=in_chans,
+        pos_embed_rope_base=100,
+        pos_embed_rope_normalize_coords="separate",
+        pos_embed_rope_rescale_coords=2,
+        pos_embed_rope_dtype="fp32",
+        embed_dim=192,
+        depth=12,
+        num_heads=3,
+        ffn_ratio=4,
+        qkv_bias=True,
+        drop_path_rate=0.0,
+        layerscale_init=1.0e-05,
+        norm_layer="layernormbf16",
+        ffn_layer="mlp",
+        ffn_bias=True,
+        proj_bias=True,
+        n_storage_tokens=4,
+        mask_k_bias=True,
+        pretrained=pretrained,
+        weights=weights,
+        compact_arch_name="vitt",
+        check_hash=check_hash,
+        **kwargs,
+    )
+
+
+def dinov3_vitt16plus(
+    *,
+    pretrained: bool = True,
+    weights: Union[Weights, str] = Weights.LVD1689M,
+    check_hash: bool = False,
+    in_chans: int = 3,
+    **kwargs,
+):
+    if "hash" not in kwargs:
+        kwargs["hash"] = "08c60483"
+    kwargs["version"] = None
+    return _make_dinov3_vit(
+        img_size=224,
+        patch_size=16,
+        in_chans=in_chans,
+        pos_embed_rope_base=100,
+        pos_embed_rope_normalize_coords="separate",
+        pos_embed_rope_rescale_coords=2,
+        pos_embed_rope_dtype="fp32",
+        embed_dim=192,
+        depth=12,
+        num_heads=3,
+        ffn_ratio=6,
+        qkv_bias=True,
+        drop_path_rate=0.0,
+        layerscale_init=1.0e-05,
+        norm_layer="layernormbf16",
+        ffn_layer="mlp",
+        ffn_bias=True,
+        proj_bias=True,
+        n_storage_tokens=4,
+        mask_k_bias=True,
+        pretrained=pretrained,
+        weights=weights,
+        compact_arch_name="vittplus",
+        check_hash=check_hash,
+        **kwargs,
+    )
+
+
 def dinov3_vits16(
     *,
     pretrained: bool = True,
