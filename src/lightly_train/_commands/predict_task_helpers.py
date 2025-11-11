@@ -228,8 +228,10 @@ def prepare_coco_entries(
 
         x = int(round(x1))
         y = int(round(y1))
-        w = int(round(max(0.0, x2 - x1)))
-        h = int(round(max(0.0, y2 - y1)))
+        x2_rounded = int(round(x2))
+        y2_rounded = int(round(y2))
+        w = max(0, x2_rounded - x)
+        h = max(0, y2_rounded - y)
 
         rounded_score = round(score, 2)
 
