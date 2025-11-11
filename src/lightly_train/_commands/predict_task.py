@@ -26,6 +26,7 @@ from lightly_train._commands import (
 )
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._events import tracker
 from lightly_train._task_models import task_model_helpers
 from lightly_train.types import ImageFilename, PathLike
 
@@ -90,6 +91,11 @@ def predict_semantic_segmentation(
 
 
 def _predict_task_from_config(config: PredictTaskConfig) -> None:
+    # TODO(Igor, 11/25): Update to other tasks (object detection, instance segmentation, etc.) once they are supported.
+    tracker.track_event(
+        "inference_started", {"inference_type": "semantic_segmentation"}
+    )
+
     config = validate.pydantic_model_validate(PredictTaskConfig, dict(config))
     initial_config = config.model_dump()
     # TODO(Guarin, 07/25): Validate and initialize arguments passed to Fabric properly.
