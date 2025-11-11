@@ -54,7 +54,5 @@ jobs:
         run: |
           make install-dist
       - name: Build
-        env:
-          LIGHTLY_TRAIN_POSTHOG_KEY: ${{ secrets.LIGHTLY_TRAIN_POSTHOG_KEY }}
         run: |
           make dist
