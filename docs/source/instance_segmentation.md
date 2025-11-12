@@ -68,8 +68,8 @@ During training, the best and last model weights are exported to
 - best (highest validation mask mAP): `exported_best.pt`
 - last: `exported_last.pt`
 
-You can use these weights to continue fine-tuning on another task by loading the
-weights via `model="<checkpoint path>"`:
+You can use these weights to continue fine-tuning on another dataset by loading the
+weights with `model="<checkpoint path>"`:
 
 ```python
 import lightly_train
