@@ -33,6 +33,7 @@ class TestDINOv3ViTModelWrapper:
 
     def test_forward_features(self) -> None:
         model = vit_small()
+        model.init_weights()  # type: ignore[no-untyped-call]
         feature_extractor = DINOv3ViTModelWrapper(model=model)
 
         x = torch.rand(1, 3, 224, 224)

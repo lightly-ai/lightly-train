@@ -86,7 +86,9 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     random_crop: RandomCropArgs = Field(
         default_factory=DINOv3EoMTInstanceSegmentationRandomCropArgs
     )
-    bbox_params: BboxParams = BboxParams(format="yolo", label_fields=["class_labels"])
+    bbox_params: BboxParams = BboxParams(
+        format="yolo", label_fields=["class_labels", "indices"]
+    )
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
@@ -130,7 +132,9 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
     scale_jitter: ScaleJitterArgs | None = None
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs | None = None
-    bbox_params: BboxParams = BboxParams(format="yolo", label_fields=["class_labels"])
+    bbox_params: BboxParams = BboxParams(
+        format="yolo", label_fields=["class_labels", "indices"]
+    )
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
