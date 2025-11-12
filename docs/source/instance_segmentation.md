@@ -23,9 +23,9 @@ You can also explore running inference and training these models using our Colab
 
 | Implementation | Model | #Params (M) | Input Size | Val mAP mask | Avg. FPS |
 |----------------|----------------|-------------|------------|----------|----------|
-| LightlyTrain | dinov3/vits16-eomt-inst-coco | 21.6 | 640x640 | 32.6 | Soon! |
-| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 85.7 | 640x640 | 40.3 | Soon! |
-| LightlyTrain | dinov3/vitl16-eomt-inst-coco | 303.2 | 640x640 | **46.2** | Soon! |
+| LightlyTrain | dinov3/vits16-eomt-inst-coco | 21.6 | 640x640 | 32.6 | 51.5 |
+| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 85.7 | 640x640 | 40.3 | 25.2 |
+| LightlyTrain | dinov3/vitl16-eomt-inst-coco | 303.2 | 640x640 | **46.2** | 12.5 |
 | Original EoMT | dinov3/vitl16-eomt-inst-coco | 303.2 | 640x640 | 45.9 | - |
 
 Training follows the protocol in the original [EoMT paper](https://arxiv.org/abs/2503.19108).
