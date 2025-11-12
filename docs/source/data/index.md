@@ -2,28 +2,19 @@
 
 # Data Input
 
-## Multi-Channel Image Support
+LightlyTrain supports image input beyond normal RGB images; for specific domain use cases like medical imaging, LightlyTrain also supports loading images in domain-specific formats.
 
-LightlyTrain supports both single-channel (e.g. grayscale) and multi-channel (e.g. RGBA) image inputs.
+## Non-RGB Image Support
 
-For more details on LightlyTrain's support for multi-channel images, please check the [Multi-Channel Image Support](#multi-channel) page.
+LightlyTrain supports non-RGB images like RGB-NIR with its single- and multi-channel image support. Please check the [Non-RGB Image Support](#non-rgb) page for more details.
 
-## Image Formats
+## Domain-Specific Image Formats
 
-LightlyTrain supports various input image formats, including:
+Currently, LightlyTrain supports the following domain-specific image format:
 
-- jpg
-- jpeg
-- png
-- ppm
-- bmp
-- pgm
-- tif
-- tiff
-- webp
-- dcm
+- [DICOM](#dicom-support)
 
-For more details on LightlyTrain's support for DICOM images, please check the [DICOM Image Support](#dicom-support) page.
+Please check the respective support page for more details.
 
 ```{toctree}
 ---

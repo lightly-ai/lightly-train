@@ -85,7 +85,7 @@ The following image formats are supported:
 - tif
 - tiff
 - webp
-- dcm
+- dcm (DICOM)
 
 For more details on LightlyTrain's support for data input, please check the [Data Input](#data-input) page.
 
