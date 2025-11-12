@@ -85,6 +85,9 @@ The following image formats are supported:
 - tif
 - tiff
 - webp
+- dcm
+
+For more details on LightlyTrain's support for data input, please check the [Data Input](#data-input) page.
 
 Example of passing a single folder `my_data_dir`:
 
