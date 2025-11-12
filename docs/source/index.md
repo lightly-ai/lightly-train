@@ -246,6 +246,7 @@ quick_start
 installation
 train/index
 object_detection
+instance_segmentation
 semantic_segmentation
 predict_autolabel
 export
