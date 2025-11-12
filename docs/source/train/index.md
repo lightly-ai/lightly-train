@@ -367,26 +367,6 @@ See {ref}`method-transform-args` on how to configure image transformations.
 
 (method-args)=
 
-### Train with Multi-channel Images
-
-By default, images are loaded as RGB images. Beyond that, LightlyTrain pretraining and distillation also supports 4-channel images, which can be specified in `transform_args`:
-
-```
-transform_args={
-    "num_channels": 4
-}
-```
-
-In this case, you may also want to customize the normalization parameters in `transform_args` to fit your dataset. Otherwise, LightlyTrain will simply repeat the mean and std values of the RGB channels for the extra channels.
-
-Currently supported models:
-
-| Library | Supported Models | Docs |
-|---------|------------------|------|
-| TIMM | All models | [🔗](#models-timm) |
-| LightlyTrain | DINOv2 | |
-| LightlyTrain | DINOv3 | |
-
 ### Method Arguments
 
 ```{warning}

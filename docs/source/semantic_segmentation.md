@@ -673,20 +673,6 @@ transform_args={
 }
 ```
 
-### Train with Multi-channel Images
-
-By default, images are loaded as RGB images. LightlyTrain EoMT also supports 4-channel images, which can be specified in `transform_args`:
-
-```
-transform_args={
-    "num_channels": 4
-}
-```
-
-In this case, you may also want to customize the normalization parameters in `transform_args` to fit your dataset. Otherwise, LightlyTrain will simply repeat the mean and std values of the RGB channels for the extra channels.
-
-You can also randomly drop channels during training for data augmentation with certain probability with the `ChannelDrop` augmentation. See [here](#method-transform-args-channel-drop) for more details.
-
 ## Exporting a Checkpoint to ONNX
 
 [Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange) is a standard format

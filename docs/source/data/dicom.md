@@ -1,6 +1,6 @@
 (dicom-support)=
 
-# DICOM Image Support
+# DICOM Images
 
 | Type | SOP Class | num_channels | num_frames | Supported |
 |----------------|-----------------------|---------------|-------------|-------------|
