@@ -424,6 +424,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         return mask_logits, class_logits
 
+    @torch.no_grad()
     def get_labels_masks_scores(
         self, mask_logits: Tensor, class_logits: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
@@ -446,11 +447,11 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         Args:
             image:
-                A tensor of shape (..., C, H, W).
+                A tensor of shape (..., H, W).
 
         Returns:
             An (image, (crop_h, crop_w)) tuple where image is a tensor of shape
-            (..., C, H', W') with H'==self.image_size[0] and W'==self.image_size[1], and
+            (..., H', W') with H'==self.image_size[0] and W'==self.image_size[1], and
             (crop_h, crop_w) are the height and width of the resized (non-padded) image.
         """
         image_h, image_w = image.shape[-2:]
@@ -459,9 +460,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         crop_w = round(image_w * resize_factor)
         pad_h = max(0, self.image_size[0] - crop_h)
         pad_w = max(0, self.image_size[1] - crop_w)
-        # (..., C, crop_h, crop_w)
+        # (..., crop_h, crop_w)
         image = transforms_functional.resize(image, size=[crop_h, crop_w])
-        # (..., C, H', W')
+        # (..., H', W')
         image = transforms_functional.pad(image, padding=[0, 0, pad_w, pad_h])
         return image, (crop_h, crop_w)
 
