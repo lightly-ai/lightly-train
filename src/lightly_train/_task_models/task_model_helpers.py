@@ -91,6 +91,18 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
         "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
     ),
+    "dinov3/vits16-eomt-inst-coco": (
+        "/dinov3_eomt/dinov3_eomt_vits16_inst_coco.pt",
+        "b54dafb12d550958cc5c9818b061fba0d8b819423581d02080221d0199e1cc37",
+    ),
+    "dinov3/vitb16-eomt-inst-coco": (
+        "/dinov3_eomt/dinov3_eomt_vitb16_inst_coco.pt",
+        "a57b5e7afd5cd64422d74d400f30693f80f96fa63184960250fb0878afd3c7f6",
+    ),
+    "dinov3/vitl16-eomt-inst-coco": (
+        "/dinov3_eomt/dinov3_eomt_vitl16_inst_coco.pt",
+        "1aac5ac16dcbc1a12cc6f8d4541bea5e7940937a49f0b1dcea7394956b6e46e5",
+    ),
 }
 
 

@@ -21,16 +21,17 @@ You can also explore running inference and training these models using our Colab
 
 ### COCO
 
-| Model | #Params (M) | Input Size | Val mAP mask | Avg. FPS |
-|----------------|-------------|------------|----------|----------|
-| dinov3/vits16-eomt-inst-coco | 21.6 | 640x640 | Soon! | Soon! |
-| dinov3/vitb16-eomt-inst-coco | 85.7 | 640x640 | Soon! | Soon! |
-| dinov3/vitl16-eomt-inst-coco | 303.2 | 640x640 | Soon! | Soon! |
+| Implementation | Model | #Params (M) | Input Size | Val mAP mask | Avg. FPS |
+|----------------|----------------|-------------|------------|----------|----------|
+| LightlyTrain | dinov3/vits16-eomt-inst-coco | 21.6 | 640x640 | 32.6 | Soon! |
+| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 85.7 | 640x640 | 40.3 | Soon! |
+| LightlyTrain | dinov3/vitl16-eomt-inst-coco | 303.2 | 640x640 | **46.2** | Soon! |
+| Original EoMT | dinov3/vitl16-eomt-inst-coco | 303.2 | 640x640 | 45.9 | - |
 
-Training follows the protocol in the original EoMT paper. Models are trained for 90K
-steps (~12 epochs) on the COCO dataset with batch size `16` and learning rate `2e-4`.
-The average FPS values were measured with model compilation using `torch.compile` on a
-single NVIDIA T4 GPU with FP16 precision.
+Training follows the protocol in the original [EoMT paper](https://arxiv.org/abs/2503.19108).
+Models are trained for 90K steps (~12 epochs) on the COCO dataset with batch size `16`
+and learning rate `2e-4`. The average FPS values were measured with model compilation
+using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 
 (instance-segmentation-train)=
 
