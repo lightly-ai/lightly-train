@@ -126,6 +126,35 @@ fig.savefig("predictions.png")
 
 The predicted boxes are in the absolute (x_min, y_min, x_max, y_max) format, i.e. represent the size of the dimension of the bounding boxes in pixels.
 
+<!--
+# Figure created with
+import lightly_train
+import matplotlib.pyplot as plt
+from torchvision.io import decode_image
+from torchvision.utils import draw_bounding_boxes
+import urllib.request
+
+model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
+img = "http://images.cocodataset.org/val2017/000000577932.jpg"
+results = model.predict(img)
+
+urllib.request.urlretrieve(img, "/tmp/image.jpg")
+image = decode_image("/tmp/image.jpg")
+image_with_boxes = draw_bounding_boxes(
+    image,
+    boxes=results["bboxes"],
+    labels=[model.classes[label.item()] for label in results["labels"]],
+)
+fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+ax.imshow(image_with_boxes.permute(1, 2, 0))
+ax.axis("off")
+fig.savefig("out/preds/det.jpg", bbox_inches="tight")
+fig.show()
+-->
+
+```{figure} /_static/images/object_detection/street.jpg
+```
+
 ## Out
 
 The `out` argument specifies the output directory where all training logs, model exports,
