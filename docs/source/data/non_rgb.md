@@ -2,9 +2,9 @@
 
 # Non-RGB Images
 
-Besides normal RGB images, LightlyTrain also supports single- and multi-channel non-RGB image input for pretraining, distillation, and fine-tuning.
+In addition to standard RGB images, LightlyTrain supports single- and multi-channel non-RGB inputs for pretraining, distillation, and fine-tuning.
 
-You can specify the number of channels of your images with `transform_args={"num_channels": <num channels>}` in the respecitive training function in LightlyTrain. For example, to use 4-channel images for fine-tuning a semantic segmentation model, you can do:
+Specify the number of image channels via `transform_args={"num_channels": <num channels>}` in the respective LightlyTrain training function. For example, to fine-tune a semantic segmentation model on 4-channel images:
 
 ```python
 import lightly_train
@@ -29,12 +29,12 @@ lightly_train.train_semantic_segmentation(
 ```
 
 ```{note}
-In the above example, you might also want to customize the image normalization with the `normalize` parameter in `transform_args` to fit your use case. If you don't explicitly set this parameter, LightlyTrain will simply repeat the ImageNet default `mean` and `std` values of the RGB channels for the extra channels.
+You may also want to customize normalization with the `normalize` parameter in `transform_args`. If you don't set it, LightlyTrain repeats the ImageNet default RGB `mean` and `std` values for any additional channels.
 ```
 
 ## Models
 
-Currently, multi-channel image input is supported by the following models:
+The following models support multi-channel image input:
 
 | Library | Supported Models | Docs |
 |---------|------------------|------|
@@ -50,7 +50,7 @@ The following image transforms are disabled for non-RGB images:
 - `RandomGrayscale`
 - `Solarize`
 
-If, for any reason, you want to disable other transforms whose defaults are not compatible with your input, you can do so by setting the respective transform arguments to `None`. For example, to disable `GaussianBlur`, you can do:
+If any other transform defaults are incompatible with your data, you can disable them by setting the corresponding transform argument to `None`. For example, to disable `GaussianBlur`:
 
 ```python
 transform_args={
@@ -59,4 +59,4 @@ transform_args={
 },
 ```
 
-Please check [Configure Transform Arguments](#method-transform-args) for more details on how to customize transforms.
+See [Configure Transform Arguments](#method-transform-args) for details on customizing transforms.

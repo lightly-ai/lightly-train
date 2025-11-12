@@ -10,19 +10,19 @@ Currently, we do not support loading DICOM images as segmentation masks.
 
 ## PyDICOM Support
 
-Under the hood, LightlyTrain uses the [`pydicom`](https://pydicom.github.io/pydicom/stable/index.html) library to read and process DICOM images. It is added as an optional dependency to LightlyTrain.
+Under the hood, LightlyTrain uses the [`pydicom`](https://pydicom.github.io/pydicom/stable/index.html) library to read and process DICOM images. It is included as an optional dependency.
 
-To install LightlyTrain with `pydicom`, you should do:
+To install LightlyTrain with PyDICOM support, do:
 
 ```bash
 pip install lightly-train[dicom]
 ```
 
-For some types of DICOM images, additional processing might be needed. LightlyTrain does the following for you automatically with the help of `pydicom` functions:
+For DICOM images that may require additional processing, LightlyTrain automatically applies the following using `pydicom` functions:
 
 - converting color space from `YBR` to `RGB` via [`convert_color_space`](https://pydicom.github.io/pydicom/stable/reference/generated/pydicom.pixels.convert_color_space.html)
-- decoding palette color images to `RGB` images via [`apply_color_lut`](https://pydicom.github.io/pydicom/stable/reference/generated/pydicom.pixels.apply_color_lut.html)
-- rescaling image to HU values via [`apply_modality_lut`](https://pydicom.github.io/pydicom/stable/reference/generated/pydicom.pixels.apply_modality_lut.html)
+- decoding palette color images to `RGB` via [`apply_color_lut`](https://pydicom.github.io/pydicom/stable/reference/generated/pydicom.pixels.apply_color_lut.html)
+- rescaling images to HU values via [`apply_modality_lut`](https://pydicom.github.io/pydicom/stable/reference/generated/pydicom.pixels.apply_modality_lut.html)
 
 Please refer to the respective `pydicom` documentation for more details on these functions.
 
@@ -39,4 +39,4 @@ The following DICOM image types listed in `pydicom.examples` are supported:
 | palette_color | US Image | 1 |
 | jpeg2k | US Image | 3 |
 
-For now, LightlyTrain only supports loading one DICOM file as one image. Combining slices from multiple DICOM files within a directory into one 3D image is not supported. Therefore, RT Dose (`rt_dose`), ECG Waveform (`waveform`), and US Multi-frame Image (`ybr_color`) images are not supported.
+Currently, LightlyTrain loads one DICOM file as one image. Combining slices from multiple DICOM files into a 3D volume is not supported. As a result, RT Dose (`rt_dose`), ECG Waveform (`waveform`), and US Multi-frame Image (`ybr_color`) are not supported.

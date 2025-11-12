@@ -2,19 +2,19 @@
 
 # Data Input
 
-LightlyTrain supports image input beyond normal RGB images; for specific domain use cases like medical imaging, LightlyTrain also supports loading images in domain-specific formats.
+LightlyTrain supports images beyond standard RGB. For domain-specific use cases, such as medical imaging, it also loads images from specialized formats.
 
 ## Non-RGB Images
 
-LightlyTrain allows using non-RGB images like RGB-NIR with its single- and multi-channel image support. Please check the [Non-RGB Images](#non-rgb) page for more details.
+LightlyTrain supports single- and multi-channel images, including modalities such as RGB-NIR. See the [Non-RGB Images](non_rgb) page for details.
 
 ## Domain-Specific Images
 
-Currently, LightlyTrain supports the following domain-specific image format:
+LightlyTrain currently supports the following domain-specific image format:
 
 - [DICOM](#dicom-support)
 
-Please check the respective support page for more details.
+See the dedicated page for more details.
 
 ```{toctree}
 ---
