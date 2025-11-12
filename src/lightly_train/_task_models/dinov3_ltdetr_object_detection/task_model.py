@@ -171,6 +171,7 @@ class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
 class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [224, 224, 224]
     hidden_dim: int = 224
+    num_layers: int = 4
     num_points: list[int] = [3, 6, 3]
     dim_feedforward: int = 1792
 
