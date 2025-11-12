@@ -4,7 +4,7 @@
 
 ```{note}
 🔥 LightlyTrain now supports training **DINOv3**-based instance segmentation models
-with the the [EoMT architecture](https://arxiv.org/abs/2503.19108) by Kerssies et al.!
+with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by Kerssies et al.!
 ```
 
 (instance-segmentation-benchmark-results)=
@@ -348,7 +348,7 @@ This will pick up exactly where the training left off.
 
 - You **must use the same `out` directory** as the original run.
 - You **must not change any training parameters** (e.g., learning rate, batch size, data, etc.).
-- This is intended for continuing the *same* run without modification.
+- This is intended for continuing the **same** run without modification.
 
 This will utilize the `.ckpt` checkpoint file `out/my_experiment/checkpoints/last.ckpt`
 to restore the entire training state, including model weights, optimizer state, and epoch count.
