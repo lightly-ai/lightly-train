@@ -389,7 +389,6 @@ def vit_small(patch_size=16, **kwargs) -> DinoVisionTransformer:
         ffn_ratio=4,
         **kwargs,
     )
-    model.init_weights()
     return model
 
 
@@ -402,7 +401,6 @@ def vit_base(patch_size=16, **kwargs) -> DinoVisionTransformer:
         ffn_ratio=4,
         **kwargs,
     )
-    model.init_weights()
     return model
 
 
@@ -415,7 +413,6 @@ def vit_large(patch_size=16, **kwargs) -> DinoVisionTransformer:
         ffn_ratio=4,
         **kwargs,
     )
-    model.init_weights()
     return model
 
 
@@ -428,7 +425,6 @@ def vit_so400m(patch_size=16, **kwargs) -> DinoVisionTransformer:
         ffn_ratio=3.777777778,
         **kwargs,
     )
-    model.init_weights()
     return model
 
 
@@ -441,7 +437,6 @@ def vit_huge2(patch_size=16, **kwargs) -> DinoVisionTransformer:
         ffn_ratio=4,
         **kwargs,
     )
-    model.init_weights()
     return model
 
 
@@ -457,7 +452,6 @@ def vit_giant2(patch_size=16, **kwargs) -> DinoVisionTransformer:
         ffn_ratio=4,
         **kwargs,
     )
-    model.init_weights()
     return model
 
 
@@ -470,5 +464,4 @@ def vit_7b(patch_size=16, **kwargs) -> DinoVisionTransformer:
         ffn_ratio=3,
         **kwargs,
     )
-    model.init_weights()
     return model
