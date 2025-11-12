@@ -22,8 +22,14 @@ from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
+    DINOv3STAs,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     HybridEncoder,
@@ -117,6 +123,21 @@ class _HybridEncoderTinyConfig(_HybridEncoderConfig):
     act: str = "silu"
 
 
+class _HybridEncoderViTSConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [224, 224, 224]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 224
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 896
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1.0
+    act: str = "silu"
+
+
 class _RTDETRTransformerv2Config(PydanticConfig):
     feat_channels: list[int] = [256, 256, 256]
     feat_strides: list[int] = [8, 16, 32]
@@ -145,6 +166,20 @@ class _RTDETRTransformerv2SmallConfig(_RTDETRTransformerv2Config):
 
 class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [384, 384, 384]
+
+
+class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [224, 224, 224]
+    hidden_dim: int = 224
+    num_points: list[int] = [3, 6, 3]
+    dim_feedforward: int = 1792
+
+
+class _RTDETRBackboneWrapperViTSConfig(PydanticConfig):
+    interaction_indexes: list[int] = [5, 8, 11]
+    finetune: bool = True
+    conv_inplane: int = 32
+    hidden_dim: int = 224
 
 
 class _RTDETRPostProcessorConfig(PydanticConfig):
@@ -205,6 +240,21 @@ class _DINOv3LTDETRObjectDetectionTinyConfig(_DINOv3LTDETRObjectDetectionConfig)
     )
 
 
+class _DINOv3LTDETRObjectDetectionViTSConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTSConfig = Field(
+        default_factory=_HybridEncoderViTSConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTSConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTSConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+    backbone_wrapper: _RTDETRBackboneWrapperViTSConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTSConfig
+    )
+
+
 class DINOv3LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
 
@@ -250,16 +300,38 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             model_args=backbone_args,
             load_weights=load_weights,
         )
-        assert isinstance(dinov3, ConvNeXt)
-        self.backbone: DINOv3ConvNextWrapper = DINOv3ConvNextWrapper(model=dinov3)
+        assert isinstance(dinov3, (ConvNeXt, DinoVisionTransformer))
 
         config_mapping = {
-            "convnext-tiny": _DINOv3LTDETRObjectDetectionTinyConfig,
-            "convnext-small": _DINOv3LTDETRObjectDetectionSmallConfig,
-            "convnext-base": _DINOv3LTDETRObjectDetectionBaseConfig,
-            "convnext-large": _DINOv3LTDETRObjectDetectionLargeConfig,
+            "vits16": (_DINOv3LTDETRObjectDetectionViTSConfig, DINOv3STAs),
+            "convnext-tiny": (
+                _DINOv3LTDETRObjectDetectionTinyConfig,
+                DINOv3ConvNextWrapper,
+            ),
+            "convnext-small": (
+                _DINOv3LTDETRObjectDetectionSmallConfig,
+                DINOv3ConvNextWrapper,
+            ),
+            "convnext-base": (
+                _DINOv3LTDETRObjectDetectionBaseConfig,
+                DINOv3ConvNextWrapper,
+            ),
+            "convnext-large": (
+                _DINOv3LTDETRObjectDetectionLargeConfig,
+                DINOv3ConvNextWrapper,
+            ),
         }
-        config = config_mapping[parsed_name["backbone_name"]]()
+        config_cls, wrapper_cls = config_mapping[parsed_name["backbone_name"]]
+        config = config_cls()
+
+        if hasattr(config, "backbone_wrapper"):
+            # ViT models.
+            self.backbone = wrapper_cls(
+                model=dinov3, **config.backbone_wrapper.model_dump()
+            )
+        else:
+            # ConvNext models.
+            self.backbone = wrapper_cls(model=dinov3)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()
