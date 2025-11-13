@@ -23,8 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add support for DINOv3 [instance segmentation](https://docs.lightly.ai/train/stable/object_detection.html)inference and fine-tuning.
-- Add support for loading [DICOM images](https://docs.lightly.ai/train/stable/data/dicom.html) as input data for training and inference.
+- Add support for DINOv3 [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html)
+  inference and fine-tuning.
+- Add support for loading [DICOM images](https://docs.lightly.ai/train/stable/data/dicom.html)
+  as input data for training and inference.
 - Add event tracking, disable with `LIGHTLY_TRAIN_EVENTS_DISABLED=1`
 - Add support for fine-tuning object detection models with custom image resolutions.
 
