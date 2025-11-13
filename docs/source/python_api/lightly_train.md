@@ -9,7 +9,7 @@ Documentation of the public API of the `lightly_train` package.
 ```{eval-rst}
 
 .. automodule:: lightly_train
-    :members: embed, export, export_onnx, load_model, list_methods, list_models, train, train_semantic_segmentation, train_object_detection
+    :members: embed, export, export_onnx, list_methods, list_models, load_model, train, train_instance_segmentation, train_object_detection, train_semantic_segmentation
 
 ```
 
@@ -17,11 +17,7 @@ Documentation of the public API of the `lightly_train` package.
 
 ```{eval-rst}
 
-.. autoclass:: lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model.DINOv2EoMTSemanticSegmentation
-    :members: predict
-    :exclude-members: __init__, __new__
-
-.. autoclass:: lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model.DINOv3EoMTSemanticSegmentation
+.. autoclass:: lightly_train._task_models.dinov3_eomt_instance_segmentation.task_model.DINOv3EoMTInstanceSegmentation
     :members: predict
     :exclude-members: __init__, __new__
 
@@ -32,5 +28,15 @@ Documentation of the public API of the `lightly_train` package.
 .. autoclass:: lightly_train._task_models.dinov3_ltdetr_object_detection.task_model.DINOv3LTDETRObjectDetection
     :members: predict
     :exclude-members: __init__, __new__
+
+.. autoclass:: lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model.DINOv2EoMTSemanticSegmentation
+    :members: predict
+    :exclude-members: __init__, __new__
+
+.. autoclass:: lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model.DINOv3EoMTSemanticSegmentation
+    :members: predict
+    :exclude-members: __init__, __new__
+
+
 
 ```
