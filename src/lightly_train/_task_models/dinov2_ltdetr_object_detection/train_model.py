@@ -18,6 +18,7 @@ from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
 from torch.optim.lr_scheduler import LRScheduler, MultiStepLR
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
@@ -137,7 +138,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         self.model_args = model_args
         self.model = DINOv2LTDETRObjectDetection(
             model_name=model_name,
-            image_size=val_transform_args.image_size,
+            image_size=no_auto(val_transform_args.image_size),
             classes=data_args.names,
             image_normalize=None,  # TODO (Lionel, 10/25): Allow custom normalization.
             backbone_weights=model_args.backbone_weights,

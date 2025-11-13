@@ -17,6 +17,7 @@ from pydantic import ConfigDict
 from torch import Tensor
 from typing_extensions import NotRequired
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.random_iou_crop import RandomIoUCrop
 from lightly_train._transforms.random_photometric_distort import (
@@ -61,7 +62,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     random_zoom_out: RandomZoomOutArgs | None
     random_iou_crop: RandomIoUCropArgs | None
     random_flip: RandomFlipArgs | None
-    image_size: tuple[int, int]
+    image_size: tuple[int, int] | Literal["auto"]
     # TODO: Lionel (09/25): Add Normalize
     stop_policy: StopPolicyArgs | None
     scale_jitter: ScaleJitterArgs | None
@@ -72,18 +73,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
-        if self.num_channels == "auto":
-            if self.channel_drop is not None:
-                self.num_channels = self.channel_drop.num_channels_keep
-            else:
-                # TODO: Lionel (09/25): Get num_channels from normalization.
-                self.num_channels = 3
-
-        height, width = self.image_size
-        for field_name in self.__class__.model_fields:
-            field = getattr(self, field_name)
-            if hasattr(field, "resolve_auto"):
-                field.resolve_auto(height=height, width=width)
+        pass
 
     def resolve_incompatible(self) -> None:
         # TODO: Lionel (09/25): Add checks for incompatible args.
@@ -174,8 +164,8 @@ class ObjectDetectionTransform(TaskTransform):
         if transform_args.resize is not None:
             self.individual_transforms += [
                 Resize(
-                    height=transform_args.resize.height,
-                    width=transform_args.resize.width,
+                    height=no_auto(transform_args.resize.height),
+                    width=no_auto(transform_args.resize.width),
                 )
             ]
 
