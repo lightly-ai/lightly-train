@@ -117,8 +117,7 @@ masks = model.predict("path/to/image.jpg")
 
 After making the predictions with the model weights, you can visualize the predicted masks like this:
 
-```python
-# ruff: noqa: F821
+```python skip_ruff
 import matplotlib.pyplot as plt
 import torch
 from torchvision.io import read_image
