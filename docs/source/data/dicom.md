@@ -40,3 +40,33 @@ The following DICOM image types listed in `pydicom.examples` are supported:
 | jpeg2k | US Image | 3 |
 
 Currently, LightlyTrain loads one DICOM file as one image. Combining slices from multiple DICOM files into a 3D volume is not supported. As a result, RT Dose (`rt_dose`), ECG Waveform (`waveform`), and US Multi-frame Image (`ybr_color`) are not supported.
+
+## Transforms
+
+When training with DICOM images, you may need to customize the applied transforms for medical domains. We recommend keeping spatial operations such as `RandomResize`, `RandomFlip`, and `RandomRotation`. We strongly suggest disabling the following transforms—even for 3D RGB DICOM files—as they often do not make sense for medical images:
+
+- `Solarize`
+- `RandomGrayScale`
+- `ColorJitter`
+- `ChannelDrop`
+
+Disable them by setting the corresponding transform argument to `None`:
+
+```python
+transform_args={
+    "solarize": None,
+    "random_grayscale": None,
+    "color_jitter": None,
+    "channel_drop": None,
+},
+```
+
+Also be aware that some transform options may be inappropriate depending on the acquisition protocol. For example, vertical flips in `RandomFlip` may not be suitable for certain medical images. To disable vertical flips while keeping horizontal flips:
+
+```python
+transform_args={
+    "random_flip": {
+        "vertical_prob": 0.0,
+    },
+},
+```
