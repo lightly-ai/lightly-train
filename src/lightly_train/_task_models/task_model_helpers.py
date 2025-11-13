@@ -32,11 +32,11 @@ LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     "dinov2/vits14-noreg-ltdetr-coco": (
-        "/dinov2_ltdetr_2/ltdetr_vits14dinov2_coco.pt",
-        "245e9c52d6f0015822e5c7b239ea3d0ac80141c41cbba99f3350854a35dbdcde",
+        "dinov2_vits14_noreg_ltdetr_coco_251113_fdd81fc4.pt",
+        "fdd81fc445f824b45a36d3db4778354703d706bbc1fc9af0aeba9db74e3fee7f",
     ),
     "dinov2/vits14-ltdetr-dsp-coco": (
-        "/dinov2_ltdetr_2/ltdetr_vits14dinov2_coco_dsp.pt",
+        "dinov2_ltdetr_2/ltdetr_vits14dinov2_coco_dsp.pt",
         "7e1f91b251ba0b796d88fb68276a24a52341aa6e8fb40abe9f730c2a093a5b40",
     ),
     "dinov3/convnext-tiny-ltdetr-coco": (
@@ -56,39 +56,39 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "9946dca52dc102994a2705984e0cca05ce2f0337ba8417c0db88c934c6c052bd",
     ),
     "dinov3/vits16-eomt-coco": (
-        "dinov2_vits14_ltdetr_coco_251113_fdd81fc4.pt",
-        "fdd81fc445f824b45a36d3db4778354703d706bbc1fc9af0aeba9db74e3fee7f",
+        "dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt",
+        "5078dd29dc46b83861458f45b6ed94634faaf00bebcd9f0d95c1d808602b1f0c",
     ),
     "dinov3/vitb16-eomt-coco": (
-        "/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt",
+        "dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt",
         "721a84dc05176a1def4fa15b5ddb8fd4e284c200c36d8af8d60d7a0704820bc5",
     ),
     "dinov3/vitl16-eomt-coco": (
-        "/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt",
+        "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt",
         "b4b31eaaec5f4ddb1c4e125c3eca18f834841c6d6552976b0c2172ff798fb75a",
     ),
     "dinov3/vits16-eomt-cityscapes": (
-        "/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt",
+        "dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt",
         "ef7d54eac202bb0a6707fd7115b689a748d032037eccaa3a6891b57b83f18b7e",
     ),
     "dinov3/vitb16-eomt-cityscapes": (
-        "/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt",
+        "dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt",
         "e78e6b1f372ac15c860f64445d8265fd5e9d60271509e106a92b7162096c9560",
     ),
     "dinov3/vitl16-eomt-cityscapes": (
-        "/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt",
+        "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt",
         "3f397e6ca0af4555adb1da9efa489b734e35fbeac15b4c18e408c63922b41f6c",
     ),
     "dinov3/vits16-eomt-ade20k": (
-        "/dinov3_eomt/lightlytrain_dinov3_eomt_vits16_autolabel_sun397.pt",
+        "dinov3_eomt/lightlytrain_dinov3_eomt_vits16_autolabel_sun397.pt",
         "f9f002e5adff875e0a97a3b310c26fe5e10c26d69af4e830a4a67aa7dda330aa",
     ),
     "dinov3/vitb16-eomt-ade20k": (
-        "/dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_autolabel_sun397.pt",
+        "dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_autolabel_sun397.pt",
         "400f7a1b42a7b67babf253d6aade0be334173d70e7351a01159698ac2d2335ca",
     ),
     "dinov3/vitl16-eomt-ade20k": (
-        "/dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
+        "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
         "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
     ),
 }
