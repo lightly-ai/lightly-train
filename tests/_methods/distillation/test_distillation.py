@@ -489,6 +489,32 @@ class TestDistillation:
             "Teacher weights should not be saved in the final checkpoint."
         )
 
+    def test_teacher_parameters_are_frozen(self) -> None:
+        """Teacher parameters should not require gradients."""
+
+        # Setup constants.
+        batch_size = 2
+        student_embed_dim = 32
+        queue_size = 10
+
+        # Dummy student model with real params.
+        student_model = EmbeddingModel(
+            wrapped_model=DummyCustomModel(student_embed_dim)
+        )
+
+        # Create distillation instance.
+        distill = Distillation(
+            method_args=DistillationArgs(queue_size=queue_size),
+            optimizer_args=DistillationLARSArgs(),
+            embedding_model=student_model,
+            global_batch_size=batch_size,
+            num_input_channels=3,
+        )
+
+        assert all(
+            not p.requires_grad for p in distill.teacher_embedding_model.parameters()
+        ), "Teacher parameters should be frozen (requires_grad=False)."
+
     @pytest.mark.parametrize(
         "global_batch_size, expected_lr",
         [
