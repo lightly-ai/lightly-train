@@ -253,6 +253,7 @@ export
 embed
 models/index
 methods/index
+data/index
 performance/index
 docker
 tutorials/index
