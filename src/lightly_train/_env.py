@@ -164,6 +164,7 @@ class Env:
         name="LIGHTLY_TRAIN_POSTHOG_KEY",
         _default="phc_eaQUeNNGlziv69A7KiNtBFhIahOicjvxAQvvSOLe94A",
         _type=str,
+        convert_empty_str_to_default=False,
     )
     LIGHTLY_TRAIN_EVENTS_DISABLED: EnvVar[bool] = EnvVar(
         name="LIGHTLY_TRAIN_EVENTS_DISABLED",
