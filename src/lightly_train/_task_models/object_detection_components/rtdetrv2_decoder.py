@@ -22,6 +22,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
+from torch import Tensor
 
 from .denoising import get_contrastive_denoising_training_group
 from .utils import (
@@ -476,11 +477,12 @@ class RTDETRTransformerv2(nn.Module):
         )
 
         # init encoder output anchors and valid_mask
+        self.anchors: Tensor
+        self.valid_mask: Tensor
         if self.eval_spatial_size:
             anchors, valid_mask = self._generate_anchors()
-            # TODO Lionel (09/25): Remove, we should not save the anchors in the checkpoints.
-            self.register_buffer("anchors", anchors)
-            self.register_buffer("valid_mask", valid_mask)
+            self.register_buffer("anchors", anchors, persistent=False)
+            self.register_buffer("valid_mask", valid_mask, persistent=False)
 
         self._reset_parameters()
 

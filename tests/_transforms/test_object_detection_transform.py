@@ -152,7 +152,7 @@ class TestObjectDetectionTransform:
         stop_policy = None  # TODO: Lionel (09/25) Pass as function argument.
         transform_args = ObjectDetectionTransformArgs(
             channel_drop=channel_drop,
-            num_channels="auto",
+            num_channels=3,
             photometric_distort=photometric_distort,
             random_zoom_out=random_zoom_out,
             random_iou_crop=random_iou_crop,
