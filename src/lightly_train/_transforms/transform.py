@@ -34,8 +34,14 @@ class ChannelDropArgs(PydanticConfig):
 
 
 class ResizeArgs(PydanticConfig):
-    height: int
-    width: int
+    height: int | Literal["auto"]
+    width: int | Literal["auto"]
+
+    def resolve_auto(self, height: int, width: int) -> None:
+        if self.height == "auto":
+            self.height = height
+        if self.width == "auto":
+            self.width = width
 
 
 class RandomResizeArgs(PydanticConfig):
