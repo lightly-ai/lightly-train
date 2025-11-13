@@ -61,12 +61,12 @@ transform_args={
 },
 ```
 
-Also be aware that some transform options may be inappropriate depending on the acquisition protocol. For example, vertical flips in `RandomFlip` may not be suitable for certain medical images. To disable vertical flips while keeping horizontal flips:
+Also be aware that some transform options may be inappropriate depending on the acquisition protocol. For example, horizontal flips in `RandomFlip` may not be suitable for certain medical images. To disable horizontal flips:
 
 ```python
 transform_args={
     "random_flip": {
-        "vertical_prob": 0.0,
+        "horizontal_prob": 0.0,
     },
 },
 ```

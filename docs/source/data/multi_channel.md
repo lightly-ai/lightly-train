@@ -2,7 +2,11 @@
 
 # Single- and Multi-Channel Images
 
-In addition to standard RGB images, LightlyTrain supports single- and multi-channel inputs for pretraining, distillation, and fine-tuning.
+In addition to standard RGB images, LightlyTrain supports single- and multi-channel input for pretraining, and fine-tuning.
+
+```{note}
+Multi-channel input is not supported for direct distillation because the DINOv2/v3 teacher models expect 3-channel input. However, you could load n-channel images and then reduce them to 3-channels with the [`ChannelDrop`](#method-transform-args-channel-drop) augmentation.
+```
 
 Specify the number of image channels and normalization parameteres in the respective LightlyTrain training function. For example, to fine-tune a semantic segmentation model on 4-channel images:
 
