@@ -47,6 +47,7 @@ from lightly_train._transforms.transform import (
     SmallestMaxSizeArgs,
 )
 from lightly_train.types import (
+    ImageSizeTuple,
     NDArrayBBoxes,
     NDArrayBinaryMasksInt,
     NDArrayClasses,
@@ -71,7 +72,7 @@ class InstanceSegmentationTransformOutput(TaskTransformOutput):
 
 
 class InstanceSegmentationTransformArgs(TaskTransformArgs):
-    image_size: tuple[int, int] | Literal["auto"] | None
+    image_size: ImageSizeTuple | Literal["auto"] | None
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
     normalize: NormalizeArgs | Literal["auto"]

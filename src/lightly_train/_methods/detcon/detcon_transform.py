@@ -29,7 +29,7 @@ from lightly_train._transforms.view_transform import (
     ViewTransform,
     ViewTransformArgs,
 )
-from lightly_train.types import TransformInput, TransformOutput
+from lightly_train.types import ImageSizeTuple, TransformInput, TransformOutput
 
 
 class DetConSColorJitterArgs(ColorJitterArgs):
@@ -58,7 +58,7 @@ class DetConSView1TransformArgs(PydanticConfig):
 
 
 class DetConSTransformArgs(MethodTransformArgs):
-    image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
+    image_size: ImageSizeTuple = (224, 224)
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     random_resize: RandomResizeArgs | None = Field(default_factory=RandomResizeArgs)
@@ -110,7 +110,7 @@ class DetConBView1TransformArgs(PydanticConfig):
 
 
 class DetConBTransformArgs(MethodTransformArgs):
-    image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
+    image_size: ImageSizeTuple = (224, 224)
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     random_resize: RandomResizeArgs | None = Field(default_factory=RandomResizeArgs)

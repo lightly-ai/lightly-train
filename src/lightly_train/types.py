@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, TypedDict, Union
 
 import numpy as np
+from pydantic import Field
 import torch
 from numpy.typing import NDArray
 from torch import Tensor
-from typing_extensions import NotRequired
+from typing_extensions import Annotated, NotRequired
 
 # Underlying model type of the packages. Most of the time this is a torch.nn.Module
 # however, for in some instances they can be custom classes with nn.Modules only in the
@@ -149,3 +150,6 @@ class InstanceSegmentationBatch(TypedDict):
 ParamsT = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
 
 PathLike = Union[str, Path]
+
+# Allow pydantic to automatically convert lists or other iterables to tuples.
+ImageSizeTuple = Annotated[tuple[int, int], Field(strict=False)]

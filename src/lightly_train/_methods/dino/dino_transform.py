@@ -30,6 +30,7 @@ from lightly_train._transforms.view_transform import (
     ViewTransformArgs,
 )
 from lightly_train.types import (
+    ImageSizeTuple,
     TransformInput,
     TransformOutput,
 )
@@ -83,9 +84,7 @@ class DINOGlobalView1TransformArgs(PydanticConfig):
 
 class DINOLocalViewTransformArgs(PydanticConfig):
     num_views: int = 6
-    # Strict is set to False because OmegaConf does not support parsing tuples from the
-    # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
-    view_size: tuple[int, int] = Field(default=(96, 96), strict=False)
+    view_size: ImageSizeTuple = (96, 96)
     random_resize: DINOLocalViewRandomResizeArgs | None = Field(
         default_factory=DINOLocalViewRandomResizeArgs
     )
@@ -99,7 +98,7 @@ class DINOTransformArgs(MethodTransformArgs):
     # transformers. We should add a check for the model type and use the appropriate
     # scales accordingly.
     # https://github.com/facebookresearch/dino#resnet-50-and-other-convnets-trainings
-    image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
+    image_size: ImageSizeTuple = (224, 224)
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     random_resize: DINORandomResizeArgs | None = Field(

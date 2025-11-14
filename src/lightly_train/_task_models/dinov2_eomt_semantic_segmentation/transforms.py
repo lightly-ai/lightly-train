@@ -24,6 +24,7 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
+from lightly_train.types import ImageSizeTuple
 
 
 class DINOv2EoMTSemanticSegmentationColorJitterArgs(ColorJitterArgs):
@@ -72,7 +73,7 @@ class DINOv2EoMTSemanticSegmentationTrainTransformArgs(
     Defines default transform arguments for semantic segmentation training with DINOv2.
     """
 
-    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
@@ -119,7 +120,7 @@ class DINOv2EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
     Defines default transform arguments for semantic segmentation validation with DINOv2.
     """
 
-    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"

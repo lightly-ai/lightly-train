@@ -24,6 +24,7 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
+from lightly_train.types import ImageSizeTuple
 
 
 class DINOv3EoMTSemanticSegmentationColorJitterArgs(ColorJitterArgs):
@@ -73,7 +74,7 @@ class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
     """
 
     # TODO(Guarin, 08/25): Check if we should change default to 512.
-    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
@@ -120,7 +121,7 @@ class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
     Defines default transform arguments for semantic segmentation validation with DINOv3.
     """
 
-    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"

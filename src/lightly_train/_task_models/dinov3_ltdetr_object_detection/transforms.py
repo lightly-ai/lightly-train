@@ -25,6 +25,7 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     StopPolicyArgs,
 )
+from lightly_train.types import ImageSizeTuple
 
 
 class DINOv3LTDETRObjectDetectionRandomPhotometricDistortArgs(
@@ -104,7 +105,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     random_flip: DINOv3LTDETRObjectDetectionRandomFlipArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionRandomFlipArgs
     )
-    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
     resize: ResizeArgs | None = None
@@ -148,7 +149,7 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_zoom_out: None = None
     random_iou_crop: None = None
     random_flip: None = None
-    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     stop_policy: None = None
     resize: ResizeArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionResizeArgs
