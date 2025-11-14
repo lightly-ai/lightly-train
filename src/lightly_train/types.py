@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, TypedDict, Union
 
 import numpy as np
-from pydantic import Field
 import torch
 from numpy.typing import NDArray
+from pydantic import Field
 from torch import Tensor
 from typing_extensions import Annotated, NotRequired
 
