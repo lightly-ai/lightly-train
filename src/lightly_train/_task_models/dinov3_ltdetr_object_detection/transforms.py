@@ -25,6 +25,7 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     StopPolicyArgs,
 )
+from lightly_train.types import ImageSizeTuple
 
 
 class DINOv3LTDETRObjectDetectionRandomPhotometricDistortArgs(
@@ -104,7 +105,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     random_flip: DINOv3LTDETRObjectDetectionRandomFlipArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionRandomFlipArgs
     )
-    image_size: tuple[int, int] | Literal["auto"] = "auto"
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
     resize: ResizeArgs | None = None
@@ -132,9 +133,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
                 self.num_channels = 3
 
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (640, 640))
-            assert isinstance(image_size, tuple)
-            self.image_size = image_size
+            self.image_size = tuple(model_init_args.get("image_size", (640, 640)))
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
@@ -150,7 +149,7 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_zoom_out: None = None
     random_iou_crop: None = None
     random_flip: None = None
-    image_size: tuple[int, int] | Literal["auto"] = "auto"
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     stop_policy: None = None
     resize: ResizeArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionResizeArgs
@@ -176,9 +175,7 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
                 self.num_channels = 3
 
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (640, 640))
-            assert isinstance(image_size, tuple)
-            self.image_size = image_size
+            self.image_size = tuple(model_init_args.get("image_size", (640, 640)))
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:

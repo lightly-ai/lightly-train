@@ -45,7 +45,7 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
-from lightly_train.types import NDArrayImage, NDArrayMask
+from lightly_train.types import ImageSizeTuple, NDArrayImage, NDArrayMask
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class SemanticSegmentationTransformOutput(TaskTransformOutput):
 
 class SemanticSegmentationTransformArgs(TaskTransformArgs):
     ignore_index: int
-    image_size: tuple[int, int] | Literal["auto"]
+    image_size: ImageSizeTuple | Literal["auto"]
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
     normalize: NormalizeArgs | Literal["auto"]

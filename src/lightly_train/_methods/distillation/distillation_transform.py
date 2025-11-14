@@ -28,6 +28,7 @@ from lightly_train._transforms.view_transform import (
     ViewTransformArgs,
 )
 from lightly_train.types import (
+    ImageSizeTuple,
     TransformInput,
     TransformOutput,
 )
@@ -53,7 +54,7 @@ class DistillationGaussianBlurArgs(GaussianBlurArgs):
 
 
 class DistillationTransformArgs(MethodTransformArgs):
-    image_size: tuple[int, int] = Field(default=(224, 224), strict=False)
+    image_size: ImageSizeTuple = (224, 224)
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     random_resize: DistillationRandomResizeArgs | None = Field(

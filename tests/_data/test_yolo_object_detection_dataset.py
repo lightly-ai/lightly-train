@@ -31,6 +31,7 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     StopPolicyArgs,
 )
+from lightly_train.types import ImageSizeTuple
 
 from ..helpers import create_yolo_object_detection_dataset
 
@@ -42,7 +43,7 @@ class DummyTransformArgs(ObjectDetectionTransformArgs):
     random_zoom_out: RandomZoomOutArgs | None = None
     random_iou_crop: RandomIoUCropArgs | None = None
     random_flip: RandomFlipArgs | None = None
-    image_size: tuple[int, int] = (32, 32)
+    image_size: ImageSizeTuple = (32, 32)
     stop_policy: StopPolicyArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
     resize: ResizeArgs | None = None

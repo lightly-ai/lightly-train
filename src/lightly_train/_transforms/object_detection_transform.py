@@ -40,7 +40,7 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     StopPolicyArgs,
 )
-from lightly_train.types import NDArrayImage
+from lightly_train.types import ImageSizeTuple, NDArrayImage
 
 
 class ObjectDetectionTransformInput(TaskTransformInput):
@@ -62,7 +62,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     random_zoom_out: RandomZoomOutArgs | None
     random_iou_crop: RandomIoUCropArgs | None
     random_flip: RandomFlipArgs | None
-    image_size: tuple[int, int] | Literal["auto"]
+    image_size: ImageSizeTuple | Literal["auto"]
     # TODO: Lionel (09/25): Add Normalize
     stop_policy: StopPolicyArgs | None
     scale_jitter: ScaleJitterArgs | None
