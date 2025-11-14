@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, Iterable, List, Tuple, TypedDict, Union
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from pydantic import Field
+from pydantic import BeforeValidator, Field
 from torch import Tensor
 from typing_extensions import Annotated, NotRequired
 
@@ -151,6 +151,19 @@ ParamsT = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
 
 PathLike = Union[str, Path]
 
+
+def _try_convert_to_tuple(value: Any) -> Any:
+    # Convert to tuple if possible. Otherwise return value. Pydantic will raise the
+    # appropriate error on validation.
+    if isinstance(value, Iterable):
+        return tuple(value)
+    return value
+
+
 # Strict=False to allow pydantic to automatically convert lists or other iterables to
 # tuples. This happens only on model initialization and not on assignment.
-ImageSizeTuple = Annotated[Tuple[int, int], Field(strict=False)]
+# The BeforeValidator is required because strict=False doesn't work with older Pydantic
+# versions when the tuple is used in a union, see: https://github.com/lightly-ai/lightly-train/pull/444
+ImageSizeTuple = Annotated[
+    Tuple[int, int], Field(strict=False), BeforeValidator(_try_convert_to_tuple)
+]
