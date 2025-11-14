@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, TypedDict, Union
+from typing import Any, Callable, Dict, Iterable, List, Tuple, TypedDict, Union
 
 import numpy as np
 import torch
@@ -151,5 +151,6 @@ ParamsT = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
 
 PathLike = Union[str, Path]
 
-# Allow pydantic to automatically convert lists or other iterables to tuples.
-ImageSizeTuple = Annotated[tuple[int, int], Field(strict=False)]
+# Strict=False to allow pydantic to automatically convert lists or other iterables to
+# tuples. This happens only on model initialization and not on assignment.
+ImageSizeTuple = Annotated[Tuple[int, int], Field(strict=False)]
