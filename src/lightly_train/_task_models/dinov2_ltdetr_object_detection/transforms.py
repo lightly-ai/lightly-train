@@ -104,7 +104,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     random_flip: DINOv2LTDETRObjectDetectionRandomFlipArgs | None = Field(
         default_factory=DINOv2LTDETRObjectDetectionRandomFlipArgs
     )
-    image_size: tuple[int, int] | Literal["auto"] = "auto"
+    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
     resize: ResizeArgs | None = None
@@ -131,9 +131,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
                 self.num_channels = 3
 
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (644, 644))
-            assert isinstance(image_size, tuple)
-            self.image_size = image_size
+            self.image_size = tuple(model_init_args.get("image_size", (644, 644)))
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
@@ -149,7 +147,7 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_zoom_out: None = None
     random_iou_crop: None = None
     random_flip: None = None
-    image_size: tuple[int, int] | Literal["auto"] = "auto"
+    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
     stop_policy: None = None
     resize: ResizeArgs | None = Field(
         default_factory=DINOv2LTDETRObjectDetectionResizeArgs
@@ -174,9 +172,7 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
                 self.num_channels = 3
 
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (644, 644))
-            assert isinstance(image_size, tuple)
-            self.image_size = image_size
+            self.image_size = tuple(model_init_args.get("image_size", (644, 644)))
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:

@@ -73,7 +73,7 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     Defines default transform arguments for instance segmentation training with DINOv3.
     """
 
-    image_size: tuple[int, int] | Literal["auto"] = "auto"
+    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
@@ -93,9 +93,7 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (640, 640))
-            assert isinstance(image_size, tuple)
-            self.image_size = image_size
+            self.image_size = tuple(model_init_args.get("image_size", (640, 640)))
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:

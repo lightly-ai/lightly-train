@@ -72,7 +72,7 @@ class DINOv2LinearSemanticSegmentationTrainTransformArgs(
     Defines default transform arguments for semantic segmentation training with DINOv2.
     """
 
-    image_size: tuple[int, int] | Literal["auto"] = "auto"
+    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
@@ -91,9 +91,7 @@ class DINOv2LinearSemanticSegmentationTrainTransformArgs(
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (518, 518))
-            assert isinstance(image_size, tuple)
-            self.image_size = image_size
+            self.image_size = tuple(model_init_args.get("image_size", (518, 518)))
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
@@ -123,7 +121,7 @@ class DINOv2LinearSemanticSegmentationValTransformArgs(
     Defines default transform arguments for semantic segmentation validation with DINOv2.
     """
 
-    image_size: tuple[int, int] | Literal["auto"] = "auto"
+    image_size: tuple[int, int] | Literal["auto"] = Field(default="auto", strict=False)
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
@@ -138,9 +136,7 @@ class DINOv2LinearSemanticSegmentationValTransformArgs(
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            image_size = model_init_args.get("image_size", (518, 518))
-            assert isinstance(image_size, tuple)
-            self.image_size = image_size
+            self.image_size = tuple(model_init_args.get("image_size", (518, 518)))
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
