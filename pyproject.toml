@@ -134,6 +134,7 @@ module = [
     "lightly.*",
     "lightning_fabric.*",
     "lightning_fabric.loggers.logger",
+    "pydicom.*",
     "super_gradients.*",
     "tensorboard.*",
     "timm.*",
