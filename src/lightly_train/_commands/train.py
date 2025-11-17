@@ -46,28 +46,6 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-def _track_training_started_event(
-    *,
-    method: str,
-    model: str | Module | ModelWrapper | Any,
-    epochs: int | Literal["auto"],
-    batch_size: int,
-    devices: int | str | list[int],
-) -> None:
-    """Send the training_started analytics event with normalized metadata."""
-    model_name = model if isinstance(model, str) else model.__class__.__name__
-    device_count = devices if isinstance(devices, int) else 1
-    tracker.track_event(
-        "training_started",
-        {
-            "method": method,
-            "model_name": model_name,
-            "task_type": "ssl_pretraining",
-            "epochs": epochs,
-            "batch_size": batch_size,
-            "devices": device_count,
-        },
-    )
 
 
 def train(
@@ -358,12 +336,13 @@ def train_from_config(config: TrainConfig) -> None:
         config.callbacks = callback_helpers.get_callback_args(
             callback_args=config.callbacks
         )
-        _track_training_started_event(
-            method=config.method,
+        tracker.track_training_started(
+            task_type="ssl_pretraining",
             model=config.model,
-            epochs=config.epochs,
+            method=config.method,
             batch_size=config.batch_size,
             devices=config.devices,
+            epochs=config.epochs,
         )
         callback_instances = callback_helpers.get_callbacks(
             callback_args=config.callbacks,
