@@ -46,8 +46,6 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-
-
 def train(
     *,
     out: PathLike,

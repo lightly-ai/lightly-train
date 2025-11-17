@@ -21,7 +21,6 @@ from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._configs import validate
-from lightly_train._events import tracker
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.infinite_cycle_iterator import InfiniteCycleIterator
@@ -36,6 +35,7 @@ from lightly_train._data.yolo_instance_segmentation_dataset import (
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModelArgs
