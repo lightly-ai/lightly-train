@@ -21,6 +21,7 @@ from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._configs import validate
+from lightly_train._events import tracker
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.infinite_cycle_iterator import InfiniteCycleIterator
@@ -174,6 +175,14 @@ def train_instance_segmentation(
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
     """
+    tracker.track_training_started(
+        task_type="instance_segmentation",
+        model=model,
+        method="eomt",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
     return _train_task(config_cls=InstanceSegmentationTrainTaskConfig, **locals())
 
 
@@ -309,6 +318,14 @@ def train_object_detection(
         raise NotImplementedError(
             "Reusing the class head is not yet implemented for object detection models."
         )
+    tracker.track_training_started(
+        task_type="object_detection",
+        model=model,
+        method="ltdetr",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
     return _train_task(config_cls=ObjectDetectionTrainTaskConfig, **locals())
 
 
@@ -440,6 +457,14 @@ def train_semantic_segmentation(
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
     """
+    tracker.track_training_started(
+        task_type="semantic_segmentation",
+        model=model,
+        method="eomt",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
     return _train_task(config_cls=SemanticSegmentationTrainTaskConfig, **locals())
 
 
