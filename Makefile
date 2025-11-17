@@ -145,7 +145,7 @@ test:
 
 .PHONY: test-ci
 test-ci:
-	pytest tests -v
+	pytest tests -v --durations=20
 
 
 ### Virtual Environment

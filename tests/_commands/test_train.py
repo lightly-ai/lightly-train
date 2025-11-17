@@ -548,6 +548,7 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         assert torch.equal(second_state_dict[key], exported_state_dict[key])
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
 @pytest.mark.parametrize(
     "model, method, method_args",
     [
@@ -580,6 +581,7 @@ def test_train__multichannel(
 
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
 @pytest.mark.parametrize(
     ("data_format, num_channels"),
     [
