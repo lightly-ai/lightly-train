@@ -105,7 +105,7 @@ def track_training_started(
     task_type: str,
     model: Any,
     method: str,
-    batch_size: int,
+    batch_size: int | str,
     devices: int | str | list[int],
     epochs: Optional[int | str] = None,
     steps: Optional[int | str] = None,
@@ -116,10 +116,10 @@ def track_training_started(
         task_type: Type of task being trained (e.g., "ssl_pretraining", "instance_segmentation").
         model: Model instance or model name string.
         method: Training method (e.g., "simclr", "eomt", "ltdetr").
-        batch_size: Global batch size.
-        devices: Number or list of devices.
-        epochs: Optional number of epochs (for pretraining tasks).
-        steps: Optional number of steps (for task-specific training).
+        batch_size: Global batch size (can be "auto").
+        devices: Number or list of devices (can be "auto").
+        epochs: Optional number of epochs (for pretraining tasks, can be "auto").
+        steps: Optional number of steps (for task-specific training, can be "auto").
     """
     model_name = model if isinstance(model, str) else model.__class__.__name__
     device_count = devices if isinstance(devices, int) else 1
