@@ -43,26 +43,29 @@ except ImportError:
 
 def test_track_training_started_event(mocker: MockerFixture) -> None:
     """Ensure training_started analytics payload stays consistent."""
+    from lightly_train._events import tracker
+
     mock_track_event = mocker.patch("lightly_train._events.tracker.track_event")
     model = DummyCustomModel()
 
-    train._track_training_started_event(
-        method="simclr",
+    tracker.track_training_started(
+        task_type="ssl_pretraining",
         model=model,
-        epochs=10,
+        method="simclr",
         batch_size=128,
         devices="auto",
+        epochs=10,
     )
 
     mock_track_event.assert_called_once_with(
         "training_started",
         {
-            "method": "simclr",
-            "model_name": model.__class__.__name__,
             "task_type": "ssl_pretraining",
-            "epochs": 10,
+            "model_name": model.__class__.__name__,
+            "method": "simclr",
             "batch_size": 128,
             "devices": 1,
+            "epochs": 10,
         },
     )
 
