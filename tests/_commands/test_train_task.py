@@ -112,6 +112,7 @@ def test_train_semantic_segmentation(
 
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
 @pytest.mark.parametrize(
     ("data_format, num_channels, height, width"),
     [
