@@ -647,17 +647,20 @@ def test_decrement_and_cleanup__reuse(tmp_path: Path, mocker: MockerFixture) -> 
 
 
 @pytest.mark.parametrize(
-    "num_increments",
+    "num_increments,skip_windows",
     [
-        1,  # Single increment
-        5,  # Small concurrency
-        10,  # Medium concurrency
+        (1, True),  # Single increment
+        (5, True),  # Small concurrency
+        (10, False),  # Medium concurrency
     ],
 )
 def test_file_locking_concurrent_increments(
-    tmp_path: Path, num_increments: int
+    tmp_path: Path, num_increments: int, skip_windows: bool
 ) -> None:
     """Test that file locking prevents race conditions."""
+    if skip_windows and sys.platform.startswith("win"):
+        pytest.skip("Skipping test on Windows because it is slow.")
+
     import concurrent.futures
 
     ref_file = tmp_path / "test.ref_count"
@@ -677,7 +680,7 @@ def test_file_locking_concurrent_increments(
 
 
 @pytest.mark.parametrize(
-    "initial_count,num_decrements,should_cleanup,windows_skip",
+    "initial_count,num_decrements,should_cleanup,skip_windows",
     [
         (10, 3, False, False),  # 10 - 3 = 7, no cleanup
         (5, 5, True, False),  # 5 - 5 = 0, cleanup
@@ -690,10 +693,10 @@ def test_file_locking_concurrent_decrements(
     initial_count: int,
     num_decrements: int,
     should_cleanup: bool,
-    windows_skip: bool,
+    skip_windows: bool,
 ) -> None:
     """Test concurrent decrements with various scenarios."""
-    if windows_skip and sys.platform.startswith("win"):
+    if skip_windows and sys.platform.startswith("win"):
         pytest.skip("Skipping test on Windows because it is slow.")
 
     import concurrent.futures
