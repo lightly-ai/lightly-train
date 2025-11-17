@@ -35,6 +35,7 @@ from lightly_train._data.yolo_instance_segmentation_dataset import (
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModelArgs
@@ -174,6 +175,14 @@ def train_instance_segmentation(
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
     """
+    tracker.track_training_started(
+        task_type="instance_segmentation",
+        model=model,
+        method="eomt",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
     return _train_task(config_cls=InstanceSegmentationTrainTaskConfig, **locals())
 
 
@@ -309,6 +318,14 @@ def train_object_detection(
         raise NotImplementedError(
             "Reusing the class head is not yet implemented for object detection models."
         )
+    tracker.track_training_started(
+        task_type="object_detection",
+        model=model,
+        method="ltdetr",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
     return _train_task(config_cls=ObjectDetectionTrainTaskConfig, **locals())
 
 
@@ -440,6 +457,14 @@ def train_semantic_segmentation(
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
     """
+    tracker.track_training_started(
+        task_type="semantic_segmentation",
+        model=model,
+        method="eomt",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
     return _train_task(config_cls=SemanticSegmentationTrainTaskConfig, **locals())
 
 
