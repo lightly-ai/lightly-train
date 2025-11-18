@@ -13,7 +13,6 @@
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
 
 import torch
-import torch.distributed as dist
 
 from lightly_train._task_models.object_detection_components.box_ops import (
     box_cxcywh_to_xyxy,
@@ -39,23 +38,11 @@ def get_contrastive_denoising_training_group(
     device = targets[0]["labels"].device
 
     max_gt_num = max(num_gts)
-
-    # Synchronize the maximum GT count so every rank builds the same amount of
-    # denoising queries and therefore participates in identical collectives.
-    if dist.is_available() and dist.is_initialized():
-        max_gt_num_tensor = torch.tensor(
-            max_gt_num,
-            dtype=torch.int,
-            device=device,
-        )
-        dist.all_reduce(max_gt_num_tensor, op=dist.ReduceOp.MAX)
-        max_gt_num = int(max_gt_num_tensor.item())
-
     if max_gt_num == 0:
-        return None, None, None, None
-
-    num_group = num_denoising // max_gt_num
-    num_group = 1 if num_group == 0 else num_group
+        num_group = 0
+    else:
+        num_group = num_denoising // max_gt_num
+        num_group = 1 if num_group == 0 else num_group
     # pad gt to max_num of a batch
     bs = len(num_gts)
 

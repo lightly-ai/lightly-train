@@ -243,6 +243,7 @@ class RTDETRCriterionv2(nn.Module):
             assert "dn_meta" in outputs, ""
             indices = self.get_cdn_matched_indices(outputs["dn_meta"], targets)
             dn_num_boxes = num_boxes * outputs["dn_meta"]["dn_num_group"]
+            dn_num_boxes = 1 if dn_num_boxes == 0 else dn_num_boxes
             for i, aux_outputs in enumerate(outputs["dn_aux_outputs"]):
                 for loss in self.losses:
                     meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices)
