@@ -45,7 +45,7 @@ def get_contrastive_denoising_training_group(
     if dist.is_available() and dist.is_initialized():
         max_gt_num_tensor = torch.tensor(
             max_gt_num,
-            dtype=torch.int64,
+            dtype=torch.int,
             device=device,
         )
         dist.all_reduce(max_gt_num_tensor, op=dist.ReduceOp.MAX)
