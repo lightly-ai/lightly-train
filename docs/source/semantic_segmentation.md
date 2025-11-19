@@ -22,22 +22,22 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 ### COCO-Stuff
 
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
-|----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 512×512 | 0.465 | 88.7 | dinov3/vits16-eomt-coco |
-| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | dinov3/vitb16-eomt-coco |
-| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.544** | 20.4 | dinov3/vitl16-eomt-coco |
+| Implementation | Model | Val mIoU | Avg. FPS | Params (M) | Input Size |
+|----------------|----------------------------|----------|----------|-----------|------------|
+| LightlyTrain | dinov3/vits16-eomt-coco | 0.465 | 88.7 | 21.6 | 512×512 |
+| LightlyTrain | dinov3/vitb16-eomt-coco | 0.520 | 43.3 | 85.7 | 512×512 |
+| LightlyTrain | dinov3/vitl16-eomt-coco | **0.544** | 20.4 | 303.2 | 512×512 |
 
 We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
 
 ### Cityscapes
 
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
-|----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 1024×1024 | 0.786 | 18.6 | dinov3/vits16-eomt-cityscapes |
-| dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | dinov3/vitb16-eomt-cityscapes |
-| dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | dinov3/vitl16-eomt-cityscapes |
-| dinov2/vitl16-eomt (original) | 319 | 1024×1024 | 0.842 | - | - |
+| Implementation | Model | Val mIoU | Avg. FPS | Params (M) | Input Size |
+|----------------|--------------------------------------|----------|----------|-----------|------------|
+| LightlyTrain | dinov3/vits16-eomt-cityscapes | 0.786 | 18.6 | 21.6 | 1024×1024 |
+| LightlyTrain | dinov3/vitb16-eomt-cityscapes | 0.810 | 8.7 | 85.7 | 1024×1024 |
+| LightlyTrain | dinov3/vitl16-eomt-cityscapes | **0.844** | 3.9 | 303.2 | 1024×1024 |
+| Original EoMT | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 |
 
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
 
@@ -176,7 +176,8 @@ if __name__ == "__main__":
 ### Use the LightlyTrain Model Checkpoints
 
 Now you can also start with the DINOv3 model checkpoints that LightlyTrain provides.
-The models are listed [here](#semantic-segmentation-benchmark-results) in the "Checkpoint" column of the tables.
+The models are listed [here](#semantic-segmentation-benchmark-results) in the
+"Model" column of the tables.
 
 ```python
 import lightly_train

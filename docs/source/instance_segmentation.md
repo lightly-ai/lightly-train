@@ -21,12 +21,12 @@ You can also explore running inference and training these models using our Colab
 
 ### COCO
 
-| Implementation | Model | #Params (M) | Input Size | Val mAP mask | Avg. FPS |
-|----------------|----------------|-------------|------------|----------|----------|
-| LightlyTrain | dinov3/vits16-eomt-inst-coco | 21.6 | 640x640 | 32.6 | 51.5 |
-| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 85.7 | 640x640 | 40.3 | 25.2 |
-| LightlyTrain | dinov3/vitl16-eomt-inst-coco | 303.2 | 640x640 | **46.2** | 12.5 |
-| Original EoMT | dinov3/vitl16-eomt-inst-coco | 303.2 | 640x640 | 45.9 | - |
+| Implementation | Model | Val mAP mask | Avg. FPS | Params (M) | Input Size |
+|----------------|----------------|-------------|----------|-----------|------------|
+| LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 51.5 | 21.6 | 640×640 |
+| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 25.2 | 85.7 | 640×640 |
+| LightlyTrain | dinov3/vitl16-eomt-inst-coco | **46.2** | 12.5 | 303.2 | 640×640 |
+| Original EoMT | dinov3/vitl16-eomt-inst-coco | 45.9 | - | 303.2 | 640×640 |
 
 Training follows the protocol in the original [EoMT paper](https://arxiv.org/abs/2503.19108).
 Models are trained for 90K steps (~12 epochs) on the COCO dataset with batch size `16`

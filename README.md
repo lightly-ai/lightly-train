@@ -43,8 +43,8 @@ Train LTDETR detection models with DINOv2 or DINOv3 backbones.
 
 #### COCO Results
 
-| Implementation | Model | Val mAP<sub>50:95</sub> | Latency (ms) | # Params (M) | Input Size |
-|:--------------:|:----------------------------:|:------------------:|:------------:|:------------:|:----------:|
+| Implementation | Model | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size |
+|:--------------:|:----------------------------:|:------------------:|:------------:|:-----------:|:----------:|
 | LightlyTrain | dinov2/vits14-ltdetr-coco | 55.7 | 16.87 | 55.3 | 644×644 |
 | LightlyTrain | dinov3/convnext-tiny-ltdetr-coco | 54.4 | 13.29 | 61.1 | 640×640 |
 | LightlyTrain | dinov3/convnext-small-ltdetr-coco | 56.9 | 17.65 | 82.7 | 640×640 |
@@ -91,12 +91,12 @@ EoMT method from CVPR 2025.
 
 #### COCO Results
 
-| Implementation | Model | #Params (M) | Input Size | Val mAP mask | Avg. FPS |
-|----------------|----------------|-------------|------------|----------|----------|
-| LightlyTrain | dinov3/vits16-eomt-inst-coco | 21.6 | 640×640 | 32.6 | 51.5 |
-| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 85.7 | 640×640 | 40.3 | 25.2 |
-| LightlyTrain | dinov3/vitl16-eomt-inst-coco | 303.2 | 640×640 | **46.2** | 12.5 |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco | 303.2 | 640×640 | 45.9 | - |
+| Implementation | Model | Val mAP mask | Avg. FPS | Params (M) | Input Size |
+|----------------|----------------|-------------|----------|-----------|------------|
+| LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 51.5 | 21.6 | 640×640 |
+| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 25.2 | 85.7 | 640×640 |
+| LightlyTrain | dinov3/vitl16-eomt-inst-coco | **46.2** | 12.5 | 303.2 | 640×640 |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco | 45.9 | - | 303.2 | 640×640 |
 
 Models are trained for 12 epochs on the COCO 2017 dataset and evaluated on the validation
 set with single-scale testing. Avg. FPS is measured on a single NVIDIA T4 GPU with batch
@@ -140,11 +140,11 @@ the EoMT method from CVPR 2025.
 
 #### COCO-Stuff Results
 
-| Model | #Params (M) | Input Size | Val mIoU | Avg. FPS |
-|----------------|-------------|------------|----------|----------|
-| dinov3/vits16-eomt-coco | 21.6 | 512×512 | 0.465 | 88.7 |
-| dinov3/vitb16-eomt-coco | 85.7 | 512×512 | 0.520 | 43.3 |
-| dinov3/vitl16-eomt-coco | 303.2 | 512×512 | **0.544** | 20.4 |
+| Implementation | Model | Val mIoU | Avg. FPS | Params (M) | Input Size |
+|----------------|----------------------|----------|----------|-----------|------------|
+| LightlyTrain | dinov3/vits16-eomt-coco | 0.465 | 88.7 | 21.6 | 512×512 |
+| LightlyTrain | dinov3/vitb16-eomt-coco | 0.520 | 43.3 | 85.7 | 512×512 |
+| LightlyTrain | dinov3/vitl16-eomt-coco | **0.544** | 20.4 | 303.2 | 512×512 |
 
 Models are trained for 12 epochs with `num_queries=200` on the COCO-Stuff dataset and
 evaluated on the validation set with single-scale testing. Avg. FPS is measured on a
@@ -153,8 +153,8 @@ single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized us
 
 #### Cityscapes Results
 
-| Implementation | Backbone Model | Val mIoU | Avg. FPS | # Params (M) | Input Size |
-|:------------------------------------:|:------------------:|:---------:|:--------:|:------------:|:----------:|
+| Implementation | Model | Val mIoU | Avg. FPS | Params (M) | Input Size |
+|:------------------------------------:|:------------------------------:|:---------:|:--------:|:-----------:|:----------:|
 | LightlyTrain | dinov3/vits16-eomt-cityscapes | 0.786 | 18.6 | 21.6 | 1024×1024 |
 | LightlyTrain | dinov3/vitb16-eomt-cityscapes | 0.810 | 8.7 | 85.7 | 1024×1024 |
 | LightlyTrain | dinov3/vitl16-eomt-cityscapes | **0.844** | 3.9 | 303.2 | 1024×1024 |
@@ -239,10 +239,10 @@ With LightlyTrain you can train your very own foundation model like DINOv2 on yo
 
 #### ImageNet-1K Results
 
-| Implementation | Model | ImageNet k-NN | Docs |
-|:--------------:|:-----:|:-------------:|:----:|
-| LightlyTrain | dinov2/vitl16 | **81.9%** | [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) |
-| DINOv2 | dinov2/vitl16 | 81.6% | [🔗](https://github.com/facebookresearch/dinov2) |
+| Implementation | Model | Val ImageNet k-NN |
+|:--------------:|:-----:|:------------------:|
+| LightlyTrain | dinov2/vitl16 | **81.9%** |
+| DINOv2 | dinov2/vitl16 | 81.6% |
 
 Models are pretrained on ImageNet-1k for 100 epochs and evaluated with a k-NN classifier
 on the ImageNet validation set.
@@ -275,8 +275,8 @@ smaller models by leveraging all your unlabeled images.
 
 #### ADE20K Results
 
-| Implementation | Model Name | Autolabel | Val mIoU | # Params (M) | Input Size |
-|:--------------:|:------------------:|:------:|:--------------------:|:------------:|:----------:|
+| Implementation | Model | Autolabel | Val mIoU | Params (M) | Input Size |
+|:--------------:|:----------------------------:|:---------:|:---------:|:-----------:|:----------:|
 | LightlyTrain | dinov3/vits16-eomt | ❌ | 0.466 | 21.6 | 518×518 |
 | LightlyTrain | dinov3/vits16-eomt-ade20k | ✅ | **0.533** | 21.6 | 518×518 |
 | LightlyTrain | dinov3/vitb16-eomt | ❌ | 0.544 | 85.7 | 518×518 |
