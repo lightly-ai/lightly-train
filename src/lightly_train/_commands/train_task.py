@@ -550,7 +550,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
     )
 
-    checkpoint, config.model = helpers.load_checkpoint(
+    checkpoint, checkpoint_path, config.model = helpers.load_checkpoint(
         fabric=fabric,
         out_dir=out_dir,
         resume_interrupted=config.resume_interrupted,
@@ -684,7 +684,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             data_args=config.data,
             train_transform_args=train_transform_args,
             val_transform_args=val_transform_args,
-            load_weights=checkpoint is None,
+            load_weights=(checkpoint is None) and (checkpoint_path is None),
         )
 
         # Set train mode to make sure that all parameters are in the correct state before
@@ -722,16 +722,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_init_args=train_model.get_task_model().init_args,
         )
 
-        if config.resume_interrupted and checkpoint is not None:
+        if config.resume_interrupted and checkpoint_path is not None:
             helpers.resume_from_checkpoint(
+                fabric=fabric,
                 state=state,
-                checkpoint=checkpoint,  # type: ignore[arg-type]
+                checkpoint_path=checkpoint_path,
             )
-            train_dataloader = state["train_dataloader"]  # type: ignore[typeddict-item]
         elif checkpoint is not None:
             helpers.finetune_from_checkpoint(
                 state=state,
-                checkpoint=checkpoint,  # type: ignore[arg-type]
+                checkpoint=checkpoint,
                 reuse_class_head=config.reuse_class_head,
             )
 

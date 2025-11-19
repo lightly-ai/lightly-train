@@ -464,5 +464,5 @@ def test_train_semantic_segmentation__resume_interrupted(
             resume_interrupted=True,
         )
 
-    assert f"Loading model checkpoint from '{last_ckpt_path}'" in caplog.text
+    assert f"Resuming training from model checkpoint '{last_ckpt_path}'" in caplog.text
     assert "Resuming training from step 1/1..." in caplog.text

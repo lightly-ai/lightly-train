@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix `image_size` not tuple when training from pretrained model.
+- Fix a bug when fine-tuning a model with `resume_interrupted=True`.
 
 ### Security
 
