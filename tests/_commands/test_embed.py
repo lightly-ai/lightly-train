@@ -207,6 +207,7 @@ def test_embed_from_dictconfig__image_size(
     assert mock_embed.call_args.kwargs["config"].image_size == expected
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on Windows.")
 @pytest.mark.parametrize(
     "ckpt_dtype",
     [

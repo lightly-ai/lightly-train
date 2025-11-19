@@ -14,7 +14,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOv2ViTPackage
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.drop_path import DropPath
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    vit_small as vit_small,
+    vit_small,
 )
 
 
