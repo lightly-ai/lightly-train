@@ -50,7 +50,6 @@ YOLO models on detection and segmentation tasks for edge deployment.
 ## Workflows
 
 ````{grid} 1 1 2 3
- 
 ```{card} Object Detection
 :link: object_detection.html
 <img src="_static/images/Screenshot 2025-11-18 at 13.41.13.png" height="64"><br>
@@ -90,7 +89,6 @@ Pretrain DINOv2 foundation models on your domain data.<br>
   height="64"><br>
 Generate high-quality pseudo labels for detection and segmentation tasks.<br>
 ```
-
 ````
 
 ## How It Works [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
