@@ -57,12 +57,8 @@ batch size 1. All models are compiled and optimized using `tensorrt==10.13.3.9`.
 
 #### Usage
 
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](
-https://docs.lightly.ai/train/stable/object_detection.html
-)
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](
-https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb
-)
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/object_detection.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ```python
 import lightly_train
@@ -107,12 +103,8 @@ size 1. All models are compiled and optimized using `torch.compile`.
 
 #### Usage
 
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](
-https://docs.lightly.ai/train/stable/instance_segmentation.html
-)
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](
-https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb
-)
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/instance_segmentation.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
 
 ```python
 import lightly_train
@@ -170,12 +162,8 @@ and optimized using `torch.compile`.
 
 #### Usage
 
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](
-https://docs.lightly.ai/train/stable/semantic_segmentation.html
-)
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](
-https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb
-)
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
 
 ```python
 import lightly_train
@@ -219,9 +207,7 @@ for more benchmarks and details.
 
 #### Usage
 
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](
-https://docs.lightly.ai/train/stable/methods/distillation.html
-)
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/methods/distillation.html)
 
 ```python
 import lightly_train
@@ -257,9 +243,7 @@ on the ImageNet validation set.
 
 #### Usage
 
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](
-https://docs.lightly.ai/train/stable/methods/dinov2.html
-)
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/methods/dinov2.html)
 
 ```python
 import lightly_train
@@ -298,9 +282,7 @@ smaller models, and then used the ADE20k dataset for validation.
 
 #### Usage
 
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](
-https://docs.lightly.ai/train/stable/predict_autolabel.html
-)
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/predict_autolabel.html)
 
 ```python
 import lightly_train
