@@ -5,8 +5,8 @@
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
 
-The train command is a simple interface to pretrain or distill a large number of models using
-different SSL methods. An example command looks like this:
+The train command is a simple interface to pretrain or distill a large number of
+models using different SSL methods. An example command looks like this:
 
 ````{tab} Python
 ```python
@@ -416,5 +416,8 @@ For performance optimizations, e.g. using accelerators, multi-GPU, multi-node, a
 hidden:
 maxdepth: 1
 ---
+export
+models/index
+methods/index
 method_transform_args
 ```

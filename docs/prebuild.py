@@ -26,7 +26,7 @@ THIS_DIR = Path(__file__).parent.resolve()
 DOCS_DIR = THIS_DIR / "source"
 PROJECT_ROOT = THIS_DIR.parent
 SOURCE_AUTO_DIR = DOCS_DIR / "_auto"
-METHODS_AUTO_ARGS_DIR = DOCS_DIR / "methods" / "_auto"
+METHODS_AUTO_ARGS_DIR = DOCS_DIR / "pretrain_distill" / "methods" / "_auto"
 
 
 # inspired by https://github.com/pydantic/pydantic/blob/6f31f8f68ef011f84357330186f603ff295312fd/docs/plugins/main.py#L102-L103

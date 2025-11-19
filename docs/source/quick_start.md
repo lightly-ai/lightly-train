@@ -85,7 +85,7 @@ out/my_experiment
 
 The final model is exported to `out/my_experiment/exported_models/exported_last.pt` in
 the default format of the used library. It can directly be used for
-fine-tuning. See [export format](export.md#format) for more information on how to export
+fine-tuning. See [export format](pretrain_distill/export.md#format) for more information on how to export
 models to other formats or on how to export intermediate checkpoints.
 
 While the trained model has already learned good representations of the images, it
