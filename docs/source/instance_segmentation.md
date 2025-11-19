@@ -2,6 +2,8 @@
 
 # Instance Segmentation
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
+
 ```{note}
 🔥 LightlyTrain now supports training **DINOv3**-based instance segmentation models
 with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by Kerssies et al.!

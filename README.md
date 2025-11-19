@@ -208,6 +208,7 @@ for more benchmarks and details.
 #### Usage
 
 [![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/methods/distillation.html)
+[![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
 
 ```python
 import lightly_train

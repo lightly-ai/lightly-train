@@ -2,8 +2,10 @@
 
 # Object Detection
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
+
 ```{note}
-🔥 LightlyTrain now supports training **LT-DETR**: **DINOv3**- and **DINOv2**-based object detection models
+🔥 LightlyTrain now supports training **LTDETR**: **DINOv3**- and **DINOv2**-based object detection models
 with the super fast RT-DETR detection architecture! Our largest model achieves an mAP<sub>50:95</sub> of 60.0 on the COCO validation set!
 ```
 
@@ -29,7 +31,7 @@ in the version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 | LightlyTrain | dinov3/convnext-base-ltdetr-coco | 58.6 | 24.68 | 121.0 | 640×640 |
 | LightlyTrain | dinov3/convnext-large-ltdetr-coco | 60.0 | 42.30 | 230.0 | 640×640 |
 
-## Object Detection with LT-DETR
+## Object Detection with LTDETR
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 

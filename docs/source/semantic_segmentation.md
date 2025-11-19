@@ -2,6 +2,8 @@
 
 # Semantic Segmentation
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
+
 ```{note}
 🔥 **New**: LightlyTrain now supports training **[DINOv3](#-use-eomt-with-dinov3-)** and DINOv2 models for semantic segmentation with the `train_semantic_segmentation` function! The method is based on the
 state-of-the-art segmentation model [EoMT](https://arxiv.org/abs/2503.19108) by
@@ -42,6 +44,8 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
 
 ## Semantic Segmentation with EoMT
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
 
 Training a semantic segmentation model with LightlyTrain is straightforward and
 only requires a few lines of code. See [data](#semantic-segmentation-data)
