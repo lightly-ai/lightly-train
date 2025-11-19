@@ -53,7 +53,7 @@ _train_cfg = CLITrainConfig(out="", data="", model="")
 _TRAIN_HELP_MSG = f"""
     Train a model with self-supervised learning.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/train.html
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill.html
 
     The training process can be monitored with TensorBoard:
 
@@ -110,7 +110,7 @@ _TRAIN_HELP_MSG = f"""
 
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
-            See https://docs.lightly.ai/train/stable/train/index.html#resume-training
+            See https://docs.lightly.ai/train/stable/pretrain_distill/index.html#resume-training
             for more information.
             Default: {_train_cfg.checkpoint}
         resume_interrupted (bool):
@@ -124,7 +124,7 @@ _TRAIN_HELP_MSG = f"""
 
             If you want to further pretrain a model or change the training parameters,
             use the ``checkpoint``parameter instead.
-            See https://docs.lightly.ai/train/stable/train/index.html#resume-training
+            See https://docs.lightly.ai/train/stable/pretrain_distill/index.html#resume-training
             for more information.
             Default: {_train_cfg.resume_interrupted}
         overwrite (bool):

@@ -250,7 +250,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `resume` parameter in the `train` command is deprecated in favor of
   `resume_interrupted` and will be removed in a future release. The new parameter
   behaves the same as the old one but is more explicit about its purpose. See
-  [the documentation](https://docs.lightly.ai/train/stable/train/index.html#resume-training)
+  [the documentation](https://docs.lightly.ai/train/stable/pretrain_distill/index.html#resume-training)
   for more information.
 
 ## [0.7.0] - 2025-05-26

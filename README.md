@@ -302,7 +302,7 @@ if __name__ == "__main__":
 
 - Python, Command Line, and [Docker](https://docs.lightly.ai/train/stable/docker.html) support
 - Built for [high performance](https://docs.lightly.ai/train/stable/performance/index.html) including [multi-GPU](https://docs.lightly.ai/train/stable/performance/multi_gpu.html) and [multi-node](https://docs.lightly.ai/train/stable/performance/multi_node.html) support
-- [Monitor training progress](https://docs.lightly.ai/train/stable/train.html#loggers) with MLflow, TensorBoard, Weights & Biases, and more
+- [Monitor training progress](https://docs.lightly.ai/train/stable/pretrain_distill.html#logging) with MLflow, TensorBoard, Weights & Biases, and more
 - Runs fully on-premises with no API authentication
 - Export models in their native format for fine-tuning or inference
 - Export models in ONNX or TensorRT format for edge deployment
