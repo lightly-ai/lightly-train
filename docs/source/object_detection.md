@@ -20,10 +20,10 @@ Below we provide the model checkpoints and report the validation mAP<sub>50:95</
 | Implementation | Backbone Model | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Input Size | Checkpoint Name |
 |:--------------:|:----------------------------:|:------------------:|:------------:|:------------:|:----------:|:---------------------------------:|
 | LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 | dinov2/vits14-noreg-ltdetr-coco |
-| LightlyTrain | dinov3/convnext-tiny-ltdetr | 54.4 | 13.29 | 61.1 | 640×640 | dinov3/convnext-tiny-ltdetr-coco |
-| LightlyTrain | dinov3/convnext-small-ltdetr | 56.9 | 17.65 | 82.7 | 640×640 | dinov3/convnext-small-ltdetr-coco |
-| LightlyTrain | dinov3/convnext-base-ltdetr | 58.6 | 24.68 | 121.0 | 640×640 | dinov3/convnext-base-ltdetr-coco |
-| LightlyTrain | dinov3/convnext-large-ltdetr | 60.0 | 42.30 | 230.0 | 640×640 | dinov3/convnext-large-ltdetr-coco |
+| LightlyTrain | dinov3/convnext-tiny-ltdetr-coco | 54.4 | 13.29 | 61.1 | 640×640 | dinov3/convnext-tiny-ltdetr-coco |
+| LightlyTrain | dinov3/convnext-small-ltdetr-coco | 56.9 | 17.65 | 82.7 | 640×640 | dinov3/convnext-small-ltdetr-coco |
+| LightlyTrain | dinov3/convnext-base-ltdetr-coco | 58.6 | 24.68 | 121.0 | 640×640 | dinov3/convnext-base-ltdetr-coco |
+| LightlyTrain | dinov3/convnext-large-ltdetr-coco | 60.0 | 42.30 | 230.0 | 640×640 | dinov3/convnext-large-ltdetr-coco |
 
 ## Object Detection with LT-DETR
 
