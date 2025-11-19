@@ -57,6 +57,13 @@ batch size 1. All models are compiled and optimized using `tensorrt==10.13.3.9`.
 
 #### Usage
 
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](
+https://docs.lightly.ai/train/stable/object_detection.html
+)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](
+https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb
+)
+
 ```python
 import lightly_train
 
@@ -76,10 +83,6 @@ if __name__ == "__main__":
         },
     )
 ```
-
-See the [documentation](https://docs.lightly.ai/train/stable/object_detection.html) and
-[Google Colab notebook](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
-for more details.
 
 </details>
 
@@ -104,6 +107,13 @@ size 1. All models are compiled and optimized using `torch.compile`.
 
 #### Usage
 
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](
+https://docs.lightly.ai/train/stable/instance_segmentation.html
+)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](
+https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb
+)
+
 ```python
 import lightly_train
 
@@ -124,11 +134,6 @@ if __name__ == "__main__":
         },
     )
 ```
-
-See the [documentation](https://docs.lightly.ai/train/stable/instance_segmentation.html)
-and
-[Google Colab notebook](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
-for more details.
 
 </details>
 
@@ -165,6 +170,13 @@ and optimized using `torch.compile`.
 
 #### Usage
 
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](
+https://docs.lightly.ai/train/stable/semantic_segmentation.html
+)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](
+https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb
+)
+
 ```python
 import lightly_train
 
@@ -191,11 +203,6 @@ if __name__ == "__main__":
   )
 ```
 
-See the [documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
-and
-[Google Colab notebook](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
-for more details.
-
 </details>
 
 <details>
@@ -212,6 +219,10 @@ for more benchmarks and details.
 
 #### Usage
 
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](
+https://docs.lightly.ai/train/stable/methods/distillation.html
+)
+
 ```python
 import lightly_train
 
@@ -226,9 +237,6 @@ if __name__ == "__main__":
     },
   )
 ```
-
-See the [documentation](https://docs.lightly.ai/train/stable/methods/distillation.html)
-on how to get started!
 
 </details>
 
@@ -249,6 +257,10 @@ on the ImageNet validation set.
 
 #### Usage
 
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](
+https://docs.lightly.ai/train/stable/methods/dinov2.html
+)
+
 ```python
 import lightly_train
 
@@ -260,9 +272,6 @@ if __name__ == "__main__":
     method="dinov2",
   )
 ```
-
-See the [documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html)
-for more details.
 
 </details>
 
@@ -289,6 +298,10 @@ smaller models, and then used the ADE20k dataset for validation.
 
 #### Usage
 
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](
+https://docs.lightly.ai/train/stable/predict_autolabel.html
+)
+
 ```python
 import lightly_train
 
@@ -299,9 +312,6 @@ if __name__ == "__main__":
     model="dinov3/vitb16-eomt-ade20k",
   )
 ```
-
-See the [documentation](https://docs.lightly.ai/train/stable/predict_autolabel.html) for
-more details.
 
 </details>
 
@@ -349,24 +359,6 @@ Scroll right to see all columns!
 LightlyTrain collects anonymous usage events to help us improve the product. We only
 track training method, model architecture, and system information (OS, GPU). To opt-out,
 set the environment variable: `export LIGHTLY_TRAIN_EVENTS_DISABLED=1`
-
-## License
-
-Lightly**Train** offers flexible licensing options to suit your specific needs:
-
-- **AGPL-3.0 License**: Perfect for open-source projects, academic research, and community contributions.
-  Share your innovations with the world while benefiting from community improvements.
-
-- **Commercial License**: Ideal for businesses and organizations that need proprietary development freedom.
-  Enjoy all the benefits of LightlyTrain while keeping your code and models private.
-
-We're committed to supporting both open-source and commercial users.
-Please [contact us](https://www.lightly.ai/contact) to discuss the best licensing option for your project!
-
-## Usage Events
-
-LightlyTrain collects anonymous usage events to help us improve the product. We only track training method, model architecture, and system information (OS, GPU).
-To opt-out, set the environment variable: `export LIGHTLY_TRAIN_EVENTS_DISABLED=1`
 
 ## License
 
