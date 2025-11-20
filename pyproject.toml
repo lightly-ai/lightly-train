@@ -58,6 +58,7 @@ dev = [
     "pytest-mock>=3.14.0",
     "pytest>=8.0.0",
     "ruff>=0.4.0",
+    "types-PyYAML>=6.0.12",
     "types-tqdm>=4.0.0",
 
     # Docs
