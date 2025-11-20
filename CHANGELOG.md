@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Improve the layout of logging of object detection.
+
 ### Deprecated
 
 ### Removed
