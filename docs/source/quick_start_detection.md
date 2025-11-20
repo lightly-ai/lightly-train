@@ -1,14 +1,10 @@
-(quick-start)=
+(quick-start-detection)=
 
-# Quick Start
+# Quick Start - Object Detection
 
 ```{image} https://colab.research.google.com/assets/colab-badge.svg
 :target: https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb
 ```
-
-This guide demonstrates how to use LightlyTrain for object detection with our
-state-of-the-art LTDETR model built on [DINOv3](https://github.com/facebookresearch/dinov3).
-
 
 ## Installation
 
