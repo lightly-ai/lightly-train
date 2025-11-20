@@ -301,7 +301,7 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
             loggers={"jsonl": {"flush_logs_every_n_steps": 5}},
         )
     )
-    train.train_from_dictconfig(config=config)
+    train.pretrain_from_dictconfig(config=config)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")

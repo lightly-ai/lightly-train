@@ -99,11 +99,11 @@ def pretrain(
             Path to a directory containing images or a sequence of image directories and
             files.
         model:
-            Model name or instance to use for pretraining.
+            Model name or instance to use for pretraining / distillation.
         method:
-            Self-supervised learning method name.
+            Method name for pretraining / distillation.
         method_args:
-            Arguments for the self-supervised learning method. The available arguments
+            Arguments for the pretraining / distillation method. The available arguments
             depend on the ``method`` parameter.
         embed_dim:
             Embedding dimension. Set this if you want to pretrain an embedding model with
@@ -493,11 +493,18 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
     logger.info("Model exported.")
 
 
-def train_from_dictconfig(config: DictConfig) -> None:
+def pretrain_from_dictconfig(config: DictConfig) -> None:
     logger.debug(f"Training model with config: {config}")
     config_dict = omegaconf_utils.config_to_dict(config=config)
     train_cfg = validate.pydantic_model_validate(CLITrainConfig, config_dict)
     train_from_config(config=train_cfg)
+
+
+def train_from_dictconfig(config: DictConfig) -> None:
+    logger.debug(f"Training model with config: {config}")
+    config_dict = omegaconf_utils.config_to_dict(config=config)
+    train_cfg = validate.pydantic_model_validate(CLITrainConfig, config_dict)
+    train_from_config(config=train_cfg, called_via_train=True)
 
 
 class TrainConfig(PydanticConfig):

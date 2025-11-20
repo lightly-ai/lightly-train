@@ -27,8 +27,8 @@ from lightly_train._configs.config import PydanticConfig
     "command,msg",
     [
         (["help"], _cli._HELP_MSG),
-        (["train"], _cli._TRAIN_HELP_MSG),
-        (["train", "help"], _cli._TRAIN_HELP_MSG),
+        (["train"], _cli._PRETRAIN_HELP_MSG),
+        (["train", "help"], _cli._PRETRAIN_HELP_MSG),
         (["export"], _cli._EXPORT_HELP_MSG),
         (["export", "help"], _cli._EXPORT_HELP_MSG),
     ],
@@ -96,7 +96,7 @@ def test_cli__list_methods(caplog: LogCaptureFixture) -> None:
 def test__TRAIN_HELP_MSG__parameters() -> None:
     """Test that the train help message contains all parameters from CLITrainConfig."""
     _assert_help_msg_contains_params(
-        msg=_cli._TRAIN_HELP_MSG, config=CLITrainConfig(out="", data="", model="")
+        msg=_cli._PRETRAIN_HELP_MSG, config=CLITrainConfig(out="", data="", model="")
     )
 
 
