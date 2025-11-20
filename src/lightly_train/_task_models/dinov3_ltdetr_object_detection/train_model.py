@@ -208,7 +208,12 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         return TaskStepResult(
             loss=total_loss,
-            log_dict={**{"train_loss": total_loss.item()}, **loss_dict},
+            log_dict={
+                "train_loss": total_loss.item(),
+                "train_loss/loss_vfl": loss_dict["loss_vfl"],
+                "train_loss/loss_bbox": loss_dict["loss_bbox"],
+                "train_loss/loss_giou": loss_dict["loss_giou"],
+            },
         )
 
     def on_train_batch_end(self) -> None:
@@ -280,8 +285,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         return TaskStepResult(
             loss=total_loss,
             log_dict={
-                **{"val_loss": total_loss.item()},
-                **loss_dict,
+                "val_loss": total_loss.item(),
+                "val_loss/loss_vfl": loss_dict["loss_vfl"],
+                "val_loss/loss_bbox": loss_dict["loss_bbox"],
+                "val_loss/loss_giou": loss_dict["loss_giou"],
                 **metrics,
             },
         )
