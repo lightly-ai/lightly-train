@@ -304,6 +304,7 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             "`lightly_train.train` is deprecated and will be removed in a future release. "
             "Please use `lightly_train.pretrain` instead.",
             FutureWarning,
+            stacklevel=2,
         )
 
     logger.info(

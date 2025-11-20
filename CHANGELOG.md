@@ -14,10 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Improve the layout of logging of object detection.
-- Use `lightly-train.pretrain()` as the interface of pretraining and distilation instead of `lightly-train.train()`. The `lightly-train.train()` interface will be
-  deprecated in the future.
+- Use `lightly-train.pretrain()` as the interface of pretraining and distillation instead of `lightly-train.train()`.
 
 ### Deprecated
+
+- The `lightly-train.train()` interface is deprecated and will be removed in a future release. Use `lightly-train.pretrain()` instead.
 
 ### Removed
 
