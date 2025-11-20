@@ -76,6 +76,7 @@ The following libraries are supported (follow the links to get to the respective
 hidden:
 maxdepth: 1
 ---
+Overview <self>
 torchvision
 timm
 ultralytics

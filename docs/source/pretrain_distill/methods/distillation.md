@@ -1,6 +1,6 @@
 (methods-distillation)=
 
-# Distillation (recommended 🚀)
+# Distillation
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
 
