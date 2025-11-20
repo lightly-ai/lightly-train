@@ -286,7 +286,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             loss=total_loss,
             log_dict={
                 "val_loss": total_loss.item(),
-                "val_map": self.map_metric["map"],  # type: ignore[index]
                 "val_loss/loss_vfl": loss_dict["loss_vfl"],
                 "val_loss/loss_bbox": loss_dict["loss_bbox"],
                 "val_loss/loss_giou": loss_dict["loss_giou"],
