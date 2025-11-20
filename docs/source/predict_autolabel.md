@@ -18,14 +18,18 @@ The pseudo masks were generated in the following way:
 
 The validation results are listed in the table below, where you can notice significant improvements when using the auto-labeled data:
 
-| Implementation | Model Name | Autolabel | Val mIoU | # Params (M) | Input Size | Checkpoint Name |
-|:--------------:|:------------------:|:------:|:--------------------:|:------------:|:----------:| :----------------:|
-| LightlyTrain | dinov3/vits16-eomt | ❌ | 0.466 | 21.6 | 518×518 | |
-| LightlyTrain | dinov3/vits16-eomt | ✅ | **0.533** | 21.6 | 518×518 | dinov3/vits16-eomt-ade20k |
-| LightlyTrain | dinov3/vitb16-eomt | ❌ | 0.544 | 85.7 | 518×518 | |
-| LightlyTrain | dinov3/vitb16-eomt-ade20k | ✅ | **0.573** | 85.7 | 518×518 | dinov3/vitb16-eomt-ade20k |
+| Implementation | Model | Autolabel | Val mIoU | Params (M) | Input Size |
+|:--------------:|:-------------------------------:|:---------:|:---------:|:-----------:|:----------:|
+| LightlyTrain | dinov3/vits16-eomt | ❌ | 0.466 | 21.6 | 518×518 |
+| LightlyTrain | dinov3/vits16-eomt-ade20k | ✅ | **0.533** | 21.6 | 518×518 |
+| LightlyTrain | dinov3/vitb16-eomt | ❌ | 0.544 | 85.7 | 518×518 |
+| LightlyTrain | dinov3/vitb16-eomt-ade20k | ✅ | **0.573** | 85.7 | 518×518 |
 
-We also released the model checkpoints fine-tuned with auto-labeled SUN397 dataset in the table above. You can use these checkpoints by specifying the checkpoint name in the `model` argument of the `predict_semantic_segmentation` function. See the [Predict Semantic Segmentation Masks](#predict-semantic-segmentation) section below for more details.
+We also released the model checkpoints fine-tuned with auto-labeled SUN397 dataset in
+the table above. You can use these checkpoints by specifying the corresponding model
+name in the `model` argument of the `predict_semantic_segmentation` function. See the
+[Predict Semantic Segmentation Masks](#predict-semantic-segmentation) section below
+for more details.
 
 ## Predict Model Checkpoint
 

@@ -2,6 +2,8 @@
 
 # Train
 
+[![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
+
 The train command is a simple interface to pretrain a large number of models using
 different SSL methods. An example command looks like this:
 

@@ -10,8 +10,8 @@ generate high-quality features that can be used without fine-tuning the model.
 
 ```{table}
 
-| Implementation | Model | ImageNet k-NN |
-|--------------|----------|---------------|
+| Implementation | Model | Val ImageNet k-NN |
+|--------------|----------|-------------------|
 | LightlyTrain | ViT-L/16 | 81.9% |
 | [Official](https://github.com/facebookresearch/dinov2) | ViT-L/16 | 81.6% |
 
