@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Any, Literal, Sequence
 
-from albumentations import BboxParams
 from pydantic import Field
 
 from lightly_train._transforms.panoptic_segmentation_transform import (
@@ -26,19 +25,6 @@ from lightly_train._transforms.transform import (
     SmallestMaxSizeArgs,
 )
 from lightly_train.types import ImageSizeTuple
-
-
-class DINOv3EoMTPanopticSegmentationColorJitterArgs(ColorJitterArgs):
-    # Differences between EoMT and this transform:
-    # - EoMT always applies brightness before contrast/saturation/hue.
-    # - EoMT applies all transforms indedenently with probability 0.5. We apply either
-    #   all or none with probability 0.5.
-    prob: float = 0.5
-    strength: float = 1.0
-    brightness: float = 32.0 / 255.0
-    contrast: float = 0.5
-    saturation: float = 0.5
-    hue: float = 18.0 / 360.0
 
 
 class DINOv3EoMTPanopticSegmentationScaleJitterArgs(ScaleJitterArgs):
@@ -79,16 +65,13 @@ class DINOv3EoMTPanopticSegmentationTrainTransformArgs(
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
-    color_jitter: DINOv3EoMTPanopticSegmentationColorJitterArgs | None = None
+    color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
         default_factory=DINOv3EoMTPanopticSegmentationScaleJitterArgs
     )
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs = Field(
         default_factory=DINOv3EoMTPanopticSegmentationRandomCropArgs
-    )
-    bbox_params: BboxParams = BboxParams(
-        format="yolo", label_fields=["class_labels", "indices"]
     )
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
@@ -131,9 +114,6 @@ class DINOv3EoMTPanopticSegmentationValTransformArgs(PanopticSegmentationTransfo
     scale_jitter: ScaleJitterArgs | None = None
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs | None = None
-    bbox_params: BboxParams = BboxParams(
-        format="yolo", label_fields=["class_labels", "indices"]
-    )
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)

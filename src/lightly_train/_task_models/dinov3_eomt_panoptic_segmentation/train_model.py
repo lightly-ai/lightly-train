@@ -19,7 +19,9 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.validate import no_auto
-from lightly_train._data.mask_panoptic_segmentation_dataset import MaskPanopticSegmentationDataArgs
+from lightly_train._data.mask_panoptic_segmentation_dataset import (
+    MaskPanopticSegmentationDataArgs,
+)
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
@@ -38,11 +40,14 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
-from lightly_train.types import MaskPanopticSegmentationBatch, PanopticSegmentationBatch, PathLike
+from lightly_train.types import (
+    MaskPanopticSegmentationBatch,
+    PathLike,
+)
 
 
 class DINOv3EoMTPanopticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/map"
+    watch_metric: str = "val_metric/pq"
     mode: Literal["min", "max"] = "max"
 
 
@@ -89,9 +94,13 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
     lr_warmup_steps: tuple[int, int] = (2000, 3000)
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
+    # Evaluation thresholds
+    threshold: float = 0.8
+    mask_threshold: float = 0.5
+    mask_overlap_threshold: float = 0.8
+
     # Metrics
-    metric_topk_instances: int = 100
-    metric_log_classwise: bool = True
+    metric_log_classwise: bool = False
     metric_log_train: bool = False
     metric_log_debug: bool = False
 
@@ -170,7 +179,6 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
         from torchmetrics import MeanMetric
-
         from torchmetrics.detection import PanopticQuality
 
         # Lazy import because MaskClassificationLoss depends on optional transformers
@@ -215,10 +223,19 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         # Metrics
         self.val_loss = MeanMetric()
 
+        # NOTE: This must match the implementations in the task model and dataset!
+        # We treat here ignored classes as a stuff class with id -1.
+        num_stuff_classes = len(data_args.stuff_classes)
+        num_thing_classes = len(data_args.thing_classes)
+        ignore_class_id = -1
+        internal_stuff_ids = list(range(num_stuff_classes)) + [ignore_class_id]
+        internal_thing_ids = list(range(num_stuff_classes, num_stuff_classes + num_thing_classes))
+
         self.train_pq = PanopticQuality(
-            things=data_args.thing_classes.keys(),
-            stuffs=data_args.stuff_classes.keys(),
-            return_sq_and_rq=True,
+            stuffs=internal_stuff_ids,
+            things=internal_thing_ids,
+            # TODO(Guarin, 11/25): Enable
+            return_sq_and_rq=False,
             return_per_class=model_args.metric_log_classwise,
         )
         self.val_pq = self.train_pq.clone()
@@ -232,6 +249,8 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
         assert isinstance(images, Tensor), "Images must be a single tensor for training"
+        assert images.shape[-2:] == batch["masks"][0].shape[:2]  # type: ignore
+        assert images.shape[-2:] == batch["binary_masks"][0]["masks"].shape[-2:]  # type: ignore
         binary_masks = batch["binary_masks"]
         _, _, H, W = images.shape
 
@@ -267,23 +286,21 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         metrics: dict[str, Any] = {}
         if self.model_args.metric_log_train:
             with torch.no_grad():
-                mask_logits = mask_logits_per_layer[-1]
-                class_logits = class_logits_per_layer[-1]
+                mask_logits = mask_logits_per_layer[-1].detach()
+                class_logits = class_logits_per_layer[-1].detach()
                 mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-                # (B, Q), (B, Q, H, W), (B, Q)
-                labels, masks, scores = self.model.get_labels_masks_scores(
-                    mask_logits=mask_logits, class_logits=class_logits
+                # (B, H, W, 2)
+                masks, _, _ = self.model.get_masks_segment_ids_scores(
+                    mask_logits=mask_logits,
+                    class_logits=class_logits,
+                    threshold=self.model_args.threshold,
+                    mask_threshold=self.model_args.mask_threshold,
+                    mask_overlap_threshold=self.model_args.mask_overlap_threshold,
                 )
+
             self.train_pq.update(
-                preds=[
-                    {
-                        "labels": labels[i],
-                        "masks": masks[i],
-                        "scores": scores[i],
-                    }
-                    for i in range(len(labels))
-                ],
-                target=binary_masks,  # type: ignore[arg-type]
+                preds=masks,
+                target=batch["masks"],  # type: ignore
             )
             metrics["train_metric/map"] = self.train_pq
 
@@ -313,7 +330,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         )
 
     def validation_step(
-        self, fabric: Fabric, batch: PanopticSegmentationBatch
+        self, fabric: Fabric, batch: MaskPanopticSegmentationBatch
     ) -> TaskStepResult:
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
@@ -324,7 +341,11 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         resized_images_list = []
         resized_binary_masks = []
         crop_sizes = []
-        for image, binary_mask in zip(images, binary_masks):
+        for image, binary_mask, target_masks in zip(
+            images, binary_masks, batch["masks"]
+        ):
+            assert image.shape[-2:] == binary_mask["masks"].shape[-2:]  # type: ignore
+            assert image.shape[-2:] == target_masks.shape[:2]  # type: ignore
             image, (crop_h, crop_w) = self.model.resize_and_pad(image)
             masks, _ = self.model.resize_and_pad(binary_mask["masks"])
             resized_images_list.append(image)
@@ -375,16 +396,18 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         # Final layer only
         resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
         class_logits_last_layer = class_logits_per_layer[-1]
-        predictions = []
         # Revert resize and pad for mask logits.
-        for logits, class_logits, (crop_h, crop_w), (image_h, image_w) in zip(
+        for logits, class_logits, target_masks, (crop_h, crop_w), (
+            image_h,
+            image_w,
+        ) in zip(
             resized_mask_logits_last_layer,
             class_logits_last_layer,
+            batch["masks"],
             crop_sizes,
             image_sizes,
         ):
             logits = logits.unsqueeze(0)  # (1, Q, H', W')
-            class_logits = class_logits.unsqueeze(0)  # (1, Q, num_classes)
             # Resize to same size as before passing through the model. This is usually
             # (1, Q, 640, 640) and depends on self.model.image_size.
             logits = F.interpolate(logits, resized_images.shape[-2:], mode="bilinear")
@@ -392,25 +415,21 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             logits = logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
             # (1, Q, H, W)
             logits = F.interpolate(logits, (image_h, image_w), mode="bilinear")
-            # (1, Q), (1, Q, H, W), (1, Q)
-            labels, masks, scores = self.model.get_labels_masks_scores(
-                mask_logits=logits, class_logits=class_logits
+            # (H, W, 2)
+            masks, _, _ = self.model.get_image_masks_segment_ids_scores(
+                mask_logits=logits[0],
+                class_logits=class_logits,
+                threshold=self.model_args.threshold,
+                mask_threshold=self.model_args.mask_threshold,
+                mask_overlap_threshold=self.model_args.mask_overlap_threshold,
             )
-            predictions.append(
-                {
-                    "labels": labels[0],
-                    "masks": masks[0],
-                    "scores": scores[0],
-                }
+            self.val_pq.update(
+                preds=masks.unsqueeze(0),  # (1, H, W, 2)
+                target=target_masks.unsqueeze(0),  # (1, H, W, 2)
             )
-
-        self.val_pq.update(
-            preds=predictions,
-            target=binary_masks,
-        )
 
         metrics: dict[str, Any] = {
-            "val_metric/map": self.val_pq,
+            "val_metric/pq": self.val_pq,
         }
 
         return TaskStepResult(

@@ -13,6 +13,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any, ClassVar, Iterable
 
+import numpy as np
 import torch
 from pydantic import Field
 from torch import Tensor
@@ -66,12 +67,23 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         )
 
         # Get the class mapping.
-        self.class_id_to_internal_class_id = (
-            label_helpers.get_class_id_to_internal_class_id_mapping(
-                class_ids=self.dataset_args.classes.keys(),
-                ignore_classes=self.dataset_args.ignore_classes,
-            )
-        )
+        ignore_classes = dataset_args.ignore_classes or set()
+        class_id_to_internal_class_id: dict[int, int] = {}
+        internal_class_id = 0
+        for class_id in dataset_args.stuff_classes.keys():
+            if class_id not in ignore_classes:
+                class_id_to_internal_class_id[class_id] = internal_class_id
+                internal_class_id += 1
+        for class_id in dataset_args.thing_classes.keys():
+            if class_id not in ignore_classes:
+                class_id_to_internal_class_id[class_id] = internal_class_id
+                internal_class_id += 1
+
+        # Internal class ids are structured as follows:
+        # [0, num_stuff_classes - 1] -> stuff classes
+        # [num_stuff_classes, num_stuff_classes + num_thing_classes - 1] -> thing classes
+        # NOTE: This must match the implementations in the train and task models!
+        self.class_id_to_internal_class_id = class_id_to_internal_class_id
 
         transform_args = transform.transform_args
         assert isinstance(transform_args, PanopticSegmentationTransformArgs)
@@ -115,6 +127,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
                 f"Shape mismatch: image (height, width) is {image.shape[:2]} while mask (height, width) is {mask.shape[:2]}."
             )
 
+        mask = mask.astype(np.int_)
         if mask.ndim == 3:
             # Convert RGB encoded mask to single channel.
             # From https://cocodataset.org/#format-data:
@@ -138,9 +151,12 @@ class MaskPanopticSegmentationDataset(TaskDataset):
             if self.is_valid_binary_masks(binary_masks):
                 break
 
+        masks = self.get_masks(binary_masks)
+
         return {
             "image_path": str(image_path),  # Str for torch dataloader compatibility.
             "image": transformed["image"],
+            "masks": masks,
             "binary_masks": binary_masks,
         }
 
@@ -150,7 +166,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         masks = []
         labels = []
         iscrowd = []
-        for segment_id in mask.unique().tolist():
+        for segment_id in mask.unique().tolist():  # type: ignore
             segment = segment_id_to_segment.get(segment_id)
             if segment is None:
                 # Unknown segment id, skip.
@@ -177,6 +193,23 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         }
         return binary_masks
 
+    def get_masks(self, binary_masks: PanopticBinaryMasksDict) -> Tensor:
+        """Convert binary masks to panoptic segmentation masks.
+
+        Returns:
+            (H, W, 2) Tensor where the last dimension contains (label, segment_id).
+            Segment ids are in [0, num_segments-1]. -1 indicates no segment.
+        """
+        binary_mask = binary_masks["masks"]
+        N, H, W = binary_mask.shape
+        masks = -binary_mask.new_ones((H, W, 2), dtype=torch.int)
+        for i in range(N):
+            binary_mask = binary_masks["masks"][i]
+            label = binary_masks["labels"][i]
+            masks[binary_mask, 0] = label
+            masks[binary_mask, 1] = i
+        return masks
+
     def is_valid_binary_masks(self, binary_masks: PanopticBinaryMasksDict) -> bool:
         return len(binary_masks["labels"]) > 0
 
@@ -185,10 +218,10 @@ class MaskPanopticSegmentationDatasetArgs(TaskDatasetArgs):
     image_dir: Path
     mask_dir_or_file: str
     annotation_file: Path
-    classes: dict[int, ClassInfo]
+    thing_classes: dict[int, str]
+    stuff_classes: dict[int, str]
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
-    ignore_index: int
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
         mask_dir = Path(self.mask_dir_or_file)
@@ -229,7 +262,6 @@ class SplitArgs(PydanticConfig):
 
 
 class MaskPanopticSegmentationDataArgs(TaskDataArgs):
-    ignore_index: ClassVar[int] = -100
     train: SplitArgs
     val: SplitArgs
     ignore_classes: set[int] | None = Field(default=None, strict=False)
@@ -259,7 +291,7 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
     @property
     def num_included_classes(self) -> int:
         return len(self.included_classes)
-    
+
     @property
     def thing_classes(self) -> dict[int, str]:
         return {
@@ -267,7 +299,7 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
             for class_id, class_name in self.included_classes.items()
             if self.classes[class_id].is_thing
         }
-    
+
     @property
     def stuff_classes(self) -> dict[int, str]:
         return {
@@ -275,7 +307,7 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
             for class_id, class_name in self.included_classes.items()
             if not self.classes[class_id].is_thing
         }
-    
+
     # NOTE(Guarin, 07/25): The interface with below methods is experimental. Not yet
     # sure if this makes sense to have in data args.
 
@@ -286,9 +318,9 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
             image_dir=Path(self.train.images),
             mask_dir_or_file=str(self.train.masks),
             annotation_file=Path(self.train.annotations),
-            classes=self.classes,
+            thing_classes=self.thing_classes,
+            stuff_classes=self.stuff_classes,
             ignore_classes=self.ignore_classes,
-            ignore_index=self.ignore_index,
         )
 
     def get_val_args(
@@ -298,16 +330,16 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
             image_dir=Path(self.val.images),
             mask_dir_or_file=str(self.val.masks),
             annotation_file=Path(self.val.annotations),
-            classes=self.classes,
+            thing_classes=self.thing_classes,
+            stuff_classes=self.stuff_classes,
             ignore_classes=self.ignore_classes,
-            ignore_index=self.ignore_index,
         )
 
 
 def _load_annotations(annotation_file: Path) -> dict[str, Any]:
     with annotation_file.open("r") as f:
         annotations = json.load(f)
-    return annotations
+    return annotations  # type: ignore
 
 
 def _load_classes(annotation_file: Path) -> dict[int, ClassInfo]:

@@ -37,6 +37,7 @@ from lightly_train._commands.train import train
 from lightly_train._commands.train_task import (
     train_instance_segmentation,
     train_object_detection,
+    train_panoptic_segmentation,
     train_semantic_segmentation,
 )
 from lightly_train._embedding.embedding_format import EmbeddingFormat
@@ -60,6 +61,7 @@ __all__ = [
     "ModelPart",
     "predict_semantic_segmentation",
     "train_instance_segmentation",
+    "train_panoptic_segmentation",
     "train_object_detection",
     "train_semantic_segmentation",
     "train",

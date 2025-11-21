@@ -99,8 +99,10 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
-        # An additional class is added to represent "unknown/ignored classes" if needed.
-        internal_class_to_class = list(self.stuff_classes.keys()) + list(self.thing_classes.keys())
+        # NOTE: This must match the implementations in the train model and dataset!
+        internal_class_to_class = list(self.stuff_classes.keys()) + list(
+            self.thing_classes.keys()
+        )
 
         # Efficient lookup for converting internal class IDs to class IDs.
         # Registered as buffer to be automatically moved to the correct device.
@@ -109,6 +111,19 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             "internal_class_to_class",
             torch.tensor(internal_class_to_class, dtype=torch.long),
             persistent=False,  # No need to save it in the state dict.
+        )
+        # Boolean mask indicating which internal classes are stuff classes.
+        self.is_stuff_class: Tensor
+        self.register_buffer(
+            "is_stuff_class",
+            torch.tensor(
+                [
+                    1 if class_id in self.stuff_classes else 0
+                    for class_id in internal_class_to_class
+                ],
+                dtype=torch.bool,
+            ),
+            persistent=False,
         )
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
@@ -235,7 +250,11 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
     @torch.no_grad()
     def predict(
-        self, image: PathLike | PILImage | Tensor, threshold: float = 0.8
+        self,
+        image: PathLike | PILImage | Tensor,
+        threshold: float = 0.8,
+        mask_threshold: float = 0.5,
+        mask_overlap_threshold: float = 0.8,
     ) -> dict[str, Tensor]:
         """Returns the predicted mask for the given image.
 
@@ -244,15 +263,22 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 The input image as a path, URL, PIL image, or tensor. Tensors must have
                 shape (C, H, W).
             threshold:
-                The confidence threshold for the predicted masks. Only masks with a
-                confidence score above this threshold are returned.
+                The confidence threshold to keep predicted masks.
+            mask_threshold:
+                The threshold to convert predicted mask logits to binary masks.
+            mask_overlap_threshold:
+                The overlap area threshold for the predicted masks. Used to filter out
+                or merge disconnected mask regions for every instance.
 
         Returns:
-            A {"labels": Tensor, "masks": Tensor, "scores": Tensor} dict. Labels is a
-            tensor of shape (Q,) containing the predicted class for each query. Masks is
-            a tensor of shape (Q, H, W) containing the predicted mask for each query.
-            Scores is a tensor of shape (Q,) containing the confidence score for each
-            query.
+            A {"mask": Tensor, "segment_ids": Tensor, "scores": Tensor} dict. Mask is
+            a tensor of shape (H, W, 2) where the last dimension has two channels:
+                - Channel 0: class label per pixel
+                - Channel 1: segment id per pixel
+            Segment ids are in [0, num_unique_segment_ids - 1]. There can be multiple
+            segments with the same id if they belong to the same stuff class.
+            Scores is a tensor of shape (num_segments,) containing the confidences score
+            for each segment.
         """
         if self.training:
             self.eval()
@@ -280,42 +306,52 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             mask_logits, size=(image_h, image_w), mode="bilinear"
         )
 
-        # (1, Q), (1, Q, H, W), (1, Q)
-        labels, masks, scores = self.get_labels_masks_scores(
-            mask_logits=mask_logits, class_logits=class_logits
+        # (H, W, 2), (num_segments), (num_segments)
+        masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
+            mask_logits=mask_logits[0],
+            class_logits=class_logits[0],
+            threshold=threshold,
+            mask_threshold=mask_threshold,
+            mask_overlap_threshold=mask_overlap_threshold,
         )
 
         # Map internal class IDs to class IDs.
-        labels = self.internal_class_to_class[labels]  # (1, Q)
-
-        # Remove batch dimension.
-        labels = labels.squeeze(0)
-        masks = masks.squeeze(0)
-        scores = scores.squeeze(0)
-
-        # Apply threshold.
-        keep = scores >= threshold
-        labels = labels[keep]
-        masks = masks[keep]
-        scores = scores[keep]
+        not_ignored = masks[..., 0] != -1
+        masks[not_ignored, 0] = self.internal_class_to_class[not_ignored, 0]
 
         return {
-            "labels": labels,
             "masks": masks,
+            "segment_ids": segment_ids,
             "scores": scores,
         }
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def forward(
+        self,
+        x: Tensor,
+        threshold: float = 0.8,
+        mask_threshold: float = 0.5,
+        mask_overlap_threshold: float = 0.8,
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        # NOTE(Guarin, 11/25): This implementation only supports batch size 1.
+
         # Function used for ONNX export
         # (1, Q, H, W), (1, Q, K+1), Q = num_queries, K = len(self.classes)
         mask_logits, class_logits = self._forward_logits(x)
-        labels, masks, scores = self.get_labels_masks_scores(
-            mask_logits=mask_logits, class_logits=class_logits
+        masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
+            mask_logits=mask_logits[0],
+            class_logits=class_logits[0],
+            threshold=threshold,
+            mask_threshold=mask_threshold,
+            mask_overlap_threshold=mask_overlap_threshold,
         )
 
         # Map internal class IDs to class IDs.
-        labels = self.internal_class_to_class[labels]
-        return labels, masks, scores
+        not_ignored = masks[..., 0] != -1
+        masks[not_ignored, 0] = self.internal_class_to_class[not_ignored, 0]
+        masks = masks.unsqueeze(0)  # (1, H, W, 2)
+        segment_ids = segment_ids.unsqueeze(0)  # (1, num_segments)
+        scores = scores.unsqueeze(0)  # (1, num_segments)
+        return masks, segment_ids, scores
 
     # TODO(Guarin, 07/25): Refactor to take attn_mask_probs as input.
     def forward_train(
@@ -448,22 +484,162 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         return mask_logits, class_logits
 
     @torch.no_grad()
-    def get_labels_masks_scores(
-        self, mask_logits: Tensor, class_logits: Tensor
+    def get_masks_segment_ids_scores(
+        self,
+        mask_logits: Tensor,
+        class_logits: Tensor,
+        threshold: float,
+        mask_threshold: float,
+        mask_overlap_threshold: float,
+    ) -> tuple[Tensor, list[Tensor], list[Tensor]]:
+        """
+        Args:
+            mask_logits: (B, Q, H, W)
+            class_logits: (B, Q, K+1)
+
+        Returns:
+            (masks, segment_ids, scores) tuple where:
+            masks: (B, H, W, 2) tensor where the last dimension has two channels:
+                - Channel 0: class label per pixel
+                - Channel 1: segment id per pixel
+            segment_ids:
+                A list of length B where each element is a tensor of shape (num_segments,)
+                containing the segment ids for each image in the batch. Segment ids are
+                in [0, num_unique_segment_ids - 1]. There can be multiple segments with
+                the same id if they belong to the same stuff class.
+            scores:
+                A list of length B where each element is a tensor of shape (num_segments,)
+                containing the scores for each segment in the batch.
+        """
+        B, _, H, W = mask_logits.shape
+        # (B, H, W, 2)
+        # Initialized with -1 to indicate ignored pixels.
+        # Last dimension has two channels:
+        #   - Channel 0: class label per pixel
+        #   - Channel 1: segment id per pixel
+        masks = -mask_logits.new_ones((B, H, W, 2), dtype=torch.int)
+        segment_ids = []
+        scores = []
+        for i in range(B):
+            img_mask, img_segment_ids, img_scores = (
+                self.get_image_masks_segment_ids_scores(
+                    class_logits=class_logits[i],
+                    mask_logits=mask_logits[i],
+                    threshold=threshold,
+                    mask_threshold=mask_threshold,
+                    mask_overlap_threshold=mask_overlap_threshold,
+                )
+            )
+            masks[i] = img_mask
+            scores.append(img_scores)
+            segment_ids.append(img_segment_ids)
+        return masks, segment_ids, scores
+
+    @torch.no_grad()
+    def get_image_masks_segment_ids_scores(
+        self,
+        class_logits: Tensor,
+        mask_logits: Tensor,
+        threshold: float,
+        mask_threshold: float,
+        mask_overlap_threshold: float,
     ) -> tuple[Tensor, Tensor, Tensor]:
-        # Get score and label for each query.
-        scores = class_logits.softmax(dim=-1)[..., :-1]  # (1, Q, K)
-        scores, labels = torch.max(scores, dim=-1)  # (1, Q), (1, Q)
+        """
+        Args:
+            class_logits: (Q, K+1)
+            mask_logits: (Q, H, W)
 
-        # Multiply scores with mask scores.
-        masks = mask_logits > 0  # (1, Q, H, W)
-        # (1, Q)
-        mask_scores = (mask_logits.sigmoid().flatten(2) * masks.flatten(2)).sum(2)
-        mask_scores = mask_scores / (masks.flatten(2).sum(2) + 1e-6)
-        scores = scores * mask_scores  # (1, Q)
+        Returns:
+            (masks, segment_ids, scores) tuple where:
+            masks: (H, W, 2) tensor where the last dimension has two channels:
+                - Channel 0: class label per pixel
+                - Channel 1: segment id per pixel
+            segment_ids:
+                Tensor of shape (num_segments,) containing the segment ids. Segment ids
+                are in [0, num_unique_segment_ids - 1]. There can be multiple segments
+                with the same id if they belong to the same stuff class.
+            scores:
+                Tensor of shape (num_segments,) containing the scores for each segment.
+        """
+        scores = class_logits.softmax(dim=-1)  # (B, Q, K+1)
+        scores, labels = torch.max(scores, dim=-1)  # (B, Q), (B, Q)
 
-        # (1, Q), (1, Q, H, W), (1, Q)
-        return labels, masks, scores
+        num_classes = class_logits.shape[-1] - 1
+        ignore_class = num_classes + 1
+        keep = (labels != ignore_class) & (scores > threshold)  # (B, Q)
+
+        # Remove ignored quries.
+        scores = scores[keep]  # (num_keep,)
+        labels = labels[keep]  # (num_keep,)
+        mask_probs = mask_logits.sigmoid()  # (Q, H, W)
+        mask_probs = mask_probs[keep]  # (num_keep, H, W)
+
+        # (num_keep, H, W)
+        mask_scores = (scores[..., None, None] * mask_probs)
+        # Add dummy -1 values. Otherwise mask_scores.argmax() fails if num_keep == 0.
+        # (1, H, W)
+        dummy_neg_one = -mask_scores.new_ones((1, *mask_scores.shape[1:]))
+        mask_scores = torch.cat([mask_scores, dummy_neg_one], dim=0)
+        mask_labels = mask_scores.argmax(dim=0) # (H, W)
+        mask_orig = mask_probs >= mask_threshold  # (num_keep, H, W)
+        mask_new = mask_labels[None, ...] == labels[..., None, None]  # (num_keep, H, W)
+        mask_final = mask_orig & mask_new  # (num_keep, H, W)
+
+        # Filter by area and overlap ratio.
+        area_orig = mask_orig.sum(dim=(-2, -1))  # (num_keep)
+        area_new = mask_new.sum(dim=(-2, -1))  # (num_keep)
+        area_final = mask_final.sum(dim=(-2, -1))  # (num_keep)
+        area_ratio = area_new / (area_orig + 1e-8)  # (num_keep)
+        # (num_keep)
+        keep_area = (
+            (area_orig > 0)
+            & (area_new > 0)
+            & (area_final > 0)
+            & (area_ratio >= mask_overlap_threshold)
+        )
+        mask_final = mask_final[keep_area]  # (num_keep_area, H, W)
+        labels = labels[keep_area]  # (num_keep_area,)
+        scores = scores[keep_area]  # (num_keep_area,)
+
+        # (num_keep_area,)
+        segment_ids = torch.arange(len(labels), device=labels.device)
+
+        # Find unique segment id for each stuff class
+        is_stuff = self.is_stuff_class[labels]  # (num_keep_area,)
+        stuff_labels = labels[is_stuff]
+        stuff_segment_ids = segment_ids[is_stuff]
+        # Cat with zero to handle empty stuff_labels case.
+        dummy_zero = stuff_labels.new_zeros(1)
+        max_stuff_label = torch.cat([stuff_labels, dummy_zero]).max()
+        stuff_label_to_segment_id = -stuff_labels.new_ones(max_stuff_label + 1)  # type: ignore
+        stuff_label_to_segment_id[stuff_labels] = stuff_segment_ids
+        segment_ids[is_stuff] = stuff_label_to_segment_id[stuff_labels]
+
+        # Reassign segment ids to be contiguous
+        unique_segment_ids: Tensor = segment_ids.unique()  # type: ignore
+        # Cat with zero to handle empty unique_segment_ids case.
+        max_unique_segment_id = torch.cat([unique_segment_ids, dummy_zero]).max()
+        segment_id_to_contiguous_id = -segment_ids.new_ones(max_unique_segment_id + 1)
+        segment_id_to_contiguous_id[unique_segment_ids] = torch.arange(
+            len(unique_segment_ids), device=segment_ids.device
+        )
+        segment_ids = segment_id_to_contiguous_id[segment_ids]
+
+        # Create final per-pixel labels and segment tensor
+        label_per_pixel = torch.cat([(mask_final * labels[..., None, None]), dummy_neg_one], dim=0)
+        # (H, W)
+        label_per_pixel = label_per_pixel.max(dim=0).values
+        segment_id_per_pixel = torch.cat([(mask_final * segment_ids[..., None, None]), dummy_neg_one], dim=0)
+        # (H, W)
+        segment_id_per_pixel = segment_id_per_pixel.max(dim=0).values
+        # (H, W, 2)
+        masks = torch.stack([label_per_pixel, segment_id_per_pixel], dim=-1)
+
+        return (
+            masks,
+            segment_ids,
+            scores,
+        )
 
     def resize_and_pad(self, image: Tensor) -> tuple[Tensor, tuple[int, int]]:
         """Resize and pad image to self.image_size while keeping aspect ratio constant.

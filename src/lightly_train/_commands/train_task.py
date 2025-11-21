@@ -27,6 +27,9 @@ from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.infinite_cycle_iterator import InfiniteCycleIterator
+from lightly_train._data.mask_panoptic_segmentation_dataset import (
+    MaskPanopticSegmentationDataArgs,
+)
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
@@ -332,6 +335,146 @@ def train_object_detection(
         steps=steps,
     )
     return _train_task(config_cls=ObjectDetectionTrainTaskConfig, **locals())
+
+
+def train_panoptic_segmentation(
+    *,
+    out: PathLike,
+    data: dict[str, Any],
+    model: str,
+    steps: int | Literal["auto"] = "auto",
+    batch_size: int | Literal["auto"] = "auto",
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    resume_interrupted: bool = False,
+    checkpoint: PathLike | None = None,
+    reuse_class_head: bool = False,
+    overwrite: bool = False,
+    accelerator: str = "auto",
+    strategy: str = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    seed: int | None = 0,
+    logger_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
+) -> None:
+    """Train a panoptic segmentation model.
+
+    See the documentation for more information: https://docs.lightly.ai/train/stable/panoptic_segmentation.html
+
+        The training process can be monitored with TensorBoard:
+
+    .. code-block:: bash
+
+        tensorboard --logdir out
+
+    After training, the last model checkpoint is saved in the out directory to:
+    ``out/checkpoints/last.ckpt`` and also exported to ``out/exported_models/exported_last.pt``.
+
+    Args:
+        out:
+            The output directory where the model checkpoints and logs are saved.
+        data:
+            The dataset configuration or path to a YAML file with the configuration.
+            See the documentation for more information:
+            https://docs.lightly.ai/train/stable/panoptic_segmentation.html#data
+        model:
+            The model to train. For example, "dinov2/vits14-eomt",
+            "dinov3/vits16-eomt-coco", or a path to a local model checkpoint.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter.
+        steps:
+            The number of training steps.
+        batch_size:
+            Global batch size. The batch size per device/GPU is inferred from this value
+            and the number of devices and nodes.
+        num_workers:
+            Number of workers for the dataloader per device/GPU. 'auto' automatically
+            sets the number of workers based on the available CPU cores.
+        devices:
+            Number of devices/GPUs for training. 'auto' automatically selects all
+            available devices. The device type is determined by the ``accelerator``
+            parameter.
+        num_nodes:
+            Number of nodes for distributed training.
+        checkpoint:
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint. The checkpoint must be a path to a checkpoint file, for example
+            "checkpoints/model.ckpt". This will only load the model weights from the
+            previous run. All other training state (e.g. optimizer state, epochs) from
+            the previous run are not loaded.
+
+            This option is equivalent to setting ``model="<path_to_checkpoint>"``.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
+        reuse_class_head:
+            Set this to True if you want to keep the class head from the provided
+            checkpoint. The default behavior removes the class head before loading so
+            that a new head can be initialized for the current task.
+        resume_interrupted:
+            Set this to True if you want to resume training from an **interrupted or
+            crashed** training run. This will pick up exactly where the training left
+            off, including the optimizer state and the current step.
+
+            - You must use the same ``out`` directory as the interrupted run.
+            - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
+            - This is intended for continuing the same run without modification.
+        overwrite:
+            Overwrite the output directory if it already exists. Warning, this might
+            overwrite existing files in the directory!
+        accelerator:
+            Hardware accelerator. Can be one of ['cpu', 'gpu', 'mps', 'auto'].
+            'auto' will automatically select the best accelerator available.
+        strategy:
+            Training strategy. For example 'ddp' or 'auto'. 'auto' automatically
+            selects the best strategy available.
+        precision:
+            Training precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
+            for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication. Can be one of ['auto',
+            'highest', 'high', 'medium']. See https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
+            for more information.
+        seed:
+            Random seed for reproducibility.
+        logger_args:
+            Logger arguments. Either None or a dictionary of logger names to either
+            None or a dictionary of logger arguments. None uses the default loggers.
+            To disable a logger, set it to None: ``logger_args={"tensorboard": None}``.
+            To configure a logger, pass the respective arguments:
+            ``logger_args={"mlflow": {"experiment_name": "my_experiment", ...}}``.
+            See https://docs.lightly.ai/train/stable/panoptic_segmentation.html#logging
+            for more information.
+        model_args:
+            Model training arguments. Either None or a dictionary of model arguments.
+        transform_args:
+            Transform arguments. Either None or a dictionary of transform arguments.
+            The image size and normalization parameters can be set with
+            ``transform_args={"image_size": (height, width), "normalize": {"mean": (r, g, b), "std": (r, g, b)}}``
+        loader_args:
+            Arguments for the PyTorch DataLoader. Should only be used in special cases
+            as default values are automatically set. Prefer to use the `batch_size` and
+            `num_workers` arguments instead. For details, see:
+            https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader
+        save_checkpoint_args:
+            Arguments to configure the saving of checkpoints. The checkpoint frequency
+            can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+    """
+    tracker.track_training_started(
+        task_type="panoptic_segmentation",
+        model=model,
+        method="eomt",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
+    return _train_task(config_cls=PanopticSegmentationTrainTaskConfig, **locals())
 
 
 def train_semantic_segmentation(
@@ -919,7 +1062,12 @@ class TrainTaskConfig(PydanticConfig):
     out: PathLike
     data: TaskDataArgs
     model: str
-    task: Literal["instance_segmentation", "semantic_segmentation", "object_detection"]
+    task: Literal[
+        "instance_segmentation",
+        "panoptic_segmentation",
+        "semantic_segmentation",
+        "object_detection",
+    ]
     steps: int | Literal["auto"] = "auto"
     batch_size: int | Literal["auto"] = "auto"
     num_workers: int | Literal["auto"] = "auto"
@@ -958,6 +1106,11 @@ class TrainTaskConfig(PydanticConfig):
 class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):
     data: YOLOInstanceSegmentationDataArgs
     task: Literal["instance_segmentation"] = "instance_segmentation"
+
+
+class PanopticSegmentationTrainTaskConfig(TrainTaskConfig):
+    data: MaskPanopticSegmentationDataArgs
+    task: Literal["panoptic_segmentation"] = "panoptic_segmentation"
 
 
 class ObjectDetectionTrainTaskConfig(TrainTaskConfig):

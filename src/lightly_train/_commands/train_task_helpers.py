@@ -49,6 +49,9 @@ from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model impor
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
     DINOv3EoMTInstanceSegmentationTrain,
 )
+from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.train_model import (
+    DINOv3EoMTPanopticSegmentationTrain,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
 )
@@ -82,6 +85,7 @@ logger = logging.getLogger(__name__)
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv3EoMTInstanceSegmentationTrain,
+    DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
@@ -99,6 +103,11 @@ TASK_TO_METRICS: dict[str, dict[str, str]] = {
         "val_metric/map_small": "Val mAP (small)",
         "val_metric/map_medium": "Val mAP (medium)",
         "val_metric/map_large": "Val mAP (large)",
+    },
+    "panoptic_segmentation": {
+        "val_metric/pq": "Val PQ",
+        "val_metric/pc": "Val PC",
+        "val_metric/ps": "Val PS",
     },
     "semantic_segmentation": {
         "train_metric/miou": "Train mIoU",

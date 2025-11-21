@@ -92,12 +92,12 @@ class BinaryMasksDict(TypedDict):
 
 
 class PanopticBinaryMasksDict(TypedDict):
-    # Boolean tensor with shape (num_classes_in_image, H, W).
+    # Boolean tensor with shape (num_instances, H, W).
     masks: Tensor
     # Class labels corresponding to the boolean masks. Tensor with shape
-    # (num_classes_in_image,)
+    # (num_instances,)
     labels: Tensor
-    iscrowd: Tensor  # Tensor with shape (num_classes_in_image,)
+    iscrowd: Tensor  # Tensor with shape (num_instances,)
 
 
 class MaskSemanticSegmentationDatasetItem(TaskDatasetItem):
@@ -155,6 +155,8 @@ class InstanceSegmentationBatch(TypedDict):
 class MaskPanopticSegmentationDatasetItem(TaskDatasetItem):
     image_path: ImageFilename
     image: Tensor
+    # Tensor with shape (H, W, 2) where the last dimension contains (label, segment_id).
+    masks: Tensor
     binary_masks: PanopticBinaryMasksDict  # Dict with (n_instances,) masks and labels.
 
 
@@ -162,8 +164,9 @@ class MaskPanopticSegmentationBatch(TypedDict):
     image_path: list[ImageFilename]  # length==batch_size
     # Tensor with shape (batch_size, 3, H, W) or list of Tensors with shape (3, H, W).
     image: Tensor | list[Tensor]
-    # Tensor with shape (batch_size, H, W) or list of Tensors with shape (H, W).
-    binary_masks: list[PanopticBinaryMasksDict]  # On dict per image.
+    # Tensor with shape (batch_size, H, W, 2) or list of Tensors with shape (H, W, 2).
+    masks: Tensor | list[Tensor]
+    binary_masks: list[PanopticBinaryMasksDict]  # One dict per image.
 
 
 # Replaces torch.optim.optimizer.ParamsT

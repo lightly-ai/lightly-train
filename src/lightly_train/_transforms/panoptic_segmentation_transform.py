@@ -11,10 +11,8 @@ import logging
 from typing import Any
 
 import numpy as np
-import torch
 from albumentations import (
     BasicTransform,
-    BboxParams,
     ColorJitter,
     Compose,
     HorizontalFlip,
@@ -48,10 +46,8 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import (
     ImageSizeTuple,
-    NDArrayBBoxes,
-    NDArrayBinaryMasksInt,
-    NDArrayClasses,
     NDArrayImage,
+    NDArrayMask,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,16 +55,12 @@ logger = logging.getLogger(__name__)
 
 class PanopticSegmentationTransformInput(TaskTransformInput):
     image: NDArrayImage
-    binary_masks: NDArrayBinaryMasksInt
-    bboxes: NDArrayBBoxes
-    class_labels: NDArrayClasses
+    mask: NDArrayMask
 
 
 class PanopticSegmentationTransformOutput(TaskTransformOutput):
     image: Tensor
-    binary_masks: Tensor
-    bboxes: NDArrayBBoxes
-    class_labels: NDArrayClasses
+    mask: Tensor
 
 
 class PanopticSegmentationTransformArgs(TaskTransformArgs):
@@ -82,7 +74,6 @@ class PanopticSegmentationTransformArgs(TaskTransformArgs):
     scale_jitter: ScaleJitterArgs | None
     smallest_max_size: SmallestMaxSizeArgs | None
     random_crop: RandomCropArgs | None
-    bbox_params: BboxParams
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         pass
@@ -236,41 +227,16 @@ class PanopticSegmentationTransform(TaskTransform):
         transform += [ToTensorV2()]
 
         # Create the final transform.
-        self.transform = Compose(
-            transform,
-            bbox_params=transform_args.bbox_params,
-        )
+        self.transform = Compose(transform, additional_targets={"mask": "mask"})
 
     def __call__(
         self, input: PanopticSegmentationTransformInput
     ) -> PanopticSegmentationTransformOutput:
-        # Mask augmentations only work correctly when passed as `masks` to albumentations.
-        # Passing as `binary_masks` and adding `additional_targets={"binary_masks": "masks"}`
-        # doesn't work. "mask" also doesn't work as target.
         transformed = self.transform(
             image=input["image"],
-            masks=input["binary_masks"],
-            bboxes=input["bboxes"],
-            class_labels=input["class_labels"],
-            indices=np.arange(len(input["bboxes"])),
+            mask=input["mask"],
         )
-
-        # Albumentations can drop bboxes if they are out of the image after the transform.
-        # It also automatically drops the corresponding class labels and indices but
-        # this doesn't work for masks. So we need to filter them out manually.
-        masks = transformed["masks"]
-        masks = [masks[i] for i in transformed["indices"]]
-        image = transformed["image"]
-        H, W = image.shape[-2:]
-        binary_masks = (
-            torch.stack(masks)
-            if len(masks) > 0
-            else image.new_zeros(0, H, W, dtype=torch.int)
-        )
-
         return {
             "image": transformed["image"],
-            "binary_masks": binary_masks,
-            "bboxes": transformed["bboxes"],
-            "class_labels": transformed["class_labels"],
+            "mask": transformed["mask"],
         }
