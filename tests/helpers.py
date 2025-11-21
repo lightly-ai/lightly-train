@@ -369,7 +369,7 @@ def create_normalized_yolo_object_detection_labels(
     for image_path in image_paths:
         label_path = labels_dir / f"{image_path.stem}.txt"
         with open(label_path, "w") as f:
-            f.write("2 0.375 0.5 0.25 0.5\n")
+            f.write("0 0.375 0.5 0.25 0.5\n")
 
 
 def create_normalized_yolo_instance_segmentation_labels(
@@ -378,7 +378,7 @@ def create_normalized_yolo_instance_segmentation_labels(
     for image_path in image_paths:
         label_path = labels_dir / f"{image_path.stem}.txt"
         with open(label_path, "w") as f:
-            f.write("2 0.30 0.30 0.45 0.27 0.49 0.50 0.44 0.70 0.31 0.73 0.26 0.50\n")
+            f.write("0 0.30 0.30 0.45 0.27 0.49 0.50 0.44 0.70 0.31 0.73 0.26 0.50\n")
 
 
 def create_yolo_object_detection_dataset(

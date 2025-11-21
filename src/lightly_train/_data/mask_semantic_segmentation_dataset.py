@@ -258,12 +258,12 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         # TODO(Thomas, 07/25): Make this optional.
         transformed_mask = self.map_class_id_to_internal_class_id(transformed["mask"])
 
-        return {
-            "image_path": str(image_path),  # Str for torch dataloader compatibility.
-            "image": transformed["image"],
-            "mask": transformed_mask,
-            "binary_masks": binary_masks,
-        }
+        return MaskSemanticSegmentationDatasetItem(
+            image_path=str(image_path),  # Str for torch dataloader compatibility.
+            image=transformed["image"],
+            mask=transformed_mask,
+            binary_masks=binary_masks,
+        )
 
 
 class MaskSemanticSegmentationDatasetArgs(TaskDatasetArgs):

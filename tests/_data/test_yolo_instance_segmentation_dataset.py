@@ -35,7 +35,7 @@ class TestYOLOInstanceSegmentationDataset:
             path=tmp_path,
             train="train/images",
             val="val/images",
-            names={1: "class_0", 2: "class_1"},
+            names={0: "class_0", 1: "class_1"},
         )
         train_args = args.get_train_args()
         val_args = args.get_val_args()
@@ -85,7 +85,7 @@ class TestYOLOInstanceSegmentationDataset:
             path=tmp_path,
             train="images/train",
             val="images/val",
-            names={1: "class_0", 2: "class_1"},
+            names={0: "class_0", 1: "class_1"},
         )
 
         train_args = args.get_train_args()

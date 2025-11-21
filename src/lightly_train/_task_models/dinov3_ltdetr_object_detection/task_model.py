@@ -212,8 +212,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self,
         *,
         model_name: str,
+        classes: dict[int, str],
         image_size: tuple[int, int],
-        classes: dict[int, str] | None = None,
         image_normalize: dict[str, Any] | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
@@ -227,6 +227,19 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self.model_name = parsed_name["model_name"]
         self.image_size = image_size
         self.classes = classes
+
+        # Internally, the model processes classes as contiguous integers starting at 0.
+        # This list maps the internal class id to the class id in `classes`.
+        internal_class_to_class = list(self.classes.keys())
+
+        # Efficient lookup for converting internal class IDs to class IDs.
+        # Registered as buffer to be automatically moved to the correct device.
+        self.internal_class_to_class: Tensor
+        self.register_buffer(
+            "internal_class_to_class",
+            torch.tensor(internal_class_to_class, dtype=torch.long),
+            persistent=False,  # No need to save it in the state dict.
+        )
 
         # TODO: Lionel(09/25) Those will currently be ignored.
         self.image_normalize = image_normalize
@@ -340,7 +353,13 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         x = self.backbone(x)
         x = self.encoder(x)
         x = self.decoder(x)
+
+        # labels, bboxes, scores
         x_: list[Tensor] = self.postprocessor(x, orig_target_size_)
+
+        # Map internal class IDs to class IDs.
+        x_[0] = self.internal_class_to_class[x_[0]]
+
         return x_
 
     @classmethod

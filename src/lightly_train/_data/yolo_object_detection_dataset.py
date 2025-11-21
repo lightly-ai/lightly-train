@@ -15,7 +15,7 @@ import numpy as np
 import pydantic
 import torch
 
-from lightly_train._data import file_helpers, yolo_helpers
+from lightly_train._data import file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.task_batch_collation import (
     BaseCollateFunction,
     ObjectDetectionCollateFunction,
@@ -44,6 +44,14 @@ class YOLOObjectDetectionDataset(TaskDataset):
             transform=transform, dataset_args=dataset_args, image_info=image_info
         )
 
+        # Get the class mapping.
+        self.class_id_to_internal_class_id = (
+            label_helpers.get_class_id_to_internal_class_id_mapping(
+                class_ids=self.dataset_args.classes.keys(),
+                ignore_classes=None,
+            )
+        )
+
     def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
         # Load the image.
         image_info = self.image_info[index]
@@ -60,11 +68,20 @@ class YOLOObjectDetectionDataset(TaskDataset):
         bboxes_np, class_labels_np = (
             file_helpers.open_yolo_object_detection_label_numpy(label_path)
         )
+
+        # Map class IDs to internal class IDs.
+        internal_class_labels_np = np.array(
+            [
+                self.class_id_to_internal_class_id[int(class_id)]
+                for class_id in class_labels_np
+            ]
+        )
+
         transformed = self.transform(
             {
                 "image": image_np,
                 "bboxes": bboxes_np,  # Shape (n_boxes, 4)
-                "class_labels": class_labels_np,  # Shape (n_boxes,)
+                "class_labels": internal_class_labels_np,  # Shape (n_boxes,)
             }
         )
 
@@ -75,13 +92,13 @@ class YOLOObjectDetectionDataset(TaskDataset):
         if isinstance(transformed["class_labels"], list):
             transformed["class_labels"] = np.array(transformed["class_labels"])
         bboxes = torch.from_numpy(transformed["bboxes"]).float()
-        class_labels = torch.from_numpy(transformed["class_labels"]).long()
+        internal_class_labels = torch.from_numpy(transformed["class_labels"]).long()
 
         return ObjectDetectionDatasetItem(
             image_path=str(image_path),
             image=image,
             bboxes=bboxes,
-            classes=class_labels,
+            classes=internal_class_labels,
             original_size=(
                 w,
                 h,
