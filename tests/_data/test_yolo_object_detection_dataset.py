@@ -164,8 +164,8 @@ class TestYoloObjectDetectionDataset:
 
         args = YOLOObjectDetectionDataArgs(
             path=tmp_path,
-            train="images/train",
-            val="images/val",
+            train="train/images",
+            val="val/images",
             names={0: "class_0", 2: "class_2"},
         )
         expected_mapping = {0: 0, 2: 1}
@@ -176,12 +176,12 @@ class TestYoloObjectDetectionDataset:
             transform=ObjectDetectionTransform(DummyTransformArgs()),
             image_info=[
                 {
-                    "image_path": str(tmp_path / "images/train/0.png"),
-                    "label_path": str(tmp_path / "labels/train/0.txt"),
+                    "image_path": str(tmp_path / "train/images/0.png"),
+                    "label_path": str(tmp_path / "train/labels/0.txt"),
                 },
                 {
-                    "image_path": str(tmp_path / "images/train/1.png"),
-                    "label_path": str(tmp_path / "labels/train/1.txt"),
+                    "image_path": str(tmp_path / "train/images/1.png"),
+                    "label_path": str(tmp_path / "train/labels/1.txt"),
                 },
             ],
         )
