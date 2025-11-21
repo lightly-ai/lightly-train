@@ -280,3 +280,33 @@ def queries_adjust_num_queries_hook(
             )
 
     state_dict[queries_weight_key] = queries_weight
+
+
+def class_head_reuse_or_reinit_hook(
+    module: torch.Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    class_head_weight_key = f"{prefix}class_head.weight"
+    class_head_bias_key = f"{prefix}class_head.bias"
+    class_head_weight = state_dict.get(class_head_weight_key)
+    if class_head_weight is None:
+        return
+
+    class_head_module = getattr(module, "class_head", None)
+    if class_head_module is None:
+        return
+
+    num_classes_state = class_head_weight.shape[0]
+    num_classes_module = class_head_module.out_features
+    if num_classes_state == num_classes_module:
+        return
+    else:
+        logger.info(
+            f"Checkpoint provides {num_classes_state} classes but module expects {num_classes_module}. Reinitializing class head.",
+        )
+        # Remove class head weights/bias to force reinitialization.
+        del state_dict[class_head_weight_key]
+        del state_dict[class_head_bias_key]

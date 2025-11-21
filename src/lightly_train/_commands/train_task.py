@@ -738,7 +738,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             helpers.finetune_from_checkpoint(
                 state=state,
                 checkpoint=checkpoint,
-                reuse_class_head=config.reuse_class_head,
             )
 
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
