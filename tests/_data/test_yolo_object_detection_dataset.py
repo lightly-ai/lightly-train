@@ -158,3 +158,32 @@ class TestYoloObjectDetectionDataset:
         sample = val_dataset[0]
         assert sample["image"].dtype == torch.float32
         assert sample["bboxes"].shape == (1, 4)
+
+    def test__get_item__internal_class_ids(self, tmp_path: Path) -> None:
+        create_yolo_object_detection_dataset(tmp_path=tmp_path, split_first=True)
+
+        args = YOLOObjectDetectionDataArgs(
+            path=tmp_path,
+            train="images/train",
+            val="images/val",
+            names={0: "class_0", 2: "class_2"},
+        )
+        expected_mapping = {0: 0, 2: 1}
+
+        train_args = args.get_train_args()
+        train_dataset = YOLOObjectDetectionDataset(
+            dataset_args=train_args,
+            transform=ObjectDetectionTransform(DummyTransformArgs()),
+            image_info=[
+                {
+                    "image_path": str(tmp_path / "images/train/0.png"),
+                    "label_path": str(tmp_path / "labels/train/0.txt"),
+                },
+                {
+                    "image_path": str(tmp_path / "images/train/1.png"),
+                    "label_path": str(tmp_path / "labels/train/1.txt"),
+                },
+            ],
+        )
+
+        assert train_dataset.class_id_to_internal_class_id == expected_mapping
