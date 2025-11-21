@@ -894,45 +894,20 @@ def resume_from_checkpoint(
 def finetune_from_checkpoint(
     state: TrainTaskState,
     checkpoint: CheckpointDict,
-    reuse_class_head: bool,
 ) -> None:
     """Restore model state from the checkpoint for fine-tuning.
 
     Args:
         state: Training state container to populate with checkpoint data.
         checkpoint: Checkpoint context the state dicts to load.
-        reuse_class_head: Whether to keep class-specific layers when fine-tuning.
     """
 
     train_model = state["train_model"]
-    train_model_state_keys = set(train_model.state_dict().keys())
-    if reuse_class_head:
-        incompatible = train_model.load_state_dict(
-            checkpoint["train_model_state_dict"],
-        )
-    else:
-        class_head_keys = {
-            key
-            for key in train_model_state_keys
-            if key.startswith("class_head") or ".class_head" in key
-        }
-        criterion_keys = {
-            key for key in train_model_state_keys if "criterion.empty_weight" in key
-        }
-        checkpoint_keys_to_skip = class_head_keys | criterion_keys
-        if checkpoint_keys_to_skip:
-            logger.debug(
-                "Skipping class-dependent parameters from checkpoint: %s",
-                sorted(checkpoint_keys_to_skip),
-            )
-        filtered_state = {
-            key: value
-            for key, value in checkpoint["train_model_state_dict"].items()
-            if key not in checkpoint_keys_to_skip
-        }
-        incompatible = train_model.load_state_dict(filtered_state, strict=False)
+    incompatible = train_model.load_state_dict(
+        checkpoint["train_model_state_dict"], strict=False
+    )
 
-    if reuse_class_head and incompatible.missing_keys:
+    if incompatible.missing_keys:
         logger.warning(
             "Missing keys after loading checkpoint: %s",
             incompatible.missing_keys,
