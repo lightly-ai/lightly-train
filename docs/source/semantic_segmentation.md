@@ -115,6 +115,8 @@ import lightly_train
 
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 masks = model.predict("path/to/image.jpg")
+# Masks is a tensor of shape (height, width) with class labels as values.
+# It has the same height and width as the input image.
 ```
 
 ### Visualize the Result

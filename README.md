@@ -64,6 +64,7 @@ batch size 1. All models are compiled and optimized using `tensorrt==10.13.3.9`.
 import lightly_train
 
 if __name__ == "__main__":
+    # Train an object detection model with a DINOv3 backbone
     lightly_train.train_object_detection(
         out="out/my_experiment",
         model="dinov3/convnext-small-ltdetr-coco",
@@ -78,6 +79,17 @@ if __name__ == "__main__":
             },
         },
     )
+
+    # Load model and run inference
+    model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+    # Or use one of the models provided by LightlyTrain
+    # model = lightly_train.load_model("dinov3/convnext-small-ltdetr-coco")
+    results = model.predict("image.jpg")
+    results["labels"]   # Class labels, tensor of shape (num_boxes,)
+    results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                        # coordinates of the original image. Tensor of shape (num_boxes, 4).
+    results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
+
 ```
 
 </details>
@@ -110,9 +122,10 @@ size 1. All models are compiled and optimized using `torch.compile`.
 import lightly_train
 
 if __name__ == "__main__":
+    # Train an instance segmentation model with a DINOv3 backbone
     lightly_train.train_instance_segmentation(
         out="out/my_experiment",
-        model="dinov3/vitb16-eomt-inst-coco",
+        model="dinov3/vits16-eomt-inst-coco",
         data={
             "path": "my_data_dir",
             "train": "images/train",
@@ -125,6 +138,16 @@ if __name__ == "__main__":
             },
         },
     )
+
+    # Load model and run inference
+    model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+    # Or use one of the models provided by LightlyTrain
+    # model = lightly_train.load_model("dinov3/vits16-eomt-inst-coco")
+    results = model.predict("image.jpg")
+    results["labels"]   # Class labels, tensor of shape (num_instances,)
+    results["masks"]    # Binary masks, tensor of shape (num_instances, height, width).
+                        # Height and width correspond to the original image size.
+    results["scores"]   # Confidence scores, tensor of shape (num_instances,)
 ```
 
 </details>
@@ -169,26 +192,35 @@ and optimized using `torch.compile`.
 import lightly_train
 
 if __name__ == "__main__":
-  lightly_train.train_semantic_segmentation(
-    out="out/my_experiment",
-    model="dinov3/vits16-eomt",
-    data={
-      "train": {
-        "images": "my_data_dir/train/images",
-        "masks": "my_data_dir/train/masks",
-      },
-      "val": {
-        "images": "my_data_dir/val/images",
-        "masks": "my_data_dir/val/masks",
-      },
-      "classes": {
-        0: "background",
-        1: "road",
-        2: "building",
-        # ...
-      },
-    },
-  )
+    # Train a semantic segmentation model with a DINOv3 backbone
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vits16-eomt",
+        data={
+            "train": {
+                "images": "my_data_dir/train/images",
+                "masks": "my_data_dir/train/masks",
+            },
+            "val": {
+                "images": "my_data_dir/val/images",
+                "masks": "my_data_dir/val/masks",
+            },
+            "classes": {
+                0: "background",
+                1: "road",
+                2: "building",
+                # ...
+            },
+        },
+    )
+
+    # Load model and run inference
+    model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+    # Or use one of the models provided by LightlyTrain
+    # model = lightly_train.load_model("dinov3/vits16-eomt")
+    masks = model.predict("image.jpg")
+    # Masks is a tensor of shape (height, width) with class labels as values.
+    # It has the same height and width as the input image.
 ```
 
 </details>
@@ -214,15 +246,20 @@ for more benchmarks and details.
 import lightly_train
 
 if __name__ == "__main__":
-  lightly_train.train(
-    out="out/my_experiment",
-    data="my_data_dir",
-    model="ultralytics/yolov8s",
-    method="distillation",
-    method_args={
-      "teacher": "dinov3/vitb16",
-    },
-  )
+    # Distill the knowledge from a DINOv3 teacher into a YOLOv8 model
+    lightly_train.train(
+        out="out/my_experiment",
+        data="my_data_dir",
+        model="ultralytics/yolov8s",
+        method="distillation",
+        method_args={
+            "teacher": "dinov3/vitb16",
+        },
+    )
+
+    # Load model for fine-tuning
+    model = YOLO("out/my_experiment/exported_models/exported_last.pt")
+    model.train(data="coco8.yaml")
 ```
 
 </details>
@@ -250,12 +287,13 @@ on the ImageNet validation set.
 import lightly_train
 
 if __name__ == "__main__":
-  lightly_train.train(
-    out="out/my_experiment",
-    data="my_data_dir",
-    model="dinov2/vitb14",
-    method="dinov2",
-  )
+    # Pretrain a DINOv2 vision foundation model on your data
+    lightly_train.train(
+        out="out/my_experiment",
+        data="my_data_dir",
+        model="dinov2/vitb14",
+        method="dinov2",
+    )
 ```
 
 </details>
@@ -289,11 +327,20 @@ smaller models, and then used the ADE20k dataset for validation.
 import lightly_train
 
 if __name__ == "__main__":
-  lightly_train.predict_semantic_segmentation(
-    out="out/my_autolabeled_data",
-    data="my_data_dir",
-    model="dinov3/vitb16-eomt-ade20k",
-  )
+    # Autolabel your data with a DINOv3 semantic segmentation model
+    lightly_train.predict_semantic_segmentation(
+        out="out/my_autolabeled_data",
+        data="my_data_dir",
+        model="dinov3/vitb16-eomt-coco",
+        # Or use one of your own model checkpoints
+        # model="out/my_experiment/exported_models/exported_best.pt",
+    )
+
+    # The autolabeled masks will be saved in this format:
+    # out/my_autolabeled_data
+    # ├── <image name>.png
+    # ├── <image name>.png
+    # └── …
 ```
 
 </details>
@@ -311,31 +358,28 @@ if __name__ == "__main__":
 
 LightlyTrain supports the following model and workflow combinations.
 
-Scroll right to see all columns!
+### Fine-tuning
 
-| Framework | Model | Object Detection<br><sub>(*Labeled Images*)</sub> | Instance Segmentation<br><sub>(*Labeled Images*)</sub> | Semantic Segmentation<br><sub>(*Labeled Images*)</sub> | Distill From<br> DINOv2/v3<br><sub>(*Unlabeled Images*)</sub> | Pretrain<br><sub>(*Unlabeled Images*)</sub> | Autolabel |
-|:--------------:|:------------:|:----------------------:|:----------------------:|:----------------------:|:-------:|:------------------------------------------------------------------------:|:---------:|
-| LightlyTrain | DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html#distill-from-dinov3) | | ✅ [🔗](https://docs.lightly.ai/train/stable/predict_autolabel.html) |
-| | DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/dinov2.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/predict_autolabel.html) |
-| Torchvision | ResNet | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | |
-| | ConvNext | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | |
-| | ShuffleNetV2 | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | |
-| TIMM | All models | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/timm.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/timm.html) | |
-| Ultralytics | YOLOv5 | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | |
-| | YOLOv6 | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | |
-| | YOLOv8 | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | |
-| | YOLO11 | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | |
-| | YOLO12 | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | |
-| RT-DETR | RT-DETR | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) | |
-| | RT-DETRv2 | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) | |
-| RF-DETR | RF-DETR | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) | |
-| YOLOv12 | YOLOv12 | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) | |
-| SuperGradients | PP-LiteSeg | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | |
-| | SSD | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | |
-| | YOLO-NAS | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/supergradients.html) | |
-| Custom Models | Any PyTorch model | | | | ✅ [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) | |
+| Model | Object Detection | Instance Segmentation | Semantic Segmentation |
+| ------ | :----------------------------------------------------------------: | :---------------------------------------------------------------------: | :------------------------------------------------------------------------------------------: |
+| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
+| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html) |
 
-[Contact us](https://www.lightly.ai/contact) if you need support for additional models or libraries.
+### Distillation & Pretraining
+
+| Model | Distillation | Pretraining |
+| ------------------------------ | :----------------------------------------------------------------------------------------: | :--------------------------------------------------------------------: |
+| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html#distill-from-dinov3) | |
+| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/dinov2.html) |
+| Torchvision ResNet, ConvNext, ShuffleNetV2 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) |
+| TIMM models | ✅ [🔗](https://docs.lightly.ai/train/stable/models/timm.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/timm.html) |
+| Ultralytics YOLOv5–YOLO12 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) |
+| RT-DETR, RT-DETRv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) |
+| RF-DETR | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) |
+| YOLOv12 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) |
+| Custom PyTorch Model | ✅ [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) |
+
+[Contact us](https://www.lightly.ai/contact) if you need support for additional models.
 
 ## Usage Events
 

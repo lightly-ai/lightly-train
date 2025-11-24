@@ -96,13 +96,17 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 results = model.predict("path/to/image.jpg")
 ```
 
-Or use one of the pre-trained model weights directly from LightlyTrain:
+Or use one of the models provided by LightlyTrain:
 
 ```python
 import lightly_train
 
 model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
-results = model.predict("path/to/image.jpg")
+results = model.predict("image.jpg")
+results["labels"]   # Class labels, tensor of shape (num_boxes,)
+results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
+results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 ### Visualize the Result
@@ -130,7 +134,8 @@ ax.imshow(image_with_boxes.permute(1, 2, 0))
 fig.savefig("predictions.png")
 ```
 
-The predicted boxes are in the absolute (x_min, y_min, x_max, y_max) format, i.e. represent the size of the dimension of the bounding boxes in pixels.
+The predicted boxes are in the absolute (x_min, y_min, x_max, y_max) format, i.e. represent
+the size of the dimension of the bounding boxes in pixels of the original image.
 
 <!--
 # Figure created with
