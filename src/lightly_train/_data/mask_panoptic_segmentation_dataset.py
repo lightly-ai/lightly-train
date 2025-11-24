@@ -167,6 +167,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
     def get_binary_masks(
         self, mask: Tensor, segment_id_to_segment: dict[int, dict[Any, Any]]
     ) -> PanopticBinaryMasksDict:
+        H, W = mask.shape
         masks = []
         labels = []
         iscrowd = []
@@ -190,7 +191,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
             "masks": (
                 torch.stack(masks)
                 if masks
-                else mask.new_zeros(size=(0, *mask.shape), dtype=torch.bool)
+                else mask.new_zeros(size=(0, H, W), dtype=torch.bool)
             ),
             "labels": mask.new_tensor(labels, dtype=torch.long),
             "iscrowd": mask.new_tensor(iscrowd, dtype=torch.bool),
@@ -214,8 +215,8 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         for i in range(N):
             binary_mask = binary_masks["masks"][i]
             label = binary_masks["labels"][i]
-            masks[binary_mask, 0] = label
-            masks[binary_mask, 1] = i
+            masks[..., 0] = torch.where(binary_mask, label, masks[..., 0])
+            masks[..., 1] = torch.where(binary_mask, i, masks[..., 1])
         return masks
 
     def is_valid_binary_masks(self, binary_masks: PanopticBinaryMasksDict) -> bool:
