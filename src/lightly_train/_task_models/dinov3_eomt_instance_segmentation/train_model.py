@@ -23,6 +23,7 @@ from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
 )
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._task_models import train_model_helpers
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -221,6 +222,16 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         self.train_map = MeanAveragePrecision(iou_type="segm")  # type: ignore[arg-type]
         self.train_map.warn_on_many_detections = False
         self.val_map = self.train_map.clone()
+
+        if hasattr(self, "register_load_state_dict_pre_hook"):
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                train_model_helpers.criterion_empty_weight_reinit_hook
+            )
+        else:
+            # Backwards compatibility for PyTorch <= 2.4
+            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                train_model_helpers.criterion_empty_weight_reinit_hook, with_module=True
+            )
 
     def get_task_model(self) -> DINOv3EoMTInstanceSegmentation:
         return self.model
