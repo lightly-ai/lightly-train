@@ -118,6 +118,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         )
 
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
+            num_classes=len(self.classes),
             feat_channels=[384, 384, 384],
             feat_strides=[14, 14, 14],
             hidden_dim=256,
@@ -135,6 +136,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         )
 
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
+            num_classes=len(self.classes),
             num_top_queries=300,
         )
 
