@@ -308,6 +308,7 @@ def class_head_reuse_or_reinit_hook(
         logger.info(
             f"Checkpoint provides {num_classes_state} classes but module expects {num_classes_module}. Reinitializing class head.",
         )
-        # Remove class head weights/bias to force reinitialization.
-        del state_dict[class_head_weight_key]
-        del state_dict[class_head_bias_key]
+
+        # Re-initialize class head weights and biases
+        state_dict[class_head_weight_key] = class_head_module.weight.detach().clone()
+        state_dict[class_head_bias_key] = class_head_module.bias.detach().clone()
