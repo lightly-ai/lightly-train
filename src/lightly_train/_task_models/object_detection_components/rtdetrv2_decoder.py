@@ -491,14 +491,19 @@ class RTDETRTransformerv2(nn.Module):
                 task_model_helpers.score_head_reuse_or_reinit_hook
             )
             if num_denoising > 0:
-                pass
+                self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                    task_model_helpers.denoising_class_embed_reuse_or_reinit_hook
+                )
         else:
             # Backwards compatibility for PyTorch <= 2.4
             self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
                 task_model_helpers.score_head_reuse_or_reinit_hook, with_module=True
             )
             if num_denoising > 0:
-                pass
+                self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                    task_model_helpers.denoising_class_embed_reuse_or_reinit_hook,
+                    with_module=True,
+                )
 
         self._reset_parameters()
 

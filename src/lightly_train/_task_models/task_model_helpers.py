@@ -283,6 +283,34 @@ def queries_adjust_num_queries_hook(
     state_dict[queries_weight_key] = queries_weight
 
 
+def denoising_class_embed_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    denoising_class_embed_weight_key = f"{prefix}denoising_class_embed.weight"
+    denoising_class_embed_weight = state_dict.get(denoising_class_embed_weight_key)
+    if denoising_class_embed_weight is None:
+        return
+
+    denoising_class_embed_module = getattr(module, "denoising_class_embed", None)
+    if denoising_class_embed_module is None:
+        return
+
+    num_classes_state = denoising_class_embed_weight.shape[0]
+    num_classes_module = denoising_class_embed_module.num_embeddings
+    if num_classes_state == num_classes_module:
+        return
+    else:
+        logger.info(
+            f"Checkpoint provides {num_classes_state} classes but module expects {num_classes_module}. Reinitializing denoising class embed.",
+        )
+        # Remove class embed weights/bias to force reinitialization.
+        del state_dict[denoising_class_embed_weight_key]
+
+
 def class_head_reuse_or_reinit_hook(
     module: Module,
     state_dict: dict[str, Any],
