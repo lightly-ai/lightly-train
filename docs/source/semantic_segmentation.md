@@ -104,8 +104,6 @@ if __name__ == "__main__":
 Check [here](semantic-segmentation-eomt-dinov3-model-weights) for how to use the LightlyTrain model checkpoints for further fine-tuning.
 ```
 
-By default, the classification head weights are not loaded so as to adapt only the backbone and mask head to downstream tasks. If you do need to load the classification head weights, you could specify it by setting the `reuse_class_head` flag to `True` in `train_semantic_segmentation`.
-
 ### Load the Trained Model from Checkpoint and Predict
 
 After the training completes, you can load the best model checkpoints for inference like this:
