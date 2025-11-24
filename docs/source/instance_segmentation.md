@@ -2,6 +2,8 @@
 
 # Instance Segmentation
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
+
 ```{note}
 🔥 LightlyTrain now supports training **DINOv3**-based instance segmentation models
 with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by Kerssies et al.!
@@ -21,12 +23,12 @@ You can also explore running inference and training these models using our Colab
 
 ### COCO
 
-| Implementation | Model | #Params (M) | Input Size | Val mAP mask | Avg. FPS |
-|----------------|----------------|-------------|------------|----------|----------|
-| LightlyTrain | dinov3/vits16-eomt-inst-coco | 21.6 | 640x640 | 32.6 | 51.5 |
-| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 85.7 | 640x640 | 40.3 | 25.2 |
-| LightlyTrain | dinov3/vitl16-eomt-inst-coco | 303.2 | 640x640 | **46.2** | 12.5 |
-| Original EoMT | dinov3/vitl16-eomt-inst-coco | 303.2 | 640x640 | 45.9 | - |
+| Implementation | Model | Val mAP mask | Avg. FPS | Params (M) | Input Size |
+|----------------|----------------|-------------|----------|-----------|------------|
+| LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 51.5 | 21.6 | 640×640 |
+| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 25.2 | 85.7 | 640×640 |
+| LightlyTrain | dinov3/vitl16-eomt-inst-coco | **46.2** | 12.5 | 303.2 | 640×640 |
+| Original EoMT | dinov3/vitl16-eomt-inst-coco | 45.9 | - | 303.2 | 640×640 |
 
 Training follows the protocol in the original [EoMT paper](https://arxiv.org/abs/2503.19108).
 Models are trained for 90K steps (~12 epochs) on the COCO dataset with batch size `16`
@@ -94,9 +96,10 @@ import lightly_train
 
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 results = model.predict("image.jpg")
-labels = results["labels"]  # (N,) tensor of predicted class IDs
-masks = results["masks"]    # (N, height, width) tensor of predicted masks
-scores = results["scores"]  # (N,) tensor of predicted confidence scores
+results["labels"]   # Class labels, tensor of shape (num_instances,)
+results["masks"]    # Binary masks, tensor of shape (num_instances, height, width).
+                    # Height and width correspond to the original image size.
+results["scores"]   # Confidence scores, tensor of shape (num_instances,)
 ```
 
 Or use one of the pretrained models directly from LightlyTrain:
@@ -118,7 +121,7 @@ from torchvision.io import read_image
 from torchvision.utils import draw_segmentation_masks
 
 image = read_image("image.jpg")
-image_with_masks = draw_segmentation_masks(image, masks, alpha=0.6)
+image_with_masks = draw_segmentation_masks(image, results["masks"], alpha=0.6)
 plt.imshow(image_with_masks.permute(1, 2, 0))
 ```
 
