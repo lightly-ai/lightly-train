@@ -175,10 +175,16 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
                 task_model_helpers.queries_adjust_num_queries_hook
             )
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.class_head_reuse_or_reinit_hook
+            )
         else:
             # Backwards compatibility for PyTorch <= 2.4
             self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
                 task_model_helpers.queries_adjust_num_queries_hook, with_module=True
+            )
+            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.class_head_reuse_or_reinit_hook, with_module=True
             )
 
     @classmethod
