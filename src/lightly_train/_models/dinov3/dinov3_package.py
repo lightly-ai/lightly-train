@@ -97,7 +97,7 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
     ),
     "vit7b16-sat493m": _DINOv3ModelInfo(
         builder=backbones.dinov3_vit7b16,
-        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vit7b16_sat493m.pth",
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vit7b16_sat493.pth",
         local_path="dinov3_vit7b16_sat493m.pth",
     ),
     # ConvNeXt LVD-1689M models
