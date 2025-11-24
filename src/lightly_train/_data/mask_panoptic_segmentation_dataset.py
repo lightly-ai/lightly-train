@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Sequence
 from functools import cached_property
-import os
 from pathlib import Path
 from typing import Any, ClassVar, Iterable
 
@@ -85,6 +85,9 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         # [num_stuff_classes, num_stuff_classes + num_thing_classes - 1] -> thing classes
         # NOTE: This must match the implementations in the train and task models!
         self.class_id_to_internal_class_id = class_id_to_internal_class_id
+        # Special class id for pixels that are not assigned to any class in the dataset.
+        # NOTE: This must match the implementation in the task model!
+        self.internal_ignore_class_id = len(class_id_to_internal_class_id)
 
         transform_args = transform.transform_args
         assert isinstance(transform_args, PanopticSegmentationTransformArgs)
@@ -203,7 +206,11 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         """
         binary_mask = binary_masks["masks"]
         N, H, W = binary_mask.shape
-        masks = -binary_mask.new_ones((H, W, 2), dtype=torch.int)
+        # Initialize with:
+        # - label = ignore class id
+        # - segment id = -1
+        masks = binary_mask.new_full((H, W, 2), fill_value=-1, dtype=torch.int)
+        masks[..., 0] = self.internal_ignore_class_id
         for i in range(N):
             binary_mask = binary_masks["masks"][i]
             label = binary_masks["labels"][i]
@@ -232,7 +239,8 @@ class MaskPanopticSegmentationDatasetArgs(TaskDatasetArgs):
         # users might either save the image filename or the mask filenames in the
         # annotations.
         file_stem_to_segments = {
-            os.path.splitext(ann["file_name"])[0]: ann["segments_info"] for ann in annotations["annotations"]
+            os.path.splitext(ann["file_name"])[0]: ann["segments_info"]
+            for ann in annotations["annotations"]
         }
         is_mask_dir = mask_dir.is_dir()
         for image_filename in file_helpers.list_image_filenames_from_dir(
@@ -250,9 +258,7 @@ class MaskPanopticSegmentationDatasetArgs(TaskDatasetArgs):
                 yield {
                     "image_filepaths": str(image_filepath),
                     "mask_filepaths": str(mask_filepath),
-                    "segments": json.dumps(
-                        file_stem_to_segments[mask_filepath.stem]
-                    ),
+                    "segments": json.dumps(file_stem_to_segments[mask_filepath.stem]),
                 }
 
     @staticmethod

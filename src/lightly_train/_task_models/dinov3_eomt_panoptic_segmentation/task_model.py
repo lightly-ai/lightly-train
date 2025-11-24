@@ -94,6 +94,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         self.model_name = parsed_name["model_name"]
         self.stuff_classes = stuff_classes
         self.thing_classes = thing_classes
+        self.classes = {**stuff_classes, **thing_classes}
         self.image_size = image_size
         self.image_normalize = image_normalize
 
@@ -103,6 +104,12 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         internal_class_to_class = list(self.stuff_classes.keys()) + list(
             self.thing_classes.keys()
         )
+        # Add ignore class at the end. The ignore class is assigned to pixels in the
+        # input dataset that do not belong to any class. We map it to the first class as
+        # we have to predict a valid class for every pixel at inference time.
+        # During validation we handle ignored pixels as their own class.
+        internal_class_to_class.append(internal_class_to_class[0])
+        self.internal_ignore_class_id = len(internal_class_to_class) - 1
 
         # Efficient lookup for converting internal class IDs to class IDs.
         # Registered as buffer to be automatically moved to the correct device.
@@ -167,7 +174,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         # Number of blocks that process queries and image tokens jointly.
         self.num_joint_blocks = num_joint_blocks
         self.queries = Embedding(num_queries, embed_dim)
-        self.class_head = Linear(embed_dim, len(internal_class_to_class) + 1)
+        self.class_head = Linear(embed_dim, len(internal_class_to_class))
         self.mask_head = Sequential(
             Linear(embed_dim, embed_dim),
             GELU(),
@@ -275,8 +282,9 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             a tensor of shape (H, W, 2) where the last dimension has two channels:
                 - Channel 0: class label per pixel
                 - Channel 1: segment id per pixel
-            Segment ids are in [0, num_unique_segment_ids - 1]. There can be multiple
-            segments with the same id if they belong to the same stuff class.
+            Segment ids are in [-1, num_unique_segment_ids - 1]. There can be multiple
+            segments with the same id if they belong to the same stuff class. Id -1
+            indicates pixels without an assigned segment.
             Scores is a tensor of shape (num_segments,) containing the confidences score
             for each segment.
         """
@@ -296,7 +304,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         x, (crop_h, crop_w) = self.resize_and_pad(x)
         x = x.unsqueeze(0)  # (1, C, H', W')
 
-        # (1, Q, H', W'), (1, Q, K+1), Q = num_queries, K = len(self.classes)
+        # (1, Q, H', W'), (1, Q, K+1)
+        # Q = num_queries, K = num_stuff_classes + num_thing_classes
         mask_logits, class_logits = self._forward_logits(x)
 
         # Interpolate to original image size.
@@ -316,8 +325,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         )
 
         # Map internal class IDs to class IDs.
-        not_ignored = masks[..., 0] != -1
-        masks[not_ignored, 0] = self.internal_class_to_class[not_ignored, 0]
+        masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
 
         return {
             "masks": masks,
@@ -333,9 +341,11 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         mask_overlap_threshold: float = 0.8,
     ) -> tuple[Tensor, Tensor, Tensor]:
         # NOTE(Guarin, 11/25): This implementation only supports batch size 1.
+        assert x.shape[0] == 1, "Only batch size 1 is supported in forward()."
 
         # Function used for ONNX export
-        # (1, Q, H, W), (1, Q, K+1), Q = num_queries, K = len(self.classes)
+        # (1, Q, H, W), (1, Q, K+1)
+        # Q = num_queries, K = num_stuff_classes + num_thing_classes
         mask_logits, class_logits = self._forward_logits(x)
         masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
             mask_logits=mask_logits[0],
@@ -346,8 +356,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         )
 
         # Map internal class IDs to class IDs.
-        not_ignored = masks[..., 0] != -1
-        masks[not_ignored, 0] = self.internal_class_to_class[not_ignored, 0]
+        masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
         masks = masks.unsqueeze(0)  # (1, H, W, 2)
         segment_ids = segment_ids.unsqueeze(0)  # (1, num_segments)
         scores = scores.unsqueeze(0)  # (1, num_segments)
@@ -501,7 +510,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             (masks, segment_ids, scores) tuple where:
             masks: (B, H, W, 2) tensor where the last dimension has two channels:
                 - Channel 0: class label per pixel
-                - Channel 1: segment id per pixel
+                - Channel 1: segment id per pixel. Id -1 indicates pixels without an
+                  assigned segment.
             segment_ids:
                 A list of length B where each element is a tensor of shape (num_segments,)
                 containing the segment ids for each image in the batch. Segment ids are
@@ -513,11 +523,10 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         """
         B, _, H, W = mask_logits.shape
         # (B, H, W, 2)
-        # Initialized with -1 to indicate ignored pixels.
         # Last dimension has two channels:
         #   - Channel 0: class label per pixel
         #   - Channel 1: segment id per pixel
-        masks = -mask_logits.new_ones((B, H, W, 2), dtype=torch.int)
+        masks = mask_logits.new_zeros((B, H, W, 2), dtype=torch.int)
         segment_ids = []
         scores = []
         for i in range(B):
@@ -552,8 +561,9 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         Returns:
             (masks, segment_ids, scores) tuple where:
             masks: (H, W, 2) tensor where the last dimension has two channels:
-                - Channel 0: class label per pixel
-                - Channel 1: segment id per pixel
+                - Channel 0: internal class label per pixel
+                - Channel 1: segment id per pixel. Id -1 indicates pixels without an
+                  assigned segment.
             segment_ids:
                 Tensor of shape (num_segments,) containing the segment ids. Segment ids
                 are in [0, num_unique_segment_ids - 1]. There can be multiple segments
@@ -564,9 +574,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         scores = class_logits.softmax(dim=-1)  # (B, Q, K+1)
         scores, labels = torch.max(scores, dim=-1)  # (B, Q), (B, Q)
 
-        num_classes = class_logits.shape[-1] - 1
-        ignore_class = num_classes + 1
-        keep = (labels != ignore_class) & (scores > threshold)  # (B, Q)
+        ignore_class_id = self.internal_ignore_class_id
+        keep = (labels != ignore_class_id) & (scores > threshold)  # (B, Q)
 
         # Remove ignored quries.
         scores = scores[keep]  # (num_keep,)
@@ -576,10 +585,10 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
         # (num_keep, H, W)
         mask_scores = scores[..., None, None] * mask_probs
-        # Add dummy -1 values. Otherwise mask_scores.argmax() fails if num_keep == 0.
+        # Add dummy -1 values. Otherwise mask_scores.argmax() fails if it has length 0.
         # (1, H, W)
-        dummy_neg_one = -mask_scores.new_ones((1, *mask_scores.shape[1:]))
-        mask_scores = torch.cat([mask_scores, dummy_neg_one], dim=0)
+        neg_one = -mask_scores.new_ones((1, *mask_scores.shape[1:]))
+        mask_scores = torch.cat([mask_scores, neg_one], dim=0)
         mask_labels = mask_scores.argmax(dim=0)  # (H, W)
         mask_orig = mask_probs >= mask_threshold  # (num_keep, H, W)
         mask_new = mask_labels[None, ...] == labels[..., None, None]  # (num_keep, H, W)
@@ -601,39 +610,46 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         labels = labels[keep_area]  # (num_keep_area,)
         scores = scores[keep_area]  # (num_keep_area,)
 
+        # Assign id to each segment
+        num_keep_area = labels.shape[0]
+        max_segment_id = num_keep_area - 1
         # (num_keep_area,)
-        segment_ids = torch.arange(len(labels), device=labels.device)
+        segment_ids = torch.arange(max_segment_id + 1, device=labels.device)
 
         # Find unique segment id for each stuff class
         is_stuff = self.is_stuff_class[labels]  # (num_keep_area,)
         stuff_labels = labels[is_stuff]
         stuff_segment_ids = segment_ids[is_stuff]
-        # Cat with zero to handle empty stuff_labels case.
-        dummy_zero = stuff_labels.new_zeros(1)
-        max_stuff_label = torch.cat([stuff_labels, dummy_zero]).max()
-        stuff_label_to_segment_id = -stuff_labels.new_ones(max_stuff_label + 1)  # type: ignore
+        max_class_id = ignore_class_id
+        stuff_label_to_segment_id = -stuff_labels.new_ones(max_class_id + 1)
         stuff_label_to_segment_id[stuff_labels] = stuff_segment_ids
         segment_ids[is_stuff] = stuff_label_to_segment_id[stuff_labels]
 
         # Reassign segment ids to be contiguous
+        segment_id_to_contiguous_id = -segment_ids.new_ones(max_segment_id + 1)
         unique_segment_ids: Tensor = segment_ids.unique()  # type: ignore
-        # Cat with zero to handle empty unique_segment_ids case.
-        max_unique_segment_id = torch.cat([unique_segment_ids, dummy_zero]).max()
-        segment_id_to_contiguous_id = -segment_ids.new_ones(max_unique_segment_id + 1)
         segment_id_to_contiguous_id[unique_segment_ids] = torch.arange(
             len(unique_segment_ids), device=segment_ids.device
         )
         segment_ids = segment_id_to_contiguous_id[segment_ids]
 
         # Create final per-pixel labels and segment tensor
-        label_per_pixel = torch.cat(
-            [(mask_final * labels[..., None, None]), dummy_neg_one], dim=0
-        )
+        # (num_keep_area, H, W) where each pixel is either 0 or the class label
+        label_per_pixel = mask_final * labels[..., None, None]
+        # Add dummy -1 values. Otherwise label_per_pixel.max() fails if it has length 0.
+        # (num_keep_area + 1, H, W)
+        label_per_pixel = torch.cat([label_per_pixel, neg_one], dim=0)
         # (H, W)
         label_per_pixel = label_per_pixel.max(dim=0).values
-        segment_id_per_pixel = torch.cat(
-            [(mask_final * segment_ids[..., None, None]), dummy_neg_one], dim=0
-        )
+        # Set pixels without assigned class to ignore_class_id
+        label_per_pixel[label_per_pixel == -1] = ignore_class_id
+
+        # (num_keep_area, H, W) where each pixel is either 0 or the segment id
+        segment_id_per_pixel = mask_final * segment_ids[..., None, None]
+        # Add dummy -1 values. Otherwise segment_id_per_pixel.max() fails if it has
+        # length 0.
+        # (num_keep_area + 1, H, W)
+        segment_id_per_pixel = torch.cat([segment_id_per_pixel, neg_one], dim=0)
         # (H, W)
         segment_id_per_pixel = segment_id_per_pixel.max(dim=0).values
         # (H, W, 2)

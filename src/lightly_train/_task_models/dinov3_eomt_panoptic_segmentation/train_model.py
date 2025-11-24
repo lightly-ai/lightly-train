@@ -224,10 +224,10 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         self.val_loss = MeanMetric()
 
         # NOTE: This must match the implementations in the task model and dataset!
-        # We treat here ignored classes as a stuff class with id -1.
         num_stuff_classes = len(data_args.stuff_classes)
         num_thing_classes = len(data_args.thing_classes)
-        ignore_class_id = -1
+        ignore_class_id = num_stuff_classes + num_thing_classes
+        # We treat here ignore_class_id as a stuff class for PQ computation.
         internal_stuff_ids = list(range(num_stuff_classes)) + [ignore_class_id]
         internal_thing_ids = list(
             range(num_stuff_classes, num_stuff_classes + num_thing_classes)
