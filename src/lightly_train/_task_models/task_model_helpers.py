@@ -376,41 +376,45 @@ def _score_head_reuse_or_reinit_hook(
 
     if isinstance(score_head_module, ModuleList):
         for idx, head in enumerate(score_head_module):
-            _reuse_or_reinit(
+            is_reinit = _reuse_or_reinit(
                 head,
                 state_dict,
                 weight_key=f"{prefix}{module_name}.{idx}.weight",
                 bias_key=f"{prefix}{module_name}.{idx}.bias",
             )
     else:
-        _reuse_or_reinit(
+        is_reinit = _reuse_or_reinit(
             score_head_module,
             state_dict,
             weight_key=f"{prefix}{module_name}.weight",
             bias_key=f"{prefix}{module_name}.bias",
         )
 
+    if is_reinit:
+        logger.info(
+            f"Checkpoint provides different number of classes for {module_name}. Reinitializing score head.",
+        )
+
 
 def _reuse_or_reinit(
-    head_module: Module,
+    module: Module,
     state_dict: dict[str, Any],
     *,
     weight_key: str,
     bias_key: str,
-) -> None:
+) -> bool:
     score_head_weight = state_dict.get(weight_key)
     if score_head_weight is None:
-        return
+        return False
 
     num_classes_state = score_head_weight.shape[0]
-    out_features = getattr(head_module, "out_features", None)
+    out_features = getattr(module, "out_features", None)
     if out_features is None or num_classes_state == out_features:
-        return
+        return False
 
-    logger.info(
-        f"Checkpoint provides {num_classes_state} classes but module expects {out_features}. Reinitializing score head.",
-    )
     # Keep the module initialization by overwriting the checkpoint weights with the
     # current parameter tensors.
     del state_dict[weight_key]
     del state_dict[bias_key]
+
+    return True
