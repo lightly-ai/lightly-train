@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from functools import cached_property
+import os
 from pathlib import Path
 from typing import Any, ClassVar, Iterable
 
@@ -19,7 +20,7 @@ from pydantic import Field
 from torch import Tensor
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import file_helpers, label_helpers
+from lightly_train._data import file_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_batch_collation import (
     BaseCollateFunction,
@@ -226,8 +227,12 @@ class MaskPanopticSegmentationDatasetArgs(TaskDatasetArgs):
     def list_image_info(self) -> Iterable[dict[str, str]]:
         mask_dir = Path(self.mask_dir_or_file)
         annotations = _load_annotations(self.annotation_file)
-        filename_to_segments = {
-            ann["file_name"]: ann["segments_info"] for ann in annotations["annotations"]
+        # Mapping from file stem (filename without extension) to segments info.
+        # We use the stem because images and masks can have different extensions and
+        # users might either save the image filename or the mask filenames in the
+        # annotations.
+        file_stem_to_segments = {
+            os.path.splitext(ann["file_name"])[0]: ann["segments_info"] for ann in annotations["annotations"]
         }
         is_mask_dir = mask_dir.is_dir()
         for image_filename in file_helpers.list_image_filenames_from_dir(
@@ -246,7 +251,7 @@ class MaskPanopticSegmentationDatasetArgs(TaskDatasetArgs):
                     "image_filepaths": str(image_filepath),
                     "mask_filepaths": str(mask_filepath),
                     "segments": json.dumps(
-                        filename_to_segments.get(image_filepath.name, [])
+                        file_stem_to_segments[mask_filepath.stem]
                     ),
                 }
 

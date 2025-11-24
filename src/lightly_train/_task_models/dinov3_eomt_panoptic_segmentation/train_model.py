@@ -229,7 +229,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         num_thing_classes = len(data_args.thing_classes)
         ignore_class_id = -1
         internal_stuff_ids = list(range(num_stuff_classes)) + [ignore_class_id]
-        internal_thing_ids = list(range(num_stuff_classes, num_stuff_classes + num_thing_classes))
+        internal_thing_ids = list(
+            range(num_stuff_classes, num_stuff_classes + num_thing_classes)
+        )
 
         self.train_pq = PanopticQuality(
             stuffs=internal_stuff_ids,

@@ -575,12 +575,12 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         mask_probs = mask_probs[keep]  # (num_keep, H, W)
 
         # (num_keep, H, W)
-        mask_scores = (scores[..., None, None] * mask_probs)
+        mask_scores = scores[..., None, None] * mask_probs
         # Add dummy -1 values. Otherwise mask_scores.argmax() fails if num_keep == 0.
         # (1, H, W)
         dummy_neg_one = -mask_scores.new_ones((1, *mask_scores.shape[1:]))
         mask_scores = torch.cat([mask_scores, dummy_neg_one], dim=0)
-        mask_labels = mask_scores.argmax(dim=0) # (H, W)
+        mask_labels = mask_scores.argmax(dim=0)  # (H, W)
         mask_orig = mask_probs >= mask_threshold  # (num_keep, H, W)
         mask_new = mask_labels[None, ...] == labels[..., None, None]  # (num_keep, H, W)
         mask_final = mask_orig & mask_new  # (num_keep, H, W)
@@ -626,10 +626,14 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         segment_ids = segment_id_to_contiguous_id[segment_ids]
 
         # Create final per-pixel labels and segment tensor
-        label_per_pixel = torch.cat([(mask_final * labels[..., None, None]), dummy_neg_one], dim=0)
+        label_per_pixel = torch.cat(
+            [(mask_final * labels[..., None, None]), dummy_neg_one], dim=0
+        )
         # (H, W)
         label_per_pixel = label_per_pixel.max(dim=0).values
-        segment_id_per_pixel = torch.cat([(mask_final * segment_ids[..., None, None]), dummy_neg_one], dim=0)
+        segment_id_per_pixel = torch.cat(
+            [(mask_final * segment_ids[..., None, None]), dummy_neg_one], dim=0
+        )
         # (H, W)
         segment_id_per_pixel = segment_id_per_pixel.max(dim=0).values
         # (H, W, 2)
