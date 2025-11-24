@@ -127,9 +127,8 @@ def train_instance_segmentation(
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
         reuse_class_head:
-            Set this to True if you want to keep the class head from the provided
-            checkpoint. The default behavior removes the class head before loading so
-            that a new head can be initialized for the current task.
+            Deprecated. Now the model will reuse the classification head by default only when the num_classes
+            in the data config matches that in the checkpoint. Otherwise, the classification head will be re-initialized.
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
             crashed** training run. This will pick up exactly where the training left
@@ -267,9 +266,8 @@ def train_object_detection(
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
         reuse_class_head:
-            Set this to True if you want to keep the class head from the provided
-            checkpoint. The default behavior removes the class head before loading so
-            that a new head can be initialized for the current task.
+            Deprecated. Now the model will reuse the classification head by default only when the num_classes
+            in the data config matches that in the checkpoint. Otherwise, the classification head will be re-initialized.
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
             crashed** training run. This will pick up exactly where the training left
@@ -319,10 +317,6 @@ def train_object_detection(
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
     """
-    if reuse_class_head:
-        raise NotImplementedError(
-            "Reusing the class head is not yet implemented for object detection models."
-        )
     tracker.track_training_started(
         task_type="object_detection",
         model=model,
@@ -411,9 +405,8 @@ def train_semantic_segmentation(
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
         reuse_class_head:
-            Set this to True if you want to keep the class head from the provided
-            checkpoint. The default behavior removes the class head before loading so
-            that a new head can be initialized for the current task.
+            Deprecated. Now the model will reuse the classification head by default only when the num_classes
+            in the data config matches that in the checkpoint. Otherwise, the classification head will be re-initialized.
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
             crashed** training run. This will pick up exactly where the training left
@@ -542,6 +535,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     _logging.set_up_file_logging(out_dir / "train.log")
     _logging.set_up_filters()
     logger.info(f"Args: {helpers.pretty_format_args(args=initial_config)}")
+    if config.reuse_class_head:
+        logger.warning(
+            "You've set `reuse_class_head=True`. It has been deprecated and will be \
+            removed in future versions. Now the model will reuse the classification head \
+            by default only when the num_classes in the data config matches that in the \
+            checkpoint. Otherwise, the classification head will be re-initialized."
+        )
+
     logger.info(f"Using output directory: '{out_dir}")
 
     # Log system information.
@@ -610,17 +611,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             transform=val_transform,
             mmap_filepath=val_mmap_filepath,
         )
-
-        if (
-            checkpoint is not None
-            and config.reuse_class_head
-            and config.data.included_classes != model_init_args.get("classes")
-        ):
-            raise ValueError(
-                f"The included classes in the data configuration ({config.data.included_classes}) "
-                f"do not match the classes used in the checkpoint weights file ({model_init_args.get('classes')}). "
-                f"Set reuse_class_head=False when you have a different classes config."
-            )
 
         logger.info(
             f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}"
