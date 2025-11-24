@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import torch
-from torch.nn import Module
+from torch.nn import Module, ModuleList
 
 from lightly_train._commands import common_helpers
 from lightly_train._env import Env
@@ -312,3 +312,77 @@ def class_head_reuse_or_reinit_hook(
         # Re-initialize class head weights and biases
         state_dict[class_head_weight_key] = class_head_module.weight.detach().clone()
         state_dict[class_head_bias_key] = class_head_module.bias.detach().clone()
+
+
+def score_head_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    _score_head_reuse_or_reinit_hook(
+        module,
+        state_dict,
+        prefix,
+        enc_or_dec="enc",
+    )
+    _score_head_reuse_or_reinit_hook(
+        module,
+        state_dict,
+        prefix,
+        enc_or_dec="dec",
+    )
+
+
+def _score_head_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    enc_or_dec: Literal["enc", "dec"],
+) -> None:
+    module_name = f"{enc_or_dec}_score_head"
+    score_head_module = getattr(module, module_name, None)
+    if score_head_module is None:
+        return
+
+    if isinstance(score_head_module, ModuleList):
+        for idx, head in enumerate(score_head_module):
+            _reuse_or_reinit(
+                head,
+                state_dict,
+                weight_key=f"{prefix}{module_name}.{idx}.weight",
+                bias_key=f"{prefix}{module_name}.{idx}.bias",
+            )
+    else:
+        _reuse_or_reinit(
+            score_head_module,
+            state_dict,
+            weight_key=f"{prefix}{module_name}.weight",
+            bias_key=f"{prefix}{module_name}.bias",
+        )
+
+
+def _reuse_or_reinit(
+    head_module: Module,
+    state_dict: dict[str, Any],
+    *,
+    weight_key: str,
+    bias_key: str,
+) -> None:
+    score_head_weight = state_dict.get(weight_key)
+    if score_head_weight is None:
+        return
+
+    num_classes_state = score_head_weight.shape[0]
+    out_features = getattr(head_module, "out_features", None)
+    if out_features is None or num_classes_state == out_features:
+        return
+
+    logger.info(
+        f"Checkpoint provides {num_classes_state} classes but module expects {out_features}. Reinitializing score head.",
+    )
+    # Keep the module initialization by overwriting the checkpoint weights with the
+    # current parameter tensors.
+    del state_dict[weight_key]
+    del state_dict[bias_key]
