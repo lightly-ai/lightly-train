@@ -306,7 +306,7 @@ def class_head_reuse_or_reinit_hook(
         return
     else:
         logger.info(
-            f"Checkpoint provides {num_classes_state} classes but module expects {num_classes_module}. Reinitializing class head.",
+            f"Checkpoint provides {num_classes_state - 1} classes but module expects {num_classes_module - 1}. Reinitializing class head.",
         )
 
         # Re-initialize class head weights and biases

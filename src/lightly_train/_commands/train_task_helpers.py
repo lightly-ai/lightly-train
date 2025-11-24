@@ -903,4 +903,17 @@ def finetune_from_checkpoint(
     """
 
     train_model = state["train_model"]
-    train_model.load_state_dict(checkpoint["train_model_state_dict"], strict=True)
+    incompatible = train_model.load_state_dict(
+        checkpoint["train_model_state_dict"], strict=False
+    )
+
+    if incompatible.missing_keys:
+        logger.warning(
+            "Missing keys after loading checkpoint: %s",
+            incompatible.missing_keys,
+        )
+    if incompatible.unexpected_keys:
+        logger.warning(
+            "Unexpected keys after loading checkpoint: %s",
+            incompatible.unexpected_keys,
+        )

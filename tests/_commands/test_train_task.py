@@ -380,7 +380,7 @@ def test_train_semantic_segmentation__checkpoint(
             steps=1,
             overwrite=True,
         )
-    assert "Checkpoint provides 3 classes but module expects 4." in caplog.text
+    assert "Checkpoint provides 2 classes but module expects 3." in caplog.text
 
 
 @pytest.mark.skipif(
