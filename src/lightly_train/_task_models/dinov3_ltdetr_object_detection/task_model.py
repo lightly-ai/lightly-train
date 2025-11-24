@@ -278,13 +278,17 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             **config.hybrid_encoder.model_dump()
         )
 
+        decoder_config = config.rtdetr_transformer.model_dump()
+        decoder_config.update({"num_classes": len(self.classes)})
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            **config.rtdetr_transformer.model_dump(),
+            **decoder_config,
             eval_spatial_size=self.image_size,  # From global config, otherwise anchors are not generated.
         )
 
+        postprocessor_config = config.rtdetr_postprocessor.model_dump()
+        postprocessor_config.update({"num_classes": len(self.classes)})
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
-            **config.rtdetr_postprocessor.model_dump()
+            **postprocessor_config
         )
 
     @classmethod

@@ -166,6 +166,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             losses=model_args.criterion_losses,
             alpha=model_args.criterion_alpha,
             gamma=model_args.criterion_gamma,
+            num_classes=len(data_args.included_classes),
         )
 
         self.clip_max_norm = model_args.clip_max_norm
