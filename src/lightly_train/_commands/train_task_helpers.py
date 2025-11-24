@@ -60,8 +60,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._train_task_state import (
-    ExportedCheckpoint,
-    TrainCheckpoint,
+    CheckpointDict,
     TrainTaskState,
 )
 from lightly_train._transforms.task_transform import (
@@ -784,7 +783,7 @@ def load_checkpoint(
     model: str,
     checkpoint: PathLike | None,
     task: str,
-) -> tuple[TrainCheckpoint | ExportedCheckpoint | None, str]:
+) -> tuple[CheckpointDict | None, Path | None, str]:
     """Build a checkpoint context from the current run configuration.
 
     Args:
@@ -796,9 +795,10 @@ def load_checkpoint(
         task: The training task.
 
     Returns:
-        (checkpoint, model_name) tuple. Checkpoint contains the loaded checkpoint
-        if available. model_name is the name of the model to initialize the backbone
-        from. Checkpoint is None if no checkpoint was loaded.
+        (checkpoint, checkpoint_path, model_name) tuple. Checkpoint contains the loaded
+        checkpoint if available. model_name is the name of the model to initialize the
+        backbone from. Checkpoint is None if no checkpoint was loaded or if
+        resume_interrupted is True.
 
     Raises:
         ValueError: If resume and checkpoint options are requested simultaneously.
@@ -817,7 +817,7 @@ def load_checkpoint(
     else:
         model_path = None
 
-    ckpt_path: Path | None = None
+    ckpt_path: Path
     if resume_interrupted:
         if model_path is not None:
             logger.warning(
@@ -831,6 +831,13 @@ def load_checkpoint(
                 "cannot be set at the same time! Please set only one of them. "
             )
         ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
+        # We don't return the loaded checkpoint here because it has to be loaded with
+        # fabric.load(ckpt_path, state) for resume to work properly.
+        return (
+            None,
+            ckpt_path,
+            model_name,
+        )
     elif checkpoint is not None:
         if model_path is not None:
             logger.warning(
@@ -843,7 +850,7 @@ def load_checkpoint(
         ckpt_path = model_path
     else:
         # No checkpoint to load. Backbone will be initialized from model name.
-        return (None, model_name)
+        return (None, None, model_name)
 
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
@@ -863,77 +870,30 @@ def load_checkpoint(
             f"Checkpoint file '{ckpt_path}' does not contain model state dict."
         )
 
-    if resume_interrupted:
-        optimizer_state = ckpt.get("optimizer")
-        if optimizer_state is None:
-            raise ValueError(
-                f"Checkpoint file '{ckpt_path}' does not contain optimizer state."
-            )
-        scheduler_state = ckpt.get("scheduler")
-        if scheduler_state is None:
-            raise ValueError(
-                f"Checkpoint file '{ckpt_path}' does not contain scheduler state."
-            )
-
-        train_dataloader = ckpt.get("train_dataloader")
-        if train_dataloader is None:
-            raise ValueError(
-                f"Checkpoint file '{ckpt_path}' does not contain train dataloader."
-            )
-        step = ckpt.get("step")
-        if step is None:
-            raise ValueError(
-                f"Checkpoint file '{ckpt_path}' does not contain training step."
-            )
-        return (
-            TrainCheckpoint(
-                train_model_state_dict=train_model_state_dict,
-                optimizer_state_dict=optimizer_state,
-                scheduler_state_dict=scheduler_state,
-                train_dataloader=train_dataloader,
-                step=step,
-                model_class_path=model_class_path,
-                model_init_args=model_init_args,
-            ),
-            model_name,
-        )
-
     return (
-        ExportedCheckpoint(
+        CheckpointDict(
             train_model_state_dict=train_model_state_dict,
             model_class_path=model_class_path,
             model_init_args=model_init_args,
         ),
+        ckpt_path,
         model_name,
     )
 
 
 def resume_from_checkpoint(
+    fabric: Fabric,
     state: TrainTaskState,
-    checkpoint: TrainCheckpoint,
+    checkpoint_path: PathLike,
 ) -> None:
-    """Restore model, optimizer, scheduler, dataloader, and step state from the checkpoint for resuming training.
-
-    Args:
-        state: Training state container to populate with checkpoint data.
-        checkpoint: Checkpoint containing the state dicts to load.
-    """
-
-    train_model = state["train_model"]
-    optimizer = state["optimizer"]
-    scheduler = state["scheduler"]
-
-    train_model.load_state_dict(checkpoint["train_model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-
-    state["train_dataloader"] = checkpoint["train_dataloader"]
-    state["step"] = checkpoint["step"]
+    logger.info(f"Resuming training from model checkpoint '{checkpoint_path}'")
+    # Resume only works properly when loading with fabric.load(path, state)!
+    fabric.load(path=checkpoint_path, state=state)  # type: ignore[arg-type]
 
 
 def finetune_from_checkpoint(
     state: TrainTaskState,
-    checkpoint: ExportedCheckpoint,
+    checkpoint: CheckpointDict,
     reuse_class_head: bool,
 ) -> None:
     """Restore model state from the checkpoint for fine-tuning.

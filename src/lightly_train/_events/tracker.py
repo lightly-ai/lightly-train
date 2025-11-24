@@ -98,3 +98,43 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     if current_time - _last_flush >= _RATE_LIMIT_SECONDS:
         _last_flush = current_time
         threading.Thread(target=_flush, daemon=True).start()
+
+
+def track_training_started(
+    *,
+    task_type: str,
+    model: Any,
+    method: str,
+    batch_size: int | str,
+    devices: int | str | list[int],
+    epochs: Optional[int | str] = None,
+    steps: Optional[int | str] = None,
+) -> None:
+    """Track training started event.
+
+    Args:
+        task_type: Type of task being trained (e.g., "ssl_pretraining", "instance_segmentation").
+        model: Model instance or model name string.
+        method: Training method (e.g., "simclr", "eomt", "ltdetr").
+        batch_size: Global batch size (can be "auto").
+        devices: Number or list of devices (can be "auto").
+        epochs: Optional number of epochs (for pretraining tasks, can be "auto").
+        steps: Optional number of steps (for task-specific training, can be "auto").
+    """
+    model_name = model if isinstance(model, str) else model.__class__.__name__
+    device_count = devices if isinstance(devices, int) else 1
+
+    properties = {
+        "task_type": task_type,
+        "model_name": model_name,
+        "method": method,
+        "batch_size": batch_size,
+        "devices": device_count,
+    }
+
+    if epochs is not None:
+        properties["epochs"] = epochs
+    if steps is not None:
+        properties["steps"] = steps
+
+    track_event("training_started", properties)

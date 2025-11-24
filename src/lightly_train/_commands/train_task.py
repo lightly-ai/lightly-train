@@ -8,14 +8,17 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Literal
 
+import fsspec
 import torch
+import yaml
 from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
 
 from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._commands import _warnings, common_helpers
@@ -35,6 +38,7 @@ from lightly_train._data.yolo_instance_segmentation_dataset import (
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModelArgs
@@ -49,7 +53,7 @@ logger = logging.getLogger(__name__)
 def train_instance_segmentation(
     *,
     out: PathLike,
-    data: dict[str, Any],
+    data: dict[str, Any] | str,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -88,7 +92,8 @@ def train_instance_segmentation(
         out:
             The output directory where the model checkpoints and logs are saved.
         data:
-            The dataset configuration. See the documentation for more information:
+            The dataset configuration or path to a YAML file with the configuration.
+            See the documentation for more information:
             https://docs.lightly.ai/train/stable/instance_segmentation.html#data
         model:
             The model to train. For example, "dinov2/vits14-eomt",
@@ -174,13 +179,21 @@ def train_instance_segmentation(
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
     """
+    tracker.track_training_started(
+        task_type="instance_segmentation",
+        model=model,
+        method="eomt",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
     return _train_task(config_cls=InstanceSegmentationTrainTaskConfig, **locals())
 
 
 def train_object_detection(
     *,
     out: PathLike,
-    data: dict[str, Any],
+    data: dict[str, Any] | str,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -219,7 +232,8 @@ def train_object_detection(
         out:
             The output directory where the model checkpoints and logs are saved.
         data:
-            The dataset configuration. See the documentation for more information:
+            The dataset configuration or path to a YAML file with the configuration.
+            See the documentation for more information:
             https://docs.lightly.ai/train/stable/object_detection.html#data
         model:
             The model to train. For example, "dinov3/convnext-tiny-ltdetr-coco",
@@ -309,6 +323,14 @@ def train_object_detection(
         raise NotImplementedError(
             "Reusing the class head is not yet implemented for object detection models."
         )
+    tracker.track_training_started(
+        task_type="object_detection",
+        model=model,
+        method="ltdetr",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
     return _train_task(config_cls=ObjectDetectionTrainTaskConfig, **locals())
 
 
@@ -354,7 +376,8 @@ def train_semantic_segmentation(
         out:
             The output directory where the model checkpoints and logs are saved.
         data:
-            The dataset configuration. See the documentation for more information:
+            The dataset configuration or path to a YAML file with the configuration.
+            See the documentation for more information:
             https://docs.lightly.ai/train/stable/semantic_segmentation.html#data
         model:
             The model to train. For example, "dinov2/vits14-eomt",
@@ -440,6 +463,14 @@ def train_semantic_segmentation(
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
     """
+    tracker.track_training_started(
+        task_type="semantic_segmentation",
+        model=model,
+        method="eomt",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
     return _train_task(config_cls=SemanticSegmentationTrainTaskConfig, **locals())
 
 
@@ -447,7 +478,7 @@ def _train_task(
     *,
     config_cls: type[TrainTaskConfig],
     out: PathLike,
-    data: dict[str, Any],
+    data: dict[str, Any] | str,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -525,7 +556,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
     )
 
-    checkpoint, config.model = helpers.load_checkpoint(
+    checkpoint, checkpoint_path, config.model = helpers.load_checkpoint(
         fabric=fabric,
         out_dir=out_dir,
         resume_interrupted=config.resume_interrupted,
@@ -659,7 +690,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             data_args=config.data,
             train_transform_args=train_transform_args,
             val_transform_args=val_transform_args,
-            load_weights=checkpoint is None,
+            load_weights=(checkpoint is None) and (checkpoint_path is None),
         )
 
         # Set train mode to make sure that all parameters are in the correct state before
@@ -697,16 +728,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_init_args=train_model.get_task_model().init_args,
         )
 
-        if config.resume_interrupted and checkpoint is not None:
+        if config.resume_interrupted and checkpoint_path is not None:
             helpers.resume_from_checkpoint(
+                fabric=fabric,
                 state=state,
-                checkpoint=checkpoint,  # type: ignore[arg-type]
+                checkpoint_path=checkpoint_path,
             )
-            train_dataloader = state["train_dataloader"]  # type: ignore[typeddict-item]
         elif checkpoint is not None:
             helpers.finetune_from_checkpoint(
                 state=state,
-                checkpoint=checkpoint,  # type: ignore[arg-type]
+                checkpoint=checkpoint,
                 reuse_class_head=config.reuse_class_head,
             )
 
@@ -911,6 +942,17 @@ class TrainTaskConfig(PydanticConfig):
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def _load_yaml_if_path(cls, v: Any) -> Any:
+        if isinstance(v, (str, Path)):
+            with fsspec.open(v, "r") as file:
+                v = yaml.safe_load(file)
+            # Ignore all fields in YAML file that are not part of the Pydantic model.
+            data_attributes = cls.model_fields["data"].annotation.model_fields  # type: ignore
+            v = {name: value for name, value in v.items() if name in data_attributes}
+        return v
 
 
 class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):
