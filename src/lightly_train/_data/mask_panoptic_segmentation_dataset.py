@@ -138,9 +138,9 @@ class MaskPanopticSegmentationDataset(TaskDataset):
             # > Note that when you load the PNG as an RGB image, you will need to compute
             # > the ids via ids=R+G*256+B*256^2
             mask = mask[..., 0] + mask[..., 1] * 256 + mask[..., 2] * (256**2)
-        elif mask.ndim != 2:
+        if mask.ndim != 2:
             raise ValueError(
-                f"Invalid mask with shape {mask.shape}. Expected 2D or 3D array."
+                f"Invalid mask with shape {mask.shape}. Expected 2D array."
             )
 
         # Try to find an augmentation that contains a valid mask. This increases the
