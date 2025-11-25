@@ -11,6 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.#
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
+# Modifications Copyright 2025 Lightly AG:
+# - added a load state dict pre hook to reinitialize the
+#   classification score heads and denoising class embedding if the number of classes
+#   has changed
 
 import copy
 import functools
