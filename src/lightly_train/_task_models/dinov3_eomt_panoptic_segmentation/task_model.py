@@ -572,6 +572,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 Tensor of shape (num_segments,) containing the scores for each segment.
         """
         device = class_logits.device
+        H, W = mask_logits.shape[-2:]
         scores = class_logits.softmax(dim=-1)  # (B, Q, K+1)
         scores, labels = scores.max(dim=-1)  # (B, Q), (B, Q)
 
@@ -588,8 +589,9 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         mask_scores = scores[..., None, None] * mask_probs
         # Add dummy -1 values. Otherwise mask_scores.argmax() fails if it has length 0.
         # (1, H, W)
-        neg_one = mask_scores.new_full((1, *mask_scores.shape[1:]), fill_value=-1)
-        mask_scores = torch.cat([mask_scores, neg_one], dim=0)
+        mask_scores = torch.cat(
+            [mask_scores, mask_scores.new_full((1, H, W), fill_value=-1)], dim=0
+        )
         mask_labels = mask_scores.argmax(dim=0)  # (H, W)
         mask_orig = mask_probs >= mask_threshold  # (num_keep, H, W)
         num_keep = labels.shape[0]
@@ -640,29 +642,29 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         segment_ids = segment_id_to_contiguous_id[segment_ids]
 
         # Create final per-pixel labels and segment tensor
-        # (num_keep_area, H, W) where each pixel is either 0 or the class label + 1
-        label_per_pixel = mask_final * (labels[..., None, None] + 1)
         # (num_keep_area, H, W) where each pixel is either -1 or the class label
-        label_per_pixel -= 1
+        label_per_pixel = mask_final * (labels[..., None, None] + 1) - 1
         # Add dummy -1 values. Otherwise label_per_pixel.max() fails if it has length 0.
         # (num_keep_area + 1, H, W)
         label_per_pixel = torch.cat(
-            [label_per_pixel, neg_one.to(label_per_pixel.dtype)], dim=0
+            [label_per_pixel, label_per_pixel.new_full((1, H, W), fill_value=-1)], dim=0
         )
         # (H, W)
         label_per_pixel = label_per_pixel.max(dim=0).values
         # Set pixels without assigned class to ignore_class_id
         label_per_pixel[label_per_pixel == -1] = ignore_class_id
 
-        # (num_keep_area, H, W) where each pixel is either 0 or the segment id + 1
-        segment_id_per_pixel = mask_final * (segment_ids[..., None, None] + 1)
         # (num_keep_area, H, W) where each pixel is either -1 or the segment id
-        segment_id_per_pixel -= 1
+        segment_id_per_pixel = mask_final * (segment_ids[..., None, None] + 1) - 1
         # Add dummy -1 values. Otherwise segment_id_per_pixel.max() fails if it has
         # length 0.
         # (num_keep_area + 1, H, W)
         segment_id_per_pixel = torch.cat(
-            [segment_id_per_pixel, neg_one.to(segment_id_per_pixel.dtype)], dim=0
+            [
+                segment_id_per_pixel,
+                segment_id_per_pixel.new_full((1, H, W), fill_value=-1),
+            ],
+            dim=0,
         )
         # (H, W)
         segment_id_per_pixel = segment_id_per_pixel.max(dim=0).values
