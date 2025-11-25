@@ -183,9 +183,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
                 continue
             masks.append(mask == segment_id)
             labels.append(internal_class_id)
-            iscrowd.append(
-                segment.get("iscrowd", False) if segment is not None else False
-            )
+            iscrowd.append(segment.get("iscrowd", False))
 
         binary_masks: PanopticBinaryMasksDict = {
             "masks": (
