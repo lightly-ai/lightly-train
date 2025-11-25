@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://calendar.app.google/43WRRBPGjUGyAPn58">
-  <img width="1373" height="322" alt="Book meeting with Lightly at RSNA and NeurIPS 2025" src="https://github.com/user-attachments/assets/00431826-5d4f-4428-b341-104e4fb59e7b"/>
+  <img width="1373" height="322" alt="Book meeting with Lightly at RSNA and NeurIPS 2025" src="https://github.com/user-attachments/assets/5e9177e7-b872-46f1-8b9f-eaadd379d289"/>
   </a>
 </p>
 # LightlyTrain - SOTA Pretraining, Fine-tuning and Distillation
