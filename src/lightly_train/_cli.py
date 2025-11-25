@@ -33,12 +33,13 @@ __all__ = ["train", "export", "embed", "extract_video_frames", "cli"]
 _HELP_COMMANDS = {"help", "--help", "-h"}
 _HELP_MSG = """
     Commands:
-        lightly-train train                 Train model with self-supervised learning.
+        lightly-train pretrain              Pretrain model with self-supervised learning or distill from a teacher model.
         lightly-train export                Export model from checkpoint.
         lightly-train embed                 Embed images using a trained model.
         lightly-train list_models           List supported models for training.
         lightly-train list_methods          List supported methods for training.
         lightly-train extract_video_frames  Extract frames from videos using ffmpeg.
+        lightly-train train                 Deprecated: use `lightly-train pretrain` instead.
         lightly-train help                  Show help message.
 
     Run `lightly-train <command> help` for more information on a specific command.
@@ -50,8 +51,8 @@ _HELP_MSG = """
     """
 
 _train_cfg = CLITrainConfig(out="", data="", model="")
-_TRAIN_HELP_MSG = f"""
-    Train a model with self-supervised learning.
+_PRETRAIN_HELP_MSG = f"""
+    Pretrain a model with self-supervised learning or distill from a teacher model.
 
     See the documentation for more information: https://docs.lightly.ai/train/stable/train.html
 
@@ -65,7 +66,7 @@ _TRAIN_HELP_MSG = f"""
     using the ``lightly_train.export`` command.
 
     Usage:
-        lightly-train train [options]
+        lightly-train pretrain [options]
 
     Options:
         out (str, required):
@@ -74,26 +75,27 @@ _TRAIN_HELP_MSG = f"""
             Path to a directory containing images or a sequence of image directories and
             files.
         model (str, required):
-            Model name for training. For example 'torchvision/resnet50'.
+            Model name for pretraining. For example 'torchvision/resnet50'.
             Run `lightly-train list_models` to see all supported models.
         method (str, required):
-            Method name for training. For example 'simclr'. Default: {_train_cfg.method}
+            Method name for pretraining. For example 'simclr'. Default: {_train_cfg.method}
             Run `lightly-train list_methods` to see all supported methods.
         method_args (dict):
-            Arguments for the self-supervised learning method. The available arguments
+            Arguments for the pretraining / distillation method. The available arguments
             depend on the `method` parameter.
         embed_dim (int):
-            Embedding dimension. Set this if you want to train an embedding model with
+            Embedding dimension. Set this if you want to pretrain an embedding model with
             a specific dimension. By default, the output dimension of `model` is used.
-        epochs (int):
-            Number of training epochs. Default: {_train_cfg.epochs}
+        epochs (int | "auto"):
+            Number of training epochs. Default: {_train_cfg.epochs} Set to "auto" to automatically determine the
+            number of epochs based on the dataset size and batch size.
         batch_size (int):
             Global batch size. The batch size per device/GPU is inferred from this value
             and the number of devices and nodes. Default: {_train_cfg.batch_size}
         num_workers (int | "auto"):
             Number of workers for the dataloader per device/GPU. 'auto' automatically  
             sets the number of workers based on the available CPU cores. Default: {_train_cfg.num_workers}
-        devices (int):
+        devices (int | "auto"):
             Number of devices/GPUs for training. 'auto' automatically selects all
             available devices. The device type is determined by the `accelerator`
             parameter. Default: {_train_cfg.devices}
@@ -205,11 +207,11 @@ _TRAIN_HELP_MSG = f"""
         -v, --verbose  Run the command in verbose mode for detailed output.
 
     Examples:
-    # Train a ResNet-18 model with SimCLR on ImageNet
-    lightly-train train out=out data=imagenet/train model=torchvision/resnet18 method=simclr
+    # Pretrain a ResNet-18 model with SimCLR on ImageNet
+    lightly-train pretrain out=out data=imagenet/train model=torchvision/resnet18 method=simclr
 
-    # Train a ConvNext embedding model with DINO
-    lightly-train train out=out data=imagenet/train model=torchvision/convnext_small \\
+    # Pretrain a ConvNext embedding model with DINO
+    lightly-train pretrain out=out data=imagenet/train model=torchvision/convnext_small \\
         method=dino embed_dim=128 epochs=300 batch_size=64 precision=16-mixed \\
         transform_args.global_crop_size=178 optim_args.lr=0.01 \\
         optim_args.betas="[0.9, 0.999]"
@@ -228,15 +230,15 @@ _EXPORT_HELP_MSG = f"""
             Path where the exported model will be saved.
         checkpoint (str, required):
             Path to the LightlyTrain checkpoint file to export the model from. The
-            location of the checkpoint depends on the train command. If training was run
+            location of the checkpoint depends on the pretrain command. If training was run
             with `out="out/my_experiment"`, then the last LightlyTrain checkpoint is
             saved to `out/my_experiment/checkpoints/last.ckpt`.
         part (str):
             Part of the model to export. Valid options are 'model' and
             'embedding_model'. 'model' is the default option and exports the model
-            that was passed as `model` argument to the train function.
+            that was passed as `model` argument to the pretrain function.
             'embedding_model' exports the embedding model. This includes the model
-            passed with the model argument in the train function and an extra embedding
+            passed with the model argument in the pretrain function and an extra embedding
             layer if the `embed_dim` argument was set during training. This is useful
             if you want to use the exported model for embedding images.
             Default: {_export_cfg.part}
@@ -287,7 +289,7 @@ _EMBED_HELP_MSG = f"""
             and files.
         checkpoint (str, required):
             Path to the LightlyTrain checkpoint file used for embedding. The location of
-            the checkpoint depends on the train command. If training was run with
+            the checkpoint depends on the pretrain command. If training was run with
             `out="out/my_experiment"`, then the last LightlyTrain checkpoint is saved to
             `out/my_experiment/checkpoints/last.ckpt`.
         format (str, required):
@@ -400,15 +402,15 @@ def cli(config: DictConfig) -> None:
         _show_help()
         return
 
-    # First argument after lightly_train is the command. For example `lightly-train train ...`
+    # First argument after lightly_train is the command. For example `lightly-train pretrain ...`
     command = str(keys[0]).lower()
     help_if_config_empty = True
     if command in _HELP_COMMANDS:
         _show_help()
         return
-    elif command == "train":
-        command_fn = train.train_from_dictconfig
-        help_msg = _TRAIN_HELP_MSG
+    elif command == "pretrain":
+        command_fn = train.pretrain_from_dictconfig
+        help_msg = _PRETRAIN_HELP_MSG
     elif command == "export":
         command_fn = export.export_from_dictconfig
         help_msg = _EXPORT_HELP_MSG
@@ -426,6 +428,9 @@ def cli(config: DictConfig) -> None:
         command_fn = _list_methods
         help_msg = ""
         help_if_config_empty = False
+    elif command == "train":
+        command_fn = train.train_from_dictconfig
+        help_msg = "Deprecated command. Please use `lightly-train pretrain` instead."
     else:
         _show_invalid_command_help(command=command)
         sys.exit(1)
@@ -459,10 +464,10 @@ def _run_command_fn(
             Config passed to `command_fn`.
         help_msg:
             The help message to display if a help command is found in the config. For
-            example in `lightly-train train help`.
+            example in `lightly-train pretrain help`.
         help_if_config_empty:
             If yes, then show the help message if the config is empty. This is useful
-            if a user runs `lightly-train train` without any arguments.
+            if a user runs `lightly-train pretrain` without any arguments.
     """
     if _is_help_command_in_config(config) or (
         config.is_empty() and help_if_config_empty

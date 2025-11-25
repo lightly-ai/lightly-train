@@ -14,10 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Improve the layout of logging of object detection.
+- Use `lightly-train.pretrain()` as the interface of pretraining and distillation instead of `lightly-train.train()`.
 
 ### Deprecated
 
-- Deprecate `reuse_class_head` argument in `train` command. The model will now
+- The `lightly-train.train()` interface is deprecated and will be removed in a future release. Use `lightly-train.pretrain()` instead.
+- Deprecate `reuse_class_head` argument in the `train`/`pretrain` command. The model will now
   automatically reuse the classification head only when the number of classes in the
   data config matches that in the checkpoint. Otherwise, the classification head will
   be re-initialized.
