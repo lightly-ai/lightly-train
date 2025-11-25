@@ -1,3 +1,8 @@
+<p align="center">
+  <a href="https://calendar.app.google/43WRRBPGjUGyAPn58">
+  <img width="1373" height="322" alt="Book meeting with Lightly at RSNA and NeurIPS 2025" src="https://github.com/user-attachments/assets/00431826-5d4f-4428-b341-104e4fb59e7b"/>
+  </a>
+</p>
 # LightlyTrain - SOTA Pretraining, Fine-tuning and Distillation
 
 [![Python](https://img.shields.io/badge/Python-3.8%7C3.9%7C3.10%7C3.11%7C3.12-blue.svg)](https://docs.lightly.ai/train/stable/installation.html)
