@@ -387,4 +387,5 @@ def _load_classes(annotation_file: Path) -> dict[int, ClassInfo]:
             labels={class_id},
             is_thing=bool(class_info["isthing"]),
         )
+    classes = dict(sorted(classes.items()))
     return classes
