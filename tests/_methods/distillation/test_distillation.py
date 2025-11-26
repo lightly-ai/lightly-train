@@ -298,6 +298,7 @@ class TestDistillation:
             epochs=0,
             batch_size=4,
             accelerator="cpu",
+            num_workers=0,
         )
 
         # Setup constants.

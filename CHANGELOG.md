@@ -9,15 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add support for specifying data configs in YAML format.
+
 ### Changed
 
+- Improve the layout of logging of object detection.
+
 ### Deprecated
+
+- Deprecate `reuse_class_head` argument in `train` command. The model will now
+  automatically reuse the classification head only when the number of classes in the
+  data config matches that in the checkpoint. Otherwise, the classification head will
+  be re-initialized.
 
 ### Removed
 
 ### Fixed
 
 - Fix `image_size` not tuple when training from pretrained model.
+- Fix a bug when fine-tuning a model with `resume_interrupted=True`.
+- Fix `num_classes` not updated when loading an object detection checkpoint with different number of classes.
 
 ### Security
 

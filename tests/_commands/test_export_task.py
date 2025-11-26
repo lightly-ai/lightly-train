@@ -22,7 +22,7 @@ from lightly_train._commands.export_task import OnnxPrecision
 from .. import helpers
 
 
-def create_dinov2_vits14_eomt_test_checkpoint(
+def create_dinov2_vittest14_eomt_checkpoint(
     directory: Path, num_channels: int = 3
 ) -> Path:
     out = directory / "out"
@@ -52,7 +52,8 @@ def create_dinov2_vits14_eomt_test_checkpoint(
                 1: "car",
             },
         },
-        model="dinov2/vits14-eomt",
+        model="dinov2/_vittest14-eomt",
+        model_args={"num_joint_blocks": 1},
         transform_args={"num_channels": num_channels},
         # The operator 'aten::upsample_bicubic2d.out' raises a NotImplementedError
         # on macOS with MPS backend.
@@ -69,17 +70,17 @@ def create_dinov2_vits14_eomt_test_checkpoint(
 
 
 @pytest.fixture(scope="module")
-def dinov2_vits14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def dinov2_vittest14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> Path:
     tmp = tmp_path_factory.mktemp("tmp")
-    return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp)
+    return create_dinov2_vittest14_eomt_checkpoint(directory=tmp)
 
 
 @pytest.fixture(scope="module")
-def dinov2_vits14_eomt_4_channels_checkpoint(
+def dinov2_vittest14_eomt_4_channels_checkpoint(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Path:
     tmp = tmp_path_factory.mktemp("tmp")
-    return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp, num_channels=4)
+    return create_dinov2_vittest14_eomt_checkpoint(directory=tmp, num_channels=4)
 
 
 onnx_export_testset = [
@@ -115,8 +116,8 @@ def test_onnx_export(
     height: int | None,
     width: int | None,
     precision: OnnxPrecision,
-    dinov2_vits14_eomt_checkpoint: Path,
-    dinov2_vits14_eomt_4_channels_checkpoint: Path,
+    dinov2_vittest14_eomt_checkpoint: Path,
+    dinov2_vittest14_eomt_4_channels_checkpoint: Path,
     tmp_path: Path,
 ) -> None:
     if num_channels == 4:
@@ -127,8 +128,8 @@ def test_onnx_export(
 
     # arrange
     checkpoint = {
-        3: dinov2_vits14_eomt_checkpoint,
-        4: dinov2_vits14_eomt_4_channels_checkpoint,
+        3: dinov2_vittest14_eomt_checkpoint,
+        4: dinov2_vittest14_eomt_4_channels_checkpoint,
     }[num_channels]
     model = lightly_train.load_model(checkpoint, device="cpu")
     if height is None:
@@ -193,10 +194,10 @@ def test_onnx_export(
 )
 @pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export__height_not_patch_size_multiple_fails(
-    dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
+    dinov2_vittest14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:
     # arrange
-    model = lightly_train.load_model(dinov2_vits14_eomt_checkpoint, device="cpu")
+    model = lightly_train.load_model(dinov2_vittest14_eomt_checkpoint, device="cpu")
     onnx_path = tmp_path / "model.onnx"
     patch_size: int = model.backbone.patch_size  # type: ignore
     height = patch_size - 1
@@ -211,7 +212,7 @@ def test_onnx_export__height_not_patch_size_multiple_fails(
     ):
         lightly_train.export_onnx(
             out=onnx_path,
-            checkpoint=dinov2_vits14_eomt_checkpoint,
+            checkpoint=dinov2_vittest14_eomt_checkpoint,
             height=height,
             width=width,
             batch_size=1,
@@ -233,10 +234,10 @@ def test_onnx_export__height_not_patch_size_multiple_fails(
 )
 @pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export__width_not_patch_size_multiple_fails(
-    dinov2_vits14_eomt_checkpoint: Path, tmp_path: Path
+    dinov2_vittest14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:
     # arrange
-    model = lightly_train.load_model(dinov2_vits14_eomt_checkpoint, device="cpu")
+    model = lightly_train.load_model(dinov2_vittest14_eomt_checkpoint, device="cpu")
     onnx_path = tmp_path / "model.onnx"
     patch_size: int = model.backbone.patch_size  # type: ignore
     height = patch_size
@@ -251,7 +252,7 @@ def test_onnx_export__width_not_patch_size_multiple_fails(
     ):
         lightly_train.export_onnx(
             out=onnx_path,
-            checkpoint=dinov2_vits14_eomt_checkpoint,
+            checkpoint=dinov2_vittest14_eomt_checkpoint,
             height=height,
             width=width,
             batch_size=1,

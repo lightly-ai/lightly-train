@@ -39,10 +39,10 @@ def get_contrastive_denoising_training_group(
 
     max_gt_num = max(num_gts)
     if max_gt_num == 0:
-        return None, None, None, None
-
-    num_group = num_denoising // max_gt_num
-    num_group = 1 if num_group == 0 else num_group
+        num_group = 0
+    else:
+        num_group = num_denoising // max_gt_num
+        num_group = 1 if num_group == 0 else num_group
     # pad gt to max_num of a batch
     bs = len(num_gts)
 

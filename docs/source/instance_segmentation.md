@@ -96,9 +96,10 @@ import lightly_train
 
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 results = model.predict("image.jpg")
-labels = results["labels"]  # (N,) tensor of predicted class IDs
-masks = results["masks"]    # (N, height, width) tensor of predicted masks
-scores = results["scores"]  # (N,) tensor of predicted confidence scores
+results["labels"]   # Class labels, tensor of shape (num_instances,)
+results["masks"]    # Binary masks, tensor of shape (num_instances, height, width).
+                    # Height and width correspond to the original image size.
+results["scores"]   # Confidence scores, tensor of shape (num_instances,)
 ```
 
 Or use one of the pretrained models directly from LightlyTrain:
@@ -120,7 +121,7 @@ from torchvision.io import read_image
 from torchvision.utils import draw_segmentation_masks
 
 image = read_image("image.jpg")
-image_with_masks = draw_segmentation_masks(image, masks, alpha=0.6)
+image_with_masks = draw_segmentation_masks(image, results["masks"], alpha=0.6)
 plt.imshow(image_with_masks.permute(1, 2, 0))
 ```
 

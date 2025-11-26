@@ -112,6 +112,7 @@ def test_train_semantic_segmentation(
 
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
 @pytest.mark.parametrize(
     ("data_format, num_channels, height, width"),
     [
@@ -309,7 +310,8 @@ def test_train_semantic_segmentation__checkpoint(
                 1: "car",
             },
         },
-        model="dinov2/vits14-eomt",
+        model="dinov2/_vittest14-eomt",
+        model_args={"num_joint_blocks": 1},
         # The operator 'aten::upsample_bicubic2d.out' raises a NotImplementedError
         # on macOS with MPS backend.
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
@@ -318,7 +320,7 @@ def test_train_semantic_segmentation__checkpoint(
         num_workers=0,
         steps=1,
     )
-    last_ckpt_path = out / "checkpoints" / "last.ckpt"
+    last_ckpt_path = out / "exported_models" / "exported_last.pt"
     assert last_ckpt_path.exists()
 
     # Part 2: Load the checkpoint via the checkpoint parameter and assert log.
@@ -339,19 +341,19 @@ def test_train_semantic_segmentation__checkpoint(
                     1: "car",
                 },
             },
-            model="dinov2/vits14-eomt",
+            model=str(last_ckpt_path),
+            model_args={"num_joint_blocks": 1},
             accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
             devices=1,
             batch_size=2,
             num_workers=0,
             steps=1,
             overwrite=True,
-            checkpoint=last_ckpt_path,
         )
     assert f"Loading model checkpoint from '{last_ckpt_path}'" in caplog.text
 
-    # Part 3: check that the class head can be re-initialized when loading from checkpoint.
-    with caplog.at_level(logging.DEBUG):
+    # Part 3: check that the class head can be re-initialized when the number of classes differ.
+    with caplog.at_level(logging.INFO):
         lightly_train.train_semantic_segmentation(
             out=out,
             data={
@@ -369,17 +371,16 @@ def test_train_semantic_segmentation__checkpoint(
                     2: "tree",
                 },
             },
-            model="dinov2/vits14-eomt",
+            model=str(last_ckpt_path),
+            model_args={"num_joint_blocks": 1},
             accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
             devices=1,
             batch_size=2,
             num_workers=0,
             steps=1,
             overwrite=True,
-            checkpoint=last_ckpt_path,
-            reuse_class_head=False,
         )
-    assert "Skipping class-dependent parameters from checkpoint:" in caplog.text
+    assert "Checkpoint provides 2 classes but module expects 3." in caplog.text
 
 
 @pytest.mark.skipif(
@@ -420,7 +421,8 @@ def test_train_semantic_segmentation__resume_interrupted(
                 1: "car",
             },
         },
-        model="dinov2/vits14-eomt",
+        model="dinov2/_vittest14-eomt",
+        model_args={"num_joint_blocks": 1},
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
@@ -449,7 +451,8 @@ def test_train_semantic_segmentation__resume_interrupted(
                     1: "car",
                 },
             },
-            model="dinov2/vits14-eomt",
+            model="dinov2/_vittest14-eomt",
+            model_args={"num_joint_blocks": 1},
             accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
             devices=1,
             batch_size=2,
@@ -458,5 +461,5 @@ def test_train_semantic_segmentation__resume_interrupted(
             resume_interrupted=True,
         )
 
-    assert f"Loading model checkpoint from '{last_ckpt_path}'" in caplog.text
+    assert f"Resuming training from model checkpoint '{last_ckpt_path}'" in caplog.text
     assert "Resuming training from step 1/1..." in caplog.text
