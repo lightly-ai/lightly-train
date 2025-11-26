@@ -204,8 +204,8 @@ class DINOv2LTDETRObjectDetection(TaskModel):
     def predict(
         self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
     ) -> dict[str, Tensor]:
-        self.postprocessor = self.postprocessor.deploy()  # type: ignore[no-untyped-call]
-        self = self.deploy()  # type: ignore[no-untyped-call]
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
 
         device = next(self.parameters()).device
         x = file_helpers.as_image_tensor(image).to(device)
