@@ -251,9 +251,11 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
         assert isinstance(images, Tensor), "Images must be a single tensor for training"
-        assert images.shape[-2:] == batch["masks"][0].shape[:2]  # type: ignore
-        assert images.shape[-2:] == batch["binary_masks"][0]["masks"].shape[-2:]  # type: ignore
         binary_masks = batch["binary_masks"]
+        target_masks = batch["masks"]
+        assert isinstance(target_masks, Tensor), (
+            "Masks must be a single tensor for training"
+        )
         _, _, H, W = images.shape
 
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
@@ -299,11 +301,11 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                     mask_threshold=self.model_args.mask_threshold,
                     mask_overlap_threshold=self.model_args.mask_overlap_threshold,
                 )
-
-            self.train_pq.update(
-                preds=masks,
-                target=batch["masks"],  # type: ignore
+            _set_is_crowd_to_void_color(
+                target_masks=target_masks,
+                void_color=self.train_pq.void_color,  # type: ignore
             )
+            self.train_pq.update(preds=masks, target=target_masks)
             metrics["train_metric/map"] = self.train_pq
 
         mask_prob_dict = {}
@@ -424,6 +426,10 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 threshold=self.model_args.threshold,
                 mask_threshold=self.model_args.mask_threshold,
                 mask_overlap_threshold=self.model_args.mask_overlap_threshold,
+            )
+            _set_is_crowd_to_void_color(
+                target_masks=target_masks,
+                void_color=self.val_pq.void_color,  # type: ignore
             )
             self.val_pq.update(
                 preds=masks.unsqueeze(0),  # (1, H, W, 2)
@@ -553,3 +559,20 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             optimizer=optimizer,
             max_norm=self.model_args.gradient_clip_val,
         )
+
+
+def _set_is_crowd_to_void_color(
+    target_masks: Tensor,
+    void_color: tuple[int, int],
+) -> None:
+    """Sets iscrowd regions in target_masks to void color.
+
+    This will ignore them in PQ computation.
+
+    Args:
+        target_masks: (..., H, W, 2) tensor where the last dimension contains (label, segment_id).
+        void_color: Color to set iscrowd regions to.
+    """
+    void_color_tensor = target_masks.new_tensor(void_color)
+    # Pixels with label -1 are iscrowd regions (see dataset get_masks).
+    target_masks[target_masks[..., 0] == -1] = void_color_tensor

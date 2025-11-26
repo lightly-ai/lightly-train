@@ -112,6 +112,27 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         self.image_mode = image_mode
 
     def __getitem__(self, index: int) -> MaskPanopticSegmentationDatasetItem:
+        """
+
+        Returns:
+            A dictionary with the following fields:
+            - image_path: Path to the image file.
+            - image: Transformed image tensor (C, H, W).
+            - masks: (H, W, 2) Tensor where the last dimension contains (label, segment_id).
+                Labels are internal class ids in [-1, num_stuff_classes + num_thing_classes].
+                -1 indicates iscrowd regions.
+                [0, num_stuff_classes - 1] are stuff classes.
+                [num_stuff_classes, num_stuff_classes + num_thing_classes - 1] are thing classes.
+                num_stuff_classes + num_thing_classes is the ignore class. This class is
+                attributed to all pixels that do not belong to any class in the dataset.
+                Segment ids are in [-1, num_segments-1]. -1 indicates no segment.
+            - binary_masks: A dictionary with the following fields:
+                - masks: (N, H, W) boolean Tensor with N binary masks.
+                - labels: (N,) Tensor with internal class id for each mask.
+                    This uses the same internal class ids as described for `masks`,
+                    except that iscrowd regions retain their original class id.
+                - iscrowd: (N,) boolean Tensor indicating if a mask is crowd.
+        """
         row = self.image_info[index]
 
         image_path = row["image_filepaths"]
@@ -213,6 +234,10 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         for i in range(N):
             binary_mask = binary_masks["masks"][i]
             label = binary_masks["labels"][i]
+            # If iscrowd, set label to -1. These pixels will be ignored from metric
+            # calculation.
+            if binary_masks["iscrowd"][i]:
+                label = -1  # type: ignore
             masks[..., 0] = torch.where(binary_mask, label, masks[..., 0])
             masks[..., 1] = torch.where(binary_mask, i, masks[..., 1])
         return masks
