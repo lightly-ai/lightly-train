@@ -17,9 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix bug in `model.predict()` for object detection models.
-
 ### Security
+
+## [0.12.4] - 2025-11-26
+
+### Fixed
+
+- Fix bug in `model.predict()` for object detection models.
 
 ## [0.12.3] - 2025-11-26
 
