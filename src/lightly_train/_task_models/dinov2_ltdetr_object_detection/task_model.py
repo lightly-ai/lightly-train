@@ -204,8 +204,8 @@ class DINOv2LTDETRObjectDetection(TaskModel):
     def predict(
         self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
     ) -> dict[str, Tensor]:
-        self.postprocessor = self.postprocessor.deploy()  # type: ignore[no-untyped-call]
-        self = self.deploy()  # type: ignore[no-untyped-call]
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
 
         device = next(self.parameters()).device
         x = file_helpers.as_image_tensor(image).to(device)
@@ -229,6 +229,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
 
     def deploy(self) -> Self:
         self.eval()
+        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
@@ -242,7 +243,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
 
     def forward(
         self, x: Tensor, orig_target_size: tuple[int, int] | None = None
-    ) -> list[Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
         h, w = x.shape[-2:]
         if orig_target_size is None:
@@ -255,13 +256,15 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         x = self.encoder(x)
         x = self.decoder(x)
 
-        # labels, bboxes, scores
-        x_: list[Tensor] = self.postprocessor(x, orig_target_size_)
-
-        # Map internal class IDs to class IDs.
-        x_[0] = self.internal_class_to_class[x_[0]]
-
-        return x_
+        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
+            self.postprocessor(x, orig_target_size_)
+        )
+        # Postprocessor must be in deploy mode at this point. It returns only tuples
+        # during deploy mode.
+        assert isinstance(result, tuple)
+        labels, boxes, scores = result
+        labels = self.internal_class_to_class[labels]
+        return (labels, boxes, scores)
 
 
 class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
