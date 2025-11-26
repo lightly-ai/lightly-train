@@ -218,7 +218,7 @@ _export_cfg = CLIExportConfig(checkpoint="", out="")
 _EXPORT_HELP_MSG = f"""
     Export a model from a checkpoint.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/export.html
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill/export.html
 
     Usage:
         lightly-train export [options]

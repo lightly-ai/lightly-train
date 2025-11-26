@@ -153,15 +153,15 @@ LightlyTrain supports the following model and workflow combinations.
 
 | Model | Distillation | Pretraining |
 | ------------------------------ | :----------------------------------------------------------------------------------------: | :--------------------------------------------------------------------: |
-| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html#distill-from-dinov3) | |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/distillation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/methods/dinov2.html) |
-| Torchvision ResNet, ConvNext, ShuffleNetV2 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/torchvision.html) |
-| TIMM models | ✅ [🔗](https://docs.lightly.ai/train/stable/models/timm.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/timm.html) |
-| Ultralytics YOLOv5–YOLO12 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/ultralytics.html) |
-| RT-DETR, RT-DETRv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rtdetr.html) |
-| RF-DETR | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/rfdetr.html) |
-| YOLOv12 | ✅ [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/yolov12.html) |
-| Custom PyTorch Model | ✅ [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/models/custom_models.html) |
+| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#distill-from-dinov3) | |
+| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html) |
+| Torchvision ResNet, ConvNext, ShuffleNetV2 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html) |
+| TIMM models | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/timm.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/timm.html) |
+| Ultralytics YOLOv5–YOLO12 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html) |
+| RT-DETR, RT-DETRv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html) |
+| RF-DETR | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html) |
+| YOLOv12 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html) |
+| Custom PyTorch Model | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) |
 
 [Contact us](https://www.lightly.ai/contact) if you need support for additional models.
 
@@ -197,6 +197,7 @@ Please [contact us](https://www.lightly.ai/contact) to discuss the best licensin
 hidden:
 maxdepth: 2
 ---
+quick_start_detection
 quick_start
 installation
 object_detection

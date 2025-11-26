@@ -9,7 +9,6 @@
 This guide demonstrates how to use LightlyTrain for object detection with our
 state-of-the-art LTDETR model built on [DINOv3](https://github.com/facebookresearch/dinov3).
 
-
 ## Installation
 
 ```bash
