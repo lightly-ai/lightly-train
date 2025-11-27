@@ -313,9 +313,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 )
             update_metric_panoptic(
                 metric=self.train_pq_debug,
-                preds=masks.unsqueeze(0).clone(),  # (1, H, W, 2)
-                targets=target_masks.unsqueeze(0).clone(),  # (1, H, W, 2)
-                is_crowds=[m["iscrowd"] for m in binary_masks], # (1, num_segments)
+                preds=masks.clone(),  # (B, H, W, 2)
+                targets=target_masks.clone(),  # (B, H, W, 2)
+                is_crowds=[m["iscrowd"].clone() for m in binary_masks], # (B, num_segments)
             )
             _set_is_crowd_to_void_color(
                 target_masks=target_masks,
