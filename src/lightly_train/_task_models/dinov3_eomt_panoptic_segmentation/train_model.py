@@ -596,8 +596,10 @@ def _mark_ignore_regions(
     """Sets regions in target_masks that must be ignored in PQ computation to void color.
 
     Args:
-        target_masks: (..., H, W, 2) tensor where the last dimension contains (label, segment_id).
-        void_color: Color to set iscrowd regions to.
+        target_masks:
+            (..., H, W, 2) tensor where the last dimension contains (label, segment_id).
+        void_color:
+            Color to set ignored regions to.
     """
     void_color_tensor = target_masks.new_tensor(void_color)
     # Masks that have no segments. EoMT filters those out when intitializing
