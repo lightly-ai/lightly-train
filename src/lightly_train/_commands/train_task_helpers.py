@@ -903,9 +903,14 @@ def finetune_from_checkpoint(
     """
 
     train_model = state["train_model"]
-    incompatible = train_model.load_state_dict(
+    # --- CHANGED CODE START ---
+    # OLD: incompatible = train_model.load_state_dict(...)
+    
+    # We use the new method we defined in TrainModel. 
+    incompatible = train_model.load_train_state_dict(
         checkpoint["train_model_state_dict"], strict=False
     )
+    # --- CHANGED CODE END ---
 
     if incompatible.missing_keys:
         logger.warning(
