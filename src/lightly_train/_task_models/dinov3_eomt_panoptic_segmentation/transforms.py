@@ -39,6 +39,7 @@ class DINOv3EoMTPanopticSegmentationScaleJitterArgs(ScaleJitterArgs):
     seed_offset: int = 0
 
 
+
 class DINOv3EoMTPanopticSegmentationRandomCropArgs(RandomCropArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
@@ -52,7 +53,7 @@ class DINOv3EoMTPanopticSegmentationTrainTransformArgs(
     PanopticSegmentationTransformArgs
 ):
     """
-    Defines default transform arguments for instance segmentation training with DINOv3.
+    Defines default transform arguments for panoptic segmentation training with DINOv3.
     """
 
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
@@ -97,7 +98,7 @@ class DINOv3EoMTPanopticSegmentationTrainTransformArgs(
 
 class DINOv3EoMTPanopticSegmentationValTransformArgs(PanopticSegmentationTransformArgs):
     """
-    Defines default transform arguments for instance segmentation validation with DINOv3.
+    Defines default transform arguments for panoptic segmentation validation with DINOv3.
     """
 
     image_size: ImageSizeTuple | Literal["auto"] | None = None
