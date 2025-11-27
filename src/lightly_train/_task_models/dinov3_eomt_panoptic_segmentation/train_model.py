@@ -618,6 +618,11 @@ def update_metric_panoptic(
         _calculate_iou,
     )
     for i in range(len(preds)):
+        if (targets[i, ..., 1] == -1).all():
+            # Target without segments. This is not in EoMT because EoMT filters
+            # empty targets in the dataset. We allow them and handle them here
+            # instead.
+            continue
         flatten_pred = _prepocess_inputs(
             metric.things,
             metric.stuffs,
@@ -643,9 +648,9 @@ def update_metric_panoptic(
         pred_segment_matched = set()
         target_segment_matched = set()
         for pred_color, target_color in intersection_areas:
-            if target_color == metric.void_color:
-                continue
             if is_crowds[i][target_color[1]]:
+                continue
+            if target_color == metric.void_color:
                 continue
             if pred_color[0] != target_color[0]:
                 continue
