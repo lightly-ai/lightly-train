@@ -313,19 +313,19 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                     mask_threshold=self.model_args.mask_threshold,
                     mask_overlap_threshold=self.model_args.mask_overlap_threshold,
                 )
-            update_metric_panoptic(
-                metric=self.train_pq_debug,
-                preds=masks.clone(),  # (B, H, W, 2)
-                targets=target_masks.clone(),  # (B, H, W, 2)
-                is_crowds=[m["iscrowd"].clone() for m in binary_masks], # (B, num_segments)
-            )
-            _mark_ignore_regions(
-                target_masks=target_masks,
-                void_color=self.train_pq.void_color,  # type: ignore
-            )
-            self.train_pq.update(preds=masks, target=target_masks)
-            metrics["train_metric/pq"] = self.train_pq
-            metrics["train_metric/pq_debug"] = self.train_pq_debug
+                update_metric_panoptic(
+                    metric=self.train_pq_debug,
+                    preds=masks.clone(),  # (B, H, W, 2)
+                    targets=target_masks.clone(),  # (B, H, W, 2)
+                    is_crowds=[m["iscrowd"].clone() for m in binary_masks], # (B, num_segments)
+                )
+                _mark_ignore_regions(
+                    target_masks=target_masks,
+                    void_color=self.train_pq.void_color,  # type: ignore
+                )
+                self.train_pq.update(preds=masks, target=target_masks)
+                metrics["train_metric/pq"] = self.train_pq
+                metrics["train_metric/pq_debug"] = self.train_pq_debug
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
