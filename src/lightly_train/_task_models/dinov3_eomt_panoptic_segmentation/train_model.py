@@ -319,7 +319,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 targets=target_masks.clone(),  # (B, H, W, 2)
                 is_crowds=[m["iscrowd"].clone() for m in binary_masks], # (B, num_segments)
             )
-            _set_is_crowd_to_void_color(
+            _mark_ignore_regions(
                 target_masks=target_masks,
                 void_color=self.train_pq.void_color,  # type: ignore
             )
@@ -454,7 +454,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 targets=target_masks.unsqueeze(0).clone(),  # (1, H, W, 2)
                 is_crowds=target_binary_mask["iscrowd"].unsqueeze(0).clone(), # (1, num_segments)
             )
-            _set_is_crowd_to_void_color(
+            _mark_ignore_regions(
                 target_masks=target_masks,
                 void_color=self.val_pq.void_color,  # type: ignore
             )
@@ -589,21 +589,23 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         )
 
 
-def _set_is_crowd_to_void_color(
+def _mark_ignore_regions(
     target_masks: Tensor,
     void_color: tuple[int, int],
 ) -> None:
-    """Sets iscrowd regions in target_masks to void color.
-
-    This will ignore them in PQ computation.
+    """Sets regions in target_masks that must be ignored in PQ computation to void color.
 
     Args:
         target_masks: (..., H, W, 2) tensor where the last dimension contains (label, segment_id).
         void_color: Color to set iscrowd regions to.
     """
     void_color_tensor = target_masks.new_tensor(void_color)
+    # Masks that have no segments.
+    is_empty = (target_masks[..., 1] == -1).all(dim=(-2, -1))
+    target_masks[is_empty] = void_color_tensor
     # Pixels with label -1 are iscrowd regions (see dataset get_masks).
     target_masks[target_masks[..., 0] == -1] = void_color_tensor
+
 
 
 def update_metric_panoptic(
