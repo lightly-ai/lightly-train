@@ -640,9 +640,9 @@ def update_metric_panoptic(
         pred_segment_matched = set()
         target_segment_matched = set()
         for pred_color, target_color in intersection_areas:
-            if is_crowds[i][target_color[1]]:
-                continue
             if target_color == metric.void_color:
+                continue
+            if is_crowds[i][target_color[1]]:
                 continue
             if pred_color[0] != target_color[0]:
                 continue
