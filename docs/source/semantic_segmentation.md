@@ -2,6 +2,8 @@
 
 # Semantic Segmentation
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
+
 ```{note}
 🔥 **New**: LightlyTrain now supports training **[DINOv3](#-use-eomt-with-dinov3-)** and DINOv2 models for semantic segmentation with the `train_semantic_segmentation` function! The method is based on the
 state-of-the-art segmentation model [EoMT](https://arxiv.org/abs/2503.19108) by
@@ -22,26 +24,28 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 ### COCO-Stuff
 
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
-|----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 512×512 | 0.465 | 88.7 | dinov3/vits16-eomt-coco |
-| dinov3/vitb16-eomt | 85.7 | 512×512 | 0.520 | 43.3 | dinov3/vitb16-eomt-coco |
-| dinov3/vitl16-eomt | 303.2 | 512×512 | **0.544** | 20.4 | dinov3/vitl16-eomt-coco |
+| Implementation | Model | Val mIoU | Avg. FPS | Params (M) | Input Size |
+|----------------|----------------------------|----------|----------|-----------|------------|
+| LightlyTrain | dinov3/vits16-eomt-coco | 0.465 | 88.7 | 21.6 | 512×512 |
+| LightlyTrain | dinov3/vitb16-eomt-coco | 0.520 | 43.3 | 85.7 | 512×512 |
+| LightlyTrain | dinov3/vitl16-eomt-coco | **0.544** | 20.4 | 303.2 | 512×512 |
 
 We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
 
 ### Cityscapes
 
-| Backbone Model | #Params (M) | Input Size | Val mIoU | Avg. FPS | Checkpoint |
-|----------------|-------------|------------|----------|----------|------------|
-| dinov3/vits16-eomt | 21.6 | 1024×1024 | 0.786 | 18.6 | dinov3/vits16-eomt-cityscapes |
-| dinov3/vitb16-eomt | 85.7 | 1024×1024 | 0.810 | 8.7 | dinov3/vitb16-eomt-cityscapes |
-| dinov3/vitl16-eomt | 303.2 | 1024×1024 | **0.844** | 3.9 | dinov3/vitl16-eomt-cityscapes |
-| dinov2/vitl16-eomt (original) | 319 | 1024×1024 | 0.842 | - | - |
+| Implementation | Model | Val mIoU | Avg. FPS | Params (M) | Input Size |
+|----------------|--------------------------------------|----------|----------|-----------|------------|
+| LightlyTrain | dinov3/vits16-eomt-cityscapes | 0.786 | 18.6 | 21.6 | 1024×1024 |
+| LightlyTrain | dinov3/vitb16-eomt-cityscapes | 0.810 | 8.7 | 85.7 | 1024×1024 |
+| LightlyTrain | dinov3/vitl16-eomt-cityscapes | **0.844** | 3.9 | 303.2 | 1024×1024 |
+| Original EoMT | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 |
 
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
 
 ## Semantic Segmentation with EoMT
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
 
 Training a semantic segmentation model with LightlyTrain is straightforward and
 only requires a few lines of code. See [data](#semantic-segmentation-data)
@@ -100,8 +104,6 @@ if __name__ == "__main__":
 Check [here](semantic-segmentation-eomt-dinov3-model-weights) for how to use the LightlyTrain model checkpoints for further fine-tuning.
 ```
 
-By default, the classification head weights are not loaded so as to adapt only the backbone and mask head to downstream tasks. If you do need to load the classification head weights, you could specify it by setting the `reuse_class_head` flag to `True` in `train_semantic_segmentation`.
-
 ### Load the Trained Model from Checkpoint and Predict
 
 After the training completes, you can load the best model checkpoints for inference like this:
@@ -111,6 +113,8 @@ import lightly_train
 
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 masks = model.predict("path/to/image.jpg")
+# Masks is a tensor of shape (height, width) with class labels as values.
+# It has the same height and width as the input image.
 ```
 
 ### Visualize the Result
@@ -176,7 +180,8 @@ if __name__ == "__main__":
 ### Use the LightlyTrain Model Checkpoints
 
 Now you can also start with the DINOv3 model checkpoints that LightlyTrain provides.
-The models are listed [here](#semantic-segmentation-benchmark-results) in the "Checkpoint" column of the tables.
+The models are listed [here](#semantic-segmentation-benchmark-results) in the
+"Model" column of the tables.
 
 ```python
 import lightly_train
