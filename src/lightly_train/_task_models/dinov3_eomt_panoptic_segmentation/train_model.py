@@ -600,10 +600,16 @@ def _mark_ignore_regions(
         void_color: Color to set iscrowd regions to.
     """
     void_color_tensor = target_masks.new_tensor(void_color)
-    # Masks that have no segments.
+    # Masks that have no segments. EoMT filters those out when intitializing
+    # the dataset but we don't want to load all data when initializing the dataset.
+    # Instead we handle the empty targets here.
+    # See: https://github.com/tue-mps/eomt/blob/660778b9641c1bacbb5b0249ee3dcb684d9c94d9/datasets/dataset.py#L135-L136
     is_empty = (target_masks[..., 1] == -1).all(dim=(-2, -1))
     target_masks[is_empty] = void_color_tensor
     # Pixels with label -1 are iscrowd regions (see dataset get_masks).
+    # EoMT handles them by customizing the PQ computation. We avoid customizing the PQ
+    # computation by setting them to the void color here.
+    # See: https://github.com/tue-mps/eomt/blob/660778b9641c1bacbb5b0249ee3dcb684d9c94d9/training/lightning_module.py#L325-L326
     target_masks[target_masks[..., 0] == -1] = void_color_tensor
 
 
