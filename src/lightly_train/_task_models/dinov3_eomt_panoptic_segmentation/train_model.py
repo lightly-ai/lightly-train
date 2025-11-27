@@ -258,6 +258,8 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
     def training_step(
         self, fabric: Fabric, batch: MaskPanopticSegmentationBatch, step: int
     ) -> TaskStepResult:
+        # NOTE: Crowd regions are dropped in the dataset during training.
+        # Neither the training loss nor the training metrics take them into account.
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
         assert isinstance(images, Tensor), "Images must be a single tensor for training"
@@ -353,6 +355,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
     def validation_step(
         self, fabric: Fabric, batch: MaskPanopticSegmentationBatch
     ) -> TaskStepResult:
+        # NOTE: Crow regions are included in the validation loss and metrics.
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
         binary_masks = batch["binary_masks"]
