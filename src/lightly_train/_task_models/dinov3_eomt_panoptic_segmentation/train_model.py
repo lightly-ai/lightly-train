@@ -249,6 +249,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         )
         self.val_pq = self.train_pq.clone()
 
+        self.train_pq_debug = self.train_pq.clone()
+        self.val_pq_debug = self.val_pq.clone()
+
     def get_task_model(self) -> DINOv3EoMTPanopticSegmentation:
         return self.model
 
@@ -308,12 +311,19 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                     mask_threshold=self.model_args.mask_threshold,
                     mask_overlap_threshold=self.model_args.mask_overlap_threshold,
                 )
+            update_metric_panoptic(
+                metric=self.train_pq_debug,
+                preds=masks.unsqueeze(0).clone(),  # (1, H, W, 2)
+                targets=target_masks.unsqueeze(0).clone(),  # (1, H, W, 2)
+                is_crowds=[target["iscrowd"] for target in binary_masks],
+            )
             _set_is_crowd_to_void_color(
                 target_masks=target_masks,
                 void_color=self.train_pq.void_color,  # type: ignore
             )
             self.train_pq.update(preds=masks, target=target_masks)
-            metrics["train_metric/map"] = self.train_pq
+            metrics["train_metric/pq"] = self.train_pq
+            metrics["train_metric/pq_debug"] = self.train_pq_debug
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -434,6 +444,12 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 mask_threshold=self.model_args.mask_threshold,
                 mask_overlap_threshold=self.model_args.mask_overlap_threshold,
             )
+            update_metric_panoptic(
+                metric=self.val_pq_debug,
+                preds=masks.unsqueeze(0).clone(),  # (1, H, W, 2)
+                targets=target_masks.unsqueeze(0).clone(),  # (1, H, W, 2)
+                is_crowds=[target["iscrowd"] for target in binary_masks],
+            )
             _set_is_crowd_to_void_color(
                 target_masks=target_masks,
                 void_color=self.val_pq.void_color,  # type: ignore
@@ -445,6 +461,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
 
         metrics: dict[str, Any] = {
             "val_metric/pq": self.val_pq,
+            "val_metric/pq_debug": self.val_pq_debug,
         }
 
         return TaskStepResult(
@@ -583,3 +600,102 @@ def _set_is_crowd_to_void_color(
     void_color_tensor = target_masks.new_tensor(void_color)
     # Pixels with label -1 are iscrowd regions (see dataset get_masks).
     target_masks[target_masks[..., 0] == -1] = void_color_tensor
+
+
+def update_metric_panoptic(
+    metric,
+    preds,
+    targets,
+    is_crowds,
+):
+    from torchmetrics.functional.detection._panoptic_quality_common import (
+        _prepocess_inputs,
+        _get_color_areas,
+        _calculate_iou,
+    )
+    for i in range(len(preds)):
+        flatten_pred = _prepocess_inputs(
+            metric.things,
+            metric.stuffs,
+            preds[i][None, ...],
+            metric.void_color,
+            metric.allow_unknown_preds_category,
+        )[0]
+        flatten_target = _prepocess_inputs(
+            metric.things,
+            metric.stuffs,
+            targets[i][None, ...],
+            metric.void_color,
+            True,
+        )[0]
+
+        pred_areas = _get_color_areas(flatten_pred)
+        target_areas = _get_color_areas(flatten_target)
+        intersection_matrix = torch.transpose(
+            torch.stack((flatten_pred, flatten_target), -1), -1, -2
+        )
+        intersection_areas = _get_color_areas(intersection_matrix)
+
+        pred_segment_matched = set()
+        target_segment_matched = set()
+        for pred_color, target_color in intersection_areas:
+            if is_crowds[i][target_color[1]]:
+                continue
+            if target_color == metric.void_color:
+                continue
+            if pred_color[0] != target_color[0]:
+                continue
+            iou = _calculate_iou(
+                pred_color,
+                target_color,
+                pred_areas,
+                target_areas,
+                intersection_areas,
+                metric.void_color,
+            )
+            continuous_id = metric.cat_id_to_continuous_id[target_color[0]]
+            if iou > 0.5:
+                pred_segment_matched.add(pred_color)
+                target_segment_matched.add(target_color)
+                metric.iou_sum[continuous_id] += iou
+                metric.true_positives[continuous_id] += 1
+
+        false_negative_colors = set(target_areas) - target_segment_matched
+        false_positive_colors = set(pred_areas) - pred_segment_matched
+
+        false_negative_colors.discard(metric.void_color)
+        false_positive_colors.discard(metric.void_color)
+
+        for target_color in list(false_negative_colors):
+            void_target_area = intersection_areas.get(
+                (metric.void_color, target_color), 0
+            )
+            if void_target_area / target_areas[target_color] > 0.5:
+                false_negative_colors.discard(target_color)
+
+        crowd_by_cat_id = {}
+        for false_negative_color in false_negative_colors:
+            if is_crowds[i][false_negative_color[1]]:
+                crowd_by_cat_id[false_negative_color[0]] = false_negative_color[1]
+                continue
+
+            continuous_id = metric.cat_id_to_continuous_id[false_negative_color[0]]
+            metric.false_negatives[continuous_id] += 1
+
+        for pred_color in list(false_positive_colors):
+            pred_void_crowd_area = intersection_areas.get(
+                (pred_color, metric.void_color), 0
+            )
+
+            if pred_color[0] in crowd_by_cat_id:
+                crowd_color = (pred_color[0], crowd_by_cat_id[pred_color[0]])
+                pred_void_crowd_area += intersection_areas.get(
+                    (pred_color, crowd_color), 0
+                )
+
+            if pred_void_crowd_area / pred_areas[pred_color] > 0.5:
+                false_positive_colors.discard(pred_color)
+
+        for false_positive_color in false_positive_colors:
+            continuous_id = metric.cat_id_to_continuous_id[false_positive_color[0]]
+            metric.false_positives[continuous_id] += 1
