@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from functools import cached_property
 from pathlib import Path
 from typing import Any, ClassVar, Iterable
+from typing_extensions import Literal
 
 import numpy as np
 import torch
@@ -171,7 +172,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
             # (H, W, C) -> (C, H, W)
             transformed = self.transform({"image": image, "mask": mask})
             binary_masks = self.get_binary_masks(
-                transformed["mask"], segment_id_to_segment=segment_id_to_segment
+                transformed["mask"], segment_id_to_segment=segment_id_to_segment, drop_is_crowd=self.dataset_args.split == "train"
             )
             if self.is_valid_binary_masks(binary_masks):
                 break
@@ -186,12 +187,12 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         }
 
     def get_binary_masks(
-        self, mask: Tensor, segment_id_to_segment: dict[int, dict[Any, Any]]
+        self, mask: Tensor, segment_id_to_segment: dict[int, dict[Any, Any]], drop_is_crowd: bool,
     ) -> PanopticBinaryMasksDict:
         H, W = mask.shape
         masks = []
         labels = []
-        iscrowd = []
+        is_crowds = []
         for segment_id in mask.unique().tolist():  # type: ignore
             segment = segment_id_to_segment.get(segment_id)
             if segment is None:
@@ -202,9 +203,15 @@ class MaskPanopticSegmentationDataset(TaskDataset):
             if internal_class_id is None:
                 # Ignored class.
                 continue
+            is_crowd = segment.get("iscrowd", False)
+            if drop_is_crowd and is_crowd:
+                # Drop crowd regions during training.
+                # This happens in EoMT in the transform.
+                # See: https://github.com/tue-mps/eomt/blob/660778b9641c1bacbb5b0249ee3dcb684d9c94d9/datasets/transforms.py#L104-L105
+                continue
             masks.append(mask == segment_id)
             labels.append(internal_class_id)
-            iscrowd.append(segment.get("iscrowd", False))
+            is_crowds.append(is_crowd)
 
         binary_masks: PanopticBinaryMasksDict = {
             "masks": (
@@ -213,7 +220,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
                 else mask.new_zeros(size=(0, H, W), dtype=torch.bool)
             ),
             "labels": mask.new_tensor(labels, dtype=torch.long),
-            "iscrowd": mask.new_tensor(iscrowd, dtype=torch.bool),
+            "iscrowd": mask.new_tensor(is_crowds, dtype=torch.bool),
         }
         return binary_masks
 
@@ -254,6 +261,7 @@ class MaskPanopticSegmentationDatasetArgs(TaskDatasetArgs):
     stuff_classes: dict[int, str]
     # Disable strict to allow pydantic to convert lists/tuples to sets.
     ignore_classes: set[int] | None = Field(default=None, strict=False)
+    split: Literal["train", "val", "test"]
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
         mask_dir = Path(self.mask_dir_or_file)
@@ -356,6 +364,7 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
             thing_classes=self.thing_classes,
             stuff_classes=self.stuff_classes,
             ignore_classes=self.ignore_classes,
+            split="train",
         )
 
     def get_val_args(
@@ -368,6 +377,7 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
             thing_classes=self.thing_classes,
             stuff_classes=self.stuff_classes,
             ignore_classes=self.ignore_classes,
+            split="val",
         )
 
 
