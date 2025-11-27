@@ -13,12 +13,12 @@ from collections.abc import Sequence
 from functools import cached_property
 from pathlib import Path
 from typing import Any, ClassVar, Iterable
-from typing_extensions import Literal
 
 import numpy as np
 import torch
 from pydantic import Field
 from torch import Tensor
+from typing_extensions import Literal
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
@@ -172,7 +172,9 @@ class MaskPanopticSegmentationDataset(TaskDataset):
             # (H, W, C) -> (C, H, W)
             transformed = self.transform({"image": image, "mask": mask})
             binary_masks = self.get_binary_masks(
-                transformed["mask"], segment_id_to_segment=segment_id_to_segment, drop_is_crowd=self.dataset_args.split == "train"
+                transformed["mask"],
+                segment_id_to_segment=segment_id_to_segment,
+                drop_is_crowd=self.dataset_args.split == "train",
             )
             if self.is_valid_binary_masks(binary_masks):
                 break
@@ -187,7 +189,10 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         }
 
     def get_binary_masks(
-        self, mask: Tensor, segment_id_to_segment: dict[int, dict[Any, Any]], drop_is_crowd: bool,
+        self,
+        mask: Tensor,
+        segment_id_to_segment: dict[int, dict[Any, Any]],
+        drop_is_crowd: bool,
     ) -> PanopticBinaryMasksDict:
         H, W = mask.shape
         masks = []

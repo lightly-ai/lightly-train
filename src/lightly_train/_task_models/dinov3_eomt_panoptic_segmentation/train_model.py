@@ -317,7 +317,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 metric=self.train_pq_debug,
                 preds=masks.clone(),  # (B, H, W, 2)
                 targets=target_masks.clone(),  # (B, H, W, 2)
-                is_crowds=[m["iscrowd"].clone() for m in binary_masks], # (B, num_segments)
+                is_crowds=[
+                    m["iscrowd"].clone() for m in binary_masks
+                ],  # (B, num_segments)
             )
             _mark_ignore_regions(
                 target_masks=target_masks,
@@ -452,7 +454,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 metric=self.val_pq_debug,
                 preds=masks.unsqueeze(0).clone(),  # (1, H, W, 2)
                 targets=target_masks.unsqueeze(0).clone(),  # (1, H, W, 2)
-                is_crowds=target_binary_mask["iscrowd"].unsqueeze(0).clone(), # (1, num_segments)
+                is_crowds=target_binary_mask["iscrowd"]
+                .unsqueeze(0)
+                .clone(),  # (1, num_segments)
             )
             _mark_ignore_regions(
                 target_masks=target_masks,
@@ -615,7 +619,6 @@ def _mark_ignore_regions(
     target_masks[target_masks[..., 0] == -1] = void_color_tensor
 
 
-
 def update_metric_panoptic(
     metric,
     preds,
@@ -623,10 +626,11 @@ def update_metric_panoptic(
     is_crowds,
 ):
     from torchmetrics.functional.detection._panoptic_quality_common import (
-        _prepocess_inputs,
-        _get_color_areas,
         _calculate_iou,
+        _get_color_areas,
+        _prepocess_inputs,
     )
+
     for i in range(len(preds)):
         if (targets[i, ..., 1] == -1).all():
             # Target without segments. This is not in EoMT because EoMT filters

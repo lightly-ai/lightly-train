@@ -39,11 +39,6 @@ class DINOv3EoMTPanopticSegmentationScaleJitterArgs(ScaleJitterArgs):
     seed_offset: int = 0
 
 
-class DINOv3EoMTPanopticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
-    max_size: int | list[int] | Literal["auto"] = "auto"
-    prob: float = 1.0
-
-
 class DINOv3EoMTPanopticSegmentationRandomCropArgs(RandomCropArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
