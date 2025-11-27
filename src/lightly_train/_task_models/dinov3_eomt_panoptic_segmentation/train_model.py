@@ -315,7 +315,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 metric=self.train_pq_debug,
                 preds=masks.unsqueeze(0).clone(),  # (1, H, W, 2)
                 targets=target_masks.unsqueeze(0).clone(),  # (1, H, W, 2)
-                is_crowds=[target["iscrowd"] for target in binary_masks],
+                is_crowds=[m["iscrowd"] for m in binary_masks], # (1, num_segments)
             )
             _set_is_crowd_to_void_color(
                 target_masks=target_masks,
@@ -418,13 +418,14 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
         class_logits_last_layer = class_logits_per_layer[-1]
         # Revert resize and pad for mask logits.
-        for logits, class_logits, target_masks, (crop_h, crop_w), (
+        for logits, class_logits, target_masks, target_binary_mask, (crop_h, crop_w), (
             image_h,
             image_w,
         ) in zip(
             resized_mask_logits_last_layer,
             class_logits_last_layer,
             batch["masks"],
+            batch["binary_masks"],
             crop_sizes,
             image_sizes,
         ):
@@ -448,7 +449,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 metric=self.val_pq_debug,
                 preds=masks.unsqueeze(0).clone(),  # (1, H, W, 2)
                 targets=target_masks.unsqueeze(0).clone(),  # (1, H, W, 2)
-                is_crowds=[target["iscrowd"] for target in binary_masks],
+                is_crowds=target_binary_mask["iscrowd"].unsqueeze(0).clone(), # (1, num_segments)
             )
             _set_is_crowd_to_void_color(
                 target_masks=target_masks,
