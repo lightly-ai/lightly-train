@@ -87,6 +87,7 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     lr: float = 2e-4
     llrd: float = 0.8  # Layer-wise lr decay
     # Layer-wise lr decay for joint blocks (1.0 = no decay)
+    # This is equivalent to llrd_l2_enabled=False in the original EoMT
     llrd_joint_blocks: float = 1.0
     weight_decay: float = 0.05
     lr_warmup_steps: tuple[int, int] = (2000, 3000)

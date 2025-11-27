@@ -89,12 +89,19 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
     lr: float = 2e-4
     llrd: float = 0.8  # Layer-wise lr decay
     # Layer-wise lr decay for joint blocks (1.0 = no decay)
+    # This is equivalent to llrd_l2_enabled=False in the original EoMT
     llrd_joint_blocks: float = 1.0
     weight_decay: float = 0.05
     lr_warmup_steps: tuple[int, int] = (2000, 3000)
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
     # Evaluation thresholds
+    # Note that the naming is slightly different than in EoMT. EoMT doesn't have a
+    # threshold variable, instead it uses mask_threshold=0.8 in place of threshold and
+    # hardcodes the threshold to 0.5.
+    # See:
+    # - https://github.com/tue-mps/eomt/blob/660778b9641c1bacbb5b0249ee3dcb684d9c94d9/training/lightning_module.py#L761-L762
+    # - https://github.com/tue-mps/eomt/blob/660778b9641c1bacbb5b0249ee3dcb684d9c94d9/training/lightning_module.py#L778-L779
     threshold: float = 0.8
     mask_threshold: float = 0.5
     mask_overlap_threshold: float = 0.8
