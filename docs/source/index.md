@@ -127,7 +127,7 @@ model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
 results = model.predict("image.jpg")
 ```
 
-See the full [quick start guide](#quick_start) for more details.
+See the full [quick start guide](quick-start-object-detection) for more details.
 
 ## Features
 
@@ -197,8 +197,8 @@ Please [contact us](https://www.lightly.ai/contact) to discuss the best licensin
 hidden:
 maxdepth: 2
 ---
-quick_start_detection
-quick_start
+quick_start_object_detection
+quick_start_distillation
 installation
 object_detection
 instance_segmentation
