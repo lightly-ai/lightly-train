@@ -688,7 +688,7 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
         if "/pq" in name:
             # Classwise panoptic quality
             # (3, num_things + num_stuffs)
-            value = value[..., :-1] # Drop ignore class
+            value = value[:-1] # Drop ignore class
             pq = value[..., 0].mean()
             sq = value[..., 1].mean()
             rq = value[..., 2].mean()
