@@ -243,9 +243,8 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         self.train_pq = PanopticQuality(
             stuffs=internal_stuff_ids,
             things=internal_thing_ids,
-            # TODO(Guarin, 11/25): Enable
-            return_sq_and_rq=False,
-            return_per_class=model_args.metric_log_classwise,
+            return_sq_and_rq=True,
+            return_per_class=True,
         )
         self.val_pq = self.train_pq.clone()
 
