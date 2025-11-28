@@ -125,7 +125,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             "is_stuff_class",
             torch.tensor(
                 [
-                    1 if class_id in self.stuff_classes else 0
+                    0 if class_id in self.thing_classes else 1
                     for class_id in internal_class_to_class
                 ],
                 dtype=torch.bool,
