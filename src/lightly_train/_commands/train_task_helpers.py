@@ -695,10 +695,10 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
             metrics[name] = pq.item()
             metrics[name.replace("/pq", "/sq")] = sq.item()
             metrics[name.replace("/pq", "/rq")] = rq.item()
-        if isinstance(value, Tensor) and value.numel() > 1:
+        elif isinstance(value, Tensor) and value.numel() > 1:
             for i, v in enumerate(value):
                 metrics[f"{name}_{i}"] = v.item()
-        if isinstance(value, dict):
+        elif isinstance(value, dict):
             if "map" in value:
                 # Special case for detection metrics which return results like this:
                 # {"map": 0.5, "map_50": 0.7, ...}
