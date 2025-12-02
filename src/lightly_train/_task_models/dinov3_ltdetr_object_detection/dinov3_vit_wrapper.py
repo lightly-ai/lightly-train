@@ -26,6 +26,7 @@ the terms of the DINOv3 License Agreement.
 - Added typing to functions.
 - Updated the imports.
 - Asserts the number or returned layers is 3.
+- Remove printing.
 """
 
 from __future__ import annotations
@@ -128,21 +129,20 @@ class DINOv3STAs(Module):
     ):
         super(DINOv3STAs, self).__init__()
 
-        self.backbone = model
-        embed_dim = self.backbone.embed_dim
+        self.dinov3 = model
+        embed_dim = self.dinov3.embed_dim
 
         assert len(interaction_indexes) == 3
         self.interaction_indexes = interaction_indexes
         self.patch_size = patch_size
 
         if not finetune:
-            self.backbone.eval()
-            self.backbone.requires_grad_(False)
+            self.dinov3.eval()
+            self.dinov3.requires_grad_(False)
 
         # init the feature pyramid
         self.use_sta = use_sta
         if use_sta:
-            print(f"Using Lite Spatial Prior Module with inplanes={conv_inplane}")
             self.sta = SpatialPriorModulev2(inplanes=conv_inplane)
         else:
             conv_inplane = 0
@@ -192,11 +192,11 @@ class DINOv3STAs(Module):
         bs, _, _, _ = x.shape
 
         if len(self.interaction_indexes) > 0:
-            all_layers = self.backbone.get_intermediate_layers(
+            all_layers = self.dinov3.get_intermediate_layers(
                 x, n=self.interaction_indexes, return_class_token=True
             )
         else:
-            all_layers = self.backbone(x)
+            all_layers = self.dinov3(x)
 
         sem_feats = []
         num_scales = len(all_layers) - 2
