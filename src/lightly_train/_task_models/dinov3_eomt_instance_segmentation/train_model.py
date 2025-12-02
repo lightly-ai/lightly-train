@@ -23,6 +23,7 @@ from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
 )
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._task_models import train_model_helpers
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -83,15 +84,18 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     gradient_clip_val: float = 0.01
 
     # Optim
-    lr: float = 1e-4
-    llrd: float = 0.8  # Layer decay
+    lr: float = 2e-4
+    llrd: float = 0.8  # Layer-wise lr decay
+    # Layer-wise lr decay for joint blocks (1.0 = no decay)
+    llrd_joint_blocks: float = 1.0
     weight_decay: float = 0.05
-    lr_warmup_steps: tuple[int, int] = (500, 1000)
+    lr_warmup_steps: tuple[int, int] = (2000, 3000)
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
     # Metrics
     metric_topk_instances: int = 100
     metric_log_classwise: bool = True
+    metric_log_train: bool = False
     metric_log_debug: bool = False
 
     def resolve_auto(
@@ -219,6 +223,16 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         self.train_map.warn_on_many_detections = False
         self.val_map = self.train_map.clone()
 
+        if hasattr(self, "register_load_state_dict_pre_hook"):
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                train_model_helpers.criterion_empty_weight_reinit_hook
+            )
+        else:
+            # Backwards compatibility for PyTorch <= 2.4
+            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                train_model_helpers.criterion_empty_weight_reinit_hook, with_module=True
+            )
+
     def get_task_model(self) -> DINOv3EoMTInstanceSegmentation:
         return self.model
 
@@ -260,29 +274,28 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         }
 
         # Metrics
-        mask_logits = mask_logits_per_layer[-1]
-        class_logits = class_logits_per_layer[-1]
-        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-        # (B, Q), (B, Q, H, W), (B, Q)
-        labels, masks, scores = self.model.get_labels_masks_scores(
-            mask_logits=mask_logits, class_logits=class_logits
-        )
-
-        self.train_map.update(
-            preds=[
-                {
-                    "labels": labels[i],
-                    "masks": masks[i],
-                    "scores": scores[i],
-                }
-                for i in range(len(labels))
-            ],
-            target=binary_masks,  # type: ignore[arg-type]
-        )
-
-        metrics: dict[str, Any] = {
-            "train_metric/map": self.train_map,
-        }
+        metrics: dict[str, Any] = {}
+        if self.model_args.metric_log_train:
+            with torch.no_grad():
+                mask_logits = mask_logits_per_layer[-1]
+                class_logits = class_logits_per_layer[-1]
+                mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+                # (B, Q), (B, Q, H, W), (B, Q)
+                labels, masks, scores = self.model.get_labels_masks_scores(
+                    mask_logits=mask_logits, class_logits=class_logits
+                )
+            self.train_map.update(
+                preds=[
+                    {
+                        "labels": labels[i],
+                        "masks": masks[i],
+                        "scores": scores[i],
+                    }
+                    for i in range(len(labels))
+                ],
+                target=binary_masks,  # type: ignore[arg-type]
+            )
+            metrics["train_metric/map"] = self.train_map
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -317,13 +330,21 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         binary_masks = batch["binary_masks"]
         image_sizes = [(image.shape[-2], image.shape[-1]) for image in images]
 
-        # Resize and pad images to self.image_size
+        # Resize and pad images to self.model.image_size
         resized_images_list = []
+        resized_binary_masks = []
         crop_sizes = []
-        for image in images:
+        for image, binary_mask in zip(images, binary_masks):
             image, (crop_h, crop_w) = self.model.resize_and_pad(image)
+            masks, _ = self.model.resize_and_pad(binary_mask["masks"])
             resized_images_list.append(image)
             crop_sizes.append((crop_h, crop_w))
+            resized_binary_masks.append(
+                {
+                    "labels": binary_mask["labels"],
+                    "masks": masks,
+                }
+            )
         resized_images = torch.stack(resized_images_list, dim=0)
 
         # Forward pass
@@ -331,24 +352,10 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             self.model.forward_train(resized_images, return_logits_per_layer=True)
         )
 
-        # Revert resize and pad for mask logits.
-        mask_logits_per_layer = []
-        for mask_logits in resized_mask_logits_per_layer:
-            layer_mask_logits = []
-            for logits, (crop_h, crop_w), (image_h, image_w) in zip(
-                mask_logits, crop_sizes, image_sizes
-            ):
-                logits = logits.unsqueeze(0)  # Add batch dim for interpolate
-                logits = logits[..., :crop_h, :crop_w]
-                logits = F.interpolate(logits, (image_h, image_w), mode="bilinear")
-                logits = logits.squeeze(0)  # Remove batch dim
-                layer_mask_logits.append(logits)
-            mask_logits_per_layer.append(layer_mask_logits)
-
         # Losses.
         num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
-        for block_idx, mask_logits, class_logits in zip(
+        for block_idx, resized_mask_logits, class_logits in zip(
             # Add +1 to num_blocks for final output.
             range(num_blocks - num_joint_blocks, num_blocks + 1),
             resized_mask_logits_per_layer,
@@ -356,9 +363,9 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         ):
             # Compute the loss
             block_losses = self.criterion(
-                masks_queries_logits=mask_logits,
+                masks_queries_logits=resized_mask_logits,
                 class_queries_logits=class_logits,
-                targets=binary_masks,
+                targets=resized_binary_masks,
             )
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
@@ -375,22 +382,40 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         }
 
         # Metrics
-        mask_logits = resized_mask_logits_per_layer[-1]
-        class_logits = class_logits_per_layer[-1]
-        # (B, Q), (B, Q, H, W), (B, Q)
-        labels, masks, scores = self.model.get_labels_masks_scores(
-            mask_logits=mask_logits, class_logits=class_logits
-        )
+        # Final layer only
+        resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
+        class_logits_last_layer = class_logits_per_layer[-1]
+        predictions = []
+        # Revert resize and pad for mask logits.
+        for logits, class_logits, (crop_h, crop_w), (image_h, image_w) in zip(
+            resized_mask_logits_last_layer,
+            class_logits_last_layer,
+            crop_sizes,
+            image_sizes,
+        ):
+            logits = logits.unsqueeze(0)  # (1, Q, H', W')
+            class_logits = class_logits.unsqueeze(0)  # (1, Q, num_classes)
+            # Resize to same size as before passing through the model. This is usually
+            # (1, Q, 640, 640) and depends on self.model.image_size.
+            logits = F.interpolate(logits, resized_images.shape[-2:], mode="bilinear")
+            # Revert resize and pad from self.model.resize_and_pad
+            logits = logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
+            # (1, Q, H, W)
+            logits = F.interpolate(logits, (image_h, image_w), mode="bilinear")
+            # (1, Q), (1, Q, H, W), (1, Q)
+            labels, masks, scores = self.model.get_labels_masks_scores(
+                mask_logits=logits, class_logits=class_logits
+            )
+            predictions.append(
+                {
+                    "labels": labels[0],
+                    "masks": masks[0],
+                    "scores": scores[0],
+                }
+            )
 
         self.val_map.update(
-            preds=[
-                {
-                    "labels": labels[i],
-                    "masks": masks[i],
-                    "scores": scores[i],
-                }
-                for i in range(len(labels))
-            ],
+            preds=predictions,
             target=binary_masks,
         )
 
@@ -434,6 +459,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         backbone_param_groups = []
         other_param_groups = []
         backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
+        num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         block_i = backbone_blocks
 
         for name, param in reversed(list(self.named_parameters())):
@@ -441,12 +467,25 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             if param in backbone_params:
                 name_list = name.split(".")
                 is_block = False
+                is_joint_block = False
+                is_backbone_norm = False
                 for i, key in enumerate(name_list):
                     if key == "blocks":
                         block_i = int(name_list[i + 1])
                         is_block = True
-                if is_block or block_i == 0:
-                    lr *= self.model_args.llrd ** (backbone_blocks - 1 - block_i)
+                        is_joint_block = block_i >= (backbone_blocks - num_joint_blocks)
+                        is_backbone_norm = "backbone.norm" in name
+                        break
+
+                if (is_block or block_i == 0) and not is_backbone_norm:
+                    # Apply layer-wise lr decay except for backbone.norm layer.
+                    llrd = (
+                        self.model_args.llrd_joint_blocks
+                        if is_joint_block
+                        else self.model_args.llrd
+                    )
+                    lr *= llrd ** (backbone_blocks - 1 - block_i)
+
                 backbone_param_groups.append(
                     {"params": [param], "lr": lr, "name": name}
                 )

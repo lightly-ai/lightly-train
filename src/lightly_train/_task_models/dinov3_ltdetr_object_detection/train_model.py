@@ -21,6 +21,7 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
 )
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
@@ -136,8 +137,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.model_args = model_args
         self.model = DINOv3LTDETRObjectDetection(
             model_name=model_name,
-            image_size=val_transform_args.image_size,
-            classes=data_args.names,
+            image_size=no_auto(val_transform_args.image_size),
+            classes=data_args.included_classes,
             image_normalize=None,  # TODO (Lionel, 10/25): Allow custom normalization.
             backbone_weights=model_args.backbone_weights,
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
@@ -165,6 +166,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             losses=model_args.criterion_losses,
             alpha=model_args.criterion_alpha,
             gamma=model_args.criterion_gamma,
+            num_classes=len(data_args.included_classes),
         )
 
         self.clip_max_norm = model_args.clip_max_norm
@@ -207,7 +209,12 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         return TaskStepResult(
             loss=total_loss,
-            log_dict={**{"train_loss": total_loss.item()}, **loss_dict},
+            log_dict={
+                "train_loss": total_loss.item(),
+                "train_loss/loss_vfl": loss_dict["loss_vfl"],
+                "train_loss/loss_bbox": loss_dict["loss_bbox"],
+                "train_loss/loss_giou": loss_dict["loss_giou"],
+            },
         )
 
     def on_train_batch_end(self) -> None:
@@ -279,8 +286,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         return TaskStepResult(
             loss=total_loss,
             log_dict={
-                **{"val_loss": total_loss.item()},
-                **loss_dict,
+                "val_loss": total_loss.item(),
+                "val_loss/loss_vfl": loss_dict["loss_vfl"],
+                "val_loss/loss_bbox": loss_dict["loss_bbox"],
+                "val_loss/loss_giou": loss_dict["loss_giou"],
                 **metrics,
             },
         )

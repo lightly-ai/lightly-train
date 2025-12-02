@@ -41,6 +41,35 @@ except ImportError:
     pydicom = None  # type: ignore[assignment]
 
 
+def test_track_training_started_event(mocker: MockerFixture) -> None:
+    """Ensure training_started analytics payload stays consistent."""
+    from lightly_train._events import tracker
+
+    mock_track_event = mocker.patch("lightly_train._events.tracker.track_event")
+    model = DummyCustomModel()
+
+    tracker.track_training_started(
+        task_type="ssl_pretraining",
+        model=model,
+        method="simclr",
+        batch_size=128,
+        devices="auto",
+        epochs=10,
+    )
+
+    mock_track_event.assert_called_once_with(
+        "training_started",
+        {
+            "task_type": "ssl_pretraining",
+            "model_name": model.__class__.__name__,
+            "method": "simclr",
+            "batch_size": 128,
+            "devices": 1,
+            "epochs": 10,
+        },
+    )
+
+
 def test_train__cpu(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -522,6 +551,7 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         assert torch.equal(second_state_dict[key], exported_state_dict[key])
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
 @pytest.mark.parametrize(
     "model, method, method_args",
     [
@@ -554,6 +584,7 @@ def test_train__multichannel(
 
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
 @pytest.mark.parametrize(
     ("data_format, num_channels"),
     [

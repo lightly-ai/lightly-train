@@ -39,3 +39,16 @@ def lightly_train_cache_dir(
     cache_dir = tmp_path_factory.mktemp(f"{name}_lightly_train_cache")
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_CACHE_DIR": str(cache_dir)})
     yield cache_dir
+
+
+@pytest.fixture(autouse=True)  # Apply to all tests
+def set_test_env_variables(
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch.dict(
+        os.environ,
+        {
+            "LIGHTLY_TRAIN_EVENTS_DISABLED": "1",
+            "LIGHTLY_TRAIN_POSTHOG_KEY": "",
+        },
+    )

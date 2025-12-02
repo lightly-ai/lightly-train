@@ -11,6 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.#
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
+# Modifications Copyright 2025 Lightly AG:
+# - added a load state dict pre hook to reinitialize the
+#   classification score heads and denoising class embedding if the number of classes
+#   has changed
 
 import copy
 import functools
@@ -22,6 +26,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
+from torch import Tensor
+
+from lightly_train._task_models import task_model_helpers
 
 from .denoising import get_contrastive_denoising_training_group
 from .utils import (
@@ -476,11 +483,31 @@ class RTDETRTransformerv2(nn.Module):
         )
 
         # init encoder output anchors and valid_mask
+        self.anchors: Tensor
+        self.valid_mask: Tensor
         if self.eval_spatial_size:
             anchors, valid_mask = self._generate_anchors()
-            # TODO Lionel (09/25): Remove, we should not save the anchors in the checkpoints.
-            self.register_buffer("anchors", anchors)
-            self.register_buffer("valid_mask", valid_mask)
+            self.register_buffer("anchors", anchors, persistent=False)
+            self.register_buffer("valid_mask", valid_mask, persistent=False)
+
+        if hasattr(self, "register_load_state_dict_pre_hook"):
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.score_head_reuse_or_reinit_hook
+            )
+            if num_denoising > 0:
+                self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                    task_model_helpers.denoising_class_embed_reuse_or_reinit_hook
+                )
+        else:
+            # Backwards compatibility for PyTorch <= 2.4
+            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.score_head_reuse_or_reinit_hook, with_module=True
+            )
+            if num_denoising > 0:
+                self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                    task_model_helpers.denoising_class_embed_reuse_or_reinit_hook,
+                    with_module=True,
+                )
 
         self._reset_parameters()
 

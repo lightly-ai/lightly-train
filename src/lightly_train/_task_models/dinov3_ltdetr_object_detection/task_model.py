@@ -353,8 +353,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self,
         *,
         model_name: str,
+        classes: dict[int, str],
         image_size: tuple[int, int],
-        classes: dict[int, str] | None = None,
         image_normalize: dict[str, Any] | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
@@ -368,6 +368,19 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self.model_name = parsed_name["model_name"]
         self.image_size = image_size
         self.classes = classes
+
+        # Internally, the model processes classes as contiguous integers starting at 0.
+        # This list maps the internal class id to the class id in `classes`.
+        internal_class_to_class = list(self.classes.keys())
+
+        # Efficient lookup for converting internal class IDs to class IDs.
+        # Registered as buffer to be automatically moved to the correct device.
+        self.internal_class_to_class: Tensor
+        self.register_buffer(
+            "internal_class_to_class",
+            torch.tensor(internal_class_to_class, dtype=torch.long),
+            persistent=False,  # No need to save it in the state dict.
+        )
 
         # TODO: Lionel(09/25) Those will currently be ignored.
         self.image_normalize = image_normalize
@@ -430,13 +443,17 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             **config.hybrid_encoder.model_dump()
         )
 
+        decoder_config = config.rtdetr_transformer.model_dump()
+        decoder_config.update({"num_classes": len(self.classes)})
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            **config.rtdetr_transformer.model_dump(),
+            **decoder_config,
             eval_spatial_size=self.image_size,  # From global config, otherwise anchors are not generated.
         )
 
+        postprocessor_config = config.rtdetr_postprocessor.model_dump()
+        postprocessor_config.update({"num_classes": len(self.classes)})
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
-            **config.rtdetr_postprocessor.model_dump()
+            **postprocessor_config
         )
 
     @classmethod
@@ -459,6 +476,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
     def deploy(self) -> Self:
         self.eval()
+        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
@@ -468,8 +486,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     def predict(
         self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
     ) -> dict[str, Tensor]:
-        self.postprocessor = self.postprocessor.deploy()  # type: ignore[no-untyped-call]
-        self = self.deploy()  # type: ignore[no-untyped-call]
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
 
         device = next(self.parameters()).device
         x = file_helpers.as_image_tensor(image).to(device)
@@ -493,7 +511,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
     def forward(
         self, x: Tensor, orig_target_size: tuple[int, int] | None = None
-    ) -> list[Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
         h, w = x.shape[-2:]
         if orig_target_size is None:
@@ -505,8 +523,16 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         x = self.backbone(x)
         x = self.encoder(x)
         x = self.decoder(x)
-        x_: list[Tensor] = self.postprocessor(x, orig_target_size_)
-        return x_
+
+        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
+            self.postprocessor(x, orig_target_size_)
+        )
+        # Postprocessor must be in deploy mode at this point. It returns only tuples
+        # during deploy mode.
+        assert isinstance(result, tuple)
+        labels, boxes, scores = result
+        labels = self.internal_class_to_class[labels]
+        return (labels, boxes, scores)
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:

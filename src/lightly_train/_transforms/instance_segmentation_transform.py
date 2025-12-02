@@ -47,6 +47,7 @@ from lightly_train._transforms.transform import (
     SmallestMaxSizeArgs,
 )
 from lightly_train.types import (
+    ImageSizeTuple,
     NDArrayBBoxes,
     NDArrayBinaryMasksInt,
     NDArrayClasses,
@@ -71,7 +72,7 @@ class InstanceSegmentationTransformOutput(TaskTransformOutput):
 
 
 class InstanceSegmentationTransformArgs(TaskTransformArgs):
-    image_size: tuple[int, int] | Literal["auto"] | None
+    image_size: ImageSizeTuple | Literal["auto"] | None
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
     normalize: NormalizeArgs | Literal["auto"]
@@ -251,16 +252,25 @@ class InstanceSegmentationTransform(TaskTransform):
             masks=input["binary_masks"],
             bboxes=input["bboxes"],
             class_labels=input["class_labels"],
+            indices=np.arange(len(input["bboxes"])),
         )
-        # Remove binary masks that are all zero after transformation.
-        # Albumentations doesn't do this automatically, but it removes bboxes and
-        # class labels that correspond to such masks.
+
+        # Albumentations can drop bboxes if they are out of the image after the transform.
+        # It also automatically drops the corresponding class labels and indices but
+        # this doesn't work for masks. So we need to filter them out manually.
         masks = transformed["masks"]
-        masks_tensor = masks if isinstance(masks, Tensor) else torch.stack(masks)
-        masks_tensor = masks_tensor[masks_tensor.sum(dim=(1, 2)) > 0]
+        masks = [masks[i] for i in transformed["indices"]]
+        image = transformed["image"]
+        H, W = image.shape[-2:]
+        binary_masks = (
+            torch.stack(masks)
+            if len(masks) > 0
+            else image.new_zeros(0, H, W, dtype=torch.int)
+        )
+
         return {
             "image": transformed["image"],
-            "binary_masks": masks_tensor,
+            "binary_masks": binary_masks,
             "bboxes": transformed["bboxes"],
             "class_labels": transformed["class_labels"],
         }

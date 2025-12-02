@@ -17,6 +17,7 @@ from lightly_train._methods.dino.dino_transform import (
     DINOTransform,
     DINOTransformArgs,
 )
+from lightly_train.types import ImageSizeTuple
 
 
 class DINOv2RandomResizeArgs(DINORandomResizeArgs):
@@ -29,9 +30,7 @@ class DINOv2LocalViewRandomResizeArgs(DINOLocalViewRandomResizeArgs):
 
 class DINOv2ViTLocalViewTransformArgs(DINOLocalViewTransformArgs):
     num_views: int = 8
-    # Strict is set to False because OmegaConf does not support parsing tuples from the
-    # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
-    view_size: tuple[int, int] = Field(default=(98, 98), strict=False)
+    view_size: ImageSizeTuple = (98, 98)
     random_resize: DINOv2LocalViewRandomResizeArgs | None = Field(
         default_factory=DINOv2LocalViewRandomResizeArgs
     )

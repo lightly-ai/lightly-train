@@ -13,6 +13,7 @@ import numpy as np
 import torch
 from albumentations import Compose
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
 )
@@ -98,9 +99,11 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
                 [
                     ScaleJitter(
                         sizes=transform_args.scale_jitter.sizes,
-                        target_size=transform_args.image_size
-                        if transform_args.scale_jitter.sizes is None
-                        else None,
+                        target_size=(
+                            no_auto(transform_args.image_size)
+                            if transform_args.scale_jitter.sizes is None
+                            else None
+                        ),
                         scale_range=scale_range,
                         num_scales=transform_args.scale_jitter.num_scales,
                         divisible_by=transform_args.scale_jitter.divisible_by,

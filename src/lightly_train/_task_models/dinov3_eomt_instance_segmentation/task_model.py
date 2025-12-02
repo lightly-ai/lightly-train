@@ -172,10 +172,16 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
                 task_model_helpers.queries_adjust_num_queries_hook
             )
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.class_head_reuse_or_reinit_hook
+            )
         else:
             # Backwards compatibility for PyTorch <= 2.4
             self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
                 task_model_helpers.queries_adjust_num_queries_hook, with_module=True
+            )
+            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.class_head_reuse_or_reinit_hook, with_module=True
             )
 
     @classmethod
@@ -228,13 +234,18 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         }
 
     @torch.no_grad()
-    def predict(self, image: PathLike | PILImage | Tensor) -> dict[str, Tensor]:
+    def predict(
+        self, image: PathLike | PILImage | Tensor, threshold: float = 0.8
+    ) -> dict[str, Tensor]:
         """Returns the predicted mask for the given image.
 
         Args:
             image:
                 The input image as a path, URL, PIL image, or tensor. Tensors must have
                 shape (C, H, W).
+            threshold:
+                The confidence threshold for the predicted masks. Only masks with a
+                confidence score above this threshold are returned.
 
         Returns:
             A {"labels": Tensor, "masks": Tensor, "scores": Tensor} dict. Labels is a
@@ -276,10 +287,22 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         # Map internal class IDs to class IDs.
         labels = self.internal_class_to_class[labels]  # (1, Q)
+
+        # Remove batch dimension.
+        labels = labels.squeeze(0)
+        masks = masks.squeeze(0)
+        scores = scores.squeeze(0)
+
+        # Apply threshold.
+        keep = scores >= threshold
+        labels = labels[keep]
+        masks = masks[keep]
+        scores = scores[keep]
+
         return {
-            "labels": labels.squeeze(0),
-            "masks": masks.squeeze(0),
-            "scores": scores.squeeze(0),
+            "labels": labels,
+            "masks": masks,
+            "scores": scores,
         }
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
@@ -424,6 +447,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         return mask_logits, class_logits
 
+    @torch.no_grad()
     def get_labels_masks_scores(
         self, mask_logits: Tensor, class_logits: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
@@ -446,11 +470,11 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         Args:
             image:
-                A tensor of shape (..., C, H, W).
+                A tensor of shape (..., H, W).
 
         Returns:
             An (image, (crop_h, crop_w)) tuple where image is a tensor of shape
-            (..., C, H', W') with H'==self.image_size[0] and W'==self.image_size[1], and
+            (..., H', W') with H'==self.image_size[0] and W'==self.image_size[1], and
             (crop_h, crop_w) are the height and width of the resized (non-padded) image.
         """
         image_h, image_w = image.shape[-2:]
@@ -459,9 +483,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         crop_w = round(image_w * resize_factor)
         pad_h = max(0, self.image_size[0] - crop_h)
         pad_w = max(0, self.image_size[1] - crop_w)
-        # (..., C, crop_h, crop_w)
+        # (..., crop_h, crop_w)
         image = transforms_functional.resize(image, size=[crop_h, crop_w])
-        # (..., C, H', W')
+        # (..., H', W')
         image = transforms_functional.pad(image, padding=[0, 0, pad_w, pad_h])
         return image, (crop_h, crop_w)
 

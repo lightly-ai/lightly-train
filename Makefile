@@ -149,7 +149,7 @@ test:
 
 .PHONY: test-ci
 test-ci:
-	pytest tests -v
+	pytest tests -v --durations=20
 
 
 ### Virtual Environment
@@ -233,6 +233,8 @@ MINIMAL_TORCH_VERSION_PY38 := "torch==2.1.0"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision==0.16.0"
 endif
 
+export LIGHTLY_TRAIN_EVENTS_DISABLED := "1"
+export LIGHTLY_TRAIN_POSTHOG_KEY := ""
 
 # Install ffmpeg on Ubuntu.
 . PHONY: install-ffmpeg-ubuntu

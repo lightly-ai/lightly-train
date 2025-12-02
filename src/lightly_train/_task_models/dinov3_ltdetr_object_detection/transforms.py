@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Literal, Sequence
+from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
 from pydantic import Field
@@ -26,6 +26,7 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     StopPolicyArgs,
 )
+from lightly_train.types import ImageSizeTuple
 
 
 class DINOv3LTDETRObjectDetectionRandomPhotometricDistortArgs(
@@ -86,8 +87,8 @@ class DINOv3LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
 
 
 class DINOv3LTDETRObjectDetectionResizeArgs(ResizeArgs):
-    height: int = 640
-    width: int = 640
+    height: int | Literal["auto"] = "auto"
+    width: int | Literal["auto"] = "auto"
 
 
 class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
@@ -105,7 +106,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     random_flip: DINOv3LTDETRObjectDetectionRandomFlipArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionRandomFlipArgs
     )
-    image_size: tuple[int, int] = (640, 640)
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
     resize: ResizeArgs | None = None
@@ -125,6 +126,23 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
 
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                # TODO: Lionel (09/25): Get num_channels from normalization.
+                self.num_channels = 3
+
+        if self.image_size == "auto":
+            self.image_size = tuple(model_init_args.get("image_size", (640, 640)))
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
+
 
 class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     channel_drop: None = None
@@ -133,7 +151,7 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_zoom_out: None = None
     random_iou_crop: None = None
     random_flip: None = None
-    image_size: tuple[int, int] = (640, 640)
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     stop_policy: None = None
     resize: ResizeArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionResizeArgs
@@ -150,6 +168,23 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
+
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                # TODO: Lionel (09/25): Get num_channels from normalization.
+                self.num_channels = 3
+
+        if self.image_size == "auto":
+            self.image_size = tuple(model_init_args.get("image_size", (640, 640)))
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
 
 
 class DINOv3LTDETRObjectDetectionTrainTransform(ObjectDetectionTransform):

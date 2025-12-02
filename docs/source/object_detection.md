@@ -2,8 +2,10 @@
 
 # Object Detection
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
+
 ```{note}
-🔥 LightlyTrain now supports training **LT-DETR**: **DINOv3**- and **DINOv2**-based object detection models
+🔥 LightlyTrain now supports training **LTDETR**: **DINOv3**- and **DINOv2**-based object detection models
 with the super fast RT-DETR detection architecture! Our largest model achieves an mAP<sub>50:95</sub> of 60.0 on the COCO validation set!
 ```
 
@@ -11,21 +13,25 @@ with the super fast RT-DETR detection architecture! Our largest model achieves a
 
 ## Benchmark Results
 
-Below we provide the model checkpoints and report the validation mAP<sub>50:95</sub> and inference FPS of different DINOv3 and DINOv2-based models, fine-tuned on the COCO dataset. You can check [here](object-detection-use-model-weights) for how to use these model checkpoints for further fine-tuning. The average FPS values were measured using TensorRT in the version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
+Below we provide the model checkpoints and report the validation mAP<sub>50:95</sub> and
+inference FPS of different DINOv3 and DINOv2-based models, fine-tuned on the COCO dataset.
+You can check [here](object-detection-use-model-weights) for how to use these model
+checkpoints for further fine-tuning. The average FPS values were measured using TensorRT
+in the version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 
 <!-- TODO (Lionel, 10/25) Add Notebook for OD. -->
 
 ### COCO
 
-| Implementation | Backbone Model | AP<sub>50:95</sub> | Latency (ms) | # Params (M) | Input Size | Checkpoint Name |
-|:--------------:|:----------------------------:|:------------------:|:------------:|:------------:|:----------:|:---------------------------------:|
-| LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 | dinov2/vits14-noreg-ltdetr-coco |
-| LightlyTrain | dinov3/convnext-tiny-ltdetr | 54.4 | 13.29 | 61.1 | 640×640 | dinov3/convnext-tiny-ltdetr-coco |
-| LightlyTrain | dinov3/convnext-small-ltdetr | 56.9 | 17.65 | 82.7 | 640×640 | dinov3/convnext-small-ltdetr-coco |
-| LightlyTrain | dinov3/convnext-base-ltdetr | 58.6 | 24.68 | 121.0 | 640×640 | dinov3/convnext-base-ltdetr-coco |
-| LightlyTrain | dinov3/convnext-large-ltdetr | 60.0 | 42.30 | 230.0 | 640×640 | dinov3/convnext-large-ltdetr-coco |
+| Implementation | Model | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size |
+|:--------------:|:----------------------------:|:------------------:|:------------:|:-----------:|:----------:|
+| LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 |
+| LightlyTrain | dinov3/convnext-tiny-ltdetr-coco | 54.4 | 13.29 | 61.1 | 640×640 |
+| LightlyTrain | dinov3/convnext-small-ltdetr-coco | 56.9 | 17.65 | 82.7 | 640×640 |
+| LightlyTrain | dinov3/convnext-base-ltdetr-coco | 58.6 | 24.68 | 121.0 | 640×640 |
+| LightlyTrain | dinov3/convnext-large-ltdetr-coco | 60.0 | 42.30 | 230.0 | 640×640 |
 
-## Object Detection with LT-DETR
+## Object Detection with LTDETR
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
@@ -43,7 +49,7 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="dinov3/convnext-small-ltdetr-coco",
         data={
-            "path": "base_path_to_your_dataset",
+            "path": "my_data_dir",
             "train": "images/train2012",
             "val": "images/val2012",
             "names": {
@@ -90,13 +96,17 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 results = model.predict("path/to/image.jpg")
 ```
 
-Or use one of the pre-trained model weights directly from LightlyTrain:
+Or use one of the models provided by LightlyTrain:
 
 ```python
 import lightly_train
 
 model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
-results = model.predict("path/to/image.jpg")
+results = model.predict("image.jpg")
+results["labels"]   # Class labels, tensor of shape (num_boxes,)
+results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
+results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 ### Visualize the Result
@@ -104,18 +114,17 @@ results = model.predict("path/to/image.jpg")
 After making the predictions with the model weights, you can visualize the predicted bounding boxes like this:
 
 ```python
-# ruff: noqa: F821
 import matplotlib.pyplot as plt
 from torchvision import io, utils
 
 import lightly_train
 
 model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
-labels, boxes, scores = model.predict("<image>.jpg").values()
+labels, boxes, scores = model.predict("image.jpg").values()
 
 # Visualize predictions.
 image_with_boxes = utils.draw_bounding_boxes(
-    image=io.read_image("<image>.jpg"),
+    image=io.read_image("image.jpg"),
     boxes=boxes,
     labels=[model.classes[i.item()] for i in labels],
 )
@@ -125,7 +134,37 @@ ax.imshow(image_with_boxes.permute(1, 2, 0))
 fig.savefig("predictions.png")
 ```
 
-The predicted boxes are in the absolute (x_min, y_min, x_max, y_max) format, i.e. represent the size of the dimension of the bounding boxes in pixels.
+The predicted boxes are in the absolute (x_min, y_min, x_max, y_max) format, i.e. represent
+the size of the dimension of the bounding boxes in pixels of the original image.
+
+<!--
+# Figure created with
+import lightly_train
+import matplotlib.pyplot as plt
+from torchvision.io import decode_image
+from torchvision.utils import draw_bounding_boxes
+import urllib.request
+
+model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
+img = "http://images.cocodataset.org/val2017/000000577932.jpg"
+results = model.predict(img)
+
+urllib.request.urlretrieve(img, "/tmp/image.jpg")
+image = decode_image("/tmp/image.jpg")
+image_with_boxes = draw_bounding_boxes(
+    image,
+    boxes=results["bboxes"],
+    labels=[model.classes[label.item()] for label in results["labels"]],
+)
+fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+ax.imshow(image_with_boxes.permute(1, 2, 0))
+ax.axis("off")
+fig.savefig("out/preds/det.jpg", bbox_inches="tight")
+fig.show()
+-->
+
+```{figure} /_static/images/object_detection/street.jpg
+```
 
 ## Out
 
@@ -173,11 +212,14 @@ The following image formats are supported:
 - tif
 - tiff
 - webp
+- dcm (DICOM)
+
+For more details on LightlyTrain's support for data input, please check the [Data Input](#data-input) page.
 
 Your dataset directory should be organized like this:
 
 ```text
-base_path_to_your_dataset/
+my_data_dir/
 ├── images
 │   ├── train
 │   │   ├── image1.jpg
@@ -201,7 +243,7 @@ base_path_to_your_dataset/
 Alternatively, the splits can also be at the top level:
 
 ```text
-base_path_to_your_dataset/
+my_data_dir/
 ├── train
 │   ├── images
 │   │   ├── image1.jpg

@@ -31,6 +31,7 @@ from lightly_train._commands.common_helpers import ModelFormat
 from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
+from lightly_train._events import tracker
 from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.logger_args import LoggerArgs
 from lightly_train._methods import method_helpers
@@ -332,6 +333,14 @@ def train_from_config(config: TrainConfig) -> None:
         )
         config.callbacks = callback_helpers.get_callback_args(
             callback_args=config.callbacks
+        )
+        tracker.track_training_started(
+            task_type="ssl_pretraining",
+            model=config.model,
+            method=config.method,
+            batch_size=config.batch_size,
+            devices=config.devices,
+            epochs=config.epochs,
         )
         callback_instances = callback_helpers.get_callbacks(
             callback_args=config.callbacks,

@@ -75,6 +75,10 @@ def get_teacher(
 
     teacher_embedding_model.eval()
 
+    # Freeze the teacher parameters.
+    for p in teacher_embedding_model.parameters():
+        p.requires_grad_(False)
+
     return teacher_embedding_model
 
 

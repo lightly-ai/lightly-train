@@ -2,6 +2,8 @@
 
 # Train
 
+[![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
+
 The train command is a simple interface to pretrain a large number of models using
 different SSL methods. An example command looks like this:
 
@@ -85,6 +87,9 @@ The following image formats are supported:
 - tif
 - tiff
 - webp
+- dcm (DICOM)
+
+For more details on LightlyTrain's support for data input, please check the [Data Input](#data-input) page.
 
 Example of passing a single folder `my_data_dir`:
 
@@ -363,26 +368,6 @@ Not all models support all image sizes.
 See {ref}`method-transform-args` on how to configure image transformations.
 
 (method-args)=
-
-### Train with Multi-channel Images
-
-By default, images are loaded as RGB images. Beyond that, LightlyTrain pretraining and distillation also supports 4-channel images, which can be specified in `transform_args`:
-
-```
-transform_args={
-    "num_channels": 4
-}
-```
-
-In this case, you may also want to customize the normalization parameters in `transform_args` to fit your dataset. Otherwise, LightlyTrain will simply repeat the mean and std values of the RGB channels for the extra channels.
-
-Currently supported models:
-
-| Library | Supported Models | Docs |
-|---------|------------------|------|
-| TIMM | All models | [🔗](#models-timm) |
-| LightlyTrain | DINOv2 | |
-| LightlyTrain | DINOv3 | |
 
 ### Method Arguments
 
