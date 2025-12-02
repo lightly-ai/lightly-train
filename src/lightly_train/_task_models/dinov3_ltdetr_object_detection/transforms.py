@@ -17,6 +17,7 @@ from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.transform import (
+    NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
@@ -122,6 +123,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
             filter_invalid_bboxes=True,
         ),
     )
+    normalize: NormalizeArgs | Literal["auto"] | None = "auto"
 
 
 class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
@@ -147,6 +149,7 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
             filter_invalid_bboxes=True,
         ),
     )
+    normalize: NormalizeArgs | Literal["auto"] | None = "auto"
 
 
 class DINOv3LTDETRObjectDetectionTrainTransform(ObjectDetectionTransform):
