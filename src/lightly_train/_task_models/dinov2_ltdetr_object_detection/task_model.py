@@ -73,13 +73,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             persistent=False,  # No need to save it in the state dict.
         )
 
-        # TODO: Lionel(09/25) Those will currently be ignored.
         self.image_normalize = image_normalize
-        if image_normalize is not None:
-            logger.warning(
-                "The image_normalize argument is currently ignored. "
-                "Images are only divided by 255."
-            )
         self.backbone_weights = backbone_weights
         if backbone_weights is not None:
             logger.warning(
@@ -213,9 +207,13 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         h, w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=torch.float32)
+
+        # Normalize the image.
+        if self.image_normalize is not None:
+            x = transforms_functional.normalize(
+                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+            )
         x = transforms_functional.resize(x, self.image_size)
-        # TODO: Lionel (09/25) Change to Normalize transform using saved params.
-        x = x / 255.0
         x = x.unsqueeze(0)
 
         labels, boxes, scores = self(x, orig_target_size=(h, w))
@@ -302,13 +300,7 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
             persistent=False,  # No need to save it in the state dict.
         )
 
-        # TODO: Lionel(09/25) this will currently be ignored, since we just divide by 255.
         self.image_normalize = image_normalize
-        if image_normalize is not None:
-            logger.warning(
-                "The image_normalize argument is currently ignored. "
-                "Images are only divided by 255."
-            )
 
         dinov2 = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
