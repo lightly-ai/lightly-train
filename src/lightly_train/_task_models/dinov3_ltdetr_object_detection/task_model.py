@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import torch
@@ -356,13 +357,10 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         classes: dict[int, str],
         image_size: tuple[int, int],
         image_normalize: dict[str, Any] | None = None,
-        backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
     ) -> None:
-        super().__init__(
-            init_args=locals(), ignore_args={"backbone_weights", "load_weights"}
-        )
+        super().__init__(init_args=locals(), ignore_args={"load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
 
         self.model_name = parsed_name["model_name"]
@@ -383,16 +381,21 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         )
 
         self.image_normalize = image_normalize
-        self.backbone_weights = backbone_weights
-        if backbone_weights is not None:
-            logger.warning(
-                "The backbone_weights argument is currently ignored. "
-                "Pretrained weights are not supported yet."
-            )
 
+        # Set backbone args.
         backbone_args = {} if backbone_args is None else backbone_args
-        # TODO: Lionel(09/25) Relax constraint to random weights from the constructor.
         backbone_args.update({"pretrained": False})
+        if "weights" in backbone_args:
+            backbone_weights = backbone_args["weights"]
+            if os.path.exists(backbone_args["weights"]):
+                backbone_args["pretrained"] = True
+            else:
+                # Warn the user. Popping the wrong weights is not absolutely needed
+                # as pretrained is set to False by default.
+                logger.warning(
+                    f"Provided backbone weights ({backbone_weights}) does not exist. Ignoring."
+                )
+                backbone_args.pop("weights")
         dinov3 = DINOV3_PACKAGE.get_model(
             parsed_name["backbone_name"],
             model_args=backbone_args,
