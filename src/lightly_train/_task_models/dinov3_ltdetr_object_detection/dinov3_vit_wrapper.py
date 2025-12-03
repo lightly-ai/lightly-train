@@ -27,6 +27,7 @@ the terms of the DINOv3 License Agreement.
 - Updated the imports.
 - Asserts the number or returned layers is 3.
 - Remove printing.
+- Added comments and fixed typing issues.
 """
 
 from __future__ import annotations
@@ -196,6 +197,7 @@ class DINOv3STAs(Module):
                 x, n=self.interaction_indexes, return_class_token=True
             )
         else:
+            # With the assert in the __init__ this branch is never used.
             all_layers = self.dinov3(x)
 
         sem_feats = []
@@ -217,14 +219,22 @@ class DINOv3STAs(Module):
             )
             sem_feats.append(sem_feat)
 
+        # Normalize sem feats type to tensors.
+        # If feat is a Tensor it is the spatial tokens
+        # If feat is a Tuple, the first entry contains the spatial tokens.
+        # With the default args from get_intermediate_layers it is a Tensor.
+        sem_feats_t: list[torch.Tensor] = [
+            feat if isinstance(feat, torch.Tensor) else feat[0] for feat in sem_feats
+        ]
+
         # fusion
         fused_feats = []
         if self.use_sta:
             detail_feats = self.sta(x)
-            for sem_feat, detail_feat in zip(sem_feats, detail_feats):
+            for sem_feat, detail_feat in zip(sem_feats_t, detail_feats):
                 fused_feats.append(torch.cat([sem_feat, detail_feat], dim=1))
         else:
-            fused_feats = sem_feats
+            fused_feats = sem_feats_t
 
         c2 = self.norms[0](self.convs[0](fused_feats[0]))
         c3 = self.norms[1](self.convs[1](fused_feats[1]))
