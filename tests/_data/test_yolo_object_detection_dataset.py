@@ -23,6 +23,7 @@ from lightly_train._transforms.object_detection_transform import (
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
+    NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
@@ -38,7 +39,7 @@ from ..helpers import create_yolo_object_detection_dataset
 
 class DummyTransformArgs(ObjectDetectionTransformArgs):
     channel_drop: ChannelDropArgs | None = None
-    num_channels: int | Literal["auto"] = "auto"
+    num_channels: int | Literal["auto"] = 3
     photometric_distort: RandomPhotometricDistortArgs | None = None
     random_zoom_out: RandomZoomOutArgs | None = None
     random_iou_crop: RandomIoUCropArgs | None = None
@@ -47,6 +48,7 @@ class DummyTransformArgs(ObjectDetectionTransformArgs):
     stop_policy: StopPolicyArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
     resize: ResizeArgs | None = None
+    normalize: NormalizeArgs | Literal["auto"] | None = None
     bbox_params: BboxParams = BboxParams(
         format="yolo",
         label_fields=["class_labels"],
