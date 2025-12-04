@@ -357,6 +357,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         classes: dict[int, str],
         image_size: tuple[int, int],
         image_normalize: dict[str, Any] | None = None,
+        backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
     ) -> None:
@@ -385,17 +386,17 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         # Set backbone args.
         backbone_args = {} if backbone_args is None else backbone_args
         backbone_args.update({"pretrained": False})
-        if "weights" in backbone_args:
-            backbone_weights = backbone_args["weights"]
-            if os.path.exists(backbone_args["weights"]):
+        if backbone_weights is not None:
+            if os.path.exists(backbone_weights):
                 backbone_args["pretrained"] = True
+                backbone_args["weights"] = backbone_weights
             else:
-                # Warn the user. Popping the wrong weights is not absolutely needed
-                # as pretrained is set to False by default.
+                # Warn the user that the provided backbone weights are incorrect.
                 logger.warning(
                     f"Provided backbone weights ({backbone_weights}) does not exist. Ignoring."
                 )
-                backbone_args.pop("weights")
+
+        # Instantiate the backbone.
         dinov3 = DINOV3_PACKAGE.get_model(
             parsed_name["backbone_name"],
             model_args=backbone_args,
