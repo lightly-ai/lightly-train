@@ -87,7 +87,6 @@ class TrainModel(Module):
         """
         raise NotImplementedError()
 
-    # --- NEW CODE START ---
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
@@ -98,7 +97,6 @@ class TrainModel(Module):
         """
         return self.load_state_dict(state_dict, strict=strict, assign=assign)
 
-    # --- NEW CODE END ---
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         pass
