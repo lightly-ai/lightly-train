@@ -891,6 +891,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         )
                 train_model.set_train_mode()
                 fabric.barrier()
+        logger.info(
+            f"Best result: {config.save_checkpoint_args.watch_metric}={best_metric:.4f}"
+        )
         logger.info("Training completed.")
 
 
