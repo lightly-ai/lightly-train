@@ -97,7 +97,6 @@ class TrainModel(Module):
         """
         return self.load_state_dict(state_dict, strict=strict, assign=assign)
 
-
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         pass
 

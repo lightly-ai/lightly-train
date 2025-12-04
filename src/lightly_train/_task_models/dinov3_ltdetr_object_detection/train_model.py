@@ -187,7 +187,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             state_dict, strict=strict, assign=assign
         )
 
-
     def set_train_mode(self) -> None:
         super().set_train_mode()
         self.criterion.train()  # TODO (Lionel, 10/25): Check if this is necessary.
