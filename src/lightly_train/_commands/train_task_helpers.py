@@ -13,7 +13,7 @@ import json
 import logging
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Mapping, Union
+from typing import Any, Generator, Iterable, Literal, Mapping, Union, cast
 
 import torch
 from filelock import FileLock
@@ -802,7 +802,7 @@ def read_model_name_from_ckpt(ckpt_path: Union[str, Path]) -> str:
     except (TypeError, RuntimeError, NotImplementedError, AttributeError):
         ckpt = torch.load(p, map_location="cpu", weights_only=False)
 
-    return ckpt["model_init_args"]["model_name"]
+    return cast(str, ckpt["model_init_args"]["model_name"])
 
 
 def load_checkpoint(
