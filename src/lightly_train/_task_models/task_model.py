@@ -82,6 +82,8 @@ class TaskModel(Module):
         """
         raise NotImplementedError()
 
-    def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ):
         """Load the state dict from a training checkpoint."""
         raise NotImplementedError()

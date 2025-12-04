@@ -608,11 +608,13 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         else:
             logger.info("Backbone weights loaded successfully.")
 
-    def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ):
         """Load the state dict from a training checkpoint."""
         new_state_dict = {}
         for name, param in state_dict.items():
             if name.startswith("model."):
                 name = name[len("model.") :]
                 new_state_dict[name] = param
-        self.load_state_dict(new_state_dict, strict=True)
+        return self.load_state_dict(new_state_dict, strict=strict, assign=assign)

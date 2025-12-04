@@ -191,14 +191,16 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             for name in DINOV2_VIT_PACKAGE.list_model_names()
         ]
 
-    def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ):
         """Load the EMA state dict from a training checkpoint."""
         new_state_dict = {}
         for name, param in state_dict.items():
             if name.startswith("ema_model.model."):
                 name = name[len("ema_model.model.") :]
                 new_state_dict[name] = param
-        self.load_state_dict(new_state_dict, strict=True)
+        return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
     @torch.no_grad()
     def predict(
