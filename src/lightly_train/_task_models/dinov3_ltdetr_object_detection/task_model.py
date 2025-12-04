@@ -392,9 +392,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 backbone_args["weights"] = backbone_weights
             else:
                 # Warn the user that the provided backbone weights are incorrect.
-                logger.warning(
-                    f"Provided backbone weights ({backbone_weights}) does not exist. Ignoring."
-                )
+                logger.error(f"Checkpoint file not found: {backbone_weights}.")
 
         # Instantiate the backbone.
         dinov3 = DINOV3_PACKAGE.get_model(
