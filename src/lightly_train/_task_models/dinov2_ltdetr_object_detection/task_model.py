@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 import os
+from typing import Any
 
 import torch
 from PIL.Image import Image as PILImage
@@ -186,7 +186,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             f"{name}-{cls.model_suffix}"
             for name in DINOV2_VIT_PACKAGE.list_model_names()
         ]
-        
+
     def load_backbone_weights(self, backbone: Module, path: PathLike) -> None:
         """
         Load backbone weights from a checkpoint file.
