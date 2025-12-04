@@ -13,7 +13,7 @@ import json
 import logging
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Mapping
+from typing import Any, Generator, Iterable, Literal, Mapping, cast
 
 import torch
 from filelock import FileLock
@@ -902,15 +902,12 @@ def finetune_from_checkpoint(
         checkpoint: Checkpoint context the state dicts to load.
     """
 
-    train_model = state["train_model"]
-    # --- CHANGED CODE START ---
-    # OLD: incompatible = train_model.load_state_dict(...)
-    
-    # We use the new method we defined in TrainModel. 
+    # train_model = state["train_model"]
+    train_model = cast(TrainModel, state["train_model"])
+
     incompatible = train_model.load_train_state_dict(
         checkpoint["train_model_state_dict"], strict=False
     )
-    # --- CHANGED CODE END ---
 
     if incompatible.missing_keys:
         logger.warning(

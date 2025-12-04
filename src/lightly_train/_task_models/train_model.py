@@ -86,17 +86,18 @@ class TrainModel(Module):
         This is the model that users interact with for inference and deployment.
         """
         raise NotImplementedError()
-    
+
     # --- NEW CODE START ---
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
         """Loads the model state dict.
-        
-        This acts as a wrapper around load_state_dict. Subclasses can overload 
+
+        This acts as a wrapper around load_state_dict. Subclasses can overload
         this to implement custom loading logic, e.g. loading EMA weights.
         """
         return self.load_state_dict(state_dict, strict=strict, assign=assign)
+
     # --- NEW CODE END ---
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:

@@ -565,7 +565,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
-    ):
+    ) -> Any:
         """Load the state dict from a training checkpoint."""
         new_state_dict = {}
         for name, param in state_dict.items():
