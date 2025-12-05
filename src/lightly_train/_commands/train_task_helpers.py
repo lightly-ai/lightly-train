@@ -13,7 +13,7 @@ import json
 import logging
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Mapping, Union, cast
+from typing import Any, Generator, Iterable, Literal, Mapping, cast
 
 import torch
 from filelock import FileLock
@@ -776,7 +776,7 @@ def export_model(
     torch.save(model_dict, model_path)
 
 
-def read_model_name_from_ckpt(ckpt_path: Union[str, Path]) -> str:
+def read_model_name_from_ckpt(ckpt_path: PathLike) -> str:
     """Return `model_init_args.model_name` from a checkpoint.
 
     Tries loading on the meta device (no tensor data) when supported; otherwise falls
@@ -791,11 +791,10 @@ def read_model_name_from_ckpt(ckpt_path: Union[str, Path]) -> str:
     Raises:
         FileNotFoundError: If ckpt_path doesn't exist.
         KeyError: If the expected keys are missing.
-        RuntimeError: If CPU fallback load fails.
     """
     p = Path(ckpt_path)
     if not p.exists():
-        raise FileNotFoundError(str(p))
+        raise FileNotFoundError(f"Checkpoint file '{p}' does not exist.")
 
     try:
         ckpt = torch.load(p, map_location="meta", weights_only=False)
