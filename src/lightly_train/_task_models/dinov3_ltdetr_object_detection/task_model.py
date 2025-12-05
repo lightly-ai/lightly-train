@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import torch
@@ -360,9 +361,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
     ) -> None:
-        super().__init__(
-            init_args=locals(), ignore_args={"backbone_weights", "load_weights"}
-        )
+        super().__init__(init_args=locals(), ignore_args={"load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
 
         self.model_name = parsed_name["model_name"]
@@ -383,16 +382,19 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         )
 
         self.image_normalize = image_normalize
-        self.backbone_weights = backbone_weights
-        if backbone_weights is not None:
-            logger.warning(
-                "The backbone_weights argument is currently ignored. "
-                "Pretrained weights are not supported yet."
-            )
 
+        # Set backbone args.
         backbone_args = {} if backbone_args is None else backbone_args
-        # TODO: Lionel(09/25) Relax constraint to random weights from the constructor.
         backbone_args.update({"pretrained": False})
+        if backbone_weights is not None:
+            if os.path.exists(backbone_weights):
+                backbone_args["pretrained"] = True
+                backbone_args["weights"] = backbone_weights
+            else:
+                # Warn the user that the provided backbone weights are incorrect.
+                logger.error(f"Checkpoint file not found: {backbone_weights}.")
+
+        # Instantiate the backbone.
         dinov3 = DINOV3_PACKAGE.get_model(
             parsed_name["backbone_name"],
             model_args=backbone_args,
