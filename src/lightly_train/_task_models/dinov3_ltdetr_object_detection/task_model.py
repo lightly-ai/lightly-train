@@ -327,19 +327,36 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         }
 
     def forward(
-        self, x: Tensor, orig_target_size: tuple[int, int] | None = None
+        self, x: Tensor, orig_target_size: Tensor | None = None
     ) -> list[Tensor]:
-        # Function used for ONNX export
-        h, w = x.shape[-2:]
+        """
+        Forward pass used for ONNX export.
+
+        Args:
+            x: Input images as a tensor of shape (N, C, H, W).
+            orig_target_sizes: Optional tensor of original image sizes with shape
+                (N, 2) and dtype int64. Each row is (H, W). If None, the current input size
+                is used for postprocessing.
+
+        Returns:
+            List of tensors from the postprocessor (labels, boxes, scores).
+        """
         if orig_target_size is None:
-            orig_target_size_ = torch.tensor([w, h])[None].to(x.device)
+            h, w = x.shape[-2:]
+            orig_target_size_ = torch.tensor([w, h]).to(x.device)
         else:
-            orig_target_size_ = torch.tensor(
-                [orig_target_size[1], orig_target_size[0]]
-            )[None].to(x.device)
+            # Flip from (H, W) to (W, H).
+            orig_target_size = orig_target_size[:, [1, 0]]
+
+            # Move to device.
+            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
+
+        # Forward the image through the model.
         x = self.backbone(x)
         x = self.encoder(x)
         x = self.decoder(x)
+
+        # Get the output in the right format.
         x_: list[Tensor] = self.postprocessor(x, orig_target_size_)
         return x_
 
