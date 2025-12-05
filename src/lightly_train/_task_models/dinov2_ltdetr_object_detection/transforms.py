@@ -141,7 +141,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
         if self.normalize == "auto":
             normalize = model_init_args.get("image_normalize")
             if normalize is None:
-                self.normalize = None
+                self.normalize = NormalizeArgs()
             else:
                 assert isinstance(normalize, dict)
                 self.normalize = NormalizeArgs.from_dict(normalize)
@@ -196,7 +196,7 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
         if self.normalize == "auto":
             normalize = model_init_args.get("image_normalize")
             if normalize is None:
-                self.normalize = None
+                self.normalize = NormalizeArgs()
             else:
                 assert isinstance(normalize, dict)
                 self.normalize = NormalizeArgs.from_dict(normalize)
