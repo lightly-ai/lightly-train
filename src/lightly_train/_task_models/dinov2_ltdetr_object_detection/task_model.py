@@ -236,7 +236,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
 
         h, w = x.shape[-2:]
 
-        x = transforms_functional.to_dtype(x, dtype=torch.float32)
+        x = transforms_functional.to_dtype(x, scale=True, dtype=torch.float32)
 
         # Normalize the image.
         if self.image_normalize is not None:

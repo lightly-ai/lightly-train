@@ -25,7 +25,7 @@ the terms of the DINOv3 License Agreement.
 # Modifications Copyright 2025 Lightly AG:
 - Added typing to functions.
 - Updated the imports.
-- Asserts the number or returned layers is 3.
+- Asserts the number of returned layers is 3.
 - Remove printing.
 - Added comments and fixed typing issues.
 """
