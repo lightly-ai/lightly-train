@@ -324,6 +324,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 )
                 _mark_ignore_regions(
                     target_masks=target_masks,
+                    ignore_class_id=self.model.internal_ignore_class_id,
                     void_color=self.train_pq.void_color,  # type: ignore
                 )
                 self.train_pq.update(preds=masks, target=target_masks)
@@ -463,6 +464,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             )
             _mark_ignore_regions(
                 target_masks=target_masks,
+                ignore_class_id=self.model.internal_ignore_class_id,
                 void_color=self.val_pq.void_color,  # type: ignore
             )
             self.val_pq.update(
