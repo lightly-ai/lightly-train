@@ -40,6 +40,18 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "dinov2_ltdetr_2/ltdetr_vits14dinov2_coco_dsp.pt",
         "7e1f91b251ba0b796d88fb68276a24a52341aa6e8fb40abe9f730c2a093a5b40",
     ),
+    "dinov3/vitt16-ltdetr-coco": (
+        "dinov3/dinov3_vitt16_ltdetr_coco_251205_1a4c20a1.pt",
+        "1a4c20a114bf202f5f68d771b9f90276be8bb9c8ffc180b8721a11cbad5578ad",
+    ),
+    "dinov3/vitt16plus-ltdetr-coco": (
+        "dinov3/dinov3_vitt16plus_ltdetr_coco_251205_359eb099.pt",
+        "359eb09981b754ccc74074835cfbd268d68ef1870e3552e8b9bce0ccde06e6a7",
+    ),
+    "dinov3/vits16-ltdetr-coco": (
+        "dinov3/dinov3_vits16_ltdetr_coco_251205_474a3523.pt",
+        "474a3523a0faff691697dda47849e319dd7f9d214f6abbe82486cba05bfd1fd7",
+    ),
     "dinov3/convnext-tiny-ltdetr-coco": (
         "dinov3_convnext_tiny_ltdetr_coco_251113_3a90352e.pt",
         "3a90352ed61d9e4fa38ec9b7e2a38a8186a54412a4b0044c391e165e7742db22",

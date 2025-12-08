@@ -17,6 +17,7 @@ from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.transform import (
+    NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
@@ -123,13 +124,10 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
             filter_invalid_bboxes=True,
         ),
     )
+    normalize: NormalizeArgs | Literal["auto"] | None = "auto"
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
-        if self.num_channels == "auto":
-            if self.channel_drop is not None:
-                self.num_channels = self.channel_drop.num_channels_keep
-            else:
-                self.num_channels = 3
+        super().resolve_auto(model_init_args=model_init_args)
 
         if self.image_size == "auto":
             self.image_size = tuple(model_init_args.get("image_size", (644, 644)))
@@ -139,6 +137,27 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
             field = getattr(self, field_name)
             if hasattr(field, "resolve_auto"):
                 field.resolve_auto(height=height, width=width)
+
+        if self.normalize == "auto":
+            normalize = model_init_args.get("image_normalize", "none")
+            # Normalize is specifically set to None in model_init_args.
+            if normalize is None:
+                self.normalize = None
+            # Normalize is not set in model_init_args.
+            elif normalize == "none":
+                self.normalize = NormalizeArgs()
+            else:
+                assert isinstance(normalize, dict)
+                self.normalize = NormalizeArgs.from_dict(normalize)
+
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                if self.normalize is None:
+                    self.num_channels = 3
+                else:
+                    self.num_channels = len(self.normalize.mean)
 
 
 class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
@@ -164,13 +183,10 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
             filter_invalid_bboxes=True,
         ),
     )
+    normalize: NormalizeArgs | Literal["auto"] | None = "auto"
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
-        if self.num_channels == "auto":
-            if self.channel_drop is not None:
-                self.num_channels = self.channel_drop.num_channels_keep
-            else:
-                self.num_channels = 3
+        super().resolve_auto(model_init_args=model_init_args)
 
         if self.image_size == "auto":
             self.image_size = tuple(model_init_args.get("image_size", (644, 644)))
@@ -180,6 +196,27 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
             field = getattr(self, field_name)
             if hasattr(field, "resolve_auto"):
                 field.resolve_auto(height=height, width=width)
+
+        if self.normalize == "auto":
+            normalize = model_init_args.get("image_normalize", "none")
+            # Normalize is specifically set to None in model_init_args.
+            if normalize is None:
+                self.normalize = None
+            # Normalize is not set in model_init_args.
+            elif normalize == "none":
+                self.normalize = NormalizeArgs()
+            else:
+                assert isinstance(normalize, dict)
+                self.normalize = NormalizeArgs.from_dict(normalize)
+
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                if self.normalize is None:
+                    self.num_channels = 3
+                else:
+                    self.num_channels = len(self.normalize.mean)
 
 
 class DINOv2LTDETRObjectDetectionTrainTransform(ObjectDetectionTransform):

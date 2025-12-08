@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import torch
@@ -22,8 +23,14 @@ from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
+    DINOv3STAs,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     HybridEncoder,
@@ -117,6 +124,51 @@ class _HybridEncoderTinyConfig(_HybridEncoderConfig):
     act: str = "silu"
 
 
+class _HybridEncoderViTSConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [224, 224, 224]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 224
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 896
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1.0
+    act: str = "silu"
+
+
+class _HybridEncoderViTTPlusConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [256, 256, 256]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 256
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 512
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 0.67
+    depth_mult: float = 1.0
+    act: str = "silu"
+
+
+class _HybridEncoderViTTConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [192, 192, 192]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 192
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 512
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 0.34
+    depth_mult: float = 0.67
+    act: str = "silu"
+
+
 class _RTDETRTransformerv2Config(PydanticConfig):
     feat_channels: list[int] = [256, 256, 256]
     feat_strides: list[int] = [8, 16, 32]
@@ -145,6 +197,51 @@ class _RTDETRTransformerv2SmallConfig(_RTDETRTransformerv2Config):
 
 class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [384, 384, 384]
+
+
+class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [224, 224, 224]
+    hidden_dim: int = 224
+    num_layers: int = 4
+    num_points: list[int] = [3, 6, 3]
+    dim_feedforward: int = 1792
+
+
+class _RTDETRTransformerv2ViTTPlusConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [256, 256, 256]
+    hidden_dim: int = 256
+    num_layers: int = 4
+    num_points: list[int] = [3, 6, 3]
+    dim_feedforward: int = 512
+
+
+class _RTDETRTransformerv2ViTTConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [192, 192, 192]
+    hidden_dim: int = 192
+    num_layers: int = 4
+    num_points: list[int] = [3, 6, 3]
+    dim_feedforward: int = 512
+
+
+class _RTDETRBackboneWrapperViTSConfig(PydanticConfig):
+    interaction_indexes: list[int] = [5, 8, 11]
+    finetune: bool = True
+    conv_inplane: int = 32
+    hidden_dim: int = 224
+
+
+class _RTDETRBackboneWrapperViTTPlusConfig(PydanticConfig):
+    interaction_indexes: list[int] = [3, 7, 11]
+    finetune: bool = True
+    conv_inplane: int = 16
+    hidden_dim: int = 256
+
+
+class _RTDETRBackboneWrapperViTTConfig(PydanticConfig):
+    interaction_indexes: list[int] = [3, 7, 11]
+    finetune: bool = True
+    conv_inplane: int = 16
+    hidden_dim: int = 192
 
 
 class _RTDETRPostProcessorConfig(PydanticConfig):
@@ -205,6 +302,51 @@ class _DINOv3LTDETRObjectDetectionTinyConfig(_DINOv3LTDETRObjectDetectionConfig)
     )
 
 
+class _DINOv3LTDETRObjectDetectionViTSConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTSConfig = Field(
+        default_factory=_HybridEncoderViTSConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTSConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTSConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+    backbone_wrapper: _RTDETRBackboneWrapperViTSConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTSConfig
+    )
+
+
+class _DINOv3LTDETRObjectDetectionViTTPlusConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTTPlusConfig = Field(
+        default_factory=_HybridEncoderViTTPlusConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTTPlusConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTTPlusConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+    backbone_wrapper: _RTDETRBackboneWrapperViTTPlusConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTTPlusConfig
+    )
+
+
+class _DINOv3LTDETRObjectDetectionViTTConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTTConfig = Field(
+        default_factory=_HybridEncoderViTTConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTTConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTTConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+    backbone_wrapper: _RTDETRBackboneWrapperViTTConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTTConfig
+    )
+
+
 class DINOv3LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
 
@@ -219,9 +361,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
     ) -> None:
-        super().__init__(
-            init_args=locals(), ignore_args={"backbone_weights", "load_weights"}
-        )
+        super().__init__(init_args=locals(), ignore_args={"load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
 
         self.model_name = parsed_name["model_name"]
@@ -241,38 +381,59 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             persistent=False,  # No need to save it in the state dict.
         )
 
-        # TODO: Lionel(09/25) Those will currently be ignored.
         self.image_normalize = image_normalize
-        if image_normalize is not None:
-            logger.warning(
-                "The image_normalize argument is currently ignored. "
-                "Images are only divided by 255."
-            )
-        self.backbone_weights = backbone_weights
-        if backbone_weights is not None:
-            logger.warning(
-                "The backbone_weights argument is currently ignored. "
-                "Pretrained weights are not supported yet."
-            )
 
+        # Set backbone args.
         backbone_args = {} if backbone_args is None else backbone_args
-        # TODO: Lionel(09/25) Relax constraint to random weights from the constructor.
         backbone_args.update({"pretrained": False})
+        if backbone_weights is not None:
+            if os.path.exists(backbone_weights):
+                backbone_args["pretrained"] = True
+                backbone_args["weights"] = backbone_weights
+            else:
+                # Warn the user that the provided backbone weights are incorrect.
+                logger.error(f"Checkpoint file not found: {backbone_weights}.")
+
+        # Instantiate the backbone.
         dinov3 = DINOV3_PACKAGE.get_model(
             parsed_name["backbone_name"],
             model_args=backbone_args,
             load_weights=load_weights,
         )
-        assert isinstance(dinov3, ConvNeXt)
-        self.backbone: DINOv3ConvNextWrapper = DINOv3ConvNextWrapper(model=dinov3)
+        assert isinstance(dinov3, (ConvNeXt, DinoVisionTransformer))
 
         config_mapping = {
-            "convnext-tiny": _DINOv3LTDETRObjectDetectionTinyConfig,
-            "convnext-small": _DINOv3LTDETRObjectDetectionSmallConfig,
-            "convnext-base": _DINOv3LTDETRObjectDetectionBaseConfig,
-            "convnext-large": _DINOv3LTDETRObjectDetectionLargeConfig,
+            "vitt16": (_DINOv3LTDETRObjectDetectionViTTConfig, DINOv3STAs),
+            "vitt16plus": (_DINOv3LTDETRObjectDetectionViTTPlusConfig, DINOv3STAs),
+            "vits16": (_DINOv3LTDETRObjectDetectionViTSConfig, DINOv3STAs),
+            "convnext-tiny": (
+                _DINOv3LTDETRObjectDetectionTinyConfig,
+                DINOv3ConvNextWrapper,
+            ),
+            "convnext-small": (
+                _DINOv3LTDETRObjectDetectionSmallConfig,
+                DINOv3ConvNextWrapper,
+            ),
+            "convnext-base": (
+                _DINOv3LTDETRObjectDetectionBaseConfig,
+                DINOv3ConvNextWrapper,
+            ),
+            "convnext-large": (
+                _DINOv3LTDETRObjectDetectionLargeConfig,
+                DINOv3ConvNextWrapper,
+            ),
         }
-        config = config_mapping[parsed_name["backbone_name"]]()
+        config_cls, wrapper_cls = config_mapping[parsed_name["backbone_name"]]
+        config = config_cls()
+
+        if hasattr(config, "backbone_wrapper"):
+            # ViT models.
+            self.backbone = wrapper_cls(
+                model=dinov3, **config.backbone_wrapper.model_dump()
+            )
+        else:
+            # ConvNext models.
+            self.backbone = wrapper_cls(model=dinov3)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()
@@ -331,10 +492,14 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         h, w = x.shape[-2:]
 
-        x = transforms_functional.to_dtype(x, dtype=torch.float32)
+        x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
+
+        # Normalize the image.
+        if self.image_normalize is not None:
+            x = transforms_functional.normalize(
+                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+            )
         x = transforms_functional.resize(x, self.image_size)
-        # TODO: Lionel (09/25) Change to Normalize transform using saved params.
-        x = x / 255.0
         x = x.unsqueeze(0)
 
         labels, boxes, scores = self(x, orig_target_size=(h, w))
