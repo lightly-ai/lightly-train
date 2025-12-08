@@ -183,9 +183,26 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         Overloads the default implementation to use the task model's loading logic.
         This allows loading weights from an EMA model into the training model.
         """
-        return self.model.load_train_state_dict(
+        # Load the student using task-model logic
+        incompatible = self.model.load_train_state_dict(
             state_dict, strict=strict, assign=assign
         )
+
+        # Load EMA replica if present; otherwise mirror the student.
+        if self.ema_model is not None:
+            ema_prefix = "ema_model."
+            ema_state = {
+                k[len(ema_prefix) :]: v
+                for k, v in state_dict.items()
+                if k.startswith(ema_prefix)
+            }
+
+            if ema_state:
+                self.ema_model.load_state_dict(ema_state, strict=strict, assign=assign)
+            else:
+                self.ema_model.model.load_state_dict(self.model.state_dict())
+
+        return incompatible
 
     def set_train_mode(self) -> None:
         super().set_train_mode()

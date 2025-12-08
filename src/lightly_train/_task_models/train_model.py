@@ -96,6 +96,7 @@ class TrainModel(Module):
         this to implement custom loading logic, e.g. loading EMA weights.
         """
         return self.load_state_dict(state_dict, strict=strict, assign=assign)
+    
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         pass
