@@ -72,18 +72,18 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         ignore_classes = dataset_args.ignore_classes or set()
         class_id_to_internal_class_id: dict[int, int] = {}
         internal_class_id = 0
-        for class_id in dataset_args.stuff_classes.keys():
+        for class_id in dataset_args.thing_classes.keys():
             if class_id not in ignore_classes:
                 class_id_to_internal_class_id[class_id] = internal_class_id
                 internal_class_id += 1
-        for class_id in dataset_args.thing_classes.keys():
+        for class_id in dataset_args.stuff_classes.keys():
             if class_id not in ignore_classes:
                 class_id_to_internal_class_id[class_id] = internal_class_id
                 internal_class_id += 1
 
         # Internal class ids are structured as follows:
-        # [0, num_stuff_classes - 1] -> stuff classes
-        # [num_stuff_classes, num_stuff_classes + num_thing_classes - 1] -> thing classes
+        # [0, num_thing_classes - 1] -> thing classes
+        # [num_thing_classes, num_thing_classes + num_stuff_classes - 1] -> stuff classes
         # NOTE: This must match the implementations in the train and task models!
         self.class_id_to_internal_class_id = class_id_to_internal_class_id
         # Special class id for pixels that are not assigned to any class in the dataset.
@@ -120,11 +120,11 @@ class MaskPanopticSegmentationDataset(TaskDataset):
             - image_path: Path to the image file.
             - image: Transformed image tensor (C, H, W).
             - masks: (H, W, 2) Tensor where the last dimension contains (label, segment_id).
-                Labels are internal class ids in [-1, num_stuff_classes + num_thing_classes].
+                Labels are internal class ids in [-1, num_thing_classes + num_stuff_classes].
                 -1 indicates iscrowd regions.
-                [0, num_stuff_classes - 1] are stuff classes.
-                [num_stuff_classes, num_stuff_classes + num_thing_classes - 1] are thing classes.
-                num_stuff_classes + num_thing_classes is the ignore class. This class is
+                [0, num_thing_classes - 1] are thing classes.
+                [num_thing_classes, num_thing_classes + num_stuff_classes - 1] are stuff classes.
+                num_thing_classes + num_stuff_classes is the ignore class. This class is
                 attributed to all pixels that do not belong to any class in the dataset.
                 Segment ids are in [-1, num_segments-1]. -1 indicates no segment.
             - binary_masks: A dictionary with the following fields:
@@ -134,11 +134,10 @@ class MaskPanopticSegmentationDataset(TaskDataset):
                     except that iscrowd regions retain their original class id.
                 - iscrowd: (N,) boolean Tensor indicating if a mask is crowd.
         """
-        row = self.image_info[index]
-
-        image_path = row["image_filepaths"]
-        mask_path = row["mask_filepaths"]
-        segments = json.loads(row["segments"])
+        image_info = self.image_info[index]
+        image_path = image_info["image_filepaths"]
+        mask_path = image_info["mask_filepaths"]
+        segments = json.loads(image_info["segments"])
         segment_id_to_segment = {segment["id"]: segment for segment in segments}
 
         # Load the image and the mask.
@@ -153,7 +152,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
                 f"Shape mismatch: image (height, width) is {image.shape[:2]} while mask (height, width) is {mask.shape[:2]}."
             )
 
-        mask = mask.astype(np.int_)
+        mask = mask.astype(np.int64)
         if mask.ndim == 3:
             # Convert RGB encoded mask to single channel.
             # From https://cocodataset.org/#format-data:
@@ -169,7 +168,8 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         # probability for a good training signal. If no valid mask is found we still
         # return the last transformed mask and proceed with training.
         for _ in range(20):
-            # (H, W, C) -> (C, H, W)
+            # Image: (H, W, C) -> (C, H, W)
+            # Mask: (H, W) -> (H, W)
             transformed = self.transform({"image": image, "mask": mask})
             binary_masks = self.get_binary_masks(
                 transformed["mask"],
@@ -241,17 +241,17 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         # Initialize with:
         # - label = ignore class id
         # - segment id = -1
-        masks = binary_mask.new_full((H, W, 2), fill_value=-1, dtype=torch.int)
+        masks = binary_mask.new_full((H, W, 2), fill_value=-1, dtype=torch.long)
         masks[..., 0] = self.internal_ignore_class_id
-        for i in range(N):
-            binary_mask = binary_masks["masks"][i]
-            label = binary_masks["labels"][i]
+        for segment_id in range(N):
+            binary_mask = binary_masks["masks"][segment_id]
+            label = binary_masks["labels"][segment_id]
             # If iscrowd, set label to -1. These pixels will be ignored from metric
             # calculation.
-            if binary_masks["iscrowd"][i]:
+            if binary_masks["iscrowd"][segment_id]:
                 label = -1  # type: ignore
             masks[..., 0] = torch.where(binary_mask, label, masks[..., 0])
-            masks[..., 1] = torch.where(binary_mask, i, masks[..., 1])
+            masks[..., 1] = torch.where(binary_mask, segment_id, masks[..., 1])
         return masks
 
     def is_valid_binary_masks(self, binary_masks: PanopticBinaryMasksDict) -> bool:

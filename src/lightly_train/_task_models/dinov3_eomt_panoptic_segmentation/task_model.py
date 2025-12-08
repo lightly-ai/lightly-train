@@ -17,6 +17,7 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import GELU, Embedding, Linear, Sequential
 from torch.nn import functional as F
+from torchvision.transforms.functional import InterpolationMode
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
@@ -45,8 +46,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         self,
         *,
         model_name: str,
-        stuff_classes: dict[int, str],
         thing_classes: dict[int, str],
+        stuff_classes: dict[int, str],
         image_size: tuple[int, int],
         image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
@@ -59,12 +60,12 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         Args:
             model_name:
                 The model name. For example "vits14-eomt".
-            stuff_classes:
-                A dict mapping the stuff class ID to the class name. The dict must only
-                contain the classes that the model should predict. It must NOT contain
-                classes that are in the dataset but should be ignored by the model.
             thing_classes:
                 A dict mapping the thing class ID to the class name. The dict must only
+                contain the classes that the model should predict. It must NOT contain
+                classes that are in the dataset but should be ignored by the model.
+            stuff_classes:
+                A dict mapping the stuff class ID to the class name. The dict must only
                 contain the classes that the model should predict. It must NOT contain
                 classes that are in the dataset but should be ignored by the model.
             image_size:
@@ -92,23 +93,23 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         super().__init__(locals(), ignore_args={"backbone_weights", "load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
-        self.stuff_classes = stuff_classes
         self.thing_classes = thing_classes
-        self.classes = {**stuff_classes, **thing_classes}
+        self.stuff_classes = stuff_classes
+        self.classes = {**thing_classes, **stuff_classes}
         self.image_size = image_size
         self.image_normalize = image_normalize
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
         # NOTE: This must match the implementations in the train model and dataset!
-        internal_class_to_class = list(self.stuff_classes.keys()) + list(
-            self.thing_classes.keys()
+        internal_class_to_class = list(self.thing_classes.keys()) + list(
+            self.stuff_classes.keys()
         )
         # Add ignore class at the end. The ignore class is assigned to pixels in the
-        # input dataset that do not belong to any class. We map it to the first class as
-        # we have to predict a valid class for every pixel at inference time.
+        # input dataset that do not belong to any class. We map it to the last stuff
+        # class as we have to predict a valid class for every pixel at inference time.
         # During validation we handle ignored pixels as their own class.
-        internal_class_to_class.append(internal_class_to_class[0])
+        internal_class_to_class.append(internal_class_to_class[-1])
         self.internal_ignore_class_id = len(internal_class_to_class) - 1
 
         # Efficient lookup for converting internal class IDs to class IDs.
@@ -119,6 +120,11 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             torch.tensor(internal_class_to_class, dtype=torch.long),
             persistent=False,  # No need to save it in the state dict.
         )
+        self.class_to_internal_class: dict[int, int] = {
+            class_id: internal_id
+            for internal_id, class_id in enumerate(internal_class_to_class[:-1])
+        }
+
         # Boolean mask indicating which internal classes are stuff classes.
         self.is_stuff_class: Tensor
         self.register_buffer(
@@ -526,7 +532,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         # Last dimension has two channels:
         #   - Channel 0: class label per pixel
         #   - Channel 1: segment id per pixel
-        masks = mask_logits.new_zeros((B, H, W, 2), dtype=torch.int)
+        masks = mask_logits.new_zeros((B, H, W, 2), dtype=torch.long)
         segment_ids = []
         scores = []
         for i in range(B):
@@ -677,7 +683,11 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             scores,
         )
 
-    def resize_and_pad(self, image: Tensor) -> tuple[Tensor, tuple[int, int]]:
+    def resize_and_pad(
+        self,
+        image: Tensor,
+        interpolation: InterpolationMode = InterpolationMode.BILINEAR,
+    ) -> tuple[Tensor, tuple[int, int]]:
         """Resize and pad image to self.image_size while keeping aspect ratio constant.
 
         Args:
@@ -696,7 +706,9 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         pad_h = max(0, self.image_size[0] - crop_h)
         pad_w = max(0, self.image_size[1] - crop_w)
         # (..., crop_h, crop_w)
-        image = transforms_functional.resize(image, size=[crop_h, crop_w])
+        image = transforms_functional.resize(
+            image, size=[crop_h, crop_w], interpolation=interpolation
+        )
         # (..., H', W')
         image = transforms_functional.pad(image, padding=[0, 0, pad_w, pad_h])
         return image, (crop_h, crop_w)

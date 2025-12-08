@@ -17,6 +17,7 @@ from torch import Tensor
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
+from torchvision.transforms.functional import InterpolationMode
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_panoptic_segmentation_dataset import (
@@ -230,19 +231,20 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         # Metrics
         self.val_loss = MeanMetric()
 
-        # NOTE: This must match the implementations in the task model and dataset!
-        num_stuff_classes = len(data_args.stuff_classes)
-        num_thing_classes = len(data_args.thing_classes)
-        ignore_class_id = num_stuff_classes + num_thing_classes
         # We treat here ignore_class_id as a stuff class for PQ computation.
-        internal_stuff_ids = list(range(num_stuff_classes)) + [ignore_class_id]
-        internal_thing_ids = list(
-            range(num_stuff_classes, num_stuff_classes + num_thing_classes)
-        )
+        internal_thing_ids = [
+            self.model.class_to_internal_class[class_id]
+            for class_id in self.model.thing_classes.keys()
+        ]
+        internal_stuff_ids = [
+            self.model.class_to_internal_class[class_id]
+            for class_id in self.model.stuff_classes.keys()
+        ]
+        internal_stuff_ids.append(self.model.internal_ignore_class_id)
 
         self.train_pq = PanopticQuality(
-            stuffs=internal_stuff_ids,
             things=internal_thing_ids,
+            stuffs=internal_stuff_ids,
             return_sq_and_rq=True,
             return_per_class=True,
         )
@@ -316,7 +318,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                     metric=self.train_pq_debug,
                     preds=masks.clone(),  # (B, H, W, 2)
                     targets=target_masks.clone(),  # (B, H, W, 2)
-                    is_crowds=[m["iscrowd"].clone() for m in binary_masks], # (B, num_segments)
+                    is_crowds=[
+                        m["iscrowd"].clone() for m in binary_masks
+                    ],  # (B, num_segments)
                 )
                 _mark_ignore_regions(
                     target_masks=target_masks,
@@ -370,7 +374,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             assert image.shape[-2:] == binary_mask["masks"].shape[-2:]  # type: ignore
             assert image.shape[-2:] == target_masks.shape[:2]  # type: ignore
             image, (crop_h, crop_w) = self.model.resize_and_pad(image)
-            masks, _ = self.model.resize_and_pad(binary_mask["masks"])
+            masks, _ = self.model.resize_and_pad(
+                binary_mask["masks"], interpolation=InterpolationMode.NEAREST
+            )
             resized_images_list.append(image)
             crop_sizes.append((crop_h, crop_w))
             resized_binary_masks.append(
@@ -451,9 +457,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 metric=self.val_pq_debug,
                 preds=masks.unsqueeze(0).clone(),  # (1, H, W, 2)
                 targets=target_masks.unsqueeze(0).clone(),  # (1, H, W, 2)
-                is_crowds=target_binary_mask["iscrowd"]
-                .unsqueeze(0)
-                .clone(),  # (1, num_segments)
+                is_crowds=(
+                    target_binary_mask["iscrowd"].unsqueeze(0).clone()
+                ),  # (1, num_segments)
             )
             _mark_ignore_regions(
                 target_masks=target_masks,
@@ -592,6 +598,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
 
 def _mark_ignore_regions(
     target_masks: Tensor,
+    ignore_class_id: int,
     void_color: tuple[int, int],
 ) -> None:
     """Sets regions in target_masks that must be ignored in PQ computation to void color.
@@ -599,6 +606,9 @@ def _mark_ignore_regions(
     Args:
         target_masks:
             (..., H, W, 2) tensor where the last dimension contains (label, segment_id).
+        ignore_class_id:
+            Internal ignore class id. Pixels with this label must be ignored. Those
+            pixels are not annotated in the dataset.
         void_color:
             Color to set ignored regions to.
     """
@@ -607,6 +617,7 @@ def _mark_ignore_regions(
     # the dataset but we don't want to load all data when initializing the dataset.
     # Instead we handle the empty targets here.
     # See: https://github.com/tue-mps/eomt/blob/660778b9641c1bacbb5b0249ee3dcb684d9c94d9/datasets/dataset.py#L135-L136
+    # There are ~20 empty targets in COCO train2017.
     is_empty = (target_masks[..., 1] == -1).all(dim=(-2, -1))
     target_masks[is_empty] = void_color_tensor
     # Pixels with label -1 are iscrowd regions (see dataset get_masks).
@@ -614,6 +625,8 @@ def _mark_ignore_regions(
     # computation by setting them to the void color here.
     # See: https://github.com/tue-mps/eomt/blob/660778b9641c1bacbb5b0249ee3dcb684d9c94d9/training/lightning_module.py#L325-L326
     target_masks[target_masks[..., 0] == -1] = void_color_tensor
+    # Pixels with ignore_class_id must also be ignored in PQ computation.
+    target_masks[target_masks[..., 0] == ignore_class_id] = void_color_tensor
 
 
 def update_metric_panoptic(

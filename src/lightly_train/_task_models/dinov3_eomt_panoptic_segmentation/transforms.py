@@ -39,7 +39,6 @@ class DINOv3EoMTPanopticSegmentationScaleJitterArgs(ScaleJitterArgs):
     seed_offset: int = 0
 
 
-
 class DINOv3EoMTPanopticSegmentationRandomCropArgs(RandomCropArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
