@@ -13,7 +13,7 @@ import json
 import logging
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Mapping
+from typing import Any, Generator, Iterable, Literal, Mapping, cast
 
 import torch
 from filelock import FileLock
@@ -776,6 +776,34 @@ def export_model(
     torch.save(model_dict, model_path)
 
 
+def read_model_name_from_ckpt(ckpt_path: PathLike) -> str:
+    """Return `model_init_args.model_name` from a checkpoint.
+
+    Tries loading on the meta device (no tensor data) when supported; otherwise falls
+    back to a normal CPU load.
+
+    Args:
+        ckpt_path: Path to the checkpoint file.
+
+    Returns:
+        The stored model name.
+
+    Raises:
+        FileNotFoundError: If ckpt_path doesn't exist.
+        KeyError: If the expected keys are missing.
+    """
+    p = Path(ckpt_path)
+    if not p.exists():
+        raise FileNotFoundError(f"Checkpoint file '{p}' does not exist.")
+
+    try:
+        ckpt = torch.load(p, map_location="meta", weights_only=False)
+    except (TypeError, RuntimeError, NotImplementedError, AttributeError):
+        ckpt = torch.load(p, map_location="cpu", weights_only=False)
+
+    return cast(str, ckpt["model_init_args"]["model_name"])
+
+
 def load_checkpoint(
     fabric: Fabric,
     out_dir: Path,
@@ -833,6 +861,11 @@ def load_checkpoint(
         ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
         # We don't return the loaded checkpoint here because it has to be loaded with
         # fabric.load(ckpt_path, state) for resume to work properly.
+
+        # Update the model_name from the checkpoint.
+        # This is needed when resuming from a crashed run and the model_name contains
+        # an extra suffix, e.g., '-coco'.
+        model_name = read_model_name_from_ckpt(ckpt_path)
         return (
             None,
             ckpt_path,
@@ -894,45 +927,20 @@ def resume_from_checkpoint(
 def finetune_from_checkpoint(
     state: TrainTaskState,
     checkpoint: CheckpointDict,
-    reuse_class_head: bool,
 ) -> None:
     """Restore model state from the checkpoint for fine-tuning.
 
     Args:
         state: Training state container to populate with checkpoint data.
         checkpoint: Checkpoint context the state dicts to load.
-        reuse_class_head: Whether to keep class-specific layers when fine-tuning.
     """
 
     train_model = state["train_model"]
-    train_model_state_keys = set(train_model.state_dict().keys())
-    if reuse_class_head:
-        incompatible = train_model.load_state_dict(
-            checkpoint["train_model_state_dict"],
-        )
-    else:
-        class_head_keys = {
-            key
-            for key in train_model_state_keys
-            if key.startswith("class_head") or ".class_head" in key
-        }
-        criterion_keys = {
-            key for key in train_model_state_keys if "criterion.empty_weight" in key
-        }
-        checkpoint_keys_to_skip = class_head_keys | criterion_keys
-        if checkpoint_keys_to_skip:
-            logger.debug(
-                "Skipping class-dependent parameters from checkpoint: %s",
-                sorted(checkpoint_keys_to_skip),
-            )
-        filtered_state = {
-            key: value
-            for key, value in checkpoint["train_model_state_dict"].items()
-            if key not in checkpoint_keys_to_skip
-        }
-        incompatible = train_model.load_state_dict(filtered_state, strict=False)
+    incompatible = train_model.load_state_dict(
+        checkpoint["train_model_state_dict"], strict=False
+    )
 
-    if reuse_class_head and incompatible.missing_keys:
+    if incompatible.missing_keys:
         logger.warning(
             "Missing keys after loading checkpoint: %s",
             incompatible.missing_keys,

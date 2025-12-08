@@ -8,11 +8,13 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
+from torch.nn import Module
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self
 
@@ -44,8 +46,8 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self,
         *,
         model_name: str,
+        classes: dict[int, str],
         image_size: tuple[int, int],
-        classes: dict[int, str] | None,
         image_normalize: dict[str, Any] | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
@@ -60,25 +62,32 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self.image_size = image_size
         self.classes = classes
 
-        # TODO: Lionel(09/25) Those will currently be ignored.
-        self.image_normalize = image_normalize
-        if image_normalize is not None:
-            logger.warning(
-                "The image_normalize argument is currently ignored. "
-                "Images are only divided by 255."
-            )
-        self.backbone_weights = backbone_weights
-        if backbone_weights is not None:
-            logger.warning(
-                "The backbone_weights argument is currently ignored. "
-                "Pretrained weights are not supported yet."
-            )
+        # Internally, the model processes classes as contiguous integers starting at 0.
+        # This list maps the internal class id to the class id in `classes`.
+        internal_class_to_class = list(self.classes.keys())
 
+        # Efficient lookup for converting internal class IDs to class IDs.
+        # Registered as buffer to be automatically moved to the correct device.
+        self.internal_class_to_class: Tensor
+        self.register_buffer(
+            "internal_class_to_class",
+            torch.tensor(internal_class_to_class, dtype=torch.long),
+            persistent=False,  # No need to save it in the state dict.
+        )
+
+        self.image_normalize = image_normalize
+
+        # Instantiate the backbone.
         dinov2 = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_args,
             load_weights=load_weights,
         )
+
+        # Optionally load the backbone weights.
+        if load_weights and backbone_weights is not None:
+            self.load_backbone_weights(dinov2, backbone_weights)
+
         self.backbone: DINOv2ViTWrapper = DINOv2ViTWrapper(
             model=dinov2,
             keep_indices=[5, 8, 11],
@@ -105,6 +114,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         )
 
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
+            num_classes=len(self.classes),
             feat_channels=[384, 384, 384],
             feat_strides=[14, 14, 14],
             hidden_dim=256,
@@ -122,6 +132,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         )
 
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
+            num_classes=len(self.classes),
             num_top_queries=300,
         )
 
@@ -176,6 +187,34 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             for name in DINOV2_VIT_PACKAGE.list_model_names()
         ]
 
+    def load_backbone_weights(self, backbone: Module, path: PathLike) -> None:
+        """
+        Load backbone weights from a checkpoint file.
+
+        Args:
+            backbone: backbone to load the statedict in.
+            path: path to a .pt file, e.g., exported_last.pt.
+        """
+        # Check if the file exists.
+        if not os.path.exists(path):
+            logger.error(f"Checkpoint file not found: {path}")
+            return
+
+        # Load the checkpoint.
+        state_dict = torch.load(path, map_location="cpu", weights_only=False)
+
+        # Load the state dict into the backbone.
+        missing, unexpected = backbone.load_state_dict(state_dict, strict=False)
+
+        # Log missing and unexpected keys.
+        if missing or unexpected:
+            if missing:
+                logger.warning(f"Missing keys when loading backbone: {missing}")
+            if unexpected:
+                logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
+        else:
+            logger.info("Backbone weights loaded successfully.")
+
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the EMA state dict from a training checkpoint."""
         new_state_dict = {}
@@ -189,18 +228,22 @@ class DINOv2LTDETRObjectDetection(TaskModel):
     def predict(
         self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
     ) -> dict[str, Tensor]:
-        self.postprocessor = self.postprocessor.deploy()  # type: ignore[no-untyped-call]
-        self = self.deploy()  # type: ignore[no-untyped-call]
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
 
         device = next(self.parameters()).device
         x = file_helpers.as_image_tensor(image).to(device)
 
         h, w = x.shape[-2:]
 
-        x = transforms_functional.to_dtype(x, dtype=torch.float32)
+        x = transforms_functional.to_dtype(x, scale=True, dtype=torch.float32)
+
+        # Normalize the image.
+        if self.image_normalize is not None:
+            x = transforms_functional.normalize(
+                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+            )
         x = transforms_functional.resize(x, self.image_size)
-        # TODO: Lionel (09/25) Change to Normalize transform using saved params.
-        x = x / 255.0
         x = x.unsqueeze(0)
 
         labels, boxes, scores = self(x, orig_target_size=(h, w))
@@ -214,6 +257,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
 
     def deploy(self) -> Self:
         self.eval()
+        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
@@ -227,7 +271,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
 
     def forward(
         self, x: Tensor, orig_target_size: tuple[int, int] | None = None
-    ) -> list[Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
         h, w = x.shape[-2:]
         if orig_target_size is None:
@@ -239,8 +283,16 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         x = self.backbone(x)
         x = self.encoder(x)
         x = self.decoder(x)
-        x_: list[Tensor] = self.postprocessor(x, orig_target_size_)
-        return x_
+
+        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
+            self.postprocessor(x, orig_target_size_)
+        )
+        # Postprocessor must be in deploy mode at this point. It returns only tuples
+        # during deploy mode.
+        assert isinstance(result, tuple)
+        labels, boxes, scores = result
+        labels = self.internal_class_to_class[labels]
+        return (labels, boxes, scores)
 
 
 class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
@@ -250,8 +302,8 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         self,
         *,
         model_name: str,
+        classes: dict[int, str],
         image_size: tuple[int, int],
-        classes: dict[int, str] | None,
         image_normalize: dict[str, Any] | None = None,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
@@ -264,13 +316,21 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         self.model_name = parsed_name["model_name"]
         self.image_size = image_size
         self.classes = classes
-        # TODO: Lionel(09/25) this will currently be ignored, since we just divide by 255.
+
+        # Internally, the model processes classes as contiguous integers starting at 0.
+        # This list maps the internal class id to the class id in `classes`.
+        internal_class_to_class = list(self.classes.keys())
+
+        # Efficient lookup for converting internal class IDs to class IDs.
+        # Registered as buffer to be automatically moved to the correct device.
+        self.internal_class_to_class: Tensor
+        self.register_buffer(
+            "internal_class_to_class",
+            torch.tensor(internal_class_to_class, dtype=torch.long),
+            persistent=False,  # No need to save it in the state dict.
+        )
+
         self.image_normalize = image_normalize
-        if image_normalize is not None:
-            logger.warning(
-                "The image_normalize argument is currently ignored. "
-                "Images are only divided by 255."
-            )
 
         dinov2 = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
