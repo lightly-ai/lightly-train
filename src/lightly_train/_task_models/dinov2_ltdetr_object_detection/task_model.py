@@ -215,9 +215,9 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         else:
             logger.info("Backbone weights loaded successfully.")
 
-     def load_train_state_dict(
-            self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
-        ) -> Any: 
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> Any:
         """Load the EMA state dict from a training checkpoint."""
         new_state_dict = {}
         for name, param in state_dict.items():
@@ -225,7 +225,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
                 name = name[len("ema_model.model.") :]
                 new_state_dict[name] = param
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
-       
+
     @torch.no_grad()
     def predict(
         self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
