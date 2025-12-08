@@ -183,7 +183,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         # Validation metric.
         self.map_metric = MeanAveragePrecision()
         self.map_metric.warn_on_many_detections = False
-    
+
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
@@ -212,7 +212,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 self.ema_model.model.load_state_dict(self.model.state_dict())
 
         return incompatible
-
 
     def set_train_mode(self) -> None:
         super().set_train_mode()
