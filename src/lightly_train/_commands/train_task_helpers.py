@@ -935,7 +935,6 @@ def finetune_from_checkpoint(
         checkpoint: Checkpoint context the state dicts to load.
     """
 
-    # train_model = state["train_model"]
     train_model = cast(TrainModel, state["train_model"])
 
     incompatible = train_model.load_train_state_dict(

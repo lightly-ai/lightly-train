@@ -219,6 +219,9 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
         """Load the EMA state dict from a training checkpoint."""
+        # TODO: This assumes that the checkpoint contains EMA weights.
+        # If the checkpoint was trained without EMA, this will
+        # result in an empty state_dict and the model will not be loaded correctly.
         new_state_dict = {}
         for name, param in state_dict.items():
             if name.startswith("ema_model.model."):
