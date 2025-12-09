@@ -597,6 +597,30 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         verify: bool = True,
         format_args: dict[str, Any] | None = None,
     ) -> None:
+        """Exports the model to ONNX for inference.
+
+        The export uses a dummy input of shape (1, C, H, W) where C is inferred
+        from the first model parameter and (H, W) come from `self.image_size`.
+        The ONNX graph uses dynamic batch size for both inputs and produces
+        three outputs: labels, boxes, and scores.
+
+        Optionally simplifies the exported model in-place using onnxslim and
+        verifies numerical closeness against a float32 CPU reference via
+        ONNX Runtime.
+
+        Args:
+            out_path: Path where the ONNX model will be written.
+            opset_version: ONNX opset version to target. If None, PyTorch's
+                default opset is used.
+            simplify: If True, run onnxslim to simplify the exported model.
+            verify: If True, validate the ONNX file and compare outputs to a
+                float32 CPU reference forward pass.
+            format_args: Optional extra keyword arguments forwarded to
+                `torch.onnx.export`.
+
+        Returns:
+            None. Writes the ONNX model to `out_path`.
+        """
         # Set the model in eval and deploy mode.
         self.eval()
         self.deploy()
