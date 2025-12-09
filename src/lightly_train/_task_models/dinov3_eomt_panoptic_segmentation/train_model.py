@@ -159,8 +159,10 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
         ]
 
         # Set the start and stop of each phases.
-        self.attn_mask_annealing_steps_start = phases[1:-2]
-        self.attn_mask_annealing_steps_end = phases[2:-1]
+        # DINOv3 panoptic segmentation has a special first phase that runs only during
+        # the warmup steps.
+        self.attn_mask_annealing_steps_start = [0] + phases[2:-2]
+        self.attn_mask_annealing_steps_end = [self.lr_warmup_steps[1]] + phases[3:-1]
 
         # Ensure the number of phases is correct.
         assert len(self.attn_mask_annealing_steps_start) == self.num_joint_blocks
@@ -207,8 +209,8 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
 
         self.model = DINOv3EoMTPanopticSegmentation(
             model_name=model_name,
-            stuff_classes=data_args.stuff_classes,
             thing_classes=data_args.thing_classes,
+            stuff_classes=data_args.stuff_classes,
             image_size=image_size,
             image_normalize=normalize.model_dump(),
             num_queries=num_queries,
@@ -231,7 +233,6 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         # Metrics
         self.val_loss = MeanMetric()
 
-        # We treat here ignore_class_id as a stuff class for PQ computation.
         internal_thing_ids = [
             self.model.class_to_internal_class[class_id]
             for class_id in self.model.thing_classes.keys()
@@ -240,6 +241,11 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             self.model.class_to_internal_class[class_id]
             for class_id in self.model.stuff_classes.keys()
         ]
+        # We treat here ignore_class_id as a stuff class for PQ computation. Note that
+        # the target masks never contain ignore_class_id because those pixels are set
+        # to be ignored by the metric. We only pass ignore_class_id to the metric so
+        # that it knows this class and doesn't raise an error. This class is also
+        # ignored from the final metric calculation in train_task_helpers.py
         internal_stuff_ids.append(self.model.internal_ignore_class_id)
 
         self.train_pq = PanopticQuality(
@@ -249,9 +255,6 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             return_per_class=True,
         )
         self.val_pq = self.train_pq.clone()
-
-        self.train_pq_debug = self.train_pq.clone()
-        self.val_pq_debug = self.val_pq.clone()
 
     def get_task_model(self) -> DINOv3EoMTPanopticSegmentation:
         return self.model
@@ -314,14 +317,6 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                     mask_threshold=self.model_args.mask_threshold,
                     mask_overlap_threshold=self.model_args.mask_overlap_threshold,
                 )
-                update_metric_panoptic(
-                    metric=self.train_pq_debug,
-                    preds=masks.clone(),  # (B, H, W, 2)
-                    targets=target_masks.clone(),  # (B, H, W, 2)
-                    is_crowds=[
-                        m["iscrowd"].clone() for m in binary_masks
-                    ],  # (B, num_segments)
-                )
                 _mark_ignore_regions(
                     target_masks=target_masks,
                     ignore_class_id=self.model.internal_ignore_class_id,
@@ -329,7 +324,6 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 )
                 self.train_pq.update(preds=masks, target=target_masks)
                 metrics["train_metric/pq"] = self.train_pq
-                metrics["train_metric/pq_debug"] = self.train_pq_debug
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -454,14 +448,6 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 mask_threshold=self.model_args.mask_threshold,
                 mask_overlap_threshold=self.model_args.mask_overlap_threshold,
             )
-            update_metric_panoptic(
-                metric=self.val_pq_debug,
-                preds=masks.unsqueeze(0).clone(),  # (1, H, W, 2)
-                targets=target_masks.unsqueeze(0).clone(),  # (1, H, W, 2)
-                is_crowds=(
-                    target_binary_mask["iscrowd"].unsqueeze(0).clone()
-                ),  # (1, num_segments)
-            )
             _mark_ignore_regions(
                 target_masks=target_masks,
                 ignore_class_id=self.model.internal_ignore_class_id,
@@ -474,7 +460,6 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
 
         metrics: dict[str, Any] = {
             "val_metric/pq": self.val_pq,
-            "val_metric/pq_debug": self.val_pq_debug,
         }
 
         return TaskStepResult(
@@ -627,110 +612,8 @@ def _mark_ignore_regions(
     # computation by setting them to the void color here.
     # See: https://github.com/tue-mps/eomt/blob/660778b9641c1bacbb5b0249ee3dcb684d9c94d9/training/lightning_module.py#L325-L326
     target_masks[target_masks[..., 0] == -1] = void_color_tensor
-    # Pixels with ignore_class_id must also be ignored in PQ computation.
+    # Pixels with label ignore_class_id are unlabeled regions (see dataset get_masks).
+    # EoMT handles them by setting them to -1 which is automatically set to void color
+    # inside the metric (because it is an unknown class). We set them to void color
+    # here to make this more explicit.
     target_masks[target_masks[..., 0] == ignore_class_id] = void_color_tensor
-
-
-def update_metric_panoptic(
-    metric,
-    preds,
-    targets,
-    is_crowds,
-):
-    from torchmetrics.functional.detection._panoptic_quality_common import (
-        _calculate_iou,
-        _get_color_areas,
-        _prepocess_inputs,
-    )
-
-    for i in range(len(preds)):
-        if (targets[i, ..., 1] == -1).all():
-            # Target without segments. This is not in EoMT because EoMT filters
-            # empty targets in the dataset. We allow them and handle them here
-            # instead.
-            continue
-        flatten_pred = _prepocess_inputs(
-            metric.things,
-            metric.stuffs,
-            preds[i][None, ...],
-            metric.void_color,
-            metric.allow_unknown_preds_category,
-        )[0]
-        flatten_target = _prepocess_inputs(
-            metric.things,
-            metric.stuffs,
-            targets[i][None, ...],
-            metric.void_color,
-            True,
-        )[0]
-
-        pred_areas = _get_color_areas(flatten_pred)
-        target_areas = _get_color_areas(flatten_target)
-        intersection_matrix = torch.transpose(
-            torch.stack((flatten_pred, flatten_target), -1), -1, -2
-        )
-        intersection_areas = _get_color_areas(intersection_matrix)
-
-        pred_segment_matched = set()
-        target_segment_matched = set()
-        for pred_color, target_color in intersection_areas:
-            if is_crowds[i][target_color[1]]:
-                continue
-            if target_color == metric.void_color:
-                continue
-            if pred_color[0] != target_color[0]:
-                continue
-            iou = _calculate_iou(
-                pred_color,
-                target_color,
-                pred_areas,
-                target_areas,
-                intersection_areas,
-                metric.void_color,
-            )
-            continuous_id = metric.cat_id_to_continuous_id[target_color[0]]
-            if iou > 0.5:
-                pred_segment_matched.add(pred_color)
-                target_segment_matched.add(target_color)
-                metric.iou_sum[continuous_id] += iou
-                metric.true_positives[continuous_id] += 1
-
-        false_negative_colors = set(target_areas) - target_segment_matched
-        false_positive_colors = set(pred_areas) - pred_segment_matched
-
-        false_negative_colors.discard(metric.void_color)
-        false_positive_colors.discard(metric.void_color)
-
-        for target_color in list(false_negative_colors):
-            void_target_area = intersection_areas.get(
-                (metric.void_color, target_color), 0
-            )
-            if void_target_area / target_areas[target_color] > 0.5:
-                false_negative_colors.discard(target_color)
-
-        crowd_by_cat_id = {}
-        for false_negative_color in false_negative_colors:
-            if is_crowds[i][false_negative_color[1]]:
-                crowd_by_cat_id[false_negative_color[0]] = false_negative_color[1]
-                continue
-
-            continuous_id = metric.cat_id_to_continuous_id[false_negative_color[0]]
-            metric.false_negatives[continuous_id] += 1
-
-        for pred_color in list(false_positive_colors):
-            pred_void_crowd_area = intersection_areas.get(
-                (pred_color, metric.void_color), 0
-            )
-
-            if pred_color[0] in crowd_by_cat_id:
-                crowd_color = (pred_color[0], crowd_by_cat_id[pred_color[0]])
-                pred_void_crowd_area += intersection_areas.get(
-                    (pred_color, crowd_color), 0
-                )
-
-            if pred_void_crowd_area / pred_areas[pred_color] > 0.5:
-                false_positive_colors.discard(pred_color)
-
-        for false_positive_color in false_positive_colors:
-            continuous_id = metric.cat_id_to_continuous_id[false_positive_color[0]]
-            metric.false_positives[continuous_id] += 1
