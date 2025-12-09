@@ -327,7 +327,7 @@ model = lightly_train.load_model(
 )
 
 # Export to ONNX.
-model.export_to_onnx(
+model.export_onnx(
     out_path="out/my_experiment/exported_models/model.onnx"
 )
 ```

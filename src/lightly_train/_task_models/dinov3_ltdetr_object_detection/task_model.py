@@ -588,7 +588,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         return x
 
     @torch.no_grad()
-    def export_to_onnx(
+    def export_onnx(
         self,
         out_path: PathLike,
         opset_version: int | None = None,
