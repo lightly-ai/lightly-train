@@ -49,8 +49,8 @@ YOLO models on detection and segmentation tasks for edge deployment.
 
 ## Workflows
 
-
 <!-- TODO(12/25, Guarin): Add image for each workflow. -->
+
 ````{grid} 1 1 2 3
 
 ```{grid-item-card} Object Detection
