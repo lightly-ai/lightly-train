@@ -25,6 +25,7 @@ from lightly_train._transforms.object_detection_transform import (
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
+    NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
@@ -114,6 +115,10 @@ def _get_resize_args() -> ResizeArgs:
     )
 
 
+def _get_normalize_args() -> NormalizeArgs:
+    return NormalizeArgs()
+
+
 def _get_image_size() -> tuple[int, int]:
     return (64, 64)
 
@@ -127,6 +132,7 @@ PossibleArgsTuple = (
     # TODO: Lionel (09/25) Add StopPolicyArgs test cases.
     [None, _get_scale_jitter_args()],
     [None, _get_resize_args()],
+    [None, _get_normalize_args()],
 )
 
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
@@ -134,7 +140,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, scale_jitter, resize",
+        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, scale_jitter, resize, normalize",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -146,6 +152,7 @@ class TestObjectDetectionTransform:
         scale_jitter: ScaleJitterArgs | None,
         resize: ResizeArgs | None,
         random_iou_crop: RandomIoUCropArgs | None,
+        normalize: NormalizeArgs | None,
     ) -> None:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
@@ -162,6 +169,7 @@ class TestObjectDetectionTransform:
             stop_policy=stop_policy,
             resize=resize,
             scale_jitter=scale_jitter,
+            normalize=normalize,
         )
         transform_args.resolve_auto(model_init_args={})
         transform = ObjectDetectionTransform(transform_args)
@@ -191,7 +199,7 @@ class TestObjectDetectionTransform:
     def test__collation(self) -> None:
         transform_args = ObjectDetectionTransformArgs(
             channel_drop=_get_channel_drop_args(),
-            num_channels="auto",
+            num_channels=3,
             photometric_distort=_get_photometric_distort_args(),
             random_zoom_out=_get_random_zoom_out_args(),
             random_iou_crop=_get_random_iou_crop_args(),
@@ -201,6 +209,7 @@ class TestObjectDetectionTransform:
             stop_policy=_get_stop_policy_args(),
             scale_jitter=_get_scale_jitter_args(),
             resize=_get_resize_args(),
+            normalize=_get_normalize_args(),
         )
         transform_args.resolve_auto(model_init_args={})
         collate_fn = ObjectDetectionCollateFunction(

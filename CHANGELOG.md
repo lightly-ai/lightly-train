@@ -9,11 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Possibility to load backbone weights in LT-DETR.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Fix bug in `model.predict()` for object detection models.
+
+### Security
+
+## [0.12.4] - 2025-11-26
+
+### Fixed
+
+- Fix bug in `model.predict()` for object detection models.
+
+## [0.12.3] - 2025-11-26
+
+### Added
+
 - Add support for specifying data configs in YAML format.
 
 ### Changed
 
-- Improve the layout of logging of object detection.
+- Improve the layout of the object detection training logs.
 
 ### Deprecated
 
@@ -22,15 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   data config matches that in the checkpoint. Otherwise, the classification head will
   be re-initialized.
 
-### Removed
-
 ### Fixed
 
 - Fix `image_size` not tuple when training from pretrained model.
 - Fix a bug when fine-tuning a model with `resume_interrupted=True`.
-- Fix `num_classes` not updated when loading an object detection checkpoint with different number of classes.
-
-### Security
+- Fix `num_classes` not updated when loading an object detection checkpoint with
+  different number of classes.
 
 ## [0.12.2] - 2025-11-14
 

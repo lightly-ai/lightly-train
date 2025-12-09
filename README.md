@@ -51,13 +51,16 @@ Train LTDETR detection models with DINOv2 or DINOv3 backbones.
 
 | Implementation | Model | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size |
 |:--------------:|:----------------------------:|:------------------:|:------------:|:-----------:|:----------:|
-| LightlyTrain | dinov2/vits14-ltdetr-coco | 55.7 | 16.87 | 55.3 | 644×644 |
+| LightlyTrain | dinov3/vitt16-ltdetr-coco | 49.8 | 5.4 | 10.1 | 640×640 |
+| LightlyTrain | dinov3/vitt16plus-ltdetr-coco | 52.5 | 7.0 | 18.1 | 640×640 |
+| LightlyTrain | dinov3/vits16-ltdetr-coco | 55.4 | 10.5 | 36.4 | 640×640 |
+| LightlyTrain | dinov2/vits14-ltdetr-coco | 55.7 | 16.9 | 55.3 | 644×644 |
 | LightlyTrain | dinov3/convnext-tiny-ltdetr-coco | 54.4 | 13.29 | 61.1 | 640×640 |
 | LightlyTrain | dinov3/convnext-small-ltdetr-coco | 56.9 | 17.65 | 82.7 | 640×640 |
 | LightlyTrain | dinov3/convnext-base-ltdetr-coco | 58.6 | 24.68 | 121.0 | 640×640 |
 | LightlyTrain | dinov3/convnext-large-ltdetr-coco | 60.0 | 42.30 | 230.0 | 640×640 |
 
-Models are trained for 60 epochs on the COCO 2017 dataset and evaluated on the validation
+Models are trained on the COCO 2017 dataset and evaluated on the validation
 set with single-scale testing. Latency is measured with TensorRT on a NVIDIA T4 GPU with
 batch size 1. All models are compiled and optimized using `tensorrt==10.13.3.9`.
 
