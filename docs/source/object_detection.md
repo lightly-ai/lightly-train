@@ -322,7 +322,7 @@ The following example shows how to export a previously trained model to ONNX.
 import lightly_train
 
 # Instantiate the model from a checkpoint.
-model = lightly_train.load_model_from_checkpoint(
+model = lightly_train.load_model(
     "out/my_experiment/exported_models/exported_best.pt"
 )
 
