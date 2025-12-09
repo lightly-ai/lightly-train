@@ -377,8 +377,8 @@ def train_panoptic_segmentation(
             See the documentation for more information:
             https://docs.lightly.ai/train/stable/panoptic_segmentation.html#data
         model:
-            The model to train. For example, "dinov2/vits14-eomt",
-            "dinov3/vits16-eomt-coco", or a path to a local model checkpoint.
+            The model to train. For example "dinov3/vits16-eomt-coco" or a path to a
+            local model checkpoint.
 
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter.
