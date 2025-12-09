@@ -81,7 +81,7 @@ lightly_train.train(
     data="my_data_dir",  # Directory with images
     model="dinov2/vits14",  # Model to train
     method="distillation",  # Pretraining method
-    epochs=10,  # Number of epochs to train
+    epochs=5,  # Number of epochs to train
     batch_size=32,  # Batch size
 )
 ```
