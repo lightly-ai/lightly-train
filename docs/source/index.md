@@ -49,45 +49,43 @@ YOLO models on detection and segmentation tasks for edge deployment.
 
 ## Workflows
 
+
+<!-- TODO(12/25, Guarin): Add image for each workflow. -->
 ````{grid} 1 1 2 3
 
 ```{grid-item-card} Object Detection
 :link: object_detection.html
-<img src="_static/images/object_detection/street.jpg" height="64"><br>
+<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
 Train LTDETR detection models with DINOv2 or DINOv3 backbones.<br>
 ```
 
 ```{grid-item-card} Instance Segmentation
 :link: instance_segmentation.html
-<img src="_static/images/object_detection/street.jpg" height="64"><br>
+<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
 Train EoMT segmentation models with DINOv3 backbones.<br>
 ```
 
 ```{grid-item-card} Semantic Segmentation
 :link: semantic_segmentation.html
-<img src="_static/images/object_detection/street.jpg"
-  height="64"><br>
+<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
 Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 ```
 
 ```{grid-item-card} Distillation
 :link: pretrain_distill/methods/distillation.html
-<img src="_static/images/object_detection/street.jpg"
-  height="64"><br>
+<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
 Distill knowledge from DINOv2 or DINOv3 into any model architecture.<br>
 ```
 
 ```{grid-item-card} Pretraining
 :link: pretrain_distill/methods/dinov2.html
-<img src="_static/images/object_detection/street.jpg"
-  height="64"><br>
+<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
 Pretrain DINOv2 foundation models on your domain data.<br>
 ```
 
 ```{grid-item-card} Autolabeling
 :link: predict_autolabel.html
-<img src="_static/images/object_detection/street.jpg"
-  height="64"><br>
+<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
 Generate high-quality pseudo labels for detection and segmentation tasks.<br>
 ```
 ````

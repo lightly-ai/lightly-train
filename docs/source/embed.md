@@ -50,7 +50,7 @@ the default embedding dimension of the model is used.
 ## Data
 
 The `data` argument specifies the directory with images to embed. The same image formats
-as in the [training command](#train-data) are supported.
+as in the [training command](pretrain-data) are supported.
 
 ## Checkpoint
 

@@ -110,7 +110,7 @@ Create a new output directory for each experiment to keep training logs, model e
 and checkpoints organized.
 ```
 
-(train-data)=
+(pretrain-data)=
 
 ## Data
 

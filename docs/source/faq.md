@@ -156,7 +156,7 @@ LightlyTrain currently supports training on images and video frames. It works wi
 formats such as JPG, PNG, etc. The framework handles image loading, preprocessing, and transformation
 automatically.
 
-See [the documentation](#train-data) for all the supported data formats.
+See [the documentation](pretrain-data) for all the supported data formats.
 ```
 
 ```{dropdown} <h6>Which datasets and domains does LightlyTrain support?<a class="headerlink" id="which-datasets-and-domains-does-lightlytrain-support" href="#which-datasets-and-domains-does-lightlytrain-support" title="Link to this heading">¶</a></h6>
@@ -218,7 +218,7 @@ Yes you can! LightlyTrain supports any model implemented in PyTorch. See the doc
 on [custom models](#custom-models) on how to pretrain your model.
 
 There are no restrictions on the dataset you use, except that it must contain images stored in a directory.
-See [the documentation](#train-data) for all the supported images formats and the dataset structure.
+See [the documentation](pretrain-data) for all the supported images formats and the dataset structure.
 ```
 
 ```{dropdown} <h6>How can I fine-tune a model?<a class="headerlink" id="how-can-i-fine-tune-a-model" href="#how-can-i-fine-tune-a-model" title="Link to this heading">¶</a></h6>

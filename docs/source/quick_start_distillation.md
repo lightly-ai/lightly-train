@@ -49,7 +49,7 @@ git clone https://github.com/lightly-ai/dataset_clothing_images.git my_data_dir
 rm -rf my_data_dir/.git
 ```
 
-See the [data guide](pretrain_distill.md#train-data) for more information on
+See the [data guide](pretrain-data) for more information on
 supported data formats.
 
 In this example, the dataset looks like this:
@@ -316,7 +316,7 @@ print(
 
 - [Object Detection Quick Start](quick-start-object-detection): If you want to
   learn more about fine-tuning and how to use the fine-tuned model for inference.
-- [Distillation Guide](pretrain_distill.md): If you want to learn more about
+- [Distillation Guide](pretrain-distill): If you want to learn more about
   distillation and how to pretrain any model with it.
-- [DINOv2 Pretraining](methods-dinov2.md): If you want to learn how to pretrain
+- [DINOv2 Pretraining](methods-dinov2): If you want to learn how to pretrain
   foundation models.

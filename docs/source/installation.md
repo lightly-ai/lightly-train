@@ -39,7 +39,7 @@ See {ref}`docker` for Docker installation instructions.
 
 ```{warning}
 We recommend installing versions of the `torch`, `torchvision`, and `pytorch-lightning` packages that
-are compatible with each other. The latest compatible versions are `torch==2.5 torchvision==0.21 pytorch-lightning==2.5`.
+are compatible with each other.
 
 See the [Torchvision](https://github.com/pytorch/vision?tab=readme-ov-file#installation)
 and [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/versioning.html#compatibility-matrix)
