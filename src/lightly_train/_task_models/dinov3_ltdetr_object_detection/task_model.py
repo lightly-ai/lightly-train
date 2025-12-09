@@ -654,7 +654,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         # TODO(Thomas, 12/25): Add warm-up forward if needed.
 
         # Set the input/output names.
-        input_names = ["images", "orig_target_sizes"]
+        input_names = ["images", "original_image_sizes"]
         output_names = ["labels", "boxes", "scores"]
 
         torch.onnx.export(
@@ -665,7 +665,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             output_names=output_names,
             opset_version=opset_version,
             dynamo=False,
-            dynamic_axes={"images": {0: "N"}, "orig_target_sizes": {0: "N"}},
+            dynamic_axes={"images": {0: "N"}, "original_image_sizes": {0: "N"}},
             **(format_args or {}),
         )
 
@@ -697,7 +697,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             session = ort.InferenceSession(out_path)
             input_feed = {
                 "images": dummy_input.cpu().numpy(),
-                "orig_target_sizes": dummy_sizes.cpu().numpy(),
+                "original_image_sizes": dummy_sizes.cpu().numpy(),
             }
             outputs_onnx = session.run(output_names=None, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
