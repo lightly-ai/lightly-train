@@ -10,7 +10,14 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import numpy as np
-from albumentations import BboxParams, Compose, HorizontalFlip, Resize, VerticalFlip
+from albumentations import (
+    BboxParams,
+    Compose,
+    HorizontalFlip,
+    Resize,
+    ToFloat,
+    VerticalFlip,
+)
 from albumentations.pytorch.transforms import ToTensorV2
 from numpy.typing import NDArray
 from pydantic import ConfigDict
@@ -19,6 +26,7 @@ from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDrop
+from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.random_iou_crop import RandomIoUCrop
 from lightly_train._transforms.random_photometric_distort import (
     RandomPhotometricDistort,
@@ -32,6 +40,7 @@ from lightly_train._transforms.task_transform import (
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
+    NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
@@ -63,11 +72,11 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     random_iou_crop: RandomIoUCropArgs | None
     random_flip: RandomFlipArgs | None
     image_size: ImageSizeTuple | Literal["auto"]
-    # TODO: Lionel (09/25): Add Normalize
     stop_policy: StopPolicyArgs | None
     scale_jitter: ScaleJitterArgs | None
     resize: ResizeArgs | None
     bbox_params: BboxParams | None
+    normalize: NormalizeArgs | Literal["auto"] | None
 
     # Necessary for the StopPolicyArgs, which are not serializable by pydantic.
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -169,6 +178,21 @@ class ObjectDetectionTransform(TaskTransform):
                 )
             ]
 
+        # Scale to [0, 1].
+        self.individual_transforms += [
+            ToFloat(max_value=255.0),
+        ]
+
+        # Only used with ViT-S/16, ViT-T/16+ and ViT-T/16.
+        if transform_args.normalize is not None:
+            self.individual_transforms += [
+                Normalize(
+                    mean=no_auto(transform_args.normalize).mean,
+                    std=no_auto(transform_args.normalize).std,
+                    max_pixel_value=1.0,  # Already scaled.
+                )
+            ]
+
         self.individual_transforms += [
             ToTensorV2(),
         ]
@@ -201,9 +225,6 @@ class ObjectDetectionTransform(TaskTransform):
             bboxes=input["bboxes"],
             class_labels=input["class_labels"],
         )
-
-        # TODO: Lionel (09/25): Remove in favor of Normalize transform.
-        transformed["image"] = transformed["image"] / 255.0
 
         return {
             "image": transformed["image"],

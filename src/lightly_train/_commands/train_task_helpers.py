@@ -13,7 +13,7 @@ import json
 import logging
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Mapping
+from typing import Any, Generator, Iterable, Literal, Mapping, cast
 
 import torch
 from filelock import FileLock
@@ -795,6 +795,34 @@ def export_model(
     torch.save(model_dict, model_path)
 
 
+def read_model_name_from_ckpt(ckpt_path: PathLike) -> str:
+    """Return `model_init_args.model_name` from a checkpoint.
+
+    Tries loading on the meta device (no tensor data) when supported; otherwise falls
+    back to a normal CPU load.
+
+    Args:
+        ckpt_path: Path to the checkpoint file.
+
+    Returns:
+        The stored model name.
+
+    Raises:
+        FileNotFoundError: If ckpt_path doesn't exist.
+        KeyError: If the expected keys are missing.
+    """
+    p = Path(ckpt_path)
+    if not p.exists():
+        raise FileNotFoundError(f"Checkpoint file '{p}' does not exist.")
+
+    try:
+        ckpt = torch.load(p, map_location="meta", weights_only=False)
+    except (TypeError, RuntimeError, NotImplementedError, AttributeError):
+        ckpt = torch.load(p, map_location="cpu", weights_only=False)
+
+    return cast(str, ckpt["model_init_args"]["model_name"])
+
+
 def load_checkpoint(
     fabric: Fabric,
     out_dir: Path,
@@ -852,6 +880,11 @@ def load_checkpoint(
         ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
         # We don't return the loaded checkpoint here because it has to be loaded with
         # fabric.load(ckpt_path, state) for resume to work properly.
+
+        # Update the model_name from the checkpoint.
+        # This is needed when resuming from a crashed run and the model_name contains
+        # an extra suffix, e.g., '-coco'.
+        model_name = read_model_name_from_ckpt(ckpt_path)
         return (
             None,
             ckpt_path,
