@@ -189,7 +189,10 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         super().__init__()
         # Lazy import because torchmetrics is an optional dependency.
         from torchmetrics import MeanMetric
-        from torchmetrics.detection import PanopticQuality
+
+        # Type ignore because PanopticQuality is not available in old torchmetrics
+        # versions.
+        from torchmetrics.detection import PanopticQuality  # type: ignore[attr-defined]
 
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependency.
@@ -353,7 +356,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
     def validation_step(
         self, fabric: Fabric, batch: MaskPanopticSegmentationBatch
     ) -> TaskStepResult:
-        # NOTE: Crow regions are included in the validation loss and metrics.
+        # NOTE: Crowd regions are included in the validation loss and metrics.
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
         binary_masks = batch["binary_masks"]
@@ -600,7 +603,7 @@ def _mark_ignore_regions(
             Color to set ignored regions to.
     """
     void_color_tensor = target_masks.new_tensor(void_color)
-    # Masks that have no segments. EoMT filters those out when intitializing
+    # Masks that have no segments. EoMT filters those out when initializing.
     # the dataset but we don't want to load all data when initializing the dataset.
     # Instead we handle the empty targets here.
     # See: https://github.com/tue-mps/eomt/blob/660778b9641c1bacbb5b0249ee3dcb684d9c94d9/datasets/dataset.py#L135-L136

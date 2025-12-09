@@ -585,7 +585,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         ignore_class_id = self.internal_ignore_class_id
         keep = (labels != ignore_class_id) & (scores > threshold)  # (B, Q)
 
-        # Remove ignored quries.
+        # Remove ignored queries.
         scores = scores[keep]  # (num_keep,)
         labels = labels[keep]  # (num_keep,)
         mask_probs = mask_logits.sigmoid()  # (Q, H, W)

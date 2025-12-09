@@ -234,7 +234,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
 
         Returns:
             (H, W, 2) Tensor where the last dimension contains (label, segment_id).
-            Segment ids are in [0, num_segments-1]. -1 indicates no segment.
+            Segment ids are in [-1, num_segments-1]. -1 indicates no segment.
         """
         binary_mask = binary_masks["masks"]
         N, H, W = binary_mask.shape
