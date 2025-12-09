@@ -591,7 +591,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     @torch.no_grad()
     def export_to_onnx(
         self,
-        out_path,
+        out_path: PathLike,
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -612,7 +612,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             out_path: Path where the ONNX model will be written.
             opset_version: ONNX opset version to target. If None, PyTorch's
                 default opset is used.
-            simplify: If True, run onnxslim to simplify the exported model.
+            simplify: If True, run onnxslim to simplify and overwrite the exported model.
             verify: If True, validate the ONNX file and compare outputs to a
                 float32 CPU reference forward pass.
             format_args: Optional extra keyword arguments forwarded to
@@ -667,7 +667,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             opset_version=opset_version,
             dynamo=False,
             dynamic_axes={"images": {0: "N"}, "orig_target_sizes": {0: "N"}},
-            **format_args if format_args else {},
+            **(format_args or {}),
         )
 
         if simplify:
@@ -703,7 +703,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             outputs_onnx = session.run(output_names=None, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
 
-            # Verfify that the outputs from both models are close.
+            # Verifify that the outputs from both models are close.
             if len(outputs_onnx) != len(reference_outputs):
                 raise AssertionError(
                     f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
