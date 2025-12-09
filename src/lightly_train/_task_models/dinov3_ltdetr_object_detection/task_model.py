@@ -501,7 +501,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         x = transforms_functional.resize(x, self.image_size)
         x = x.unsqueeze(0)
 
-        labels, boxes, scores = self(x, orig_target_size=(h, w))
+        labels, boxes, scores = self(x, orig_target_size=torch.tensor([[h, w]]))
         keep = scores > threshold
         labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
         return {
@@ -511,13 +511,12 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         }
 
     def forward(
-        self, x: Tensor, orig_target_size: tuple[int, int] | None = None
+        self, x: Tensor, orig_target_size: Tensor | None = None
     ) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
-        h, w = x.shape[-2:]
         if orig_target_size is None:
             h, w = x.shape[-2:]
-            orig_target_size_ = torch.tensor([w, h]).to(x.device)
+            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
         else:
             # Flip from (H, W) to (W, H).
             orig_target_size = orig_target_size[:, [1, 0]]
