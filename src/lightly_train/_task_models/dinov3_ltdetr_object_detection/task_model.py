@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+from copy import deepcopy
 from typing import Any
 
 import torch
@@ -586,3 +587,118 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         x = self.encoder(x)
         x = self.decoder(feats=x, targets=targets)
         return x
+
+    @torch.no_grad()
+    def export_to_onnx(
+        self,
+        out_path,
+        opset_version: int | None = None,
+        simplify: bool = True,
+        verify: bool = True,
+        format_args: dict[str, Any] | None = None,
+    ) -> None:
+        # Set the model in eval and deploy mode.
+        self.eval()
+        self.deploy()
+
+        # Get the first parameter from the model.
+        first_parameter = next(self.parameters())
+
+        # Infer info from first parameters.
+        # TODO(Thomas, 12/25): Use a more robust approach to infer num_channels.
+        num_channels = first_parameter.shape[1]
+        model_device = first_parameter.device
+        model_dtype = first_parameter.dtype
+
+        # Create dummy input using same device and dtype as the model.
+        dummy_input = torch.randn(
+            1,
+            num_channels,
+            self.image_size[
+                0
+            ],  # TODO(Thomas, 12/25): Allow passing different image size.
+            self.image_size[1],
+            requires_grad=False,
+            device=model_device,
+            dtype=model_dtype,
+        )
+        dummy_sizes = torch.tensor(
+            [[self.image_size[0], self.image_size[1]]],
+            device=model_device,
+            dtype=torch.int64,
+        )
+
+        # TODO(Thomas, 12/25): Add warm-up forward if needed.
+
+        # Set the input/output names.
+        input_names = ["images", "orig_target_sizes"]
+        output_names = ["labels", "boxes", "scores"]
+
+        torch.onnx.export(
+            self,
+            (dummy_input, dummy_sizes),
+            out_path,
+            input_names=input_names,
+            output_names=output_names,
+            opset_version=opset_version,
+            dynamo=False,
+            dynamic_axes={"images": {0: "N"}, "orig_target_sizes": {0: "N"}},
+            **format_args if format_args else {},
+        )
+
+        if simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            # Simplify.
+            onnxslim.slim(
+                out_path,
+                output_model=out_path,
+            )
+
+        if verify:
+            logger.info("Verifying ONNX model")
+            import onnx
+            import onnxruntime as ort
+
+            onnx.checker.check_model(out_path, full_check=True)
+
+            # Always run the reference input in float32 and on cpu for consistency.
+            reference_model = deepcopy(self).cpu().to(torch.float32).eval()
+            reference_model.deploy()
+            reference_outputs = reference_model(
+                dummy_input.cpu().to(torch.float32),
+                dummy_sizes.cpu(),
+            )
+
+            # Get outputs from the ONNX model.
+            session = ort.InferenceSession(out_path)
+            input_feed = {
+                "images": dummy_input.cpu().numpy(),
+                "orig_target_sizes": dummy_sizes.cpu().numpy(),
+            }
+            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
+
+            # Verfify that the outputs from both models are close.
+            if len(outputs_onnx) != len(reference_outputs):
+                raise AssertionError(
+                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                )
+            for output_onnx, output_model, output_name in zip(
+                outputs_onnx, reference_outputs, output_names
+            ):
+                # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                torch.testing.assert_close(
+                    output_onnx,
+                    output_model,
+                    msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
+                    equal_nan=True,
+                    check_device=False,
+                    check_dtype=False,
+                    check_layout=False,
+                    atol=5e-3,
+                    rtol=1e-1,
+                )
+
+        logger.info(f"Successfully exported ONNX model to '{out_path}'")
