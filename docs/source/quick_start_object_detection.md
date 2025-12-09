@@ -255,13 +255,13 @@ this:
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 
 # Run inference
-result = model.predict("image.jpg")
+results = model.predict("image.jpg")
 
 # Plot results
 image = read_image("image.jpg")
 image_with_boxes = draw_bounding_boxes(
     image,
-    boxes=result["bboxes"],
+    boxes=results["bboxes"],
     labels=[model.classes[label.item()] for label in results["labels"]],
 )
 plt.imshow(image_with_boxes.permute(1, 2, 0))
