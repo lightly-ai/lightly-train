@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-import importlib
 import json
 import logging
+import os
 from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Generator, Iterable, Literal, Mapping, cast
@@ -21,7 +21,7 @@ from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
-from torch import Tensor, serialization
+from torch import Tensor
 from torch.utils.data import DataLoader
 
 from lightly_train._configs import validate
@@ -912,7 +912,7 @@ def load_checkpoint(
 
     # Need context manager because fabric.load doesn't expose weights_only parameter and
     # the checkpoint might contain more than just model weights.
-    with _torch_weights_only_false(ckpt_path):
+    with _torch_weights_only_false():
         ckpt = fabric.load(path=ckpt_path)
 
     model_init_args = ckpt.get("model_init_args", {})
@@ -946,7 +946,7 @@ def resume_from_checkpoint(
     # Resume only works properly when loading with fabric.load(path, state)!
     # Need context manager because fabric.load doesn't expose weights_only parameter and
     # the checkpoint contains more than just model weights.
-    with _torch_weights_only_false(checkpoint_path):
+    with _torch_weights_only_false():
         fabric.load(path=checkpoint_path, state=state)  # type: ignore[arg-type]
 
 
@@ -978,30 +978,17 @@ def finetune_from_checkpoint(
         )
 
 
+# TODO(Guarin, 12/25): When you remove this context manager, also remove
+# the corresponding weights_only warning in _warnings.py
 @contextlib.contextmanager
-def _torch_weights_only_false(checkpoint_path: PathLike) -> Generator[None, None, None]:
-    """All torch.load calls within this context will allow loading the checkpoint even
-    if it contains other data than just model weights.
-    """
-    unsafe_globals = []
-    for unsafe_global_str in serialization.get_unsafe_globals_in_checkpoint(
-        checkpoint_path
-    ):
-        unsafe_globals.append(_import_object(unsafe_global_str))
-    with serialization.safe_globals(unsafe_globals):
+def _torch_weights_only_false() -> Generator[None, None, None]:
+    """All torch.load calls within this context will run with weights_only=False."""
+    previous_state = os.environ.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD")
+    try:
+        os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
         yield
-
-
-def _import_object(path: str) -> Any:
-    """Imports an object given its full module path of the form 'module.submodule.ClassName'"""
-    module_name, _, qualname = path.partition(".")
-    # if module has dots, split at the last dot
-    if "." in path:
-        module_name, qualname = path.rsplit(".", 1)
-
-    module = importlib.import_module(module_name)
-
-    obj = module
-    for part in qualname.split("."):
-        obj = getattr(obj, part)
-    return obj
+    finally:
+        if previous_state is not None:
+            os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = previous_state
+        else:
+            del os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"]

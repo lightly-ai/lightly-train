@@ -22,6 +22,6 @@ def test__torch_weights_only_false(tmp_path: Path) -> None:
     ckpt = {"dummy": DummyClass()}
     ckpt_path = tmp_path / "model.ckpt"
     fabric.save(ckpt_path, ckpt)  # type: ignore
-    with train_task_helpers._torch_weights_only_false(ckpt_path):
-        torch.load(ckpt_path, weights_only=True)
+    with train_task_helpers._torch_weights_only_false():
+        torch.load(ckpt_path)
         fabric.load(ckpt_path)
