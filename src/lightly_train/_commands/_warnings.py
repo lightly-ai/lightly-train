@@ -66,6 +66,12 @@ def filter_train_warnings() -> None:
         category=UserWarning,
         module="torch.optim.lr_scheduler",
     )
+    # PyTorch Lightning warning at beginning of distillation because teacher is in
+    # eval mode.
+    warnings.filterwarnings(
+        "ignore",
+        message=r"Found .* in eval mode at the start of training",
+    )
 
 
 def filter_embed_warnings() -> None:
