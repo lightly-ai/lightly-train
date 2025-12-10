@@ -534,7 +534,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         )
         # Postprocessor must be in deploy mode at this point. It returns only tuples
         # during deploy mode.
-        assert isinstance(result, (list, tuple))
+        assert isinstance(result, tuple)
         labels, boxes, scores = result
         labels = self.internal_class_to_class[labels]
         return (labels, boxes, scores)
@@ -655,7 +655,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         torch.onnx.export(
             self,
             dummy_input,
-            out_path,
+            str(out_path),
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
