@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import importlib
 import json
 import logging
 from json import JSONEncoder
@@ -20,7 +21,7 @@ from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
-from torch import Tensor
+from torch import Tensor, serialization
 from torch.utils.data import DataLoader
 
 from lightly_train._configs import validate
@@ -909,7 +910,10 @@ def load_checkpoint(
 
     logger.info(f"Loading model checkpoint from '{ckpt_path}'")
 
-    ckpt = fabric.load(path=ckpt_path)
+    # Need context manager because fabric.load doesn't expose weights_only parameter and
+    # the checkpoint might contain more than just model weights.
+    with _torch_weights_only_false(ckpt_path):
+        ckpt = fabric.load(path=ckpt_path)
 
     model_init_args = ckpt.get("model_init_args", {})
     if model_name_from_checkpoint:
@@ -940,7 +944,10 @@ def resume_from_checkpoint(
 ) -> None:
     logger.info(f"Resuming training from model checkpoint '{checkpoint_path}'")
     # Resume only works properly when loading with fabric.load(path, state)!
-    fabric.load(path=checkpoint_path, state=state)  # type: ignore[arg-type]
+    # Need context manager because fabric.load doesn't expose weights_only parameter and
+    # the checkpoint contains more than just model weights.
+    with _torch_weights_only_false(checkpoint_path):
+        fabric.load(path=checkpoint_path, state=state)  # type: ignore[arg-type]
 
 
 def finetune_from_checkpoint(
@@ -969,3 +976,32 @@ def finetune_from_checkpoint(
             "Unexpected keys after loading checkpoint: %s",
             incompatible.unexpected_keys,
         )
+
+
+@contextlib.contextmanager
+def _torch_weights_only_false(checkpoint_path: PathLike) -> Generator[None, None, None]:
+    """All torch.load calls within this context will allow loading the checkpoint even
+    if it contains other data than just model weights.
+    """
+    unsafe_globals = []
+    for unsafe_global_str in serialization.get_unsafe_globals_in_checkpoint(
+        checkpoint_path
+    ):
+        unsafe_globals.append(_import_object(unsafe_global_str))
+    with serialization.safe_globals(unsafe_globals):
+        yield
+
+
+def _import_object(path: str) -> Any:
+    """Imports an object given its full module path of the form 'module.submodule.ClassName'"""
+    module_name, _, qualname = path.partition(".")
+    # if module has dots, split at the last dot
+    if "." in path:
+        module_name, qualname = path.rsplit(".", 1)
+
+    module = importlib.import_module(module_name)
+
+    obj = module
+    for part in qualname.split("."):
+        obj = getattr(obj, part)
+    return obj
