@@ -534,7 +534,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         )
         # Postprocessor must be in deploy mode at this point. It returns only tuples
         # during deploy mode.
-        assert isinstance(result, tuple)
+        assert isinstance(result, (list, tuple))
         labels, boxes, scores = result
         labels = self.internal_class_to_class[labels]
         return (labels, boxes, scores)
@@ -645,27 +645,22 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             device=model_device,
             dtype=model_dtype,
         )
-        dummy_sizes = torch.tensor(
-            [[self.image_size[0], self.image_size[1]]],
-            device=model_device,
-            dtype=torch.int64,
-        )
 
         # TODO(Thomas, 12/25): Add warm-up forward if needed.
 
         # Set the input/output names.
-        input_names = ["images", "original_image_sizes"]
+        input_names = ["images"]
         output_names = ["labels", "boxes", "scores"]
 
         torch.onnx.export(
             self,
-            (dummy_input, dummy_sizes),
+            dummy_input,
             out_path,
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
             dynamo=False,
-            dynamic_axes={"images": {0: "N"}, "original_image_sizes": {0: "N"}},
+            dynamic_axes={"images": {0: "N"}},
             **(format_args or {}),
         )
 
@@ -690,14 +685,12 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             reference_model.deploy()
             reference_outputs = reference_model(
                 dummy_input.cpu().to(torch.float32),
-                dummy_sizes.cpu(),
             )
 
             # Get outputs from the ONNX model.
             session = ort.InferenceSession(out_path)
             input_feed = {
                 "images": dummy_input.cpu().numpy(),
-                "original_image_sizes": dummy_sizes.cpu().numpy(),
             }
             outputs_onnx = session.run(output_names=None, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
@@ -710,9 +703,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             for output_onnx, output_model, output_name in zip(
                 outputs_onnx, reference_outputs, output_names
             ):
-                # Bounding boxes are sorted by scores, but the sorting does not produce consistent 
+                # Bounding boxes are sorted by scores, but the sorting does not produce consistent
                 # results when the scores contain duplicates.
-                if output_model.shape[-1] == 4:
+                if output_name == "boxes":
                     # Use mutable variable to avoid duplicate code.
                     boxes_outputs = [output_model, output_onnx]
                     for i, boxes_output in enumerate(boxes_outputs):
@@ -720,8 +713,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                         widths = boxes_output[..., 2] - boxes_output[..., 0]
                         heights = boxes_output[..., 3] - boxes_output[..., 1]
                         areas = widths * heights
-                    
-                        # Sort the bounding boxes by areas. 
+
+                        # Sort the bounding boxes by areas.
                         sorting_indices = areas.argsort(dim=-1)
                         sorting_indices = sorting_indices[..., None].expand(-1, -1, 4)
                         boxes_outputs[i] = boxes_output.gather(
@@ -730,6 +723,10 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                         )
 
                     output_model, output_onnx = boxes_outputs
+                elif output_name == "labels":
+                    # Sort labels.
+                    output_model = torch.sort(output_model, stable=True).values
+                    output_onnx = torch.sort(output_onnx, stable=True).values
 
                 # Absolute and relative tolerances are a bit arbitrary and taken from here:
                 #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
