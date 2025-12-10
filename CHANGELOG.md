@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Possibility to load backbone weights in LT-DETR.
+- ONNX export for LT-DETR.
 
 ### Changed
 

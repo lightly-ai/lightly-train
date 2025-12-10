@@ -49,6 +49,9 @@ from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model impor
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
     DINOv3EoMTInstanceSegmentationTrain,
 )
+from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.train_model import (
+    DINOv3EoMTPanopticSegmentationTrain,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
 )
@@ -82,6 +85,7 @@ logger = logging.getLogger(__name__)
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv3EoMTInstanceSegmentationTrain,
+    DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
@@ -99,6 +103,11 @@ TASK_TO_METRICS: dict[str, dict[str, str]] = {
         "val_metric/map_small": "Val mAP (small)",
         "val_metric/map_medium": "Val mAP (medium)",
         "val_metric/map_large": "Val mAP (large)",
+    },
+    "panoptic_segmentation": {
+        "val_metric/pq": "Val PQ",
+        "val_metric/pc": "Val PC",
+        "val_metric/ps": "Val PS",
     },
     "semantic_segmentation": {
         "train_metric/miou": "Train mIoU",
@@ -676,10 +685,20 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
     for name, value in log_dict.items():
         if isinstance(value, Metric):
             value = value.compute()
-        if isinstance(value, Tensor) and value.numel() > 1:
+        if "/pq" in name:
+            # Classwise panoptic quality
+            # (num_things + num_stuffs, 3)
+            value = value[:-1]  # Drop ignore class
+            pq = value[..., 0].mean()
+            sq = value[..., 1].mean()
+            rq = value[..., 2].mean()
+            metrics[name] = pq.item()
+            metrics[name.replace("/pq", "/sq")] = sq.item()
+            metrics[name.replace("/pq", "/rq")] = rq.item()
+        elif isinstance(value, Tensor) and value.numel() > 1:
             for i, v in enumerate(value):
                 metrics[f"{name}_{i}"] = v.item()
-        if isinstance(value, dict):
+        elif isinstance(value, dict):
             if "map" in value:
                 # Special case for detection metrics which return results like this:
                 # {"map": 0.5, "map_50": 0.7, ...}
