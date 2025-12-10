@@ -309,3 +309,25 @@ my_data_dir/
         ├── image2.txt
         └── ...
 ```
+
+## Exporting a Checkpoint to ONNX
+
+[Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange) is a standard format
+for representing machine learning models in a framework independent manner. In particular, it is useful for deploying our
+models on edge devices where PyTorch is not available.
+
+The following example shows how to export a previously trained model to ONNX.
+
+```python
+import lightly_train
+
+# Instantiate the model from a checkpoint.
+model = lightly_train.load_model(
+    "out/my_experiment/exported_models/exported_best.pt"
+)
+
+# Export to ONNX.
+model.export_onnx(
+    out_path="out/my_experiment/exported_models/model.onnx"
+)
+```
