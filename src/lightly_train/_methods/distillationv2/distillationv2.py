@@ -63,8 +63,8 @@ def get_teacher(
             raise FileNotFoundError(
                 f"Teacher weights file {teacher_weights} does not exist."
             )
-
-        state_dict = torch.load(teacher_weights, weights_only=True)
+        device = next(teacher_embedding_model.parameters()).device
+        state_dict = torch.load(teacher_weights, weights_only=True, map_location=device)
         teacher_embedding_model.load_state_dict(state_dict)
         logger.debug(f"Loaded teacher weights from {teacher_weights}.")
 
