@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+from copy import deepcopy
 from typing import Any
 
 import torch
@@ -500,7 +501,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         x = transforms_functional.resize(x, self.image_size)
         x = x.unsqueeze(0)
 
-        labels, boxes, scores = self(x, orig_target_size=(h, w))
+        labels, boxes, scores = self(x, orig_target_size=torch.tensor([[h, w]]))
         keep = scores > threshold
         labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
         return {
@@ -510,16 +511,20 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         }
 
     def forward(
-        self, x: Tensor, orig_target_size: tuple[int, int] | None = None
+        self, x: Tensor, orig_target_size: Tensor | None = None
     ) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
-        h, w = x.shape[-2:]
         if orig_target_size is None:
-            orig_target_size_ = torch.tensor([w, h])[None].to(x.device)
+            h, w = x.shape[-2:]
+            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
         else:
-            orig_target_size_ = torch.tensor(
-                [orig_target_size[1], orig_target_size[0]]
-            )[None].to(x.device)
+            # Flip from (H, W) to (W, H).
+            orig_target_size = orig_target_size[:, [1, 0]]
+
+            # Move to device.
+            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
+
+        # Forward the image through the model.
         x = self.backbone(x)
         x = self.encoder(x)
         x = self.decoder(x)
@@ -581,3 +586,160 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         x = self.encoder(x)
         x = self.decoder(feats=x, targets=targets)
         return x
+
+    @torch.no_grad()
+    def export_onnx(
+        self,
+        out_path: PathLike,
+        opset_version: int | None = None,
+        simplify: bool = True,
+        verify: bool = True,
+        format_args: dict[str, Any] | None = None,
+    ) -> None:
+        """Exports the model to ONNX for inference.
+
+        The export uses a dummy input of shape (1, C, H, W) where C is inferred
+        from the first model parameter and (H, W) come from `self.image_size`.
+        The ONNX graph uses dynamic batch size for both inputs and produces
+        three outputs: labels, boxes, and scores.
+
+        Optionally simplifies the exported model in-place using onnxslim and
+        verifies numerical closeness against a float32 CPU reference via
+        ONNX Runtime.
+
+        Args:
+            out_path: Path where the ONNX model will be written.
+            opset_version: ONNX opset version to target. If None, PyTorch's
+                default opset is used.
+            simplify: If True, run onnxslim to simplify and overwrite the exported model.
+            verify: If True, validate the ONNX file and compare outputs to a
+                float32 CPU reference forward pass.
+            format_args: Optional extra keyword arguments forwarded to
+                `torch.onnx.export`.
+
+        Returns:
+            None. Writes the ONNX model to `out_path`.
+        """
+        # Set the model in eval and deploy mode.
+        self.eval()
+        self.deploy()
+
+        # Get the first parameter from the model.
+        first_parameter = next(self.parameters())
+
+        # Infer info from first parameters.
+        # TODO(Thomas, 12/25): Use a more robust approach to infer num_channels.
+        num_channels = first_parameter.shape[1]
+        model_device = first_parameter.device
+        model_dtype = first_parameter.dtype
+
+        # Create dummy input using same device and dtype as the model.
+        dummy_input = torch.randn(
+            1,
+            num_channels,
+            self.image_size[
+                0
+            ],  # TODO(Thomas, 12/25): Allow passing different image size.
+            self.image_size[1],
+            requires_grad=False,
+            device=model_device,
+            dtype=model_dtype,
+        )
+
+        # TODO(Thomas, 12/25): Add warm-up forward if needed.
+
+        # Set the input/output names.
+        input_names = ["images"]
+        output_names = ["labels", "boxes", "scores"]
+
+        torch.onnx.export(
+            self,
+            dummy_input,
+            str(out_path),
+            input_names=input_names,
+            output_names=output_names,
+            opset_version=opset_version,
+            dynamo=False,
+            dynamic_axes={"images": {0: "N"}},
+            **(format_args or {}),
+        )
+
+        if simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            # Simplify.
+            onnxslim.slim(
+                out_path,
+                output_model=out_path,
+            )
+
+        if verify:
+            logger.info("Verifying ONNX model")
+            import onnx
+            import onnxruntime as ort
+
+            onnx.checker.check_model(out_path, full_check=True)
+
+            # Always run the reference input in float32 and on cpu for consistency.
+            reference_model = deepcopy(self).cpu().to(torch.float32).eval()
+            reference_model.deploy()
+            reference_outputs = reference_model(
+                dummy_input.cpu().to(torch.float32),
+            )
+
+            # Get outputs from the ONNX model.
+            session = ort.InferenceSession(out_path)
+            input_feed = {
+                "images": dummy_input.cpu().numpy(),
+            }
+            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
+
+            # Verifify that the outputs from both models are close.
+            if len(outputs_onnx) != len(reference_outputs):
+                raise AssertionError(
+                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                )
+            for output_onnx, output_model, output_name in zip(
+                outputs_onnx, reference_outputs, output_names
+            ):
+                # Bounding boxes are sorted by scores, but the sorting does not produce consistent
+                # results when the scores contain duplicates.
+                if output_name == "boxes":
+                    # Use mutable variable to avoid duplicate code.
+                    boxes_outputs = [output_model, output_onnx]
+                    for i, boxes_output in enumerate(boxes_outputs):
+                        # Compute the area of the boxes.
+                        widths = boxes_output[..., 2] - boxes_output[..., 0]
+                        heights = boxes_output[..., 3] - boxes_output[..., 1]
+                        areas = widths * heights
+
+                        # Sort the bounding boxes by areas.
+                        sorting_indices = areas.argsort(dim=-1)
+                        sorting_indices = sorting_indices[..., None].expand(-1, -1, 4)
+                        boxes_outputs[i] = boxes_output.gather(
+                            dim=1,
+                            index=sorting_indices,
+                        )
+
+                    output_model, output_onnx = boxes_outputs
+                elif output_name == "labels":
+                    # Sort labels.
+                    output_model = torch.sort(output_model, stable=True).values
+                    output_onnx = torch.sort(output_onnx, stable=True).values
+
+                # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                torch.testing.assert_close(
+                    output_onnx,
+                    output_model,
+                    msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
+                    equal_nan=True,
+                    check_device=False,
+                    check_dtype=False,
+                    check_layout=False,
+                    atol=5e-3,
+                    rtol=1e-1,
+                )
+
+        logger.info(f"Successfully exported ONNX model to '{out_path}'")
