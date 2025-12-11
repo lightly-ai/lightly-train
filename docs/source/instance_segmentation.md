@@ -23,7 +23,7 @@ You can also explore running inference and training these models using our Colab
 
 ### COCO
 
-| Implementation | Model | Val mAP mask | Avg. Latency [ms] | Params (M) | Input Size |
+| Implementation | Model | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
 |----------------|----------------|-------------|----------|-----------|------------|
 | LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 19.4 | 21.6 | 640×640 |
 | LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 39.7 | 85.7 | 640×640 |

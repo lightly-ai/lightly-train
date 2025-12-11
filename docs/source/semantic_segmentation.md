@@ -24,7 +24,7 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 ### COCO-Stuff
 
-| Implementation | Model | Val mIoU | Avg. Latency [ms] | Params (M) | Input Size |
+| Implementation | Model | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
 |----------------|----------------------------|----------|----------|-----------|------------|
 | LightlyTrain | dinov3/vits16-eomt-coco | 46.5 | 11.3 | 21.6 | 512×512 |
 | LightlyTrain | dinov3/vitb16-eomt-coco | 52.0 | 23.1 | 85.7 | 512×512 |
@@ -34,12 +34,12 @@ We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queri
 
 ### Cityscapes
 
-| Implementation | Model | Val mIoU | Avg. Latency [ms] | Params (M) | Input Size |
+| Implementation | Model | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
 |----------------|--------------------------------------|----------|----------|-----------|------------|
 | LightlyTrain | dinov3/vits16-eomt-cityscapes | 78.6 | 53.8 | 21.6 | 1024×1024 |
 | LightlyTrain | dinov3/vitb16-eomt-cityscapes | 81.0 | 114.9 | 85.7 | 1024×1024 |
 | LightlyTrain | dinov3/vitl16-eomt-cityscapes | **84.4** | 256.4 | 303.2 | 1024×1024 |
-| Original EoMT | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 |
+| Original EoMT | dinov2/vitl16-eomt | 84.2 | - | 319 | 1024×1024 |
 
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
 

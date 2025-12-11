@@ -43,7 +43,7 @@ Train LTDETR detection models with DINOv2 or DINOv3 backbones.
 
 #### COCO Results
 
-| Implementation | Model | Val mAP<sub>50:95</sub> | Latency [ms] | Params (M) | Input Size |
+| Implementation | Model | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size |
 |:--------------:|:----------------------------:|:------------------:|:------------:|:-----------:|:----------:|
 | LightlyTrain | dinov3/vitt16-ltdetr-coco | 49.8 | 5.4 | 10.1 | 640×640 |
 | LightlyTrain | dinov3/vitt16plus-ltdetr-coco | 52.5 | 7.0 | 18.1 | 640×640 |
@@ -105,7 +105,7 @@ EoMT method from CVPR 2025.
 
 #### COCO Results
 
-| Implementation | Model | Val mAP mask | Avg. Latency [ms] | Params (M) | Input Size |
+| Implementation | Model | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
 |----------------|----------------|-------------|----------|-----------|------------|
 | LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 19.4 | 21.6 | 640×640 |
 | LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 39.7 | 85.7 | 640×640 |
@@ -163,7 +163,7 @@ the EoMT method from CVPR 2025.
 
 #### COCO-Stuff Results
 
-| Implementation | Model | Val mIoU | Avg. Latency [ms] | Params (M) | Input Size |
+| Implementation | Model | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
 |----------------|----------------------|----------|----------|-----------|------------|
 | LightlyTrain | dinov3/vits16-eomt-coco | 46.5 | 11.3 | 21.6 | 512×512 |
 | LightlyTrain | dinov3/vitb16-eomt-coco | 52.0 | 23.1 | 85.7 | 512×512 |
@@ -176,7 +176,7 @@ single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized us
 
 #### Cityscapes Results
 
-| Implementation | Model | Val mIoU | Avg. Latency [ms] | Params (M) | Input Size |
+| Implementation | Model | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
 |:------------------------------------:|:------------------------------:|:---------:|:--------:|:-----------:|:----------:|
 | LightlyTrain | dinov3/vits16-eomt-cityscapes | 78.6 | 53.8 | 21.6 | 1024×1024 |
 | LightlyTrain | dinov3/vitb16-eomt-cityscapes | 81.0 | 114.9 | 85.7 | 1024×1024 |
