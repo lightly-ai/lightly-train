@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
@@ -91,8 +91,9 @@ def test_ltdetr_load_train_state_dict_scenarios() -> None:
 
     # EMA model should get only the stripped "ema_model" keys
     expected_ema_dict = {"key": "ema_tensor"}
-    assert train_model.ema_model.captured["state_dict"] == expected_ema_dict  # type: ignore[union-attr,index]
-    assert train_model.ema_model.captured["strict"] is False  # type: ignore[union-attr,index]
+    ema_model = cast(FakeEmaModel, train_model.ema_model)
+    assert ema_model.captured["state_dict"] == expected_ema_dict
+    assert ema_model.captured["strict"] is False
 
     # -------------------------------------------------------------------------
     # Scenario 3: EMA model exists but checkpoint has NO EMA weights
@@ -109,11 +110,12 @@ def test_ltdetr_load_train_state_dict_scenarios() -> None:
     assert train_model.model.captured["state_dict"] == checkpoint  # type: ignore[index]
 
     # EMA model should NOT have loaded from checkpoint
-    assert "state_dict" not in train_model.ema_model.captured  # type: ignore[union-attr,operator]
+    ema_model = cast(FakeEmaModel, train_model.ema_model)
+    assert "state_dict" not in ema_model.captured
 
     # Instead, the EMA model should have loaded the main model's state_dict
     expected_synced_weights = {
         "backbone.weight": "main_model_backbone_tensor",
         "head.bias": "main_model_head_tensor",
     }
-    assert train_model.ema_model.model.captured["state_dict"] == expected_synced_weights  # type: ignore[union-attr,index]
+    assert ema_model.model.captured["state_dict"] == expected_synced_weights
