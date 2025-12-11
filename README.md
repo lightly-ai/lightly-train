@@ -56,7 +56,7 @@ Train LTDETR detection models with DINOv2 or DINOv3 backbones.
 
 Models are trained on the COCO 2017 dataset and evaluated on the validation
 set with single-scale testing. Latency is measured with TensorRT on a NVIDIA T4 GPU with
-batch size 1. All models are compiled and optimized using `tensorrt==10.13.3.9`.
+batch size 1. All models are optimized using `tensorrt==10.13.3.9`.
 
 #### Usage
 
@@ -98,6 +98,63 @@ if __name__ == "__main__":
 </details>
 
 <details>
+<summary><strong>Panoptic Segmentation</strong></summary>
+
+Train state-of-the-art panoptic segmentation models with DINOv3 backbones using the
+EoMT method from CVPR 2025.
+
+#### COCO Results
+
+| Implementation | Model | Val PQ | Avg. Latency (ms) | Params (M) | Input Size |
+|----------------|----------------|-------------|----------|-----------|------------|
+| LightlyTrain | dinov3/vits16-eomt-panoptic-coco | 46.8 | 21.2 | 23.4 | 640×640 |
+| LightlyTrain | dinov3/vitb16-eomt-panoptic-coco | 53.2 | 39.4 | 92.5 | 640×640 |
+| LightlyTrain | dinov3/vitl16-eomt-panoptic-coco | 57.0 | 80.1 | 315.1 | 640×640 |
+| LightlyTrain | dinov3/vitl16-eomt-panoptic-coco-1280 | **59.0** | 500.1 | 315.1 | 1280×1280 |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco | 58.9 | - | 315.1 | 1280×1280 |
+
+Small and base models are trained for 24 epochs and large models for 12 epochson the
+COCO 2017 dataset and evaluated on the validation set with single-scale testing.
+Avg. Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are
+optimized using `torch.compile`.
+
+#### Usage
+
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/instance_segmentation.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    # Train an instance segmentation model with a DINOv3 backbone
+    lightly_train.train_instance_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vitb16-eomt-inst-coco",
+        data={
+            "path": "my_data_dir",
+            "train": "images/train",
+            "val": "images/val",
+            "names": {
+                0: "background",
+                1: "vehicle",
+                2: "pedestrian",
+                # ...
+            },
+        },
+    )
+
+    model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+    results = model.predict("image.jpg")
+    results["labels"]   # Class labels, tensor of shape (num_instances,)
+    results["masks"]    # Binary masks, tensor of shape (num_instances, height, width).
+                        # Height and width correspond to the original image size.
+    results["scores"]   # Confidence scores, tensor of shape (num_instances,)
+```
+
+</details>
+
+<details>
 <summary><strong>Instance Segmentation</strong></summary>
 
 Train state-of-the-art instance segmentation models with DINOv3 backbones using the
@@ -113,8 +170,8 @@ EoMT method from CVPR 2025.
 | EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco | 45.9 | - | 303.2 | 640×640 |
 
 Models are trained for 12 epochs on the COCO 2017 dataset and evaluated on the validation
-set with single-scale testing. Avg. FPS is measured on a single NVIDIA T4 GPU with batch
-size 1. All models are compiled and optimized using `torch.compile`.
+set with single-scale testing. Avg. Latency is measured on a single NVIDIA T4 GPU with batch
+size 1. All models are optimized using `torch.compile`.
 
 #### Usage
 
@@ -168,8 +225,7 @@ the EoMT method from CVPR 2025.
 
 Models are trained for 12 epochs with `num_queries=200` on the COCO-Stuff dataset and
 evaluated on the validation set with single-scale testing. Avg. FPS is measured on a
-single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using
-`torch.compile`.
+single NVIDIA T4 GPU with batch size 1. All models are optimized using `torch.compile`.
 
 #### Cityscapes Results
 
@@ -180,8 +236,8 @@ single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized us
 | LightlyTrain | dinov3/vitl16-eomt-cityscapes | **0.844** | 3.9 | 303.2 | 1024×1024 |
 | EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 |
 
-Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled
-and optimized using `torch.compile`.
+Avg. Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are
+optimized using `torch.compile`.
 
 #### Usage
 
