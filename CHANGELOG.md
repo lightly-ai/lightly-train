@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rename `lightly_train.train()` to `lightly_train.pretrain()`. The old name is still
+  available as an alias for backward compatibility but will be removed in a future release.
+
 ### Deprecated
 
 ### Removed
@@ -43,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deprecated
 
-- Deprecate `reuse_class_head` argument in `train` command. The model will now
+- Deprecate `reuse_class_head` argument in the `train`/`pretrain` command. The model will now
   automatically reuse the classification head only when the number of classes in the
   data config matches that in the checkpoint. Otherwise, the classification head will
   be re-initialized.

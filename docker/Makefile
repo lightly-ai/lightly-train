@@ -47,8 +47,8 @@ test-from-with-docker:
 
 # This target is run from within the docker container
 test-cli-from-within-docker:
-	@echo "Test train"
-	lightly-train train data=/data out=/out model="torchvision/convnext_small" epochs=2 batch_size=2 model_args.weights="IMAGENET1K_V1" devices=2
+	@echo "Test Pretrain"
+	lightly-train pretrain data=/data out=/out model="torchvision/convnext_small" epochs=2 batch_size=2 model_args.weights="IMAGENET1K_V1" devices=2
 	test -f /out/checkpoints/last.ckpt
 	test `grep -c "GPU available: True (cuda), used: True" /out/train.log` -gt 0
 	@echo "Test embed"

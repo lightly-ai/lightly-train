@@ -29,7 +29,7 @@ This part of the documentation focuses on how to improve your models with
    of the documentation.
 
 LightlyTrain has a unified interface for pretraining and distillation through the
-`train` command. The remainder of this page will focus on how to use this command.
+`pretrain` command. The remainder of this page will focus on how to use this command.
 If you are interested in one of the specific methods, please check out the respective
 pages:
 
@@ -40,9 +40,9 @@ pages:
 If you need help choosing the right method for your use case, check out the
 [Methods Comparison](#methods-comparison) page.
 
-## Train
+## Pretrain
 
-The train command is a simple interface to pretrain or distill a large number of
+The pretrain command is a simple interface to pretrain or distill a large number of
 models using different SSL methods. An example command looks like this:
 
 ````{tab} Python
@@ -50,7 +50,7 @@ models using different SSL methods. An example command looks like this:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet50",
@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" method="distillation" epochs=100 batch_size=128
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" method="distillation" epochs=100 batch_size=128
 ````
 
 ```{important}
@@ -146,7 +146,7 @@ my_data_dir
 
 ````{tab} Python
 ```python skip_ruff
-lightly_train.train(
+lightly_train.pretrain(
     out="out/my_experiment",            # Output directory
     data="my_data_dir",                 # Directory with images
     model="torchvision/resnet18",       # Model to train
@@ -156,7 +156,7 @@ lightly_train.train(
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18"
 ```
 ````
 
@@ -175,7 +175,7 @@ Example of passing a (mixed) list of files and folders:
 
 ````{tab} Python
 ```python skip_ruff
-lightly_train.train(
+lightly_train.pretrain(
     out="out/my_experiment",            # Output directory
     data=["image2.jpg", "image3.jpg", "my_data_dir"],                 # Directory with images
     model="torchvision/resnet18",       # Model to train
@@ -185,7 +185,7 @@ lightly_train.train(
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data='["image2.jpg", "image3.jpg", "my_data_dir"]' model="torchvision/resnet18"
+lightly-train pretrain out="out/my_experiment" data='["image2.jpg", "image3.jpg", "my_data_dir"]' model="torchvision/resnet18"
 ```
 ````
 
@@ -246,7 +246,7 @@ The mlflow logger can be configured with the following arguments:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet50",
@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.mlflow.experiment_name="my_experiment" loggers.mlflow.run_name="my_run" loggers.mlflow.tracking_uri=tracking_uri
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.mlflow.experiment_name="my_experiment" loggers.mlflow.run_name="my_run" loggers.mlflow.tracking_uri=tracking_uri
 ````
 
 (tensorboard)=
@@ -305,7 +305,7 @@ The Weights & Biases logger can be configured with the following arguments:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet50",
@@ -321,7 +321,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.wandb.project="my_project" loggers.wandb.name="my_experiment" loggers.wandb.log_model=False
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.wandb.project="my_project" loggers.wandb.name="my_experiment" loggers.wandb.log_model=False
 ````
 
 More configuration options are available through the Weights & Biases environment
@@ -386,7 +386,7 @@ resolution of 224x224 pixels is used. A custom resolution can be set like this:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",            # Output directory
         data="my_data_dir",                 # Directory with images
         model="torchvision/resnet18",       # Model to train
@@ -397,7 +397,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" transform_args.image_size="[448,448]"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" transform_args.image_size="[448,448]"
 ```
 ````
 
@@ -425,7 +425,7 @@ The method arguments can be set with the `method_args` argument:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",            # Output directory
         data="my_data_dir",                 # Directory with images
         model="torchvision/resnet18",       # Model to train
@@ -439,7 +439,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" method="distillation" method_args.teacher="dinov2/vitl14"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" method="distillation" method_args.teacher="dinov2/vitl14"
 ```
 ````
 

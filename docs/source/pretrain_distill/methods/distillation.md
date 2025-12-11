@@ -25,7 +25,7 @@ Follow the code below to distill the knowledge of the default DINOv2 ViT-B/14 te
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment", 
         data="my_data_dir",
         model="torchvision/resnet18",
@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out=out/my_experiment data=my_data_dir model="torchvision/resnet18" method="distillation"
+lightly-train pretrain out=out/my_experiment data=my_data_dir model="torchvision/resnet18" method="distillation"
 ```
 ````
 
@@ -56,7 +56,7 @@ DINOv3 models are released under the [DINOv3 license](https://github.com/lightly
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment", 
         data="my_data_dir",
         model="torchvision/resnet18",
@@ -82,7 +82,7 @@ import lightly_train
 
 if __name__ == "__main__":
     # Pretrain a DINOv2 ViT-B/14 model.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_dinov2_pretrain_experiment",
         data="my_dinov2_pretrain_data_dir",
         model="dinov2/vitb14",
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     )
 
     # Distill the pretrained DINOv2 model to a ResNet-18 student model.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_distillation_pretrain_experiment",
         data="my_distillation_pretrain_data_dir",
         model="torchvision/resnet18",
@@ -133,7 +133,7 @@ Our distillation method directly applies a mean squared error (MSE) loss between
 
 - **Models**: Knowledge distillation is agnostic to the choice of student backbone networks.
 - **Batch Size**: We recommend somewhere between 128 and 2048 for knowledge distillation.
-- **Number of Epochs**: We recommend somewhere between 100 and 3000. However, distillation benefits from longer schedules and models still improve after training for more than 3000 epochs. For small datasets (\<100k images) it can also be beneficial to train up to 10000 epochs.
+- **Number of Epochs**: We recommend somewhere between 100 and 3000. However, distillation benefits from longer schedules and models still improve after pretraining for more than 3000 epochs. For small datasets (\<100k images) it can also be beneficial to pretrain up to 10000 epochs.
 
 ## Default Method Arguments
 

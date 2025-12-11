@@ -247,7 +247,7 @@ import lightly_train
 
 if __name__ == "__main__":
     # Distill the knowledge from a DINOv3 teacher into a YOLOv8 model
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model="ultralytics/yolov8s",
@@ -288,11 +288,11 @@ import lightly_train
 
 if __name__ == "__main__":
     # Pretrain a DINOv2 vision foundation model
-    lightly_train.train(
-      out="out/my_experiment",
-      data="my_data_dir",
-      model="dinov2/vitb14",
-      method="dinov2",
+    lightly_train.pretrain(
+        out="out/my_experiment",
+        data="my_data_dir",
+        model="dinov2/vitb14",
+        method="dinov2",
     )
 ```
 
