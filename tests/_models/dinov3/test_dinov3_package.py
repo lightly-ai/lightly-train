@@ -30,6 +30,8 @@ class TestDINOv3Package:
         [
             ("dinov3/_vittest16", True),
             ("dinov3/_convnexttest", True),
+            ("dinov3/vitt16", True),
+            ("dinov3/vitt16plus", True),
             ("dinov3/vits16", True),
             ("dinov3/vits16plus", True),
             ("dinov3/vitb16", True),
