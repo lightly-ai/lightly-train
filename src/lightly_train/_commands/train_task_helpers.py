@@ -13,7 +13,7 @@ import json
 import logging
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Mapping
+from typing import Any, Generator, Iterable, Literal, Mapping, cast
 
 import torch
 from filelock import FileLock
@@ -49,6 +49,9 @@ from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model impor
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
     DINOv3EoMTInstanceSegmentationTrain,
 )
+from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.train_model import (
+    DINOv3EoMTPanopticSegmentationTrain,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
 )
@@ -82,6 +85,7 @@ logger = logging.getLogger(__name__)
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv3EoMTInstanceSegmentationTrain,
+    DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
@@ -99,6 +103,11 @@ TASK_TO_METRICS: dict[str, dict[str, str]] = {
         "val_metric/map_small": "Val mAP (small)",
         "val_metric/map_medium": "Val mAP (medium)",
         "val_metric/map_large": "Val mAP (large)",
+    },
+    "panoptic_segmentation": {
+        "val_metric/pq": "Val PQ",
+        "val_metric/pc": "Val PC",
+        "val_metric/ps": "Val PS",
     },
     "semantic_segmentation": {
         "train_metric/miou": "Train mIoU",
@@ -676,10 +685,20 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
     for name, value in log_dict.items():
         if isinstance(value, Metric):
             value = value.compute()
-        if isinstance(value, Tensor) and value.numel() > 1:
+        if "/pq" in name:
+            # Classwise panoptic quality
+            # (num_things + num_stuffs, 3)
+            value = value[:-1]  # Drop ignore class
+            pq = value[..., 0].mean()
+            sq = value[..., 1].mean()
+            rq = value[..., 2].mean()
+            metrics[name] = pq.item()
+            metrics[name.replace("/pq", "/sq")] = sq.item()
+            metrics[name.replace("/pq", "/rq")] = rq.item()
+        elif isinstance(value, Tensor) and value.numel() > 1:
             for i, v in enumerate(value):
                 metrics[f"{name}_{i}"] = v.item()
-        if isinstance(value, dict):
+        elif isinstance(value, dict):
             if "map" in value:
                 # Special case for detection metrics which return results like this:
                 # {"map": 0.5, "map_50": 0.7, ...}
@@ -776,6 +795,34 @@ def export_model(
     torch.save(model_dict, model_path)
 
 
+def read_model_name_from_ckpt(ckpt_path: PathLike) -> str:
+    """Return `model_init_args.model_name` from a checkpoint.
+
+    Tries loading on the meta device (no tensor data) when supported; otherwise falls
+    back to a normal CPU load.
+
+    Args:
+        ckpt_path: Path to the checkpoint file.
+
+    Returns:
+        The stored model name.
+
+    Raises:
+        FileNotFoundError: If ckpt_path doesn't exist.
+        KeyError: If the expected keys are missing.
+    """
+    p = Path(ckpt_path)
+    if not p.exists():
+        raise FileNotFoundError(f"Checkpoint file '{p}' does not exist.")
+
+    try:
+        ckpt = torch.load(p, map_location="meta", weights_only=False)
+    except (TypeError, RuntimeError, NotImplementedError, AttributeError):
+        ckpt = torch.load(p, map_location="cpu", weights_only=False)
+
+    return cast(str, ckpt["model_init_args"]["model_name"])
+
+
 def load_checkpoint(
     fabric: Fabric,
     out_dir: Path,
@@ -833,6 +880,11 @@ def load_checkpoint(
         ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
         # We don't return the loaded checkpoint here because it has to be loaded with
         # fabric.load(ckpt_path, state) for resume to work properly.
+
+        # Update the model_name from the checkpoint.
+        # This is needed when resuming from a crashed run and the model_name contains
+        # an extra suffix, e.g., '-coco'.
+        model_name = read_model_name_from_ckpt(ckpt_path)
         return (
             None,
             ckpt_path,

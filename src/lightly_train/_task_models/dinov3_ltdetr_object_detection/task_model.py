@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import logging
+import os
+from copy import deepcopy
 from typing import Any
 
 import torch
@@ -22,8 +24,14 @@ from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
+    DINOv3STAs,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     HybridEncoder,
@@ -117,6 +125,51 @@ class _HybridEncoderTinyConfig(_HybridEncoderConfig):
     act: str = "silu"
 
 
+class _HybridEncoderViTSConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [224, 224, 224]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 224
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 896
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1.0
+    act: str = "silu"
+
+
+class _HybridEncoderViTTPlusConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [256, 256, 256]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 256
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 512
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 0.67
+    depth_mult: float = 1.0
+    act: str = "silu"
+
+
+class _HybridEncoderViTTConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [192, 192, 192]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 192
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 512
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 0.34
+    depth_mult: float = 0.67
+    act: str = "silu"
+
+
 class _RTDETRTransformerv2Config(PydanticConfig):
     feat_channels: list[int] = [256, 256, 256]
     feat_strides: list[int] = [8, 16, 32]
@@ -145,6 +198,51 @@ class _RTDETRTransformerv2SmallConfig(_RTDETRTransformerv2Config):
 
 class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [384, 384, 384]
+
+
+class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [224, 224, 224]
+    hidden_dim: int = 224
+    num_layers: int = 4
+    num_points: list[int] = [3, 6, 3]
+    dim_feedforward: int = 1792
+
+
+class _RTDETRTransformerv2ViTTPlusConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [256, 256, 256]
+    hidden_dim: int = 256
+    num_layers: int = 4
+    num_points: list[int] = [3, 6, 3]
+    dim_feedforward: int = 512
+
+
+class _RTDETRTransformerv2ViTTConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [192, 192, 192]
+    hidden_dim: int = 192
+    num_layers: int = 4
+    num_points: list[int] = [3, 6, 3]
+    dim_feedforward: int = 512
+
+
+class _RTDETRBackboneWrapperViTSConfig(PydanticConfig):
+    interaction_indexes: list[int] = [5, 8, 11]
+    finetune: bool = True
+    conv_inplane: int = 32
+    hidden_dim: int = 224
+
+
+class _RTDETRBackboneWrapperViTTPlusConfig(PydanticConfig):
+    interaction_indexes: list[int] = [3, 7, 11]
+    finetune: bool = True
+    conv_inplane: int = 16
+    hidden_dim: int = 256
+
+
+class _RTDETRBackboneWrapperViTTConfig(PydanticConfig):
+    interaction_indexes: list[int] = [3, 7, 11]
+    finetune: bool = True
+    conv_inplane: int = 16
+    hidden_dim: int = 192
 
 
 class _RTDETRPostProcessorConfig(PydanticConfig):
@@ -205,6 +303,51 @@ class _DINOv3LTDETRObjectDetectionTinyConfig(_DINOv3LTDETRObjectDetectionConfig)
     )
 
 
+class _DINOv3LTDETRObjectDetectionViTSConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTSConfig = Field(
+        default_factory=_HybridEncoderViTSConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTSConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTSConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+    backbone_wrapper: _RTDETRBackboneWrapperViTSConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTSConfig
+    )
+
+
+class _DINOv3LTDETRObjectDetectionViTTPlusConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTTPlusConfig = Field(
+        default_factory=_HybridEncoderViTTPlusConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTTPlusConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTTPlusConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+    backbone_wrapper: _RTDETRBackboneWrapperViTTPlusConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTTPlusConfig
+    )
+
+
+class _DINOv3LTDETRObjectDetectionViTTConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTTConfig = Field(
+        default_factory=_HybridEncoderViTTConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTTConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTTConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+    backbone_wrapper: _RTDETRBackboneWrapperViTTConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTTConfig
+    )
+
+
 class DINOv3LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
 
@@ -219,9 +362,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
     ) -> None:
-        super().__init__(
-            init_args=locals(), ignore_args={"backbone_weights", "load_weights"}
-        )
+        super().__init__(init_args=locals(), ignore_args={"load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
 
         self.model_name = parsed_name["model_name"]
@@ -241,50 +382,75 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             persistent=False,  # No need to save it in the state dict.
         )
 
-        # TODO: Lionel(09/25) Those will currently be ignored.
         self.image_normalize = image_normalize
-        if image_normalize is not None:
-            logger.warning(
-                "The image_normalize argument is currently ignored. "
-                "Images are only divided by 255."
-            )
-        self.backbone_weights = backbone_weights
-        if backbone_weights is not None:
-            logger.warning(
-                "The backbone_weights argument is currently ignored. "
-                "Pretrained weights are not supported yet."
-            )
 
+        # Set backbone args.
         backbone_args = {} if backbone_args is None else backbone_args
-        # TODO: Lionel(09/25) Relax constraint to random weights from the constructor.
         backbone_args.update({"pretrained": False})
+        if backbone_weights is not None:
+            if os.path.exists(backbone_weights):
+                backbone_args["pretrained"] = True
+                backbone_args["weights"] = backbone_weights
+            else:
+                # Warn the user that the provided backbone weights are incorrect.
+                logger.error(f"Checkpoint file not found: {backbone_weights}.")
+
+        # Instantiate the backbone.
         dinov3 = DINOV3_PACKAGE.get_model(
             parsed_name["backbone_name"],
             model_args=backbone_args,
             load_weights=load_weights,
         )
-        assert isinstance(dinov3, ConvNeXt)
-        self.backbone: DINOv3ConvNextWrapper = DINOv3ConvNextWrapper(model=dinov3)
+        assert isinstance(dinov3, (ConvNeXt, DinoVisionTransformer))
 
         config_mapping = {
-            "convnext-tiny": _DINOv3LTDETRObjectDetectionTinyConfig,
-            "convnext-small": _DINOv3LTDETRObjectDetectionSmallConfig,
-            "convnext-base": _DINOv3LTDETRObjectDetectionBaseConfig,
-            "convnext-large": _DINOv3LTDETRObjectDetectionLargeConfig,
+            "vitt16": (_DINOv3LTDETRObjectDetectionViTTConfig, DINOv3STAs),
+            "vitt16plus": (_DINOv3LTDETRObjectDetectionViTTPlusConfig, DINOv3STAs),
+            "vits16": (_DINOv3LTDETRObjectDetectionViTSConfig, DINOv3STAs),
+            "convnext-tiny": (
+                _DINOv3LTDETRObjectDetectionTinyConfig,
+                DINOv3ConvNextWrapper,
+            ),
+            "convnext-small": (
+                _DINOv3LTDETRObjectDetectionSmallConfig,
+                DINOv3ConvNextWrapper,
+            ),
+            "convnext-base": (
+                _DINOv3LTDETRObjectDetectionBaseConfig,
+                DINOv3ConvNextWrapper,
+            ),
+            "convnext-large": (
+                _DINOv3LTDETRObjectDetectionLargeConfig,
+                DINOv3ConvNextWrapper,
+            ),
         }
-        config = config_mapping[parsed_name["backbone_name"]]()
+        config_cls, wrapper_cls = config_mapping[parsed_name["backbone_name"]]
+        config = config_cls()
+
+        if hasattr(config, "backbone_wrapper"):
+            # ViT models.
+            self.backbone = wrapper_cls(
+                model=dinov3, **config.backbone_wrapper.model_dump()
+            )
+        else:
+            # ConvNext models.
+            self.backbone = wrapper_cls(model=dinov3)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()
         )
 
+        decoder_config = config.rtdetr_transformer.model_dump()
+        decoder_config.update({"num_classes": len(self.classes)})
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            **config.rtdetr_transformer.model_dump(),
+            **decoder_config,
             eval_spatial_size=self.image_size,  # From global config, otherwise anchors are not generated.
         )
 
+        postprocessor_config = config.rtdetr_postprocessor.model_dump()
+        postprocessor_config.update({"num_classes": len(self.classes)})
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
-            **config.rtdetr_postprocessor.model_dump()
+            **postprocessor_config
         )
 
     @classmethod
@@ -307,6 +473,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
     def deploy(self) -> Self:
         self.eval()
+        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
@@ -316,21 +483,25 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     def predict(
         self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
     ) -> dict[str, Tensor]:
-        self.postprocessor = self.postprocessor.deploy()  # type: ignore[no-untyped-call]
-        self = self.deploy()  # type: ignore[no-untyped-call]
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
 
         device = next(self.parameters()).device
         x = file_helpers.as_image_tensor(image).to(device)
 
         h, w = x.shape[-2:]
 
-        x = transforms_functional.to_dtype(x, dtype=torch.float32)
+        x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
+
+        # Normalize the image.
+        if self.image_normalize is not None:
+            x = transforms_functional.normalize(
+                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+            )
         x = transforms_functional.resize(x, self.image_size)
-        # TODO: Lionel (09/25) Change to Normalize transform using saved params.
-        x = x / 255.0
         x = x.unsqueeze(0)
 
-        labels, boxes, scores = self(x, orig_target_size=(h, w))
+        labels, boxes, scores = self(x, orig_target_size=torch.tensor([[h, w]]))
         keep = scores > threshold
         labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
         return {
@@ -340,27 +511,33 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         }
 
     def forward(
-        self, x: Tensor, orig_target_size: tuple[int, int] | None = None
-    ) -> list[Tensor]:
+        self, x: Tensor, orig_target_size: Tensor | None = None
+    ) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
-        h, w = x.shape[-2:]
         if orig_target_size is None:
-            orig_target_size_ = torch.tensor([w, h])[None].to(x.device)
+            h, w = x.shape[-2:]
+            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
         else:
-            orig_target_size_ = torch.tensor(
-                [orig_target_size[1], orig_target_size[0]]
-            )[None].to(x.device)
+            # Flip from (H, W) to (W, H).
+            orig_target_size = orig_target_size[:, [1, 0]]
+
+            # Move to device.
+            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
+
+        # Forward the image through the model.
         x = self.backbone(x)
         x = self.encoder(x)
         x = self.decoder(x)
 
-        # labels, bboxes, scores
-        x_: list[Tensor] = self.postprocessor(x, orig_target_size_)
-
-        # Map internal class IDs to class IDs.
-        x_[0] = self.internal_class_to_class[x_[0]]
-
-        return x_
+        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
+            self.postprocessor(x, orig_target_size_)
+        )
+        # Postprocessor must be in deploy mode at this point. It returns only tuples
+        # during deploy mode.
+        assert isinstance(result, tuple)
+        labels, boxes, scores = result
+        labels = self.internal_class_to_class[labels]
+        return (labels, boxes, scores)
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
@@ -409,3 +586,160 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         x = self.encoder(x)
         x = self.decoder(feats=x, targets=targets)
         return x
+
+    @torch.no_grad()
+    def export_onnx(
+        self,
+        out_path: PathLike,
+        opset_version: int | None = None,
+        simplify: bool = True,
+        verify: bool = True,
+        format_args: dict[str, Any] | None = None,
+    ) -> None:
+        """Exports the model to ONNX for inference.
+
+        The export uses a dummy input of shape (1, C, H, W) where C is inferred
+        from the first model parameter and (H, W) come from `self.image_size`.
+        The ONNX graph uses dynamic batch size for both inputs and produces
+        three outputs: labels, boxes, and scores.
+
+        Optionally simplifies the exported model in-place using onnxslim and
+        verifies numerical closeness against a float32 CPU reference via
+        ONNX Runtime.
+
+        Args:
+            out_path: Path where the ONNX model will be written.
+            opset_version: ONNX opset version to target. If None, PyTorch's
+                default opset is used.
+            simplify: If True, run onnxslim to simplify and overwrite the exported model.
+            verify: If True, validate the ONNX file and compare outputs to a
+                float32 CPU reference forward pass.
+            format_args: Optional extra keyword arguments forwarded to
+                `torch.onnx.export`.
+
+        Returns:
+            None. Writes the ONNX model to `out_path`.
+        """
+        # Set the model in eval and deploy mode.
+        self.eval()
+        self.deploy()
+
+        # Get the first parameter from the model.
+        first_parameter = next(self.parameters())
+
+        # Infer info from first parameters.
+        # TODO(Thomas, 12/25): Use a more robust approach to infer num_channels.
+        num_channels = first_parameter.shape[1]
+        model_device = first_parameter.device
+        model_dtype = first_parameter.dtype
+
+        # Create dummy input using same device and dtype as the model.
+        dummy_input = torch.randn(
+            1,
+            num_channels,
+            self.image_size[
+                0
+            ],  # TODO(Thomas, 12/25): Allow passing different image size.
+            self.image_size[1],
+            requires_grad=False,
+            device=model_device,
+            dtype=model_dtype,
+        )
+
+        # TODO(Thomas, 12/25): Add warm-up forward if needed.
+
+        # Set the input/output names.
+        input_names = ["images"]
+        output_names = ["labels", "boxes", "scores"]
+
+        torch.onnx.export(
+            self,
+            dummy_input,
+            str(out_path),
+            input_names=input_names,
+            output_names=output_names,
+            opset_version=opset_version,
+            dynamo=False,
+            dynamic_axes={"images": {0: "N"}},
+            **(format_args or {}),
+        )
+
+        if simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            # Simplify.
+            onnxslim.slim(
+                out_path,
+                output_model=out_path,
+            )
+
+        if verify:
+            logger.info("Verifying ONNX model")
+            import onnx
+            import onnxruntime as ort
+
+            onnx.checker.check_model(out_path, full_check=True)
+
+            # Always run the reference input in float32 and on cpu for consistency.
+            reference_model = deepcopy(self).cpu().to(torch.float32).eval()
+            reference_model.deploy()
+            reference_outputs = reference_model(
+                dummy_input.cpu().to(torch.float32),
+            )
+
+            # Get outputs from the ONNX model.
+            session = ort.InferenceSession(out_path)
+            input_feed = {
+                "images": dummy_input.cpu().numpy(),
+            }
+            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
+
+            # Verifify that the outputs from both models are close.
+            if len(outputs_onnx) != len(reference_outputs):
+                raise AssertionError(
+                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                )
+            for output_onnx, output_model, output_name in zip(
+                outputs_onnx, reference_outputs, output_names
+            ):
+                # Bounding boxes are sorted by scores, but the sorting does not produce consistent
+                # results when the scores contain duplicates.
+                if output_name == "boxes":
+                    # Use mutable variable to avoid duplicate code.
+                    boxes_outputs = [output_model, output_onnx]
+                    for i, boxes_output in enumerate(boxes_outputs):
+                        # Compute the area of the boxes.
+                        widths = boxes_output[..., 2] - boxes_output[..., 0]
+                        heights = boxes_output[..., 3] - boxes_output[..., 1]
+                        areas = widths * heights
+
+                        # Sort the bounding boxes by areas.
+                        sorting_indices = areas.argsort(dim=-1)
+                        sorting_indices = sorting_indices[..., None].expand(-1, -1, 4)
+                        boxes_outputs[i] = boxes_output.gather(
+                            dim=1,
+                            index=sorting_indices,
+                        )
+
+                    output_model, output_onnx = boxes_outputs
+                elif output_name == "labels":
+                    # Sort labels.
+                    output_model = torch.sort(output_model, stable=True).values
+                    output_onnx = torch.sort(output_onnx, stable=True).values
+
+                # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                torch.testing.assert_close(
+                    output_onnx,
+                    output_model,
+                    msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
+                    equal_nan=True,
+                    check_device=False,
+                    check_dtype=False,
+                    check_layout=False,
+                    atol=5e-3,
+                    rtol=1e-1,
+                )
+
+        logger.info(f"Successfully exported ONNX model to '{out_path}'")

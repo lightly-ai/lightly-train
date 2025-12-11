@@ -12,10 +12,15 @@
 # limitations under the License.#
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
 
+# Modifications Copyright 2025 Lightly AG:
+# - Added type hints
+from __future__ import annotations
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
+from torch import Tensor
 
 
 def mod(a, b):
@@ -42,7 +47,9 @@ class RTDETRPostProcessor(nn.Module):
         return f"use_focal_loss={self.use_focal_loss}, num_classes={self.num_classes}, num_top_queries={self.num_top_queries}"
 
     # def forward(self, outputs, orig_target_sizes):
-    def forward(self, outputs, orig_target_sizes: torch.Tensor):
+    def forward(
+        self, outputs, orig_target_sizes: torch.Tensor
+    ) -> list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor]:
         logits, boxes = outputs["pred_logits"], outputs["pred_boxes"]
         # orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
 

@@ -222,6 +222,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             out_path,
             input_names=[input_name],
             output_names=output_names,
+            dynamo=False,
             **config.format_args if config.format_args else {},
         )
 

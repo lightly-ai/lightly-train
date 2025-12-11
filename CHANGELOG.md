@@ -9,12 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Possibility to load backbone weights in LT-DETR.
+- ONNX export for LT-DETR.
+
+### Changed
+
+- Rename `lightly_train.train()` to `lightly_train.pretrain()`. The old name is still
+  available as an alias for backward compatibility but will be removed in a future release.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Fix bug in `model.predict()` for object detection models.
+
+### Security
+
+## [0.12.4] - 2025-11-26
+
+### Fixed
+
+- Fix bug in `model.predict()` for object detection models.
+
+## [0.12.3] - 2025-11-26
+
+### Added
+
 - Add support for specifying data configs in YAML format.
 
 ### Changed
 
-- Improve the layout of logging of object detection.
-- Use `lightly-train.pretrain()` as the interface of pretraining and distillation instead of `lightly-train.train()`.
+- Improve the layout of the object detection training logs.
 
 ### Deprecated
 
@@ -24,14 +51,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   data config matches that in the checkpoint. Otherwise, the classification head will
   be re-initialized.
 
-### Removed
-
 ### Fixed
 
 - Fix `image_size` not tuple when training from pretrained model.
 - Fix a bug when fine-tuning a model with `resume_interrupted=True`.
-
-### Security
+- Fix `num_classes` not updated when loading an object detection checkpoint with
+  different number of classes.
 
 ## [0.12.2] - 2025-11-14
 
@@ -169,11 +194,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.11.0] - 2025-08-15
 
-🚀 **New DINOv3 Support:** Pretrain your own model with [distillation](https://docs.lightly.ai/train/stable/methods/distillation.html#methods-distillation-dinov3) from DINOv3 weights. Or fine-tune our SOTA [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) with a DINOv3 backbone! 🚀
+🚀 **New DINOv3 Support:** Pretrain your own model with [distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3) from DINOv3 weights. Or fine-tune our SOTA [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) with a DINOv3 backbone! 🚀
 
 ### Added
 
-- Distillation now supports [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/methods/distillation.html#methods-distillation-dinov3) as teacher.
+- Distillation now supports [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3) as teacher.
 - Semantic Segmentation now supports [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) as EoMT backbone.
 
 ### Changed
@@ -216,7 +241,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add an extra `teacher_weights` argument in `method_args` to allow loading pretrained DINOv2 teacher weights for distillation methods.
 - Add support for allowing images with different number of channels in the channel drop transform.
-- Add documentation for the [RT-DETRv2 models](https://docs.lightly.ai/train/stable/models/rtdetr.html).
+- Add documentation for the [RT-DETRv2 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html).
 - Add warning for situations where the number of steps is below the recommendation for DINOv2.
 
 ### Changed
@@ -234,7 +259,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `student_freeze_backbone_epochs` option to DINOv2 method to control how many epochs
   the student backbone is frozen during training. We suggest setting it to 1 when
-  starting from DINOv2 pretrained weights. See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html)
+  starting from DINOv2 pretrained weights. See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html)
   for more information.
 - Add channel drop transform.
 - Add option to load multi-channel images with `LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"`.
@@ -246,10 +271,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **DINOv2 pretraining is now available** with the `method="dinov2"` argument.
   The method is in beta and further improvements will be released in the coming weeks.
-  See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/methods/dinov2.html)
+  See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html)
   for more information.
-- Support for [Torchvision ShuffleNetV2 models](https://docs.lightly.ai/train/stable/models/torchvision.html).
-- [RT-DETR](https://docs.lightly.ai/train/stable/models/rtdetr.html) has now an
+- Support for [Torchvision ShuffleNetV2 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html).
+- [RT-DETR](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html) has now an
   integrated model wrapper.
 
 ### Changed
@@ -262,7 +287,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `resume` parameter in the `train` command is deprecated in favor of
   `resume_interrupted` and will be removed in a future release. The new parameter
   behaves the same as the old one but is more explicit about its purpose. See
-  [the documentation](https://docs.lightly.ai/train/stable/train/index.html#resume-training)
+  [the documentation](https://docs.lightly.ai/train/stable/pretrain_distill/index.html#resume-training)
   for more information.
 
 ## [0.7.0] - 2025-05-26
@@ -281,7 +306,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Distillation v1 is now selected with `method="distillationv1"`.
 - All commands (`embed`, `export`, and `train`) now require keyword arguments as input.
-- [Custom models](https://docs.lightly.ai/train/stable/models/custom_models.html) now require the `get_model` method to be implemented.
+- [Custom models](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) now require the `get_model` method to be implemented.
 - Distillation methods now use the teacher model from the [official DINOv2 implementation](https://github.com/facebookresearch/dinov2).
 - The RT-DETR example uses RT-DETRv2, imposing fewer constraints on package versions.
 
@@ -309,7 +334,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Document [RF-DETR models](https://docs.lightly.ai/train/stable/models/rtdetr.html).
+- Document [RF-DETR models](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html).
 - Add [frequently asked questions](https://docs.lightly.ai/train/stable/faq.html) page.
 - Add [Torchvision classification tutorial](https://docs.lightly.ai/train/stable/tutorials/resnet/index.html).
 - Add [depth estimation tutorial](https://docs.lightly.ai/train/stable/tutorials/depth_estimation/index.html).
@@ -334,7 +359,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - TensorBoard is now automatically installed and no longer an optional dependency.
-- Update the [Models documentation](https://docs.lightly.ai/train/stable/models/index.html).
+- Update the [Models documentation](https://docs.lightly.ai/train/stable/pretrain_distill/models/index.html).
 - Update the [YOLO tutorial](https://docs.lightly.ai/train/stable/tutorials/yolo/index.html)
 
 ### Removed
@@ -346,9 +371,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add support for DINOv2 distillation pretraining with the `"distillation"` method.
-- Add support for [YOLO11 and YOLO12 models](https://docs.lightly.ai/train/stable/models/ultralytics.html).
-- Add support for [RT-DETR models](https://docs.lightly.ai/train/stable/models/rtdetr.html).
-- Add support for [YOLOv12 models](https://docs.lightly.ai/train/stable/models/yolov12.html) by the original authors.
+- Add support for [YOLO11 and YOLO12 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html).
+- Add support for [RT-DETR models](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html).
+- Add support for [YOLOv12 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html) by the original authors.
 - The Git info (branch name, commit, uncommited changes) for the LightlyTrain package
   and the directory from where the code runs are now logged in the `train.log` file.
 
@@ -368,7 +393,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add tutorial on how to use [LightlyTrain with YOLO](https://docs.lightly.ai/train/stable/tutorials/yolo/index.html).
 - Show the [`data_wait` percentage](https://docs.lightly.ai/train/stable/performance/index.html#finding-the-performance-bottleneck) in the progress bar to better monitor performance bottlenecks.
-- Add [auto format](https://docs.lightly.ai/train/stable/export.html#format) export with example logging, which automatically determines the best export option for your model based on the [used model library](https://docs.lightly.ai/train/stable/models/index.html#supported-libraries).
+- Add [auto format](https://docs.lightly.ai/train/stable/pretrain_distill/export.html#format) export with example logging, which automatically determines the best export option for your model based on the [used model library](https://docs.lightly.ai/train/stable/pretrain_distill/models/index.html#supported-libraries).
 - Add support for configuring the random rotation transform via `transform_args.random_rotation`.
 - Add support for configuring the color jitter transform via `transform_args.color_jitter`.
 - When using the DINO method and configuring the transforms: Removes `local_view_size`, `local_view_resize` and `n_local_views` from `DINOTransformArgs` in favor of `local_view.view_size`, `local_view.random_resize` and `local_view.num_views`. When using the CLI, replace `transform_args.local_view_size` with `transform_args.local_view.view_size`, ... respectively.
@@ -400,7 +425,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add [Pillow-SIMD support](https://docs.lightly.ai/train/stable/performance/index.html#dataloader-bottleneck-cpu-bound)
   for faster data processing
   - The docker image now has Pillow-SIMD installed by default
-- Add [`ultralytics`](https://docs.lightly.ai/train/stable/export.html#format) export format
+- Add [`ultralytics`](https://docs.lightly.ai/train/stable/pretrain_distill/export.html#format) export format
 - Add support for DINO weight decay schedule
 - Add support for SGD optimizer with `optim="sgd"`
 - Report final `accelerator`, `num_devices`, and `strategy` in the resolved config
@@ -411,7 +436,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Various improvements for the DenseCL method
   - Increase default memory bank size
   - Update local loss calculation
-- Custom models have a [new interface](https://docs.lightly.ai/train/stable/models/custom_models.html#custom-models)
+- Custom models have a [new interface](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html#custom-models)
 - The number of warmup epochs is now set to 10% of the training epochs for runs with less than 100 epochs
 - Update default optimizer settings
   - SGD is now the default optimizer

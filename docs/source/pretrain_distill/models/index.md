@@ -2,7 +2,7 @@
 
 # Models
 
-Lightly**Train** supports training models from various libraries. See [Supported Libraries](#supported-libraries) for a list of supported libraries and models.
+Lightly**Train** supports pretraining models from various libraries. See [Supported Libraries](#supported-libraries) for a list of supported libraries and models.
 
 The model is specified in the `train` command with the `model` argument:
 
@@ -76,6 +76,7 @@ The following libraries are supported (follow the links to get to the respective
 hidden:
 maxdepth: 1
 ---
+Overview <self>
 torchvision
 timm
 ultralytics

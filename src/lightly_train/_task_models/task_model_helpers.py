@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import torch
-from torch.nn import Module
+from torch.nn import Module, ModuleList
 
 from lightly_train._commands import common_helpers
 from lightly_train._env import Env
@@ -39,6 +39,18 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     "dinov2/vits14-ltdetr-dsp-coco": (
         "dinov2_ltdetr_2/ltdetr_vits14dinov2_coco_dsp.pt",
         "7e1f91b251ba0b796d88fb68276a24a52341aa6e8fb40abe9f730c2a093a5b40",
+    ),
+    "dinov3/vitt16-ltdetr-coco": (
+        "dinov3/dinov3_vitt16_ltdetr_coco_251205_1a4c20a1.pt",
+        "1a4c20a114bf202f5f68d771b9f90276be8bb9c8ffc180b8721a11cbad5578ad",
+    ),
+    "dinov3/vitt16plus-ltdetr-coco": (
+        "dinov3/dinov3_vitt16plus_ltdetr_coco_251205_359eb099.pt",
+        "359eb09981b754ccc74074835cfbd268d68ef1870e3552e8b9bce0ccde06e6a7",
+    ),
+    "dinov3/vits16-ltdetr-coco": (
+        "dinov3/dinov3_vits16_ltdetr_coco_251205_474a3523.pt",
+        "474a3523a0faff691697dda47849e319dd7f9d214f6abbe82486cba05bfd1fd7",
     ),
     "dinov3/convnext-tiny-ltdetr-coco": (
         "dinov3_convnext_tiny_ltdetr_coco_251113_3a90352e.pt",
@@ -283,6 +295,37 @@ def queries_adjust_num_queries_hook(
     state_dict[queries_weight_key] = queries_weight
 
 
+def denoising_class_embed_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    denoising_class_embed_weight_key = f"{prefix}denoising_class_embed.weight"
+    denoising_class_embed_weight = state_dict.get(denoising_class_embed_weight_key)
+    if denoising_class_embed_weight is None:
+        return
+
+    denoising_class_embed_module = getattr(module, "denoising_class_embed", None)
+    if denoising_class_embed_module is None:
+        return
+
+    num_classes_state = denoising_class_embed_weight.shape[0]
+    num_classes_module = denoising_class_embed_module.num_embeddings
+    if num_classes_state == num_classes_module:
+        return
+    else:
+        logger.info(
+            f"Checkpoint provides {num_classes_state - 1} classes but module expects {num_classes_module - 1}. Reinitializing denoising class embed.",
+        )
+        # Keep the module initialization by overwriting the checkpoint weights with the
+        # current parameter tensors.
+        state_dict[denoising_class_embed_weight_key] = (
+            denoising_class_embed_module.weight.detach().clone()
+        )
+
+
 def class_head_reuse_or_reinit_hook(
     module: Module,
     state_dict: dict[str, Any],
@@ -309,6 +352,85 @@ def class_head_reuse_or_reinit_hook(
             f"Checkpoint provides {num_classes_state - 1} classes but module expects {num_classes_module - 1}. Reinitializing class head.",
         )
 
-        # Re-initialize class head weights and biases
+        # Keep the module initialization by overwriting the checkpoint weights with the
+        # current parameter tensors.
         state_dict[class_head_weight_key] = class_head_module.weight.detach().clone()
         state_dict[class_head_bias_key] = class_head_module.bias.detach().clone()
+
+
+def score_head_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    _score_head_reuse_or_reinit_hook(
+        module,
+        state_dict,
+        prefix,
+        enc_or_dec="enc",
+    )
+    _score_head_reuse_or_reinit_hook(
+        module,
+        state_dict,
+        prefix,
+        enc_or_dec="dec",
+    )
+
+
+def _score_head_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    enc_or_dec: Literal["enc", "dec"],
+) -> None:
+    module_name = f"{enc_or_dec}_score_head"
+    score_head_module = getattr(module, module_name, None)
+    if score_head_module is None:
+        return
+
+    if isinstance(score_head_module, ModuleList):
+        for idx, head_module in enumerate(score_head_module):
+            is_reinit = _reuse_or_reinit(
+                head_module,
+                state_dict,
+                weight_key=f"{prefix}{module_name}.{idx}.weight",
+                bias_key=f"{prefix}{module_name}.{idx}.bias",
+            )
+    else:
+        is_reinit = _reuse_or_reinit(
+            score_head_module,
+            state_dict,
+            weight_key=f"{prefix}{module_name}.weight",
+            bias_key=f"{prefix}{module_name}.bias",
+        )
+
+    if is_reinit:
+        logger.info(
+            f"Checkpoint provides different number of classes for {module_name}. Reinitializing score head.",
+        )
+
+
+def _reuse_or_reinit(
+    head_module: Module,
+    state_dict: dict[str, Any],
+    *,
+    weight_key: str,
+    bias_key: str,
+) -> bool:
+    score_head_weight = state_dict.get(weight_key)
+    if score_head_weight is None:
+        return False
+
+    num_classes_state = score_head_weight.shape[0]
+    out_features = getattr(head_module, "out_features", None)
+    if out_features is None or num_classes_state == out_features:
+        return False
+
+    # Keep the module initialization by overwriting the checkpoint weights with the
+    # current parameter tensors.
+    state_dict[weight_key] = head_module.weight.detach().clone()  # type: ignore[operator]
+    state_dict[bias_key] = head_module.bias.detach().clone()  # type: ignore[operator]
+
+    return True

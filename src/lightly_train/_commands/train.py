@@ -80,7 +80,7 @@ def pretrain(
 ) -> None:
     """Pretrain a self-supervised model.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/train.html
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill.html
 
     The training process can be monitored with TensorBoard:
 
@@ -134,7 +134,7 @@ def pretrain(
 
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
-            See https://docs.lightly.ai/train/stable/train/index.html#resume-training
+            See https://docs.lightly.ai/train/stable/pretrain_distill/index.html#resume-training
             for more information.
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
@@ -147,7 +147,7 @@ def pretrain(
 
             If you want to further pretrain a model or change the training parameters,
             use the ``checkpoint`` parameter instead.
-            See https://docs.lightly.ai/train/stable/train/index.html#resume-training
+            See https://docs.lightly.ai/train/stable/pretrain_distill/index.html#resume-training
             for more information.
         overwrite:
             Overwrite the output directory if it already exists. Warning, this might

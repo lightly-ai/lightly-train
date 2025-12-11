@@ -64,7 +64,7 @@ def get_package(package_name: str) -> Package:
 def list_model_names() -> list[str]:
     """Lists all models in ``<package_name>/<model_name>`` format.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/models/
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill/models/
     """
     return sorted(chain.from_iterable(p.list_model_names() for p in list_packages()))
 
@@ -126,7 +126,7 @@ def get_package_from_model(
             "torch.nn.Module and implements all required methods.\n"
             f" - Inherits from torch.nn.Module: {is_torch_module}\n"
             f" - Missing methods: {missing_attrs}\n"
-            "For more information, please refer to the documentation: https://docs.lightly.ai/train/stable/models/custom_models.html"
+            "For more information, please refer to the documentation: https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html"
         )
     else:
         return CUSTOM_PACKAGE

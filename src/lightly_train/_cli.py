@@ -54,7 +54,7 @@ _train_cfg = CLITrainConfig(out="", data="", model="")
 _PRETRAIN_HELP_MSG = f"""
     Pretrain a model with self-supervised learning or distill from a teacher model.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/train.html
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill.html
 
     The training process can be monitored with TensorBoard:
 
@@ -112,7 +112,7 @@ _PRETRAIN_HELP_MSG = f"""
 
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
-            See https://docs.lightly.ai/train/stable/train/index.html#resume-training
+            See https://docs.lightly.ai/train/stable/pretrain_distill/index.html#resume-training
             for more information.
             Default: {_train_cfg.checkpoint}
         resume_interrupted (bool):
@@ -126,7 +126,7 @@ _PRETRAIN_HELP_MSG = f"""
 
             If you want to further pretrain a model or change the training parameters,
             use the ``checkpoint``parameter instead.
-            See https://docs.lightly.ai/train/stable/train/index.html#resume-training
+            See https://docs.lightly.ai/train/stable/pretrain_distill/index.html#resume-training
             for more information.
             Default: {_train_cfg.resume_interrupted}
         overwrite (bool):
@@ -220,7 +220,7 @@ _export_cfg = CLIExportConfig(checkpoint="", out="")
 _EXPORT_HELP_MSG = f"""
     Export a model from a checkpoint.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/export.html
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill/export.html
 
     Usage:
         lightly-train export [options]

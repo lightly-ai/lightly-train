@@ -1,11 +1,49 @@
+(pretrain-distill)=
 (train)=
 
-# Train
+# Pretrain & Distill
 
-[![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/quick_start.ipynb)
+This part of the documentation focuses on how to improve your models with
+**unlabeled data**. LightlyTrain offers three main functionalities for this:
 
-The train command is a simple interface to pretrain a large number of models using
-different SSL methods. An example command looks like this:
+1. **[Pretraining](#methods-dinov2)**
+
+   Pretraining lets you train a model on unlabeled data with self-supervised learning
+   (SSL) methods. This is ideal if you want to train your own vision foundation models
+   like DINOv2.
+
+1. **[Distillation](#methods-distillation)**
+
+   Distillation is a special form of pretraining where a large, pretrained teacher
+   model, like DINOv2 or DINOv3, is used to guide the training of a smaller student
+   model. This is the ideal starting point if you want to improve performance of any
+   model that is not already a large vision foundation model, like YOLO, ConvNet, or
+   special transformer architectures.
+
+1. **[Autolabeling](#predict-autolabel)**
+
+   Autolabeling lets you generate pseudo-labels for your unlabeled data using a strong
+   fine-tuned model. You can then use the pseudo-labeled data to train your own models
+   in a supervised way. This is ideal if you already have enough labeled data to train a
+   strong autolabeler. Autolabeling is covered in a [separate section](#predict-autolabel)
+   of the documentation.
+
+LightlyTrain has a unified interface for pretraining and distillation through the
+`train` command. The remainder of this page will focus on how to use this command.
+If you are interested in one of the specific methods, please check out the respective
+pages:
+
+- [Distillation](#methods-distillation)
+- [DINOv2 Pretraining](#methods-dinov2)
+- [Other Pretraining Methods](#methods)
+
+If you need help choosing the right method for your use case, check out the
+[Methods Comparison](#methods-comparison) page.
+
+## Train
+
+The train command is a simple interface to pretrain or distill a large number of
+models using different SSL methods. An example command looks like this:
 
 ````{tab} Python
 ```python
@@ -28,7 +66,11 @@ lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvisio
 ````
 
 ```{important}
-The default pretraining method `distillation` is recommended, as it consistently outperforms others in extensive experiments. Batch sizes between `128` and `1536` strike a good balance between speed and performance. Moreover, long training runs, such as 2,000 epochs on COCO, significantly improve results. Check the [Methods](#methods-comparison) page for more details why `distillation` is the best choice.
+The default pretraining method `distillation` is recommended, as it consistently
+outperforms others in extensive experiments. Batch sizes between `128` and `1536` strike
+a good balance between speed and performance. Moreover, long training runs, such as
+2,000 epochs on COCO, significantly improve results. Check the [Methods](#methods-comparison)
+page for more details why `distillation` is the best choice.
 ```
 
 This will pretrain a ResNet-50 model from TorchVision using images from `my_data_dir`
@@ -68,7 +110,7 @@ Create a new output directory for each experiment to keep training logs, model e
 and checkpoints organized.
 ```
 
-(train-data)=
+(pretrain-data)=
 
 ## Data
 
@@ -415,5 +457,11 @@ For performance optimizations, e.g. using accelerators, multi-GPU, multi-node, a
 hidden:
 maxdepth: 1
 ---
+Overview <self>
+Distillation <methods/distillation>
+Pretrain DINOv2 <methods/dinov2>
+All Methods <methods/index>
+models/index
 method_transform_args
+export
 ```

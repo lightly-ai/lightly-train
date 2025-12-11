@@ -1,6 +1,6 @@
 (methods)=
 
-# Methods
+# All Pretraining & Distillation Methods
 
 Lightly**Train** supports the following pretraining methods:
 
@@ -120,6 +120,7 @@ DINOv2 should be selected for the following use cases:
 hidden:
 maxdepth: 1
 ---
+Overview <self>
 distillation
 dinov2
 dino

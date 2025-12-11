@@ -135,13 +135,21 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         super().__init__()
 
         self.model_args = model_args
+
+        # Get the normalization.
+        normalize = no_auto(val_transform_args.normalize)
+        normalize_dict: dict[str, Any] | None
+        if normalize is None:
+            normalize_dict = None
+        else:
+            normalize_dict = normalize.model_dump()
         self.model = DINOv3LTDETRObjectDetection(
             model_name=model_name,
             image_size=no_auto(val_transform_args.image_size),
             classes=data_args.included_classes,
-            image_normalize=None,  # TODO (Lionel, 10/25): Allow custom normalization.
-            backbone_weights=model_args.backbone_weights,
+            image_normalize=normalize_dict,
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
+            backbone_weights=model_args.backbone_weights,
             load_weights=load_weights,
         )
 
@@ -166,6 +174,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             losses=model_args.criterion_losses,
             alpha=model_args.criterion_alpha,
             gamma=model_args.criterion_gamma,
+            num_classes=len(data_args.included_classes),
         )
 
         self.clip_max_norm = model_args.clip_max_norm
