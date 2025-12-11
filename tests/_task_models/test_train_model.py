@@ -88,7 +88,6 @@ def test_ltdetr_load_train_state_dict_scenarios() -> None:
 
     # -------------------------------------------------------------------------
     # Scenario 3: EMA model exists but checkpoint has NO EMA weights
-    # In this case, the EMA model must copy the main model's weights.
     # -------------------------------------------------------------------------
     train_model.model = FakeTaskModel()  # type: ignore[assignment]
     train_model.ema_model = FakeEmaModel()  # type: ignore[assignment]

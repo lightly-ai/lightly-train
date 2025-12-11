@@ -659,7 +659,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         torch.onnx.export(
             self,
-            dummy_input,
+            (dummy_input,), # TODO modified this into a tuple because of mypy error (verify this is OK)
             str(out_path),
             input_names=input_names,
             output_names=output_names,
