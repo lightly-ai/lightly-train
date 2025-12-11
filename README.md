@@ -43,7 +43,7 @@ Train LTDETR detection models with DINOv2 or DINOv3 backbones.
 
 #### COCO Results
 
-| Implementation | Model | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size |
+| Implementation | Model | Val mAP<sub>50:95</sub> | Latency [ms] | Params (M) | Input Size |
 |:--------------:|:----------------------------:|:------------------:|:------------:|:-----------:|:----------:|
 | LightlyTrain | dinov3/vitt16-ltdetr-coco | 49.8 | 5.4 | 10.1 | 640×640 |
 | LightlyTrain | dinov3/vitt16plus-ltdetr-coco | 52.5 | 7.0 | 18.1 | 640×640 |
@@ -105,15 +105,15 @@ EoMT method from CVPR 2025.
 
 #### COCO Results
 
-| Implementation | Model | Val mAP mask | Avg. FPS | Params (M) | Input Size |
+| Implementation | Model | Val mAP mask | Avg. Latency [ms] | Params (M) | Input Size |
 |----------------|----------------|-------------|----------|-----------|------------|
-| LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 51.5 | 21.6 | 640×640 |
-| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 25.2 | 85.7 | 640×640 |
-| LightlyTrain | dinov3/vitl16-eomt-inst-coco | **46.2** | 12.5 | 303.2 | 640×640 |
+| LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 19.4 | 21.6 | 640×640 |
+| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 39.7 | 85.7 | 640×640 |
+| LightlyTrain | dinov3/vitl16-eomt-inst-coco | **46.2** | 80.0 | 303.2 | 640×640 |
 | EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco | 45.9 | - | 303.2 | 640×640 |
 
 Models are trained for 12 epochs on the COCO 2017 dataset and evaluated on the validation
-set with single-scale testing. Avg. FPS is measured on a single NVIDIA T4 GPU with batch
+set with single-scale testing. Average latency is measured on a single NVIDIA T4 GPU with batch
 size 1. All models are compiled and optimized using `torch.compile`.
 
 #### Usage
@@ -163,27 +163,27 @@ the EoMT method from CVPR 2025.
 
 #### COCO-Stuff Results
 
-| Implementation | Model | Val mIoU | Avg. FPS | Params (M) | Input Size |
+| Implementation | Model | Val mIoU | Avg. Latency [ms] | Params (M) | Input Size |
 |----------------|----------------------|----------|----------|-----------|------------|
-| LightlyTrain | dinov3/vits16-eomt-coco | 0.465 | 88.7 | 21.6 | 512×512 |
-| LightlyTrain | dinov3/vitb16-eomt-coco | 0.520 | 43.3 | 85.7 | 512×512 |
-| LightlyTrain | dinov3/vitl16-eomt-coco | **0.544** | 20.4 | 303.2 | 512×512 |
+| LightlyTrain | dinov3/vits16-eomt-coco | 46.5 | 11.3 | 21.6 | 512×512 |
+| LightlyTrain | dinov3/vitb16-eomt-coco | 52.0 | 23.1 | 85.7 | 512×512 |
+| LightlyTrain | dinov3/vitl16-eomt-coco | **54.4** | 49.0 | 303.2 | 512×512 |
 
 Models are trained for 12 epochs with `num_queries=200` on the COCO-Stuff dataset and
-evaluated on the validation set with single-scale testing. Avg. FPS is measured on a
+evaluated on the validation set with single-scale testing. Average latency is measured on a
 single NVIDIA T4 GPU with batch size 1. All models are compiled and optimized using
 `torch.compile`.
 
 #### Cityscapes Results
 
-| Implementation | Model | Val mIoU | Avg. FPS | Params (M) | Input Size |
+| Implementation | Model | Val mIoU | Avg. Latency [ms] | Params (M) | Input Size |
 |:------------------------------------:|:------------------------------:|:---------:|:--------:|:-----------:|:----------:|
-| LightlyTrain | dinov3/vits16-eomt-cityscapes | 0.786 | 18.6 | 21.6 | 1024×1024 |
-| LightlyTrain | dinov3/vitb16-eomt-cityscapes | 0.810 | 8.7 | 85.7 | 1024×1024 |
-| LightlyTrain | dinov3/vitl16-eomt-cityscapes | **0.844** | 3.9 | 303.2 | 1024×1024 |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 |
+| LightlyTrain | dinov3/vits16-eomt-cityscapes | 78.6 | 53.8 | 21.6 | 1024×1024 |
+| LightlyTrain | dinov3/vitb16-eomt-cityscapes | 81.0 | 114.9 | 85.7 | 1024×1024 |
+| LightlyTrain | dinov3/vitl16-eomt-cityscapes | **84.4** | 256.4 | 303.2 | 1024×1024 |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov2/vitl16-eomt | 84.2 | - | 319 | 1024×1024 |
 
-Avg. FPS is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled
+Average latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are compiled
 and optimized using `torch.compile`.
 
 #### Usage
