@@ -19,7 +19,6 @@ You can check [here](object-detection-use-model-weights) for how to use these mo
 checkpoints for further fine-tuning. The average latency values were measured using TensorRT
 version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 
-
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ### COCO
