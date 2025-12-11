@@ -26,6 +26,14 @@ class FakeTaskModel:
         self.captured["assign"] = assign
         return "incompatible_keys"
 
+    def load_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> None:
+        """Also capture load_state_dict calls."""
+        self.captured["state_dict"] = state_dict
+        self.captured["strict"] = strict
+        self.captured["assign"] = assign
+
     def state_dict(self) -> dict[str, Any]:
         """Simulates the main model's current weights."""
         return {
