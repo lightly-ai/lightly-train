@@ -98,3 +98,8 @@ def filter_warnings() -> None:
     warnings.filterwarnings(
         "ignore", message="Grad strides do not match bucket view strides"
     )
+    # Torch weights_only warning
+    warnings.filterwarnings(
+        "ignore",
+        message="Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected",
+    )
