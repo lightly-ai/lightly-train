@@ -103,4 +103,4 @@ class RandomPhotometricDistort(ImageOnlyTransform):  # type: ignore[misc]
             Transformed image as numpy array with shape (H, W, C).
         """
         out = self.transform(image=img)["image"]
-        return out
+        return out  # type: ignore[no-any-return]

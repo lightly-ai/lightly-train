@@ -240,7 +240,7 @@ class RandomIoUCropV2(RandomIoUCropBase):
             x_max=x_max,
             y_max=y_max,
         )
-        return cropped
+        return cropped  # type: ignore[no-any-return]
 
     def apply_to_bboxes(self, bboxes: NDArrayBBoxes, **params: Any) -> NDArrayBBoxes:
         crop_coords = params["crop_coords"]
@@ -251,7 +251,7 @@ class RandomIoUCropV2(RandomIoUCropBase):
             crop_coords=(x_min, y_min, x_max, y_max),
             image_shape=params["orig_img_shape"],
         )
-        return cropped
+        return cropped  # type: ignore[no-any-return]
 
     def apply_to_keypoints(
         self, keypoints: NDArray[np.float32], **params: Any
@@ -314,7 +314,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
             x_max=x_max,
             y_max=y_max,
         )
-        return cropped
+        return cropped  # type: ignore[no-any-return]
 
     def apply_to_bbox(
         self, bbox: tuple[float, float, float, float], **params: Any
@@ -331,7 +331,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
                 rows=params["orig_img_shape"][0],
                 cols=params["orig_img_shape"][1],
             )
-            return tr_bbox
+            return tr_bbox  # type: ignore[no-any-return]
         else:
             tr_bbox = F.crop_bbox_by_coords(
                 bbox,
@@ -339,7 +339,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
                 rows=params["orig_img_shape"][0],
                 cols=params["orig_img_shape"][1],
             )
-            return tr_bbox
+            return tr_bbox  # type: ignore[no-any-return]
 
     def apply_to_keypoint(
         self, keypoint: NDArray[np.float32], **params: Any
