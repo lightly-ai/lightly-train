@@ -45,7 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deprecated
 
-- The `lightly-train.train()` interface is deprecated and will be removed in a future release. Use `lightly-train.pretrain()` instead.
 - Deprecate `reuse_class_head` argument in the `train`/`pretrain` command. The model will now
   automatically reuse the classification head only when the number of classes in the
   data config matches that in the checkpoint. Otherwise, the classification head will

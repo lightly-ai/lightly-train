@@ -82,13 +82,13 @@ def pretrain(
 
     See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill.html
 
-    The training process can be monitored with TensorBoard:
+    The pretraining process can be monitored with TensorBoard:
 
     .. code-block:: bash
 
         tensorboard --logdir out
 
-    After training, the model is exported in the library default format to
+    After pretraining, the model is exported in the library default format to
     ``out/exported_models/exported_last.pt``. It can be exported to different formats
     using the ``lightly_train.export`` command.
 
@@ -271,7 +271,7 @@ def train(
     model_args: dict[str, Any] | None = None,
     resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
 ) -> None:
-    """Deprecated alias for :func:`pretrain`."""
+    """Deprecated. Use :func:`pretrain` instead."""
     config = validate.pydantic_model_validate(TrainConfig, locals())
     train_from_config(config=config, called_via_train=True)
 
