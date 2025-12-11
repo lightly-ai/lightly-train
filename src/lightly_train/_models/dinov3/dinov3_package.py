@@ -50,13 +50,23 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
     # Tiny models
     "vitt16": _DINOv3ModelInfo(
         builder=backbones.dinov3_vitt16,
-        default_weights=None,
-        local_path=None,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitt16_distillationv2.pth",
+        local_path="dinov3_vitt16_distillationv2.pth",
     ),
     "vitt16plus": _DINOv3ModelInfo(
         builder=backbones.dinov3_vitt16plus,
-        default_weights=None,
-        local_path=None,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitt16plus_distillationv2.pth",
+        local_path="dinov3_vitt16plus_distillationv2.pth",
+    ),
+    "vitt16-distillationv1": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitt16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitt16_distillationv1.pth",
+        local_path="dinov3_vitt16_distillationv1.pth",
+    ),
+    "vitt16plus-distillationv1": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitt16plus,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitt16plus_distillationv1.pth",
+        local_path="dinov3_vitt16plus_distillationv1.pth",
     ),
     # LVD-1689M ViT models
     "vits16": _DINOv3ModelInfo(
