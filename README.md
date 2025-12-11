@@ -120,36 +120,37 @@ optimized using `torch.compile`.
 
 #### Usage
 
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/instance_segmentation.html)
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
 
 ```python
 import lightly_train
 
 if __name__ == "__main__":
-    # Train an instance segmentation model with a DINOv3 backbone
-    lightly_train.train_instance_segmentation(
+    # Train an panoptic segmentation model with a DINOv3 backbone
+    lightly_train.train_panoptic_segmentation(
         out="out/my_experiment",
-        model="dinov3/vitb16-eomt-inst-coco",
+        model="dinov3/vitb16-eomt-panoptic-coco",
         data={
-            "path": "my_data_dir",
-            "train": "images/train",
-            "val": "images/val",
-            "names": {
-                0: "background",
-                1: "vehicle",
-                2: "pedestrian",
-                # ...
+            "train": {
+                "images": "images/train",
+                "masks": "annotations/train",
+                "annotations": "annotations/train.json",
+            },
+            "val": {
+                "images": "images/val",
+                "masks": "annotations/val",
+                "annotations": "annotations/val.json",
             },
         },
     )
 
     model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
     results = model.predict("image.jpg")
-    results["labels"]   # Class labels, tensor of shape (num_instances,)
-    results["masks"]    # Binary masks, tensor of shape (num_instances, height, width).
+    results["masks"]    # Masks with (class_label, segment_id) for each pixel, tensor of shape (height, width, 2).
                         # Height and width correspond to the original image size.
-    results["scores"]   # Confidence scores, tensor of shape (num_instances,)
+    results["segment_ids"]    # Segment ids, tensor of shape (num_segments,).
+    results["scores"]   # Confidence scores, tensor of shape (num_segments,)
 ```
 
 </details>

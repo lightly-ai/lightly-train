@@ -284,7 +284,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 or merge disconnected mask regions for every instance.
 
         Returns:
-            A {"mask": Tensor, "segment_ids": Tensor, "scores": Tensor} dict. Mask is
+            A {"masks": Tensor, "segment_ids": Tensor, "scores": Tensor} dict. Mask is
             a tensor of shape (H, W, 2) where the last dimension has two channels:
                 - Channel 0: class label per pixel
                 - Channel 1: segment id per pixel
