@@ -106,7 +106,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="dinov3/convnext-tiny-ltdetr-coco",
+        model="dinov3/vitt16-ltdetr-coco",
         data={
             # ... Data configuration
         }
@@ -121,7 +121,7 @@ import lightly_train
 # Load the model from the best checkpoint
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 # Or load one of the models hosted by LightlyTrain
-model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
+model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
 results = model.predict("image.jpg")
 ```
 

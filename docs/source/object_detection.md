@@ -50,11 +50,11 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="dinov3/convnext-small-ltdetr-coco",
+        model="dinov3/vitt16-ltdetr-coco",
         data={
             "path": "my_data_dir",
-            "train": "images/train2012",
-            "val": "images/val2012",
+            "train": "images/train2017",
+            "val": "images/val2017",
             "names": {
                 0: "person",
                 1: "bicycle",
@@ -150,7 +150,7 @@ Or use one of the models provided by LightlyTrain:
 ```python
 import lightly_train
 
-model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
+model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
 results = model.predict("image.jpg")
 results["labels"]   # Class labels, tensor of shape (num_boxes,)
 results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
@@ -168,7 +168,7 @@ from torchvision import io, utils
 
 import lightly_train
 
-model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
+model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
 labels, boxes, scores = model.predict("image.jpg").values()
 
 # Visualize predictions.

@@ -70,7 +70,7 @@ if __name__ == "__main__":
     # Train an object detection model with a DINOv3 backbone
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="dinov3/convnext-small-ltdetr-coco",
+        model="dinov3/vitt16-ltdetr-coco",
         data={
             "path": "my_data_dir",
             "train": "images/train",
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # Load model and run inference
     model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
     # Or use one of the models provided by LightlyTrain
-    # model = lightly_train.load_model("dinov3/convnext-small-ltdetr-coco")
+    # model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
     results = model.predict("image.jpg")
     results["labels"]   # Class labels, tensor of shape (num_boxes,)
     results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
