@@ -16,6 +16,8 @@ from albumentations.augmentations.crops.transforms import RandomCrop
 from lightning_utilities.core.imports import RequirementCache
 from numpy.typing import NDArray
 
+from lightly_train.types import NDArrayBBoxes, NDArrayImage
+
 ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
 ALBUMENTATIONS_GEQ_1_4_15 = RequirementCache("albumentations>=1.4.15")
 ALBUMENTATIONS_GEQ_1_4_11 = RequirementCache("albumentations>=1.4.11")
@@ -228,9 +230,7 @@ class RandomIoUCropV2(RandomIoUCropBase):
             )
         return params
 
-    def apply(
-        self, img: NDArray[np.uint8 | np.float32 | np.float64], **params: Any
-    ) -> NDArray[np.float32 | np.float64]:
+    def apply(self, img: NDArrayImage, **params: Any) -> NDArrayImage:
         crop_coords = params["crop_coords"]
         x_min, y_min, x_max, y_max = crop_coords
         cropped = F.crop(
@@ -240,12 +240,9 @@ class RandomIoUCropV2(RandomIoUCropBase):
             x_max=x_max,
             y_max=y_max,
         )
-        assert isinstance(cropped, np.ndarray)
         return cropped
 
-    def apply_to_bboxes(
-        self, bboxes: NDArray[np.float32 | np.float64], **params: Any
-    ) -> NDArray[np.float32 | np.float64]:
+    def apply_to_bboxes(self, bboxes: NDArrayBBoxes, **params: Any) -> NDArrayBBoxes:
         crop_coords = params["crop_coords"]
         x_min, y_min, x_max, y_max = crop_coords
 
@@ -254,7 +251,6 @@ class RandomIoUCropV2(RandomIoUCropBase):
             crop_coords=(x_min, y_min, x_max, y_max),
             image_shape=params["orig_img_shape"],
         )
-        assert isinstance(cropped, np.ndarray)
         return cropped
 
     def apply_to_keypoints(
@@ -308,9 +304,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
             )
         return params
 
-    def apply(
-        self, img: NDArray[np.uint8 | np.float32 | np.float64], **params: Any
-    ) -> NDArray[np.float32 | np.float64]:
+    def apply(self, img: NDArrayImage, **params: Any) -> NDArrayImage:
         crop_coords = params["crop_coords"]
         x_min, y_min, x_max, y_max = crop_coords
         cropped = F.crop(
@@ -320,7 +314,6 @@ class RandomIoUCropV1(RandomIoUCropBase):
             x_max=x_max,
             y_max=y_max,
         )
-        assert isinstance(cropped, np.ndarray)
         return cropped
 
     def apply_to_bbox(
@@ -338,7 +331,6 @@ class RandomIoUCropV1(RandomIoUCropBase):
                 rows=params["orig_img_shape"][0],
                 cols=params["orig_img_shape"][1],
             )
-            assert isinstance(tr_bbox, tuple)
             return tr_bbox
         else:
             tr_bbox = F.crop_bbox_by_coords(
@@ -347,7 +339,6 @@ class RandomIoUCropV1(RandomIoUCropBase):
                 rows=params["orig_img_shape"][0],
                 cols=params["orig_img_shape"][1],
             )
-            assert isinstance(tr_bbox, tuple)
             return tr_bbox
 
     def apply_to_keypoint(

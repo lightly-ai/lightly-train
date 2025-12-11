@@ -9,15 +9,14 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
 from albumentations import (
     ChannelShuffle,
     ColorJitter,
     ImageOnlyTransform,
 )
-from numpy.typing import NDArray
 
 from lightly_train._transforms.random_order import RandomOrder
+from lightly_train.types import NDArrayImage
 
 
 class RandomPhotometricDistort(ImageOnlyTransform):  # type: ignore[misc]
@@ -94,9 +93,7 @@ class RandomPhotometricDistort(ImageOnlyTransform):  # type: ignore[misc]
             ]
         )
 
-    def apply(
-        self, img: NDArray[np.uint8], **params: dict[str, Any]
-    ) -> NDArray[np.uint8]:
+    def apply(self, img: NDArrayImage, **params: dict[str, Any]) -> NDArrayImage:
         """Apply the random photometric distort transform to the image.
 
         Args:
@@ -106,6 +103,4 @@ class RandomPhotometricDistort(ImageOnlyTransform):  # type: ignore[misc]
             Transformed image as numpy array with shape (H, W, C).
         """
         out = self.transform(image=img)["image"]
-        assert isinstance(out, np.ndarray)
-        assert out.dtype == np.uint8
         return out

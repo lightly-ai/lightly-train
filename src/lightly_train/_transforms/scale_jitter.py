@@ -12,7 +12,8 @@ from typing import Any, Sequence
 import numpy as np
 from albumentations import Resize
 from albumentations.core.transforms_interface import DualTransform
-from numpy.typing import NDArray
+
+from lightly_train.types import NDArrayBBoxes, NDArrayImage, NDArrayMask
 
 
 class ScaleJitter(DualTransform):  # type: ignore[misc]
@@ -95,17 +96,13 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
             idx = int(np.random.randint(0, len(self.transforms)))
             return {"idx": idx}
 
-    def apply(
-        self, img: NDArray[np.int64], idx: int, **params: Any
-    ) -> NDArray[np.int64]:
+    def apply(self, img: NDArrayImage, idx: int, **params: Any) -> NDArrayImage:
         return self.transforms[idx].apply(img=img, **params)  # type: ignore[no-any-return]
 
     def apply_to_bboxes(
-        self, bboxes: NDArray[np.float64], idx: int, **params: Any
-    ) -> NDArray[np.float64]:
+        self, bboxes: NDArrayBBoxes, idx: int, **params: Any
+    ) -> NDArrayBBoxes:
         return self.transforms[idx].apply_to_bboxes(bboxes, **params)  # type: ignore[no-any-return]
 
-    def apply_to_mask(
-        self, mask: NDArray[np.int64], idx: int, **params: Any
-    ) -> NDArray[np.int64]:
+    def apply_to_mask(self, mask: NDArrayMask, idx: int, **params: Any) -> NDArrayMask:
         return self.transforms[idx].apply_to_mask(mask, **params)  # type: ignore[no-any-return]
