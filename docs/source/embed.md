@@ -10,7 +10,7 @@ An example command looks like this:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet50",
@@ -26,11 +26,11 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50"
 lightly-train embed out=my_embeddings.pth data=my_data_dir checkpoint=out/my_experiment/checkpoints/last.ckpt format=torch
 ````
 
-The above code example trains a model and uses the last training checkpoint to generate
+The above code example pretrains a model and uses the last training checkpoint to generate
 image embeddings from the images in `"my_data_dir"`.
 
 ```{tip}

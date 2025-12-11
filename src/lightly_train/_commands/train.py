@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 
 # Import old types for compatibility with omegaconf.
 from typing import Any, Literal, Sequence
@@ -46,7 +47,7 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-def train(
+def pretrain(
     *,
     out: PathLike,
     data: PathLike | Sequence[PathLike],
@@ -77,17 +78,17 @@ def train(
     model_args: dict[str, Any] | None = None,
     resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
 ) -> None:
-    """Train a self-supervised model.
+    """Pretrain a self-supervised model.
 
     See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill.html
 
-    The training process can be monitored with TensorBoard:
+    The pretraining process can be monitored with TensorBoard:
 
     .. code-block:: bash
 
         tensorboard --logdir out
 
-    After training, the model is exported in the library default format to
+    After pretraining, the model is exported in the library default format to
     ``out/exported_models/exported_last.pt``. It can be exported to different formats
     using the ``lightly_train.export`` command.
 
@@ -98,14 +99,14 @@ def train(
             Path to a directory containing images or a sequence of image directories and
             files.
         model:
-            Model name or instance to use for training.
+            Model name or instance to use for pretraining / distillation.
         method:
-            Self-supervised learning method name.
+            Method name for pretraining / distillation.
         method_args:
-            Arguments for the self-supervised learning method. The available arguments
+            Arguments for the pretraining / distillation method. The available arguments
             depend on the ``method`` parameter.
         embed_dim:
-            Embedding dimension. Set this if you want to train an embedding model with
+            Embedding dimension. Set this if you want to pretrain an embedding model with
             a specific dimension. If None, the output dimension of ``model`` is used.
         epochs:
             Number of training epochs. Set to "auto" to automatically determine the
@@ -239,7 +240,43 @@ def train(
     train_from_config(config=config)
 
 
-def train_from_config(config: TrainConfig) -> None:
+def train(
+    *,
+    out: PathLike,
+    data: PathLike | Sequence[PathLike],
+    model: str | Module | ModelWrapper | Any,
+    method: str = "distillation",
+    method_args: dict[str, Any] | None = None,
+    embed_dim: int | None = None,
+    epochs: int | Literal["auto"] = "auto",
+    batch_size: int = 128,
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    resume_interrupted: bool = False,
+    checkpoint: PathLike | None = None,
+    overwrite: bool = False,
+    accelerator: str | Accelerator = "auto",
+    strategy: str | Strategy = "auto",
+    precision: _PRECISION_INPUT | Literal["auto"] = "auto",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    seed: int = 0,
+    loggers: dict[str, dict[str, Any] | None] | None = None,
+    callbacks: dict[str, dict[str, Any] | None] | None = None,
+    optim: str = "auto",
+    optim_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    trainer_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
+    resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
+) -> None:
+    """Deprecated. Use :func:`pretrain` instead."""
+    config = validate.pydantic_model_validate(TrainConfig, locals())
+    train_from_config(config=config, called_via_train=True)
+
+
+def train_from_config(config: TrainConfig, called_via_train: bool = False) -> None:
     # Convert the config to a TrainConfig instance.
     config = validate.pydantic_model_validate(TrainConfig, dict(config))
 
@@ -261,6 +298,15 @@ def train_from_config(config: TrainConfig) -> None:
     _logging.set_up_console_logging()
     _logging.set_up_file_logging(out_dir / "train.log")
     _logging.set_up_filters()
+
+    if called_via_train:
+        warnings.warn(
+            "`lightly_train.train` is deprecated and will be removed in a future release. "
+            "Please use `lightly_train.pretrain` instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+
     logger.info(
         f"Args: {common_helpers.pretty_format_args(args=config.model_dump(), limit_keys={'data'})}"
     )
@@ -448,11 +494,18 @@ def train_from_config(config: TrainConfig) -> None:
     logger.info("Model exported.")
 
 
-def train_from_dictconfig(config: DictConfig) -> None:
+def pretrain_from_dictconfig(config: DictConfig) -> None:
     logger.debug(f"Training model with config: {config}")
     config_dict = omegaconf_utils.config_to_dict(config=config)
     train_cfg = validate.pydantic_model_validate(CLITrainConfig, config_dict)
     train_from_config(config=train_cfg)
+
+
+def train_from_dictconfig(config: DictConfig) -> None:
+    logger.debug(f"Training model with config: {config}")
+    config_dict = omegaconf_utils.config_to_dict(config=config)
+    train_cfg = validate.pydantic_model_validate(CLITrainConfig, config_dict)
+    train_from_config(config=train_cfg, called_via_train=True)
 
 
 class TrainConfig(PydanticConfig):

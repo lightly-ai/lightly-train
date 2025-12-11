@@ -70,13 +70,13 @@ my_data_dir
 
 ## Pretrain with Distillation
 
-Once the data is ready, you can train the model like this:
+Once the data is ready, you can pretrain the model like this:
 
 ```python
 import lightly_train
 
-# Train the model
-lightly_train.train(
+# Pretrain the model
+lightly_train.pretrain(
     out="out/my_experiment",  # Output directory
     data="my_data_dir",  # Directory with images
     model="dinov2/vits14",  # Model to train

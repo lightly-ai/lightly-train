@@ -76,7 +76,7 @@ embedding quality, but only takes 30 minutes to complete.
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/aid_resnet18_lightly_train",
         data="AID",
         model="torchvision/resnet18",
@@ -183,7 +183,7 @@ import matplotlib.pyplot as plt
 import torch
 import umap
 
-lightly_train.train(
+lightly_train.pretrain(
     out="out/aid_resnet18_imagenet",
     data="AID",
     model="torchvision/resnet18",
