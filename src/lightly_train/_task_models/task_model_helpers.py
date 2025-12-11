@@ -123,10 +123,12 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "/dinov3_eomt/dinov3_vitl16_eomt_inst_coco.pt",
         "1aac5ac16dcbc1a12cc6f8d4541bea5e7940937a49f0b1dcea7394956b6e46e5",
     ),
+    # Trained with 2x schedule (180k steps)
     "dinov3/vits16-eomt-panoptic-coco": (
         "dinov3_vits16_eomt_panoptic_coco_251209_e687aeb9.pt",
         "e687aeb9787dce303b212b7da5aa2cecd1418705d9c1e8dc24b772cf222e4b09",
     ),
+    # Trained with 2x schedule (180k steps)
     "dinov3/vitb16-eomt-panoptic-coco": (
         "dinov3_vitb16_eomt_panoptic_coco_251209_05948298.pt",
         "0594829822a23935079c35304f3bd1c7fede802114bc1a699780df693f2dea6c",
