@@ -14,7 +14,6 @@ from pytorch_lightning import Callback
 from pytorch_lightning.callbacks import (
     DeviceStatsMonitor,
     EarlyStopping,
-    LearningRateMonitor,
 )
 from pytorch_lightning.loggers import Logger
 
@@ -23,6 +22,7 @@ from lightly_train._callbacks.callback_args import (
 )
 from lightly_train._callbacks.checkpoint import ModelCheckpoint
 from lightly_train._callbacks.export import ModelExport
+from lightly_train._callbacks.learning_rate_monitor import LearningRateMonitor
 from lightly_train._callbacks.mlflow_logging import MLFlowLogging
 from lightly_train._callbacks.tqdm_progress_bar import DataWaitTQDMProgressBar
 from lightly_train._checkpoint import CheckpointLightlyTrainModels
