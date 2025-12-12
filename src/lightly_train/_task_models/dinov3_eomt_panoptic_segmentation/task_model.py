@@ -286,8 +286,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         Returns:
             A {"masks": Tensor, "segment_ids": Tensor, "scores": Tensor} dict. Mask is
             a tensor of shape (H, W, 2) where the last dimension has two channels:
-                - Channel 0: class label per pixel
-                - Channel 1: segment id per pixel
+            - Channel 0: class label per pixel
+            - Channel 1: segment id per pixel
             Segment ids are in [-1, num_unique_segment_ids - 1]. There can be multiple
             segments with the same id if they belong to the same stuff class. Id -1
             indicates pixels without an assigned segment.
@@ -559,7 +559,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         mask_threshold: float,
         mask_overlap_threshold: float,
     ) -> tuple[Tensor, Tensor, Tensor]:
-        """
+        """Converts logits to final panoptic segmentation masks, segment ids, and scores.
+
         Args:
             class_logits: (Q, K+1)
             mask_logits: (Q, H, W)
