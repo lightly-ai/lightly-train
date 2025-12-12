@@ -55,7 +55,7 @@ import lightly_train
 
 if __name__ == "__main__":
     # Pretrain with LightlyTrain.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/coco_minitrain_pretrain",  # Output directory.
         model="ultralytics/yolo11s.yaml",   # Pass the YOLO model (use .yaml ending to start with random weights).
         data="coco_minitrain_25k/images",   # Path to a directory with training images.

@@ -405,7 +405,7 @@ def load_checkpoint(
             raise ValueError(
                 f"resume_interrupted={resume_interrupted} and checkpoint='{checkpoint}' "
                 "cannot be set at the same time! Please set only one of them. "
-                "See https://docs.lightly.ai/train/stable/train/index.html#resume-training "
+                "See https://docs.lightly.ai/train/stable/pretrain_distill/index.html#resume-training "
                 "for more information on which option to use."
             )
         logger.info(f"Loading model weights from '{checkpoint}'.")

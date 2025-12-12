@@ -28,7 +28,7 @@ version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 | LightlyTrain | dinov3/vitt16-ltdetr-coco | 49.8 | 5.4 | 10.1 | 640×640 |
 | LightlyTrain | dinov3/vitt16plus-ltdetr-coco | 52.5 | 7.0 | 18.1 | 640×640 |
 | LightlyTrain | dinov3/vits16-ltdetr-coco | 55.4 | 10.5 | 36.4 | 640×640 |
-| LightlyTrain | dinov2/vits14-ltdetr | 55.7 | 16.87 | 55.3 | 644×644 |
+| LightlyTrain | dinov2/vits14-noreg-ltdetr-coco | 55.7 | 16.9 | 55.3 | 644×644 |
 | LightlyTrain | dinov3/convnext-tiny-ltdetr-coco | 54.4 | 13.3 | 61.1 | 640×640 |
 | LightlyTrain | dinov3/convnext-small-ltdetr-coco | 56.9 | 17.7 | 82.7 | 640×640 |
 | LightlyTrain | dinov3/convnext-base-ltdetr-coco | 58.6 | 24.7 | 121.0 | 640×640 |
@@ -50,11 +50,11 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="dinov3/convnext-small-ltdetr-coco",
+        model="dinov3/vitt16-ltdetr-coco",
         data={
             "path": "my_data_dir",
-            "train": "images/train2012",
-            "val": "images/val2012",
+            "train": "images/train2017",
+            "val": "images/val2017",
             "names": {
                 0: "person",
                 1: "bicycle",
@@ -104,7 +104,7 @@ import lightly_train
 
 if __name__ == "__main__":
     # Pretrain a DINOv2 model.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_pretrain_experiment",
         data="my_pretrain_data_dir",
         model="dinov2/vits14-noreg",
@@ -150,7 +150,7 @@ Or use one of the models provided by LightlyTrain:
 ```python
 import lightly_train
 
-model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
+model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
 results = model.predict("image.jpg")
 results["labels"]   # Class labels, tensor of shape (num_boxes,)
 results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
@@ -168,7 +168,7 @@ from torchvision import io, utils
 
 import lightly_train
 
-model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
+model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
 labels, boxes, scores = model.predict("image.jpg").values()
 
 # Visualize predictions.

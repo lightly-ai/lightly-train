@@ -284,10 +284,10 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 or merge disconnected mask regions for every instance.
 
         Returns:
-            A {"mask": Tensor, "segment_ids": Tensor, "scores": Tensor} dict. Mask is
+            A {"masks": Tensor, "segment_ids": Tensor, "scores": Tensor} dict. Mask is
             a tensor of shape (H, W, 2) where the last dimension has two channels:
-                - Channel 0: class label per pixel
-                - Channel 1: segment id per pixel
+            - Channel 0: class label per pixel
+            - Channel 1: segment id per pixel
             Segment ids are in [-1, num_unique_segment_ids - 1]. There can be multiple
             segments with the same id if they belong to the same stuff class. Id -1
             indicates pixels without an assigned segment.
@@ -559,7 +559,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         mask_threshold: float,
         mask_overlap_threshold: float,
     ) -> tuple[Tensor, Tensor, Tensor]:
-        """
+        """Converts logits to final panoptic segmentation masks, segment ids, and scores.
+
         Args:
             class_logits: (Q, K+1)
             mask_logits: (Q, H, W)
@@ -637,13 +638,22 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         max_class_id = ignore_class_id
         stuff_label_to_segment_id = -stuff_labels.new_ones(max_class_id + 1)
         stuff_label_to_segment_id[stuff_labels] = stuff_segment_ids
-        segment_ids[is_stuff] = stuff_label_to_segment_id[stuff_labels]
+        # Scatter for cudagraph compatibility. Equivalent to:
+        # segment_ids[is_stuff] = stuff_label_to_segment_id[stuff_labels]
+        segment_ids = segment_ids.masked_scatter(
+            is_stuff,
+            stuff_label_to_segment_id[stuff_labels],
+        )
 
         # Reassign segment ids to be contiguous
         segment_id_to_contiguous_id = -segment_ids.new_ones(max_segment_id + 1)
         unique_segment_ids: Tensor = segment_ids.unique()  # type: ignore
-        segment_id_to_contiguous_id[unique_segment_ids] = torch.arange(
-            len(unique_segment_ids), device=segment_ids.device
+        # Scatter for cudagraph compatibility. Equivalent to:
+        # segment_id_to_contiguous_id[unique_segment_ids] = torch.arange(...)
+        segment_id_to_contiguous_id = segment_id_to_contiguous_id.scatter(
+            dim=0,
+            index=unique_segment_ids,
+            src=torch.arange(len(unique_segment_ids), device=segment_ids.device),
         )
         segment_ids = segment_id_to_contiguous_id[segment_ids]
 
