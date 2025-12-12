@@ -65,6 +65,12 @@ Train LTDETR detection models with DINOv2 or DINOv3 backbones.<br>
 Train EoMT segmentation models with DINOv3 backbones.<br>
 ```
 
+```{grid-item-card} Panoptic Segmentation
+:link: panoptic_segmentation.html
+<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
+Train EoMT segmentation models with DINOv3 backbones.<br>
+```
+
 ```{grid-item-card} Semantic Segmentation
 :link: semantic_segmentation.html
 <!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
@@ -142,10 +148,10 @@ LightlyTrain supports the following model and workflow combinations.
 
 ### Fine-tuning
 
-| Model | Object Detection | Instance Segmentation | Semantic Segmentation |
-| ------ | :----------------------------------------------------------------: | :---------------------------------------------------------------------: | :------------------------------------------------------------------------------------------: |
-| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html) |
+| Model | Object<br>Detection | Instance<br>Segmentation | Panoptic<br>Segmentation | Semantic<br>Segmentation |
+| ------ | :----------------------------------------------------------------: | :---------------------------------------------------------------------: | :------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------: |
+| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
+| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | | | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html) |
 
 ### Distillation & Pretraining
 
@@ -200,6 +206,7 @@ quick_start_distillation
 installation
 object_detection
 instance_segmentation
+panoptic_segmentation
 semantic_segmentation
 pretrain_distill/index
 predict_autolabel

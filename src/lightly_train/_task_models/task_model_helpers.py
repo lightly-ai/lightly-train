@@ -31,6 +31,13 @@ DOWNLOADABLE_MODEL_BASE_URL = (
 
 LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 
+# How to add a new downloadable model:
+# 1. Get hash of exported model file with `sha256sum best.pt`
+# 2. Upload the exported model file to the S3 bucket and follow the naming scheme:
+#    "<package>_<model_name>_[<task>]_<dataset>_[<resolution>]_<date>_<hash>.pt"
+#    Example: dinov3_vitt16_ltdetr_coco_251205_1a4c20a1.pt
+# 3. Add an entry to the DOWNLOADABLE_MODEL_URL_AND_HASH dictionary below including the
+#    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     "dinov2/vits14-noreg-ltdetr-coco": (
         "dinov2_vits14_noreg_ltdetr_coco_251113_fdd81fc4.pt",
@@ -115,6 +122,24 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     "dinov3/vitl16-eomt-inst-coco": (
         "/dinov3_eomt/dinov3_vitl16_eomt_inst_coco.pt",
         "1aac5ac16dcbc1a12cc6f8d4541bea5e7940937a49f0b1dcea7394956b6e46e5",
+    ),
+    # Trained with 2x schedule (180k steps)
+    "dinov3/vits16-eomt-panoptic-coco": (
+        "dinov3_vits16_eomt_panoptic_coco_251209_e687aeb9.pt",
+        "e687aeb9787dce303b212b7da5aa2cecd1418705d9c1e8dc24b772cf222e4b09",
+    ),
+    # Trained with 2x schedule (180k steps)
+    "dinov3/vitb16-eomt-panoptic-coco": (
+        "dinov3_vitb16_eomt_panoptic_coco_251209_05948298.pt",
+        "0594829822a23935079c35304f3bd1c7fede802114bc1a699780df693f2dea6c",
+    ),
+    "dinov3/vitl16-eomt-panoptic-coco": (
+        "dinov3_vitl16_eomt_panoptic_coco_251209_edb56275.pt",
+        "edb56275e972d0398daa6f2185a23442c3f96fb254191f97e6197b4776920a8a",
+    ),
+    "dinov3/vitl16-eomt-panoptic-coco-1280": (
+        "dinov3_vitl16_eomt_panoptic_coco_1280_251209_3da0b210.pt",
+        "3da0b21000bba3747bcb3e4ac4ee1e38641614022281f4b710d7442c643182f2",
     ),
 }
 
