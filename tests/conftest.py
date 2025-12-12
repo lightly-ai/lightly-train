@@ -7,13 +7,13 @@
 #
 import os
 import re
+import shutil
 from pathlib import Path
 from typing import Generator
 
 import pytest
 from pytest import FixtureRequest, TempPathFactory
 from pytest_mock import MockerFixture
-import shutil
 
 
 @pytest.fixture(autouse=True)  # Apply to all tests
