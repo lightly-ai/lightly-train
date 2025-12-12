@@ -11,7 +11,8 @@ from typing import Any, Sequence
 
 import numpy as np
 from albumentations import ImageOnlyTransform
-from numpy.typing import NDArray
+
+from lightly_train.types import NDArrayImage
 
 
 class ChannelDrop(ImageOnlyTransform):  # type: ignore[misc]
@@ -57,9 +58,7 @@ class ChannelDrop(ImageOnlyTransform):  # type: ignore[misc]
         weight_array = np.array(self.weight_drop)
         self._prob_drop = weight_array / weight_array.sum()
 
-    def apply(
-        self, img: NDArray[np.uint8], **params: dict[str, Any]
-    ) -> NDArray[np.uint8]:
+    def apply(self, img: NDArrayImage, **params: dict[str, Any]) -> NDArrayImage:
         """Apply the channel drop transform to the image.
 
         Args:
