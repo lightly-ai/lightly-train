@@ -217,6 +217,9 @@ my_data_dir/
 The directories can have any name, as long as the paths are correctly specified in the
 `data` argument.
 
+See the [Colab notebook](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
+for an example dataset and how to set up the data for training.
+
 (panoptic-segmentation-model)=
 
 ## Model
