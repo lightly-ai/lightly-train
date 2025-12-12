@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from types import MethodType
 
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
@@ -16,6 +17,7 @@ try:
     from rfdetr.detr import RFDETR
 except ImportError:
     pass
+
 
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
@@ -34,6 +36,20 @@ class RFDETRModelWrapper(Module, ModelWrapper):
 
         assert isinstance(model, RFDETR)
 
+        # Bind load_state_dict and state_dict methods to the model wrapper since
+        # RFDETR is not a subclass of nn.Module.
+        assert isinstance(model.model.model, Module)
+
+        def load_state_dict(rfdetr_model, *args, **kwargs):
+            rfdetr_model.model.model.load_state_dict(*args, **kwargs)
+
+        def state_dict(rfdetr_model, *args, **kwargs):
+            return rfdetr_model.model.model.state_dict(*args, **kwargs)
+
+        model.load_state_dict = MethodType(load_state_dict, model)
+        model.state_dict = MethodType(state_dict, model)
+
+        # Extract the DINOv2 backbone from the RFDETR model.
         backbone = model.model.model.backbone[0]
         assert isinstance(backbone, Backbone)
 

@@ -95,6 +95,18 @@ class RFDETRPackage(Package):
         if "base" in model_name:
             # Type ignore as typing **args correctly is too complex
             model_rfdetr = RFDETRBase(**args)  # type: ignore[no-untyped-call]
+        elif "nano" in model_name:
+            # Type ignore as typing **args correctly is too complex
+            model_rfdetr = RFDETRNano(**args)  # type: ignore[no-untyped-call]
+        elif "small" in model_name:
+            # Type ignore as typing **args correctly is too complex
+            model_rfdetr = RFDETRSmall(**args)  # type: ignore[no-untyped-call]
+        elif "medium" in model_name:
+            # Type ignore as typing **args correctly is too complex
+            model_rfdetr = RFDETRMedium(**args)  # type: ignore[no-untyped-call]
+        elif "seg-preview" in model_name:
+            # Type ignore as typing **args correctly is too complex
+            model_rfdetr = RFDETRSegPreview(**args)  # type: ignore[no-untyped-call]
         elif "large" in model_name:
             # Type ignore as typing **args correctly is too complex
             model_rfdetr = RFDETRLarge(**args)  # type: ignore[no-untyped-call]

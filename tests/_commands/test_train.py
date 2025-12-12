@@ -104,8 +104,12 @@ def test_train__cpu(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize("num_workers", [0, 2, "auto"])
+@pytest.mark.parametrize("model", ["torchvision/resnet18", "rfdetr/rf-detr-base"])
 def test_train(
-    tmp_path: Path, caplog: LogCaptureFixture, num_workers: int | Literal["auto"]
+    tmp_path: Path,
+    caplog: LogCaptureFixture,
+    num_workers: int | Literal["auto"],
+    model: str,
 ) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -114,7 +118,7 @@ def test_train(
     train.train(
         out=out,
         data=data,
-        model="torchvision/resnet18",
+        model=model,
         method="simclr",
         batch_size=4,
         num_workers=num_workers,
@@ -138,9 +142,7 @@ def test_train(
             devices=1,
             resume_interrupted=True,
         )
-    assert (
-        f"Restoring states from the checkpoint path at {last_ckpt_path}" in caplog.text
-    )
+    assert f"Restored all states from the checkpoint at {last_ckpt_path}" in caplog.text
     # Epochs in checkpoint are 0-indexed. Epoch 1 is therefore the second epoch.
     # weights_only=True does not work here.
     assert torch.load(last_ckpt_path, weights_only=False)["epoch"] == 1

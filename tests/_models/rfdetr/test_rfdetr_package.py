@@ -28,11 +28,15 @@ class TestRFDETRPackage:
         "model_name, supported",
         [
             ("rfdetr/rf-detr-base", True),
-            ("rfdetr/rf-detr-small", False),  # No pretrained checkpoint available.
+            ("rfdetr/rf-detr-base-o365", True),
             ("rfdetr/rf-detr-base-2", True),
+            ("rfdetr/rf-detr-nano", True),
+            ("rfdetr/rf-detr-small", True),  # No pretrained checkpoint available.
             ("rfdetr/rf-detr-small-2", False),  # No pretrained checkpoint available.
+            ("rfdetr/rf-detr-medium", True),
             ("rfdetr/rf-detr-large", True),
             ("rfdetr/rf-detr-large-2", False),  # No pretrained checkpoint available.
+            ("rfdetr/rf-detr-seg-preview", True),
         ],
     )
     def test_list_model_names(self, model_name: str, supported: bool) -> None:
@@ -56,7 +60,15 @@ class TestRFDETRPackage:
 
     @pytest.mark.parametrize(
         "model_name",
-        ["rf-detr-base", "rf-detr-base-2", "rf-detr-large"],
+        [
+            "rf-detr-base",
+            "rf-detr-base-2",
+            "rf-detr-large",
+            "rf-detr-nano",
+            "rf-detr-medium",
+            "rf-detr-seg-preview",
+            "rf-detr-small",
+        ],
     )
     def test_get_model(self, model_name: str) -> None:
         model = RFDETRPackage.get_model(model_name=model_name)
@@ -106,8 +118,8 @@ class TestRFDETRPackage:
                     child_module_exp,
                 ) in zip(module.named_modules(), module_exp.named_modules()):
                     assert child_name == child_name_exp
-                    assert not child_module.training
-                    assert not child_module_exp.training
+                    assert child_module.training
+                    assert child_module_exp.training
 
                     visited.add(f"{name}.{child_name}")
             else:
