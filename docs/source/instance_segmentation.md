@@ -352,6 +352,7 @@ The Weights & Biases logger can be configured with the following arguments:
 
 ```python
 import lightly_train
+
 if __name__ == "__main__":
     lightly_train.train_instance_segmentation(
         out="out/my_experiment",
