@@ -18,9 +18,6 @@ from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model 
 from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrain,
 )
-from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.train_model import (
-    DINOv3EoMTPanopticSegmentationTrain,
-)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
 )
@@ -109,7 +106,6 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
             DINOv2LinearSemanticSegmentationTrain,
             DINOv2LTDETRObjectDetectionTrain,
             DINOv3LTDETRObjectDetectionTrain,
-            DINOv3EoMTPanopticSegmentationTrain,
         }:
             continue
         transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls

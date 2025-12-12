@@ -363,13 +363,13 @@ if __name__ == "__main__":
     )
 ```
 
-`````{dropdown} EoMT Instance Segmentation DINOv3 Default Transform Arguments
+`````{dropdown} EoMT Panoptic Segmentation DINOv3 Default Transform Arguments
 ````{dropdown} Train
-```{include} _auto/dinov3eomtinstancesegmentationtrain_train_transform_args.md
+```{include} _auto/dinov3eomtpanopticsegmentationtrain_train_transform_args.md
 ```
 ````
 ````{dropdown} Val
-```{include} _auto/dinov3eomtinstancesegmentationtrain_val_transform_args.md
+```{include} _auto/dinov3eomtpanopticsegmentationtrain_val_transform_args.md
 ```
 ````
 `````
