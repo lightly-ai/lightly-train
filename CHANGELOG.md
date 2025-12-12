@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Possibility to load backbone weights in LT-DETR.
 - ONNX export for LT-DETR.
 - Pretrained ViT-T(+) checkpoints.
+- Add Weights & Biases logging support for all fine-tuning tasks.
 
 ### Changed
 
