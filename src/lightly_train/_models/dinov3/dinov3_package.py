@@ -48,6 +48,17 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         local_path=None,
     ),
     # Tiny models
+    # Setting pretrained to False is sufficient (weights argument is ignored).
+    "vitt16-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_vitt16, pretrained=False),
+        default_weights=None,
+        local_path=None,
+    ),
+    "vitt16plus-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_vitt16plus, pretrained=False),
+        default_weights=None,
+        local_path=None,
+    ),
     "vitt16": _DINOv3ModelInfo(
         builder=backbones.dinov3_vitt16,
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitt16_distillationv2.pth",
