@@ -637,8 +637,11 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         max_class_id = ignore_class_id
         stuff_label_to_segment_id = -stuff_labels.new_ones(max_class_id + 1)
         stuff_label_to_segment_id[stuff_labels] = stuff_segment_ids
-        segment_ids = torch.where(
-            is_stuff, stuff_label_to_segment_id[stuff_labels], segment_ids
+        # Scatter for cudagraph compatibility. Equivalent to:
+        # segment_ids[is_stuff] = stuff_label_to_segment_id[stuff_labels]
+        segment_ids = segment_ids.masked_scatter(
+            is_stuff,
+            stuff_label_to_segment_id[stuff_labels],
         )
 
         # Reassign segment ids to be contiguous
