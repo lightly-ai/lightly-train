@@ -12,12 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Possibility to load backbone weights in LT-DETR.
 - ONNX export for LT-DETR.
 - Pretrained ViT-T(+) checkpoints.
+- Support newer RF-DETR versions, such as RF-DETR Medium and Nano.
 
 ### Changed
 
 ### Deprecated
 
 ### Removed
+
+- Drop support for older versions of RF-DETR which had issues with frozen backbones.
 
 ### Fixed
 
