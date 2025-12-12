@@ -253,10 +253,12 @@ and fine-tuned by Lightly, except the `vitt` models which are pretrained by Ligh
 Logging is configured with the `logger_args` argument. The following loggers are
 supported:
 
-- [`mlflow`](#mlflow): Logs training metrics to MLflow (disabled by
+- [`mlflow`](panoptic-segmentation-mlflow): Logs training metrics to MLflow (disabled by
   default, requires MLflow to be installed)
-- [`tensorboard`](#tensorboard): Logs training metrics to TensorBoard (enabled by
-  default, requires TensorBoard to be installed)
+- [`tensorboard`](panoptic-segmentation-tensorboard): Logs training metrics to TensorBoard
+  (enabled by default, requires TensorBoard to be installed)
+- [`wandb`](panoptic-segmentation-wandb): Logs training metrics to Weights & Biases (disabled by
+  default, requires wandb to be installed)
 
 (panoptic-segmentation-mlflow)=
 
@@ -303,6 +305,35 @@ Disable the TensorBoard logger with:
 
 ```python
 logger_args={"tensorboard": None}
+```
+
+(panoptic-segmentation-wandb)=
+
+### Weights & Biases
+
+```{important}
+Weights & Biases must be installed with `pip install "lightly-train[wandb]"`.
+```
+
+The Weights & Biases logger can be configured with the following arguments:
+
+```python
+import lightly_train
+if __name__ == "__main__":
+    lightly_train.train_panoptic_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vitl16-eomt-panoptic-coco",
+        data={
+            # ...
+        },
+        logger_args={
+            "wandb": {
+                "project": "my_project",
+                "name": "my_experiment",
+                "log_model": False,        # Set to True to upload model checkpoints
+            },
+        },
+    )
 ```
 
 (panoptic-segmentation-resume-training)=
