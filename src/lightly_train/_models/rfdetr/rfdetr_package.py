@@ -59,7 +59,14 @@ class RFDETRPackage(Package):
         load_weights: bool = True,
     ) -> RFDETR:
         try:
-            from rfdetr import RFDETRBase, RFDETRLarge, RFDETRMedium, RFDETRNano, RFDETRSegPreview, RFDETRSmall
+            from rfdetr import (
+                RFDETRBase,
+                RFDETRLarge,
+                RFDETRMedium,
+                RFDETRNano,
+                RFDETRSegPreview,
+                RFDETRSmall,
+            )
             from rfdetr.main import HOSTED_MODELS
         except ImportError:
             raise ValueError(
