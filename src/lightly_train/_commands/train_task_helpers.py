@@ -36,6 +36,7 @@ from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
+from lightly_train._loggers.wandb import WandbLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
@@ -261,7 +262,8 @@ def get_loggers(
     """
     loggers: list[FabricLogger] = []
 
-    if (mlflow_args := logger_args.mlflow) is not None:
+    mlflow_args = logger_args.mlflow
+    if mlflow_args is not None:
         if resume_interrupted and (
             resume_run_id := _resolve_mlflow_run_id_for_resume(mlflow_args)
         ):
@@ -279,6 +281,9 @@ def get_loggers(
         loggers.append(
             TensorBoardLogger(save_dir=out, **logger_args.tensorboard.model_dump())
         )
+    if logger_args.wandb is not None:
+        logger.debug(f"Using wandb logger with args {logger_args.wandb}")
+        loggers.append(WandbLogger(save_dir=out, **logger_args.wandb.model_dump()))
 
     logger.debug(f"Using loggers {[log.__class__.__name__ for log in loggers]}.")
     return loggers
