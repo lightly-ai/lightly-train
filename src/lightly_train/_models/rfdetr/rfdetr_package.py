@@ -59,7 +59,7 @@ class RFDETRPackage(Package):
         load_weights: bool = True,
     ) -> RFDETR:
         try:
-            from rfdetr import RFDETRBase, RFDETRLarge
+            from rfdetr import RFDETRBase, RFDETRLarge, RFDETRMedium, RFDETRNano, RFDETRSegPreview, RFDETRSmall
             from rfdetr.main import HOSTED_MODELS
         except ImportError:
             raise ValueError(
@@ -91,6 +91,18 @@ class RFDETRPackage(Package):
         elif "large" in model_name:
             # Type ignore as typing **args correctly is too complex
             model_rfdetr = RFDETRLarge(**args)  # type: ignore[no-untyped-call]
+        elif "medium" in model_name:
+            # Type ignore as typing **args correctly is too complex
+            model_rfdetr = RFDETRMedium(**args)  # type: ignore[no-untyped-call]
+        elif "nano" in model_name:
+            # Type ignore as typing **args correctly is too complex
+            model_rfdetr = RFDETRNano(**args)  # type: ignore[no-untyped-call]
+        elif "small" in model_name:
+            # Type ignore as typing **args correctly is too complex
+            model_rfdetr = RFDETRSmall(**args)  # type: ignore[no-untyped-call]
+        elif "seg" in model_name:
+            # Type ignore as typing **args correctly is too complex
+            model_rfdetr = RFDETRSegPreview(**args)  # type: ignore[no-untyped-call]
         else:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. "
