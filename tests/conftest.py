@@ -7,6 +7,7 @@
 #
 import os
 import re
+import shutil
 from pathlib import Path
 from typing import Generator
 
@@ -38,7 +39,13 @@ def lightly_train_cache_dir(
     # unexpected.
     cache_dir = tmp_path_factory.mktemp(f"{name}_lightly_train_cache")
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_CACHE_DIR": str(cache_dir)})
-    yield cache_dir
+    try:
+        yield cache_dir
+    finally:
+        # Delete the cache dir after the test. By default, pytest only deletes
+        # directories created via tmp_path_factory at the end of the whole test
+        # session.
+        shutil.rmtree(cache_dir, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)  # Apply to all tests
