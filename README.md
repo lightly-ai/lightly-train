@@ -111,9 +111,9 @@ EoMT method from CVPR 2025.
 | LightlyTrain | dinov3/vitb16-eomt-panoptic-coco | 53.2 | 39.4 | 92.5 | 640×640 |
 | LightlyTrain | dinov3/vitl16-eomt-panoptic-coco | 57.0 | 80.1 | 315.1 | 640×640 |
 | LightlyTrain | dinov3/vitl16-eomt-panoptic-coco-1280 | **59.0** | 500.1 | 315.1 | 1280×1280 |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco | 58.9 | - | 315.1 | 1280×1280 |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9 | - | 315.1 | 1280×1280 |
 
-Small and base models are trained for 24 epochs and large models for 12 epochson the
+Small and base models are trained for 24 epochs and large models for 12 epochs on the
 COCO 2017 dataset and evaluated on the validation set with single-scale testing.
 Avg. Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are
 optimized using `torch.compile`.
@@ -147,8 +147,9 @@ if __name__ == "__main__":
 
     model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
     results = model.predict("image.jpg")
-    results["masks"]    # Masks with (class_label, segment_id) for each pixel, tensor of shape (height, width, 2).
-                        # Height and width correspond to the original image size.
+    results["masks"]    # Masks with (class_label, segment_id) for each pixel, tensor of
+                        # shape (height, width, 2). Height and width correspond to the
+                        # original image size.
     results["segment_ids"]    # Segment ids, tensor of shape (num_segments,).
     results["scores"]   # Confidence scores, tensor of shape (num_segments,)
 ```
@@ -417,10 +418,10 @@ LightlyTrain supports the following model and workflow combinations.
 
 ### Fine-tuning
 
-| Model | Object Detection | Instance Segmentation | Semantic Segmentation |
-| ------ | :----------------------------------------------------------------: | :---------------------------------------------------------------------: | :------------------------------------------------------------------------------------------: |
-| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html) |
+| Model | Object<br>Detection | Instance<br>Segmentation | Panoptic<br>Segmentation | Semantic<br>Segmentation |
+| ------ | :----------------------------------------------------------------: | :---------------------------------------------------------------------: | :------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------: |
+| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
+| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | | | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html) |
 
 ### Distillation & Pretraining
 
