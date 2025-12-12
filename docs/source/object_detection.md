@@ -313,6 +313,97 @@ my_data_dir/
         └── ...
 ```
 
+(object-detection-logging)=
+
+## Logging
+
+Logging is configured with the `logger_args` argument. The following loggers are
+supported:
+
+- [`mlflow`](object-detection-mlflow): Logs training metrics to MLflow (disabled by
+  default, requires MLflow to be installed)
+- [`tensorboard`](object-detection-tensorboard): Logs training metrics to TensorBoard
+  (enabled by default, requires TensorBoard to be installed)
+- [`wandb`](object-detection-wandb): Logs training metrics to Weights & Biases (disabled by
+  default, requires wandb to be installed)
+
+(object-detection-mlflow)=
+
+### MLflow
+
+```{important}
+MLflow must be installed with `pip install "lightly-train[mlflow]"`.
+```
+
+The mlflow logger can be configured with the following arguments:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_object_detection(
+        out="out/my_experiment",
+        model="dinov3/vitt16-ltdetr-coco",
+        data={
+            # ...
+        },
+        logger_args={
+            "mlflow": {
+                "experiment_name": "my_experiment",
+                "run_name": "my_run",
+                "tracking_uri": "tracking_uri",
+            },
+        },
+    )
+```
+
+(object-detection-tensorboard)=
+
+### TensorBoard
+
+TensorBoard logs are automatically saved to the output directory. Run TensorBoard in
+a new terminal to visualize the training progress:
+
+```bash
+tensorboard --logdir out/my_experiment
+```
+
+Disable the TensorBoard logger with:
+
+```python
+logger_args={"tensorboard": None}
+```
+
+(object-detection-wandb)=
+
+### Weights & Biases
+
+```{important}
+Weights & Biases must be installed with `pip install "lightly-train[wandb]"`.
+```
+
+The Weights & Biases logger can be configured with the following arguments:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_object_detection(
+        out="out/my_experiment",
+        model="dinov3/vitt16-ltdetr-coco",
+        data={
+            # ...
+        },
+        logger_args={
+            "wandb": {
+                "project": "my_project",
+                "name": "my_experiment",
+                "log_model": False,        # Set to True to upload model checkpoints
+            },
+        },
+    )
+```
+
 ## Exporting a Checkpoint to ONNX
 
 [Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange) is a standard format
