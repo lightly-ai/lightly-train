@@ -134,8 +134,8 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "0594829822a23935079c35304f3bd1c7fede802114bc1a699780df693f2dea6c",
     ),
     "dinov3/vitl16-eomt-panoptic-coco": (
-        "dinov3_vitl16_eomt_panoptic_coco_251209_edb56275.pt",
-        "edb56275e972d0398daa6f2185a23442c3f96fb254191f97e6197b4776920a8a",
+        "dinov3_vitl16_eomt_panoptic_coco_251209_e0c1e6ae.pt",
+        "e0c1e6aeb245dbe6fd8735ffea48b81978b66b1a320533498de4375c18ad4368",
     ),
     "dinov3/vitl16-eomt-panoptic-coco-1280": (
         "dinov3_vitl16_eomt_panoptic_coco_1280_251209_3da0b210.pt",
