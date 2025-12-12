@@ -510,6 +510,63 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             "scores": scores,
         }
 
+    @torch.no_grad()
+    def predict_tiled(
+        self, 
+        image: PathLike | PILImage | Tensor,
+        threshold: float = 0.6,
+        overlap: float = 0.25,
+    ) -> dict[str, Tensor]:
+        # TODO handle batches
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
+
+        device = next(self.parameters()).device
+        x = file_helpers.as_image_tensor(image).to(device)
+
+        # Tile the image.
+        tiles, tiles_coordinates = _tile_image(x, overlap, self.image_size)
+
+        # Prepare the full image tile
+        h, w = x.shape[-2:]
+        x = transforms_functional.resize(x, self.image_size)
+        x = x.unsqueeze(0)
+        tiles = torch.cat([x, tiles], dim=0)
+
+        # Normalize the tiles and the image together.
+        tiles = transforms_functional.to_dtype(tiles, dtype=torch.float32, scale=True)
+
+        # Normalize the image.
+        if self.image_normalize is not None:
+            tiles = transforms_functional.normalize(
+                tiles, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+            )
+        
+        # Prepare the image/tiles sizes.
+        orig_target_sizes = torch.tensor([self.image_size], device=device).repeat(len(tiles), 1)
+        orig_target_sizes[0, 0] = h
+        orig_target_sizes[0, 1] = w
+
+        # Feed the tiles in parallel to the model.
+        labels, boxes, scores = self(tiles, orig_target_size=orig_target_sizes)
+
+        # Add coordinates of the tiles to the boxes.
+        tiles_coordinates = tiles_coordinates.repeat(1, 2).unsqueeze(1).expand(-1, boxes.shape[1], -1).to(device)
+        boxes[1:] += tiles_coordinates
+
+        # Reorganize the predictions.
+        boxes = boxes.view(-1, 4)
+        labels = labels.flatten()
+        scores = scores.flatten()
+
+        keep = scores > threshold
+        labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
+        return {
+            "labels": labels,
+            "bboxes": boxes,
+            "scores": scores,
+        }
+
     def forward(
         self, x: Tensor, orig_target_size: Tensor | None = None
     ) -> tuple[Tensor, Tensor, Tensor]:
@@ -743,3 +800,43 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 )
 
         logger.info(f"Successfully exported ONNX model to '{out_path}'")
+
+
+def _tile_image(image, overlap, tile_size):
+    """
+    Docstring for _tile_image
+    if both h, w are smaller than tiles size -> called normal predict
+    if h or w < tile_size -> call resize shortest side
+    otherwise good
+    
+    :param image: Description
+    :param overlap: Description
+    :param tile_size: Description
+    """
+    # Get the image and tile shape.
+    _, h, w = image.shape
+    h_tile, w_tile = tile_size
+
+    # Define the steps.
+    h_step = int((1. - overlap) * h_tile)
+    w_step = int((1. - overlap) * w_tile)
+
+    tiles = []
+    tiles_coordinates = []
+    for h_start in range(0, h, h_step):
+        for w_start in range(0, w, w_step):
+            # Compute the start and end of the current tile.
+            h_end = min(h_start + h_tile, h)
+            h_start = h_end - w_tile
+            w_end = min(w_start + w_tile, w)
+            w_start = w_end - w_tile
+
+            # Extract the tile.
+            tile = image[:, h_start: h_end, w_start: w_end]
+            tiles.append(tile)
+            tiles_coordinates.append(torch.tensor([w_start, h_start]))
+
+    # Stack the tiles and coordinates
+    tiles = torch.stack(tiles)
+    tiles_coordinates = torch.stack(tiles_coordinates)
+    return tiles, tiles_coordinates
