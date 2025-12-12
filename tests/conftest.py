@@ -13,6 +13,7 @@ from typing import Generator
 import pytest
 from pytest import FixtureRequest, TempPathFactory
 from pytest_mock import MockerFixture
+import shutil
 
 
 @pytest.fixture(autouse=True)  # Apply to all tests
@@ -38,7 +39,10 @@ def lightly_train_cache_dir(
     # unexpected.
     cache_dir = tmp_path_factory.mktemp(f"{name}_lightly_train_cache")
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_CACHE_DIR": str(cache_dir)})
-    yield cache_dir
+    try:
+        yield cache_dir
+    finally:
+        shutil.rmtree(cache_dir, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)  # Apply to all tests
