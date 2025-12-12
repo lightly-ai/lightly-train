@@ -119,7 +119,7 @@ class GaussianBlurArgs(PydanticConfig):
             and all(isinstance(v, int) for v in value)
         ):
             value = tuple(value)
-            assert isinstance(value, tuple)
+            assert len(value) == 2
             assert all(isinstance(v, int) for v in value)
             return value
         else:
