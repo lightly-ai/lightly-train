@@ -33,7 +33,7 @@ the minimum scripts for pretraining using `ultralytics/yolov8s` as an example:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",                # Output directory.
         data="my_data_dir",                     # Directory with images.
         model="ultralytics/yolov8s.yaml",       # Pass the YOLO model.
@@ -49,7 +49,7 @@ import lightly_train
 
 if __name__ == "__main__":
     model = YOLO("yolov8s.yaml")                # Load the YOLO model.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",                # Output directory.
         data="my_data_dir",                     # Directory with images.
         model=model,                            # Pass the YOLO model.
@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="ultralytics/yolov8s.yaml"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="ultralytics/yolov8s.yaml"
 ````
 
 ### Fine-tune

@@ -110,7 +110,7 @@ from pathlib import Path
 dataset_path = Path("datasets") / "human-detection-dataset-pretraining"
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",                # Output directory.
         data=dataset_path,                      # Directory with images.
         model="torchvision/resnet18",           # Pass the Torchvision model.
@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="datasets/human-detection-dataset-pretraining" model="torchvision/resnet18"
+lightly-train pretrain out="out/my_experiment" data="datasets/human-detection-dataset-pretraining" model="torchvision/resnet18"
 ````
 
 ## Fine-tune ResNet with PyTorch Lightning
@@ -160,7 +160,10 @@ tree -L 1 datasets/human-detection-dataset-fine-tuning
 
 ### Split the Fine-tuning Dataset
 
-Before we can fine-tune the model, we need to split the dataset into training and validation sets. We will use 80% of the images for training and 20% for validation. The following Python script will create the `train` and `val` directories and move the images into their respective subdirectories.
+Before we can fine-tune the model, we need to split the dataset into training and
+validation sets. We will use 80% of the images for training and 20% for validation.
+The following Python script will create the `train` and `val` directories and move the
+images into their respective subdirectories.
 
 ```python
 # finetune_dataset_split.py
@@ -205,7 +208,8 @@ for data_class in classes:
     class_dir.rmdir()
 ```
 
-The resulting dataset directory contains two split subdirectories: `train` and `val`, each with two classes in their subdirectories.
+The resulting dataset directory contains two split subdirectories: `train` and `val`,
+each with two classes in their subdirectories.
 
 ```bash
 tree -L 2 datasets/human-detection-dataset-fine-tuning

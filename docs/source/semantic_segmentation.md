@@ -556,7 +556,7 @@ import lightly_train
 
 if __name__ == "__main__":
     # Pretrain a DINOv2 model.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_pretrain_experiment",
         data="my_pretrain_data_dir",
         model="dinov2/vitl14",

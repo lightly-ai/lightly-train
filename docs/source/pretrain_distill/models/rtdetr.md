@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     # Pretrain the model
     wrapped_model = RTDETRModelWrapper(model)
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir", # Replace with your dataset path.
         model=wrapped_model,

@@ -39,7 +39,7 @@ my_transform_args = {
     "color_jitter": None,
 }
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",            # Output directory
         data="my_data_dir",                 # Directory with images
         model="torchvision/resnet18",       # Model to train
@@ -65,7 +65,7 @@ means:
 
 An example of how you can use the bracketed notation, would be:
 ```bash
-lightly-train train \
+lightly-train pretrain \
     out="out/my_experiment" \
     overwrite=True \
     data="my_data_dir" \
@@ -78,7 +78,7 @@ lightly-train train \
 And an example of using a single JSON structure would look as follows:
 
 ```bash
-lightly-train train \
+lightly-train pretrain \
     out="out/my_experiment" \
     data="my_data_dir" model="torchvision/resnet18" \
     transform_args='{"image_size": [128, 128], "random_resize": {"min_scale": 0.1}, "color_jitter": null}'

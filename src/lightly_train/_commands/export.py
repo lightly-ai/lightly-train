@@ -37,7 +37,7 @@ def export(
 ) -> None:
     """Export a model from a checkpoint.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/export.html
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill/export.html
 
     Args:
         out:

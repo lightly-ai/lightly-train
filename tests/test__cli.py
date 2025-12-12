@@ -27,8 +27,8 @@ from lightly_train._configs.config import PydanticConfig
     "command,msg",
     [
         (["help"], _cli._HELP_MSG),
-        (["train"], _cli._TRAIN_HELP_MSG),
-        (["train", "help"], _cli._TRAIN_HELP_MSG),
+        (["pretrain"], _cli._PRETRAIN_HELP_MSG),
+        (["pretrain", "help"], _cli._PRETRAIN_HELP_MSG),
         (["export"], _cli._EXPORT_HELP_MSG),
         (["export", "help"], _cli._EXPORT_HELP_MSG),
     ],
@@ -40,9 +40,9 @@ def test_cli__help(command: list[str], msg: str, caplog: LogCaptureFixture) -> N
         assert _cli._format_msg(msg) == caplog.records[0].message
 
 
-def test_cli__train(mocker: MockerFixture) -> None:
-    config = OmegaConf.from_cli(["train", "out=out"])
-    mock_train_from_config = mocker.patch.object(_cli.train, "train_from_dictconfig")
+def test_cli__pretrain(mocker: MockerFixture) -> None:
+    config = OmegaConf.from_cli(["pretrain", "out=out"])
+    mock_train_from_config = mocker.patch.object(_cli.train, "pretrain_from_dictconfig")
     _cli.cli(config=config)
     mock_train_from_config.assert_called_once()
     mock_train_from_config.assert_called_once_with(config)
@@ -93,10 +93,10 @@ def test_cli__list_methods(caplog: LogCaptureFixture) -> None:
         assert "    simclr" in caplog.records[0].message
 
 
-def test__TRAIN_HELP_MSG__parameters() -> None:
-    """Test that the train help message contains all parameters from CLITrainConfig."""
+def test__PRETRAIN_HELP_MSG__parameters() -> None:
+    """Test that the pretrain help message contains all parameters from CLITrainConfig."""
     _assert_help_msg_contains_params(
-        msg=_cli._TRAIN_HELP_MSG, config=CLITrainConfig(out="", data="", model="")
+        msg=_cli._PRETRAIN_HELP_MSG, config=CLITrainConfig(out="", data="", model="")
     )
 
 

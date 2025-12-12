@@ -21,7 +21,7 @@ minimum scripts for pretraining using `timm/resnet18` as an example:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",                # Output directory.
         data="my_data_dir",                     # Directory with images.
         model="timm/resnet18",                  # Pass the timm model.
@@ -38,7 +38,7 @@ import lightly_train
 
 if __name__ == "__main__":
     model = timm.create_model("resnet18")       # Load the model.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",                # Output directory.
         data="my_data_dir",                     # Directory with images.
         model=model,                            # Pass the TIMM model.
@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="timm/resnet18"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="timm/resnet18"
 ````
 
 ### Fine-tune

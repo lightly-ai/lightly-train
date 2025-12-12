@@ -27,7 +27,7 @@ implementation. All models are trained from scratch on ImageNet-1K.*
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment", 
         data="my_data_dir",
         model="dinov2/vitb14",
@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out=out/my_experiment data=my_data_dir model="dinov2/vitb14" method="dinov2"
+lightly-train pretrain out=out/my_experiment data=my_data_dir model="dinov2/vitb14" method="dinov2"
 ```
 ````
 

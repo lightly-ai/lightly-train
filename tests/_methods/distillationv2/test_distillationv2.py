@@ -192,7 +192,7 @@ class TestDistillationV2:
         create_images(data_path, files=4, height=224, width=224)
 
         # export the pretrained teacher model from DINOv2.
-        lightly_train.train(
+        lightly_train.pretrain(
             out=out_path,
             data=data_path,
             method="dinov2",

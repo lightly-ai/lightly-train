@@ -5,7 +5,7 @@
 ## General
 
 ```{dropdown} <h6>What is LightlyTrain?<a class="headerlink" id="what-is-lightlytrain" href="#what-is-lightlytrain" title="Link to this heading">¶</a></h6>
-LightlyTrain is a production-ready framework to train computer vision models on unlabeled
+LightlyTrain is a production-ready framework to pretrain computer vision models on unlabeled
 data. This allows you to get started with model training immediately as you don't have
 to wait for your data to get labeled and it significantly reduces the amount of labeled
 data needed to reach a high model performance. This decreases model deployment time and
@@ -94,7 +94,7 @@ LightlyTrain offers several advantages over other self-supervised learning (SSL)
   models in the right format for fine-tuning, reducing risks when moving from pretraining to 
   fine-tuning.
 - **DINOv2 distillation**: Lightly has developed a unique distillation method that allows
-  you to train smaller models with the knowledge of larger DINOv2 models without the need for
+  you to pretrain smaller models with the knowledge of larger DINOv2 models without the need for
   large compute resources.
 - **DINOv2 pretraining**: LightlyTrain supports DINOv2 pretraining out of the box,
   allowing you to train state-of-the-art vision foundation models on your own datasets.
@@ -156,7 +156,7 @@ LightlyTrain currently supports training on images and video frames. It works wi
 formats such as JPG, PNG, etc. The framework handles image loading, preprocessing, and transformation
 automatically.
 
-See [the documentation](#train-data) for all the supported data formats.
+See [the documentation](pretrain-data) for all the supported data formats.
 ```
 
 ```{dropdown} <h6>Which datasets and domains does LightlyTrain support?<a class="headerlink" id="which-datasets-and-domains-does-lightlytrain-support" href="#which-datasets-and-domains-does-lightlytrain-support" title="Link to this heading">¶</a></h6>
@@ -218,7 +218,7 @@ Yes you can! LightlyTrain supports any model implemented in PyTorch. See the doc
 on [custom models](#custom-models) on how to pretrain your model.
 
 There are no restrictions on the dataset you use, except that it must contain images stored in a directory.
-See [the documentation](#train-data) for all the supported images formats and the dataset structure.
+See [the documentation](pretrain-data) for all the supported images formats and the dataset structure.
 ```
 
 ```{dropdown} <h6>How can I fine-tune a model?<a class="headerlink" id="how-can-i-fine-tune-a-model" href="#how-can-i-fine-tune-a-model" title="Link to this heading">¶</a></h6>
@@ -261,8 +261,8 @@ hyperparameter tuning.
 
 You might want to adjust the following parameters based on your hardware and training budget:
 - `batch_size`: We recommend a batch size between 128-1536.
-- `epochs`: We recommend to train for 100-3000 epochs for large datasets (>100'000 images).
-  For small datasets (<100'000 images) we recommend to train up to 10'000 epochs.
+- `epochs`: We recommend to pretrain for 100-3000 epochs for large datasets (>100'000 images).
+  For small datasets (<100'000 images) we recommend to pretrain up to 10'000 epochs.
 - `num_devices`: The number of GPUs to use for training. LightlyTrain automatically uses all available
   GPUs.
 - `precision`: We recommend training with "bf16-mixed" precision for faster training speed.
@@ -288,10 +288,10 @@ LightlyTrain is most beneficial in these scenarios:
 - **Different data domains**: When working with data that has a very different distribution from
   the data existing pretrained models are trained on. For example, models pretrained on COCO or
   ImageNet often don't transfer well to medical images or industrial data. In these cases,
-  LightlyTrain can help you train a model that is better suited for your specific domain.
+  LightlyTrain can help you pretrain a model that is better suited for your specific domain.
 - **Policies or license restrictions**: Models trained on popular datasets such as ImageNet have
   oftentimes unclear licensing policies, making it difficult to use them in production. If you are
-  restricted by policies or licenses, LightlyTrain allows you to train your own model without
+  restricted by policies or licenses, LightlyTrain allows you to pretrain your own model without
   relying on existing pretrained models.
 - **Limited labeled data**: When you have access to a lot of unlabeled data but limited labeled 
   data for your specific task.

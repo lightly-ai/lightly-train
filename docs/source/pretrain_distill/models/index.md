@@ -2,16 +2,16 @@
 
 # Models
 
-Lightly**Train** supports training models from various libraries. See [Supported Libraries](#supported-libraries) for a list of supported libraries and models.
+Lightly**Train** supports pretraining models from various libraries. See [Supported Libraries](#supported-libraries) for a list of supported libraries and models.
 
-The model is specified in the `train` command with the `model` argument:
+The model is specified in the `pretrain` command with the `model` argument:
 
 ````{tab} Python
 ```python
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet50",
@@ -20,12 +20,12 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50"
 ````
 
 Model names always follow the pattern `<library name>/<model name>`.
 
-Instead of passing a model name, it is also possible to pass a model instance directly to the `train` function:
+Instead of passing a model name, it is also possible to pass a model instance directly to the `pretrain` function:
 
 ````{tab} Python
 ```python
@@ -34,7 +34,7 @@ from torchvision.models import resnet50
 
 if __name__ == "__main__":
     model = resnet50()                  # Load the model.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model=model,                    # Pass the model.
@@ -76,6 +76,7 @@ The following libraries are supported (follow the links to get to the respective
 hidden:
 maxdepth: 1
 ---
+Overview <self>
 torchvision
 timm
 ultralytics
@@ -91,4 +92,4 @@ custom_models
 
 ## Custom Models
 
-See {ref}`Custom Models <custom-models>` for information on how to train custom models.
+See {ref}`Custom Models <custom-models>` for information on how to pretrain custom models.
