@@ -13,7 +13,7 @@ with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by Kerssies et al
 
 ## Benchmark Results
 
-Below we provide the models and report the validation mAP and inference FPS
+Below we provide the models and report the validation mAP and inference latency
 of different DINOv3 models fine-tuned on COCO with LightlyTrain. You can check
 [here](instance-segmentation-train) how to use these models for further fine-tuning.
 
@@ -23,16 +23,16 @@ You can also explore running inference and training these models using our Colab
 
 ### COCO
 
-| Implementation | Model | Val mAP mask | Avg. FPS | Params (M) | Input Size |
+| Implementation | Model | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
 |----------------|----------------|-------------|----------|-----------|------------|
-| LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 51.5 | 21.6 | 640×640 |
-| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 25.2 | 85.7 | 640×640 |
-| LightlyTrain | dinov3/vitl16-eomt-inst-coco | **46.2** | 12.5 | 303.2 | 640×640 |
+| LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 19.4 | 21.6 | 640×640 |
+| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 39.7 | 85.7 | 640×640 |
+| LightlyTrain | dinov3/vitl16-eomt-inst-coco | **46.2** | 80.0 | 303.2 | 640×640 |
 | Original EoMT | dinov3/vitl16-eomt-inst-coco | 45.9 | - | 303.2 | 640×640 |
 
 Training follows the protocol in the original [EoMT paper](https://arxiv.org/abs/2503.19108).
 Models are trained for 90K steps (~12 epochs) on the COCO dataset with batch size `16`
-and learning rate `2e-4`. The average FPS values were measured with model compilation
+and learning rate `2e-4`. The average latency values were measured with model compilation
 using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 
 (instance-segmentation-train)=

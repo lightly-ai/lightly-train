@@ -14,9 +14,9 @@ Kerssies et al. and reaches 59.1% mIoU with DINOv3 weights and 58.4% mIoU with D
 
 ## Benchmark Results
 
-Below we provide the model checkpoints and report the validation mIoUs and inference FPS of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available. You can check [here](semantic-segmentation-eomt-dinov3-model-weights) for how to use these model checkpoints for further fine-tuning.
+Below we provide the model checkpoints and report the validation mIoUs and inference latency of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available. You can check [here](semantic-segmentation-eomt-dinov3-model-weights) for how to use these model checkpoints for further fine-tuning.
 
-The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average FPS values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
+The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average latency values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 
 You can also explore inferencing with these model weights using our Colab notebook:
 
@@ -24,22 +24,22 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 ### COCO-Stuff
 
-| Implementation | Model | Val mIoU | Avg. FPS | Params (M) | Input Size |
+| Implementation | Model | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
 |----------------|----------------------------|----------|----------|-----------|------------|
-| LightlyTrain | dinov3/vits16-eomt-coco | 0.465 | 88.7 | 21.6 | 512×512 |
-| LightlyTrain | dinov3/vitb16-eomt-coco | 0.520 | 43.3 | 85.7 | 512×512 |
-| LightlyTrain | dinov3/vitl16-eomt-coco | **0.544** | 20.4 | 303.2 | 512×512 |
+| LightlyTrain | dinov3/vits16-eomt-coco | 46.5 | 11.3 | 21.6 | 512×512 |
+| LightlyTrain | dinov3/vitb16-eomt-coco | 52.0 | 23.1 | 85.7 | 512×512 |
+| LightlyTrain | dinov3/vitl16-eomt-coco | **54.4** | 49.0 | 303.2 | 512×512 |
 
 We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
 
 ### Cityscapes
 
-| Implementation | Model | Val mIoU | Avg. FPS | Params (M) | Input Size |
+| Implementation | Model | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
 |----------------|--------------------------------------|----------|----------|-----------|------------|
-| LightlyTrain | dinov3/vits16-eomt-cityscapes | 0.786 | 18.6 | 21.6 | 1024×1024 |
-| LightlyTrain | dinov3/vitb16-eomt-cityscapes | 0.810 | 8.7 | 85.7 | 1024×1024 |
-| LightlyTrain | dinov3/vitl16-eomt-cityscapes | **0.844** | 3.9 | 303.2 | 1024×1024 |
-| Original EoMT | dinov2/vitl16-eomt | 0.842 | - | 319 | 1024×1024 |
+| LightlyTrain | dinov3/vits16-eomt-cityscapes | 78.6 | 53.8 | 21.6 | 1024×1024 |
+| LightlyTrain | dinov3/vitb16-eomt-cityscapes | 81.0 | 114.9 | 85.7 | 1024×1024 |
+| LightlyTrain | dinov3/vitl16-eomt-cityscapes | **84.4** | 256.4 | 303.2 | 1024×1024 |
+| Original EoMT | dinov2/vitl16-eomt | 84.2 | - | 319 | 1024×1024 |
 
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
 

@@ -183,6 +183,35 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.map_metric = MeanAveragePrecision()
         self.map_metric.warn_on_many_detections = False
 
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> Any:
+        """Loads the model state dict.
+
+        Overloads the default implementation to use the task model's loading logic.
+        This allows loading weights from an EMA model into the training model.
+        """
+        # Initialize the model using the task-model logic
+        incompatible = self.model.load_train_state_dict(
+            state_dict, strict=strict, assign=assign
+        )
+
+        # Load EMA replica if present, otherwise copy weights from the training model
+        if self.ema_model is not None:
+            ema_prefix = "ema_model."
+            ema_state = {
+                k[len(ema_prefix) :]: v
+                for k, v in state_dict.items()
+                if k.startswith(ema_prefix)
+            }
+
+            if ema_state:
+                self.ema_model.load_state_dict(ema_state, strict=strict, assign=assign)
+            else:
+                self.ema_model.model.load_state_dict(self.model.state_dict())
+
+        return incompatible
+
     def set_train_mode(self) -> None:
         super().set_train_mode()
         self.criterion.train()  # TODO (Lionel, 10/25): Check if this is necessary.
