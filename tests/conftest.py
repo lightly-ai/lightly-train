@@ -42,7 +42,7 @@ def lightly_train_cache_dir(
     try:
         yield cache_dir
     finally:
-        # Delete the cache dir after the test. By default, pytest only deletes 
+        # Delete the cache dir after the test. By default, pytest only deletes
         # directories created via tmp_path_factory at the end of the whole test
         # session.
         shutil.rmtree(cache_dir, ignore_errors=True)
