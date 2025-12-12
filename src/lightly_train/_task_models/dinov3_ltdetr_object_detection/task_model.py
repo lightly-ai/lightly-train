@@ -44,6 +44,7 @@ from lightly_train._task_models.object_detection_components.rtdetrv2_decoder imp
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
+from torchvision.ops import nms
 
 logger = logging.getLogger(__name__)
 
@@ -520,9 +521,10 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self, 
         image: PathLike | PILImage | Tensor,
         threshold: float = 0.6,
-        overlap: float = 0.25,
+        overlap: float = 0.2,
+        nms_threshold: float = 0.25,
+        tiles_prediction_handicap: float = 1.0,
     ) -> dict[str, Tensor]:
-        # TODO handle batches
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
 
@@ -555,6 +557,10 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         # Feed the tiles in parallel to the model.
         labels, boxes, scores = self(tiles, orig_target_size=orig_target_sizes)
 
+        # Apply a handicap to tiles predictions.
+        scores_nms = scores.clone()
+        scores_nms[1:] = scores_nms[1:] ** tiles_prediction_handicap
+
         # Add coordinates of the tiles to the boxes.
         tiles_coordinates = tiles_coordinates.repeat(1, 2).unsqueeze(1).expand(-1, boxes.shape[1], -1).to(device)
         boxes[1:] += tiles_coordinates
@@ -563,6 +569,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         boxes = boxes.view(-1, 4)
         labels = labels.flatten()
         scores = scores.flatten()
+        scores_nms = scores_nms.flatten()
+
+        # Apply non-maximum suppression.
+        keep = nms(boxes=boxes, scores=scores_nms, iou_threshold=nms_threshold)
+        labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
 
         keep = scores > threshold
         labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
