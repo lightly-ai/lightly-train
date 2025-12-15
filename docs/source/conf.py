@@ -46,11 +46,7 @@ html_theme_options = {
         "color-brand-primary": "#a72264",
     },
     "dark_css_variables": {
-        "color-brand-primary": "#e6a3d3",
-        "color-background-primary": "#1a1a1a",
-        "color-background-secondary": "#2a2a2a",
-        "color-foreground-primary": "#e5e5e5",
-        "color-foreground-secondary": "#b8b8b8",
+        "color-brand-primary": "#ffffff",
     },
     "light_logo": "lightly_train_light.svg",
     "dark_logo": "lightly_train_dark.svg",
