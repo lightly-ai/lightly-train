@@ -78,15 +78,16 @@ lightly_train.pretrain(
     method_args={
         "teacher": "dinov3/vits16"  # Teacher model for distillation
     },
-    epochs=5,  # Number of epochs to train
-    batch_size=32,  # Batch size
+    epochs=5,  # Small number of epochs for demonstration
+    batch_size=32,  # Small number of epochs for demonstration
 )
 ```
 
 ```{note}
-This is a minimal example for illustration purposes. In practice you would want to
-use a larger dataset (>=10'000 images), more epochs (>=100), and a larger batch
-size (>=128).
+This is a minimal example for illustration purposes. In practice you would want to use a
+larger dataset (>=10'000 images), more epochs (>=100, ideally ~1000), and a larger
+batch size (>=128). For pretraining larger models than `dinov3/vitt16` we also recommend
+using a larger teacher model and setting `method="distillationv1"`.
 ```
 
 ```{tip}
