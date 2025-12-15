@@ -138,10 +138,6 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 - Change default precision to `bf16-mixed` for pretraining on GPUs that support it.
 
-### Deprecated
-
-### Removed
-
 ### Fixed
 
 - Fix warning about too few epochs for DINOv2 which occurs with the default epoch calculation.
