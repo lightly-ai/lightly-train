@@ -42,11 +42,10 @@ details.
 
 You can use any image dataset for training. No labels are required, and the
 dataset can be structured in any way, including subdirectories. If you don't have
-a dataset at hand, you can download a sample clothing dataset:
+a dataset at hand, you can download an example dataset:
 
 ```bash
-git clone https://github.com/lightly-ai/dataset_clothing_images.git my_data_dir
-rm -rf my_data_dir/.git
+wget https://github.com/lightly-ai/coco128_unlabeled/releases/download/v0.0.1/coco128_unlabeled.zip && unzip -q coco128_unlabeled.zip
 ```
 
 See the [data guide](pretrain-data) for more information on
@@ -55,17 +54,12 @@ supported data formats.
 In this example, the dataset looks like this:
 
 ```text
-my_data_dir
-├── dress
-│   ├── 07cddef1-1fc8-47e4-a28a-613e60912590.jpg
-│   └── 19e4de0d-fb90-47c2-83b4-37e3652c5a16.jpg
-├── hat
-│   ├── 014b2a1b-c5a0-469b-b115-bc02b2001db5.jpg
-│   └── 4f04a31f-6589-4fe2-8a95-a42f6a164bd9.jpg
-├── ...
-└── t-shirt
+coco128_unlabeled
+└── images
+    ├── 000000000009.jpg
+    ├── 000000000025.jpg
     ├── ...
-    └── fd815439-7fee-40c7-8175-2f32596eb578.jpg
+    └── 000000000650.jpg
 ```
 
 ## Pretrain with Distillation
@@ -78,9 +72,12 @@ import lightly_train
 # Pretrain the model
 lightly_train.pretrain(
     out="out/my_experiment",  # Output directory
-    data="my_data_dir",  # Directory with images
-    model="dinov2/vits14",  # Model to train
+    data="coco128_unlabeled",  # Directory with images
+    model="dinov3/vitt16",  # Model to train
     method="distillation",  # Pretraining method
+    method_args={
+        "teacher": "dinov3/vits16"  # Teacher model for distillation
+    },
     epochs=5,  # Number of epochs to train
     batch_size=32,  # Batch size
 )
@@ -97,7 +94,7 @@ Lightly**Train** supports many [popular models](pretrain_distill/models/index.md
 out of the box.
 ```
 
-This pretrains a DINOv2 ViT-S model using images from `my_data_dir`. All training
+This pretrains a tiny DINOv3 ViT model using images from `coco128_unlabeled`. All training
 logs, model exports, and checkpoints are saved to the output directory at
 `out/my_experiment`.
 
@@ -178,7 +175,7 @@ import lightly_train
 
 lightly_train.train_object_detection(
     out="out/my_finetune_experiment",
-    model="dinov2/vits14-ltdetr",
+    model="dinov3/vitt16-ltdetr",
     model_args={
         # Load the pretrained weights.
         "backbone_weights": "out/my_experiment/exported_models/exported_last.pt",
@@ -294,7 +291,7 @@ import lightly_train
 lightly_train.embed(
     out="my_embeddings.pth",  # Exported embeddings
     checkpoint="out/my_experiment/checkpoints/last.ckpt",  # LightlyTrain checkpoint
-    data="my_data_dir",  # Directory with images
+    data="coco128_unlabeled",  # Directory with images
 )
 ```
 
