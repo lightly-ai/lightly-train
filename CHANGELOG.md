@@ -53,7 +53,7 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 - Fix bug in object detection transforms when using images with dtype float32.
 - Fix bug when running pretraining on an MPS device.
 - Fix bug when resuming training with a recent PyTorch version.
-- Fix bug when resuing a crashed run that was initialized from a pretrained COCO model.
+- Fix bug when resuming a crashed run that was initialized from a pretrained COCO model.
 
 ## [0.12.4] - 2025-11-26
 
