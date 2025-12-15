@@ -534,8 +534,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         - All tiles (global + local) are passed through the model in parallel.
         - Predictions are filtered by score and merged using NMS and a
           global/local consistency heuristic. NMS is only applied on tiles predictions.
-          The heuristic discards tiles predicitons that heavily overlaps with global
-          predicitons.
+          The heuristic discards tiles predictions that heavily overlaps with global
+          predictions.
 
         Args:
             image: Input image. Can be a path, a PIL image, or a tensor of shape (C, H, W).
@@ -574,7 +574,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         # Normalize the tiles and the image together.
         tiles = transforms_functional.to_dtype(tiles, dtype=torch.float32, scale=True)
 
-        # Normalize the image.
+        # Normalize the tiles.
         if self.image_normalize is not None:
             tiles = transforms_functional.normalize(
                 tiles,
@@ -594,10 +594,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # Add coordinates of the tiles to the boxes.
         tiles_coordinates = (
-            tiles_coordinates.repeat(1, 2)
-            .unsqueeze(1)
-            .expand(-1, boxes.shape[1], -1)
-            .to(device)
+            tiles_coordinates.repeat(1, 2).unsqueeze(1).expand(-1, boxes.shape[1], -1)
         )
         boxes[1:] += tiles_coordinates
 

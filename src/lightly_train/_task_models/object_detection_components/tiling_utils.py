@@ -72,7 +72,9 @@ def _tile_image(
             # Extract the tile.
             tile = image[:, h_start:h_end, w_start:w_end]
             tiles.append(tile)
-            tiles_coordinates.append(torch.tensor([w_start, h_start]))
+            tiles_coordinates.append(
+                torch.tensor([w_start, h_start], device=tile.device)
+            )
 
     # Stack the tiles and coordinates
     tiles = torch.stack(tiles)
@@ -86,7 +88,7 @@ def _combine_predictions_tiles_and_global(
     pred_tiles: dict[str, Tensor],
     nms_iou_threshold: float = 0.2,
     global_local_iou_threshold: float = 0.1,
-) -> dict[str, Tensor]:
+) -> tuple[Tensor, Tensor, Tensor]:
     """
     Combine predictions from the global view (full image) and local views (image tiles).
 
