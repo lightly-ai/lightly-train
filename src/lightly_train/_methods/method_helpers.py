@@ -21,7 +21,7 @@ HIDDEN_METHODS = {DenseCL.__name__.lower()}
 def list_methods() -> list[str]:
     """Lists all available self-supervised learning methods.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/methods/
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill/methods/index.html
     """
     method_names = set(_method_name_to_cls().keys())
     method_names -= HIDDEN_METHODS
@@ -31,7 +31,7 @@ def list_methods() -> list[str]:
 def _list_methods() -> list[str]:
     """Lists all available self-supervised learning methods. Including the hidden ones.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/methods/
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill/methods/index.html
     """
     method_names = sorted(_method_name_to_cls().keys())
     return method_names

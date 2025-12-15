@@ -17,7 +17,7 @@ GPUs!
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet50",
@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" accelerator="gpu" devices=2
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" accelerator="gpu" devices=2
 ```
 ````
 
@@ -95,14 +95,14 @@ source .venv/bin/activate
 srun python my_train_script.py      
 ```
 
-Then create a Python script (`my_train_script.py`) that calls `lightly_train.train()`:
+Then create a Python script (`my_train_script.py`) that calls `lightly_train.pretrain()`:
 
 ```python
 # my_train_script.py
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet50",

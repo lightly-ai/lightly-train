@@ -3,10 +3,10 @@
 # Custom Models
 
 ```{note}
-Training custom models from the command line or with docker is not yet supported.
+Pretraining custom models from the command line or with docker is not yet supported.
 ```
 
-Lightly**Train** supports training custom models. This requires writing a small wrapper
+Lightly**Train** supports pretraining custom models. This requires writing a small wrapper
 around your model to implement the necessary methods. The wrapper must be a subclass
 of `torch.nn.Module` and implement the following methods:
 
@@ -96,10 +96,10 @@ class MyModelWrapper(Module):
         return 2048
 
 if __name__ == "__main__":
-    model = ... # Instatiate the model you want to train
+    model = ... # Instatiate the model you want to pretrain
     wrapped_model = MyModelWrapper(model) # Wrap the model
 
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model=wrapped_model,
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     model = resnet18()
     wrapped_model = MyModelWrapper(model)
 
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model=wrapped_model,
