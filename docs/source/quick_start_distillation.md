@@ -79,7 +79,7 @@ lightly_train.pretrain(
         "teacher": "dinov3/vits16"  # Teacher model for distillation
     },
     epochs=5,  # Small number of epochs for demonstration
-    batch_size=32,  # Small number of epochs for demonstration
+    batch_size=32,  # Small batch size for demonstration
 )
 ```
 
