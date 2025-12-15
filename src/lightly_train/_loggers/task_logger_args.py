@@ -14,6 +14,7 @@ from pydantic import Field
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._loggers.mlflow import MLFlowLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLoggerArgs
+from lightly_train._loggers.wandb import WandbLoggerArgs
 
 
 class TaskLoggerArgs(PydanticConfig):
@@ -25,6 +26,7 @@ class TaskLoggerArgs(PydanticConfig):
     tensorboard: TensorBoardLoggerArgs | None = Field(
         default_factory=TensorBoardLoggerArgs
     )
+    wandb: WandbLoggerArgs | None = None
 
     def resolve_auto(self, steps: int, val_steps: int) -> None:
         if self.log_every_num_steps == "auto":

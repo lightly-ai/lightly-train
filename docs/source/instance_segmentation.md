@@ -286,10 +286,12 @@ and fine-tuned by Lightly.
 Logging is configured with the `logger_args` argument. The following loggers are
 supported:
 
-- [`mlflow`](#mlflow): Logs training metrics to MLflow (disabled by
+- [`mlflow`](instance-segmentation-mlflow): Logs training metrics to MLflow (disabled by
   default, requires MLflow to be installed)
-- [`tensorboard`](#tensorboard): Logs training metrics to TensorBoard (enabled by
-  default, requires TensorBoard to be installed)
+- [`tensorboard`](instance-segmentation-tensorboard): Logs training metrics to TensorBoard
+  (enabled by default, requires TensorBoard to be installed)
+- [`wandb`](instance-segmentation-wandb): Logs training metrics to Weights & Biases (disabled by
+  default, requires wandb to be installed)
 
 (instance-segmentation-mlflow)=
 
@@ -336,6 +338,36 @@ Disable the TensorBoard logger with:
 
 ```python
 logger_args={"tensorboard": None}
+```
+
+(instance-segmentation-wandb)=
+
+### Weights & Biases
+
+```{important}
+Weights & Biases must be installed with `pip install "lightly-train[wandb]"`.
+```
+
+The Weights & Biases logger can be configured with the following arguments:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_instance_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vitl16-eomt-inst-coco",
+        data={
+            # ...
+        },
+        logger_args={
+            "wandb": {
+                "project": "my_project",
+                "name": "my_experiment",
+                "log_model": False,        # Set to True to upload model checkpoints
+            },
+        },
+    )
 ```
 
 (instance-segmentation-resume-training)=
