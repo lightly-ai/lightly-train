@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Tiling-based object detection methods to improve small objects recall at inference.
+- Tiling-based object detection predictions method to improve small objects recall at inference.
 
 ### Changed
 
