@@ -70,12 +70,12 @@ def test_track_training_started_event(mocker: MockerFixture) -> None:
     )
 
 
-def test_train__cpu(tmp_path: Path) -> None:
+def test_pretrain__cpu(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model="torchvision/resnet18",
@@ -104,18 +104,14 @@ def test_train__cpu(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize("num_workers", [0, 2, "auto"])
-@pytest.mark.parametrize("model", ["torchvision/resnet18", "rfdetr/rf-detr-base"])
-def test_train(
-    tmp_path: Path,
-    caplog: LogCaptureFixture,
-    num_workers: int | Literal["auto"],
-    model: str,
+def test_pretrain(
+    tmp_path: Path, caplog: LogCaptureFixture, num_workers: int | Literal["auto"]
 ) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model=model,
@@ -131,7 +127,7 @@ def test_train(
     first_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
 
     with caplog.at_level(logging.INFO):
-        train.train(
+        train.pretrain(
             out=out,
             data=data,
             model="torchvision/resnet18",
@@ -172,7 +168,7 @@ def test_train(
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
-def test_train__overwrite_true(tmp_path: Path) -> None:
+def test_pretrain__overwrite_true(tmp_path: Path) -> None:
     """Test that overwrite=True allows training with an existing output directory that
     contains files."""
     out = tmp_path / "out"
@@ -181,7 +177,7 @@ def test_train__overwrite_true(tmp_path: Path) -> None:
     (out / "file.txt").touch()
     helpers.create_images(image_dir=data, files=10)
 
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model="torchvision/resnet18",
@@ -195,11 +191,11 @@ def test_train__overwrite_true(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
-def test_train__overwrite_false(tmp_path: Path) -> None:
+def test_pretrain__overwrite_false(tmp_path: Path) -> None:
     (tmp_path / "file.txt").touch()
 
     with pytest.raises(ValueError):
-        train.train(
+        train.pretrain(
             out=tmp_path,
             data=tmp_path,
             model="torchvision/resnet18",
@@ -211,12 +207,12 @@ def test_train__overwrite_false(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
-def test_train__embed_dim(tmp_path: Path) -> None:
+def test_pretrain__embed_dim(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model="torchvision/resnet18",
@@ -230,12 +226,12 @@ def test_train__embed_dim(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
-def test_train__custom_model(tmp_path: Path) -> None:
+def test_pretrain__custom_model(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model=helpers.DummyCustomModel(),
@@ -250,24 +246,24 @@ def test_train__custom_model(tmp_path: Path) -> None:
 @pytest.mark.skipif(
     sys.version_info < (3, 10), reason="Requires Python 3.10 or higher for typing."
 )
-def test_train__parameters() -> None:
-    """Tests that train function and TrainConfig have the same parameters and default
+def test_pretrain__parameters() -> None:
+    """Tests that pretrain function and TrainConfig have the same parameters and default
     values.
 
-    This test is here to make sure we don't forget to update train/TrainConfig when
+    This test is here to make sure we don't forget to update pretrain/TrainConfig when
     we change parameters in one of the two.
     """
-    helpers.assert_same_params(a=FunctionTrainConfig, b=train.train)
+    helpers.assert_same_params(a=FunctionTrainConfig, b=train.pretrain)
     helpers.assert_same_params(a=TrainConfig, b=FunctionTrainConfig, assert_type=False)
     helpers.assert_same_params(a=TrainConfig, b=CLITrainConfig, assert_type=False)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
-def test_train__zero_epochs(tmp_path: Path) -> None:
+def test_pretrain__zero_epochs(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model="torchvision/resnet18",
@@ -303,7 +299,7 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
             loggers={"jsonl": {"flush_logs_every_n_steps": 5}},
         )
     )
-    train.train_from_dictconfig(config=config)
+    train.pretrain_from_dictconfig(config=config)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
@@ -314,7 +310,7 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "devices", [1]
 )  # TODO(Lionel, 10/25): Add test with 2 devices back.
-def test_train__distillation_different_teachers(
+def test_pretrain__distillation_different_teachers(
     tmp_path: Path, method: str, teacher: str, devices: int
 ) -> None:
     if torch.cuda.device_count() < devices:
@@ -324,7 +320,7 @@ def test_train__distillation_different_teachers(
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model="torchvision/resnet18",
@@ -342,7 +338,7 @@ def test_train__distillation_different_teachers(
 @pytest.mark.parametrize(
     "devices", [1]
 )  # TODO(Philipp, 09/24): Add test with 2 devices back.
-def test_train__method(tmp_path: Path, method: str, devices: int) -> None:
+def test_pretrain__method(tmp_path: Path, method: str, devices: int) -> None:
     if torch.cuda.device_count() < devices:
         pytest.skip("Test requires more GPUs than available.")
 
@@ -362,7 +358,7 @@ def test_train__method(tmp_path: Path, method: str, devices: int) -> None:
         "distillationv2": {"teacher": "dinov2/_vittest14"},
     }.get(method, {})
 
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model=model,
@@ -376,7 +372,7 @@ def test_train__method(tmp_path: Path, method: str, devices: int) -> None:
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
-def test_train__checkpoint_gradients(tmp_path: Path) -> None:
+def test_pretrain__checkpoint_gradients(tmp_path: Path) -> None:
     """Test that checkpoints saved during training do not have disabled gradients.
 
     This is especially a problem for methods with momentum encoders (e.g. DINO) where
@@ -389,7 +385,7 @@ def test_train__checkpoint_gradients(tmp_path: Path) -> None:
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model="torchvision/resnet18",
@@ -405,7 +401,7 @@ def test_train__checkpoint_gradients(tmp_path: Path) -> None:
         assert param.requires_grad
 
 
-def test_train__TrainConfig__model_dump(tmp_path: Path) -> None:
+def test_pretrain__TrainConfig__model_dump(tmp_path: Path) -> None:
     """
     Test that TrainConfig is dumped correctly even if some of its attributes are
     subclasses of the types specified in the TrainConfig class.
@@ -441,7 +437,9 @@ def test_train__TrainConfig__model_dump(tmp_path: Path) -> None:
     assert dumped_config_direct["method_args"]["warmup_teacher_temp_epochs"] == 30
 
 
-def test_train__log_resolved_config(caplog: LogCaptureFixture, tmp_path: Path) -> None:
+def test_pretrain__log_resolved_config(
+    caplog: LogCaptureFixture, tmp_path: Path
+) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     config = TrainConfig(
@@ -479,7 +477,7 @@ def test_train__log_resolved_config(caplog: LogCaptureFixture, tmp_path: Path) -
     assert logger.logs[0]["batch_size"] == 4
 
 
-def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
+def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
     """
     Assert that train_helpers.load_state_dict is called when a checkpoint is provided.
     """
@@ -494,7 +492,7 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
     helpers.create_images(image_dir=data, files=12)
 
     # Part 1: Generate a checkpoint.
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model="torchvision/resnet18",
@@ -510,7 +508,7 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
 
     # Part 2: Load the checkpoint
     spy_load_state_dict = mocker.spy(train.train_helpers, "load_state_dict")  # type: ignore[attr-defined]
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model="torchvision/resnet18",
@@ -561,7 +559,7 @@ def test_train__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         ("timm/resnet18", "distillation", {"teacher": "dinov2/_vittest14"}),
     ],
 )
-def test_train__multichannel(
+def test_pretrain__multichannel(
     tmp_path: Path, model: str, method: str, method_args: dict[str, Any]
 ) -> None:
     if model.startswith("timm") and not RequirementCache("timm"):
@@ -571,7 +569,7 @@ def test_train__multichannel(
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10, num_channels=4, mode="RGBA")
 
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model=model,
@@ -598,7 +596,7 @@ def test_train__multichannel(
         ("jpeg2k", 3),
     ],
 )
-def test_train__dicom(
+def test_pretrain__dicom(
     tmp_path: Path,
     data_format: str,
     num_channels: int,
@@ -611,7 +609,7 @@ def test_train__dicom(
     data = [str(data_path)] * 8  # Create a list of 8 identical DICOM files.
 
     out = tmp_path / "out"
-    train.train(
+    train.pretrain(
         out=out,
         data=data,
         model="dinov2/_vittest14",

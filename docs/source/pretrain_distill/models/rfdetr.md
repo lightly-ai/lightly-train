@@ -26,7 +26,7 @@ the minimum scripts for pretraining using `rfdetr/rf-detr-base` as an example:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",                # Output directory.
         data="my_data_dir",                     # Directory with images.
         model="rfdetr/rf-detr-base",            # Pass the RF-DETR model.
@@ -42,7 +42,7 @@ import lightly_train
 
 if __name__ == "__main__":
     model = RFDETRBase()                        # Load the RF-DETR model.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",                # Output directory.
         data="my_data_dir",                     # Directory with images.
         model=model,                            # Pass the RF-DETR model.
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="rfdetr/rf-detr-base"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="rfdetr/rf-detr-base"
 ````
 
 ### Fine-tune
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     version = project.version(1)
     dataset = version.download("coco")
       
-    model.train(dataset_dir=dataset.location)
+    model.pretrain(dataset_dir=dataset.location)
 ```
 
 which can be run with RF-DETR's DDP training:

@@ -156,7 +156,7 @@ def get_transform_args(rotation_off: bool) -> dict:
 
 if __name__ == "__main__":
            
-    lightly_train.train(
+    lightly_train.pretrain(
         out=f"pretrain_logs/megadepth_rotationOff{ROTATION_OFF}",
         data="/datasets/MegaDepthv1",
         model="torchvision/resnet50",
