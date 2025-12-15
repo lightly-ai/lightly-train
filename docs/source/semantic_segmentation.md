@@ -464,6 +464,8 @@ supported:
   default, requires MLflow to be installed)
 - [`tensorboard`](#tensorboard): Logs training metrics to TensorBoard (enabled by
   default, requires TensorBoard to be installed)
+- [`wandb`](semantic-segmentation-wandb): Logs training metrics to Weights & Biases (disabled by
+  default, requires wandb to be installed)
 
 (semantic-segmentation-mlflow)=
 
