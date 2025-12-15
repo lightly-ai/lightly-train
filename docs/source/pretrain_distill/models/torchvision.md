@@ -16,7 +16,7 @@ the minimum scripts for pretraining using `torchvision/resnet18` as an example:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",                # Output directory.
         data="my_data_dir",                     # Directory with images.
         model="torchvision/resnet18",           # Pass the Torchvision model.
@@ -33,7 +33,7 @@ import lightly_train
 
 if __name__ == "__main__":
     model = resnet18()                        # Load the Torchvision model.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",              # Output directory.
         data="my_data_dir",                   # Directory with images.
         model=model,                          # Pass the Torchvision model.
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18"
 ````
 
 ### Fine-tune

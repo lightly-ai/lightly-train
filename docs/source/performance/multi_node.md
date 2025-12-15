@@ -41,7 +41,7 @@ If you are using a general-purpose cluster, you can start a multi-node training 
 Set the `WORLD_SIZE=2` environment variable and the `num_nodes=2` argument to train on two nodes.
 
 ````{tab} Python
-Create a Python script that calls `lightly_train.train()` and add `num_nodes=2` to the
+Create a Python script that calls `lightly_train.pretrain()` and add `num_nodes=2` to the
 arguments:
 
 ```python
@@ -49,7 +49,7 @@ arguments:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet50",
@@ -69,8 +69,8 @@ MASTER_PORT=50027 MASTER_ADDR=123.45.67.89 WORLD_SIZE=2 NODE_RANK=1 python my_tr
 ````{tab} Command Line
 ```bash
 # On node 1
-MASTER_PORT=50027 MASTER_ADDR=123.45.67.89 WORLD_SIZE=2 NODE_RANK=0 lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" num_nodes=2
+MASTER_PORT=50027 MASTER_ADDR=123.45.67.89 WORLD_SIZE=2 NODE_RANK=0 lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" num_nodes=2
 # On node 2
-MASTER_PORT=50027 MASTER_ADDR=123.45.67.89 WORLD_SIZE=2 NODE_RANK=1 lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" num_nodes=2
+MASTER_PORT=50027 MASTER_ADDR=123.45.67.89 WORLD_SIZE=2 NODE_RANK=1 lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" num_nodes=2
 ```
 ````

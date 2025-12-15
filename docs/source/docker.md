@@ -48,15 +48,15 @@ Flags:
   be saved in this directory.
 - `-v /my_data_dir:/data`: Mounts the host directory `/my_data_dir` to the container
   directory `/data`. This directory must contain your training data. See the
-  [Data](#train-data) docs for more information on how to structure your data.
+  [Data](pretrain-data) docs for more information on how to structure your data.
 
 Once the container is running, you can run Lightly**Train** commands inside the container
 as if you had installed it locally. The only difference is that paths must be specified
-relative to the mounted directories `/out` and `/data`. For example, to train a model,
+relative to the mounted directories `/out` and `/data`. For example, to pretrain a model,
 run the following command inside the container:
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="/out/my_experiment" data="/data" model="torchvision/resnet50"
+lightly-train pretrain out="/out/my_experiment" data="/data" model="torchvision/resnet50"
 ```
 ````

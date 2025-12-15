@@ -25,7 +25,7 @@ example:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",                # Output directory.
         data="my_data_dir",                     # Directory with images.
         model="super_gradients/yolo_nas_s",     # Pass the supergradient model.
@@ -42,7 +42,7 @@ import lightly_train
 
 if __name__ == "__main__":
     model = models.get(model_name="yolo_nas_s", num_classes=3)  # Load the model.
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",                # Output directory.
         data="my_data_dir",                     # Directory with images.
         model=model,                            # Pass the SuperGradients model.
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="super_gradients/yolo_nas_s"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="super_gradients/yolo_nas_s"
 ````
 
 ### Fine-tune

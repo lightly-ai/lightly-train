@@ -16,7 +16,7 @@ library to `out/my_experiment/exported_models/exported_last.pt`.
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train(
+    lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet50",
@@ -32,11 +32,11 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train train out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50"
 lightly-train export out="my_exported_model.pt" checkpoint="out/my_experiment/checkpoints/last.ckpt" part="model" format="torch_state_dict"
 ````
 
-The above code example trains a model and exports the last training checkpoint as a
+The above code example pretrains a model and exports the last pretraining checkpoint as a
 torch state dictionary.
 
 ```{tip}
@@ -152,10 +152,10 @@ supported.
 
 - `model` (default)
 
-  Exports the model as passed with the `model` argument in the `train` function.
+  Exports the model as passed with the `model` argument in the `pretrain` function.
 
 - `embedding_model`
 
   Exports the embedding model. This includes the model passed with the `model` argument
-  in the `train` function and an extra embedding layer if the `embed_dim` argument was
+  in the `pretrain` function and an extra embedding layer if the `embed_dim` argument was
   set during training. This is useful if you want to use the model for embedding images.

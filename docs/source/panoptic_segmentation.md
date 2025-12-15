@@ -1,64 +1,68 @@
-(instance-segmentation)=
+(panoptic-segmentation)=
 
-# Instance Segmentation
+# Panoptic Segmentation
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
 
 ```{note}
-🔥 LightlyTrain now supports training **DINOv3**-based instance segmentation models
+🔥 LightlyTrain now supports training **DINOv3**-based panoptic segmentation models
 with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by Kerssies et al.!
 ```
 
-(instance-segmentation-benchmark-results)=
+(panoptic-segmentation-benchmark-results)=
 
 ## Benchmark Results
 
-Below we provide the models and report the validation mAP and inference latency
-of different DINOv3 models fine-tuned on COCO with LightlyTrain. You can check
-[here](instance-segmentation-train) how to use these models for further fine-tuning.
+Below we provide the models and report the validation panoptic quality (PQ) and
+inference latency of different DINOv3 models fine-tuned on COCO with LightlyTrain.
+You can check [here](panoptic-segmentation-train) how to use these models for further
+fine-tuning.
 
 You can also explore running inference and training these models using our Colab notebook:
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
 
 ### COCO
 
-| Implementation | Model | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
+| Implementation | Model | Val PQ | Avg. Latency (ms) | Params (M) | Input Size |
 |----------------|----------------|-------------|----------|-----------|------------|
-| LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 19.4 | 21.6 | 640×640 |
-| LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 39.7 | 85.7 | 640×640 |
-| LightlyTrain | dinov3/vitl16-eomt-inst-coco | **46.2** | 80.0 | 303.2 | 640×640 |
-| Original EoMT | dinov3/vitl16-eomt-inst-coco | 45.9 | - | 303.2 | 640×640 |
+| LightlyTrain | dinov3/vits16-eomt-panoptic-coco | 46.8 | 21.2 | 23.4 | 640×640 |
+| LightlyTrain | dinov3/vitb16-eomt-panoptic-coco | 53.2 | 39.4 | 92.5 | 640×640 |
+| LightlyTrain | dinov3/vitl16-eomt-panoptic-coco | 57.0 | 80.1 | 315.1 | 640×640 |
+| LightlyTrain | dinov3/vitl16-eomt-panoptic-coco-1280 | **59.0** | 500.1 | 315.1 | 1280×1280 |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9 | - | 315.1 | 1280×1280 |
 
 Training follows the protocol in the original [EoMT paper](https://arxiv.org/abs/2503.19108).
-Models are trained for 90K steps (~12 epochs) on the COCO dataset with batch size `16`
-and learning rate `2e-4`. The average latency values were measured with model compilation
-using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
+Small and base models are trained for 180K steps (24 epochs) and large models for
+90K steps (12 epochs) on the COCO dataset with batch size `16` and learning rate `2e-4`.
+The average latency values were measured with model compilation using `torch.compile`
+on a single NVIDIA T4 GPU with FP16 precision.
 
-(instance-segmentation-train)=
+(panoptic-segmentation-train)=
 
-## Train an Instance Segmentation Model
+## Train a Panoptic Segmentation Model
 
-Training an instance segmentation model with LightlyTrain is straightforward and
-only requires a few lines of code. See [data](#instance-segmentation-data)
+Training a panoptic segmentation model with LightlyTrain is straightforward and
+only requires a few lines of code. See [data](#panoptic-segmentation-data)
 for more details on how to prepare your dataset.
 
 ```python
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
+    lightly_train.train_panoptic_segmentation(
         out="out/my_experiment",
-        model="dinov3/vitl16-eomt-inst-coco", 
+        model="dinov3/vitl16-eomt-panoptic-coco", 
         data={
-            "path": "my_data_dir",      # Path to dataset directory
-            "train": "images/train",    # Path to training images
-            "val": "images/val",        # Path to validation images
-            "names": {                  # Classes in the dataset                    
-                0: "background",
-                1: "car",
-                2: "bicycle",
-                # ...
+            "train": {
+                "images": "images/train",   # Path to train images
+                "masks": "annotations/train", # Path to train mask images
+                "annotations": "annotations/train.json", # Path to train COCO-style annotations
+            },
+            "val": {
+                "images": "images/val", # Path to val images
+                "masks": "annotations/val", # Path to val mask images
+                "annotations": "annotations/val.json", # Path to val COCO-style annotations
             },
         },
     )
@@ -67,7 +71,7 @@ if __name__ == "__main__":
 During training, the best and last model weights are exported to
 `out/my_experiment/exported_models/`, unless disabled in `save_checkpoint_args`:
 
-- best (highest validation mask mAP): `exported_best.pt`
+- best (highest validation PQ): `exported_best.pt`
 - last: `exported_last.pt`
 
 You can use these weights to continue fine-tuning on another dataset by loading the
@@ -77,14 +81,14 @@ weights with `model="<checkpoint path>"`:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
+    lightly_train.train_panoptic_segmentation(
         out="out/my_experiment",
         model="out/my_experiment/exported_models/exported_best.pt",  # Continue training from the best model
         data={...},
     )
 ```
 
-(instance-segmentation-inference)=
+(panoptic-segmentation-inference)=
 
 ### Load the Trained Model from Checkpoint and Predict
 
@@ -96,10 +100,11 @@ import lightly_train
 
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 results = model.predict("image.jpg")
-results["labels"]   # Class labels, tensor of shape (num_instances,)
-results["masks"]    # Binary masks, tensor of shape (num_instances, height, width).
-                    # Height and width correspond to the original image size.
-results["scores"]   # Confidence scores, tensor of shape (num_instances,)
+results["masks"]    # Masks with (class_label, segment_id) for each pixel, tensor of
+                    # shape (height, width, 2). Height and width correspond to the
+                    # original image size.
+results["segment_ids"]    # Segment ids, tensor of shape (num_segments,).
+results["scores"]   # Confidence scores, tensor of shape (num_segments,)
 ```
 
 Or use one of the pretrained models directly from LightlyTrain:
@@ -107,7 +112,7 @@ Or use one of the pretrained models directly from LightlyTrain:
 ```python
 import lightly_train
 
-model = lightly_train.load_model("dinov3/vitl16-eomt-inst-coco")
+model = lightly_train.load_model("dinov3/vitl16-eomt-panoptic-coco")
 results = model.predict("image.jpg")
 ```
 
@@ -121,7 +126,9 @@ from torchvision.io import read_image
 from torchvision.utils import draw_segmentation_masks
 
 image = read_image("image.jpg")
-image_with_masks = draw_segmentation_masks(image, results["masks"], alpha=0.6)
+masks = torch.stack([masks[..., 1] == -1] + [masks[..., 1] == segment_id for segment_id in segment_ids])
+colors = [(0, 0, 0)] + [[int(color * 255) for color in plt.cm.tab20c(i / len(segment_ids))[:3]] for i in range(len(segment_ids))]
+image_with_masks = draw_segmentation_masks(image, masks, colors=colors, alpha=1.0)
 plt.imshow(image_with_masks.permute(1, 2, 0))
 ```
 
@@ -131,45 +138,43 @@ plt.imshow(image_with_masks.permute(1, 2, 0))
 
 import lightly_train
 import matplotlib.pyplot as plt
-from torchvision.io import decode_image
+import torch
+from torchvision.io import read_image
 from torchvision.utils import draw_segmentation_masks
-import urllib.request
+from pathlib import Path
 
-model = lightly_train.load_model("251107_dinov3_vitb16_eomt_inst_coco.pt")
-img = "http://images.cocodataset.org/val2017/000000039769.jpg"
-results = model.predict(img)
+image_path = "/datasets/coco/images/val2017/000000070254.jpg"
+model = lightly_train.load_model("251209_dinov3_vitl16_eomt_panoptic_coco_1280/exported_models/exported_best.pt")
+results = model.predict(image_path)
 masks = results["masks"]
-scores = results["scores"]
+segment_ids = results["segment_ids"]
 
-urllib.request.urlretrieve(img, "/tmp/image.jpg")
-image = decode_image("/tmp/image.jpg")
-image_with_masks = draw_segmentation_masks(image, masks, alpha=1.0)
+image = read_image(image_path)
+masks = torch.stack([masks[..., 1] == -1] + [masks[..., 1] == segment_id for segment_id in segment_ids])
+colors = [(0, 0, 0)] + [[int(color * 255) for color in plt.cm.hsv(i / len(segment_ids))[:3]] for i in range(len(segment_ids))]
+image_with_masks = draw_segmentation_masks(image, masks, colors=colors, alpha=1.0)
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
 ax1.imshow(image.permute(1, 2, 0))
 ax2.imshow(image_with_masks.permute(1, 2, 0))
 ax1.axis("off")
 ax2.axis("off")
-fig.savefig("out/preds/inst_seg.jpg", bbox_inches="tight")
-fig.show()
+fig.savefig(f"panoptic_segmentation_result_{Path(image_path).stem}_.png", bbox_inches="tight")
 -->
 
-```{figure} /_static/images/instance_segmentation/cats.jpg
+```{figure} /_static/images/panoptic_segmentation/train.jpg
 ```
 
-(instance-segmentation-data)=
+(panoptic-segmentation-data)=
 
 ## Data
 
-Lightly**Train** supports instance segmentation datasets in YOLO format.
-Every image must have a corresponding annotation file that contains for every object in
-the image a line with the class ID and (x1, y1, x2, y2, ...) polygon coordinates in
-normalized format.
-
-```text
-0 0.782016 0.986521 0.937078 0.874167 0.957297 0.782021 0.950562 0.739333
-1 0.557859 0.143813 0.487078 0.0314583 0.859547 0.00897917 0.985953 0.130333 0.984266 0.184271
-```
+Lightly**Train** supports panoptic segmentation datasets in COCO format.
+Every image must have a corresponding mask image that encodes the segmentation class
+and segment ID for each pixel. The dataset must also include COCO-style JSON annotation
+files that define the thing and stuff classes and list the individual segments for each
+image. See the [COCO Panoptic Segmentation format](https://cocodataset.org/#format-data)
+for more details.
 
 The following image formats are supported:
 
@@ -196,75 +201,40 @@ my_data_dir/
 │       ├── image1.jpg
 │       ├── image2.jpg
 │       └── ...
-└── labels
+└── annotations
     ├── train
-    │   ├── image1.txt
-    │   ├── image2.txt
+    │   ├── image1.png
+    │   ├── image2.png
     │   └── ...
-    └── val
-        ├── image1.txt
-        ├── image2.txt
-        └── ...
-```
-
-Alternatively, the train/val splits can also be at the top level:
-
-```text
-my_data_dir/
-├── train
-│   ├── images
-│   │   ├── image1.jpg
-│   │   ├── image2.jpg
-│   │   └── ...
-│   └── labels
-│       ├── image1.txt
-│       ├── image2.txt
-│       └── ...
-└── val
-    ├── images
-    │   ├── image1.jpg
-    │   ├── image2.jpg
+    ├── train.json
+    ├── val
+    │   ├── image1.png
+    │   ├── image2.png
     │   └── ...
-    └── labels
-        ├── image1.txt
-        ├── image2.txt
-        └── ...
+    └── val.json
 ```
 
-The `data` argument in `train_instance_segmentation` must point to the dataset
-directory and specify the paths to the training and validation images relative to
-the dataset directory. For example:
+The directories can have any name, as long as the paths are correctly specified in the
+`data` argument.
 
-```python
-import lightly_train
+See the [Colab notebook](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
+for an example dataset and how to set up the data for training.
 
-if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
-        out="out/my_experiment",
-        model="dinov3/vitl16-eomt-inst-coco", 
-        data={
-            "path": "my_data_dir",      # Path to dataset directory
-            "train": "images/train",    # Path to training images
-            "val": "images/val",        # Path to validation images
-            "names": {                  # Classes in the dataset                    
-                0: "background",        # Classes must match those in the annotation files
-                1: "car",
-                2: "bicycle",
-                # ...
-            },
-        },
-    )
-```
-
-(instance-segmentation-model)=
+(panoptic-segmentation-model)=
 
 ## Model
 
-The `model` argument defines the model used for instance segmentation training. The
+The `model` argument defines the model used for panoptic segmentation training. The
 following models are available:
 
 ### DINOv3 Models
 
+- `dinov3/vits16-eomt-panoptic-coco` (fine-tuned on COCO)
+- `dinov3/vitb16-eomt-panoptic-coco` (fine-tuned on COCO)
+- `dinov3/vitl16-eomt-panoptic-coco` (fine-tuned on COCO)
+- `dinov3/vitl16-eomt-panoptic-coco-1280` (fine-tuned on COCO with 1280x1280 input size)
+- `dinov3/vitt16-eomt`
+- `dinov3/vitt16plus-eomt`
 - `dinov3/vits16-eomt`
 - `dinov3/vits16plus-eomt`
 - `dinov3/vitb16-eomt`
@@ -272,28 +242,25 @@ following models are available:
 - `dinov3/vitl16plus-eomt`
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
-- `dinov3/vits16-eomt-inst-coco` (fine-tuned on COCO)
-- `dinov3/vitb16-eomt-inst-coco` (fine-tuned on COCO)
-- `dinov3/vitl16-eomt-inst-coco` (fine-tuned on COCO)
 
 All models are [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
-and fine-tuned by Lightly.
+and fine-tuned by Lightly, except the `vitt` models which are pretrained by Lightly.
 
-(instance-segmentation-logging)=
+(panoptic-segmentation-logging)=
 
 ## Logging
 
 Logging is configured with the `logger_args` argument. The following loggers are
 supported:
 
-- [`mlflow`](instance-segmentation-mlflow): Logs training metrics to MLflow (disabled by
+- [`mlflow`](panoptic-segmentation-mlflow): Logs training metrics to MLflow (disabled by
   default, requires MLflow to be installed)
-- [`tensorboard`](instance-segmentation-tensorboard): Logs training metrics to TensorBoard
+- [`tensorboard`](panoptic-segmentation-tensorboard): Logs training metrics to TensorBoard
   (enabled by default, requires TensorBoard to be installed)
-- [`wandb`](instance-segmentation-wandb): Logs training metrics to Weights & Biases (disabled by
+- [`wandb`](panoptic-segmentation-wandb): Logs training metrics to Weights & Biases (disabled by
   default, requires wandb to be installed)
 
-(instance-segmentation-mlflow)=
+(panoptic-segmentation-mlflow)=
 
 ### MLflow
 
@@ -307,9 +274,9 @@ The mlflow logger can be configured with the following arguments:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
+    lightly_train.train_panoptic_segmentation(
         out="out/my_experiment",
-        model="dinov3/vitl16-eomt-inst-coco",
+        model="dinov3/vitl16-eomt-panoptic-coco",
         data={
             # ...
         },
@@ -323,7 +290,7 @@ if __name__ == "__main__":
     )
 ```
 
-(instance-segmentation-tensorboard)=
+(panoptic-segmentation-tensorboard)=
 
 ### TensorBoard
 
@@ -340,7 +307,7 @@ Disable the TensorBoard logger with:
 logger_args={"tensorboard": None}
 ```
 
-(instance-segmentation-wandb)=
+(panoptic-segmentation-wandb)=
 
 ### Weights & Biases
 
@@ -354,9 +321,9 @@ The Weights & Biases logger can be configured with the following arguments:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
+    lightly_train.train_panoptic_segmentation(
         out="out/my_experiment",
-        model="dinov3/vitl16-eomt-inst-coco",
+        model="dinov3/vitl16-eomt-panoptic-coco",
         data={
             # ...
         },
@@ -370,7 +337,7 @@ if __name__ == "__main__":
     )
 ```
 
-(instance-segmentation-resume-training)=
+(panoptic-segmentation-resume-training)=
 
 ## Resume Training
 
@@ -399,7 +366,7 @@ model from a previous run.
 We recommend using the exported best model weights from `out/my_experiment/exported_models/exported_best.pt`
 for this purpose, though a `.ckpt` file can also be loaded.
 
-(instance-segmentation-transform-args)=
+(panoptic-segmentation-transform-args)=
 
 ## Default Image Transform Arguments
 
@@ -412,14 +379,14 @@ You can configure the image size and normalization like this:
 import lightly_train
 
 if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
+    lightly_train.train_panoptic_segmentation(
         out="out/my_experiment",
-        model="dinov3/vitl16-eomt-inst-coco",
+        model="dinov3/vitl16-eomt-panoptic-coco",
         data={
             # ...
         }
         transform_args={
-            "image_size": (640, 640),     # (height, width)
+            "image_size": (1280, 1280),     # (height, width)
             "normalize": {
                 "mean": [0.485, 0.456, 0.406],
                 "std": [0.229, 0.224, 0.225],
@@ -428,13 +395,13 @@ if __name__ == "__main__":
     )
 ```
 
-`````{dropdown} EoMT Instance Segmentation DINOv3 Default Transform Arguments
+`````{dropdown} EoMT Panoptic Segmentation DINOv3 Default Transform Arguments
 ````{dropdown} Train
-```{include} _auto/dinov3eomtinstancesegmentationtrain_train_transform_args.md
+```{include} _auto/dinov3eomtpanopticsegmentationtrain_train_transform_args.md
 ```
 ````
 ````{dropdown} Val
-```{include} _auto/dinov3eomtinstancesegmentationtrain_val_transform_args.md
+```{include} _auto/dinov3eomtpanopticsegmentationtrain_val_transform_args.md
 ```
 ````
 `````
