@@ -9,15 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Possibility to load backbone weights in LT-DETR.
-- ONNX export for LT-DETR.
-- Pretrained ViT-T(+) checkpoints.
-- Add Weights & Biases logging support for all fine-tuning tasks.
-
 ### Changed
-
-- Rename `lightly_train.train()` to `lightly_train.pretrain()`. The old name is still
-  available as an alias for backward compatibility but will be removed in a future release.
 
 ### Deprecated
 
@@ -25,9 +17,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix bug in `model.predict()` for object detection models.
-
 ### Security
+
+## [0.13.0] - 2025-12-15
+
+**New DINOv3 Tiny Object Detection Models:** We release tiny DINOv3 models pretrained on
+COCO for [object detection](https://docs.lightly.ai/train/stable/object_detection.html#coco)!
+
+**New DINOv3 Panoptic Segmentation:** You can now run inference and fine-tune DINOv3 models
+for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)!
+
+### Added
+
+- New COCO pretrained [tiny LTDETR](https://docs.lightly.ai/train/stable/object_detection.html#coco)
+  models `vitt16` and `vitt16plus`.
+- Support for DINOv3 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)
+  inference and fine-tuning.
+- Quick start guide for [object detection](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb).
+- Possibility to load backbone weights in LTDETR.
+- [ONNX export](https://docs.lightly.ai/train/stable/object_detection.html#exporting-a-checkpoint-to-onnx) for LTDETR.
+- Add [Weights & Biases logging support](https://docs.lightly.ai/train/stable/object_detection.html#weights-biases)
+  for all fine-tuning tasks.
+- Log best validation metrics at the end of training.
+
+### Changed
+
+- Rename `lightly_train.train()` to `lightly_train.pretrain()`. The old name is still
+  available as an alias for backward compatibility but will be removed in a future release.
+- Restructured the documentation to better reflect the different workflows supported
+  by LightlyTrain.
+
+### Fixed
+
+- Fix bug in `model.predict()` for object detection models.
+- Fix bug in object detection transforms when using images with dtype float32.
+- Fix bug when running pretraining on an MPS device.
+- Fix bug when resuming training with a recent PyTorch version.
+- Fix bug when resuming a crashed run that was initialized from a pretrained COCO model.
 
 ## [0.12.4] - 2025-11-26
 
@@ -111,10 +137,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Change default precision to `bf16-mixed` for pretraining on GPUs that support it.
-
-### Deprecated
-
-### Removed
 
 ### Fixed
 
