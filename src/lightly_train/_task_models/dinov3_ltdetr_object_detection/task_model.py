@@ -700,7 +700,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
             # Simplify.
             onnxslim.slim(
-                out_path,
+                str(out_path),
                 output_model=out_path,
             )
 
