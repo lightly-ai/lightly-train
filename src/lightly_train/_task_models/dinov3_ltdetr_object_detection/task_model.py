@@ -600,6 +600,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         simplify: bool = True,
         verify: bool = True,
         format_args: dict[str, Any] | None = None,
+        num_channels: int | None = None,
     ) -> None:
         """Exports the model to ONNX for inference.
 
@@ -621,6 +622,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 float32 CPU reference forward pass.
             format_args: Optional extra keyword arguments forwarded to
                 `torch.onnx.export`.
+            num_channels: Number of input channels. If None, will be inferred.
 
         Returns:
             None. Writes the ONNX model to `out_path`.
@@ -629,14 +631,36 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self.eval()
         self.deploy()
 
-        # Get the first parameter from the model.
+        # Find the first parameter from the model.
         first_parameter = next(self.parameters())
 
-        # Infer info from first parameters.
-        # TODO(Thomas, 12/25): Use a more robust approach to infer num_channels.
-        num_channels = first_parameter.shape[1]
+        # Infer info from first parameter.
         model_device = first_parameter.device
         model_dtype = first_parameter.dtype
+
+        # Try to infer num_channels if not provided.
+        if num_channels is None:
+            if self.image_normalize is not None:
+                num_channels = len(self.image_normalize["mean"])
+                logger.info(
+                    f"Inferred num_channels={num_channels} from image_normalize."
+                )
+            else:
+                # Try to find the number of channels from the first convolutional layer.
+                for module in self.modules():
+                    if isinstance(module, torch.nn.Conv2d):
+                        num_channels = module.in_channels
+                        logger.info(
+                            f"Inferred num_channels={num_channels} from first Conv. layer."
+                        )
+                        break
+                if num_channels is None:
+                    logger.error(
+                        "Could not infer num_channels. Please provide it explicitly."
+                    )
+                    raise ValueError(
+                        "num_channels must be provided for ONNX export if it cannot be inferred."
+                    )
 
         # Create dummy input using same device and dtype as the model.
         dummy_input = torch.randn(
