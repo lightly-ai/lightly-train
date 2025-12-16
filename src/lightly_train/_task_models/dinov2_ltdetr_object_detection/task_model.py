@@ -262,7 +262,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         }
 
     @torch.no_grad()
-    def predict_tiled(
+    def predict_sahi(
         self,
         image: PathLike | PILImage | Tensor,
         threshold: float = 0.6,
@@ -271,7 +271,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         global_local_iou_threshold: float = 0.1,
     ) -> dict[str, Tensor]:
         """
-        Run tiled inference on the input image and merge predictions.
+        Run Slicing Aided Hyper Inference (SAHI) inference on the input image.
 
         The image is first converted to a tensor, then:
         - Tiled into overlapping crops of size `self.image_size`.
