@@ -153,6 +153,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             load_weights=load_weights,
         )
 
+        self.ema_model_state_dict_key_prefix = "ema_model."
         self.ema_model: ModelEMA | None = None
         if model_args.use_ema_model:
             self.ema_model = ModelEMA(
@@ -198,11 +199,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         # Load EMA replica if present, otherwise copy weights from the training model
         if self.ema_model is not None:
-            ema_prefix = "ema_model."
             ema_state = {
-                k[len(ema_prefix) :]: v
+                k[len(self.ema_model_state_dict_key_prefix) :]: v
                 for k, v in state_dict.items()
-                if k.startswith(ema_prefix)
+                if k.startswith(self.ema_model_state_dict_key_prefix)
             }
 
             if ema_state:
@@ -211,6 +211,18 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 self.ema_model.model.load_state_dict(self.model.state_dict())
 
         return incompatible
+
+    def get_export_state_dict(self) -> dict[str, Any]:
+        """Returns the state dict for exporting."""
+        state_dict = super().get_export_state_dict()
+        if self.ema_model is not None:
+            # Only keep EMA weights for export
+            state_dict = {
+                k: v
+                for k, v in state_dict.items()
+                if k.startswith(self.ema_model_state_dict_key_prefix)
+            }
+        return state_dict
 
     def set_train_mode(self) -> None:
         super().set_train_mode()
