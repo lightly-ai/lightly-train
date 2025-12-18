@@ -40,7 +40,6 @@ except ImportError:
 
 
 def test_train_object_detection(tmp_path: Path) -> None:
-    """Placeholder test for object detection training."""
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_yolo_object_detection_dataset(data, split_first=True)
@@ -48,7 +47,7 @@ def test_train_object_detection(tmp_path: Path) -> None:
     # Check training
     lightly_train.train_object_detection(
         out=out,
-        model="dinov3/vitt16-ltdetr",
+        model="dinov3/vitt16-notpretrained-ltdetr",
         data={
             "path": data,
             "train": Path("train", "images"),
