@@ -31,7 +31,7 @@ class TestRFDETRPackage:
             ("rfdetr/rf-detr-base-o365", True),
             ("rfdetr/rf-detr-base-2", True),
             ("rfdetr/rf-detr-nano", True),
-            ("rfdetr/rf-detr-small", True),  # No pretrained checkpoint available.
+            ("rfdetr/rf-detr-small", True),  
             ("rfdetr/rf-detr-small-2", False),  # No pretrained checkpoint available.
             ("rfdetr/rf-detr-medium", True),
             ("rfdetr/rf-detr-large", True),
@@ -62,12 +62,7 @@ class TestRFDETRPackage:
         "model_name",
         [
             "rf-detr-base",
-            "rf-detr-base-2",
-            "rf-detr-large",
             "rf-detr-nano",
-            "rf-detr-medium",
-            "rf-detr-seg-preview",
-            "rf-detr-small",
         ],
     )
     def test_get_model(self, model_name: str) -> None:

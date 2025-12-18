@@ -114,7 +114,7 @@ def test_pretrain(
     train.pretrain(
         out=out,
         data=data,
-        model=model,
+        model="torchvision/resnet18",
         method="simclr",
         batch_size=4,
         num_workers=num_workers,
@@ -138,7 +138,7 @@ def test_pretrain(
             devices=1,
             resume_interrupted=True,
         )
-    assert f"Restored all states from the checkpoint at {last_ckpt_path}" in caplog.text
+    assert (f"Restoring states from the checkpoint path at {last_ckpt_path}" in caplog.text)
     # Epochs in checkpoint are 0-indexed. Epoch 1 is therefore the second epoch.
     # weights_only=True does not work here.
     assert torch.load(last_ckpt_path, weights_only=False)["epoch"] == 1

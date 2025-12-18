@@ -28,6 +28,14 @@ from lightly_train._models.model_wrapper import (
 logger = logging.getLogger(__name__)
 
 
+def load_state_dict(rfdetr_model, *args, **kwargs):  # type: ignore
+    return rfdetr_model.model.model.load_state_dict(*args, **kwargs)
+
+
+def state_dict(rfdetr_model, *args, **kwargs):  # type: ignore
+    return rfdetr_model.model.model.state_dict(*args, **kwargs)
+
+
 class RFDETRModelWrapper(Module, ModelWrapper):
     def __init__(self, model: RFDETR) -> None:
         super().__init__()
@@ -39,12 +47,6 @@ class RFDETRModelWrapper(Module, ModelWrapper):
         # Bind load_state_dict and state_dict methods to the model wrapper since
         # RFDETR is not a subclass of nn.Module.
         assert isinstance(model.model.model, Module)
-
-        def load_state_dict(rfdetr_model, *args, **kwargs):
-            rfdetr_model.model.model.load_state_dict(*args, **kwargs)
-
-        def state_dict(rfdetr_model, *args, **kwargs):
-            return rfdetr_model.model.model.state_dict(*args, **kwargs)
 
         model.load_state_dict = MethodType(load_state_dict, model)
         model.state_dict = MethodType(state_dict, model)
