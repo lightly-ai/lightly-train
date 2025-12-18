@@ -31,7 +31,7 @@ class TestRFDETRPackage:
             ("rfdetr/rf-detr-base-o365", True),
             ("rfdetr/rf-detr-base-2", True),
             ("rfdetr/rf-detr-nano", True),
-            ("rfdetr/rf-detr-small", True),  
+            ("rfdetr/rf-detr-small", True),
             ("rfdetr/rf-detr-small-2", False),  # No pretrained checkpoint available.
             ("rfdetr/rf-detr-medium", True),
             ("rfdetr/rf-detr-large", True),
