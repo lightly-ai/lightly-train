@@ -424,7 +424,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 DINOv3ConvNextWrapper,
             ),
         }
-        config_cls, wrapper_cls = config_mapping[parsed_name["backbone_name"]]
+        config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
+        config_cls, wrapper_cls = config_mapping[config_name]
         config = config_cls()
 
         if hasattr(config, "backbone_wrapper"):
