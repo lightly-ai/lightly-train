@@ -100,10 +100,21 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
         threading.Thread(target=_flush, daemon=True).start()
 
 
+def _get_model_name(model: object) -> str:
+    """Extract model name from model instance or string.
+
+    Checks for model_name attribute first, then falls back to class name.
+    Works with any object: str, torch.nn.Module, ModelWrapper, etc.
+    """
+    if isinstance(model, str):
+        return model
+    return getattr(model, "model_name", model.__class__.__name__)
+
+
 def track_training_started(
     *,
     task_type: str,
-    model: Any,
+    model: object,
     method: str,
     batch_size: int | str,
     devices: int | str | list[int],
@@ -121,7 +132,7 @@ def track_training_started(
         epochs: Optional number of epochs (for pretraining tasks, can be "auto").
         steps: Optional number of steps (for task-specific training, can be "auto").
     """
-    model_name = model if isinstance(model, str) else model.__class__.__name__
+    model_name = _get_model_name(model)
     device_count = devices if isinstance(devices, int) else 1
 
     properties = {
@@ -138,3 +149,34 @@ def track_training_started(
         properties["steps"] = steps
 
     track_event("training_started", properties)
+
+
+def track_inference_started(
+    *,
+    task_type: str,
+    model: object,
+    batch_size: Optional[int] = None,
+    devices: int | str | list[int] = 1,
+) -> None:
+    """Track inference started event.
+
+    Args:
+        task_type: Type of task being inferred (e.g., "embedding", "object_detection",
+            "semantic_segmentation", "instance_segmentation", "panoptic_segmentation").
+        model: Model instance or model name string.
+        batch_size: Optional batch size.
+        devices: Number or list of devices (can be "auto").
+    """
+    model_name = _get_model_name(model)
+    device_count = devices if isinstance(devices, int) else 1
+
+    properties = {
+        "task_type": task_type,
+        "model_name": model_name,
+        "devices": device_count,
+    }
+
+    if batch_size is not None:
+        properties["batch_size"] = batch_size
+
+    track_event("inference_started", properties)
