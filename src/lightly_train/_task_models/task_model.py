@@ -13,7 +13,15 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
 
+from lightly_train._events import tracker
 from lightly_train.types import PathLike
+
+_INFERENCE_TYPE_PATTERNS: dict[str, str] = {
+    "ObjectDetection": "object_detection",
+    "SemanticSegmentation": "semantic_segmentation",
+    "InstanceSegmentation": "instance_segmentation",
+    "PanopticSegmentation": "panoptic_segmentation",
+}
 
 
 class TaskModel(Module):
@@ -85,3 +93,26 @@ class TaskModel(Module):
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""
         raise NotImplementedError()
+
+    def _track_inference(self) -> None:
+        """Track inference event for analytics.
+
+        This method is called at the start of predict() in subclasses. It is wrapped
+        in a try/except to ensure tracking errors never affect the user experience.
+        """
+        try:
+            # Derive inference type from class name
+            class_name = self.__class__.__name__
+            inference_type = "unknown"
+            for pattern, itype in _INFERENCE_TYPE_PATTERNS.items():
+                if pattern in class_name:
+                    inference_type = itype
+                    break
+
+            tracker.track_inference_started(
+                task_type=inference_type,
+                model=self,
+            )
+        except Exception:
+            # Never let tracking errors affect the user experience
+            pass
