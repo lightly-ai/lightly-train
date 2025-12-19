@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from types import MethodType
 
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
@@ -16,6 +17,9 @@ try:
     from rfdetr.detr import RFDETR
 except ImportError:
     pass
+
+
+from typing import Any, cast
 
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
@@ -26,6 +30,14 @@ from lightly_train._models.model_wrapper import (
 logger = logging.getLogger(__name__)
 
 
+def load_state_dict(rfdetr_model: Any, *args: Any, **kwargs: Any) -> Any:
+    return rfdetr_model.model.model.load_state_dict(*args, **kwargs)
+
+
+def state_dict(rfdetr_model: Any, *args: Any, **kwargs: Any) -> Any:
+    return rfdetr_model.model.model.state_dict(*args, **kwargs)
+
+
 class RFDETRModelWrapper(Module, ModelWrapper):
     def __init__(self, model: RFDETR) -> None:
         super().__init__()
@@ -34,7 +46,16 @@ class RFDETRModelWrapper(Module, ModelWrapper):
 
         assert isinstance(model, RFDETR)
 
-        backbone = model.model.model.backbone[0]
+        # Bind load_state_dict and state_dict methods to the model wrapper since
+        # RFDETR is not a subclass of nn.Module.
+        assert isinstance(model.model.model, Module)
+
+        model.load_state_dict = MethodType(load_state_dict, model)  # type: ignore
+        model.state_dict = MethodType(state_dict, model)  # type: ignore
+
+        # Extract the DINOv2 backbone from the RFDETR model.
+        backbone_list = cast(Any, model.model.model.backbone)
+        backbone = backbone_list[0]
         assert isinstance(backbone, Backbone)
 
         encoder = backbone.encoder
