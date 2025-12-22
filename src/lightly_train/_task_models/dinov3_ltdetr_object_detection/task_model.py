@@ -627,6 +627,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         Returns:
             None. Writes the ONNX model to `out_path`.
         """
+        # Set up logging.
+        from lightly_train import _logging
+
+        _logging.set_up_console_logging()
+
         # Set the model in eval and deploy mode.
         self.eval()
         self.deploy()
@@ -691,7 +696,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             output_names=output_names,
             opset_version=opset_version,
             dynamo=False,
-            dynamic_axes={"images": {0: "N"}},
+            dynamic_axes={
+                "images": {0: "N"}
+            },  # TODO(Thomas, 12/25): Add dynamic axes for H and W.
             **(format_args or {}),
         )
 
