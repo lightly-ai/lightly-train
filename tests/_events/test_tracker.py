@@ -26,6 +26,7 @@ def mock_events_enabled(mocker: MockerFixture) -> None:
     """Mock events as enabled and prevent background threads."""
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_EVENTS_DISABLED": "0"})
     mocker.patch("threading.Thread")
+    mocker.patch("lightly_train._distributed.is_global_rank_zero", return_value=True)
 
 
 @pytest.fixture(autouse=True)
@@ -140,6 +141,17 @@ def test_session_id_consistent() -> None:
     assert len(session_id) > 0
 
 
+def test__get_device_count__int() -> None:
+    """Test that int devices returns the int directly."""
+    assert tracker._get_device_count(4) == 4
+
+
+def test__get_device_count__list_and_string() -> None:
+    """Test that list returns length and string returns 1."""
+    assert tracker._get_device_count([0, 1, 2]) == 3
+    assert tracker._get_device_count("auto") == 1
+
+
 def test_track_training_started__success(mock_events_enabled: None) -> None:
     """Test that training started events are tracked successfully."""
     tracker.track_training_started(
@@ -182,7 +194,7 @@ def test_track_training_started__with_model_instance(
     assert len(tracker._events) == 1
     props = tracker._events[0]["properties"]
     assert props["model_name"] == "MyModel"
-    assert props["devices"] == 1  # list converted to 1
+    assert props["devices"] == 2  # len([0, 1]) = 2
 
 
 def test_track_inference_started__success(mock_events_enabled: None) -> None:
@@ -197,7 +209,7 @@ def test_track_inference_started__success(mock_events_enabled: None) -> None:
     assert len(tracker._events) == 1
     assert tracker._events[0]["event"] == "inference_started"
     props = tracker._events[0]["properties"]
-    assert props["inference_type"] == "object_detection"
+    assert props["task_type"] == "object_detection"
     assert props["model_name"] == "DINOv3LTDETRObjectDetection"
     assert props["batch_size"] == 16
     assert props["devices"] == 1
@@ -234,24 +246,6 @@ def test_track_inference_started__without_batch_size(
 
     assert len(tracker._events) == 1
     props = tracker._events[0]["properties"]
-    assert props["inference_type"] == "embedding"
+    assert props["task_type"] == "embedding"
     assert props["model_name"] == "EmbeddingModel"
     assert "batch_size" not in props
-
-
-def test_track_inference_started__never_crashes(mocker: MockerFixture) -> None:
-    """Test that track_inference_started doesn't crash even on errors."""
-    # Mock track_event to raise an exception
-    mocker.patch.object(tracker, "track_event", side_effect=Exception("Test error"))
-
-    # This should NOT raise - it should silently catch the error
-    # Note: track_inference_started doesn't have its own try/except, but the
-    # TaskModel._track_inference() method does. This test verifies the function
-    # itself doesn't crash from normal usage.
-    try:
-        tracker.track_inference_started(
-            task_type="object_detection",
-            model="TestModel",
-        )
-    except Exception:
-        pass  # Expected since we mocked track_event to fail

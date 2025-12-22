@@ -65,6 +65,33 @@ def _get_system_info() -> Dict[str, Any]:
     return _system_info
 
 
+def _get_model_name(model: object) -> str:
+    """Extract model name from model instance or string.
+
+    Checks for model_name attribute first, then falls back to class name.
+    Works with any object: str, torch.nn.Module, ModelWrapper, etc.
+    """
+    if isinstance(model, str):
+        return model
+    return getattr(model, "model_name", model.__class__.__name__)
+
+
+def _get_device_count(devices: int | str | list[int]) -> int:
+    """Extract device count from devices argument.
+
+    Args:
+        devices: Number of devices as int, list of device IDs, or "auto".
+
+    Returns:
+        The number of devices. Returns 1 for "auto" or other strings.
+    """
+    if isinstance(devices, int):
+        return devices
+    elif isinstance(devices, list):
+        return len(devices)
+    return 1
+
+
 def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     """Track an event.
 
@@ -100,17 +127,6 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
         threading.Thread(target=_flush, daemon=True).start()
 
 
-def _get_model_name(model: object) -> str:
-    """Extract model name from model instance or string.
-
-    Checks for model_name attribute first, then falls back to class name.
-    Works with any object: str, torch.nn.Module, ModelWrapper, etc.
-    """
-    if isinstance(model, str):
-        return model
-    return getattr(model, "model_name", model.__class__.__name__)
-
-
 def track_training_started(
     *,
     task_type: str,
@@ -132,15 +148,12 @@ def track_training_started(
         epochs: Optional number of epochs (for pretraining tasks, can be "auto").
         steps: Optional number of steps (for task-specific training, can be "auto").
     """
-    model_name = _get_model_name(model)
-    device_count = devices if isinstance(devices, int) else 1
-
     properties = {
         "task_type": task_type,
-        "model_name": model_name,
+        "model_name": _get_model_name(model),
         "method": method,
         "batch_size": batch_size,
-        "devices": device_count,
+        "devices": _get_device_count(devices),
     }
 
     if epochs is not None:
@@ -167,13 +180,10 @@ def track_inference_started(
         batch_size: Optional batch size.
         devices: Number or list of devices (can be "auto").
     """
-    model_name = _get_model_name(model)
-    device_count = devices if isinstance(devices, int) else 1
-
     properties = {
         "task_type": task_type,
-        "model_name": model_name,
-        "devices": device_count,
+        "model_name": _get_model_name(model),
+        "devices": _get_device_count(devices),
     }
 
     if batch_size is not None:

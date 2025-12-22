@@ -21,6 +21,7 @@ def mock_events_enabled(mocker: MockerFixture) -> None:
     """Mock events as enabled and prevent background threads."""
     mocker.patch.dict(os.environ, {"LIGHTLY_TRAIN_EVENTS_DISABLED": "0"})
     mocker.patch("threading.Thread")
+    mocker.patch("lightly_train._distributed.is_global_rank_zero", return_value=True)
 
 
 @pytest.fixture(autouse=True)
@@ -70,7 +71,7 @@ def test_track_inference__object_detection(mock_events_enabled: None) -> None:
 
     assert len(tracker._events) == 1
     props = tracker._events[0]["properties"]
-    assert props["inference_type"] == "object_detection"
+    assert props["task_type"] == "object_detection"
     assert props["model_name"] == "dinov3/vits16-ltdetr-coco"
 
 
@@ -81,7 +82,7 @@ def test_track_inference__semantic_segmentation(mock_events_enabled: None) -> No
 
     assert len(tracker._events) == 1
     props = tracker._events[0]["properties"]
-    assert props["inference_type"] == "semantic_segmentation"
+    assert props["task_type"] == "semantic_segmentation"
     assert props["model_name"] == "dinov3/vits16-eomt-ade20k"
 
 
@@ -92,7 +93,7 @@ def test_track_inference__unknown_type(mock_events_enabled: None) -> None:
 
     assert len(tracker._events) == 1
     props = tracker._events[0]["properties"]
-    assert props["inference_type"] == "unknown"
+    assert props["task_type"] == "unknown"
     # Falls back to class name when model_name is not set
     assert props["model_name"] == "MockUnknownModel"
 
@@ -113,16 +114,3 @@ def test_track_inference__never_crashes(
 
     # No events should be recorded since track_inference_started failed
     assert len(tracker._events) == 0
-
-
-def test_track_inference__model_without_model_name(mock_events_enabled: None) -> None:
-    """Test that _track_inference falls back to class name when model_name is missing."""
-    model = MockUnknownModel()
-    # Ensure model_name is not set
-    assert not hasattr(model, "model_name")
-
-    model._track_inference()
-
-    assert len(tracker._events) == 1
-    props = tracker._events[0]["properties"]
-    assert props["model_name"] == "MockUnknownModel"
