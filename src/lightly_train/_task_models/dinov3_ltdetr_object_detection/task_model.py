@@ -688,9 +688,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         torch.onnx.export(
             self,
-            (
-                dummy_input,
-            ),  # TODO modified this into a tuple because of mypy error (verify this is OK)
+            (dummy_input,),
             str(out_path),
             input_names=input_names,
             output_names=output_names,
@@ -819,7 +817,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         from lightly_train import _logging
 
         _logging.set_up_console_logging()
-        import tensorrt as trt
+        import tensorrt as trt  # type: ignore[import-untyped]
 
         trt_logger = trt.Logger(trt.Logger.VERBOSE if verbose else trt.Logger.INFO)
 
@@ -856,7 +854,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         _, C, H, W = input_shape
 
         # Verify that H and W are not dynamic, i.e., not -1.
-        # TODO (Thomas, 12/25): support dynamic H and W in the future.
+        # TODO(Thomas, 12/25): Support dynamic H and W in the future.
         if H == -1 or W == -1:
             raise ValueError("Dynamic image height and width are not supported yet.")
         logger.info(f"Detected input shape: (N, {C}, {H}, {W})")
@@ -875,9 +873,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 )
 
         profile = builder.create_optimization_profile()
-        assert min_batchsize <= opt_batchsize <= max_batchsize, (
-            "Batch sizes must satisfy: min <= opt <= max"
-        )
+        if not (min_batchsize <= opt_batchsize <= max_batchsize):
+            raise ValueError("Batch sizes must satisfy: min <= opt <= max")
         profile.set_shape(
             "images",
             min=(min_batchsize, C, H, W),
