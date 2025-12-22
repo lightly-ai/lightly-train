@@ -38,7 +38,7 @@ class MockObjectDetectionModel(TaskModel):
     model_suffix = "test"
 
     def __init__(self, *, model_name: str = "dinov3/vits16-ltdetr") -> None:
-        # Use locals() like real task models do
+        # Use locals() like real task models do.
         super().__init__(init_args=locals())
         self.model_name = model_name
 
@@ -49,7 +49,7 @@ class MockSemanticSegmentationModel(TaskModel):
     model_suffix = "test"
 
     def __init__(self, *, model_name: str = "dinov3/vits16-eomt") -> None:
-        # Use locals() like real task models do
+        # Use locals() like real task models do.
         super().__init__(init_args=locals())
         self.model_name = model_name
 
@@ -60,7 +60,7 @@ class MockUnknownModel(TaskModel):
     model_suffix = "test"
 
     def __init__(self) -> None:
-        # Use locals() like real task models do
+        # Use locals() like real task models do.
         super().__init__(init_args=locals())
 
 
@@ -94,7 +94,7 @@ def test_track_inference__unknown_type(mock_events_enabled: None) -> None:
     assert len(tracker._events) == 1
     props = tracker._events[0]["properties"]
     assert props["task_type"] == "unknown"
-    # Falls back to class name when model_name is not set
+    # Falls back to class name when model_name is not set.
     assert props["model_name"] == "MockUnknownModel"
 
 
@@ -102,14 +102,14 @@ def test_track_inference__never_crashes(
     mock_events_enabled: None, mocker: MockerFixture
 ) -> None:
     """Test that _track_inference never crashes even when tracking fails."""
-    # Mock track_inference_started to raise an exception
+    # Mock track_inference_started to raise an exception.
     mocker.patch.object(
         tracker, "track_inference_started", side_effect=Exception("Test error")
     )
 
     model = MockObjectDetectionModel()
 
-    # This should NOT raise - it should silently catch the error
+    # This should NOT raise - it should silently catch the error.
     model._track_inference()
 
     # No events should be recorded since track_inference_started failed

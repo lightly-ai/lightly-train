@@ -101,7 +101,7 @@ class TaskModel(Module):
         in a try/except to ensure tracking errors never affect the user experience.
         """
         try:
-            # Derive inference type from class name
+            # Derive task type from class name.
             class_name = self.__class__.__name__
             inference_type = "unknown"
             for pattern, itype in _INFERENCE_TYPE_PATTERNS.items():
@@ -114,5 +114,5 @@ class TaskModel(Module):
                 model=self,
             )
         except Exception:
-            # Never let tracking errors affect the user experience
+            # Never let tracking errors affect the user experience.
             pass
