@@ -781,3 +781,118 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 )
 
         logger.info(f"Successfully exported ONNX model to '{out_path}'")
+
+    def export_tensorrt(
+        self,
+        onnx_path: PathLike,
+        engine_path: PathLike,
+        max_batchsize: int = 1,
+        opt_batchsize: int = 1,
+        min_batchsize: int = 1,
+        use_fp16: bool = False,
+        verbose: bool = False,
+    ) -> None:
+        """Build a TensorRT engine from an ONNX model.
+
+        This loads the ONNX file, parses it with TensorRT, infers the static input
+        shape (C, H, W) from the `"images"` input, and creates an engine with a
+        dynamic batch dimension in the range `[min_batchsize, opt_batchsize, max_batchsize]`.
+        Spatial dimensions must be static in the ONNX model (dynamic H/W are not yet supported).
+
+        The engine is serialized and written to `engine_path`.
+
+        Args:
+            onnx_path: Path to the ONNX model.
+            engine_path: Path where the TensorRT engine will be saved.
+            max_batchsize: Maximum supported batch size.
+            opt_batchsize: Batch size TensorRT optimizes for.
+            min_batchsize: Minimum supported batch size.
+            use_fp16: Enable FP16 precision if supported by the platform.
+            verbose: Enable verbose TensorRT logging.
+
+        Raises:
+            FileNotFoundError: If the ONNX file does not exist.
+            RuntimeError: If the ONNX cannot be parsed or engine building fails.
+            ValueError: If batch size constraints are invalid or H/W are dynamic.
+        """
+        # Set up logging.
+        from lightly_train import _logging
+
+        _logging.set_up_console_logging()
+        import tensorrt as trt
+
+        trt_logger = trt.Logger(trt.Logger.VERBOSE if verbose else trt.Logger.INFO)
+
+        builder = trt.Builder(trt_logger)
+        network_flags = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+        network = builder.create_network(network_flags)
+
+        parser = trt.OnnxParser(network, trt_logger)
+
+        if not os.path.isfile(onnx_path):
+            raise FileNotFoundError(f"ONNX file not found: {onnx_path}")
+
+        logger.info(f"Loading ONNX file from {onnx_path}")
+        with open(onnx_path, "rb") as f:
+            if not parser.parse(f.read()):
+                for error in range(parser.num_errors):
+                    logger.error(parser.get_error(error))
+                raise RuntimeError("Failed to parse ONNX file")
+
+        # Infer input shape from the ONNX model
+        images_input = None
+        for i in range(network.num_inputs):
+            inp = network.get_input(i)
+            if inp.name == "images":  # your ONNX export uses this name
+                images_input = inp
+                break
+
+        # Raise error if input not found.
+        if images_input is None:
+            raise RuntimeError("Could not find 'images' input in ONNX network.")
+
+        # Get input shape.
+        input_shape = images_input.shape
+        _, C, H, W = input_shape
+
+        # Verify that H and W are not dynamic, i.e., not -1.
+        # TODO (Thomas, 12/25): support dynamic H and W in the future.
+        if H == -1 or W == -1:
+            raise ValueError("Dynamic image height and width are not supported yet.")
+        logger.info(f"Detected input shape: (N, {C}, {H}, {W})")
+
+        config = builder.create_builder_config()
+        config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 1 << 30)  # 1GB
+
+        # Verify that fp16 can be used if requested.
+        if use_fp16:
+            if builder.platform_has_fast_fp16:
+                config.set_flag(trt.BuilderFlag.FP16)
+                logger.info("FP16 optimization enabled.")
+            else:
+                logger.warning(
+                    "FP16 not supported on this platform. Proceeding with FP32."
+                )
+
+        profile = builder.create_optimization_profile()
+        assert min_batchsize <= opt_batchsize <= max_batchsize, (
+            "Batch sizes must satisfy: min <= opt <= max"
+        )
+        profile.set_shape(
+            "images",
+            min=(min_batchsize, C, H, W),
+            opt=(opt_batchsize, C, H, W),
+            max=(max_batchsize, C, H, W),
+        )
+        config.add_optimization_profile(profile)
+
+        logger.info("Building TensorRT engine...")
+        engine = builder.build_serialized_network(network, config)
+
+        if engine is None:
+            raise RuntimeError("Failed to build the engine.")
+
+        logger.info(f"Saving engine to {engine_path}")
+        with open(engine_path, "wb") as f:
+            f.write(engine)
+        logger.info("Engine export complete.")
