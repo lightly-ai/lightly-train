@@ -817,7 +817,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         from lightly_train import _logging
 
         _logging.set_up_console_logging()
-        import tensorrt as trt  # type: ignore[import-untyped]
+        import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
 
         trt_logger = trt.Logger(trt.Logger.VERBOSE if verbose else trt.Logger.INFO)
 
