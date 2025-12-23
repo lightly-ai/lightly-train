@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Export only EMA weights for object detection models. This reduces the exported model
+  size by 2x.
+
 ### Deprecated
 
 ### Removed

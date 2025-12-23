@@ -19,6 +19,7 @@ from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict, field_validator
+from torch.optim import Optimizer  # type: ignore[attr-defined]
 
 from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._commands import _warnings, common_helpers
@@ -44,7 +45,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
 from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
-from lightly_train._task_models.train_model import TrainModelArgs
+from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
 from lightly_train._train_task_state import (
     TrainTaskState,
 )
@@ -830,7 +831,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         # the optimizer is initialized.
         train_model.set_train_mode()
         optimizer, scheduler = train_model.get_optimizer(total_steps=config.steps)
-        train_model, optimizer = fabric.setup(train_model, optimizer)  # type: ignore[assignment]
+        # NOTE(Guarin, 07/25): Fabric returns wrapped versions of the model and
+        # optimizer but for all practical purposes we can treat them as the original
+        # objects.
+        train_model_optimizer: tuple[TrainModel, Optimizer] = fabric.setup(
+            train_model, optimizer
+        )
+        train_model, optimizer = train_model_optimizer
 
         logger.info(
             f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
@@ -951,7 +958,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 model_dict = {
                     "model_class_path": state["model_class_path"],
                     "model_init_args": state["model_init_args"],
-                    "train_model": train_model.state_dict(),
+                    "train_model": train_model.get_export_state_dict(),
                 }
 
                 helpers.export_model(

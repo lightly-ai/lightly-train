@@ -40,40 +40,40 @@ LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 #    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     "dinov2/vits14-noreg-ltdetr-coco": (
-        "dinov2_vits14_noreg_ltdetr_coco_251113_fdd81fc4.pt",
-        "fdd81fc445f824b45a36d3db4778354703d706bbc1fc9af0aeba9db74e3fee7f",
+        "dinov2_vits14_noreg_ltdetr_coco_251218_4e1f523d.pt",
+        "4e1f523db68c94516ee5b35a91f24267657af474bea58b52a7f7e51ec2d8f717",
     ),
     "dinov2/vits14-ltdetr-dsp-coco": (
-        "dinov2_ltdetr_2/ltdetr_vits14dinov2_coco_dsp.pt",
-        "7e1f91b251ba0b796d88fb68276a24a52341aa6e8fb40abe9f730c2a093a5b40",
+        "dinov2_vits14_ltdetr_dsp_coco_251218_fa435184.pt",
+        "fa435184c775205469056f46456941ea271266ee522c656642853d061317f8ae",
     ),
     "dinov3/vitt16-ltdetr-coco": (
-        "dinov3/dinov3_vitt16_ltdetr_coco_251205_1a4c20a1.pt",
-        "1a4c20a114bf202f5f68d771b9f90276be8bb9c8ffc180b8721a11cbad5578ad",
+        "dinov3_vitt16_ltdetr_coco_251218_dfd34210.pt",
+        "dfd34210a1a3375793d149a55d9b49e6e8b783458bdd4cd76fd28fa2d61dbb37",
     ),
     "dinov3/vitt16plus-ltdetr-coco": (
-        "dinov3/dinov3_vitt16plus_ltdetr_coco_251205_359eb099.pt",
-        "359eb09981b754ccc74074835cfbd268d68ef1870e3552e8b9bce0ccde06e6a7",
+        "dinov3_vitt16plus_ltdetr_coco_251218_af499c82.pt",
+        "af499c825436013098a77a028ff5cf08dbf31118f4d68b15eefa6fdd9635f5d2",
     ),
     "dinov3/vits16-ltdetr-coco": (
-        "dinov3/dinov3_vits16_ltdetr_coco_251205_474a3523.pt",
-        "474a3523a0faff691697dda47849e319dd7f9d214f6abbe82486cba05bfd1fd7",
+        "dinov3_vits16_ltdetr_coco_251218_4812416b.pt",
+        "4812416b861a80f305889cf1408775044c8b05f1baf9be45cd4b1d0edd5d4532",
     ),
     "dinov3/convnext-tiny-ltdetr-coco": (
-        "dinov3_convnext_tiny_ltdetr_coco_251113_3a90352e.pt",
-        "3a90352ed61d9e4fa38ec9b7e2a38a8186a54412a4b0044c391e165e7742db22",
+        "dinov3_convnext_tiny_ltdetr_coco_251218_35bbc4fb.pt",
+        "35bbc4fbec3bb9fa113a33f1013abaab1952edf3335f98624b5914812d63d26c",
     ),
     "dinov3/convnext-small-ltdetr-coco": (
-        "dinov3_convnext_small_ltdetr_coco_251113_a94a28a0.pt",
-        "a94a28a0c47640d871c433b38901f941aa7a1676ba925743581ea99876c59835",
+        "dinov3_convnext_small_ltdetr_coco_251218_8f7109ab.pt",
+        "8f7109ab406aa92791e4e4ca6249ab9a863734795676c81b91dbd4cc4b1ef387",
     ),
     "dinov3/convnext-base-ltdetr-coco": (
-        "dinov3_convnext_base_ltdetr_coco_251113_a310a474.pt",
-        "a310a474f04c722bed97fcc185908bbedad524de5a50df1292e1bda2ee23c789",
+        "dinov3_convnext_base_ltdetr_coco_251218_836adb6b.pt",
+        "836adb6b5122665a24b6da3ee1720b9f3d0fc3c30cee44cfbd98dcb79fe0809a",
     ),
     "dinov3/convnext-large-ltdetr-coco": (
-        "dinov3_convnext_large_ltdetr_coco_251113_9946dca5.pt",
-        "9946dca52dc102994a2705984e0cca05ce2f0337ba8417c0db88c934c6c052bd",
+        "dinov3_convnext_large_ltdetr_coco_251218_03fe6750.pt",
+        "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0",
     ),
     "dinov3/vits16-eomt-coco": (
         "dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt",
