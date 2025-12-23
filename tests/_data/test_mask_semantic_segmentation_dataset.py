@@ -344,7 +344,9 @@ class TestMaskSemanticSegmentationDatasetArgs:
         mask_filenames = ["image0.png", "image1.png"]
 
         helpers.create_images(image_dir, files=image_filenames)
-        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=1)
+        helpers.create_semantic_segmentation_masks(
+            mask_dir, files=mask_filenames, num_classes=1
+        )
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
@@ -383,7 +385,9 @@ class TestMaskSemanticSegmentationDatasetArgs:
         mask_filenames = ["image0.png", "image1.png"]
 
         helpers.create_images(image_dir, files=image_filenames)
-        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=1)
+        helpers.create_semantic_segmentation_masks(
+            mask_dir, files=mask_filenames, num_classes=1
+        )
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
@@ -443,7 +447,9 @@ class TestMaskSemanticSegmentationDataset:
             num_channels=num_channels,
             mode="RGB" if num_channels == 3 else "RGBA",
         )
-        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=num_classes)
+        helpers.create_semantic_segmentation_masks(
+            mask_dir, files=mask_filenames, num_classes=num_classes
+        )
 
         dataset_args = MaskSemanticSegmentationDatasetArgs(
             image_dir=image_dir,
@@ -519,7 +525,7 @@ class TestMaskSemanticSegmentationDataset:
             channel_value = tuple(int(x) for x in np.random.randint(0, 256, size=3))
             channel_values_set.add(channel_value)
         channel_values = list(channel_values_set)
-        helpers.create_multi_channel_masks(
+        helpers.create_multi_channel_semantic_segmentation_masks(
             mask_dir,
             files=mask_filenames,
             values=channel_values,
@@ -573,7 +579,7 @@ class TestMaskSemanticSegmentationDataset:
         helpers.create_image(image_dir / "image0.jpg", height=64, width=64)
 
         # Create mask with different size
-        helpers.create_mask(
+        helpers.create_semantic_segmentation_mask(
             mask_dir / "image0.png", height=128, width=128, num_classes=1
         )
 
@@ -606,7 +612,9 @@ class TestMaskSemanticSegmentationDataset:
         helpers.create_image(image_dir / "image0.jpg", height=64, width=64)
 
         # Create a multi-channel mask (3 channels)
-        helpers.create_multi_channel_mask(mask_dir / "image0.png", height=64, width=64)
+        helpers.create_multi_channel_semantic_segmentation_mask(
+            mask_dir / "image0.png", height=64, width=64
+        )
 
         # Use SingleChannelClassInfo (instead of MultiChannelClassInfo)
         dataset_args = MaskSemanticSegmentationDatasetArgs(
@@ -635,7 +643,9 @@ class TestMaskSemanticSegmentationDataset:
         mask_filenames = ["image0.png"]
 
         helpers.create_images(image_dir, files=image_filenames)
-        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
+        helpers.create_semantic_segmentation_masks(
+            mask_dir, files=mask_filenames, num_classes=5
+        )
 
         classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
             0: SingleChannelClassInfo(name="background", labels={0, 5}),
@@ -665,7 +675,9 @@ class TestMaskSemanticSegmentationDataset:
         mask_filenames = ["image0.png"]
 
         helpers.create_images(image_dir, files=image_filenames)
-        helpers.create_masks(mask_dir, files=mask_filenames, num_classes=5)
+        helpers.create_semantic_segmentation_masks(
+            mask_dir, files=mask_filenames, num_classes=5
+        )
 
         classes: dict[int, SingleChannelClassInfo | MultiChannelClassInfo] = {
             1: SingleChannelClassInfo(name="vehicle", labels={1, 2, 3}),
@@ -698,7 +710,7 @@ class TestMaskSemanticSegmentationDataset:
         mask_filenames = ["image0.png"]
 
         helpers.create_images(image_dir, files=image_filenames)
-        helpers.create_multi_channel_masks(
+        helpers.create_multi_channel_semantic_segmentation_masks(
             mask_dir, files=mask_filenames, values=[(0, 0, 0), (128, 128, 128)]
         )
 
@@ -733,7 +745,7 @@ class TestMaskSemanticSegmentationDataset:
 
         helpers.create_images(image_dir, files=image_filenames)
         palette = [(0, 0, 0), (128, 128, 128), (255, 0, 0)]
-        helpers.create_multi_channel_masks(
+        helpers.create_multi_channel_semantic_segmentation_masks(
             mask_dir, files=mask_filenames, values=palette
         )
 
