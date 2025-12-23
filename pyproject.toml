@@ -83,7 +83,7 @@ notebook = [
 # Note: rfdetr, or one of its dependencies, installs opencv-python and opencv-python-headless
 # which can result in conflicts.
 rfdetr = [
-    "rfdetr>=1.0.8",
+    "rfdetr>=1.3.0",
     "onnxruntime>=1.21.0", # onnxruntime is required for onnxsim, which is required for rfdetr
 ]
 super-gradients = [

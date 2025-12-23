@@ -196,6 +196,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
             The model will always predict the pixels as one of the known classes even when
             your dataset contains ignored classes defined by the `ignore_classes` argument.
         """
+        self._track_inference()
         if self.training:
             self.eval()
 
