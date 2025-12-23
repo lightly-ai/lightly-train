@@ -404,6 +404,8 @@ if __name__ == "__main__":
     )
 ```
 
+(object-detection-onnx)=
+
 ## Exporting a Checkpoint to ONNX
 
 [Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange) is a standard format
@@ -423,5 +425,29 @@ model = lightly_train.load_model(
 # Export to ONNX.
 model.export_onnx(
     out_path="out/my_experiment/exported_models/model.onnx"
+)
+```
+
+(object-detection-tensorrt)=
+
+## Exporting a Checkpoint to TensorRT
+
+TensorRT engines are built from an exported ONNX model (see above section). After exporting to ONNX,
+you can create a [TensorRT](https://developer.nvidia.com/tensorrt) engine for fast GPU inference.
+
+```python
+import lightly_train
+
+# Instantiate the model from a checkpoint.
+model = lightly_train.load_model(
+    "out/my_experiment/exported_models/exported_best.pt"
+)
+
+# Export to TensorRT from an ONNX file.
+model.export_tensorrt(
+    onnx_path="out/my_experiment/exported_models/model.onnx",  # ONNX file location.
+    engine_path="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
+    use_fp16=True,
+    verbose=False,
 )
 ```
