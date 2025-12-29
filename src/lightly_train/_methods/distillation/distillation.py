@@ -71,7 +71,7 @@ def get_teacher(
         device = next(teacher_embedding_model.parameters()).device
         state_dict = torch.load(teacher_weights, weights_only=True, map_location=device)
         teacher_embedding_model.load_state_dict(state_dict)
-        logger.debug(f"Loaded teacher weights from {teacher_weights}.")
+        logger.info(f"Loaded teacher weights from {teacher_weights}.")
 
     teacher_embedding_model.eval()
 
