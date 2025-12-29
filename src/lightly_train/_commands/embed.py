@@ -98,8 +98,6 @@ def embed(
 
 
 def embed_from_config(config: EmbedConfig) -> None:
-    tracker.track_event("inference_started", {"inference_type": "embedding"})
-
     # Set up logging.
     _warnings.filter_embed_warnings()
     _logging.set_up_console_logging()
@@ -124,6 +122,14 @@ def embed_from_config(config: EmbedConfig) -> None:
         num_workers=config.num_workers, num_devices_per_node=1
     )
     embedding_model = _get_embedding_model(checkpoint=checkpoint_instance)
+    # TODO(Igor, 12/25): Pass a more informative model name instead of embedding_model.
+    # EmbeddingModel doesn't have a model_name attribute, so we currently get
+    # "EmbeddingModel" as the model name which is not useful for analytics.
+    tracker.track_inference_started(
+        task_type="embedding",
+        model=embedding_model,
+        batch_size=config.batch_size,
+    )
     embedding_predictor = EmbeddingPredictor(embedding_model=embedding_model)
     # convert to float to avoid issues when loading 16bit/64bit models
     embedding_predictor = embedding_predictor.float()

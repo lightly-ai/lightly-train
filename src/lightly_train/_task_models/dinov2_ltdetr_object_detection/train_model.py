@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import copy
 import re
 from dataclasses import field
 from typing import Any, ClassVar, Literal
@@ -14,6 +15,7 @@ from typing import Any, ClassVar, Literal
 import torch
 from lightning_fabric import Fabric
 from torch import Tensor
+from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
 from torch.optim.lr_scheduler import LRScheduler, MultiStepLR
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
@@ -58,7 +60,7 @@ class DINOv2LTDETRObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
     mode: Literal["min", "max"] = "max"
 
 
-class DINOv2LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
+class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     default_steps: ClassVar[int] = (
         100_000 // 16 * 72
@@ -117,7 +119,7 @@ class DINOv2LTDETRObjectDetectionTrainModelArgs(TrainModelArgs):
 
 class DINOv2LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
-    train_model_args_cls = DINOv2LTDETRObjectDetectionTrainModelArgs
+    train_model_args_cls = DINOv2LTDETRObjectDetectionTrainArgs
     task_model_cls = DINOv2LTDETRObjectDetection
     train_transform_cls = DINOv2LTDETRObjectDetectionTrainTransform
     val_transform_cls = DINOv2LTDETRObjectDetectionValTransform
@@ -127,7 +129,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         self,
         *,
         model_name: str,
-        model_args: DINOv2LTDETRObjectDetectionTrainModelArgs,
+        model_args: DINOv2LTDETRObjectDetectionTrainArgs,
         data_args: YOLOObjectDetectionDataArgs,
         train_transform_args: DINOv2LTDETRObjectDetectionTrainTransformArgs,
         val_transform_args: DINOv2LTDETRObjectDetectionValTransformArgs,
@@ -154,6 +156,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             load_weights=load_weights,
         )
 
+        self.ema_model_state_dict_key_prefix = "ema_model."
         self.ema_model: ModelEMA | None = None
         if model_args.use_ema_model:
             self.ema_model = ModelEMA(
@@ -192,26 +195,35 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         Overloads the default implementation to use the task model's loading logic.
         This allows loading weights from an EMA model into the training model.
         """
-        # Initialize the model using the task-model logic
-        incompatible = self.model.load_train_state_dict(
-            state_dict, strict=strict, assign=assign
+        missing_keys, unexpected_keys = self.model.load_train_state_dict(
+            state_dict,
+            strict=strict,
+            assign=assign,
         )
-
-        # Load EMA replica if present, otherwise copy weights from the training model
         if self.ema_model is not None:
-            ema_prefix = "ema_model."
-            ema_state = {
-                k[len(ema_prefix) :]: v
+            missing_keys_ema, unexpected_keys_ema = (
+                self.ema_model.model.load_train_state_dict(  # type: ignore
+                    # Copy to avoid assigning the same weights to both models
+                    copy.deepcopy(state_dict),
+                    strict=strict,
+                    assign=assign,
+                )
+            )
+            missing_keys.extend(missing_keys_ema)
+            unexpected_keys.extend(unexpected_keys_ema)
+        return _IncompatibleKeys(missing_keys, unexpected_keys)
+
+    def get_export_state_dict(self) -> dict[str, Any]:
+        """Returns the state dict for exporting."""
+        state_dict = super().get_export_state_dict()
+        if self.ema_model is not None:
+            # Only keep EMA weights for export
+            state_dict = {
+                k: v
                 for k, v in state_dict.items()
-                if k.startswith(ema_prefix)
+                if k.startswith(self.ema_model_state_dict_key_prefix)
             }
-
-            if ema_state:
-                self.ema_model.load_state_dict(ema_state, strict=strict, assign=assign)
-            else:
-                self.ema_model.model.load_state_dict(self.model.state_dict())
-
-        return incompatible
+        return state_dict
 
     def set_train_mode(self) -> None:
         super().set_train_mode()
