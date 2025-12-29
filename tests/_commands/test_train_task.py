@@ -89,6 +89,111 @@ def test_train_object_detection(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(
+    is_self_hosted_docker_runner,
+    reason=(
+        "Fails on self-hosted CI with GPU (insufficient shared memory causes worker "
+        "bus error"
+    ),
+)
+def test_train_instance_segmentation(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "out"
+    data = tmp_path / "data"
+    helpers.create_yolo_instance_segmentation_dataset(
+        data, split_first=True, num_files=4
+    )
+
+    # Check training
+    lightly_train.train_instance_segmentation(
+        out=out,
+        data={
+            "path": data,
+            "train": Path("train", "images"),
+            "val": Path("val", "images"),
+            "names": {
+                0: "class_0",
+                1: "class_1",
+            },
+        },
+        model="dinov3/vitt16-notpretrained-eomt",
+        model_args={"num_joint_blocks": 1},
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+        devices=1,
+        batch_size=2,
+        num_workers=2,
+        steps=2,
+    )
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()
+
+    # Check that the model can be loaded again
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+
+    # Check forward pass
+    dummy_input = torch.randn(3, 100, 200)
+    results = model.predict(dummy_input)
+
+    assert results["labels"].ndim == 1
+    assert results["masks"].ndim == 3
+    assert results["masks"].shape[-2:] == dummy_input.shape[1:]
+    assert results["scores"].ndim == 1
+
+
+@pytest.mark.skipif(
+    is_self_hosted_docker_runner,
+    reason=(
+        "Fails on self-hosted CI with GPU (insufficient shared memory causes worker "
+        "bus error"
+    ),
+)
+def test_train_panoptic_segmentation(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "out"
+    data = tmp_path / "data"
+    helpers.create_coco_panoptic_segmentation_dataset(data, num_files=4)
+
+    # Check training
+    lightly_train.train_panoptic_segmentation(
+        out=out,
+        data={
+            "train": {
+                "images": data / "images" / "train",
+                "masks": data / "annotations" / "train",
+                "annotations": data / "annotations" / "train.json",
+            },
+            "val": {
+                "images": data / "images" / "val",
+                "masks": data / "annotations" / "val",
+                "annotations": data / "annotations" / "val.json",
+            },
+        },
+        model="dinov3/vitt16-notpretrained-eomt",
+        model_args={"num_joint_blocks": 1},
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+        devices=1,
+        batch_size=2,
+        num_workers=2,
+        steps=2,
+    )
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()
+
+    # Check that the model can be loaded again
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+
+    # Check forward pass
+    dummy_input = torch.randn(3, 100, 200)
+    results = model.predict(dummy_input)
+    assert results["masks"].shape == (100, 200, 2)
+    assert results["segment_ids"].ndim == 1
+    assert results["scores"].ndim == 1
+
+
+@pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
     reason=(
         "Fails on Windows since switching to Jaccard index "
@@ -114,9 +219,9 @@ def test_train_semantic_segmentation(
     val_masks = tmp_path / "val_masks"
     mode = "RGB" if num_channels == 3 else "RGBA"
     helpers.create_images(train_images, num_channels=num_channels, mode=mode)
-    helpers.create_masks(train_masks)
+    helpers.create_semantic_segmentation_masks(train_masks)
     helpers.create_images(val_images, num_channels=num_channels, mode=mode)
-    helpers.create_masks(val_masks)
+    helpers.create_semantic_segmentation_masks(val_masks)
 
     lightly_train.train_semantic_segmentation(
         out=out,
@@ -198,7 +303,7 @@ def test_train_semantic_segmentation__dicom(
         target = train_images / image_filename
         target.symlink_to(data_path)
     train_mask_filenames = [f"{index}_{data_path.stem}.png" for index in range(4)]
-    helpers.create_masks(
+    helpers.create_semantic_segmentation_masks(
         train_masks,
         files=train_mask_filenames,
         height=height,
@@ -211,7 +316,7 @@ def test_train_semantic_segmentation__dicom(
         target = val_images / image_filename
         target.symlink_to(data_path)
     val_mask_filenames = [f"{index}_{data_path.stem}.png" for index in range(2)]
-    helpers.create_masks(
+    helpers.create_semantic_segmentation_masks(
         val_masks,
         files=val_mask_filenames,
         height=height,
@@ -275,9 +380,9 @@ def test_train_semantic_segmentation__export(
     val_masks = tmp_path / "val_masks"
     mode = "RGB" if num_channels == 3 else "RGBA"
     helpers.create_images(train_images, num_channels=num_channels, mode=mode)
-    helpers.create_masks(train_masks)
+    helpers.create_semantic_segmentation_masks(train_masks)
     helpers.create_images(val_images, num_channels=num_channels, mode=mode)
-    helpers.create_masks(val_masks)
+    helpers.create_semantic_segmentation_masks(val_masks)
 
     lightly_train.train_semantic_segmentation(
         out=out,
@@ -338,9 +443,9 @@ def test_train_semantic_segmentation__checkpoint(
     val_images = tmp_path / "val_images"
     val_masks = tmp_path / "val_masks"
     helpers.create_images(train_images)
-    helpers.create_masks(train_masks)
+    helpers.create_semantic_segmentation_masks(train_masks)
     helpers.create_images(val_images)
-    helpers.create_masks(val_masks)
+    helpers.create_semantic_segmentation_masks(val_masks)
 
     # Part 1: Generate a checkpoint.
     lightly_train.train_semantic_segmentation(
@@ -449,9 +554,9 @@ def test_train_semantic_segmentation__resume_interrupted(
     val_images = tmp_path / "val_images"
     val_masks = tmp_path / "val_masks"
     helpers.create_images(train_images)
-    helpers.create_masks(train_masks)
+    helpers.create_semantic_segmentation_masks(train_masks)
     helpers.create_images(val_images)
-    helpers.create_masks(val_masks)
+    helpers.create_semantic_segmentation_masks(val_masks)
 
     # Part 1: Generate a checkpoint that can be resumed.
     lightly_train.train_semantic_segmentation(
