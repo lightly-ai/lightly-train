@@ -410,7 +410,6 @@ def create_panoptic_segmentation_mask(
     path: Path,
     height: int = 128,
     width: int = 128,
-    num_classes: int = 2,
 ) -> list[int]:
     # ids=R+G*256+B*256^2
     max_id = 255 + 255 * 256 + 255 * 256**2
@@ -575,6 +574,7 @@ def create_coco_panoptic_segmentation_dataset(
     num_files: int = 2,
     height: int = 128,
     width: int = 128,
+    num_classes: int = 2,
 ) -> None:
     """Create a minimal COCO panoptic segmentation dataset."""
     train_images = tmp_path / "images" / "train"
@@ -592,6 +592,7 @@ def create_coco_panoptic_segmentation_dataset(
         files=num_files,
         height=height,
         width=width,
+        num_classes=num_classes,
     )
     create_panoptic_segmentation_masks(
         mask_dir=val_masks,
@@ -599,6 +600,7 @@ def create_coco_panoptic_segmentation_dataset(
         files=num_files,
         height=height,
         width=width,
+        num_classes=num_classes,
     )
 
 
