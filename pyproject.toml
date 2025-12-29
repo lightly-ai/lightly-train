@@ -51,6 +51,8 @@ dev = [
     "licenseheaders>=0.8.8",
     "mdformat>=0.7.21; python_version>='3.9'",  # Older versions change formatting behavior
     "mdformat-frontmatter>=2.0.0",
+    "mdformat-myst>=0.3.0", # MyST support for mdformat
+    "mdformat-gfm>=1.0.0",  # GitHub Flavored Markdown support for mdformat
     "mypy>=1.10.0",
     "pillow>=10.3.0,<12.0.0",  # helpers.create_image currently fails for newer pillow versions
     "pre-commit>=3.5.0",
