@@ -3,15 +3,18 @@
 # Quick Start - Distillation
 
 ```{image} https://colab.research.google.com/assets/colab-badge.svg
-:target: https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/distillation.ipynb
+---
+target: 
+  https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/distillation.ipynb
+---
 ```
 
-This guide demonstrates how to pretrain a model on **unlabeled data** with
-distillation. Distillation is a special form of pretraining where a large,
-pretrained teacher model, like DINOv2 or DINOv3, is used to guide the training of
-a smaller student model. This is the ideal starting point if you want to improve
-performance of any model that is not already a large vision foundation model, like
-YOLO, ConvNet, or special transformer architectures.
+This guide demonstrates how to pretrain a model on **unlabeled data** with distillation.
+Distillation is a special form of pretraining where a large, pretrained teacher model,
+like DINOv2 or DINOv3, is used to guide the training of a smaller student model. This is
+the ideal starting point if you want to improve performance of any model that is not
+already a large vision foundation model, like YOLO, ConvNet, or special transformer
+architectures.
 
 The quick start covers the following steps:
 
@@ -40,16 +43,15 @@ details.
 
 ## Prepare Data
 
-You can use any image dataset for training. No labels are required, and the
-dataset can be structured in any way, including subdirectories. If you don't have
-a dataset at hand, you can download an example dataset:
+You can use any image dataset for training. No labels are required, and the dataset can
+be structured in any way, including subdirectories. If you don't have a dataset at hand,
+you can download an example dataset:
 
 ```bash
 wget https://github.com/lightly-ai/coco128_unlabeled/releases/download/v0.0.1/coco128_unlabeled.zip && unzip -q coco128_unlabeled.zip
 ```
 
-See the [data guide](pretrain-data) for more information on
-supported data formats.
+See the [data guide](pretrain-data) for more information on supported data formats.
 
 In this example, the dataset looks like this:
 
@@ -95,12 +97,12 @@ Lightly**Train** supports many [popular models](pretrain_distill/models/index.md
 out of the box.
 ```
 
-This pretrains a tiny DINOv3 ViT model using images from `coco128_unlabeled`. All training
-logs, model exports, and checkpoints are saved to the output directory at
+This pretrains a tiny DINOv3 ViT model using images from `coco128_unlabeled`. All
+training logs, model exports, and checkpoints are saved to the output directory at
 `out/my_experiment`.
 
-Once the training is complete, the `out/my_experiment` directory contains the
-following files:
+Once the training is complete, the `out/my_experiment` directory contains the following
+files:
 
 ```text
 out/my_experiment
@@ -114,10 +116,10 @@ out/my_experiment
 └── train.log                           # Training logs
 ```
 
-The final model is exported to `out/my_experiment/exported_models/exported_last.pt`
-in the default format of the used library. It can directly be used for fine-tuning. See
-[export format](pretrain_distill/export.md#format) for more information on how to
-export models to other formats or on how to export intermediate checkpoints.
+The final model is exported to `out/my_experiment/exported_models/exported_last.pt` in
+the default format of the used library. It can directly be used for fine-tuning. See
+[export format](pretrain_distill/export.md#format) for more information on how to export
+models to other formats or on how to export intermediate checkpoints.
 
 While the trained model has already learned good representations of the images, it
 cannot yet make any predictions for tasks such as classification, detection, or
@@ -126,14 +128,13 @@ dataset.
 
 ## Fine-Tune
 
-Now the model is ready for fine-tuning! You can use your favorite library for this
-step. We'll use Lightly**Train**'s built-in fine-tuning for object detection as an
-example.
+Now the model is ready for fine-tuning! You can use your favorite library for this step.
+We'll use Lightly**Train**'s built-in fine-tuning for object detection as an example.
 
 ### Prepare Labeled Data
 
-A labeled dataset is required for fine-tuning. You can download an example dataset
-from here:
+A labeled dataset is required for fine-tuning. You can download an example dataset from
+here:
 
 ```bash
 wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.1/coco128_yolo.zip && unzip -q coco128_yolo.zip
@@ -274,17 +275,16 @@ lightly_train.train_object_detection(
 ```
 
 This will load the pretrained model from
-`out/my_experiment/exported_models/exported_last.pt` and fine-tune it on a subset
-of the labeled COCO dataset for 100 steps.
+`out/my_experiment/exported_models/exported_last.pt` and fine-tune it on a subset of the
+labeled COCO dataset for 100 steps.
 
-Congratulations! You've just trained and fine-tuned a model using
-Lightly**Train**!
+Congratulations! You've just trained and fine-tuned a model using Lightly**Train**!
 
 ## Generate Embeddings
 
-Instead of fine-tuning the model, you can also use it to generate image embeddings.
-This is useful for clustering, retrieval, or visualization tasks. The `embed`
-command generates embeddings for all images in a directory:
+Instead of fine-tuning the model, you can also use it to generate image embeddings. This
+is useful for clustering, retrieval, or visualization tasks. The `embed` command
+generates embeddings for all images in a directory:
 
 ```python
 import lightly_train
@@ -312,9 +312,9 @@ print(
 
 ## Next Steps
 
-- [Object Detection Quick Start](quick-start-object-detection): If you want to
-  learn more about fine-tuning and how to use the fine-tuned model for inference.
-- [Distillation Guide](pretrain-distill): If you want to learn more about
-  distillation and how to pretrain any model with it.
-- [DINOv2 Pretraining](methods-dinov2): If you want to learn how to pretrain
-  foundation models.
+- [Object Detection Quick Start](quick-start-object-detection): If you want to learn
+  more about fine-tuning and how to use the fine-tuned model for inference.
+- [Distillation Guide](pretrain-distill): If you want to learn more about distillation
+  and how to pretrain any model with it.
+- [DINOv2 Pretraining](methods-dinov2): If you want to learn how to pretrain foundation
+  models.

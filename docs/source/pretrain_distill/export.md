@@ -36,8 +36,8 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 lightly-train export out="my_exported_model.pt" checkpoint="out/my_experiment/checkpoints/last.ckpt" part="model" format="torch_state_dict"
 ````
 
-The above code example pretrains a model and exports the last pretraining checkpoint as a
-torch state dictionary.
+The above code example pretrains a model and exports the last pretraining checkpoint as
+a torch state dictionary.
 
 ```{tip}
 See {meth}`lightly_train.export` for a complete list of arguments.
@@ -49,16 +49,16 @@ The `out` argument specifies the output file where the exported model is saved.
 
 ## Checkpoint
 
-The `checkpoint` argument specifies the Lightly**Train** checkpoint to use for exporting the
-model. This is the checkpoint saved to `out/my_experiment/checkpoints/<some>.ckpt` after
-training.
+The `checkpoint` argument specifies the Lightly**Train** checkpoint to use for exporting
+the model. This is the checkpoint saved to `out/my_experiment/checkpoints/<some>.ckpt`
+after training.
 
 (export-format)=
 
 ## Format
 
-The optional `format` argument specifies the format in which the model is exported. The following
-formats are supported.
+The optional `format` argument specifies the format in which the model is exported. The
+following formats are supported.
 
 - `package_default` (default)
 
@@ -68,13 +68,13 @@ formats are supported.
 
   The model is saved in the native format of the used package:
 
-  | Model | Format |
-  | --- | --- |
-  | `custom` | `state dict` |
+  | Model             | Format            |
+  | ----------------- | ----------------- |
+  | `custom`          | `state dict`      |
   | `super_gradients` | `super_gradients` |
-  | `timm` | `timm` |
-  | `torchvision` | `state dict` |
-  | `ultralytics` | `ultralytics` |
+  | `timm`            | `timm`            |
+  | `torchvision`     | `state dict`      |
+  | `ultralytics`     | `ultralytics`     |
 
   Usage examples:
 
@@ -147,8 +147,8 @@ formats are supported.
 
 ## Part
 
-The optional `part` argument specifies which part of the model to export. The following parts are
-supported.
+The optional `part` argument specifies which part of the model to export. The following
+parts are supported.
 
 - `model` (default)
 
@@ -157,5 +157,6 @@ supported.
 - `embedding_model`
 
   Exports the embedding model. This includes the model passed with the `model` argument
-  in the `pretrain` function and an extra embedding layer if the `embed_dim` argument was
-  set during training. This is useful if you want to use the model for embedding images.
+  in the `pretrain` function and an extra embedding layer if the `embed_dim` argument
+  was set during training. This is useful if you want to use the model for embedding
+  images.

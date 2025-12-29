@@ -6,9 +6,9 @@
 Pretraining custom models from the command line or with docker is not yet supported.
 ```
 
-Lightly**Train** supports pretraining custom models. This requires writing a small wrapper
-around your model to implement the necessary methods. The wrapper must be a subclass
-of `torch.nn.Module` and implement the following methods:
+Lightly**Train** supports pretraining custom models. This requires writing a small
+wrapper around your model to implement the necessary methods. The wrapper must be a
+subclass of `torch.nn.Module` and implement the following methods:
 
 - `get_model(self) -> Module`
 
@@ -119,9 +119,9 @@ x = embedding_layer(x)
 embeddings = x.flatten(start_dim=1)
 ```
 
-Some [SSL methods](#methods) do not call the `forward_pool` method and
-only use the unpooled features. In this case, the embedding layer is applied directly to
-the output of `forward_features`.
+Some [SSL methods](#methods) do not call the `forward_pool` method and only use the
+unpooled features. In this case, the embedding layer is applied directly to the output
+of `forward_features`.
 
 ## Example
 

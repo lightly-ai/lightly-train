@@ -2,7 +2,14 @@
 
 # Classification with Torchvision's ResNet
 
-This tutorial demonstrates how to pretrain a ResNet model from [Torchvision](https://pytorch.org/vision/stable/) using LightlyTrain and then fine-tune it for classification using [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/). We will perform pretraining and fine-tuning on two distinct datasets from Kaggle for human detection. Such datasets can be used for training models to detect humans in images, a basic task in industries like security and autonomous driving. Note that for pretraining **no labels are needed**.
+This tutorial demonstrates how to pretrain a ResNet model from
+[Torchvision](https://pytorch.org/vision/stable/) using LightlyTrain and then fine-tune
+it for classification using
+[PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/). We will perform
+pretraining and fine-tuning on two distinct datasets from Kaggle for human detection.
+Such datasets can be used for training models to detect humans in images, a basic task
+in industries like security and autonomous driving. Note that for pretraining **no
+labels are needed**.
 
 ## Install LightlyTrain
 
@@ -16,18 +23,27 @@ pip install lightly-train
 
 ### Download the Pretraining Dataset
 
-Here we use [a dataset for human detection on Kaggle](https://www.kaggle.com/datasets/killa92/human-detection-dataset) for pretraining. It contains 170 PNG images of various sizes containing humans. We only use such a small dataset for demonstration purposes. In practice, you would want to use a much larger dataset for pretraining.
+Here we use
+[a dataset for human detection on Kaggle](https://www.kaggle.com/datasets/killa92/human-detection-dataset)
+for pretraining. It contains 170 PNG images of various sizes containing humans. We only
+use such a small dataset for demonstration purposes. In practice, you would want to use
+a much larger dataset for pretraining.
 
-You can download the dataset directly from Kaggle using the following commands (suppose you want the dataset to locate in `datasets`):
+You can download the dataset directly from Kaggle using the following commands (suppose
+you want the dataset to locate in `datasets`):
 
 ```bash
 curl -L --create-dirs -o datasets/human-detection-dataset-pretraining.zip \
 https://www.kaggle.com/api/v1/datasets/download/killa92/human-detection-dataset
 ```
 
-Extract the zip file. The extracted directory `PennFudanPed` contains four subdirectories: `train_images`, `train_masks`, `valid_images`, and `valid_masks`. For pretraining, we will only use the `train_images` directory. **No masks or labels are required.**
+Extract the zip file. The extracted directory `PennFudanPed` contains four
+subdirectories: `train_images`, `train_masks`, `valid_images`, and `valid_masks`. For
+pretraining, we will only use the `train_images` directory. **No masks or labels are
+required.**
 
-We will rename the `PennFudanPed/train_images` directory to `human-detection-dataset-pretraining`
+We will rename the `PennFudanPed/train_images` directory to
+`human-detection-dataset-pretraining`
 
 ```bash
 unzip datasets/human-detection-dataset-pretraining.zip -d datasets/ && \
@@ -46,7 +62,8 @@ tree -L 1 datasets/human-detection-dataset-pretraining
 
 ### Inspect Images for Pretraining
 
-Let's inspect a few images from the `train_images` to understand the pretraining dataset better. We will randomly select two images and display them using Matplotlib.
+Let's inspect a few images from the `train_images` to understand the pretraining dataset
+better. We will randomly select two images and display them using Matplotlib.
 
 ```python
 # pretrain_inspect_images.py
@@ -130,9 +147,13 @@ lightly-train pretrain out="out/my_experiment" data="datasets/human-detection-da
 
 ### Download the Fine-tuning Dataset
 
-Here we use [another dataset for human detection on Kaggle](https://www.kaggle.com/datasets/constantinwerner/human-detection-dataset/data) for fine-tuning. It contains 921 PNG images of size 256x256 pixels from videos of humans (label `1`) and no humans (label `0`).
+Here we use
+[another dataset for human detection on Kaggle](https://www.kaggle.com/datasets/constantinwerner/human-detection-dataset/data)
+for fine-tuning. It contains 921 PNG images of size 256x256 pixels from videos of humans
+(label `1`) and no humans (label `0`).
 
-You can download the dataset directly from Kaggle using the following commands (suppose you want the dataset to locate in `datasets`):
+You can download the dataset directly from Kaggle using the following commands (suppose
+you want the dataset to locate in `datasets`):
 
 ```bash
 curl -L --create-dirs -o datasets/human-detection-dataset-fine-tuning.zip \
@@ -146,7 +167,8 @@ unzip datasets/human-detection-dataset-fine-tuning.zip -d datasets/ && \
 mv datasets/"human detection dataset" datasets/human-detection-dataset-fine-tuning/
 ```
 
-The resulting dataset directory contains two classes in its subdirectories: `0` for images without humans and `1` for images with humans.
+The resulting dataset directory contains two classes in its subdirectories: `0` for
+images without humans and `1` for images with humans.
 
 ```bash
 tree -L 1 datasets/human-detection-dataset-fine-tuning
@@ -161,8 +183,8 @@ tree -L 1 datasets/human-detection-dataset-fine-tuning
 ### Split the Fine-tuning Dataset
 
 Before we can fine-tune the model, we need to split the dataset into training and
-validation sets. We will use 80% of the images for training and 20% for validation.
-The following Python script will create the `train` and `val` directories and move the
+validation sets. We will use 80% of the images for training and 20% for validation. The
+following Python script will create the `train` and `val` directories and move the
 images into their respective subdirectories.
 
 ```python
@@ -227,7 +249,9 @@ tree -L 2 datasets/human-detection-dataset-fine-tuning
 
 ### Inspect Images for Fine-tuning
 
-Let's inspect a few images from each class in the fine-tuning dataset to understand it better. We will randomly select two images from each class and display them using Matplotlib.
+Let's inspect a few images from each class in the fine-tuning dataset to understand it
+better. We will randomly select two images from each class and display them using
+Matplotlib.
 
 ```python
 # finetune_inspect_images.py
@@ -286,7 +310,8 @@ plt.show()
 
 ### Fine-tuning Script with PyTorch Lightning
 
-We will use PyTorch Lightning to fine-tune the ResNet18 model pretrained with LightlyTrain on the above dataset.
+We will use PyTorch Lightning to fine-tune the ResNet18 model pretrained with
+LightlyTrain on the above dataset.
 
 The following script will:
 
@@ -436,12 +461,15 @@ if __name__ == "__main__":
     trainer.validate(model, data_module)
 ```
 
-Congratulations! You have successfully pretrained a model using LightlyTrain and fine-tuned it for classification using PyTorch Lightning.
+Congratulations! You have successfully pretrained a model using LightlyTrain and
+fine-tuned it for classification using PyTorch Lightning.
 
-For more advanced options, explore the [LightlyTrain Python API](#lightly-train) and [PyTorch Lightning documentation](https://pytorch-lightning.readthedocs.io).
+For more advanced options, explore the [LightlyTrain Python API](#lightly-train) and
+[PyTorch Lightning documentation](https://pytorch-lightning.readthedocs.io).
 
 ## Next Steps
 
-- Go beyond the default distillation pretraining and experiment with other pretraining methods in LightlyTrain. Check [Methods](#methods) for more information.
+- Go beyond the default distillation pretraining and experiment with other pretraining
+  methods in LightlyTrain. Check [Methods](#methods) for more information.
 - Try various [Torchvision models](#models-torchvision) supported by LightlyTrain.
 - Use the pretrained model for other tasks, like {ref}`image embeddings <embed>`.

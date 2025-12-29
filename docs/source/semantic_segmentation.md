@@ -14,9 +14,17 @@ Kerssies et al. and reaches 59.1% mIoU with DINOv3 weights and 58.4% mIoU with D
 
 ## Benchmark Results
 
-Below we provide the model checkpoints and report the validation mIoUs and inference latency of three different DINOv3 models fine-tuned on various datasets with LightlyTrain. We also made the comparison to the results obtained in the original EoMT paper, if available. You can check [here](semantic-segmentation-eomt-dinov3-model-weights) for how to use these model checkpoints for further fine-tuning.
+Below we provide the model checkpoints and report the validation mIoUs and inference
+latency of three different DINOv3 models fine-tuned on various datasets with
+LightlyTrain. We also made the comparison to the results obtained in the original EoMT
+paper, if available. You can check
+[here](semantic-segmentation-eomt-dinov3-model-weights) for how to use these model
+checkpoints for further fine-tuning.
 
-The experiments, unless stated otherwise, generally follow the protocol in the original EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average latency values were measured with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
+The experiments, unless stated otherwise, generally follow the protocol in the original
+EoMT paper, using a batch size of `16` and a learning rate of `1e-4`. The average
+latency values were measured with model compilation using `torch.compile` on a single
+NVIDIA T4 GPU with FP16 precision.
 
 You can also explore inferencing with these model weights using our Colab notebook:
 
@@ -24,32 +32,34 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 ### COCO-Stuff
 
-| Implementation | Model | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
-|----------------|----------------------------|----------|----------|-----------|------------|
-| LightlyTrain | dinov3/vits16-eomt-coco | 46.5 | 11.3 | 21.6 | 512×512 |
-| LightlyTrain | dinov3/vitb16-eomt-coco | 52.0 | 23.1 | 85.7 | 512×512 |
-| LightlyTrain | dinov3/vitl16-eomt-coco | **54.4** | 49.0 | 303.2 | 512×512 |
+| Implementation | Model                   | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
+| -------------- | ----------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain   | dinov3/vits16-eomt-coco | 46.5     | 11.3              | 21.6       | 512×512    |
+| LightlyTrain   | dinov3/vitb16-eomt-coco | 52.0     | 23.1              | 85.7       | 512×512    |
+| LightlyTrain   | dinov3/vitl16-eomt-coco | **54.4** | 49.0              | 303.2      | 512×512    |
 
-We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200` for EoMT.
+We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200`
+for EoMT.
 
 ### Cityscapes
 
-| Implementation | Model | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
-|----------------|--------------------------------------|----------|----------|-----------|------------|
-| LightlyTrain | dinov3/vits16-eomt-cityscapes | 78.6 | 53.8 | 21.6 | 1024×1024 |
-| LightlyTrain | dinov3/vitb16-eomt-cityscapes | 81.0 | 114.9 | 85.7 | 1024×1024 |
-| LightlyTrain | dinov3/vitl16-eomt-cityscapes | **84.4** | 256.4 | 303.2 | 1024×1024 |
-| Original EoMT | dinov2/vitl16-eomt | 84.2 | - | 319 | 1024×1024 |
+| Implementation | Model                         | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
+| -------------- | ----------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain   | dinov3/vits16-eomt-cityscapes | 78.6     | 53.8              | 21.6       | 1024×1024  |
+| LightlyTrain   | dinov3/vitb16-eomt-cityscapes | 81.0     | 114.9             | 85.7       | 1024×1024  |
+| LightlyTrain   | dinov3/vitl16-eomt-cityscapes | **84.4** | 256.4             | 303.2      | 1024×1024  |
+| Original EoMT  | dinov2/vitl16-eomt            | 84.2     | -                 | 319        | 1024×1024  |
 
-We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200` for EoMT.
+We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200`
+for EoMT.
 
 ## Semantic Segmentation with EoMT
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
 
-Training a semantic segmentation model with LightlyTrain is straightforward and
-only requires a few lines of code. See [data](#semantic-segmentation-data)
-for more details on how to prepare your dataset.
+Training a semantic segmentation model with LightlyTrain is straightforward and only
+requires a few lines of code. See [data](#semantic-segmentation-data) for more details
+on how to prepare your dataset.
 
 ### Train a Semantic Segmentation Model
 
@@ -85,9 +95,12 @@ if __name__ == "__main__":
 During training, both the
 
 - best (with highest validation mIoU) and
-- last (last validation round as determined by `save_checkpoint_args.save_every_num_steps`)
+- last (last validation round as determined by
+  `save_checkpoint_args.save_every_num_steps`)
 
-model weights are exported to `out/my_experiment/exported_models/`, unless disabled in `save_checkpoint_args`. You can use these weights to continue fine-tuning on another task by loading the weights via the `checkpoint` parameter:
+model weights are exported to `out/my_experiment/exported_models/`, unless disabled in
+`save_checkpoint_args`. You can use these weights to continue fine-tuning on another
+task by loading the weights via the `checkpoint` parameter:
 
 ```python
 import lightly_train
@@ -106,7 +119,8 @@ Check [here](semantic-segmentation-eomt-dinov3-model-weights) for how to use the
 
 ### Load the Trained Model from Checkpoint and Predict
 
-After the training completes, you can load the best model checkpoints for inference like this:
+After the training completes, you can load the best model checkpoints for inference like
+this:
 
 ```python
 import lightly_train
@@ -119,7 +133,8 @@ masks = model.predict("path/to/image.jpg")
 
 ### Visualize the Result
 
-After making the predictions with the model weights, you can visualize the predicted masks like this:
+After making the predictions with the model weights, you can visualize the predicted
+masks like this:
 
 ```python skip_ruff
 import matplotlib.pyplot as plt
@@ -140,7 +155,8 @@ ID as defined in the `classes` dictionary in the dataset.
 
 ## 🔥 Use EoMT with DINOv3 🔥
 
-To fine-tune EoMT from DINOv3, you have to set `model` to one of the [DINOv3 models](#dinov3-models).
+To fine-tune EoMT from DINOv3, you have to set `model` to one of the
+[DINOv3 models](#dinov3-models).
 
 ```{note}
 DINOv3 models are released under the [DINOv3 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md).
@@ -179,9 +195,9 @@ if __name__ == "__main__":
 
 ### Use the LightlyTrain Model Checkpoints
 
-Now you can also start with the DINOv3 model checkpoints that LightlyTrain provides.
-The models are listed [here](#semantic-segmentation-benchmark-results) in the
-"Model" column of the tables.
+Now you can also start with the DINOv3 model checkpoints that LightlyTrain provides. The
+models are listed [here](#semantic-segmentation-benchmark-results) in the "Model" column
+of the tables.
 
 ```python
 import lightly_train
@@ -198,8 +214,8 @@ if __name__ == "__main__":
 
 ## Out
 
-The `out` argument specifies the output directory where all training logs, model exports,
-and checkpoints are saved. It looks like this after training:
+The `out` argument specifies the output directory where all training logs, model
+exports, and checkpoints are saved. It looks like this after training:
 
 ```text
 out/my_experiment
@@ -212,7 +228,9 @@ out/my_experiment
 └── train.log                                           # Training logs
 ```
 
-The final model checkpoint is saved to `out/my_experiment/checkpoints/last.ckpt`. The last and best model weights are exported to `out/my_experiment/exported_models/` unless disabled in `save_checkpoint_args`.
+The final model checkpoint is saved to `out/my_experiment/checkpoints/last.ckpt`. The
+last and best model weights are exported to `out/my_experiment/exported_models/` unless
+disabled in `save_checkpoint_args`.
 
 ```{tip}
 Create a new output directory for each experiment to keep training logs, model exports,
@@ -224,7 +242,10 @@ and checkpoints organized.
 ## Data
 
 Lightly**Train** supports training semantic segmentation models with images and masks.
-Every image must have a corresponding mask whose filename either matches that of the image (under a different directory) or follows a specific template pattern. The masks must be PNG images in either grayscale integer format, where each pixel value corresponds to a class ID, or multi-channel (e.g., RGB) format.
+Every image must have a corresponding mask whose filename either matches that of the
+image (under a different directory) or follows a specific template pattern. The masks
+must be PNG images in either grayscale integer format, where each pixel value
+corresponds to a class ID, or multi-channel (e.g., RGB) format.
 
 The following image formats are supported:
 
@@ -239,7 +260,8 @@ The following image formats are supported:
 - webp
 - dcm (DICOM)
 
-For more details on LightlyTrain's support for data input, please check the [Data Input](#data-input) page.
+For more details on LightlyTrain's support for data input, please check the
+[Data Input](#data-input) page.
 
 The following mask formats are supported:
 
@@ -254,7 +276,9 @@ We support two ways of specifying the mask filepaths in relation to the image fi
 
 #### Using the Same Filename as the Image
 
-We support loading masks that share the same filenames as their corresponding images under different directories. Here is an example of such a directory structure with training and validation images and masks:
+We support loading masks that share the same filenames as their corresponding images
+under different directories. Here is an example of such a directory structure with
+training and validation images and masks:
 
 ```bash
 my_data_dir
@@ -305,16 +329,17 @@ if __name__ == "__main__":
     )
 ```
 
-The classes in the dataset must be specified in the `classes` dictionary. The keys
-are the class IDs and the values are the class names. The class IDs must be identical to
-the values in the mask images. All possible class IDs must be specified, otherwise
+The classes in the dataset must be specified in the `classes` dictionary. The keys are
+the class IDs and the values are the class names. The class IDs must be identical to the
+values in the mask images. All possible class IDs must be specified, otherwise
 Lightly**Train** will raise an error if an unknown class ID is encountered. If you would
 like to ignore some classes during training, you specify their class IDs in the
 `ignore_classes` argument. The trained model will then not predict these classes.
 
 #### Using a Template against the Image Filepath
 
-We also support loading masks that follow a certain template against the corresponding image filepath. For example, if you have the following directory structure:
+We also support loading masks that follow a certain template against the corresponding
+image filepath. For example, if you have the following directory structure:
 
 ```bash
 my_data_dir
@@ -366,7 +391,9 @@ if __name__ == "__main__":
     )
 ```
 
-The template string always uses `image_path` (of type `pathlib.Path`) to refer to the filepath of the corresponding image. Only this parameter is allowed in the template string, which is used to calculate the mask filepath.
+The template string always uses `image_path` (of type `pathlib.Path`) to refer to the
+filepath of the corresponding image. Only this parameter is allowed in the template
+string, which is used to calculate the mask filepath.
 
 ### Specify Training Classes
 
@@ -375,11 +402,13 @@ We support two mask formats:
 - Single-channel integer masks, where each integer value determines a label
 - Multi-channel masks (e.g., RGB masks), where each pixel value determines a label
 
-Use the `classes` dict in the `data` dict to map class IDs to labels. In this document, a **class ID** is a key in the `classes` dictionary and a **label** is its value.
+Use the `classes` dict in the `data` dict to map class IDs to labels. In this document,
+a **class ID** is a key in the `classes` dictionary and a **label** is its value.
 
 #### Using Integer Masks
 
-For single-channel integer masks (each pixel value is a label), the default is a direct mapping from class IDs to label names:
+For single-channel integer masks (each pixel value is a label), the default is a direct
+mapping from class IDs to label names:
 
 ```
     "classes": {                   
@@ -390,7 +419,8 @@ For single-channel integer masks (each pixel value is a label), the default is a
     },
 ```
 
-Alternatively, to merge multiple labels into one class during training, use a dictionary like the following:
+Alternatively, to merge multiple labels into one class during training, use a dictionary
+like the following:
 
 ```
     "classes": {
@@ -410,11 +440,14 @@ Or:
     },
 ```
 
-It is fine if original labels coincide with class IDs, as in the example. Only the class IDs are used for the internal classes for training and prediction masks. Note that each label can map to only **one** class ID.
+It is fine if original labels coincide with class IDs, as in the example. Only the class
+IDs are used for the internal classes for training and prediction masks. Note that each
+label can map to only **one** class ID.
 
 #### Using Multi-channel Masks
 
-For multi-channel masks, specify pixel values as lists of integer tuples (type `list[tuple[int, ...]]`) in the `"labels"` field:
+For multi-channel masks, specify pixel values as lists of integer tuples (type
+`list[tuple[int, ...]]`) in the `"labels"` field:
 
 ```
     "classes": {
@@ -423,7 +456,10 @@ For multi-channel masks, specify pixel values as lists of integer tuples (type `
     },
 ```
 
-These pixel values are converted to class IDs internally during training. Predictions are single-channel masks with those class IDs. Again, each label can map to only **one** class ID, and you cannot mix integer and tuple-valued labels in a single `classes` dictionary.
+These pixel values are converted to class IDs internally during training. Predictions
+are single-channel masks with those class IDs. Again, each label can map to only **one**
+class ID, and you cannot mix integer and tuple-valued labels in a single `classes`
+dictionary.
 
 (semantic-segmentation-model)=
 
@@ -442,7 +478,8 @@ following models are available:
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
 
-All DINOv3 models are [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+All DINOv3 models are
+[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
 
 ### DINOv2 Models
 
@@ -451,7 +488,8 @@ All DINOv3 models are [pretrained by Meta](https://github.com/facebookresearch/d
 - `dinov2/vitl14-eomt`
 - `dinov2/vitg14-eomt`
 
-All DINOv2 models are [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
+All DINOv2 models are
+[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
 
 (semantic-segmentation-logging)=
 
@@ -460,12 +498,12 @@ All DINOv2 models are [pretrained by Meta](https://github.com/facebookresearch/d
 Logging is configured with the `logger_args` argument. The following loggers are
 supported:
 
-- [`mlflow`](#mlflow): Logs training metrics to MLflow (disabled by
-  default, requires MLflow to be installed)
+- [`mlflow`](#mlflow): Logs training metrics to MLflow (disabled by default, requires
+  MLflow to be installed)
 - [`tensorboard`](#tensorboard): Logs training metrics to TensorBoard (enabled by
   default, requires TensorBoard to be installed)
-- [`wandb`](semantic-segmentation-wandb): Logs training metrics to Weights & Biases (disabled by
-  default, requires wandb to be installed)
+- [`wandb`](semantic-segmentation-wandb): Logs training metrics to Weights & Biases
+  (disabled by default, requires wandb to be installed)
 
 (semantic-segmentation-mlflow)=
 
@@ -501,8 +539,8 @@ if __name__ == "__main__":
 
 ### TensorBoard
 
-TensorBoard logs are automatically saved to the output directory. Run TensorBoard in
-a new terminal to visualize the training progress:
+TensorBoard logs are automatically saved to the output directory. Run TensorBoard in a
+new terminal to visualize the training progress:
 
 ```bash
 tensorboard --logdir out/my_experiment
@@ -552,23 +590,29 @@ passing a checkpoint path to the `model` parameter.
 
 ### Resume Interrupted Training
 
-Use `resume_interrupted=True` to **resume a previously interrupted or crashed training run**.
-This will pick up exactly where the training left off.
+Use `resume_interrupted=True` to **resume a previously interrupted or crashed training
+run**. This will pick up exactly where the training left off.
 
 - You **must use the same `out` directory** as the original run.
-- You **must not change any training parameters** (e.g., learning rate, batch size, data, etc.).
+- You **must not change any training parameters** (e.g., learning rate, batch size,
+  data, etc.).
 - This is intended for continuing the *same* run without modification.
 
-This will utilize the `.ckpt` checkpoint file `out/my_experiment/checkpoints/last.ckpt` to restore the entire training state, including model weights, optimizer state, and epoch count.
+This will utilize the `.ckpt` checkpoint file `out/my_experiment/checkpoints/last.ckpt`
+to restore the entire training state, including model weights, optimizer state, and
+epoch count.
 
 ### Load Weights for a New Run
 
-As stated above, you can specify `model="<checkpoint path">` to further fine-tune a model from a previous run.
+As stated above, you can specify `model="<checkpoint path">` to further fine-tune a
+model from a previous run.
 
 - You are free to **change training parameters**.
 - This is useful for continuing training with a different setup.
 
-We recommend using the exported best model weights from `out/my_experiment/exported_models/exported_best.pt` for this purpose, though a `.ckpt` file can also be loaded.
+We recommend using the exported best model weights from
+`out/my_experiment/exported_models/exported_best.pt` for this purpose, though a `.ckpt`
+file can also be loaded.
 
 (semantic-segmentation-pretrain-finetune)=
 
@@ -576,8 +620,8 @@ We recommend using the exported best model weights from `out/my_experiment/expor
 
 To further improve the performance of your semantic segmentation model, you can first
 pretrain a DINOv2 model on unlabeled data using self-supervised learning and then
-fine-tune it on your segmentation dataset. This is especially useful if your dataset
-is only partially labeled or if you have access to a large amount of unlabeled data.
+fine-tune it on your segmentation dataset. This is especially useful if your dataset is
+only partially labeled or if you have access to a large amount of unlabeled data.
 
 The following example shows how to pretrain and fine-tune the model. Check out the page
 on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2 models on unlabeled
@@ -630,8 +674,8 @@ if __name__ == "__main__":
 ## Default Image Transform Arguments
 
 The following are the default train transform arguments for EoMT. The validation
-arguments are automatically inferred from the train arguments. Specifically the
-image size and normalization are shared between train and validation.
+arguments are automatically inferred from the train arguments. Specifically the image
+size and normalization are shared between train and validation.
 
 You can configure the image size and normalization like this:
 
@@ -711,13 +755,16 @@ transform_args={
 
 ## Exporting a Checkpoint to ONNX
 
-[Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange) is a standard format
-for representing machine learning models in a framework independent manner. In particular, it is useful for deploying our
-models on edge devices where PyTorch is not available.
+[Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange)
+is a standard format for representing machine learning models in a framework independent
+manner. In particular, it is useful for deploying our models on edge devices where
+PyTorch is not available.
 
-Currently, we support exporting as ONNX for DINOv2 EoMT segmentation models. The support for DINOv3 EoMT will be released in the short term.
+Currently, we support exporting as ONNX for DINOv2 EoMT segmentation models. The support
+for DINOv3 EoMT will be released in the short term.
 
-The following example shows how to export a previously trained checkpoint to ONNX using the `export_onnx` function.
+The following example shows how to export a previously trained checkpoint to ONNX using
+the `export_onnx` function.
 
 ```python
 import lightly_train

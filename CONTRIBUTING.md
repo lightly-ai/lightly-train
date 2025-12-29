@@ -14,7 +14,8 @@ make install-dev
 Make sure the environment is activated before running the following commands.
 
 > [!WARNING]\
-> Prepending commands with `uv run` might not work properly. Activate the environment directly instead.
+> Prepending commands with `uv run` might not work properly. Activate the environment
+> directly instead.
 
 ### Running Checks and Tests
 
@@ -33,8 +34,8 @@ make test
 
 ### Documentation
 
-Documentation is in the [docs](./docs) folder. To build the documentation, install
-dev dependencies with `make install-dev`, then move to the `docs` folder and run:
+Documentation is in the [docs](./docs) folder. To build the documentation, install dev
+dependencies with `make install-dev`, then move to the `docs` folder and run:
 
 ```
 make docs
@@ -42,8 +43,8 @@ make docs
 
 This builds the documentation in the `docs/build/<version>` folder.
 
-To build the documentation for the stable version, checkout the branch with the
-stable version and run:
+To build the documentation for the stable version, checkout the branch with the stable
+version and run:
 
 ```
 make docs-stable
@@ -71,4 +72,5 @@ To contribute to this repository, you must sign a Contributor License Agreement 
 This is a one-time process done through GitHub when you open your first pull request.
 You will be prompted automatically.
 
-By signing the CLA, you agree that your contributions may be used under the terms of the project license.
+By signing the CLA, you agree that your contributions may be used under the terms of the
+project license.

@@ -2,7 +2,8 @@
 
 # Hardware Recommendations
 
-We tested Lightly**Train** in various setups, the following training examples with hardware setups are provided as a performance reference:
+We tested Lightly**Train** in various setups, the following training examples with
+hardware setups are provided as a performance reference:
 
 - **Distillation YOLOv8l on 2 × NVIDIA RTX 4090**
 
@@ -26,4 +27,6 @@ We tested Lightly**Train** in various setups, the following training examples wi
   - GPU Memory: ~80GB per GPU
   - Time per Epoch: ~6 minutes
 
-Those setups deliver efficient training while handling large-scale datasets with high throughput. While smaller setups can be used, training times may increase significantly and batch size might need to be reduced to fit GPU memory.
+Those setups deliver efficient training while handling large-scale datasets with high
+throughput. While smaller setups can be used, training times may increase significantly
+and batch size might need to be reduced to fit GPU memory.
