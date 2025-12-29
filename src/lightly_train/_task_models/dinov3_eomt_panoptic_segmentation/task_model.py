@@ -294,6 +294,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             Scores is a tensor of shape (num_segments,) containing the confidences score
             for each segment.
         """
+        self._track_inference()
         if self.training:
             self.eval()
 

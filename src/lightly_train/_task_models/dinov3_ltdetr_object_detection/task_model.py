@@ -497,6 +497,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     def predict(
         self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
     ) -> dict[str, Tensor]:
+        self._track_inference()
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
 

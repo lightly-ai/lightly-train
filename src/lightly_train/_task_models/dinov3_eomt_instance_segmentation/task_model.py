@@ -254,6 +254,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             Scores is a tensor of shape (Q,) containing the confidence score for each
             query.
         """
+        self._track_inference()
         if self.training:
             self.eval()
 
