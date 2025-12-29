@@ -11,22 +11,34 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Export only EMA weights for object detection models. This reduces the exported model
-  size by 2x.
-
 ### Deprecated
 
 ### Removed
 
 ### Fixed
 
+### Security
+
+## [0.13.2] - 2025-12-29
+
+### Added
+
+- Support for pretraining RF-DETR 1.3 models.
+
+### Changed
+
+- Export only EMA weights for object detection models. This reduces the exported model
+  size by 2x.
+
+### Fixed
+
+- Fix pretrained ViT-small panoptic segmentation model checkpoint.
+
 ## [0.13.1] - 2025-12-18
 
 ### Fixed
 
 - Fix bug in ONNX export for object detection models.
-
-### Security
 
 ## [0.13.0] - 2025-12-15
 
