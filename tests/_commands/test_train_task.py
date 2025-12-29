@@ -39,6 +39,55 @@ except ImportError:
     pydicom = None  # type: ignore[assignment]
 
 
+def test_train_object_detection(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    data = tmp_path / "data"
+    helpers.create_yolo_object_detection_dataset(data, split_first=True)
+
+    # Check training
+    lightly_train.train_object_detection(
+        out=out,
+        model="dinov3/vitt16-notpretrained-ltdetr",
+        data={
+            "path": data,
+            "train": Path("train", "images"),
+            "val": Path("val", "images"),
+            "names": {
+                0: "class_0",
+                1: "class_1",
+            },
+        },
+        steps=2,
+        batch_size=2,
+        num_workers=2,
+        devices=1,
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+    )
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()
+
+    # Check that model can be loaded again
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+
+    # Check that only EMA weights are exported
+    exported_state_dict = torch.load(
+        out / "exported_models" / "exported_last.pt", map_location="cpu"
+    )
+    assert all(
+        key.startswith("ema_model.")
+        for key in exported_state_dict["train_model"].keys()
+    )
+
+    # Check forward pass
+    dummy_input = torch.randn(3, 100, 200)
+    results = model.predict(dummy_input)
+    assert results["bboxes"].ndim == 2
+    assert results["bboxes"].shape[1] == 4
+    assert results["scores"].ndim == 1
+    assert results["labels"].ndim == 1
+
+
 @pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
     reason=(
