@@ -496,7 +496,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             )
             return (1.0 - progress).pow(self.model_args.poly_power)  # type: ignore[no-any-return]
 
-    @torch.compiler.disable  # type: ignore[misc]
+    @torch.compiler.disable  # type: ignore[misc, untyped-decorator]
     def update_metrics_semantic(
         self,
         preds: Tensor,

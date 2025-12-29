@@ -29,24 +29,36 @@
 *Train Better Models, Faster*
 
 LightlyTrain is the leading framework for transforming your data into state-of-the-art
-computer vision models. It covers the entire model development lifecycle from pretraining
-DINOv2/v3 vision foundation models on your unlabeled data to fine-tuning transformer and
-YOLO models on detection and segmentation tasks for edge deployment.
+computer vision models. It covers the entire model development lifecycle from
+pretraining DINOv2/v3 vision foundation models on your unlabeled data to fine-tuning
+transformer and YOLO models on detection and segmentation tasks for edge deployment.
 
 [Contact us](https://www.lightly.ai/contact) to request a license for commercial use.
 
 ## News
 
-- \[[0.13.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-13-0)\] - 2025-12-15: 🐥 **New Tiny Object Detection Models:** We release tiny DINOv3 models pretrained on COCO for [object detection](https://docs.lightly.ai/train/stable/object_detection.html#coco)! 🐥
-- \[[0.12.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-12-0)\] - 2025-11-06: 💡 **New DINOv3 Object Detection:** Run inference or fine-tune DINOv3 models for [object detection](https://docs.lightly.ai/train/stable/object_detection.html)! 💡
-- \[[0.11.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-11-0)\] - 2025-08-15: 🚀 **New DINOv3 Support:** Pretrain your own model with [distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3) from DINOv3 weights. Or fine-tune our SOTA [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) with a DINOv3 backbone! 🚀
-- \[[0.10.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-10-0)\] - 2025-08-04:
-  🔥 **Train state-of-the-art semantic segmentation models** with our new
+- \[[0.13.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-13-0)\] -
+  2025-12-15: 🐥 **New Tiny Object Detection Models:** We release tiny DINOv3 models
+  pretrained on COCO for
+  [object detection](https://docs.lightly.ai/train/stable/object_detection.html#coco)! 🐥
+- \[[0.12.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-12-0)\] -
+  2025-11-06: 💡 **New DINOv3 Object Detection:** Run inference or fine-tune DINOv3
+  models for
+  [object detection](https://docs.lightly.ai/train/stable/object_detection.html)! 💡
+- \[[0.11.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-11-0)\] -
+  2025-08-15: 🚀 **New DINOv3 Support:** Pretrain your own model with
+  [distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3)
+  from DINOv3 weights. Or fine-tune our SOTA
+  [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3)
+  with a DINOv3 backbone! 🚀
+- \[[0.10.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-10-0)\] -
+  2025-08-04: 🔥 **Train state-of-the-art semantic segmentation models** with our new
   [**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
   fine-tuning method! 🔥
-- \[[0.9.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-9-0)\] - 2025-07-21:
-  [**DINOv2 pretraining**](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html) is
-  now officially available!
+- \[[0.9.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-9-0)\] -
+  2025-07-21:
+  [**DINOv2 pretraining**](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html)
+  is now officially available!
 
 ## Workflows
 
@@ -136,9 +148,15 @@ See the full [quick start guide](quick-start-object-detection) for more details.
 
 ## Features
 
-- Python, Command Line, and [Docker](https://docs.lightly.ai/train/stable/docker.html) support
-- Built for [high performance](https://docs.lightly.ai/train/stable/performance/index.html) including [multi-GPU](https://docs.lightly.ai/train/stable/performance/multi_gpu.html) and [multi-node](https://docs.lightly.ai/train/stable/performance/multi_node.html) support
-- [Monitor training progress](https://docs.lightly.ai/train/stable/pretrain_distill.html#logging) with MLflow, TensorBoard, Weights & Biases, and more
+- Python, Command Line, and [Docker](https://docs.lightly.ai/train/stable/docker.html)
+  support
+- Built for
+  [high performance](https://docs.lightly.ai/train/stable/performance/index.html)
+  including [multi-GPU](https://docs.lightly.ai/train/stable/performance/multi_gpu.html)
+  and [multi-node](https://docs.lightly.ai/train/stable/performance/multi_node.html)
+  support
+- [Monitor training progress](https://docs.lightly.ai/train/stable/pretrain_distill.html#logging)
+  with MLflow, TensorBoard, Weights & Biases, and more
 - Runs fully on-premises with no API authentication
 - Export models in their native format for fine-tuning or inference
 - Export models in ONNX or TensorRT format for edge deployment
@@ -149,24 +167,24 @@ LightlyTrain supports the following model and workflow combinations.
 
 ### Fine-tuning
 
-| Model | Object<br>Detection | Instance<br>Segmentation | Panoptic<br>Segmentation | Semantic<br>Segmentation |
-| ------ | :----------------------------------------------------------------: | :---------------------------------------------------------------------: | :------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------: |
+| Model  |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |
+| ------ | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: |
 | DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | | | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html) |
+| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |                                                                          |                                                                          |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            |
 
 ### Distillation & Pretraining
 
-| Model | Distillation | Pretraining |
-| ------------------------------ | :----------------------------------------------------------------------------------------: | :--------------------------------------------------------------------: |
-| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#distill-from-dinov3) | |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html) |
-| Torchvision ResNet, ConvNext, ShuffleNetV2 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html) |
-| TIMM models | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/timm.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/timm.html) |
-| Ultralytics YOLOv5–YOLO12 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html) |
-| RT-DETR, RT-DETRv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html) |
-| RF-DETR | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html) |
-| YOLOv12 | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html) |
-| Custom PyTorch Model | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) |
+| Model                                      |                                                 Distillation                                                 |                                       Pretraining                                        |
+| ------------------------------------------ | :----------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------: |
+| DINOv3                                     | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#distill-from-dinov3) |                                                                                          |
+| DINOv2                                     |           ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html)           |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html)    |
+| Torchvision ResNet, ConvNext, ShuffleNetV2 |            ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html)            |  ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html)  |
+| TIMM models                                |               ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/timm.html)                |     ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/timm.html)      |
+| Ultralytics YOLOv5–YOLO12                  |            ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html)            |  ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html)  |
+| RT-DETR, RT-DETRv2                         |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html)               |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html)     |
+| RF-DETR                                    |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html)               |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html)     |
+| YOLOv12                                    |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)              |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)    |
+| Custom PyTorch Model                       |           ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html)           | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) |
 
 [Contact us](https://www.lightly.ai/contact) if you need support for additional models.
 
@@ -180,21 +198,28 @@ set the environment variable: `export LIGHTLY_TRAIN_EVENTS_DISABLED=1`
 
 Lightly**Train** offers flexible licensing options to suit your specific needs:
 
-- **AGPL-3.0 License**: Perfect for open-source projects, academic research, and community contributions.
-  Share your innovations with the world while benefiting from community improvements.
+- **AGPL-3.0 License**: Perfect for open-source projects, academic research, and
+  community contributions. Share your innovations with the world while benefiting from
+  community improvements.
 
-- **Commercial License**: Ideal for businesses and organizations that need proprietary development freedom.
-  Enjoy all the benefits of LightlyTrain while keeping your code and models private.
+- **Commercial License**: Ideal for businesses and organizations that need proprietary
+  development freedom. Enjoy all the benefits of LightlyTrain while keeping your code
+  and models private.
 
-We're committed to supporting both open-source and commercial users.
-Please [contact us](https://www.lightly.ai/contact) to discuss the best licensing option for your project!
+We're committed to supporting both open-source and commercial users. Please
+[contact us](https://www.lightly.ai/contact) to discuss the best licensing option for
+your project!
 
 ## Contact
 
-[![Website](https://img.shields.io/badge/Website-lightly.ai-blue?style=for-the-badge&logo=safari&logoColor=white)](https://www.lightly.ai/lightly-train) <br>
-[![Discord](https://img.shields.io/discord/752876370337726585?style=for-the-badge&logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94) <br>
-[![GitHub](https://img.shields.io/badge/GitHub-lightly--ai-black?style=for-the-badge&logo=github&logoColor=white)](https://github.com/lightly-ai/lightly-train) <br>
-[![X](https://img.shields.io/badge/X-lightlyai-black?style=for-the-badge&logo=x&logoColor=white)](https://x.com/lightlyai) <br>
+[![Website](https://img.shields.io/badge/Website-lightly.ai-blue?style=for-the-badge&logo=safari&logoColor=white)](https://www.lightly.ai/lightly-train)
+<br>
+[![Discord](https://img.shields.io/discord/752876370337726585?style=for-the-badge&logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94)
+<br>
+[![GitHub](https://img.shields.io/badge/GitHub-lightly--ai-black?style=for-the-badge&logo=github&logoColor=white)](https://github.com/lightly-ai/lightly-train)
+<br>
+[![X](https://img.shields.io/badge/X-lightlyai-black?style=for-the-badge&logo=x&logoColor=white)](https://x.com/lightlyai)
+<br>
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-lightly--tech-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/lightly-tech)
 
 ```{toctree}

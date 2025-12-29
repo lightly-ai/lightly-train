@@ -4,7 +4,11 @@
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/distillation.ipynb)
 
-Knowledge distillation involves transferring knowledge from a large, compute-intensive teacher model to a smaller, efficient student model by encouraging similarity between the student and teacher representations. It addresses the challenge of bridging the gap between state-of-the-art large-scale vision models and smaller, more computationally efficient models suitable for practical applications.
+Knowledge distillation involves transferring knowledge from a large, compute-intensive
+teacher model to a smaller, efficient student model by encouraging similarity between
+the student and teacher representations. It addresses the challenge of bridging the gap
+between state-of-the-art large-scale vision models and smaller, more computationally
+efficient models suitable for practical applications.
 
 ```{note}
 Starting from **LightlyTrain 0.7.0**, `method="distillation"` uses a new, improved `v2` implementation
@@ -16,7 +20,9 @@ that achieves higher accuracy and trains up to 3x faster. The previous version i
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/distillation.ipynb)
 
-Follow the code below to distill the knowledge of the default DINOv2 ViT-B/14 teacher model into your model architecture. The example uses a `torchvision/resnet18` model as the student:
+Follow the code below to distill the knowledge of the default DINOv2 ViT-B/14 teacher
+model into your model architecture. The example uses a `torchvision/resnet18` model as
+the student:
 
 ````{tab} Python
 ```python
@@ -70,9 +76,16 @@ if __name__ == "__main__":
 
 ### Pretrain and Distill Your Own DINOv2 Weights
 
-LightlyTrain also supports [DINOv2 pretraining](#methods-dinov2), which can help you adjust the DINOv2 weights to your own domain data. Starting from **LightlyTrain 0.9.0**, after pretraining a ViT with DINOv2, you can distill your own pretrained model to your target model architecture with the distillation method. This is done by setting an optional `teacher_weights` argument in `method_args`.
+LightlyTrain also supports [DINOv2 pretraining](#methods-dinov2), which can help you
+adjust the DINOv2 weights to your own domain data. Starting from **LightlyTrain 0.9.0**,
+after pretraining a ViT with DINOv2, you can distill your own pretrained model to your
+target model architecture with the distillation method. This is done by setting an
+optional `teacher_weights` argument in `method_args`.
 
-The following example shows how to pretrain a ViT-B/14 model with DINOv2 and then distill the pretrained model to a ResNet-18 student model. Check out the [DINOv2 pretraining documentation](#methods-dinov2) for more details on how to pretrain a DINOv2 model.
+The following example shows how to pretrain a ViT-B/14 model with DINOv2 and then
+distill the pretrained model to a ResNet-18 student model. Check out the
+[DINOv2 pretraining documentation](#methods-dinov2) for more details on how to pretrain
+a DINOv2 model.
 
 ````{tab} Python
 ```python
@@ -125,13 +138,24 @@ The following models for `teacher` are supported:
 
 ## What's under the Hood
 
-Our distillation method directly applies a mean squared error (MSE) loss between the features of the student and teacher networks when processing the same image. We use a ViT-B/14 backbone from [DINOv2](https://arxiv.org/pdf/2304.07193) as the teacher model. Inspired by [*Knowledge Distillation: A Good Teacher is Patient and Consistent*](https://arxiv.org/abs/2106.05237), we apply strong, identical augmentations to both teacher and student inputs to ensure consistency of the objective.
+Our distillation method directly applies a mean squared error (MSE) loss between the
+features of the student and teacher networks when processing the same image. We use a
+ViT-B/14 backbone from [DINOv2](https://arxiv.org/pdf/2304.07193) as the teacher model.
+Inspired by
+[*Knowledge Distillation: A Good Teacher is Patient and Consistent*](https://arxiv.org/abs/2106.05237),
+we apply strong, identical augmentations to both teacher and student inputs to ensure
+consistency of the objective.
 
 ## Lightly Recommendations
 
-- **Models**: Knowledge distillation is agnostic to the choice of student backbone networks.
-- **Batch Size**: We recommend somewhere between 128 and 2048 for knowledge distillation.
-- **Number of Epochs**: We recommend somewhere between 100 and 3000. However, distillation benefits from longer schedules and models still improve after pretraining for more than 3000 epochs. For small datasets (\<100k images) it can also be beneficial to pretrain up to 10000 epochs.
+- **Models**: Knowledge distillation is agnostic to the choice of student backbone
+  networks.
+- **Batch Size**: We recommend somewhere between 128 and 2048 for knowledge
+  distillation.
+- **Number of Epochs**: We recommend somewhere between 100 and 3000. However,
+  distillation benefits from longer schedules and models still improve after pretraining
+  for more than 3000 epochs. For small datasets (\<100k images) it can also be
+  beneficial to pretrain up to 10000 epochs.
 
 ## Default Method Arguments
 

@@ -3,8 +3,8 @@
 # Multi-GPU
 
 Set the `accelerator` and `devices` arguments to train on a single machine (node) with
-multiple GPUs. By default, **Lightly Train** uses all available GPUs on the current
-node for training. The following example shows how to train with two GPUs:
+multiple GPUs. By default, **Lightly Train** uses all available GPUs on the current node
+for training. The following example shows how to train with two GPUs:
 
 ````{tab} Python
 
@@ -43,9 +43,9 @@ interface, set `devices="[1,3]"` instead.
 ## Adjusting Parameters
 
 Parameters such as the batch size (`batch_size`), learning rate (`optim_args.lr`), and
-the number of dataloader workers (`num_workers`) are automatically adjusted
-based on the number of GPUs. You do not need to modify these parameters manually when
-changing the number of GPUs.
+the number of dataloader workers (`num_workers`) are automatically adjusted based on the
+number of GPUs. You do not need to modify these parameters manually when changing the
+number of GPUs.
 
 ```{tip}
 The batch size (`batch_size`) is the global batch size across all GPUs. Setting

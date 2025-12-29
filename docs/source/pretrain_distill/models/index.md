@@ -2,7 +2,9 @@
 
 # Models
 
-Lightly**Train** supports pretraining models from various libraries. See [Supported Libraries](#supported-libraries) for a list of supported libraries and models.
+Lightly**Train** supports pretraining models from various libraries. See
+[Supported Libraries](#supported-libraries) for a list of supported libraries and
+models.
 
 The model is specified in the `pretrain` command with the `model` argument:
 
@@ -25,7 +27,8 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 
 Model names always follow the pattern `<library name>/<model name>`.
 
-Instead of passing a model name, it is also possible to pass a model instance directly to the `pretrain` function:
+Instead of passing a model name, it is also possible to pass a model instance directly
+to the `pretrain` function:
 
 ````{tab} Python
 ```python
@@ -43,7 +46,8 @@ if __name__ == "__main__":
 
 ## List Models
 
-The `list_models` command lists all available models. Only models from installed packages are listed.
+The `list_models` command lists all available models. Only models from installed
+packages are listed.
 
 ````{tab} Python
 ```python
@@ -61,7 +65,8 @@ lightly-train list_models
 
 ## Supported Libraries
 
-The following libraries are supported (follow the links to get to the respective docs pages):
+The following libraries are supported (follow the links to get to the respective docs
+pages):
 
 - [Torchvision](#models-torchvision)
 - [TIMM](#models-timm)
@@ -88,8 +93,10 @@ custom_models
 ```
 
 % Alternative reference to avoid overwriting the reference to the custom models page.
+
 (models-custom-models)=
 
 ## Custom Models
 
-See {ref}`Custom Models <custom-models>` for information on how to pretrain custom models.
+See {ref}`Custom Models <custom-models>` for information on how to pretrain custom
+models.

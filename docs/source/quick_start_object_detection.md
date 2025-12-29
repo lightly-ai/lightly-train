@@ -3,11 +3,15 @@
 # Quick Start - Object Detection
 
 ```{image} https://colab.research.google.com/assets/colab-badge.svg
-:target: https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb
+---
+target: 
+  https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb
+---
 ```
 
 This guide demonstrates how to use Lightly**Train** for object detection with our
-state-of-the-art LTDETR model built on [DINOv3](https://github.com/facebookresearch/dinov3).
+state-of-the-art LTDETR model built on
+[DINOv3](https://github.com/facebookresearch/dinov3).
 
 ## Installation
 
@@ -277,5 +281,5 @@ plt.show()
   object detection with Lightly**Train**.
 - [Distillation Quick Start](quick-start-distillation): If you want to learn how to
   pretrain/distill models with unlabeled data.
-- [DINOv2 Pretraining](methods-dinov2): If you want to learn how to pretrain
-  foundation models with unlabeled data.
+- [DINOv2 Pretraining](methods-dinov2): If you want to learn how to pretrain foundation
+  models with unlabeled data.

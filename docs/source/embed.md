@@ -30,8 +30,8 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 lightly-train embed out=my_embeddings.pth data=my_data_dir checkpoint=out/my_experiment/checkpoints/last.ckpt format=torch
 ````
 
-The above code example pretrains a model and uses the last training checkpoint to generate
-image embeddings from the images in `"my_data_dir"`.
+The above code example pretrains a model and uses the last training checkpoint to
+generate image embeddings from the images in `"my_data_dir"`.
 
 ```{tip}
 See {meth}`lightly_train.embed` for a complete list of arguments.
@@ -44,8 +44,8 @@ image filenames are saved. Image filenames are always relative to the `data` dir
 See [format](#embedding-format) for details on how the embeddings are saved.
 
 The embedding dimension is determined by the model used for training. If the `embed_dim`
-argument was set during training, the embeddings will have this dimension, otherwise
-the default embedding dimension of the model is used.
+argument was set during training, the embeddings will have this dimension, otherwise the
+default embedding dimension of the model is used.
 
 ## Data
 
@@ -54,9 +54,9 @@ as in the [training command](pretrain-data) are supported.
 
 ## Checkpoint
 
-The `checkpoint` argument specifies the Lightly**Train** checkpoint to use for embedding.
-This is the checkpoint saved to `out/my_experiment/checkpoints/last.ckpt` after
-training.
+The `checkpoint` argument specifies the Lightly**Train** checkpoint to use for
+embedding. This is the checkpoint saved to `out/my_experiment/checkpoints/last.ckpt`
+after training.
 
 (embedding-format)=
 
@@ -66,16 +66,17 @@ The `format` argument specifies the format in which the embeddings are saved. Th
 following formats are supported:
 
 - `csv`: Embeddings are saved as a CSV file with one row per image. The first column
-  contains the filename and the remaining columns contain the embedding values.
-  An example CSV file looks like this:
+  contains the filename and the remaining columns contain the embedding values. An
+  example CSV file looks like this:
   ```text
     filename,embedding_0,embedding_1,embedding_2
     image1.jpg,0.1,0.2,0.3
     image2.jpg,0.4,0.5,0.6
   ```
 - `lightly_csv`: Embeddings are saved as a CSV file with one row per image. The CSV file
-  is compatible with the [Lightly Worker](https://docs.lightly.ai/docs/custom-embeddings).
-  The labels column is always set to 0. An example CSV file looks like this:
+  is compatible with the
+  [Lightly Worker](https://docs.lightly.ai/docs/custom-embeddings). The labels column is
+  always set to 0. An example CSV file looks like this:
   ```text
     filenames,embedding_0,embedding_1,embedding_2,labels
     image1.jpg,0.1,0.2,0.3,0

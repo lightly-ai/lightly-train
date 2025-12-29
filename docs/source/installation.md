@@ -4,7 +4,8 @@
 
 ## Installation from PyPI
 
-Lightly**Train** is available on [PyPI](https://pypi.org/project/lightly-train/) and can be installed via pip or other package managers.
+Lightly**Train** is available on [PyPI](https://pypi.org/project/lightly-train/) and can
+be installed via pip or other package managers.
 
 ```{warning}
 To successfully install Lightly**Train** the Python version has to be >=3.8 and <=3.12 .
@@ -24,18 +25,18 @@ See {ref}`docker` for Docker installation instructions.
 
 ## Platform Compatibility
 
-| Platform | Supported Compute |
-|----------|----------------------------|
-| Linux | CPU or CUDA |
-| MacOS | CPU (MPS is planned) |
-| Windows | CPU or CUDA (experimental) |
+| Platform | Supported Compute          |
+| -------- | -------------------------- |
+| Linux    | CPU or CUDA                |
+| MacOS    | CPU (MPS is planned)       |
+| Windows  | CPU or CUDA (experimental) |
 
 ## Version Compatibility
 
-| `lightly-train` | `torch` | `torchvision` | `pytorch-lightning` | Python |
-|:---------------:|:-------:|:-------------:|:-------------------:|:------:|
-| `>=0.12` | `>=2.1` | `>=0.16` | `>=2.1` | `>=3.8`, `<3.13` |
-| `>=0.6` | `>=2.1`, `<2.6` | `>=0.16` | `>=2.1` | `>=3.8`, `<3.13` |
+| `lightly-train` |     `torch`     | `torchvision` | `pytorch-lightning` |      Python      |
+| :-------------: | :-------------: | :-----------: | :-----------------: | :--------------: |
+|    `>=0.12`     |     `>=2.1`     |   `>=0.16`    |       `>=2.1`       | `>=3.8`, `<3.13` |
+|     `>=0.6`     | `>=2.1`, `<2.6` |   `>=0.16`    |       `>=2.1`       | `>=3.8`, `<3.13` |
 
 ```{warning}
 We recommend installing versions of the `torch`, `torchvision`, and `pytorch-lightning` packages that
@@ -50,7 +51,8 @@ documentation for more information on version compatibility between different Py
 
 ## Optional Dependencies
 
-Lightly**Train** has optional dependencies that are not installed by default. The following dependencies are available:
+Lightly**Train** has optional dependencies that are not installed by default. The
+following dependencies are available:
 
 ### Logging
 
@@ -78,4 +80,5 @@ pip install "lightly-train[wandb,timm]"
 
 ## Hardware Recommendations
 
-An example hardware setup and its performance when using Lightly**Train** is provided in {ref}`hardware-recommendations`.
+An example hardware setup and its performance when using Lightly**Train** is provided in
+{ref}`hardware-recommendations`.
