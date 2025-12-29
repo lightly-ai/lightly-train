@@ -349,7 +349,6 @@ def create_panoptic_segmentation_masks(
             path=mask_dir / filename,
             height=height,
             width=width,
-            num_classes=num_classes,
         )
         segments_info = []
         for segment_id in segment_ids:
