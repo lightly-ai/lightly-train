@@ -492,7 +492,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
     # TODO(Guarin, 07/25): No need for attention mask handling in this module. Move it
     # to DINOv3InstanceSegmentationTrain.
-    @torch.compiler.disable  # type: ignore[misc]
+    @torch.compiler.disable  # type: ignore[misc, untyped-decorator]
     def _disable_attn_mask(self, attn_mask: Tensor, prob: Tensor) -> Tensor:
         # prob is a scalar tensor.
         if prob < 1:
