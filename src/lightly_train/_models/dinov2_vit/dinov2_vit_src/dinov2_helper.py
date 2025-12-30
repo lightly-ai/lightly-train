@@ -58,5 +58,5 @@ def load_weights(
     if checkpoint_path.exists():
         ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
         model.load_state_dict(ckpt, strict=True)
-        logger.debug(f"Loaded teacher weights from '{checkpoint_path}'")
+        logger.info(f"Loaded teacher weights from '{checkpoint_path}'")
     return model
