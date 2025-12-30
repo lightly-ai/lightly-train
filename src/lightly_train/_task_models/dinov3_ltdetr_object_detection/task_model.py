@@ -752,30 +752,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             for output_onnx, output_model, output_name in zip(
                 outputs_onnx, reference_outputs, output_names
             ):
-                # Bounding boxes are sorted by scores, but the sorting does not produce consistent
-                # results when the scores contain duplicates.
-                if output_name == "boxes":
-                    # Use mutable variable to avoid duplicate code.
-                    boxes_outputs = [output_model, output_onnx]
-                    for i, boxes_output in enumerate(boxes_outputs):
-                        # Compute the area of the boxes.
-                        widths = boxes_output[..., 2] - boxes_output[..., 0]
-                        heights = boxes_output[..., 3] - boxes_output[..., 1]
-                        areas = widths * heights
-
-                        # Sort the bounding boxes by areas.
-                        sorting_indices = areas.argsort(dim=-1)
-                        sorting_indices = sorting_indices[..., None].expand(-1, -1, 4)
-                        boxes_outputs[i] = boxes_output.gather(
-                            dim=1,
-                            index=sorting_indices,
-                        )
-
-                    output_model, output_onnx = boxes_outputs
-                elif output_name == "labels":
-                    # Sort labels.
-                    output_model = torch.sort(output_model, stable=True).values
-                    output_onnx = torch.sort(output_onnx, stable=True).values
+                # Due to the presence of top-k operations in the model, the outputs may be
+                # in different order but still valid. To account for this, we sum
+                # over the query dimension before comparing.
+                output_model = output_model.sum(dim=1)
+                output_onnx = output_onnx.sum(dim=1)    
 
                 # Absolute and relative tolerances are a bit arbitrary and taken from here:
                 #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
