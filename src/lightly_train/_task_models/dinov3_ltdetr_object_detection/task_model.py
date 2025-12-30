@@ -425,7 +425,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 DINOv3ConvNextWrapper,
             ),
         }
-        config_cls, wrapper_cls = config_mapping[parsed_name["backbone_name"]]
+        config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
+        config_cls, wrapper_cls = config_mapping[config_name]
         config = config_cls()
 
         if hasattr(config, "backbone_wrapper"):
@@ -466,15 +467,23 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
-        """Load the EMA state dict from a training checkpoint."""
-        # TODO: This assumes that the checkpoint contains EMA weights.
-        # If the checkpoint was trained without EMA, this will
-        # result in an empty state_dict and the model will not be loaded correctly.
+        """Load the state dict from a training checkpoint.
+
+        Loads the EMA weights if available, otherwise falls back to the model weights.
+        """
+        has_ema_weights = any(k.startswith("ema_model.model.") for k in state_dict)
+        has_model_weights = any(k.startswith("model.") for k in state_dict)
         new_state_dict = {}
-        for name, param in state_dict.items():
-            if name.startswith("ema_model.model."):
-                name = name[len("ema_model.model.") :]
-                new_state_dict[name] = param
+        if has_ema_weights:
+            for name, param in state_dict.items():
+                if name.startswith("ema_model.model."):
+                    name = name[len("ema_model.model.") :]
+                    new_state_dict[name] = param
+        elif has_model_weights:
+            for name, param in state_dict.items():
+                if name.startswith("model."):
+                    name = name[len("model.") :]
+                    new_state_dict[name] = param
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
     def deploy(self) -> Self:

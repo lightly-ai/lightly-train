@@ -57,7 +57,7 @@ class MaskClassificationLoss(Mask2FormerLoss):  # type: ignore[misc]
             cost_class=class_coefficient,
         )
 
-    @torch.compiler.disable  # type: ignore[misc]
+    @torch.compiler.disable  # type: ignore[misc, untyped-decorator]
     def forward(
         self,
         masks_queries_logits: torch.Tensor,

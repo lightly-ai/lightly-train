@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
+from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
 from lightly_train._transforms.object_detection_transform import (
@@ -27,6 +28,9 @@ from lightly_train._transforms.transform import (
     StopPolicyArgs,
 )
 from lightly_train.types import ImageSizeTuple
+
+ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1.4.5")
+ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
 class DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgs(
@@ -120,8 +124,12 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
             label_fields=["class_labels"],
             min_width=0.0,
             min_height=0.0,
-            clip=True,
-            filter_invalid_bboxes=True,
+            **(
+                dict(filter_invalid_bboxes=True)
+                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
+                else {}
+            ),
+            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
@@ -179,8 +187,12 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
             label_fields=["class_labels"],
             min_width=0.0,
             min_height=0.0,
-            clip=True,
-            filter_invalid_bboxes=True,
+            **(
+                dict(filter_invalid_bboxes=True)
+                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
+                else {}
+            ),
+            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"

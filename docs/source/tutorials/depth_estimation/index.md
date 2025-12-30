@@ -6,7 +6,11 @@
 This tutorial requires substantial computational resources. We recommend at least 4 x RTX-4090 GPUs (or comparable) and approximately 3-4 days of training time.
 ```
 
-This advanced tutorial demonstrates how to pretrain and fine-tune a U-Net from [fast.ai](https://github.com/fastai/fastai) for monocular depth estimation while exploring the customization capabilities of Lightly**Train**. We will pretrain two ResNet-50 encoders with different augmentation settings to analyze their impact on model performance.
+This advanced tutorial demonstrates how to pretrain and fine-tune a U-Net from
+[fast.ai](https://github.com/fastai/fastai) for monocular depth estimation while
+exploring the customization capabilities of Lightly**Train**. We will pretrain two
+ResNet-50 encoders with different augmentation settings to analyze their impact on model
+performance.
 
 To begin, install the required dependencies:
 
@@ -17,12 +21,20 @@ pip install lightly-train fastai
 The tutorial consists of three main steps:
 
 1. Dataset acquisition and preprocessing for pretraining and fine-tuning
-1. Pretraining of two U-Net encoders using Lightly**Train** with distinct augmentation configurations
+1. Pretraining of two U-Net encoders using Lightly**Train** with distinct augmentation
+   configurations
 1. Fine-tuning and performance comparison of both networks
 
 ## Data Downloading and Processing
 
-For this implementation, we utilize two complementary datasets: [MegaDepth](https://www.cs.cornell.edu/projects/megadepth/) for pretraining and [DIODE](https://diode-dataset.org/) for fine-tuning. MegaDepth provides a comprehensive collection of outdoor scenes with synthetic depth maps derived from structure-from-motion reconstruction. While the synthetic depth maps aren't used during pretraining, the dataset's extensive outdoor scene distribution aligns well with our target domain. DIODE complements this with high-precision LiDAR-scanned ground-truth depth maps, ensuring accurate supervision during fine-tuning.
+For this implementation, we utilize two complementary datasets:
+[MegaDepth](https://www.cs.cornell.edu/projects/megadepth/) for pretraining and
+[DIODE](https://diode-dataset.org/) for fine-tuning. MegaDepth provides a comprehensive
+collection of outdoor scenes with synthetic depth maps derived from
+structure-from-motion reconstruction. While the synthetic depth maps aren't used during
+pretraining, the dataset's extensive outdoor scene distribution aligns well with our
+target domain. DIODE complements this with high-precision LiDAR-scanned ground-truth
+depth maps, ensuring accurate supervision during fine-tuning.
 
 To obtain the MegaDepth dataset run the following command (approximately 200GB):
 
@@ -34,14 +46,16 @@ Due to the lengthy download process we recommend using a terminal multiplexer su
 wget https://www.cs.cornell.edu/projects/megadepth/dataset/Megadepth_v1/MegaDepth_v1.tar.gz
 ```
 
-For the DIODE dataset, download both training and validation splits (approximately 110GB combined):
+For the DIODE dataset, download both training and validation splits (approximately 110GB
+combined):
 
 ```bash
 wget http://diode-dataset.s3.amazonaws.com/train.tar.gz
 wget http://diode-dataset.s3.amazonaws.com/val.tar.gz
 ```
 
-To inspect the characteristics of both datasets, we can visualize representative samples:
+To inspect the characteristics of both datasets, we can visualize representative
+samples:
 
 ```python
 import glob
@@ -113,14 +127,21 @@ plt.show()
 
 ## Pretraining
 
-The key to effective pretraining lies in the augmentation strategy. Looking at the MegaDepth dataset, we observe a consistent spatial hierarchy - objects at the top of images are typically further away than those at the bottom (consider the sky-to-ground relationship). This spatial consistency means we should avoid training a rotation-invariant model, unlike in scenarios with satellite or aerial imagery where rotation-invariance would be desirable.
+The key to effective pretraining lies in the augmentation strategy. Looking at the
+MegaDepth dataset, we observe a consistent spatial hierarchy - objects at the top of
+images are typically further away than those at the bottom (consider the sky-to-ground
+relationship). This spatial consistency means we should avoid training a
+rotation-invariant model, unlike in scenarios with satellite or aerial imagery where
+rotation-invariance would be desirable.
 
-To empirically demonstrate the impact of the augmentation choices, we'll train two encoders:
+To empirically demonstrate the impact of the augmentation choices, we'll train two
+encoders:
 
 1. One with aggressive rotations (90°) and vertical flips.
 1. One with conservative tilts (15°) and no vertical flips.
 
-Those parameters can be adjusted with `lightly_train.train`'s `transform_args` argument, which expects a dictionary of augmentation parameters.
+Those parameters can be adjusted with `lightly_train.train`'s `transform_args` argument,
+which expects a dictionary of augmentation parameters.
 
 ```python
 # pretrain.py
@@ -167,7 +188,10 @@ if __name__ == "__main__":
 
 ## Fine-tuning
 
-For fine-tuning, we implement a custom depth estimation pipeline using PyTorch Lightning. While fast.ai provides excellent high-level abstractions for a lot of downstream tasks, depth estimation is not available out-of-the-box. Let's start by implementing our model, which inherits from `LightningModule`.
+For fine-tuning, we implement a custom depth estimation pipeline using PyTorch
+Lightning. While fast.ai provides excellent high-level abstractions for a lot of
+downstream tasks, depth estimation is not available out-of-the-box. Let's start by
+implementing our model, which inherits from `LightningModule`.
 
 ```python
 # model.py
@@ -204,7 +228,10 @@ class DepthUnet(LightningModule):
         return optim
 ```
 
-Our model implementation uses MSE loss, which while simple, is effective for depth estimation when combined with proper normalization. As you can see, the batch is supposed to arrive in the model as a dictionary, for which we will implement a custom dataset in the next step.
+Our model implementation uses MSE loss, which while simple, is effective for depth
+estimation when combined with proper normalization. As you can see, the batch is
+supposed to arrive in the model as a dictionary, for which we will implement a custom
+dataset in the next step.
 
 ```python
 # datasets.py
@@ -266,9 +293,14 @@ class DIODEDepthDataset(Dataset):
         return {"image": img, "depth": depth}
 ```
 
-We focus on outdoor scenes to maintain domain alignment with our MegaDepth pretraining. For the augmentation pipeline we will stay conservative, only allowing slight rotational corrections (±15°) to account for camera tilt while preserving the crucial vertical spatial relationships in depth estimation. This will also make any performance differences between the encoders attributable to the different pretraining strategies.
+We focus on outdoor scenes to maintain domain alignment with our MegaDepth pretraining.
+For the augmentation pipeline we will stay conservative, only allowing slight rotational
+corrections (±15°) to account for camera tilt while preserving the crucial vertical
+spatial relationships in depth estimation. This will also make any performance
+differences between the encoders attributable to the different pretraining strategies.
 
-With this we can finalize our fine-tuning script (make sure to have `CKPT_PATH` point to one your pretrained checkpoints, or set it to `None` for fine-tuning from scratch):
+With this we can finalize our fine-tuning script (make sure to have `CKPT_PATH` point to
+one your pretrained checkpoints, or set it to `None` for fine-tuning from scratch):
 
 ```python
 # finetune.py
@@ -348,7 +380,8 @@ if __name__ == "__main__":
     print("Training completed! 🥳")
 ```
 
-In order to compare the performance of the two pretrained backbones, you can launch tensorboard and inspect the finetuning runs in your browser.
+In order to compare the performance of the two pretrained backbones, you can launch
+tensorboard and inspect the finetuning runs in your browser.
 
 ```bash
 tensorboard --logdir=lightning_logs

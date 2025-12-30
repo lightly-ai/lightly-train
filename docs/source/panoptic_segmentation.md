@@ -14,37 +14,39 @@ with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by Kerssies et al
 ## Benchmark Results
 
 Below we provide the models and report the validation panoptic quality (PQ) and
-inference latency of different DINOv3 models fine-tuned on COCO with LightlyTrain.
-You can check [here](panoptic-segmentation-train) how to use these models for further
+inference latency of different DINOv3 models fine-tuned on COCO with LightlyTrain. You
+can check [here](panoptic-segmentation-train) how to use these models for further
 fine-tuning.
 
-You can also explore running inference and training these models using our Colab notebook:
+You can also explore running inference and training these models using our Colab
+notebook:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
 
 ### COCO
 
-| Implementation | Model | Val PQ | Avg. Latency (ms) | Params (M) | Input Size |
-|----------------|----------------|-------------|----------|-----------|------------|
-| LightlyTrain | dinov3/vits16-eomt-panoptic-coco | 46.8 | 21.2 | 23.4 | 640×640 |
-| LightlyTrain | dinov3/vitb16-eomt-panoptic-coco | 53.2 | 39.4 | 92.5 | 640×640 |
-| LightlyTrain | dinov3/vitl16-eomt-panoptic-coco | 57.0 | 80.1 | 315.1 | 640×640 |
-| LightlyTrain | dinov3/vitl16-eomt-panoptic-coco-1280 | **59.0** | 500.1 | 315.1 | 1280×1280 |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9 | - | 315.1 | 1280×1280 |
+| Implementation                       | Model                                 | Val PQ   | Avg. Latency (ms) | Params (M) | Input Size |
+| ------------------------------------ | ------------------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain                         | dinov3/vits16-eomt-panoptic-coco      | 46.8     | 21.2              | 23.4       | 640×640    |
+| LightlyTrain                         | dinov3/vitb16-eomt-panoptic-coco      | 53.2     | 39.4              | 92.5       | 640×640    |
+| LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco      | 57.0     | 80.1              | 315.1      | 640×640    |
+| LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco-1280 | **59.0** | 500.1             | 315.1      | 1280×1280  |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9     | -                 | 315.1      | 1280×1280  |
 
-Training follows the protocol in the original [EoMT paper](https://arxiv.org/abs/2503.19108).
-Small and base models are trained for 180K steps (24 epochs) and large models for
-90K steps (12 epochs) on the COCO dataset with batch size `16` and learning rate `2e-4`.
-The average latency values were measured with model compilation using `torch.compile`
-on a single NVIDIA T4 GPU with FP16 precision.
+Training follows the protocol in the original
+[EoMT paper](https://arxiv.org/abs/2503.19108). Small and base models are trained for
+180K steps (24 epochs) and large models for 90K steps (12 epochs) on the COCO dataset
+with batch size `16` and learning rate `2e-4`. The average latency values were measured
+with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16
+precision.
 
 (panoptic-segmentation-train)=
 
 ## Train a Panoptic Segmentation Model
 
-Training a panoptic segmentation model with LightlyTrain is straightforward and
-only requires a few lines of code. See [data](#panoptic-segmentation-data)
-for more details on how to prepare your dataset.
+Training a panoptic segmentation model with LightlyTrain is straightforward and only
+requires a few lines of code. See [data](#panoptic-segmentation-data) for more details
+on how to prepare your dataset.
 
 ```python
 import lightly_train
@@ -169,12 +171,12 @@ fig.savefig(f"panoptic_segmentation_result_{Path(image_path).stem}_.png", bbox_i
 
 ## Data
 
-Lightly**Train** supports panoptic segmentation datasets in COCO format.
-Every image must have a corresponding mask image that encodes the segmentation class
-and segment ID for each pixel. The dataset must also include COCO-style JSON annotation
-files that define the thing and stuff classes and list the individual segments for each
-image. See the [COCO Panoptic Segmentation format](https://cocodataset.org/#format-data)
-for more details.
+Lightly**Train** supports panoptic segmentation datasets in COCO format. Every image
+must have a corresponding mask image that encodes the segmentation class and segment ID
+for each pixel. The dataset must also include COCO-style JSON annotation files that
+define the thing and stuff classes and list the individual segments for each image. See
+the [COCO Panoptic Segmentation format](https://cocodataset.org/#format-data) for more
+details.
 
 The following image formats are supported:
 
@@ -217,7 +219,8 @@ my_data_dir/
 The directories can have any name, as long as the paths are correctly specified in the
 `data` argument.
 
-See the [Colab notebook](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
+See the
+[Colab notebook](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
 for an example dataset and how to set up the data for training.
 
 (panoptic-segmentation-model)=
@@ -243,7 +246,8 @@ following models are available:
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
 
-All models are [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
+All models are
+[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
 and fine-tuned by Lightly, except the `vitt` models which are pretrained by Lightly.
 
 (panoptic-segmentation-logging)=
@@ -255,10 +259,10 @@ supported:
 
 - [`mlflow`](panoptic-segmentation-mlflow): Logs training metrics to MLflow (disabled by
   default, requires MLflow to be installed)
-- [`tensorboard`](panoptic-segmentation-tensorboard): Logs training metrics to TensorBoard
-  (enabled by default, requires TensorBoard to be installed)
-- [`wandb`](panoptic-segmentation-wandb): Logs training metrics to Weights & Biases (disabled by
-  default, requires wandb to be installed)
+- [`tensorboard`](panoptic-segmentation-tensorboard): Logs training metrics to
+  TensorBoard (enabled by default, requires TensorBoard to be installed)
+- [`wandb`](panoptic-segmentation-wandb): Logs training metrics to Weights & Biases
+  (disabled by default, requires wandb to be installed)
 
 (panoptic-segmentation-mlflow)=
 
@@ -294,8 +298,8 @@ if __name__ == "__main__":
 
 ### TensorBoard
 
-TensorBoard logs are automatically saved to the output directory. Run TensorBoard in
-a new terminal to visualize the training progress:
+TensorBoard logs are automatically saved to the output directory. Run TensorBoard in a
+new terminal to visualize the training progress:
 
 ```bash
 tensorboard --logdir out/my_experiment
@@ -345,15 +349,17 @@ There are two distinct ways to continue training, depending on your intention.
 
 ### Resume Interrupted Training
 
-Use `resume_interrupted=True` to **resume a previously interrupted or crashed training run**.
-This will pick up exactly where the training left off.
+Use `resume_interrupted=True` to **resume a previously interrupted or crashed training
+run**. This will pick up exactly where the training left off.
 
 - You **must use the same `out` directory** as the original run.
-- You **must not change any training parameters** (e.g., learning rate, batch size, data, etc.).
+- You **must not change any training parameters** (e.g., learning rate, batch size,
+  data, etc.).
 - This is intended for continuing the **same** run without modification.
 
 This will utilize the `.ckpt` checkpoint file `out/my_experiment/checkpoints/last.ckpt`
-to restore the entire training state, including model weights, optimizer state, and epoch count.
+to restore the entire training state, including model weights, optimizer state, and
+epoch count.
 
 ### Load Weights for a New Run
 
@@ -363,8 +369,9 @@ model from a previous run.
 - You are free to **change training parameters**.
 - This is useful for continuing training with a different setup.
 
-We recommend using the exported best model weights from `out/my_experiment/exported_models/exported_best.pt`
-for this purpose, though a `.ckpt` file can also be loaded.
+We recommend using the exported best model weights from
+`out/my_experiment/exported_models/exported_best.pt` for this purpose, though a `.ckpt`
+file can also be loaded.
 
 (panoptic-segmentation-transform-args)=
 

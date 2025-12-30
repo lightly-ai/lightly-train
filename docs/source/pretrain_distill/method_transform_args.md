@@ -5,15 +5,15 @@
 Pretraining relies strongly on image transforms (augmentations) such as:
 
 - **Channel Drop**: Randomly drops channels from the image.
-- **Random Cropping and Resizing**: Crops random parts of images and resizes them to fixed
-  resolutions.
-- **Random Horizontal and Vertical Flipping**: Mirrors images across horizontal or vertical
-  axes.
+- **Random Cropping and Resizing**: Crops random parts of images and resizes them to
+  fixed resolutions.
+- **Random Horizontal and Vertical Flipping**: Mirrors images across horizontal or
+  vertical axes.
 - **Random Rotation**: Rotates images by random angles.
 - **Color Jittering**: Randomly modifies brightness, contrast, saturation, and hue.
 - **Random Grayscaling**: Converts images to grayscale with certain probability.
-- **Gaussian Blurring**: Applies Gaussian blur filter of random {math}`\sigma`, smoothing
-  the image.
+- **Gaussian Blurring**: Applies Gaussian blur filter of random {math}`\sigma`,
+  smoothing the image.
 - **Random Solarization**: Inverts pixel values above a random threshold.
 - **Normalization**: Scales pixel values using predefined mean and standard deviation.
 
@@ -85,8 +85,8 @@ lightly-train pretrain \
 ```
 ````
 
-The next sections will cover which arguments are available across all methods, and also the
-arguments unique to specific methods.
+The next sections will cover which arguments are available across all methods, and also
+the arguments unique to specific methods.
 
 ```{seealso}
 Interested in the default augmentation settings for each method? Check the method pages:
@@ -104,8 +104,8 @@ The following arguments are available for all methods.
 
 ### Channel Drop
 
-Randomly drops channels from the image. Can be disabled by setting to `None`.
-Disabled by default. Only use if you have images with more than 3 channels. Requires
+Randomly drops channels from the image. Can be disabled by setting to `None`. Disabled
+by default. Only use if you have images with more than 3 channels. Requires
 `LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"` to be set in the environment.
 
 ```python skip_ruff
@@ -222,8 +222,8 @@ globally available ones, which were listed above.
 
 ### DINO
 
-DINO uses a multi-crop strategy with two "global" views (which have slightly
-different augmentation parameters) and optional additional smaller resolution "local" views
+DINO uses a multi-crop strategy with two "global" views (which have slightly different
+augmentation parameters) and optional additional smaller resolution "local" views
 (default: 6 local views).
 
 Besides the default arguments, the following DINO-specific arguments are available:
@@ -255,5 +255,5 @@ Besides the default arguments, the following DINO-specific arguments are availab
 }
 ```
 
-Note that `local_view` itself can be disabled by setting it to `None`. Additionally, some
-transforms within these structures can be disabled by setting them to `None`
+Note that `local_view` itself can be disabled by setting it to `None`. Additionally,
+some transforms within these structures can be disabled by setting them to `None`

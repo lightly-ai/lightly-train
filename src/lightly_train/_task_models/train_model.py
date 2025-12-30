@@ -97,6 +97,10 @@ class TrainModel(Module):
         """
         return self.load_state_dict(state_dict, strict=strict, assign=assign)
 
+    def get_export_state_dict(self) -> dict[str, Any]:
+        """Returns the state dict for exporting."""
+        return self.state_dict()
+
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         pass
 

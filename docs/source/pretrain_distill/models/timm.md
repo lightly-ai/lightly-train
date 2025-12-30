@@ -65,7 +65,9 @@ model = timm.create_model(
 
 ## Supported Models
 
-All timm models are supported, see [timm docs](https://github.com/huggingface/pytorch-image-models?tab=readme-ov-file#models) for a full list.
+All timm models are supported, see
+[timm docs](https://github.com/huggingface/pytorch-image-models?tab=readme-ov-file#models)
+for a full list.
 
 Examples:
 
