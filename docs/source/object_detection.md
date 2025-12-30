@@ -464,9 +464,6 @@ model = lightly_train.load_model(
 # Export to TensorRT from an ONNX file.
 model.export_tensorrt(
     out="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
-    onnx_args={
-        "out": "out/my_experiment/exported_models/model.onnx",  # ONNX file location.
-    },
     use_fp16=True,
     verbose=False,
 )
