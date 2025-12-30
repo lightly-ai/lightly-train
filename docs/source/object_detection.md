@@ -465,7 +465,6 @@ model = lightly_train.load_model(
 model.export_tensorrt(
     out="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
     use_fp16=True,
-    verbose=False,
 )
 ```
 
