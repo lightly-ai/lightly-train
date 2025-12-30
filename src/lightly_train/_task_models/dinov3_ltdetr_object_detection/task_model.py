@@ -827,11 +827,20 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
+        # Try to import TensorRT.
+        try:
+            import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "TensorRT is required, but is not installed.\n"
+                "Install TensorRT for your system by following NVIDIA's guide:\n"
+                "https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html"
+            ) from e
+
         # Set up logging.
         from lightly_train import _logging
 
         _logging.set_up_console_logging()
-        import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
 
         trt_logger = trt.Logger(trt.Logger.VERBOSE if verbose else trt.Logger.INFO)
 
