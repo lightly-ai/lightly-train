@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -258,7 +259,7 @@ def create_images(
         )
 
 
-def create_mask(
+def create_semantic_segmentation_mask(
     path: Path,
     height: int = 128,
     width: int = 128,
@@ -271,7 +272,7 @@ def create_mask(
     mask.save(path)
 
 
-def create_masks(
+def create_semantic_segmentation_masks(
     mask_dir: Path,
     files: int | Iterable[str] = 10,
     height: int = 128,
@@ -282,7 +283,7 @@ def create_masks(
     if isinstance(files, int):
         files = [f"{i}.png" for i in range(files)]
     for filename in files:
-        create_mask(
+        create_semantic_segmentation_mask(
             path=mask_dir / filename,
             height=height,
             width=width,
@@ -290,7 +291,7 @@ def create_masks(
         )
 
 
-def create_multi_channel_mask(
+def create_multi_channel_semantic_segmentation_mask(
     path: Path,
     height: int = 128,
     width: int = 128,
@@ -308,7 +309,7 @@ def create_multi_channel_mask(
     img.save(path)
 
 
-def create_multi_channel_masks(
+def create_multi_channel_semantic_segmentation_masks(
     mask_dir: Path,
     files: int | Iterable[str] = 10,
     height: int = 128,
@@ -320,13 +321,111 @@ def create_multi_channel_masks(
     if isinstance(files, int):
         files = [f"{i}.png" for i in range(files)]
     for filename in files:
-        create_multi_channel_mask(
+        create_multi_channel_semantic_segmentation_mask(
             path=mask_dir / filename,
             height=height,
             width=width,
             values=values,
             dtype=dtype,
         )
+
+
+def create_panoptic_segmentation_masks(
+    mask_dir: Path,
+    annotations_path: Path,
+    files: int | Iterable[str] = 10,
+    height: int = 128,
+    width: int = 128,
+    num_classes: int = 2,
+) -> None:
+    mask_dir.mkdir(parents=True, exist_ok=True)
+    if isinstance(files, int):
+        files = [f"{i}.png" for i in range(files)]
+
+    annotations = []
+    images = []
+    for idx, filename in enumerate(files):
+        segment_ids = create_panoptic_segmentation_mask(
+            path=mask_dir / filename,
+            height=height,
+            width=width,
+        )
+        segments_info = []
+        for segment_id in segment_ids:
+            segments_info.append(
+                {
+                    "id": int(segment_id),
+                    "category_id": int(np.random.randint(0, num_classes)),
+                    "area": int(np.random.randint(100, 1000)),
+                    # xywh
+                    "bbox": [
+                        int(np.random.randint(0, width // 2)),
+                        int(np.random.randint(0, height // 2)),
+                        int(np.random.randint(1, width // 2)),
+                        int(np.random.randint(1, height // 2)),
+                    ],
+                    "iscrowd": 0,
+                }
+            )
+        annotations.append(
+            {
+                "image_id": idx,
+                "file_name": filename,
+                "segments_info": segments_info,
+            }
+        )
+        images.append(
+            {
+                "id": idx,
+                "width": width,
+                "height": height,
+                "file_name": filename,
+            }
+        )
+
+    categories = []
+    for class_id in range(num_classes):
+        categories.append(
+            {
+                "id": class_id,
+                "name": f"class_{class_id}",
+                "supercategory": "none",
+                "isthing": class_id % 2,
+                "color": [0, 0, 0],
+            }
+        )
+
+    panoptic_annotation = {
+        "images": images,
+        "annotations": annotations,
+        "categories": categories,
+    }
+    annotations_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(annotations_path, "w") as f:
+        json.dump(panoptic_annotation, f)
+
+
+def create_panoptic_segmentation_mask(
+    path: Path,
+    height: int = 128,
+    width: int = 128,
+) -> list[int]:
+    # ids=R+G*256+B*256^2
+    max_id = 255 + 255 * 256 + 255 * 256**2
+    segment_ids = np.random.randint(0, max_id + 1, size=10)
+    mask = np.zeros((height, width, 3), dtype=np.uint8)
+    for segment_id in segment_ids:
+        rgb = (
+            segment_id % 256,
+            (segment_id // 256) % 256,
+            (segment_id // (256**2)) % 256,
+        )
+        binary_mask = np.random.randint(0, 2, size=(height, width), dtype=bool)
+        mask[binary_mask] = rgb
+    img = Image.fromarray(mask, mode="RGB")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(path)
+    return segment_ids.tolist()  # type: ignore[no-any-return]
 
 
 def create_video(video_path: Path, n_frames: int = 10) -> None:
@@ -466,6 +565,41 @@ def create_yolo_instance_segmentation_dataset(
     )
     create_normalized_yolo_instance_segmentation_labels(
         labels_dir=val_labels, image_paths=list(val_images.glob("*.png"))
+    )
+
+
+def create_coco_panoptic_segmentation_dataset(
+    tmp_path: Path,
+    num_files: int = 2,
+    height: int = 128,
+    width: int = 128,
+    num_classes: int = 2,
+) -> None:
+    """Create a minimal COCO panoptic segmentation dataset."""
+    train_images = tmp_path / "images" / "train"
+    val_images = tmp_path / "images" / "val"
+    train_masks = tmp_path / "annotations" / "train"
+    val_masks = tmp_path / "annotations" / "val"
+    train_annotations = tmp_path / "annotations" / "train.json"
+    val_annotations = tmp_path / "annotations" / "val.json"
+
+    create_images(image_dir=train_images, files=num_files, height=height, width=width)
+    create_images(image_dir=val_images, files=num_files, height=height, width=width)
+    create_panoptic_segmentation_masks(
+        mask_dir=train_masks,
+        annotations_path=train_annotations,
+        files=num_files,
+        height=height,
+        width=width,
+        num_classes=num_classes,
+    )
+    create_panoptic_segmentation_masks(
+        mask_dir=val_masks,
+        annotations_path=val_annotations,
+        files=num_files,
+        height=height,
+        width=width,
+        num_classes=num_classes,
     )
 
 

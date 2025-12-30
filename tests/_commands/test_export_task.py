@@ -32,9 +32,9 @@ def create_dinov2_vittest14_eomt_checkpoint(
     val_masks = directory / "val_masks"
     mode = "RGBA" if num_channels == 4 else "RGB"
     helpers.create_images(train_images, num_channels=num_channels, mode=mode)
-    helpers.create_masks(train_masks)
+    helpers.create_semantic_segmentation_masks(train_masks)
     helpers.create_images(val_images, num_channels=num_channels, mode=mode)
-    helpers.create_masks(val_masks)
+    helpers.create_semantic_segmentation_masks(val_masks)
 
     lightly_train.train_semantic_segmentation(
         out=out,

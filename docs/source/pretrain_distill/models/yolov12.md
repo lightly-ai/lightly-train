@@ -2,7 +2,8 @@
 
 # YOLOv12
 
-This page describes how to use the [YOLOv12 implementation by the original authors](https://github.com/sunsmarterjie/yolov12)
+This page describes how to use the
+[YOLOv12 implementation by the original authors](https://github.com/sunsmarterjie/yolov12)
 with LightlyTrain.
 
 ```{note}
@@ -46,7 +47,8 @@ and a successful installation will give you:
 FlashAttention version: <some-version>
 ```
 
-See [this GitHub issue](https://github.com/sunsmarterjie/yolov12/issues/66) for more information.
+See [this GitHub issue](https://github.com/sunsmarterjie/yolov12/issues/66) for more
+information.
 
 ## Pretrain and Fine-tune a YOLOv12 Model
 
@@ -56,8 +58,8 @@ instead of `yolo12.yaml` in the official Ultralytics releases.
 
 ### Pretrain
 
-Below we provide the minimum scripts for pretraining using `ultralytics/yolov12s` as
-an example:
+Below we provide the minimum scripts for pretraining using `ultralytics/yolov12s` as an
+example:
 
 ````{tab} Python
 ```python
@@ -134,4 +136,5 @@ The following YOLOv12 model variants are supported:
 - `ultralytics/yolov12x.yaml`
 - `ultralytics/yolov12x.pt`
 
-Check the [Ultralytics page](#ultralytics) for more information on our support of earlier YOLO variants.
+Check the [Ultralytics page](#ultralytics) for more information on our support of
+earlier YOLO variants.

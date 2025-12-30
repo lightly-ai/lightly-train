@@ -1,10 +1,11 @@
 (pretrain-distill)=
+
 (train)=
 
 # Pretrain & Distill
 
-This part of the documentation focuses on how to improve your models with
-**unlabeled data**. LightlyTrain offers three main functionalities for this:
+This part of the documentation focuses on how to improve your models with **unlabeled
+data**. LightlyTrain offers three main functionalities for this:
 
 1. **[Pretraining](#methods-dinov2)**
 
@@ -25,12 +26,12 @@ This part of the documentation focuses on how to improve your models with
    Autolabeling lets you generate pseudo-labels for your unlabeled data using a strong
    fine-tuned model. You can then use the pseudo-labeled data to train your own models
    in a supervised way. This is ideal if you already have enough labeled data to train a
-   strong autolabeler. Autolabeling is covered in a [separate section](#predict-autolabel)
-   of the documentation.
+   strong autolabeler. Autolabeling is covered in a
+   [separate section](#predict-autolabel) of the documentation.
 
 LightlyTrain has a unified interface for pretraining and distillation through the
-`pretrain` command. The remainder of this page will focus on how to use this command.
-If you are interested in one of the specific methods, please check out the respective
+`pretrain` command. The remainder of this page will focus on how to use this command. If
+you are interested in one of the specific methods, please check out the respective
 pages:
 
 - [Distillation](#methods-distillation)
@@ -85,8 +86,8 @@ See {meth}`lightly_train.train` for a complete list of available arguments.
 
 ## Out
 
-The `out` argument specifies the output directory where all training logs, model exports,
-and checkpoints are saved. It looks like this after training:
+The `out` argument specifies the output directory where all training logs, model
+exports, and checkpoints are saved. It looks like this after training:
 
 ```text
 out/my_experiment
@@ -114,9 +115,9 @@ and checkpoints organized.
 
 ## Data
 
-Lightly**Train** expects a folder containing images or a list of (possibly mixed) folders and image files.
-Any folder will be recursively traversed and finds all image files within it (even in
-nested subdirectories).
+Lightly**Train** expects a folder containing images or a list of (possibly mixed)
+folders and image files. Any folder will be recursively traversed and finds all image
+files within it (even in nested subdirectories).
 
 The following image formats are supported:
 
@@ -131,7 +132,8 @@ The following image formats are supported:
 - webp
 - dcm (DICOM)
 
-For more details on LightlyTrain's support for data input, please check the [Data Input](#data-input) page.
+For more details on LightlyTrain's support for data input, please check the
+[Data Input](#data-input) page.
 
 Example of passing a single folder `my_data_dir`:
 
@@ -191,7 +193,9 @@ lightly-train pretrain out="out/my_experiment" data='["image2.jpg", "image3.jpg"
 
 ## Model
 
-See [supported libraries](#models-supported-libraries) in the Models page for a detailed list of all supported libraries and their respective docs pages for all supported models.
+See [supported libraries](#models-supported-libraries) in the Models page for a detailed
+list of all supported libraries and their respective docs pages for all supported
+models.
 
 ## Method
 
@@ -201,23 +205,22 @@ See [](#methods) for a list of all supported methods.
 
 ## Loggers
 
-Logging is configured with the `loggers` argument. The following loggers are
-supported:
+Logging is configured with the `loggers` argument. The following loggers are supported:
 
 - [`jsonl`](#jsonl): Logs training metrics to a .jsonl file (enabled by default)
-- [`mlflow`](#mlflow): Logs training metrics to MLflow (disabled by
-  default, requires MLflow to be installed)
+- [`mlflow`](#mlflow): Logs training metrics to MLflow (disabled by default, requires
+  MLflow to be installed)
 - [`tensorboard`](#tensorboard): Logs training metrics to TensorBoard (enabled by
   default, requires TensorBoard to be installed)
-- [`wandb`](#wandb): Logs training metrics to Weights & Biases (disabled by
-  default, requires Weights & Biases to be installed)
+- [`wandb`](#wandb): Logs training metrics to Weights & Biases (disabled by default,
+  requires Weights & Biases to be installed)
 
 (jsonl)=
 
 ### JSONL
 
-The JSONL logger is enabled by default and logs training metrics to a .jsonl file
-at `out/my_experiment/metrics.jsonl`.
+The JSONL logger is enabled by default and logs training metrics to a .jsonl file at
+`out/my_experiment/metrics.jsonl`.
 
 Disable the JSONL logger with:
 
@@ -271,8 +274,8 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 
 ### TensorBoard
 
-TensorBoard logs are automatically saved to the output directory. Run TensorBoard in
-a new terminal to visualize the training progress:
+TensorBoard logs are automatically saved to the output directory. Run TensorBoard in a
+new terminal to visualize the training progress:
 
 ```bash
 tensorboard --logdir out/my_experiment
@@ -325,7 +328,8 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 ````
 
 More configuration options are available through the Weights & Biases environment
-variables. See the [Weights & Biases documentation](https://docs.wandb.ai/guides/track/environment-variables/)
+variables. See the
+[Weights & Biases documentation](https://docs.wandb.ai/guides/track/environment-variables/)
 for more information.
 
 Disable the Weights & Biases logger with:
@@ -346,17 +350,18 @@ There are two distinct ways to continue training, depending on your intention.
 
 ### Resume Interrupted Training
 
-Use `resume_interrupted=True` to **resume a previously interrupted or crashed training run**.
-This will pick up exactly where the training left off.
+Use `resume_interrupted=True` to **resume a previously interrupted or crashed training
+run**. This will pick up exactly where the training left off.
 
 - You **must use the same `out` directory** as the original run.
-- You **must not change any training parameters** (e.g., learning rate, batch size, data, etc.).
+- You **must not change any training parameters** (e.g., learning rate, batch size,
+  data, etc.).
 - This is intended for continuing the *same* run without modification.
 
 ### Load Weights for a New Run
 
-Use `checkpoint` to further pretrain a model from a previous run. The checkpoint must
-be a path to a checkpoint file created by a previous training run, for example
+Use `checkpoint` to further pretrain a model from a previous run. The checkpoint must be
+a path to a checkpoint file created by a previous training run, for example
 `checkpoint="out/my_experiment/checkpoints/last.ckpt"`. This will only load the model
 weights from the previous run. All other training state (e.g. optimizer state, epochs)
 from the previous run are not loaded. Instead, a new run is started with the model
@@ -443,14 +448,15 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 ```
 ````
 
-Each pretraining method has its own set of arguments that can be configured. LightlyTrain
-provides sensible defaults that are adjusted depending on the dataset and model used.
-The defaults for each method are listed in the respective {ref}`methods` documentation
-pages.
+Each pretraining method has its own set of arguments that can be configured.
+LightlyTrain provides sensible defaults that are adjusted depending on the dataset and
+model used. The defaults for each method are listed in the respective {ref}`methods`
+documentation pages.
 
 ### Performance Optimizations
 
-For performance optimizations, e.g. using accelerators, multi-GPU, multi-node, and half precision training, see the [performance](#performance) page.
+For performance optimizations, e.g. using accelerators, multi-GPU, multi-node, and half
+precision training, see the [performance](#performance) page.
 
 ```{toctree}
 ---

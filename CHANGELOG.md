@@ -2,8 +2,8 @@
 
 All notable changes to Lightly**Train** will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
+this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
@@ -20,41 +20,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [0.13.2] - 2025-12-29
+
+### Added
+
+- Support for pretraining RF-DETR 1.3 models.
+
+### Changed
+
+- Export only EMA weights for object detection models. This reduces the exported model
+  size by 2x.
+
+### Fixed
+
+- Fix pretrained ViT-small panoptic segmentation model checkpoint.
+
 ## [0.13.1] - 2025-12-18
 
 ### Fixed
 
 - Fix bug in ONNX export for object detection models.
 
-### Security
-
 ## [0.13.0] - 2025-12-15
 
 **New DINOv3 Tiny Object Detection Models:** We release tiny DINOv3 models pretrained on
-COCO for [object detection](https://docs.lightly.ai/train/stable/object_detection.html#coco)!
+COCO for
+[object detection](https://docs.lightly.ai/train/stable/object_detection.html#coco)!
 
-**New DINOv3 Panoptic Segmentation:** You can now run inference and fine-tune DINOv3 models
-for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)!
+**New DINOv3 Panoptic Segmentation:** You can now run inference and fine-tune DINOv3
+models for
+[panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)!
 
 ### Added
 
-- New COCO pretrained [tiny LTDETR](https://docs.lightly.ai/train/stable/object_detection.html#coco)
-  models `vitt16` and `vitt16plus`.
-- Support for DINOv3 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)
+- New COCO pretrained
+  [tiny LTDETR](https://docs.lightly.ai/train/stable/object_detection.html#coco) models
+  `vitt16` and `vitt16plus`.
+- Support for DINOv3
+  [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)
   inference and fine-tuning.
-- Quick start guide for [object detection](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb).
+- Quick start guide for
+  [object detection](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb).
 - Possibility to load backbone weights in LTDETR.
-- [ONNX export](https://docs.lightly.ai/train/stable/object_detection.html#exporting-a-checkpoint-to-onnx) for LTDETR.
-- Add [Weights & Biases logging support](https://docs.lightly.ai/train/stable/object_detection.html#weights-biases)
+- [ONNX export](https://docs.lightly.ai/train/stable/object_detection.html#exporting-a-checkpoint-to-onnx)
+  for LTDETR.
+- Add
+  [Weights & Biases logging support](https://docs.lightly.ai/train/stable/object_detection.html#weights-biases)
   for all fine-tuning tasks.
 - Log best validation metrics at the end of training.
 
 ### Changed
 
 - Rename `lightly_train.train()` to `lightly_train.pretrain()`. The old name is still
-  available as an alias for backward compatibility but will be removed in a future release.
-- Restructured the documentation to better reflect the different workflows supported
-  by LightlyTrain.
+  available as an alias for backward compatibility but will be removed in a future
+  release.
+- Restructured the documentation to better reflect the different workflows supported by
+  LightlyTrain.
 
 ### Fixed
 
@@ -82,10 +105,10 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Deprecated
 
-- Deprecate `reuse_class_head` argument in the `train`/`pretrain` command. The model will now
-  automatically reuse the classification head only when the number of classes in the
-  data config matches that in the checkpoint. Otherwise, the classification head will
-  be re-initialized.
+- Deprecate `reuse_class_head` argument in the `train`/`pretrain` command. The model
+  will now automatically reuse the classification head only when the number of classes
+  in the data config matches that in the checkpoint. Otherwise, the classification head
+  will be re-initialized.
 
 ### Fixed
 
@@ -104,21 +127,28 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Added
 
-- Add support for DINOv3 [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html)
+- Add support for DINOv3
+  [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html)
   inference and fine-tuning.
-- Add support for loading [DICOM images](https://docs.lightly.ai/train/stable/data/dicom.html)
-  as input data for training and inference.
+- Add support for loading
+  [DICOM images](https://docs.lightly.ai/train/stable/data/dicom.html) as input data for
+  training and inference.
 - Add event tracking, disable with `LIGHTLY_TRAIN_EVENTS_DISABLED=1`
 - Add support for fine-tuning object detection models with custom image resolutions.
 
 ## [0.12.0] - 2025-11-06
 
-💡 **New DINOv3 Object Detection:** Run inference or fine-tune DINOv3 models for [object detection](https://docs.lightly.ai/train/stable/object_detection.html)! 💡
+💡 **New DINOv3 Object Detection:** Run inference or fine-tune DINOv3 models for
+[object detection](https://docs.lightly.ai/train/stable/object_detection.html)! 💡
 
 ### Added
 
-- Add support for [DINOv3 object detection](https://docs.lightly.ai/train/stable/object_detection.html) model training.
-- Add [semantic segmentation autolabeling](https://docs.lightly.ai/train/stable/predict_autolabel.html) support with `predict_semantic_segmentation`.
+- Add support for
+  [DINOv3 object detection](https://docs.lightly.ai/train/stable/object_detection.html)
+  model training.
+- Add
+  [semantic segmentation autolabeling](https://docs.lightly.ai/train/stable/predict_autolabel.html)
+  support with `predict_semantic_segmentation`.
 - Add support for DINOv3 ConvNeXt models.
 - Automatically download DINOv3 weights.
 - Add support for passing pretrained model names or checkpoint paths as `model` argument
@@ -126,7 +156,8 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Changed
 
-- Widen PyTorch constraint — remove `<2.6` upper bound to allow PyTorch 2.6 and later that is officially supported by PyTorch Lightning 2.5.
+- Widen PyTorch constraint — remove `<2.6` upper bound to allow PyTorch 2.6 and later
+  that is officially supported by PyTorch Lightning 2.5.
 - Rename `load_model_from_checkpoint` to `load_model`. The function now downloads
   checkpoints that do not exist locally.
 
@@ -139,7 +170,8 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Added
 
-- Add support for saving the best semantic segmentation checkpoints and model weights during training.
+- Add support for saving the best semantic segmentation checkpoints and model weights
+  during training.
 - Expose more arguments for the checkpointing callback in pretraining.
 - Add LT-DETR inference support with DINOv2 and DINOv3 ConvNext backbones.
 
@@ -149,15 +181,19 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Fixed
 
-- Fix warning about too few epochs for DINOv2 which occurs with the default epoch calculation.
-- Fix PyTorch bus errors caused by memory-map file write conflicts when launching multiple runs with `.train_semantic_segmentation()`.
+- Fix warning about too few epochs for DINOv2 which occurs with the default epoch
+  calculation.
+- Fix PyTorch bus errors caused by memory-map file write conflicts when launching
+  multiple runs with `.train_semantic_segmentation()`.
 
 ## [0.11.3] - 2025-09-25
 
 ### Added
 
-- Add EoMT semantic segmentation benchmark results and model weights trained on ADE20k, COCO-Stuff, and Cityscapes datasets.
-- Add support for exporting the semantic segmentation model weights to `exported_models/exported_last.pt`.
+- Add EoMT semantic segmentation benchmark results and model weights trained on ADE20k,
+  COCO-Stuff, and Cityscapes datasets.
+- Add support for exporting the semantic segmentation model weights to
+  `exported_models/exported_last.pt`.
 - Add support for allow loading semantic segmentation model weights for training.
 - Add `simplify` flag to ONNX `export_task`.
 - Add support for using DINOv3 models as teacher in distillationv1.
@@ -172,9 +208,11 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 ### Added
 
 - Add support for using multi-channel masks for the inputs in semantic segmentation.
-- Add support for training models on multi-channel images with `transform_args={"num_channels": 4}`.
+- Add support for training models on multi-channel images with
+  `transform_args={"num_channels": 4}`.
 - Add support for using custom mask names for the inputs in semantic segmentation.
-- Add `precision` flag to ONNX export task to specify if we export with float16 or float32 precision.
+- Add `precision` flag to ONNX export task to specify if we export with float16 or
+  float32 precision.
 
 ### Fixed
 
@@ -189,8 +227,8 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 - Add support for DINOv2 linear semantic segmentation models. You can train them with
   `model="dinov2/vits14-linear"` in the `train_semantic_segmentation` command. Those
-  models are trained with a linear head on top of a frozen backbone and are useful
-  to evaluate the quality of pretrained DINOv2 models.
+  models are trained with a linear head on top of a frozen backbone and are useful to
+  evaluate the quality of pretrained DINOv2 models.
 - Make fine-tune transform arguments configurable in the `train_semantic_segmentation`
   command. You can now use the `transform_args` argument like this
   ```python
@@ -202,10 +240,11 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
   to customize the image augmentations used during training and validation. See the
   [semantic segmentation documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#default-image-transform-arguments)
   for more information.
-- Add support for the channel drop transform in the `train_semantic_segmentation` command.
+- Add support for the channel drop transform in the `train_semantic_segmentation`
+  command.
 - Add support for mapping multiple classes into a single class for semantic segmentation
-  datasets. You can now use a dictionary in the `classes` entry of the
-  `data` argument in the `train_semantic_segmentation` command like this:
+  datasets. You can now use a dictionary in the `classes` entry of the `data` argument
+  in the `train_semantic_segmentation` command like this:
   ```python
   data={
     "classes": {
@@ -220,32 +259,43 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 - Models loaded with `load_model_from_checkpoint` are now automatically moved to the
   correct device.
-- Loading EoMT models with `load_model_from_checkpoint` no longer raises a missing
-  key error.
+- Loading EoMT models with `load_model_from_checkpoint` no longer raises a missing key
+  error.
 - Fix MLFlow logging on AzureML.
 
 ## [0.11.0] - 2025-08-15
 
-🚀 **New DINOv3 Support:** Pretrain your own model with [distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3) from DINOv3 weights. Or fine-tune our SOTA [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) with a DINOv3 backbone! 🚀
+🚀 **New DINOv3 Support:** Pretrain your own model with
+[distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3)
+from DINOv3 weights. Or fine-tune our SOTA
+[EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3)
+with a DINOv3 backbone! 🚀
 
 ### Added
 
-- Distillation now supports [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3) as teacher.
-- Semantic Segmentation now supports [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3) as EoMT backbone.
+- Distillation now supports
+  [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3)
+  as teacher.
+- Semantic Segmentation now supports
+  [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3)
+  as EoMT backbone.
 
 ### Changed
 
-- LightlyTrain now infers the best number of epochs based on the chosen method, dataset size and batch size.
+- LightlyTrain now infers the best number of epochs based on the chosen method, dataset
+  size and batch size.
 
 ## [0.10.0] - 2025-08-04
 
 🔥 **New: Train state-of-the-art semantic segmentation models** with our new
-[**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html) fine-tuning method! 🔥
+[**DINOv2 semantic segmentation**](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
+fine-tuning method! 🔥
 
 ### Added
 
-- DINOv2 semantic segmentation fine-tuning with the `train_semantic_segmentation` command.
-  See the [semantic segmentation documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
+- DINOv2 semantic segmentation fine-tuning with the `train_semantic_segmentation`
+  command. See the
+  [semantic segmentation documentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html)
   for more information.
 - Support for image resolutions that are not a multiple of the patch size in DINOv2.
 
@@ -271,10 +321,14 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Added
 
-- Add an extra `teacher_weights` argument in `method_args` to allow loading pretrained DINOv2 teacher weights for distillation methods.
-- Add support for allowing images with different number of channels in the channel drop transform.
-- Add documentation for the [RT-DETRv2 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html).
-- Add warning for situations where the number of steps is below the recommendation for DINOv2.
+- Add an extra `teacher_weights` argument in `method_args` to allow loading pretrained
+  DINOv2 teacher weights for distillation methods.
+- Add support for allowing images with different number of channels in the channel drop
+  transform.
+- Add documentation for the
+  [RT-DETRv2 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html).
+- Add warning for situations where the number of steps is below the recommendation for
+  DINOv2.
 
 ### Changed
 
@@ -283,35 +337,41 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Removed
 
-- Remove a note and specific recommendation for using DINOv2 with pretrained weights in the documentation.
+- Remove a note and specific recommendation for using DINOv2 with pretrained weights in
+  the documentation.
 
 ## [0.8.1] - 2025-06-23
 
 ### Added
 
-- Add `student_freeze_backbone_epochs` option to DINOv2 method to control how many epochs
-  the student backbone is frozen during training. We suggest setting it to 1 when
-  starting from DINOv2 pretrained weights. See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html)
+- Add `student_freeze_backbone_epochs` option to DINOv2 method to control how many
+  epochs the student backbone is frozen during training. We suggest setting it to 1 when
+  starting from DINOv2 pretrained weights. See the
+  [DINOv2 documentation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html)
   for more information.
 - Add channel drop transform.
 - Add option to load multi-channel images with `LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"`.
-- Add option to reuse memmap dataset file via environment variable: `LIGHTLY_TRAIN_MMAP_REUSE_FILE=True`.
+- Add option to reuse memmap dataset file via environment variable:
+  `LIGHTLY_TRAIN_MMAP_REUSE_FILE=True`.
 
 ## [0.8.0] - 2025-06-10
 
 ### Added
 
-- **DINOv2 pretraining is now available** with the `method="dinov2"` argument.
-  The method is in beta and further improvements will be released in the coming weeks.
-  See the [DINOv2 documentation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html)
+- **DINOv2 pretraining is now available** with the `method="dinov2"` argument. The
+  method is in beta and further improvements will be released in the coming weeks. See
+  the
+  [DINOv2 documentation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html)
   for more information.
-- Support for [Torchvision ShuffleNetV2 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html).
-- [RT-DETR](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html) has now an
-  integrated model wrapper.
+- Support for
+  [Torchvision ShuffleNetV2 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html).
+- [RT-DETR](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html)
+  has now an integrated model wrapper.
 
 ### Changed
 
-- The [Ultralytics YOLO tutorial](https://docs.lightly.ai/train/stable/tutorials/yolo/index.html)
+- The
+  [Ultralytics YOLO tutorial](https://docs.lightly.ai/train/stable/tutorials/yolo/index.html)
   now highlights better how to use YOLO with LightlyTrain.
 
 ### Deprecated
@@ -326,20 +386,26 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Added
 
-- Add **Distillation v2** method that achieves higher accuracy and trains up to 3x faster than Distillation v1. The new method is selected as default by LightlyTrain with `method="distillation"`.
+- Add **Distillation v2** method that achieves higher accuracy and trains up to 3x
+  faster than Distillation v1. The new method is selected as default by LightlyTrain
+  with `method="distillation"`.
 - Add MLflow logger to enable system and model metric logging.
-- Add support for lists of files and folders as input to the `embed` and `train` commands.
+- Add support for lists of files and folders as input to the `embed` and `train`
+  commands.
 - Add faster dataset initialization (SLURM and Windows).
 - Add configurable periodic model export.
 - Add training precision option `float32_matmul_precision`.
-- Add tutorial: [Train embedding models with LightlyTrain](https://docs.lightly.ai/train/stable/tutorials/embedding/index.html).
+- Add tutorial:
+  [Train embedding models with LightlyTrain](https://docs.lightly.ai/train/stable/tutorials/embedding/index.html).
 
 ### Changed
 
 - Distillation v1 is now selected with `method="distillationv1"`.
 - All commands (`embed`, `export`, and `train`) now require keyword arguments as input.
-- [Custom models](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) now require the `get_model` method to be implemented.
-- Distillation methods now use the teacher model from the [official DINOv2 implementation](https://github.com/facebookresearch/dinov2).
+- [Custom models](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html)
+  now require the `get_model` method to be implemented.
+- Distillation methods now use the teacher model from the
+  [official DINOv2 implementation](https://github.com/facebookresearch/dinov2).
 - The RT-DETR example uses RT-DETRv2, imposing fewer constraints on package versions.
 
 ### Removed
@@ -348,15 +414,17 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Fixed
 
-- `num_workers="auto"` now limits the number of workers to a maximum of 8 workers/GPU
-  to avoid overloading systems with many CPU cores.
+- `num_workers="auto"` now limits the number of workers to a maximum of 8 workers/GPU to
+  avoid overloading systems with many CPU cores.
 
 ## [0.6.3] - 2025-04-23
 
 ### Added
 
 - Transforms and methods are now documented on dedicated pages.
-- Add [version compatibility table](https://docs.lightly.ai/train/stable/installation.html#version-compatibility) to the documentation.
+- Add
+  [version compatibility table](https://docs.lightly.ai/train/stable/installation.html#version-compatibility)
+  to the documentation.
 
 ### Fixed
 
@@ -366,16 +434,22 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Added
 
-- Document [RF-DETR models](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html).
+- Document
+  [RF-DETR models](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html).
 - Add [frequently asked questions](https://docs.lightly.ai/train/stable/faq.html) page.
-- Add [Torchvision classification tutorial](https://docs.lightly.ai/train/stable/tutorials/resnet/index.html).
-- Add [depth estimation tutorial](https://docs.lightly.ai/train/stable/tutorials/depth_estimation/index.html).
+- Add
+  [Torchvision classification tutorial](https://docs.lightly.ai/train/stable/tutorials/resnet/index.html).
+- Add
+  [depth estimation tutorial](https://docs.lightly.ai/train/stable/tutorials/depth_estimation/index.html).
 
 ### Changed
 
-- Increase minimum Wandb version to `0.17.2` which contains fixes for `numpy>=2.0` support.
-- Limit PyTorch version to `<2.6`. We'll remove this limitation once PyTorch Lightning 2.6 is released.
-- Limit Python version to `<3.13`. We'll remove this limitation once PyTorch supports Python 3.13.
+- Increase minimum Wandb version to `0.17.2` which contains fixes for `numpy>=2.0`
+  support.
+- Limit PyTorch version to `<2.6`. We'll remove this limitation once PyTorch Lightning
+  2.6 is released.
+- Limit Python version to `<3.13`. We'll remove this limitation once PyTorch supports
+  Python 3.13.
 
 ### Removed
 
@@ -391,8 +465,10 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 ### Changed
 
 - TensorBoard is now automatically installed and no longer an optional dependency.
-- Update the [Models documentation](https://docs.lightly.ai/train/stable/pretrain_distill/models/index.html).
-- Update the [YOLO tutorial](https://docs.lightly.ai/train/stable/tutorials/yolo/index.html)
+- Update the
+  [Models documentation](https://docs.lightly.ai/train/stable/pretrain_distill/models/index.html).
+- Update the
+  [YOLO tutorial](https://docs.lightly.ai/train/stable/tutorials/yolo/index.html)
 
 ### Removed
 
@@ -403,9 +479,13 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 ### Added
 
 - Add support for DINOv2 distillation pretraining with the `"distillation"` method.
-- Add support for [YOLO11 and YOLO12 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html).
-- Add support for [RT-DETR models](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html).
-- Add support for [YOLOv12 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html) by the original authors.
+- Add support for
+  [YOLO11 and YOLO12 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html).
+- Add support for
+  [RT-DETR models](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html).
+- Add support for
+  [YOLOv12 models](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)
+  by the original authors.
 - The Git info (branch name, commit, uncommited changes) for the LightlyTrain package
   and the directory from where the code runs are now logged in the `train.log` file.
 
@@ -423,13 +503,27 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 ### Added
 
-- Add tutorial on how to use [LightlyTrain with YOLO](https://docs.lightly.ai/train/stable/tutorials/yolo/index.html).
-- Show the [`data_wait` percentage](https://docs.lightly.ai/train/stable/performance/index.html#finding-the-performance-bottleneck) in the progress bar to better monitor performance bottlenecks.
-- Add [auto format](https://docs.lightly.ai/train/stable/pretrain_distill/export.html#format) export with example logging, which automatically determines the best export option for your model based on the [used model library](https://docs.lightly.ai/train/stable/pretrain_distill/models/index.html#supported-libraries).
-- Add support for configuring the random rotation transform via `transform_args.random_rotation`.
-- Add support for configuring the color jitter transform via `transform_args.color_jitter`.
-- When using the DINO method and configuring the transforms: Removes `local_view_size`, `local_view_resize` and `n_local_views` from `DINOTransformArgs` in favor of `local_view.view_size`, `local_view.random_resize` and `local_view.num_views`. When using the CLI, replace `transform_args.local_view_size` with `transform_args.local_view.view_size`, ... respectively.
-- Allow specifying the precision when using the `embed` command. The loaded checkpoint will be casted to that precision if necessary.
+- Add tutorial on how to use
+  [LightlyTrain with YOLO](https://docs.lightly.ai/train/stable/tutorials/yolo/index.html).
+- Show the
+  [`data_wait` percentage](https://docs.lightly.ai/train/stable/performance/index.html#finding-the-performance-bottleneck)
+  in the progress bar to better monitor performance bottlenecks.
+- Add
+  [auto format](https://docs.lightly.ai/train/stable/pretrain_distill/export.html#format)
+  export with example logging, which automatically determines the best export option for
+  your model based on the
+  [used model library](https://docs.lightly.ai/train/stable/pretrain_distill/models/index.html#supported-libraries).
+- Add support for configuring the random rotation transform via
+  `transform_args.random_rotation`.
+- Add support for configuring the color jitter transform via
+  `transform_args.color_jitter`.
+- When using the DINO method and configuring the transforms: Removes `local_view_size`,
+  `local_view_resize` and `n_local_views` from `DINOTransformArgs` in favor of
+  `local_view.view_size`, `local_view.random_resize` and `local_view.num_views`. When
+  using the CLI, replace `transform_args.local_view_size` with
+  `transform_args.local_view.view_size`, ... respectively.
+- Allow specifying the precision when using the `embed` command. The loaded checkpoint
+  will be casted to that precision if necessary.
 
 ### Changed
 
@@ -437,13 +531,15 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 - Dataset initialization is now faster when using multiple GPUs.
 - Models are now automatically exported at the end of a training.
 - Update the docker image to PyTorch 2.5.1, CUDA 11.8, and cuDNN 9.
-- Switched from using PIL+torchvision to albumentations for the image transformations. This gives a performance boost and allows for more advanced augmentations.
+- Switched from using PIL+torchvision to albumentations for the image transformations.
+  This gives a performance boost and allows for more advanced augmentations.
 - The metrics `batch_time` and `data_time` are grouped under `profiling` in the logs.
 
 ### Fixed
 
 - Fix Ultralytics model export for Ultralytics v8.1 and v8.2
-- Fix that the export command may fail when called in the same script as a train command using DDP.
+- Fix that the export command may fail when called in the same script as a train command
+  using DDP.
 - Fix the logging of the `train_loss` to report the batch_size correctly.
 
 ## [0.4.0] - 2024-12-05
@@ -451,25 +547,34 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 ### Added
 
 - Log system information during training
-- Add [Performance Tuning guide](https://docs.lightly.ai/train/stable/performance/index.html)
-  with documentation for [multi-GPU](https://docs.lightly.ai/train/stable/performance/multi_gpu.html)
-  and [multi-node](https://docs.lightly.ai/train/stable/performance/multi_node.html) training
-- Add [Pillow-SIMD support](https://docs.lightly.ai/train/stable/performance/index.html#dataloader-bottleneck-cpu-bound)
+- Add
+  [Performance Tuning guide](https://docs.lightly.ai/train/stable/performance/index.html)
+  with documentation for
+  [multi-GPU](https://docs.lightly.ai/train/stable/performance/multi_gpu.html) and
+  [multi-node](https://docs.lightly.ai/train/stable/performance/multi_node.html)
+  training
+- Add
+  [Pillow-SIMD support](https://docs.lightly.ai/train/stable/performance/index.html#dataloader-bottleneck-cpu-bound)
   for faster data processing
   - The docker image now has Pillow-SIMD installed by default
-- Add [`ultralytics`](https://docs.lightly.ai/train/stable/pretrain_distill/export.html#format) export format
+- Add
+  [`ultralytics`](https://docs.lightly.ai/train/stable/pretrain_distill/export.html#format)
+  export format
 - Add support for DINO weight decay schedule
 - Add support for SGD optimizer with `optim="sgd"`
 - Report final `accelerator`, `num_devices`, and `strategy` in the resolved config
-- Add [Changelog](https://docs.lightly.ai/train/stable/changelog.html) to the documentation
+- Add [Changelog](https://docs.lightly.ai/train/stable/changelog.html) to the
+  documentation
 
 ### Changed
 
 - Various improvements for the DenseCL method
   - Increase default memory bank size
   - Update local loss calculation
-- Custom models have a [new interface](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html#custom-models)
-- The number of warmup epochs is now set to 10% of the training epochs for runs with less than 100 epochs
+- Custom models have a
+  [new interface](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html#custom-models)
+- The number of warmup epochs is now set to 10% of the training epochs for runs with
+  less than 100 epochs
 - Update default optimizer settings
   - SGD is now the default optimizer
   - Improve default learning rate and weight decay values
@@ -517,10 +622,11 @@ for [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmen
 
 - Add Ultralytics model support
 - Add SuperGradients PP-LiteSeg model support
-- Save normalization transform arguments in checkpoints and automatically use them
-  in the embed command
+- Save normalization transform arguments in checkpoints and automatically use them in
+  the embed command
 - Better argument validation
 - Automatically configure `num_workers` based on available CPU cores
 - Add faster and more memory efficient image dataset
 - Log more image augmentations
-- Log resolved config for CallbackArgs, LoggerArgs, MethodArgs, MethodTransformArgs, and OptimizerArgs
+- Log resolved config for CallbackArgs, LoggerArgs, MethodArgs, MethodTransformArgs, and
+  OptimizerArgs
