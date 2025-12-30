@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -605,7 +606,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     @torch.no_grad()
     def export_onnx(
         self,
-        out_path: PathLike,
+        out: PathLike,
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -624,7 +625,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         ONNX Runtime.
 
         Args:
-            out_path: Path where the ONNX model will be written.
+            out: Path where the ONNX model will be written.
             opset_version: ONNX opset version to target. If None, PyTorch's
                 default opset is used.
             simplify: If True, run onnxslim to simplify and overwrite the exported model.
@@ -635,7 +636,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             num_channels: Number of input channels. If None, will be inferred.
 
         Returns:
-            None. Writes the ONNX model to `out_path`.
+            None. Writes the ONNX model to `out`.
         """
         # Set up logging.
         from lightly_train import _logging
@@ -699,7 +700,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         torch.onnx.export(
             self,
             (dummy_input,),
-            str(out_path),
+            str(out),
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
@@ -715,8 +716,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
             # Simplify.
             onnxslim.slim(
-                str(out_path),
-                output_model=out_path,
+                str(out),
+                output_model=out,
             )
 
         if verify:
@@ -724,7 +725,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             import onnx
             import onnxruntime as ort
 
-            onnx.checker.check_model(out_path, full_check=True)
+            onnx.checker.check_model(out, full_check=True)
 
             # Always run the reference input in float32 and on cpu for consistency.
             reference_model = deepcopy(self).cpu().to(torch.float32).eval()
@@ -734,7 +735,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             )
 
             # Get outputs from the ONNX model.
-            session = ort.InferenceSession(out_path)
+            session = ort.InferenceSession(out)
             input_feed = {
                 "images": dummy_input.cpu().numpy(),
             }
@@ -788,12 +789,12 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                     rtol=1e-1,
                 )
 
-        logger.info(f"Successfully exported ONNX model to '{out_path}'")
+        logger.info(f"Successfully exported ONNX model to '{out}'")
 
     def export_tensorrt(
         self,
-        onnx_path: PathLike,
-        engine_path: PathLike,
+        out: PathLike,
+        onnx_args: dict[str, Any] | None = None,
         max_batchsize: int = 1,
         opt_batchsize: int = 1,
         min_batchsize: int = 1,
@@ -807,11 +808,14 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         dynamic batch dimension in the range `[min_batchsize, opt_batchsize, max_batchsize]`.
         Spatial dimensions must be static in the ONNX model (dynamic H/W are not yet supported).
 
-        The engine is serialized and written to `engine_path`.
+        The engine is serialized and written to `out`.
 
         Args:
-            onnx_path: Path to the ONNX model.
-            engine_path: Path where the TensorRT engine will be saved.
+            out: Path where the TensorRT engine will be saved.
+            onnx_args: Optional arguments to pass to `export_onnx` when exporting
+                the ONNX model prior to building the TensorRT engine. If None,
+                default arguments are used and the ONNX file is saved alongside
+                the TensorRT engine with the same name but `.onnx` extension.
             max_batchsize: Maximum supported batch size.
             opt_batchsize: Batch size TensorRT optimizes for.
             min_batchsize: Minimum supported batch size.
@@ -837,11 +841,19 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         parser = trt.OnnxParser(network, trt_logger)
 
-        if not os.path.isfile(onnx_path):
-            raise FileNotFoundError(f"ONNX file not found: {onnx_path}")
+        # Set the ONNX export path.
+        if onnx_args is None:
+            onnx_args = {}
+        onnx_args.setdefault("out", Path(out).with_suffix(".onnx"))
 
-        logger.info(f"Loading ONNX file from {onnx_path}")
-        with open(onnx_path, "rb") as f:
+        # Export the model to ONNX.
+        self.export_onnx(
+            **onnx_args,
+        )
+
+        onnx_out = onnx_args["out"]
+        logger.info(f"Loading ONNX file from {onnx_out}")
+        with open(onnx_out, "rb") as f:
             if not parser.parse(f.read()):
                 for error in range(parser.num_errors):
                     logger.error(parser.get_error(error))
@@ -899,7 +911,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         if engine is None:
             raise RuntimeError("Failed to build the engine.")
 
-        logger.info(f"Saving engine to {engine_path}")
-        with open(engine_path, "wb") as f:
+        logger.info(f"Saving engine to {out}")
+        with open(out, "wb") as f:
             f.write(engine)
         logger.info("Engine export complete.")
