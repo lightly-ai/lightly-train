@@ -756,7 +756,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 # in different order but still valid. To account for this, we sum
                 # over the query dimension before comparing.
                 output_model = output_model.sum(dim=1)
-                output_onnx = output_onnx.sum(dim=1)    
+                output_onnx = output_onnx.sum(dim=1)
 
                 # Absolute and relative tolerances are a bit arbitrary and taken from here:
                 #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
