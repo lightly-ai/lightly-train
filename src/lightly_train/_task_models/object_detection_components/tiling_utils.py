@@ -15,7 +15,7 @@ from torch import Tensor
 from torchvision.ops import box_iou, nms
 
 
-def _tile_image(
+def tile_image(
     image: Tensor, overlap: float, tile_size: tuple[int, int]
 ) -> tuple[Tensor, Tensor]:
     """
@@ -83,7 +83,7 @@ def _tile_image(
     return tiles, tiles_coordinates
 
 
-def _combine_predictions_tiles_and_global(
+def combine_predictions_tiles_and_global(
     pred_global: dict[str, Tensor],
     pred_tiles: dict[str, Tensor],
     nms_iou_threshold: float = 0.2,

@@ -261,7 +261,9 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         x = transforms_functional.resize(x, self.image_size)
         x = x.unsqueeze(0)
 
-        labels, boxes, scores = self(x, orig_target_size=torch.tensor([[h, w]]))
+        # Select high-confidence prediction. Noteworthy that the selection approach
+        # flattens the first two dimensions and would not work with batchsize > 1.
+        labels, boxes, scores = self(x, orig_target_size=torch.tensor([[h, w]], device=device))
         keep = scores > threshold
         labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
         return {

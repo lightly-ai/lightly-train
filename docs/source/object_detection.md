@@ -172,13 +172,17 @@ from torchvision import io, utils
 import lightly_train
 
 model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
-labels, boxes, scores = model.predict("image.jpg").values()
+results = model.predict_sahi(image="image.jpg")
+results["labels"]   # Class labels, tensor of shape (num_boxes,)
+results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
+results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
 
 # Visualize predictions.
 image_with_boxes = utils.draw_bounding_boxes(
     image=io.read_image("image.jpg"),
-    boxes=boxes,
-    labels=[model.classes[i.item()] for i in labels],
+    boxes=results["bboxes"],
+    labels=[model.classes[i.item()] for i in results["labels"]],
 )
 
 fig, ax = plt.subplots(figsize=(30, 30))
@@ -201,7 +205,11 @@ Using tiled inference requires no extra setup:
 import lightly_train
 
 model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
-labels, boxes, scores = model.predict_sahi(image="image.jpg").values()
+results = model.predict_sahi(image="image.jpg")
+results["labels"]   # Class labels, tensor of shape (num_boxes,)
+results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
+results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 You can customize the behavior via the following parameters:
