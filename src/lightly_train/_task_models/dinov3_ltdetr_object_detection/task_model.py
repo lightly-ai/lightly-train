@@ -20,6 +20,7 @@ from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self
 
+from lightly_train import _logging
 from lightly_train._commands import _warnings
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
@@ -640,8 +641,6 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             None. Writes the ONNX model to `out`.
         """
         # Set up logging.
-        from lightly_train import _logging
-
         _warnings.filter_export_warnings()
         _logging.set_up_console_logging()
 
@@ -821,8 +820,6 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             ) from e
 
         # Set up logging.
-        from lightly_train import _logging
-
         _warnings.filter_export_warnings()
         _logging.set_up_console_logging()
 
