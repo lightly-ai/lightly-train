@@ -20,6 +20,7 @@ from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self
 
+from lightly_train._commands import _warnings
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
@@ -641,6 +642,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         # Set up logging.
         from lightly_train import _logging
 
+        _warnings.filter_export_warnings()
         _logging.set_up_console_logging()
 
         # Set the model in eval and deploy mode.
@@ -840,6 +842,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         # Set up logging.
         from lightly_train import _logging
 
+        _warnings.filter_export_warnings()
         _logging.set_up_console_logging()
 
         trt_logger = trt.Logger(trt.Logger.VERBOSE if verbose else trt.Logger.INFO)

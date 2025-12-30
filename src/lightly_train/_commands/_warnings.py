@@ -82,6 +82,18 @@ def filter_embed_warnings() -> None:
 
 
 def filter_export_warnings() -> None:
+    warnings.filterwarnings(
+        "ignore",
+        message="Converting a tensor to a Python integer might cause the trace to be incorrect.",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message="Converting a tensor to a Python boolean might cause the trace to be incorrect.",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message="torch.tensor results are registered as constants in the trace.",
+    )
     filter_warnings()
 
 
