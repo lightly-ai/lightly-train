@@ -445,6 +445,8 @@ if __name__ == "__main__":
     )
 ```
 
+(object-detection-onnx)=
+
 ## Exporting a Checkpoint to ONNX
 
 [Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange)
@@ -464,6 +466,36 @@ model = lightly_train.load_model(
 
 # Export to ONNX.
 model.export_onnx(
-    out_path="out/my_experiment/exported_models/model.onnx"
+    out="out/my_experiment/exported_models/model.onnx"
 )
 ```
+
+The following notebook shows how to export a model to ONNX in Colab:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)
+
+(object-detection-tensorrt)=
+
+## Exporting a Checkpoint to TensorRT
+
+TensorRT engines are built from an ONNX representation of the model. The
+`export_tensorrt` method internally exports the model to ONNX (see the ONNX export
+section above) before building a [TensorRT](https://developer.nvidia.com/tensorrt)
+engine for fast GPU inference.
+
+```python
+import lightly_train
+
+# Instantiate the model from a checkpoint.
+model = lightly_train.load_model(
+    "out/my_experiment/exported_models/exported_best.pt"
+)
+
+# Export to TensorRT from an ONNX file.
+model.export_tensorrt(
+    out="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
+    use_fp16=True,
+)
+```
+
+You can also learn more about exporting LTDETR to TensorRT using our Colab notebook:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)

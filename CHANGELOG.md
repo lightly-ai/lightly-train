@@ -11,6 +11,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Added Slicing Aided Hyper Inference (SAHI) for object detection to improve small
   objects recall at inference.
+- TensorRT export for LTDETR models.
+- Example jupyter notebook for ONNX and TensorRT export.
 
 ### Changed
 
