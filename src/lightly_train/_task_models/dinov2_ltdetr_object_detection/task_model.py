@@ -321,7 +321,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         x = file_helpers.as_image_tensor(image).to(device)
 
         # Tile the image.
-        tiles, tiles_coordinates = tiling_utils._tile_image(x, overlap, self.image_size)
+        tiles, tiles_coordinates = tiling_utils.tile_image(x, overlap, self.image_size)
 
         # Prepare the full image tile
         h, w = x.shape[-2:]
@@ -369,7 +369,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         keep_tiles = scores_tiles > threshold
 
         # Combine global and tiles predictions.
-        labels, boxes, scores = tiling_utils._combine_predictions_tiles_and_global(
+        labels, boxes, scores = tiling_utils.combine_predictions_tiles_and_global(
             pred_global={
                 "labels": labels_global[keep_global],
                 "bboxes": boxes_global[keep_global],
