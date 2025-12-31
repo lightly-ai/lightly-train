@@ -236,7 +236,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
                 if name.startswith("model."):
                     name = name[len("model.") :]
                     new_state_dict[name] = param
-        return self.load_state_dict(new_state_dict, strict=False, assign=assign)
+        return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
     @torch.no_grad()
     def predict(
