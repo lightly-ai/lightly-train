@@ -196,8 +196,11 @@ image.
 
 ### Improving Small Objects Detection
 
-Detecting small objects in high-resolution images can be challenging because they may occupy only a few pixels when the image is resized to the model’s input resolution.
-To address this, we support Slicing Aided Hyper Inference (SAHI) allowing the model to make predictions from overlapping tiles of the original image at full resolution and then merge the predictions.
+Detecting small objects in high-resolution images can be challenging because they may
+occupy only a few pixels when the image is resized to the model’s input resolution. To
+address this, we support Slicing Aided Hyper Inference (SAHI) allowing the model to make
+predictions from overlapping tiles of the original image at full resolution and then
+merge the predictions.
 
 Using tiled inference requires no extra setup:
 
@@ -214,10 +217,16 @@ results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
 
 You can customize the behavior via the following parameters:
 
-- `overlap`: Fraction of overlap between neighboring tiles. Higher values increase small-object recall but also increase computation.
+- `overlap`: Fraction of overlap between neighboring tiles. Higher values increase
+  small-object recall but also increase computation.
 - `threshold`: Minimum confidence score required to keep a predicted box.
-- `nms_iou_threshold`: IoU threshold used for non-maximum suppression when merging predictions coming from different tiles.
-- `global_local_iou_threshold`: Our SAHI-style inference combines predictions from both the *global* (full-image) view and the *local* tiles. To avoid duplicate detections, tile predictions are suppressed when they significantly overlap (`iou > global_local_iou_threshold`) with a prediction of the same class coming from the global view.
+- `nms_iou_threshold`: IoU threshold used for non-maximum suppression when merging
+  predictions coming from different tiles.
+- `global_local_iou_threshold`: Our SAHI-style inference combines predictions from both
+  the *global* (full-image) view and the *local* tiles. To avoid duplicate detections,
+  tile predictions are suppressed when they significantly overlap
+  (`iou > global_local_iou_threshold`) with a prediction of the same class coming from
+  the global view.
 
 <!--
 # Figure created with
