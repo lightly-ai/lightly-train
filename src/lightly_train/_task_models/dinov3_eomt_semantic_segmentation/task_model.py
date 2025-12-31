@@ -12,7 +12,6 @@ import logging
 import math
 import os
 from typing import Any
-from lightly_train import _logging
 
 import torch
 from PIL.Image import Image as PILImage
@@ -21,6 +20,7 @@ from torch.nn import GELU, Embedding, Linear, Sequential
 from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
+from lightly_train import _logging
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
@@ -633,7 +633,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # TODO(Guarin, 12/25): Move warnings module out of commands subpackage and
         # move import to the top of the file.
         from lightly_train._commands import _warnings
-        
+
         _logging.set_up_console_logging()
         _warnings.filter_export_warnings()
 

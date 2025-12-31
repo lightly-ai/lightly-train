@@ -431,14 +431,10 @@ The following example shows how to export a previously trained model to ONNX.
 import lightly_train
 
 # Instantiate the model from a checkpoint.
-model = lightly_train.load_model(
-    "out/my_experiment/exported_models/exported_best.pt"
-)
+model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 
 # Export to ONNX.
-model.export_onnx(
-    out="out/my_experiment/exported_models/model.onnx"
-)
+model.export_onnx(out="out/my_experiment/exported_models/model.onnx")
 ```
 
 The following notebook shows how to export a model to ONNX in Colab:
