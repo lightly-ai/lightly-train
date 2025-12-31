@@ -7,11 +7,7 @@
 #
 from __future__ import annotations
 
-import contextlib
-import contextvars
 import logging
-from collections.abc import Iterator
-from enum import Enum
 from typing import Any, Literal, cast
 
 import torch
@@ -20,51 +16,14 @@ from torch import distributed
 from lightly_train import _logging
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._export.onnx_helpers import (
+    ONNXPrecision,
+    precalculate_for_onnx_export,
+)
 from lightly_train._task_models import task_model_helpers
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
-
-
-_PRECALCULATE_FOR_ONNX_EXPORT = contextvars.ContextVar(
-    "PRECALCULATE_FOR_ONNX_EXPORT", default=False
-)
-
-
-def is_in_precalculate_for_onnx_export() -> bool:
-    return _PRECALCULATE_FOR_ONNX_EXPORT.get()
-
-
-@contextlib.contextmanager
-def precalculate_for_onnx_export() -> Iterator[None]:
-    """
-    For certain models we want to precalculate some values and store them in the model before
-    exporting the model to ONNX. In order to avoid having to pass that options through all methods we have
-    this context manager. Therefore, one should call
-    ```
-    with precalculate_for_onnx_export():
-        model(example_input)
-    ```
-    before running `torch.onnx.export(model, example_input)`.
-    In the relevant part of the model we can check if we are in this context with
-    `is_in_precalculate_for_onnx_export()`.
-    """
-    token = _PRECALCULATE_FOR_ONNX_EXPORT.set(True)
-    try:
-        yield
-    finally:
-        _PRECALCULATE_FOR_ONNX_EXPORT.reset(token)
-
-
-class OnnxPrecision(str, Enum):
-    F16_TRUE = "16-true"
-    F32_TRUE = "32-true"
-
-    def torch(self) -> torch.dtype:
-        if self == OnnxPrecision.F32_TRUE:
-            return torch.float32
-        if self == OnnxPrecision.F16_TRUE:
-            return torch.float16
 
 
 def export_onnx(
@@ -152,7 +111,7 @@ def _export_task(
             Format specific arguments. Eg. "dynamic" for onnx and int8 precision for tensorrt.
     """
     kwargs = locals()
-    kwargs.update(precision=OnnxPrecision(precision))  # Necessary for MyPy
+    kwargs.update(precision=ONNXPrecision(precision))  # Necessary for MyPy
     config = ExportTaskConfig(**kwargs)
     _export_task_from_config(config=config)
 
@@ -199,7 +158,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
 
         # Get the device of the model to ensure dummy input is on the same device
         model_device = next(task_model.parameters()).device
-        onnx_dtype = config.precision.torch()
+        onnx_dtype = config.precision.torch_dtype()
         task_model.to(onnx_dtype)
 
         dummy_input = torch.randn(
@@ -292,7 +251,7 @@ class ExportTaskConfig(PydanticConfig):
     batch_size: int = 1
     height: int | None = None
     width: int | None = None
-    precision: OnnxPrecision = OnnxPrecision.F32_TRUE
+    precision: ONNXPrecision = ONNXPrecision.F32_TRUE
     simplify: bool = True
     verify: bool = True
     overwrite: bool = False
