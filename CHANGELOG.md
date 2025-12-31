@@ -9,7 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Added Slicing Aided Hyper Inference (SAHI) for object detection to improve small objects recall at inference.
+- Added Slicing Aided Hyper Inference (SAHI) for object detection to improve small
+  objects recall at inference.
 
 ### Changed
 

@@ -236,7 +236,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
                 if name.startswith("model."):
                     name = name[len("model.") :]
                     new_state_dict[name] = param
-        return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
+        return self.load_state_dict(new_state_dict, strict=False, assign=assign)
 
     @torch.no_grad()
     def predict(
@@ -263,7 +263,9 @@ class DINOv2LTDETRObjectDetection(TaskModel):
 
         # Select high-confidence predictions. Noteworthy that the selection approach
         # flattens the first two dimensions and would not work with batchsize > 1.
-        labels, boxes, scores = self(x, orig_target_size=torch.tensor([[h, w]], device=device))
+        labels, boxes, scores = self(
+            x, orig_target_size=torch.tensor([[h, w]], device=device)
+        )
         keep = scores > threshold
         labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
         return {
