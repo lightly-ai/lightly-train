@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -19,6 +20,8 @@ from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self
 
+from lightly_train import _logging
+from lightly_train._commands import _warnings
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
@@ -605,7 +608,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     @torch.no_grad()
     def export_onnx(
         self,
-        out_path: PathLike,
+        out: PathLike,
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -624,7 +627,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         ONNX Runtime.
 
         Args:
-            out_path: Path where the ONNX model will be written.
+            out: Path where the ONNX model will be written.
             opset_version: ONNX opset version to target. If None, PyTorch's
                 default opset is used.
             simplify: If True, run onnxslim to simplify and overwrite the exported model.
@@ -635,8 +638,12 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             num_channels: Number of input channels. If None, will be inferred.
 
         Returns:
-            None. Writes the ONNX model to `out_path`.
+            None. Writes the ONNX model to `out`.
         """
+        # Set up logging.
+        _warnings.filter_export_warnings()
+        _logging.set_up_console_logging()
+
         # Set the model in eval and deploy mode.
         self.eval()
         self.deploy()
@@ -693,15 +700,15 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         torch.onnx.export(
             self,
-            (
-                dummy_input,
-            ),  # TODO modified this into a tuple because of mypy error (verify this is OK)
-            str(out_path),
+            (dummy_input,),
+            str(out),
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
             dynamo=False,
-            dynamic_axes={"images": {0: "N"}},
+            dynamic_axes={
+                "images": {0: "N"}
+            },  # TODO(Thomas, 12/25): Add dynamic axes for H and W.
             **(format_args or {}),
         )
 
@@ -710,8 +717,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
             # Simplify.
             onnxslim.slim(
-                str(out_path),
-                output_model=out_path,
+                str(out),
+                output_model=out,
             )
 
         if verify:
@@ -719,7 +726,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             import onnx
             import onnxruntime as ort
 
-            onnx.checker.check_model(out_path, full_check=True)
+            onnx.checker.check_model(out, full_check=True)
 
             # Always run the reference input in float32 and on cpu for consistency.
             reference_model = deepcopy(self).cpu().to(torch.float32).eval()
@@ -729,7 +736,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             )
 
             # Get outputs from the ONNX model.
-            session = ort.InferenceSession(out_path)
+            session = ort.InferenceSession(out)
             input_feed = {
                 "images": dummy_input.cpu().numpy(),
             }
@@ -744,30 +751,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             for output_onnx, output_model, output_name in zip(
                 outputs_onnx, reference_outputs, output_names
             ):
-                # Bounding boxes are sorted by scores, but the sorting does not produce consistent
-                # results when the scores contain duplicates.
-                if output_name == "boxes":
-                    # Use mutable variable to avoid duplicate code.
-                    boxes_outputs = [output_model, output_onnx]
-                    for i, boxes_output in enumerate(boxes_outputs):
-                        # Compute the area of the boxes.
-                        widths = boxes_output[..., 2] - boxes_output[..., 0]
-                        heights = boxes_output[..., 3] - boxes_output[..., 1]
-                        areas = widths * heights
-
-                        # Sort the bounding boxes by areas.
-                        sorting_indices = areas.argsort(dim=-1)
-                        sorting_indices = sorting_indices[..., None].expand(-1, -1, 4)
-                        boxes_outputs[i] = boxes_output.gather(
-                            dim=1,
-                            index=sorting_indices,
-                        )
-
-                    output_model, output_onnx = boxes_outputs
-                elif output_name == "labels":
-                    # Sort labels.
-                    output_model = torch.sort(output_model, stable=True).values
-                    output_onnx = torch.sort(output_onnx, stable=True).values
+                # Due to the presence of top-k operations in the model, the outputs may be
+                # in different order but still valid. To account for this, we sum
+                # over the query dimension before comparing.
+                output_model = output_model.sum(dim=1)
+                output_onnx = output_onnx.sum(dim=1)
 
                 # Absolute and relative tolerances are a bit arbitrary and taken from here:
                 #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
@@ -783,4 +771,137 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                     rtol=1e-1,
                 )
 
-        logger.info(f"Successfully exported ONNX model to '{out_path}'")
+        logger.info(f"Successfully exported ONNX model to '{out}'")
+
+    def export_tensorrt(
+        self,
+        out: PathLike,
+        onnx_args: dict[str, Any] | None = None,
+        max_batchsize: int = 1,
+        opt_batchsize: int = 1,
+        min_batchsize: int = 1,
+        use_fp16: bool = False,
+        verbose: bool = False,
+    ) -> None:
+        """Build a TensorRT engine from an ONNX model.
+
+        This loads the ONNX file, parses it with TensorRT, infers the static input
+        shape (C, H, W) from the `"images"` input, and creates an engine with a
+        dynamic batch dimension in the range `[min_batchsize, opt_batchsize, max_batchsize]`.
+        Spatial dimensions must be static in the ONNX model (dynamic H/W are not yet supported).
+
+        The engine is serialized and written to `out`.
+
+        Args:
+            out: Path where the TensorRT engine will be saved.
+            onnx_args: Optional arguments to pass to `export_onnx` when exporting
+                the ONNX model prior to building the TensorRT engine. If None,
+                default arguments are used and the ONNX file is saved alongside
+                the TensorRT engine with the same name but `.onnx` extension.
+            max_batchsize: Maximum supported batch size.
+            opt_batchsize: Batch size TensorRT optimizes for.
+            min_batchsize: Minimum supported batch size.
+            use_fp16: Enable FP16 precision if supported by the platform.
+            verbose: Enable verbose TensorRT logging.
+
+        Raises:
+            FileNotFoundError: If the ONNX file does not exist.
+            RuntimeError: If the ONNX cannot be parsed or engine building fails.
+            ValueError: If batch size constraints are invalid or H/W are dynamic.
+        """
+        # Try to import TensorRT.
+        try:
+            import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "TensorRT is required, but is not installed.\n"
+                "Install TensorRT for your system by following NVIDIA's guide:\n"
+                "https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html"
+            ) from e
+
+        # Set up logging.
+        _warnings.filter_export_warnings()
+        _logging.set_up_console_logging()
+
+        trt_logger = trt.Logger(trt.Logger.VERBOSE if verbose else trt.Logger.INFO)
+
+        builder = trt.Builder(trt_logger)
+        network_flags = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+        network = builder.create_network(network_flags)
+
+        parser = trt.OnnxParser(network, trt_logger)
+
+        # Set the ONNX export path.
+        if onnx_args is None:
+            onnx_args = {}
+        onnx_args.setdefault("out", Path(out).with_suffix(".onnx"))
+
+        # Export the model to ONNX.
+        self.export_onnx(
+            **onnx_args,
+        )
+
+        onnx_out = onnx_args["out"]
+        logger.info(f"Loading ONNX file from {onnx_out}")
+        with open(onnx_out, "rb") as f:
+            if not parser.parse(f.read()):
+                for error in range(parser.num_errors):
+                    logger.error(parser.get_error(error))
+                raise RuntimeError("Failed to parse ONNX file")
+
+        # Infer input shape from the ONNX model
+        images_input = None
+        for i in range(network.num_inputs):
+            inp = network.get_input(i)
+            if inp.name == "images":  # your ONNX export uses this name
+                images_input = inp
+                break
+
+        # Raise error if input not found.
+        if images_input is None:
+            raise RuntimeError("Could not find 'images' input in ONNX network.")
+
+        # Get input shape.
+        input_shape = images_input.shape
+        _, C, H, W = input_shape
+
+        # Verify that H and W are not dynamic, i.e., not -1.
+        # TODO(Thomas, 12/25): Support dynamic H and W in the future.
+        if H == -1 or W == -1:
+            raise ValueError("Dynamic image height and width are not supported yet.")
+        logger.info(f"Detected input shape: (N, {C}, {H}, {W})")
+
+        config = builder.create_builder_config()
+        config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 1 << 30)  # 1GB
+
+        # Verify that fp16 can be used if requested.
+        if use_fp16:
+            if builder.platform_has_fast_fp16:
+                config.set_flag(trt.BuilderFlag.FP16)
+                logger.info("FP16 optimization enabled.")
+            else:
+                logger.warning(
+                    "FP16 not supported on this platform. Proceeding with FP32."
+                )
+
+        profile = builder.create_optimization_profile()
+        if not (min_batchsize <= opt_batchsize <= max_batchsize):
+            raise ValueError("Batch sizes must satisfy: min <= opt <= max")
+        profile.set_shape(
+            "images",
+            min=(min_batchsize, C, H, W),
+            opt=(opt_batchsize, C, H, W),
+            max=(max_batchsize, C, H, W),
+        )
+        config.add_optimization_profile(profile)
+
+        logger.info("Building TensorRT engine...")
+        engine = builder.build_serialized_network(network, config)
+
+        if engine is None:
+            raise RuntimeError("Failed to build the engine.")
+
+        logger.info(f"Saving engine to {out}")
+        with open(out, "wb") as f:
+            f.write(engine)
+        logger.info("Engine export complete.")
