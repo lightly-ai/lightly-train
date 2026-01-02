@@ -208,6 +208,23 @@ class DinoVisionTransformer(nn.Module):
         self.head = nn.Identity()
         self.mask_token = nn.Parameter(torch.empty(1, embed_dim, device=device))
 
+    def update_patch_size(self, target_patch_size) -> None:
+        if target_patch_size == self.patch_size:
+            return
+
+        # Re-sample the weigths from the patch embedding.
+        original_conv_weight = self.patch_embed.proj.weight
+        new_conv_weight = self.patch_embed.resample_conv_weight(original_conv_weight, target_patch_size)
+        
+        # Replace the weights.
+        self.patch_embed.proj.weight.data = new_conv_weight
+        self.patch_embed.proj.kernel_size = (target_patch_size, target_patch_size)
+        self.patch_embed.proj.stride = (target_patch_size, target_patch_size)
+
+        # Update the patch size.
+        self.patch_embed.patch_size = target_patch_size
+        self.patch_size = target_patch_size
+
     def init_weights(self):
         self.rope_embed._init_weights()
         nn.init.normal_(self.cls_token, std=0.02)

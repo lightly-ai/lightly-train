@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import math
+import torch
+import torch.nn.functional as F
 from typing import Callable, Tuple, Union
 
 from torch import Tensor, nn
@@ -81,6 +83,31 @@ class PatchEmbed(nn.Module):
                 _model_helpers.patch_embed_adjust_input_channels_hook, with_module=True
             )
 
+    def resample_conv_weight(
+            self,
+            weight: torch.Tensor,
+            target_patch_size: int,
+    ) -> torch.Tensor:
+        """Resample conv2d patch embedding weights for a new patch size.
+
+        Args:
+            weight: Conv2d weight tensor of shape [embed_dim, in_chans, patch_h, patch_w]
+            target_patch_size: Target (patch_h, patch_w) to resample to
+
+        Returns:
+            Resampled weight tensor
+        """
+        if target_patch_size == self.patch_size:
+            return weight
+
+        # Resample using existing function
+        weight_resampled = resample_patch_embed(
+            weight,
+            new_size=[target_patch_size, target_patch_size],
+        )
+
+        return weight_resampled
+
     def forward(self, x: Tensor) -> Tensor:
         _, _, H, W = x.shape
         # patch_H, patch_W = self.patch_size
@@ -113,3 +140,77 @@ class PatchEmbed(nn.Module):
         nn.init.uniform_(self.proj.weight, -math.sqrt(k), math.sqrt(k))
         if self.proj.bias is not None:
             nn.init.uniform_(self.proj.bias, -math.sqrt(k), math.sqrt(k))
+
+
+def _compute_resize_matrix(
+        old_size: Tuple[int, int],
+        new_size: Tuple[int, int],
+        interpolation: str,
+        antialias: bool,
+        device: torch.device,
+        dtype: torch.dtype = torch.float32
+) -> torch.Tensor:
+    """Computes the resize matrix basis vectors and interpolates them to new_size."""
+    old_h, old_w = old_size
+    new_h, new_w = new_size
+    old_total = old_h * old_w
+    new_total = new_h * new_w
+
+    eye_matrix = torch.eye(old_total, device=device, dtype=dtype)
+    basis_vectors_batch = eye_matrix.reshape(old_total, 1, old_h, old_w)
+    resized_basis_vectors_batch = F.interpolate(
+        basis_vectors_batch,
+        size=new_size,
+        mode=interpolation,
+        antialias=antialias,
+        align_corners=False
+    ) # Output shape: (old_total, 1, new_h, new_w)
+    resize_matrix = resized_basis_vectors_batch.squeeze(1).permute(1, 2, 0).reshape(new_total, old_total)
+    return resize_matrix # Shape: (new_total, old_total)
+
+
+def _apply_resampling(
+        patch_embed: torch.Tensor,
+        pinv_matrix: torch.Tensor,
+        new_size_tuple: Tuple[int, int],
+        orig_dtype: torch.dtype,
+        intermediate_dtype: torch.dtype = torch.float32
+) -> torch.Tensor:
+    """ Simplified resampling w/o vmap use.
+    As proposed by https://github.com/stas-sl
+    """
+    c_out, c_in, *_ = patch_embed.shape
+    patch_embed = patch_embed.reshape(c_out, c_in, -1).to(dtype=intermediate_dtype)
+    pinv_matrix = pinv_matrix.to(dtype=intermediate_dtype)
+    resampled_patch_embed = patch_embed @ pinv_matrix  # (C_out, C_in, P_old * P_old) @ (P_old * P_old, P_new * P_new)
+    resampled_patch_embed = resampled_patch_embed.reshape(c_out, c_in, *new_size_tuple).to(dtype=orig_dtype)
+    return resampled_patch_embed
+
+
+def resample_patch_embed(
+        patch_embed: torch.Tensor,
+        new_size: list[int],
+        interpolation: str = 'bicubic',
+        antialias: bool = True,
+):
+    """ Standalone function (computes matrix on each call). """
+    assert len(patch_embed.shape) == 4, "Input tensor should be 4D (out_ch, in_ch, h, w)"
+    assert len(new_size) == 2, "New shape should only be hw (height, width)"
+
+    old_size_tuple: Tuple[int, int] = tuple(patch_embed.shape[-2:])
+    new_size_tuple: Tuple[int, int] = tuple(new_size)
+
+    if old_size_tuple == new_size_tuple:
+        return patch_embed
+
+    device = patch_embed.device
+    orig_dtype = patch_embed.dtype
+
+    resize_mat = _compute_resize_matrix(
+        old_size_tuple, new_size_tuple, interpolation, antialias, device, torch.float32
+    )
+    pinv_matrix = torch.linalg.pinv(resize_mat)  # Calculates the pseudoinverse matrix used for resampling
+    resampled_patch_embed = _apply_resampling(
+        patch_embed, pinv_matrix, new_size_tuple, orig_dtype, torch.float32
+    )
+    return resampled_patch_embed
