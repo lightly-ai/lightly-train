@@ -1,0 +1,552 @@
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
+from __future__ import annotations
+
+from typing import Any, ClassVar, Literal
+
+import torch
+from lightning_fabric import Fabric
+from torch import Tensor
+from torch.optim import SGD
+from torch.optim.lr_scheduler import CosineAnnealingLR, LRScheduler
+from torch.optim.optimizer import Optimizer
+
+from lightly_train._data.yolo_object_detection_dataset import (
+    YOLOObjectDetectionDataArgs,
+)
+from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._task_models.object_detection_components.utils import (
+    _denormalize_xyxy_boxes,
+    _yolo_to_xyxy,
+)
+from lightly_train._task_models.picodet_object_detection.losses import (
+    DistributionFocalLoss,
+    GIoULoss,
+    VarifocalLoss,
+    box_iou_aligned,
+)
+from lightly_train._task_models.picodet_object_detection.pico_head import (
+    Integral,
+    bbox2distance,
+    distance2bbox,
+)
+from lightly_train._task_models.picodet_object_detection.sim_ota_assigner import (
+    SimOTAAssigner,
+)
+from lightly_train._task_models.picodet_object_detection.task_model import (
+    PicoDetObjectDetection,
+)
+from lightly_train._task_models.picodet_object_detection.transforms import (
+    PicoDetObjectDetectionTrainTransform,
+    PicoDetObjectDetectionTrainTransformArgs,
+    PicoDetObjectDetectionValTransform,
+    PicoDetObjectDetectionValTransformArgs,
+)
+from lightly_train._task_models.train_model import (
+    TaskStepResult,
+    TrainModel,
+    TrainModelArgs,
+)
+from lightly_train.types import ObjectDetectionBatch
+
+
+class PicoDetObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
+    """Checkpoint saving configuration for PicoDet."""
+
+    watch_metric: str = "val_metric/map"
+    mode: Literal["min", "max"] = "max"
+
+
+class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
+    """Training arguments for PicoDet-S.
+
+    Args:
+        learning_rate: Learning rate for SGD optimizer.
+        momentum: Momentum for SGD optimizer.
+        weight_decay: Weight decay for SGD optimizer.
+        vfl_weight: Weight for varifocal loss.
+        giou_weight: Weight for GIoU loss.
+        dfl_weight: Weight for distribution focal loss.
+        simota_center_radius: Center radius for SimOTA assignment.
+        simota_candidate_topk: Top-k candidates for dynamic k in SimOTA.
+        simota_iou_weight: IoU weight in SimOTA cost matrix.
+        use_ema: Whether to use exponential moving average.
+        ema_decay: EMA decay rate.
+    """
+
+    default_batch_size: ClassVar[int] = 80
+    default_steps: ClassVar[int] = 90_000
+    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
+        PicoDetObjectDetectionTaskSaveCheckpointArgs
+    )
+
+    learning_rate: float = 0.1
+    momentum: float = 0.9
+    weight_decay: float = 4e-5
+
+    vfl_weight: float = 1.0
+    giou_weight: float = 2.0
+    dfl_weight: float = 0.25
+
+    simota_center_radius: float = 2.5
+    simota_candidate_topk: int = 10
+    simota_iou_weight: float = 6.0
+
+    use_ema: bool = True
+    ema_decay: float = 0.998
+
+
+class PicoDetObjectDetectionTrain(TrainModel):
+    """Training implementation for PicoDet-S.
+
+    This class wraps the PicoDetObjectDetection task model and implements
+    the training and validation steps with SimOTA assignment and
+    VFL + GIoU + DFL losses.
+    """
+
+    task: ClassVar[str] = "object_detection"
+    train_model_args_cls = PicoDetObjectDetectionTrainArgs
+    task_model_cls = PicoDetObjectDetection
+    train_transform_cls = PicoDetObjectDetectionTrainTransform
+    val_transform_cls = PicoDetObjectDetectionValTransform
+
+    def __init__(
+        self,
+        *,
+        model_name: str,
+        model_args: PicoDetObjectDetectionTrainArgs,
+        data_args: YOLOObjectDetectionDataArgs,
+        train_transform_args: PicoDetObjectDetectionTrainTransformArgs,
+        val_transform_args: PicoDetObjectDetectionValTransformArgs,
+        load_weights: bool,
+    ) -> None:
+        super().__init__()
+        self.model_args = model_args
+
+        num_classes = len(data_args.included_classes)
+        resolved_image_size: tuple[int, int]
+        if val_transform_args.image_size == "auto":
+            from lightly_train._task_models.picodet_object_detection.task_model import (
+                _MODEL_CONFIGS,
+            )
+
+            config = _MODEL_CONFIGS.get(model_name, {})
+            config_size_raw = config.get("image_size", (416, 416))
+            if isinstance(config_size_raw, tuple) and len(config_size_raw) == 2:
+                resolved_image_size = (int(config_size_raw[0]), int(config_size_raw[1]))
+            else:
+                resolved_image_size = (416, 416)
+        else:
+            resolved_image_size = val_transform_args.image_size
+
+        image_normalize: dict[str, list[float]] | None = None
+        normalize_args = val_transform_args.normalize
+        if normalize_args is not None and normalize_args != "auto":
+            from lightly_train._transforms.transform import NormalizeArgs
+
+            if isinstance(normalize_args, NormalizeArgs):
+                image_normalize = {
+                    "mean": list(normalize_args.mean),
+                    "std": list(normalize_args.std),
+                }
+
+        self.model = PicoDetObjectDetection(
+            model_name=model_name,
+            image_size=resolved_image_size,
+            num_classes=num_classes,
+            image_normalize=image_normalize,
+            load_weights=load_weights,
+        )
+
+        self.num_classes = num_classes
+        self.strides = (8, 16, 32, 64)
+        self.reg_max = self.model.head.reg_max
+
+        self.vfl_loss = VarifocalLoss(alpha=0.75, gamma=2.0)
+        self.dfl_loss = DistributionFocalLoss()
+        self.giou_loss = GIoULoss()
+
+        # Integral for decoding bbox predictions
+        self.integral = Integral(self.reg_max)
+
+        self.assigner = SimOTAAssigner(
+            center_radius=model_args.simota_center_radius,
+            candidate_topk=model_args.simota_candidate_topk,
+            iou_weight=model_args.simota_iou_weight,
+            cls_weight=1.0,
+            num_classes=num_classes,
+        )
+
+        # EMA setup following reference implementation
+        # Store EMA parameters as buffers and swap before/after validation
+        self._use_ema = model_args.use_ema
+        self._ema_decay = model_args.ema_decay
+        self._ema_param_names: dict[str, str] = {}  # Maps param name to buffer name
+
+        if self._use_ema:
+            self._init_ema_buffers()
+
+        self._map_metric: Any = None
+
+        # EMA for num_pos to smooth out batch size variations
+        self._num_pos_ema: float = 100.0
+        self._num_pos_ema_decay: float = 0.9
+
+    def _init_ema_buffers(self) -> None:
+        """Initialize EMA buffers for all model parameters."""
+        for name, param in self.model.named_parameters():
+            # Replace dots with underscores for buffer names
+            buffer_name = f"_ema_{name.replace('.', '_')}"
+            self._ema_param_names[name] = buffer_name
+            # Register buffer with clone of parameter data
+            self.register_buffer(buffer_name, param.data.clone())
+
+    @torch.no_grad()
+    def _update_ema(self) -> None:
+        """Update EMA buffers with current model parameters."""
+        if not self._use_ema:
+            return
+
+        for name, param in self.model.named_parameters():
+            buffer_name = self._ema_param_names[name]
+            ema_buffer = getattr(self, buffer_name)
+            # EMA update: ema = decay * ema + (1 - decay) * param
+            ema_buffer.mul_(self._ema_decay).add_(param.data, alpha=1 - self._ema_decay)
+
+    @torch.no_grad()
+    def _swap_ema_parameters(self) -> None:
+        """Swap model parameters with EMA buffers."""
+        if not self._use_ema:
+            return
+
+        for name, param in self.model.named_parameters():
+            buffer_name = self._ema_param_names[name]
+            ema_buffer = getattr(self, buffer_name)
+            # Swap: temp = param, param = ema, ema = temp
+            temp = param.data.clone()
+            param.data.copy_(ema_buffer.data)
+            ema_buffer.data.copy_(temp)
+
+    @property
+    def map_metric(self) -> Any:
+        """Lazy load mAP metric."""
+        if self._map_metric is None:
+            from torchmetrics.detection.mean_ap import MeanAveragePrecision
+
+            self._map_metric = MeanAveragePrecision()
+            self._map_metric.warn_on_many_detections = False
+        return self._map_metric
+
+    def get_task_model(self) -> PicoDetObjectDetection:
+        """Return the task model."""
+        # For export, swap to EMA parameters first
+        if self._use_ema:
+            self._swap_ema_parameters()
+        return self.model
+
+    def training_step(
+        self,
+        fabric: Fabric,
+        batch: ObjectDetectionBatch,
+        step: int,
+    ) -> TaskStepResult:
+        """Perform a training step."""
+        images = batch["image"]
+        gt_bboxes_yolo = batch["bboxes"]
+        gt_labels_list = batch["classes"]
+
+        batch_size = images.shape[0]
+        device = images.device
+        img_h, img_w = images.shape[-2:]
+
+        outputs = self.model(images)
+        cls_scores = outputs["cls_scores"]
+        bbox_preds = outputs["bbox_preds"]
+
+        # Convert GT from YOLO format to pixel xyxy
+        gt_boxes_xyxy_norm = _yolo_to_xyxy(gt_bboxes_yolo)
+        sizes = [(img_w, img_h)] * batch_size
+        gt_boxes_xyxy_list = _denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
+
+        # Decode predictions for each level
+        decode_bbox_preds_pixel: list[Tensor] = []
+        center_and_strides: list[Tensor] = []
+        flatten_cls_preds: list[Tensor] = []
+        flatten_bbox_preds: list[Tensor] = []
+
+        for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_scores, bbox_preds)):
+            stride = self.strides[level_idx]
+            _, _, h, w = cls_score.shape
+            num_points = h * w
+
+            # Generate priors: (H*W, 4) as [cx, cy, stride, stride]
+            y = (torch.arange(h, device=device, dtype=torch.float32) + 0.5) * stride
+            x = (torch.arange(w, device=device, dtype=torch.float32) + 0.5) * stride
+            yy, xx = torch.meshgrid(y, x, indexing="ij")
+            points = torch.stack([xx.flatten(), yy.flatten()], dim=-1)
+            priors = torch.cat(
+                [points, torch.full((num_points, 2), stride, device=device)], dim=-1
+            )
+            center_and_stride = priors.unsqueeze(0).expand(batch_size, -1, -1)
+            center_and_strides.append(center_and_stride)
+
+            # Decode bbox predictions to pixel space
+            center_in_feature = points / stride
+            bbox_pred_flat = bbox_pred.permute(0, 2, 3, 1).reshape(
+                batch_size, num_points, 4 * (self.reg_max + 1)
+            )
+            pred_corners = self.integral(bbox_pred_flat)
+            decode_bbox_pred = distance2bbox(
+                center_in_feature.unsqueeze(0).expand(batch_size, -1, -1), pred_corners
+            )
+            decode_bbox_preds_pixel.append(decode_bbox_pred * stride)
+
+            # Flatten for assignment
+            cls_pred_flat = cls_score.permute(0, 2, 3, 1).reshape(
+                batch_size, num_points, self.num_classes
+            )
+            flatten_cls_preds.append(cls_pred_flat)
+            flatten_bbox_preds.append(bbox_pred_flat)
+
+        # Concatenate across levels
+        all_center_and_strides = torch.cat(center_and_strides, dim=1)
+        all_decoded_bboxes_pixel = torch.cat(decode_bbox_preds_pixel, dim=1)
+        all_cls_preds = torch.cat(flatten_cls_preds, dim=1)
+        all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
+
+        # Process each image
+        all_vfl_losses: list[Tensor] = []
+        all_giou_losses: list[Tensor] = []
+        all_dfl_losses: list[Tensor] = []
+        total_num_pos = 0
+        total_weight_sum = 0.0
+
+        for img_idx in range(batch_size):
+            gt_bboxes = gt_boxes_xyxy_list[img_idx].to(device)
+            gt_labels = gt_labels_list[img_idx].to(device).long()
+
+            if gt_bboxes.numel() == 0:
+                continue
+
+            cls_pred = all_cls_preds[img_idx]
+            decoded_bboxes_pixel = all_decoded_bboxes_pixel[img_idx]
+            priors = all_center_and_strides[img_idx]
+            bbox_pred = all_bbox_preds[img_idx]
+
+            # SimOTA assignment with sigmoid scores
+            assigned_gt_inds, matched_pred_ious = self.assigner.assign(
+                pred_logits=cls_pred.detach().sigmoid(),
+                priors=priors,
+                decoded_bboxes=decoded_bboxes_pixel.detach(),
+                gt_bboxes=gt_bboxes,
+                gt_labels=gt_labels,
+            )
+
+            pos_mask = assigned_gt_inds > 0
+            num_pos = int(pos_mask.sum().item())
+            total_num_pos += num_pos
+
+            if num_pos == 0:
+                continue
+
+            pos_inds = torch.where(pos_mask)[0]
+            pos_assigned_gt_inds = assigned_gt_inds[pos_mask] - 1
+            pos_gt_bboxes = gt_bboxes[pos_assigned_gt_inds]
+            pos_gt_labels = gt_labels[pos_assigned_gt_inds]
+
+            pos_priors = priors[pos_mask]
+            pos_strides = pos_priors[:, 2:3]
+            pos_centers = pos_priors[:, :2]
+            pos_centers_feature = pos_centers / pos_strides
+
+            pos_bbox_pred = bbox_pred[pos_mask]
+
+            # Decode predictions in feature space
+            pos_pred_corners = self.integral(pos_bbox_pred)
+            pos_decode_bbox_pred = distance2bbox(pos_centers_feature, pos_pred_corners)
+
+            # GT boxes in feature space
+            pos_gt_bboxes_feature = pos_gt_bboxes / pos_strides
+
+            # Compute IoU in feature space for VFL targets
+            pos_ious = box_iou_aligned(
+                pos_decode_bbox_pred.detach(), pos_gt_bboxes_feature.detach()
+            ).clamp(min=1e-6)
+
+            # Weight targets
+            weight_targets = cls_pred.detach().sigmoid().max(dim=1)[0][pos_inds]
+            total_weight_sum += weight_targets.sum().item()
+
+            # VFL targets
+            vfl_target = cls_pred.new_zeros(cls_pred.shape)
+            vfl_target[pos_inds, pos_gt_labels] = pos_ious.detach()
+
+            # VFL loss
+            vfl_loss = self.vfl_loss(cls_pred, vfl_target)
+            all_vfl_losses.append(vfl_loss)
+
+            # GIoU loss
+            giou_loss = self.giou_loss(
+                pos_decode_bbox_pred,
+                pos_gt_bboxes_feature.detach(),
+                weight=weight_targets,
+            )
+            all_giou_losses.append(giou_loss)
+
+            # DFL targets
+            pos_gt_distances = bbox2distance(
+                pos_centers_feature, pos_gt_bboxes_feature, reg_max=float(self.reg_max)
+            )
+
+            # DFL loss
+            dfl_weight = weight_targets.unsqueeze(-1).expand(-1, 4).reshape(-1)
+            dfl_loss = self.dfl_loss(
+                pos_bbox_pred.reshape(-1, self.reg_max + 1),
+                pos_gt_distances.reshape(-1),
+                weight=dfl_weight,
+            )
+            dfl_loss = dfl_loss / 4.0
+            all_dfl_losses.append(dfl_loss)
+
+        # Aggregate losses
+        self._num_pos_ema = (
+            self._num_pos_ema_decay * self._num_pos_ema
+            + (1 - self._num_pos_ema_decay) * max(total_num_pos, 1)
+        )
+        num_pos_avg = max(self._num_pos_ema, 1.0)
+        weight_sum_avg = max(total_weight_sum, 1.0)
+
+        zero = torch.tensor(0.0, device=device)
+        loss_vfl = sum(all_vfl_losses, zero) / num_pos_avg
+        loss_giou = sum(all_giou_losses, zero) / weight_sum_avg
+        loss_dfl = sum(all_dfl_losses, zero) / weight_sum_avg
+
+        total_loss = (
+            self.model_args.vfl_weight * loss_vfl
+            + self.model_args.giou_weight * loss_giou
+            + self.model_args.dfl_weight * loss_dfl
+        )
+
+        return TaskStepResult(
+            loss=total_loss,
+            log_dict={
+                "train_loss": total_loss.item(),
+                "loss_vfl": loss_vfl.item(),
+                "loss_giou": loss_giou.item(),
+                "loss_dfl": loss_dfl.item(),
+            },
+        )
+
+    def on_train_batch_end(self) -> None:
+        """Called at the end of each training batch."""
+        self._update_ema()
+
+    def validation_step(
+        self,
+        fabric: Fabric,
+        batch: ObjectDetectionBatch,
+    ) -> TaskStepResult:
+        """Perform a validation step."""
+        images = batch["image"]
+        gt_bboxes_yolo = batch["bboxes"]
+        gt_labels_list = batch["classes"]
+
+        batch_size = images.shape[0]
+        device = images.device
+
+        # Swap to EMA parameters for validation
+        self._swap_ema_parameters()
+
+        self.model.eval()
+        with torch.no_grad():
+            outputs = self.model(images)
+
+        # Swap back to training parameters
+        self._swap_ema_parameters()
+
+        cls_scores = outputs["cls_scores"]
+        bbox_preds = outputs["bbox_preds"]
+
+        gt_boxes_xyxy_norm = _yolo_to_xyxy(gt_bboxes_yolo)
+        img_h, img_w = images.shape[-2:]
+        sizes = [(img_w, img_h)] * batch_size
+        gt_boxes_xyxy_list = _denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
+
+        from lightly_train._task_models.picodet_object_detection.postprocessor import (
+            PicoDetPostProcessor,
+        )
+
+        postprocessor = self.model.postprocessor
+        assert isinstance(postprocessor, PicoDetPostProcessor)
+        predictions = postprocessor.forward_batch(
+            cls_scores=cls_scores,
+            bbox_preds=bbox_preds,
+            original_sizes=torch.tensor([[img_h, img_w]] * batch_size, device=device),
+            score_threshold=0.001,
+        )
+
+        preds = []
+        targets = []
+
+        for i in range(batch_size):
+            pred_boxes = predictions[i]["bboxes"].detach()
+            pred_scores = predictions[i]["scores"].detach()
+            pred_labels = predictions[i]["labels"].detach()
+            gt_boxes = gt_boxes_xyxy_list[i].to(device).detach()
+            gt_labels_i = gt_labels_list[i].to(device).long().detach()
+
+            preds.append(
+                {
+                    "boxes": pred_boxes,
+                    "scores": pred_scores,
+                    "labels": pred_labels,
+                }
+            )
+            targets.append(
+                {
+                    "boxes": gt_boxes,
+                    "labels": gt_labels_i,
+                }
+            )
+
+        self.map_metric.to(device)
+        self.map_metric.update(preds, targets)
+
+        return TaskStepResult(
+            loss=torch.tensor(0.0, device=device),
+            log_dict={"val_metric/map": self.map_metric},
+        )
+
+    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+        """Create optimizer and learning rate scheduler."""
+        param_groups = [
+            {
+                "name": "default",
+                "params": list(self.model.parameters()),
+                "lr": self.model_args.learning_rate,
+                "weight_decay": self.model_args.weight_decay,
+            }
+        ]
+        optimizer = SGD(
+            param_groups,
+            lr=self.model_args.learning_rate,
+            momentum=self.model_args.momentum,
+            weight_decay=self.model_args.weight_decay,
+        )
+        scheduler = CosineAnnealingLR(optimizer, T_max=total_steps)
+        return optimizer, scheduler
+
+    def get_export_state_dict(self) -> dict[str, Any]:
+        """Return the state dict for exporting."""
+        return self.state_dict()
+
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> Any:
+        """Load a training state dict."""
+        return self.load_state_dict(state_dict, strict=strict, assign=assign)
