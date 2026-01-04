@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
@@ -24,9 +22,8 @@ from lightly_train._task_models.picodet_object_detection.transforms import (
 )
 
 
-@pytest.mark.parametrize("use_ema", [True, False])
-def test_load_train_state_dict__from_exported(use_ema: bool) -> None:
-    model_args = PicoDetObjectDetectionTrainArgs(use_ema=use_ema)
+def test_load_train_state_dict__from_exported() -> None:
+    model_args = PicoDetObjectDetectionTrainArgs()
     train_model = _create_train_model(model_args)
     task_model = train_model.model
     state_dict = train_model.get_export_state_dict()
@@ -34,7 +31,7 @@ def test_load_train_state_dict__from_exported(use_ema: bool) -> None:
 
 
 def test_load_train_state_dict__no_ema_weights() -> None:
-    model_args = PicoDetObjectDetectionTrainArgs(use_ema=True)
+    model_args = PicoDetObjectDetectionTrainArgs()
     train_model = _create_train_model(model_args)
     task_model = train_model.model
     state_dict = train_model.state_dict()

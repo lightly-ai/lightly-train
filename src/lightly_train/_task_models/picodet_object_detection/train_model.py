@@ -19,7 +19,9 @@ from torch.optim.optimizer import Optimizer
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._distributed import reduce_dict
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.object_detection_components.utils import (
     _denormalize_xyxy_boxes,
     _yolo_to_xyxy,
@@ -75,8 +77,6 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
         simota_center_radius: Center radius for SimOTA assignment.
         simota_candidate_topk: Top-k candidates for dynamic k in SimOTA.
         simota_iou_weight: IoU weight in SimOTA cost matrix.
-        use_ema: Whether to use exponential moving average.
-        ema_decay: EMA decay rate.
     """
 
     default_batch_size: ClassVar[int] = 80
@@ -96,9 +96,6 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     simota_center_radius: float = 2.5
     simota_candidate_topk: int = 10
     simota_iou_weight: float = 6.0
-
-    use_ema: bool = True
-    ema_decay: float = 0.998
 
 
 class PicoDetObjectDetectionTrain(TrainModel):
@@ -182,55 +179,20 @@ class PicoDetObjectDetectionTrain(TrainModel):
             num_classes=num_classes,
         )
 
-        # EMA setup following reference implementation
-        # Store EMA parameters as buffers and swap before/after validation
-        self._use_ema = model_args.use_ema
-        self._ema_decay = model_args.ema_decay
-        self._ema_param_names: dict[str, str] = {}  # Maps param name to buffer name
-
-        if self._use_ema:
-            self._init_ema_buffers()
+        # EMA model setup (following LTDETR pattern for consistency)
+        # EMA is always enabled - it's essential for training quality
+        self._ema_model_state_dict_key_prefix = "ema_model."
+        self.ema_model = ModelEMA(
+            model=self.model,
+            decay=0.9998,
+            warmups=2000,
+        )
 
         self._map_metric: Any = None
 
         # EMA for num_pos to smooth out batch size variations
         self._num_pos_ema: float = 100.0
         self._num_pos_ema_decay: float = 0.9
-
-    def _init_ema_buffers(self) -> None:
-        """Initialize EMA buffers for all model parameters."""
-        for name, param in self.model.named_parameters():
-            # Replace dots with underscores for buffer names
-            buffer_name = f"_ema_{name.replace('.', '_')}"
-            self._ema_param_names[name] = buffer_name
-            # Register buffer with clone of parameter data
-            self.register_buffer(buffer_name, param.data.clone())
-
-    @torch.no_grad()
-    def _update_ema(self) -> None:
-        """Update EMA buffers with current model parameters."""
-        if not self._use_ema:
-            return
-
-        for name, param in self.model.named_parameters():
-            buffer_name = self._ema_param_names[name]
-            ema_buffer = getattr(self, buffer_name)
-            # EMA update: ema = decay * ema + (1 - decay) * param
-            ema_buffer.mul_(self._ema_decay).add_(param.data, alpha=1 - self._ema_decay)
-
-    @torch.no_grad()
-    def _swap_ema_parameters(self) -> None:
-        """Swap model parameters with EMA buffers."""
-        if not self._use_ema:
-            return
-
-        for name, param in self.model.named_parameters():
-            buffer_name = self._ema_param_names[name]
-            ema_buffer = getattr(self, buffer_name)
-            # Swap: temp = param, param = ema, ema = temp
-            temp = param.data.clone()
-            param.data.copy_(ema_buffer.data)
-            ema_buffer.data.copy_(temp)
 
     @property
     def map_metric(self) -> Any:
@@ -243,11 +205,11 @@ class PicoDetObjectDetectionTrain(TrainModel):
         return self._map_metric
 
     def get_task_model(self) -> PicoDetObjectDetection:
-        """Return the task model."""
-        # For export, swap to EMA parameters first
-        if self._use_ema:
-            self._swap_ema_parameters()
-        return self.model
+        """Return the task model for inference/export.
+
+        Returns the EMA model which is used for inference.
+        """
+        return self.ema_model.model  # type: ignore[return-value]
 
     def training_step(
         self,
@@ -432,19 +394,23 @@ class PicoDetObjectDetectionTrain(TrainModel):
             + self.model_args.dfl_weight * loss_dfl
         )
 
+        # Average losses across devices for logging (distributed training support)
+        loss_dict = {
+            "train_loss": total_loss,
+            "loss_vfl": loss_vfl,
+            "loss_giou": loss_giou,
+            "loss_dfl": loss_dfl,
+        }
+        loss_dict = reduce_dict(loss_dict)
+
         return TaskStepResult(
             loss=total_loss,
-            log_dict={
-                "train_loss": total_loss.item(),
-                "loss_vfl": loss_vfl.item(),
-                "loss_giou": loss_giou.item(),
-                "loss_dfl": loss_dfl.item(),
-            },
+            log_dict={k: v.item() for k, v in loss_dict.items()},
         )
 
     def on_train_batch_end(self) -> None:
         """Called at the end of each training batch."""
-        self._update_ema()
+        self.ema_model.update(self.model)
 
     def validation_step(
         self,
@@ -459,15 +425,10 @@ class PicoDetObjectDetectionTrain(TrainModel):
         batch_size = images.shape[0]
         device = images.device
 
-        # Swap to EMA parameters for validation
-        self._swap_ema_parameters()
-
-        self.model.eval()
+        # Use EMA model for validation
+        self.ema_model.model.eval()
         with torch.no_grad():
-            outputs = self.model(images)
-
-        # Swap back to training parameters
-        self._swap_ema_parameters()
+            outputs = self.ema_model.model(images)
 
         cls_scores = outputs["cls_scores"]
         bbox_preds = outputs["bbox_preds"]
@@ -542,11 +503,50 @@ class PicoDetObjectDetectionTrain(TrainModel):
         return optimizer, scheduler
 
     def get_export_state_dict(self) -> dict[str, Any]:
-        """Return the state dict for exporting."""
-        return self.state_dict()
+        """Return the state dict for exporting.
+
+        Only exports EMA weights if available, following LTDETR pattern.
+        This ensures the exported model is ~1x size instead of ~2x.
+        """
+        state_dict = super().get_export_state_dict()
+        if self.ema_model is not None:
+            # Only keep EMA weights for export
+            state_dict = {
+                k: v
+                for k, v in state_dict.items()
+                if k.startswith(self._ema_model_state_dict_key_prefix)
+            }
+        return state_dict
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
-        """Load a training state dict."""
-        return self.load_state_dict(state_dict, strict=strict, assign=assign)
+        """Load a training state dict.
+
+        Handles loading from checkpoints that may have EMA weights.
+        """
+        import copy
+
+        from torch.nn.modules.module import _IncompatibleKeys
+
+        # Load into the main model
+        missing_keys, unexpected_keys = self.model.load_train_state_dict(
+            state_dict,
+            strict=strict,
+            assign=assign,
+        )
+
+        # Also load into EMA model if present
+        if self.ema_model is not None:
+            missing_keys_ema, unexpected_keys_ema = (
+                self.ema_model.model.load_train_state_dict(  # type: ignore[operator]
+                    # Copy to avoid assigning the same weights to both models
+                    copy.deepcopy(state_dict),
+                    strict=strict,
+                    assign=assign,
+                )
+            )
+            missing_keys.extend(missing_keys_ema)
+            unexpected_keys.extend(unexpected_keys_ema)
+
+        return _IncompatibleKeys(missing_keys, unexpected_keys)
