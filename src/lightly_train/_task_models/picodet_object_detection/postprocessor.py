@@ -104,7 +104,7 @@ class PicoDetPostProcessor(nn.Module):
             - bboxes: Tensor of shape (N, 4) with boxes in xyxy format.
             - scores: Tensor of shape (N,) with confidence scores.
         """
-        score_thr = score_threshold or self.score_threshold
+        score_thr = self.score_threshold if score_threshold is None else score_threshold
 
         assert len(cls_scores) == len(bbox_preds) == len(self.strides)
         assert cls_scores[0].shape[0] == 1, "Only batch size 1 is supported"
@@ -130,23 +130,31 @@ class PicoDetPostProcessor(nn.Module):
 
             points = self._generate_grid_points(height, width, stride, device)
 
-            distances = self.integral(bbox_pred)  # (H*W, 4)
-            distances = distances * stride
-            boxes = distance2bbox(points, distances)  # (H*W, 4)
+            scores = cls_score.sigmoid().reshape(-1, num_classes)
+            valid_mask = scores > score_thr
+            if not valid_mask.any():
+                per_level_boxes.append(points.new_zeros((0, 4)))
+                per_level_scores.append(points.new_zeros((0,)))
+                per_level_labels.append(points.new_zeros((0,), dtype=torch.long))
+                continue
 
-            scores = cls_score.sigmoid()
-            max_scores, labels = scores.max(dim=-1)
-            keep = max_scores > score_thr
+            scores_valid = scores[valid_mask]
+            valid_idxs = valid_mask.nonzero(as_tuple=False)
+            num_topk = (
+                valid_idxs.size(0)
+                if self.nms_pre <= 0
+                else min(self.nms_pre, valid_idxs.size(0))
+            )
+            scores_sorted, idxs = scores_valid.sort(descending=True)
+            scores = scores_sorted[:num_topk]
+            topk_idxs = valid_idxs[idxs[:num_topk]]
+            keep_idxs = topk_idxs[:, 0]
+            labels = topk_idxs[:, 1]
 
-            boxes = boxes[keep]
-            scores = max_scores[keep]
-            labels = labels[keep]
-
-            if scores.numel() > self.nms_pre:
-                topk_indices = scores.topk(self.nms_pre).indices
-                boxes = boxes[topk_indices]
-                scores = scores[topk_indices]
-                labels = labels[topk_indices]
+            bbox_pred = bbox_pred[keep_idxs]
+            points = points[keep_idxs]
+            distances = self.integral(bbox_pred) * stride
+            boxes = distance2bbox(points, distances)
 
             per_level_boxes.append(boxes)
             per_level_scores.append(scores)
