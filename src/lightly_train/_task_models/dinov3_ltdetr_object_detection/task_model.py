@@ -912,6 +912,12 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     ) -> None:
         """Build a TensorRT engine from an ONNX model.
 
+        .. note::
+            TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
+            Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup.
+            See the [TensorRT documentation](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html) for more details.
+            On CUDA 12.x systems you can often install the Python package via `pip install tensorrt-cu12`.
+
         This loads the ONNX file, parses it with TensorRT, infers the static input
         shape (C, H, W) from the `"images"` input, and creates an engine with a
         dynamic batch dimension in the range `[min_batchsize, opt_batchsize, max_batchsize]`.

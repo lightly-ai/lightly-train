@@ -787,3 +787,38 @@ Exporting to ONNX requires some additional packages to be installed. Namely
 - [onnx](https://pypi.org/project/onnx/)
 - [onnxruntime](https://pypi.org/project/onnxruntime/) if `verify` is set to `True`.
 - [onnxslim](https://pypi.org/project/onnxslim/) if `simplify` is set to `True`.
+
+(semantic-segmentation-tensorrt)=
+
+## Exporting a Checkpoint to TensorRT
+
+```{note}
+TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
+Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup.
+See the [TensorRT documentation](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html) for more details.
+On CUDA 12.x systems you can often install the Python package via `pip install tensorrt-cu12`.
+```
+
+TensorRT engines are built from an ONNX representation of the model. The
+`export_tensorrt` method internally exports the model to ONNX (see the ONNX export
+section above) before building a [TensorRT](https://developer.nvidia.com/tensorrt)
+engine for fast GPU inference.
+
+```python
+import lightly_train
+
+# Instantiate the model from a checkpoint.
+model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+
+# Export to TensorRT from an ONNX file.
+model.export_tensorrt(
+    out="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
+    use_fp16=True,
+)
+```
+
+See {py:meth}`~.DINOv3EoMTSemanticSegmentation.export_tensorrt` for all available
+options when exporting to TensorRT.
+
+You can also learn more about exporting EoMT to TensorRT using our Colab notebook:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/semantic_segmentation_export.ipynb)

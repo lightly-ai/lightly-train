@@ -487,6 +487,13 @@ The following notebook shows how to export a model to ONNX in Colab:
 
 ## Exporting a Checkpoint to TensorRT
 
+```{note}
+TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
+Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup.
+See the [TensorRT documentation](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html) for more details.
+On CUDA 12.x systems you can often install the Python package via `pip install tensorrt-cu12`.
+```
+
 TensorRT engines are built from an ONNX representation of the model. The
 `export_tensorrt` method internally exports the model to ONNX (see the ONNX export
 section above) before building a [TensorRT](https://developer.nvidia.com/tensorrt)
