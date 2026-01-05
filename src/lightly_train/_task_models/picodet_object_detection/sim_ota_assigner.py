@@ -49,7 +49,7 @@ class SimOTAAssigner:
     @torch.no_grad()
     def assign(
         self,
-        pred_logits: Tensor,
+        pred_scores: Tensor,
         priors: Tensor,
         decoded_bboxes: Tensor,
         gt_bboxes: Tensor,
@@ -61,9 +61,10 @@ class SimOTAAssigner:
         is not differentiable. This is critical for memory efficiency.
 
         Args:
-            pred_logits: Classification scores (sigmoid) of shape (num_priors, num_classes).
-                NOTE: This should be sigmoid scores, NOT logits, matching the reference
-                implementation which calls `assigner.assign(cls_preds.sigmoid(), ...)`.
+            pred_scores: Classification scores after sigmoid activation, of shape
+                (num_priors, num_classes). Must be sigmoid scores in [0, 1], NOT
+                raw logits. This matches the reference implementation which calls
+                `assigner.assign(cls_preds.sigmoid(), ...)`.
             priors: Prior points of shape (num_priors, 4) as [cx, cy, stride_w, stride_h].
             decoded_bboxes: Decoded predicted boxes of shape (num_priors, 4) in xyxy format.
             gt_bboxes: Ground truth boxes of shape (num_gts, 4) in xyxy format.
@@ -91,7 +92,7 @@ class SimOTAAssigner:
         if valid_mask.sum() == 0:
             return assigned_gt_inds, matched_pred_ious
 
-        valid_pred_scores = pred_logits[valid_mask]  # Already sigmoid scores
+        valid_pred_scores = pred_scores[valid_mask]
         valid_decoded_bboxes = decoded_bboxes[valid_mask]
 
         pairwise_ious = box_iou(valid_decoded_bboxes, gt_bboxes)
