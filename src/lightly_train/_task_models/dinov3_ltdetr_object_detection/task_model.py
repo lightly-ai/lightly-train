@@ -538,10 +538,10 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         nms_iou_threshold: float = 0.3,
         global_local_iou_threshold: float = 0.1,
     ) -> dict[str, Tensor]:
-        """
-        Run Slicing Aided Hyper Inference (SAHI) inference on the input image.
+        """Run Slicing Aided Hyper Inference (SAHI) inference on the input image.
 
         The image is first converted to a tensor, then:
+
         - Tiled into overlapping crops of size `self.image_size`.
         - A resized full-image version is added as a "global" tile.
         - All tiles (global + local) are passed through the model in parallel.
@@ -551,13 +551,18 @@ class DINOv3LTDETRObjectDetection(TaskModel):
           predictions.
 
         Args:
-            image: Input image. Can be a path, a PIL image, or a tensor of shape (C, H, W).
-            threshold: Score threshold for filtering low-confidence predictions.
-            overlap: Fractional overlap between tiles in [0, 1). 0.0 means no overlap.
-            nms_iou_threshold: IoU threshold used for non-maximum suppression when merging
+            image:
+                Input image. Can be a path, a PIL image, or a tensor of shape (C, H, W).
+            threshold:
+                Score threshold for filtering low-confidence predictions.
+            overlap:
+                Fractional overlap between tiles in [0, 1). 0.0 means no overlap.
+            nms_iou_threshold:
+                IoU threshold used for non-maximum suppression when merging
                 predictions from tiles and global image. A lower nms_iou_threshold
                 value yields less predictions.
-            global_local_iou_threshold: Minimum IoU required to consider a tile prediction
+            global_local_iou_threshold:
+                Minimum IoU required to consider a tile prediction
                 as matching a global prediction when combining them. A lower
                 global_local_iou_threshold yields less predictions.
 
@@ -744,18 +749,23 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         ONNX Runtime.
 
         Args:
-            out: Path where the ONNX model will be written.
-            opset_version: ONNX opset version to target. If None, PyTorch's
-                default opset is used.
-            simplify: If True, run onnxslim to simplify and overwrite the exported model.
-            verify: If True, validate the ONNX file and compare outputs to a
-                float32 CPU reference forward pass.
-            format_args: Optional extra keyword arguments forwarded to
-                `torch.onnx.export`.
-            num_channels: Number of input channels. If None, will be inferred.
+            out:
+                Path where the ONNX model will be written.
+            opset_version:
+                ONNX opset version to target. If None, PyTorch's default opset is used.
+            simplify:
+                If True, run onnxslim to simplify and overwrite the exported model.
+            verify:
+                If True, validate the ONNX file and compare outputs to a float32 CPU
+                reference forward pass.
+            format_args:
+                Optional extra keyword arguments forwarded to `torch.onnx.export`.
+            num_channels:
+                Number of input channels. If None, will be inferred.
 
         Returns:
             None. Writes the ONNX model to `out`.
+
         """
         # Set up logging.
         _warnings.filter_export_warnings()
@@ -910,16 +920,23 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         The engine is serialized and written to `out`.
 
         Args:
-            out: Path where the TensorRT engine will be saved.
-            onnx_args: Optional arguments to pass to `export_onnx` when exporting
+            out:
+                Path where the TensorRT engine will be saved.
+            onnx_args:
+                Optional arguments to pass to `export_onnx` when exporting
                 the ONNX model prior to building the TensorRT engine. If None,
                 default arguments are used and the ONNX file is saved alongside
                 the TensorRT engine with the same name but `.onnx` extension.
-            max_batchsize: Maximum supported batch size.
-            opt_batchsize: Batch size TensorRT optimizes for.
-            min_batchsize: Minimum supported batch size.
-            use_fp16: Enable FP16 precision if supported by the platform.
-            verbose: Enable verbose TensorRT logging.
+            max_batchsize:
+                Maximum supported batch size.
+            opt_batchsize:
+                Batch size TensorRT optimizes for.
+            min_batchsize:
+                Minimum supported batch size.
+            use_fp16:
+                Enable FP16 precision if supported by the platform.
+            verbose:
+                Enable verbose TensorRT logging.
 
         Raises:
             FileNotFoundError: If the ONNX file does not exist.
