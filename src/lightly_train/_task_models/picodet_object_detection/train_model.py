@@ -112,10 +112,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
     train_transform_cls = PicoDetObjectDetectionTrainTransform
     val_transform_cls = PicoDetObjectDetectionValTransform
 
-    # Training debug state
-    _train_debug_step: int = 0
-    _train_debug_logged: bool = False
-
     def __init__(
         self,
         *,
@@ -194,10 +190,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         self._map_metric: Any = None
 
-        # EMA for num_pos to smooth out batch size variations
-        self._num_pos_ema: float = 100.0
-        self._num_pos_ema_decay: float = 0.9
-
     @property
     def map_metric(self) -> Any:
         """Lazy load mAP metric."""
@@ -221,11 +213,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         batch: ObjectDetectionBatch,
         step: int,
     ) -> TaskStepResult:
-        """Perform a training step."""
-        import os
-
-        debug_mode = os.environ.get("PICODET_DEBUG", "0") == "1"
-
+        """Perform a training step following reference PicoDet implementation."""
         images = batch["image"]
         gt_bboxes_yolo = batch["bboxes"]
         gt_labels_list = batch["classes"]
@@ -289,26 +277,32 @@ class PicoDetObjectDetectionTrain(TrainModel):
         all_cls_preds = torch.cat(flatten_cls_preds, dim=1)
         all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
 
-        # Process each image
+        # Process each image - following reference: sum per-image losses then divide
         all_vfl_losses: list[Tensor] = []
         all_giou_losses: list[Tensor] = []
         all_dfl_losses: list[Tensor] = []
-        total_num_pos = 0
+        num_pos_per_image: list[int] = []
         total_weight_sum = 0.0
 
         for img_idx in range(batch_size):
             gt_bboxes = gt_boxes_xyxy_list[img_idx].to(device)
             gt_labels = gt_labels_list[img_idx].to(device).long()
 
-            if gt_bboxes.numel() == 0:
-                continue
-
             cls_pred = all_cls_preds[img_idx]
             decoded_bboxes_pixel = all_decoded_bboxes_pixel[img_idx]
             priors = all_center_and_strides[img_idx]
             bbox_pred = all_bbox_preds[img_idx]
 
-            # SimOTA assignment with sigmoid scores
+            # Handle empty GT case - still need VFL loss for negatives
+            if gt_bboxes.numel() == 0:
+                # All priors are negative - VFL loss on zeros target
+                vfl_target = cls_pred.new_zeros(cls_pred.shape)
+                vfl_loss = self.vfl_loss(cls_pred, vfl_target)
+                all_vfl_losses.append(vfl_loss)
+                num_pos_per_image.append(0)
+                continue
+
+            # SimOTA assignment with sigmoid scores (following reference)
             assigned_gt_inds, matched_pred_ious = self.assigner.assign(
                 pred_scores=cls_pred.detach().sigmoid(),
                 priors=priors,
@@ -319,92 +313,75 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
             pos_mask = assigned_gt_inds > 0
             num_pos = int(pos_mask.sum().item())
-            total_num_pos += num_pos
+            num_pos_per_image.append(num_pos)
 
-            if num_pos == 0:
-                continue
-
-            pos_inds = torch.where(pos_mask)[0]
-            pos_assigned_gt_inds = assigned_gt_inds[pos_mask] - 1
-            pos_gt_bboxes = gt_bboxes[pos_assigned_gt_inds]
-            pos_gt_labels = gt_labels[pos_assigned_gt_inds]
-
-            pos_priors = priors[pos_mask]
-            pos_strides = pos_priors[:, 2:3]
-            pos_centers = pos_priors[:, :2]
-            pos_centers_feature = pos_centers / pos_strides
-
-            pos_bbox_pred = bbox_pred[pos_mask]
-
-            # Decode predictions in feature space
-            pos_pred_corners = self.integral(pos_bbox_pred)
-            pos_decode_bbox_pred = distance2bbox(pos_centers_feature, pos_pred_corners)
-
-            # GT boxes in feature space
-            pos_gt_bboxes_feature = pos_gt_bboxes / pos_strides
-
-            # Compute IoU in feature space for VFL targets
-            pos_ious = box_iou_aligned(
-                pos_decode_bbox_pred.detach(), pos_gt_bboxes_feature.detach()
-            ).clamp(min=1e-6)
-
-            # Debug logging for training (first batch only)
-            if debug_mode and not self._train_debug_logged and img_idx == 0:
-                self._train_debug_logged = True
-                self._log_training_debug_info(
-                    step=step,
-                    img_h=img_h,
-                    img_w=img_w,
-                    num_pos=num_pos,
-                    pos_ious=pos_ious,
-                    pos_strides=pos_strides,
-                    pos_decode_bbox_pred=pos_decode_bbox_pred,
-                    pos_gt_bboxes_feature=pos_gt_bboxes_feature,
-                    gt_bboxes=gt_bboxes,
-                    cls_pred=cls_pred,
-                )
-
-            # Weight targets
-            weight_targets = cls_pred.detach().sigmoid().max(dim=1)[0][pos_inds]
-            total_weight_sum += weight_targets.sum().item()
-
-            # VFL targets
+            # VFL target for all priors (positives get IoU, negatives get 0)
             vfl_target = cls_pred.new_zeros(cls_pred.shape)
-            vfl_target[pos_inds, pos_gt_labels] = pos_ious.detach()
 
-            # VFL loss
+            if num_pos > 0:
+                pos_inds = torch.where(pos_mask)[0]
+                pos_assigned_gt_inds = assigned_gt_inds[pos_mask] - 1
+                pos_gt_bboxes = gt_bboxes[pos_assigned_gt_inds]
+                pos_gt_labels = gt_labels[pos_assigned_gt_inds]
+
+                pos_priors = priors[pos_mask]
+                pos_strides = pos_priors[:, 2:3]
+                pos_centers = pos_priors[:, :2]
+                pos_centers_feature = pos_centers / pos_strides
+
+                pos_bbox_pred = bbox_pred[pos_mask]
+
+                # Decode predictions in feature space
+                pos_pred_corners = self.integral(pos_bbox_pred)
+                pos_decode_bbox_pred = distance2bbox(pos_centers_feature, pos_pred_corners)
+
+                # GT boxes in feature space
+                pos_gt_bboxes_feature = pos_gt_bboxes / pos_strides
+
+                # Compute IoU in feature space for VFL targets (following reference)
+                pos_ious = box_iou_aligned(
+                    pos_decode_bbox_pred.detach(), pos_gt_bboxes_feature.detach()
+                ).clamp(min=1e-6)
+
+                # Set VFL target: IoU at (pos_idx, gt_class) positions
+                vfl_target[pos_inds, pos_gt_labels] = pos_ious.detach()
+
+                # Weight targets (following reference: max sigmoid score per prior)
+                weight_targets = cls_pred.detach().sigmoid().max(dim=1)[0][pos_inds]
+                total_weight_sum += weight_targets.sum().item()
+
+                # GIoU loss
+                giou_loss = self.giou_loss(
+                    pos_decode_bbox_pred,
+                    pos_gt_bboxes_feature.detach(),
+                    weight=weight_targets,
+                )
+                all_giou_losses.append(giou_loss)
+
+                # DFL targets and loss
+                pos_gt_distances = bbox2distance(
+                    pos_centers_feature, pos_gt_bboxes_feature, reg_max=float(self.reg_max)
+                )
+                dfl_weight = weight_targets.unsqueeze(-1).expand(-1, 4).reshape(-1)
+                dfl_loss = self.dfl_loss(
+                    pos_bbox_pred.reshape(-1, self.reg_max + 1),
+                    pos_gt_distances.reshape(-1),
+                    weight=dfl_weight,
+                )
+                # Following reference: divide by 4.0 per-level (for 4 coordinates)
+                dfl_loss = dfl_loss / 4.0
+                all_dfl_losses.append(dfl_loss)
+
+            # VFL loss (computed for all priors, both positive and negative)
             vfl_loss = self.vfl_loss(cls_pred, vfl_target)
             all_vfl_losses.append(vfl_loss)
 
-            # GIoU loss
-            giou_loss = self.giou_loss(
-                pos_decode_bbox_pred,
-                pos_gt_bboxes_feature.detach(),
-                weight=weight_targets,
-            )
-            all_giou_losses.append(giou_loss)
-
-            # DFL targets
-            pos_gt_distances = bbox2distance(
-                pos_centers_feature, pos_gt_bboxes_feature, reg_max=float(self.reg_max)
-            )
-
-            # DFL loss
-            dfl_weight = weight_targets.unsqueeze(-1).expand(-1, 4).reshape(-1)
-            dfl_loss = self.dfl_loss(
-                pos_bbox_pred.reshape(-1, self.reg_max + 1),
-                pos_gt_distances.reshape(-1),
-                weight=dfl_weight,
-            )
-            dfl_loss = dfl_loss / 4.0
-            all_dfl_losses.append(dfl_loss)
-
-        # Aggregate losses
-        self._num_pos_ema = (
-            self._num_pos_ema_decay * self._num_pos_ema
-            + (1 - self._num_pos_ema_decay) * max(total_num_pos, 1)
-        )
-        num_pos_avg = max(self._num_pos_ema, 1.0)
+        # Aggregate losses following reference:
+        # - num_pos uses max(pos, 1) per image then sums (like reference get_targets)
+        # - VFL is divided by num_pos_avg
+        # - GIoU and DFL are divided by weight_sum
+        num_total_pos = sum(max(n, 1) for n in num_pos_per_image)
+        num_pos_avg = max(float(num_total_pos), 1.0)
         weight_sum_avg = max(total_weight_sum, 1.0)
 
         zero = torch.tensor(0.0, device=device)
@@ -417,29 +394,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
             + self.model_args.giou_weight * loss_giou
             + self.model_args.dfl_weight * loss_dfl
         )
-
-        # Print loss values for debugging
-        if debug_mode and step % 100 == 0:
-            print(f"\n[Step {step}] Loss values:")
-            print(f"  VFL loss: {loss_vfl.item():.6f} (weight: {self.model_args.vfl_weight})")
-            print(f"  GIoU loss: {loss_giou.item():.6f} (weight: {self.model_args.giou_weight})")
-            print(f"  DFL loss: {loss_dfl.item():.6f} (weight: {self.model_args.dfl_weight})")
-            print(f"  Total loss: {total_loss.item():.6f}")
-            print(f"  num_pos: {total_num_pos}, num_pos_avg (EMA): {num_pos_avg:.2f}")
-            print(f"  weight_sum: {total_weight_sum:.4f}, weight_sum_avg: {weight_sum_avg:.4f}")
-
-            # Per-class analysis for first image in batch
-            if batch_size > 0:
-                self._log_per_class_debug(
-                    step=step,
-                    all_cls_preds=all_cls_preds,
-                    gt_boxes_xyxy_list=gt_boxes_xyxy_list,
-                    gt_labels_list=gt_labels_list,
-                    device=device,
-                )
-
-            # Gradient analysis (requires backward to have been called on a previous step)
-            self._log_gradient_info()
 
         # Average losses across devices for logging (distributed training support)
         loss_dict = {
@@ -465,10 +419,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
         batch: ObjectDetectionBatch,
     ) -> TaskStepResult:
         """Perform a validation step."""
-        import os
-
-        debug_mode = os.environ.get("PICODET_DEBUG", "0") == "1"
-
         images = batch["image"]
         gt_bboxes_yolo = batch["bboxes"]
         gt_labels_list = batch["classes"]
@@ -526,21 +476,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 }
             )
 
-            # Debug logging for first image in first batch
-            if debug_mode and i == 0 and not hasattr(self, "_debug_logged"):
-                self._debug_logged = True
-                self._log_debug_info(
-                    img_h=img_h,
-                    img_w=img_w,
-                    pred_boxes=pred_boxes,
-                    pred_scores=pred_scores,
-                    pred_labels=pred_labels,
-                    gt_boxes=gt_boxes,
-                    gt_labels=gt_labels_i,
-                    cls_scores=cls_scores,
-                    bbox_preds=bbox_preds,
-                )
-
         self.map_metric.to(device)
         self.map_metric.update(preds, targets)
 
@@ -548,290 +483,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss=torch.tensor(0.0, device=device),
             log_dict={"val_metric/map": self.map_metric},
         )
-
-    def _log_debug_info(
-        self,
-        img_h: int,
-        img_w: int,
-        pred_boxes: Tensor,
-        pred_scores: Tensor,
-        pred_labels: Tensor,
-        gt_boxes: Tensor,
-        gt_labels: Tensor,
-        cls_scores: list[Tensor],
-        bbox_preds: list[Tensor],
-    ) -> None:
-        """Log debug information for diagnosing low mAP."""
-        print("\n" + "=" * 80)
-        print("PICODET DEBUG INFO (first validation image)")
-        print("=" * 80)
-
-        print(f"\n[Image Info]")
-        print(f"  Image size: {img_h} x {img_w}")
-
-        print(f"\n[Ground Truth]")
-        print(f"  Number of GT boxes: {len(gt_boxes)}")
-        if len(gt_boxes) > 0:
-            print(f"  GT boxes (first 5): {gt_boxes[:5].tolist()}")
-            print(f"  GT labels (first 5): {gt_labels[:5].tolist()}")
-            print(f"  GT label range: [{gt_labels.min().item()}, {gt_labels.max().item()}]")
-            # Box statistics
-            widths = gt_boxes[:, 2] - gt_boxes[:, 0]
-            heights = gt_boxes[:, 3] - gt_boxes[:, 1]
-            print(f"  GT box width range: [{widths.min().item():.1f}, {widths.max().item():.1f}]")
-            print(f"  GT box height range: [{heights.min().item():.1f}, {heights.max().item():.1f}]")
-
-        print(f"\n[Predictions]")
-        print(f"  Number of predictions: {len(pred_boxes)}")
-        if len(pred_boxes) > 0:
-            print(f"  Pred boxes (first 5): {pred_boxes[:5].tolist()}")
-            print(f"  Pred scores (first 5): {pred_scores[:5].tolist()}")
-            print(f"  Pred labels (first 5): {pred_labels[:5].tolist()}")
-            print(f"  Pred score range: [{pred_scores.min().item():.4f}, {pred_scores.max().item():.4f}]")
-            print(f"  Pred label range: [{pred_labels.min().item()}, {pred_labels.max().item()}]")
-            # Box statistics
-            widths = pred_boxes[:, 2] - pred_boxes[:, 0]
-            heights = pred_boxes[:, 3] - pred_boxes[:, 1]
-            print(f"  Pred box width range: [{widths.min().item():.1f}, {widths.max().item():.1f}]")
-            print(f"  Pred box height range: [{heights.min().item():.1f}, {heights.max().item():.1f}]")
-            # Check for invalid boxes
-            invalid_w = (widths <= 0).sum().item()
-            invalid_h = (heights <= 0).sum().item()
-            if invalid_w > 0 or invalid_h > 0:
-                print(f"  WARNING: {invalid_w} boxes with width <= 0, {invalid_h} with height <= 0")
-
-        print(f"\n[Raw Model Outputs]")
-        for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_scores, bbox_preds)):
-            stride = self.strides[level_idx]
-            print(f"  Level {level_idx} (stride {stride}):")
-            print(f"    cls_score shape: {cls_score.shape}")
-            print(f"    bbox_pred shape: {bbox_pred.shape}")
-            # Score statistics (after sigmoid)
-            scores_sigmoid = cls_score[0].sigmoid()
-            print(f"    cls score range (sigmoid): [{scores_sigmoid.min().item():.4f}, {scores_sigmoid.max().item():.4f}]")
-            print(f"    cls score mean (sigmoid): {scores_sigmoid.mean().item():.4f}")
-            # DFL statistics
-            print(f"    bbox_pred range: [{bbox_pred[0].min().item():.2f}, {bbox_pred[0].max().item():.2f}]")
-
-        # Check IoU between predictions and GT
-        if len(pred_boxes) > 0 and len(gt_boxes) > 0:
-            from lightly_train._task_models.picodet_object_detection.losses import box_iou
-            ious = box_iou(pred_boxes, gt_boxes)
-            max_ious_per_pred = ious.max(dim=1)[0]
-            max_ious_per_gt = ious.max(dim=0)[0]
-            print(f"\n[IoU Analysis]")
-            print(f"  Max IoU per prediction: mean={max_ious_per_pred.mean().item():.3f}, max={max_ious_per_pred.max().item():.3f}")
-            print(f"  Max IoU per GT: mean={max_ious_per_gt.mean().item():.3f}, max={max_ious_per_gt.max().item():.3f}")
-            print(f"  Predictions with IoU > 0.5: {(max_ious_per_pred > 0.5).sum().item()}/{len(pred_boxes)}")
-            print(f"  GT boxes with IoU > 0.5: {(max_ious_per_gt > 0.5).sum().item()}/{len(gt_boxes)}")
-
-        print("=" * 80 + "\n")
-
-    def _log_training_debug_info(
-        self,
-        step: int,
-        img_h: int,
-        img_w: int,
-        num_pos: int,
-        pos_ious: Tensor,
-        pos_strides: Tensor,
-        pos_decode_bbox_pred: Tensor,
-        pos_gt_bboxes_feature: Tensor,
-        gt_bboxes: Tensor,
-        cls_pred: Tensor,
-    ) -> None:
-        """Log debug information during training."""
-        print("\n" + "=" * 80)
-        print(f"PICODET TRAINING DEBUG INFO (step {step}, first image)")
-        print("=" * 80)
-
-        print(f"\n[Image Info]")
-        print(f"  Image size: {img_h} x {img_w}")
-        print(f"  reg_max: {self.reg_max}")
-
-        print(f"\n[Positive Samples]")
-        print(f"  Number of positive samples: {num_pos}")
-        if num_pos > 0:
-            print(f"  VFL target (IoU) range: [{pos_ious.min().item():.4f}, {pos_ious.max().item():.4f}]")
-            print(f"  VFL target (IoU) mean: {pos_ious.mean().item():.4f}")
-            print(f"  VFL target (IoU) distribution:")
-            print(f"    IoU < 0.1: {(pos_ious < 0.1).sum().item()}/{num_pos}")
-            print(f"    IoU 0.1-0.3: {((pos_ious >= 0.1) & (pos_ious < 0.3)).sum().item()}/{num_pos}")
-            print(f"    IoU 0.3-0.5: {((pos_ious >= 0.3) & (pos_ious < 0.5)).sum().item()}/{num_pos}")
-            print(f"    IoU 0.5-0.7: {((pos_ious >= 0.5) & (pos_ious < 0.7)).sum().item()}/{num_pos}")
-            print(f"    IoU >= 0.7: {(pos_ious >= 0.7).sum().item()}/{num_pos}")
-
-        print(f"\n[Stride Distribution of Positive Samples]")
-        if num_pos > 0:
-            unique_strides = pos_strides.squeeze(-1).unique()
-            for stride in unique_strides:
-                count = (pos_strides.squeeze(-1) == stride).sum().item()
-                stride_mask = pos_strides.squeeze(-1) == stride
-                stride_ious = pos_ious[stride_mask]
-                print(f"  Stride {int(stride.item())}: {count} samples, IoU mean={stride_ious.mean().item():.4f}, max={stride_ious.max().item():.4f}")
-
-        print(f"\n[Ground Truth Boxes (pixel space)]")
-        print(f"  Number of GT boxes: {len(gt_bboxes)}")
-        if len(gt_bboxes) > 0:
-            widths = gt_bboxes[:, 2] - gt_bboxes[:, 0]
-            heights = gt_bboxes[:, 3] - gt_bboxes[:, 1]
-            print(f"  GT boxes (first 3): {gt_bboxes[:3].tolist()}")
-            print(f"  GT box width range: [{widths.min().item():.1f}, {widths.max().item():.1f}]")
-            print(f"  GT box height range: [{heights.min().item():.1f}, {heights.max().item():.1f}]")
-
-        print(f"\n[Decoded Predictions vs GT (feature space)]")
-        if num_pos > 0:
-            # Sample a few positive samples to show
-            n_show = min(5, num_pos)
-            print(f"  Showing first {n_show} positive samples:")
-            for i in range(n_show):
-                pred_box = pos_decode_bbox_pred[i].tolist()
-                gt_box = pos_gt_bboxes_feature[i].tolist()
-                stride = pos_strides[i, 0].item()
-                iou = pos_ious[i].item()
-                # Convert to pixel space for comparison
-                pred_box_pixel = [v * stride for v in pred_box]
-                gt_box_pixel = [v * stride for v in gt_box]
-                print(f"    Sample {i}: stride={int(stride)}, IoU={iou:.4f}")
-                print(f"      Pred (feature): [{pred_box[0]:.2f}, {pred_box[1]:.2f}, {pred_box[2]:.2f}, {pred_box[3]:.2f}]")
-                print(f"      GT (feature):   [{gt_box[0]:.2f}, {gt_box[1]:.2f}, {gt_box[2]:.2f}, {gt_box[3]:.2f}]")
-                print(f"      Pred (pixel):   [{pred_box_pixel[0]:.1f}, {pred_box_pixel[1]:.1f}, {pred_box_pixel[2]:.1f}, {pred_box_pixel[3]:.1f}]")
-                print(f"      GT (pixel):     [{gt_box_pixel[0]:.1f}, {gt_box_pixel[1]:.1f}, {gt_box_pixel[2]:.1f}, {gt_box_pixel[3]:.1f}]")
-
-        print(f"\n[Classification Predictions (raw)]")
-        cls_sigmoid = cls_pred.sigmoid()
-        print(f"  cls_pred shape: {cls_pred.shape}")
-        print(f"  cls_pred (logit) range: [{cls_pred.min().item():.4f}, {cls_pred.max().item():.4f}]")
-        print(f"  cls_pred (sigmoid) range: [{cls_sigmoid.min().item():.4f}, {cls_sigmoid.max().item():.4f}]")
-        print(f"  cls_pred (sigmoid) mean: {cls_sigmoid.mean().item():.4f}")
-
-        # Check if reg_max is limiting predictions
-        print(f"\n[reg_max Analysis]")
-        max_box_sizes_pixel = [self.reg_max * 2 * s for s in self.strides]
-        print(f"  Max box size per stride (in pixels):")
-        for s, max_size in zip(self.strides, max_box_sizes_pixel):
-            print(f"    Stride {s}: {max_size} pixels")
-        if len(gt_bboxes) > 0:
-            max_gt_dim = max(widths.max().item(), heights.max().item())
-            print(f"  Largest GT dimension: {max_gt_dim:.1f} pixels")
-            for s, max_size in zip(self.strides, max_box_sizes_pixel):
-                if max_gt_dim > max_size:
-                    print(f"    WARNING: Stride {s} cannot fully represent GT (max {max_size} < GT {max_gt_dim:.1f})")
-
-        print("=" * 80 + "\n")
-
-    def _log_gradient_info(self) -> None:
-        """Log gradient norms for classification vs bbox head."""
-        print(f"\n  [Gradient Analysis (from previous step)]")
-
-        # Get the head module
-        head = self.model.head
-
-        # Check gradients for classification output (first num_classes channels of gfl_cls)
-        cls_grad_norms: list[float] = []
-        bbox_grad_norms: list[float] = []
-
-        for level_idx, gfl_cls in enumerate(head.gfl_cls):
-            if gfl_cls is None or not isinstance(gfl_cls, torch.nn.Conv2d):
-                continue
-
-            # Weight gradients
-            if gfl_cls.weight.grad is not None:
-                # For shared head: first num_classes outputs are cls, rest are bbox
-                cls_weight_grad = gfl_cls.weight.grad[: head.num_classes]
-                bbox_weight_grad = gfl_cls.weight.grad[head.num_classes :]
-
-                cls_grad_norm = cls_weight_grad.norm().item()
-                bbox_grad_norm = bbox_weight_grad.norm().item()
-
-                cls_grad_norms.append(cls_grad_norm)
-                bbox_grad_norms.append(bbox_grad_norm)
-
-                print(f"    Level {level_idx} gfl_cls weight grad:")
-                print(f"      cls grad norm: {cls_grad_norm:.6f}")
-                print(f"      bbox grad norm: {bbox_grad_norm:.6f}")
-                print(f"      ratio (cls/bbox): {cls_grad_norm / max(bbox_grad_norm, 1e-8):.4f}")
-
-            # Bias gradients
-            if gfl_cls.bias is not None and gfl_cls.bias.grad is not None:
-                cls_bias_grad = gfl_cls.bias.grad[: head.num_classes]
-                bbox_bias_grad = gfl_cls.bias.grad[head.num_classes :]
-
-                print(f"    Level {level_idx} gfl_cls bias grad:")
-                print(f"      cls bias grad norm: {cls_bias_grad.norm().item():.6f}")
-                print(f"      bbox bias grad norm: {bbox_bias_grad.norm().item():.6f}")
-
-        if cls_grad_norms and bbox_grad_norms:
-            avg_cls_grad = sum(cls_grad_norms) / len(cls_grad_norms)
-            avg_bbox_grad = sum(bbox_grad_norms) / len(bbox_grad_norms)
-            print(f"    Average across levels:")
-            print(f"      cls grad norm: {avg_cls_grad:.6f}")
-            print(f"      bbox grad norm: {avg_bbox_grad:.6f}")
-            print(f"      ratio (cls/bbox): {avg_cls_grad / max(avg_bbox_grad, 1e-8):.4f}")
-        else:
-            print(f"    No gradients available (first step or gradients cleared)")
-
-    def _log_per_class_debug(
-        self,
-        step: int,
-        all_cls_preds: Tensor,
-        gt_boxes_xyxy_list: list[Tensor],
-        gt_labels_list: list[Tensor],
-        device: torch.device,
-    ) -> None:
-        """Log per-class statistics for debugging."""
-        from collections import Counter
-
-        print(f"\n  [Per-Class Analysis (batch)]")
-
-        # Collect GT class distribution across batch
-        all_gt_labels: list[int] = []
-        for gt_labels in gt_labels_list:
-            if gt_labels.numel() > 0:
-                all_gt_labels.extend(gt_labels.cpu().tolist())
-
-        gt_class_counts = Counter(all_gt_labels)
-        print(f"    GT class distribution (top 10):")
-        for cls_id, count in gt_class_counts.most_common(10):
-            print(f"      Class {cls_id}: {count} instances")
-
-        # Analyze model predictions (across all priors)
-        # all_cls_preds shape: (batch_size, num_priors, num_classes)
-        cls_sigmoid = all_cls_preds.detach().sigmoid()
-
-        # Get predicted class for each prior (argmax)
-        pred_classes = cls_sigmoid.argmax(dim=-1)  # (batch_size, num_priors)
-        pred_class_counts = Counter(pred_classes.flatten().cpu().tolist())
-
-        print(f"    Predicted class distribution (top 10, across all priors):")
-        for cls_id, count in pred_class_counts.most_common(10):
-            pct = 100.0 * count / pred_classes.numel()
-            print(f"      Class {cls_id}: {count} priors ({pct:.1f}%)")
-
-        # Check max score per class (across all priors in batch)
-        max_score_per_class = cls_sigmoid.max(dim=0)[0].max(dim=0)[0]  # (num_classes,)
-        print(f"    Max score per class (top 10):")
-        top_scores, top_classes = max_score_per_class.topk(min(10, self.num_classes))
-        for score, cls_id in zip(top_scores.cpu().tolist(), top_classes.cpu().tolist()):
-            print(f"      Class {cls_id}: {score:.4f}")
-
-        # Check if GT classes have high scores
-        print(f"    GT class scores (max score for each GT class):")
-        for cls_id in sorted(gt_class_counts.keys())[:10]:
-            if cls_id < self.num_classes:
-                max_score = max_score_per_class[cls_id].item()
-                print(f"      Class {cls_id}: max_score={max_score:.4f}, GT_count={gt_class_counts[cls_id]}")
-
-        # Check prediction vs GT alignment for high-confidence predictions
-        high_conf_mask = cls_sigmoid.max(dim=-1)[0] > 0.1  # Priors with >0.1 confidence
-        if high_conf_mask.any():
-            high_conf_preds = pred_classes[high_conf_mask]
-            high_conf_counts = Counter(high_conf_preds.cpu().tolist())
-            print(f"    High-confidence (>0.1) predictions:")
-            for cls_id, count in high_conf_counts.most_common(5):
-                print(f"      Class {cls_id}: {count} priors")
-        else:
-            print(f"    No predictions with confidence > 0.1")
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler."""
