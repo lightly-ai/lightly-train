@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, ClassVar, Literal
 
 import torch
+import torch.distributed as dist
 from lightning_fabric import Fabric
 from torch import Tensor
 from torch.optim import SGD
@@ -392,8 +393,22 @@ class PicoDetObjectDetectionTrain(TrainModel):
         # - VFL is divided by num_pos_avg
         # - GIoU and DFL are divided by weight_sum
         num_total_pos = sum(max(n, 1) for n in num_pos_per_image)
-        num_pos_avg = max(float(num_total_pos), 1.0)
-        weight_sum_avg = max(total_weight_sum, 1.0)
+
+        # Sync normalization factors across GPUs for distributed training
+        # Following pattern from RTDETRCriterionv2 and mask_loss.py
+        num_pos_tensor = torch.as_tensor(
+            [num_total_pos], dtype=torch.float, device=device
+        )
+        weight_sum_tensor = torch.as_tensor(
+            [total_weight_sum], dtype=torch.float, device=device
+        )
+
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(num_pos_tensor)
+            dist.all_reduce(weight_sum_tensor)
+
+        num_pos_avg = torch.clamp(num_pos_tensor / fabric.world_size, min=1).item()
+        weight_sum_avg = torch.clamp(weight_sum_tensor / fabric.world_size, min=1).item()
 
         zero = torch.tensor(0.0, device=device)
         loss_vfl = sum(all_vfl_losses, zero) / num_pos_avg
