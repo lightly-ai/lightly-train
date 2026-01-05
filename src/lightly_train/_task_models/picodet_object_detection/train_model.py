@@ -13,7 +13,12 @@ import torch
 from lightning_fabric import Fabric
 from torch import Tensor
 from torch.optim import SGD
-from torch.optim.lr_scheduler import CosineAnnealingLR, LRScheduler
+from torch.optim.lr_scheduler import (
+    CosineAnnealingLR,
+    LinearLR,
+    LRScheduler,
+    SequentialLR,
+)
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._data.yolo_object_detection_dataset import (
@@ -71,6 +76,8 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
         learning_rate: Learning rate for SGD optimizer.
         momentum: Momentum for SGD optimizer.
         weight_decay: Weight decay for SGD optimizer.
+        warmup_iters: Number of warmup iterations with linear LR increase.
+        warmup_ratio: Starting LR ratio during warmup (e.g., 0.1 = start at 10% of base LR).
         vfl_weight: Weight for varifocal loss.
         giou_weight: Weight for GIoU loss.
         dfl_weight: Weight for distribution focal loss.
@@ -88,6 +95,10 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     learning_rate: float = 0.1
     momentum: float = 0.9
     weight_decay: float = 4e-5
+
+    # Warmup parameters (following reference: 300 iters, start at 10% of base LR)
+    warmup_iters: int = 300
+    warmup_ratio: float = 0.1
 
     vfl_weight: float = 1.0
     giou_weight: float = 2.0
@@ -485,7 +496,12 @@ class PicoDetObjectDetectionTrain(TrainModel):
         )
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
-        """Create optimizer and learning rate scheduler."""
+        """Create optimizer and learning rate scheduler.
+
+        Following reference implementation:
+        - Linear warmup for warmup_iters steps, starting at warmup_ratio * lr
+        - Cosine annealing to min_lr=0 for remaining steps
+        """
         param_groups = [
             {
                 "name": "default",
@@ -500,7 +516,30 @@ class PicoDetObjectDetectionTrain(TrainModel):
             momentum=self.model_args.momentum,
             weight_decay=self.model_args.weight_decay,
         )
-        scheduler = CosineAnnealingLR(optimizer, T_max=total_steps)
+
+        warmup_iters = self.model_args.warmup_iters
+
+        # Linear warmup: start at warmup_ratio * lr, linearly increase to lr
+        warmup_scheduler = LinearLR(
+            optimizer,
+            start_factor=self.model_args.warmup_ratio,
+            end_factor=1.0,
+            total_iters=warmup_iters,
+        )
+
+        # Cosine annealing after warmup (to min_lr=0)
+        cosine_scheduler = CosineAnnealingLR(
+            optimizer,
+            T_max=total_steps - warmup_iters,
+        )
+
+        # Chain warmup + cosine annealing
+        scheduler = SequentialLR(
+            optimizer,
+            schedulers=[warmup_scheduler, cosine_scheduler],
+            milestones=[warmup_iters],
+        )
+
         return optimizer, scheduler
 
     def get_export_state_dict(self) -> dict[str, Any]:
