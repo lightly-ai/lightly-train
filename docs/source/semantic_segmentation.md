@@ -762,9 +762,6 @@ is a standard format for representing machine learning models in a framework ind
 manner. In particular, it is useful for deploying our models on edge devices where
 PyTorch is not available.
 
-The following example shows how to export a previously trained checkpoint to ONNX using
-the `export_onnx` function.
-
 The following example shows how to export a previously trained model to ONNX.
 
 ```python
