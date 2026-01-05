@@ -235,9 +235,10 @@ def dinov3_vitt16(
     if "hash" not in kwargs:
         kwargs["hash"] = "08c60483"
     kwargs["version"] = None
+    patch_size = kwargs.pop("patch_size", 16)
     return _make_dinov3_vit(
         img_size=224,
-        patch_size=16,
+        patch_size=patch_size,
         in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
@@ -275,9 +276,10 @@ def dinov3_vitt16plus(
     if "hash" not in kwargs:
         kwargs["hash"] = "08c60483"
     kwargs["version"] = None
+    patch_size = kwargs.pop("patch_size", 16)
     return _make_dinov3_vit(
         img_size=224,
-        patch_size=16,
+        patch_size=patch_size,
         in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
@@ -315,9 +317,10 @@ def dinov3_vits16(
     if "hash" not in kwargs:
         kwargs["hash"] = "08c60483"
     kwargs["version"] = None
+    patch_size = kwargs.pop("patch_size", 16)
     return _make_dinov3_vit(
         img_size=224,
-        patch_size=16,
+        patch_size=patch_size,
         in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
@@ -355,9 +358,10 @@ def dinov3_vits16plus(
     if "hash" not in kwargs:
         kwargs["hash"] = "4057cbaa"
     kwargs["version"] = None
+    patch_size = kwargs.pop("patch_size", 16)
     return _make_dinov3_vit(
         img_size=224,
-        patch_size=16,
+        patch_size=patch_size,
         in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
@@ -395,9 +399,10 @@ def dinov3_vitb16(
     if "hash" not in kwargs:
         kwargs["hash"] = "73cec8be"
     kwargs["version"] = None
+    patch_size = kwargs.pop("patch_size", 16)
     return _make_dinov3_vit(
         img_size=224,
-        patch_size=16,
+        patch_size=patch_size,
         in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
@@ -446,9 +451,10 @@ def dinov3_vitl16(
             kwargs["hash"] = "eadcf0ff"
         untie_global_and_local_cls_norm = True
     kwargs["version"] = None
+    patch_size = kwargs.pop("patch_size", 16)
     return _make_dinov3_vit(
         img_size=224,
-        patch_size=16,
+        patch_size=patch_size,
         in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
@@ -486,10 +492,10 @@ def dinov3_vitl16plus(
 ):
     if "hash" not in kwargs:
         kwargs["hash"] = "46503df0"
-
+    patch_size = kwargs.pop("patch_size", 16)
     return _make_dinov3_vit(
         img_size=224,
-        patch_size=16,
+        patch_size=patch_size,
         in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
@@ -526,10 +532,10 @@ def dinov3_vith16plus(
 ):
     if "hash" not in kwargs:
         kwargs["hash"] = "7c1da9a5"
-
+    patch_size = kwargs.pop("patch_size", 16)
     return _make_dinov3_vit(
         img_size=224,
-        patch_size=16,
+        patch_size=patch_size,
         in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
@@ -572,9 +578,10 @@ def dinov3_vit7b16(
             kwargs["hash"] = "a6675841"
     kwargs["version"] = None
     untie_global_and_local_cls_norm = True
+    patch_size = kwargs.pop("patch_size", 16)
     return _make_dinov3_vit(
         img_size=224,
-        patch_size=16,
+        patch_size=patch_size,
         in_chans=in_chans,
         pos_embed_rope_base=100,
         pos_embed_rope_normalize_coords="separate",
