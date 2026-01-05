@@ -118,6 +118,12 @@ add-header:
 	# Apply the Apache 2.0 license header to RT-DETR derived files
 	licenseheaders -t dev_tools/rtdetr_licenseheader.tmpl \
 		-d src/lightly_train/_task_models/object_detection_components/ \
+		-x src/lightly_train/_task_models/object_detection_components/tiling_utils.py \
+		-E py
+	
+	# Apply Lightly's header to tiling_utils.py
+	licenseheaders -t dev_tools/licenseheader.tmpl \
+		-f src/lightly_train/_task_models/object_detection_components/tiling_utils.py \
 		-E py
 
 	# Apply the Apache 2.0 license header to DEIMv2 derived files

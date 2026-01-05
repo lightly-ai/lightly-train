@@ -98,6 +98,10 @@ def filter_export_warnings() -> None:
         "ignore",
         message="Converting a tensor to a Python float might cause the trace to be incorrect.",
     )
+    warnings.filterwarnings(
+        "ignore",
+        message="torch.tensor results are registered as constants in the trace.",
+    )
     filter_warnings()
 
 
