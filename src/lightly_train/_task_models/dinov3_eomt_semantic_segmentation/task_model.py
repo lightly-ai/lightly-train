@@ -295,6 +295,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         masks = logits.argmax(dim=1)  # (1, H, W)
         # Map internal class IDs to class IDs.
+        print("masks.unique", masks.unique())
         masks = self.internal_class_to_class[masks]  # (1, H, W)
         return masks[0]
 
@@ -302,7 +303,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # Function used for ONNX export
         logits = self._forward_logits(x)  # (B, K+1, H, W), K = len(self.classes)
         # Restrict logits to known classes only.
-        logits = logits[:, :-1]  # (1, K, H, W)
+        logits = logits[:, :-1]  # (B, K, H, W)
         masks = logits.argmax(dim=1)  # (B, H, W)
         # Map internal class IDs to class IDs.
         masks = self.internal_class_to_class[masks]
@@ -493,11 +494,19 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         """Forward pass that returns the logits of the last layer. Intended for
         inference."""
         # x is a batch of images with shape (B, C, H, W).
+        _, _, H, W = x.shape
+
+        # The current implementation of tile and untile leads to large amounts of memory being consumed when
+        # running the model as ONNX. Therefore we add a fallback for the case when these methods are not necessary.
+        use_onnx_fallback = torch.onnx.is_in_onnx_export() and H == W
 
         # Tiling.
-        image_sizes = [img.shape[-2:] for img in x]
-        crops_list, origins = self.tile(images=x)
-        crops = torch.stack(crops_list)
+        if use_onnx_fallback:
+            crops = x
+        else:
+            image_sizes = [img.shape[-2:] for img in x]
+            crops_list, origins = self.tile(images=x)
+            crops = torch.stack(crops_list)
         crop_h, crop_w = crops.shape[-2:]
 
         # Forward pass.
@@ -511,10 +520,13 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # Interpolate and untile.
         mask_logits = F.interpolate(mask_logits, (crop_h, crop_w), mode="bilinear")
         crop_logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
-        logits_list = self.untile(
-            crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
-        )
-        logits = torch.stack(logits_list)  # (B, C, H, W)
+        if use_onnx_fallback:
+            logits = crop_logits
+        else:
+            logits_list = self.untile(
+                crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
+            )
+            logits = torch.stack(logits_list)  # (B, C, H, W)
         return logits
 
     def _predict(self, x: Tensor, grid_size: tuple[int, int]) -> tuple[Tensor, Tensor]:
