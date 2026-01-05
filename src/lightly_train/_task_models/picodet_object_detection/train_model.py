@@ -356,7 +356,10 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 ).clamp(min=1e-6)
 
                 # Set VFL target: IoU at (pos_idx, gt_class) positions
-                vfl_target[pos_inds, pos_gt_labels] = pos_ious.detach()
+                # Cast pos_ious to match vfl_target dtype for AMP compatibility
+                vfl_target[pos_inds, pos_gt_labels] = pos_ious.detach().to(
+                    vfl_target.dtype
+                )
 
                 # Weight targets (following reference: max sigmoid score per prior)
                 weight_targets = cls_pred.detach().sigmoid().max(dim=1)[0][pos_inds]
