@@ -17,6 +17,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Change default DINOv3 EoMT semantic segmentation image size from 518x518 to 512x512
+
 ### Deprecated
 
 ### Removed

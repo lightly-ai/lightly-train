@@ -93,7 +93,7 @@ class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            self.image_size = tuple(model_init_args.get("image_size", (518, 518)))
+            self.image_size = tuple(model_init_args.get("image_size", (512, 512)))
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
@@ -136,7 +136,7 @@ class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            self.image_size = tuple(model_init_args.get("image_size", (518, 518)))
+            self.image_size = tuple(model_init_args.get("image_size", (512, 512)))
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
