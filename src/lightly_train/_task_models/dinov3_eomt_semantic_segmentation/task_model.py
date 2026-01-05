@@ -295,7 +295,6 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         masks = logits.argmax(dim=1)  # (1, H, W)
         # Map internal class IDs to class IDs.
-        print("masks.unique", masks.unique())
         masks = self.internal_class_to_class[masks]  # (1, H, W)
         return masks[0]
 
@@ -642,6 +641,39 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         verify: bool = True,
         format_args: dict[str, Any] | None = None,
     ) -> None:
+        """Exports the model to ONNX for inference.
+
+        The export uses a dummy input of shape (1, C, H, W) where C is inferred
+        from the first model parameter and (H, W) come from `self.image_size`.
+        The ONNX graph uses dynamic batch size for both inputs and produces
+        two outputs: masks and logits.
+
+        Optionally simplifies the exported model in-place using onnxslim and
+        verifies numerical closeness against a float32 CPU reference via
+        ONNX Runtime.
+
+        Args:
+            out:
+                Path where the ONNX model will be written.
+            batch_size:
+                Batch size for the ONNX input.
+            height:
+                Height of the ONNX input. If None, will be taken from `self.image_size`.
+            width:
+                Width of the ONNX input. If None, will be taken from `self.image_size`.
+            opset_version:
+                ONNX opset version to target. If None, PyTorch's default opset is used.
+            simplify:
+                If True, run onnxslim to simplify and overwrite the exported model.
+            verify:
+                If True, validate the ONNX file and compare outputs to a float32 CPU
+                reference forward pass.
+            format_args:
+                Optional extra keyword arguments forwarded to `torch.onnx.export`.
+
+        Returns:
+            None. Writes the ONNX model to `out`.
+        """
         # TODO(Guarin, 12/25): Move warnings module out of commands subpackage and
         # move import to the top of the file.
         from lightly_train._commands import _warnings
