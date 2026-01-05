@@ -151,6 +151,14 @@ def _make_dinov3_vit(
         state_dict = torch.hub.load_state_dict_from_url(
             url, map_location="cpu", check_hash=check_hash
         )
+
+        # Re-sample the projection weights before loading the statedict.
+        original_conv_weight = state_dict["patch_embed.proj.weight"]
+        if original_conv_weight.shape[-1] != patch_size:
+            new_conv_weight = model.patch_embed.resample_conv_weight(
+                original_conv_weight, patch_size
+            )
+            state_dict["patch_embed.proj.weight"] = new_conv_weight
         model.load_state_dict(state_dict, strict=True)
     else:
         model.init_weights()

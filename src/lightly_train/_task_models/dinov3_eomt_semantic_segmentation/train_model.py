@@ -68,6 +68,8 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int | Literal["auto"] = "auto"
+    # Backbone args, e.g., patch size.
+    backbone_args: dict[str, Any]
 
     # Loss terms
     loss_num_points: int = 12544
@@ -201,6 +203,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
+            backbone_args=model_args.backbone_args,
             # TODO (Lionel, 10/25): Pass backbone args.
             load_weights=load_weights,
         )
@@ -584,3 +587,23 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             optimizer=optimizer,
             max_norm=self.model_args.gradient_clip_val,
         )
+
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> Any:
+        """Loads the model state dict.
+
+        This acts as a wrapper around load_state_dict.
+        Handles mismatch between model
+        """
+
+        # Re-sample the projection weights before loading the statedict.
+        original_conv_weight = state_dict["model.backbone.patch_embed.proj.weight"]
+        original_patch_size = original_conv_weight.shape[-1]
+        target_patch_size = self.model.backbone.patch_size
+        if target_patch_size != original_patch_size:
+            new_conv_weight = self.model.backbone.patch_embed.resample_conv_weight(
+                original_conv_weight, target_patch_size
+            )
+            state_dict["model.backbone.patch_embed.proj.weight"] = new_conv_weight
+        return self.load_state_dict(state_dict, strict=strict, assign=assign)
