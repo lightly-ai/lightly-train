@@ -428,6 +428,19 @@ class PicoDetObjectDetectionTrain(TrainModel):
             print(f"  num_pos: {total_num_pos}, num_pos_avg (EMA): {num_pos_avg:.2f}")
             print(f"  weight_sum: {total_weight_sum:.4f}, weight_sum_avg: {weight_sum_avg:.4f}")
 
+            # Per-class analysis for first image in batch
+            if batch_size > 0:
+                self._log_per_class_debug(
+                    step=step,
+                    all_cls_preds=all_cls_preds,
+                    gt_boxes_xyxy_list=gt_boxes_xyxy_list,
+                    gt_labels_list=gt_labels_list,
+                    device=device,
+                )
+
+            # Gradient analysis (requires backward to have been called on a previous step)
+            self._log_gradient_info()
+
         # Average losses across devices for logging (distributed training support)
         loss_dict = {
             "train_loss": total_loss,
@@ -706,6 +719,119 @@ class PicoDetObjectDetectionTrain(TrainModel):
                     print(f"    WARNING: Stride {s} cannot fully represent GT (max {max_size} < GT {max_gt_dim:.1f})")
 
         print("=" * 80 + "\n")
+
+    def _log_gradient_info(self) -> None:
+        """Log gradient norms for classification vs bbox head."""
+        print(f"\n  [Gradient Analysis (from previous step)]")
+
+        # Get the head module
+        head = self.model.head
+
+        # Check gradients for classification output (first num_classes channels of gfl_cls)
+        cls_grad_norms: list[float] = []
+        bbox_grad_norms: list[float] = []
+
+        for level_idx, gfl_cls in enumerate(head.gfl_cls):
+            if gfl_cls is None or not isinstance(gfl_cls, torch.nn.Conv2d):
+                continue
+
+            # Weight gradients
+            if gfl_cls.weight.grad is not None:
+                # For shared head: first num_classes outputs are cls, rest are bbox
+                cls_weight_grad = gfl_cls.weight.grad[: head.num_classes]
+                bbox_weight_grad = gfl_cls.weight.grad[head.num_classes :]
+
+                cls_grad_norm = cls_weight_grad.norm().item()
+                bbox_grad_norm = bbox_weight_grad.norm().item()
+
+                cls_grad_norms.append(cls_grad_norm)
+                bbox_grad_norms.append(bbox_grad_norm)
+
+                print(f"    Level {level_idx} gfl_cls weight grad:")
+                print(f"      cls grad norm: {cls_grad_norm:.6f}")
+                print(f"      bbox grad norm: {bbox_grad_norm:.6f}")
+                print(f"      ratio (cls/bbox): {cls_grad_norm / max(bbox_grad_norm, 1e-8):.4f}")
+
+            # Bias gradients
+            if gfl_cls.bias is not None and gfl_cls.bias.grad is not None:
+                cls_bias_grad = gfl_cls.bias.grad[: head.num_classes]
+                bbox_bias_grad = gfl_cls.bias.grad[head.num_classes :]
+
+                print(f"    Level {level_idx} gfl_cls bias grad:")
+                print(f"      cls bias grad norm: {cls_bias_grad.norm().item():.6f}")
+                print(f"      bbox bias grad norm: {bbox_bias_grad.norm().item():.6f}")
+
+        if cls_grad_norms and bbox_grad_norms:
+            avg_cls_grad = sum(cls_grad_norms) / len(cls_grad_norms)
+            avg_bbox_grad = sum(bbox_grad_norms) / len(bbox_grad_norms)
+            print(f"    Average across levels:")
+            print(f"      cls grad norm: {avg_cls_grad:.6f}")
+            print(f"      bbox grad norm: {avg_bbox_grad:.6f}")
+            print(f"      ratio (cls/bbox): {avg_cls_grad / max(avg_bbox_grad, 1e-8):.4f}")
+        else:
+            print(f"    No gradients available (first step or gradients cleared)")
+
+    def _log_per_class_debug(
+        self,
+        step: int,
+        all_cls_preds: Tensor,
+        gt_boxes_xyxy_list: list[Tensor],
+        gt_labels_list: list[Tensor],
+        device: torch.device,
+    ) -> None:
+        """Log per-class statistics for debugging."""
+        from collections import Counter
+
+        print(f"\n  [Per-Class Analysis (batch)]")
+
+        # Collect GT class distribution across batch
+        all_gt_labels: list[int] = []
+        for gt_labels in gt_labels_list:
+            if gt_labels.numel() > 0:
+                all_gt_labels.extend(gt_labels.cpu().tolist())
+
+        gt_class_counts = Counter(all_gt_labels)
+        print(f"    GT class distribution (top 10):")
+        for cls_id, count in gt_class_counts.most_common(10):
+            print(f"      Class {cls_id}: {count} instances")
+
+        # Analyze model predictions (across all priors)
+        # all_cls_preds shape: (batch_size, num_priors, num_classes)
+        cls_sigmoid = all_cls_preds.detach().sigmoid()
+
+        # Get predicted class for each prior (argmax)
+        pred_classes = cls_sigmoid.argmax(dim=-1)  # (batch_size, num_priors)
+        pred_class_counts = Counter(pred_classes.flatten().cpu().tolist())
+
+        print(f"    Predicted class distribution (top 10, across all priors):")
+        for cls_id, count in pred_class_counts.most_common(10):
+            pct = 100.0 * count / pred_classes.numel()
+            print(f"      Class {cls_id}: {count} priors ({pct:.1f}%)")
+
+        # Check max score per class (across all priors in batch)
+        max_score_per_class = cls_sigmoid.max(dim=0)[0].max(dim=0)[0]  # (num_classes,)
+        print(f"    Max score per class (top 10):")
+        top_scores, top_classes = max_score_per_class.topk(min(10, self.num_classes))
+        for score, cls_id in zip(top_scores.cpu().tolist(), top_classes.cpu().tolist()):
+            print(f"      Class {cls_id}: {score:.4f}")
+
+        # Check if GT classes have high scores
+        print(f"    GT class scores (max score for each GT class):")
+        for cls_id in sorted(gt_class_counts.keys())[:10]:
+            if cls_id < self.num_classes:
+                max_score = max_score_per_class[cls_id].item()
+                print(f"      Class {cls_id}: max_score={max_score:.4f}, GT_count={gt_class_counts[cls_id]}")
+
+        # Check prediction vs GT alignment for high-confidence predictions
+        high_conf_mask = cls_sigmoid.max(dim=-1)[0] > 0.1  # Priors with >0.1 confidence
+        if high_conf_mask.any():
+            high_conf_preds = pred_classes[high_conf_mask]
+            high_conf_counts = Counter(high_conf_preds.cpu().tolist())
+            print(f"    High-confidence (>0.1) predictions:")
+            for cls_id, count in high_conf_counts.most_common(5):
+                print(f"      Class {cls_id}: {count} priors")
+        else:
+            print(f"    No predictions with confidence > 0.1")
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler."""
