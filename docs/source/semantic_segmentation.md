@@ -777,6 +777,9 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 model.export_onnx(out="out/my_experiment/exported_models/model.onnx")
 ```
 
+See {py:meth}`~.DINOv3EoMTSemanticSegmentation.export_onnx` for all available options
+when exporting to ONNX.
+
 The following notebook shows how to export a model to ONNX in Colab:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/semantic_segmentation_export.ipynb)
 

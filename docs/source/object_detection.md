@@ -477,6 +477,9 @@ model.export_onnx(
 )
 ```
 
+See {py:meth}`~.DINOv3LTDETRObjectDetection.export_onnx` for all available options when
+exporting to ONNX.
+
 The following notebook shows how to export a model to ONNX in Colab:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)
 
@@ -501,6 +504,9 @@ model.export_tensorrt(
     use_fp16=True,
 )
 ```
+
+See {py:meth}`~.DINOv3LTDETRObjectDetection.export_tensorrt` for all available options
+when exporting to TensorRT.
 
 You can also learn more about exporting LTDETR to TensorRT using our Colab notebook:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)
