@@ -27,7 +27,7 @@ def is_in_precalculate_for_onnx_export() -> bool:
 def precalculate_for_onnx_export() -> Iterator[None]:
     """
     For certain models we want to precalculate some values and store them in the model
-    before exporting the model to ONNX. In order to avoid having to pass that options
+    before exporting the model to ONNX. In order to avoid having to pass those options
     through all methods we have this context manager. Therefore, one should call
     ```
     with precalculate_for_onnx_export():

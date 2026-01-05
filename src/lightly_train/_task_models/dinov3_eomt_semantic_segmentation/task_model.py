@@ -643,7 +643,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
     ) -> None:
         """Exports the model to ONNX for inference.
 
-        The export uses a dummy input of shape (1, C, H, W) where C is inferred
+        The export uses a dummy input of shape (batch_size, C, H, W) where C is inferred
         from the first model parameter and (H, W) come from `self.image_size`.
         The ONNX graph uses dynamic batch size for both inputs and produces
         two outputs: masks and logits.
@@ -750,7 +750,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             outputs_onnx = session.run(output_names=None, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
 
-            # Verifify that the outputs from both models are close.
+            # Verify that the outputs from both models are close.
             if len(outputs_onnx) != len(reference_outputs):
                 raise AssertionError(
                     f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
