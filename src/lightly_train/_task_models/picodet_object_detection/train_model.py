@@ -418,6 +418,16 @@ class PicoDetObjectDetectionTrain(TrainModel):
             + self.model_args.dfl_weight * loss_dfl
         )
 
+        # Print loss values for debugging
+        if debug_mode and step % 100 == 0:
+            print(f"\n[Step {step}] Loss values:")
+            print(f"  VFL loss: {loss_vfl.item():.6f} (weight: {self.model_args.vfl_weight})")
+            print(f"  GIoU loss: {loss_giou.item():.6f} (weight: {self.model_args.giou_weight})")
+            print(f"  DFL loss: {loss_dfl.item():.6f} (weight: {self.model_args.dfl_weight})")
+            print(f"  Total loss: {total_loss.item():.6f}")
+            print(f"  num_pos: {total_num_pos}, num_pos_avg (EMA): {num_pos_avg:.2f}")
+            print(f"  weight_sum: {total_weight_sum:.4f}, weight_sum_avg: {weight_sum_avg:.4f}")
+
         # Average losses across devices for logging (distributed training support)
         loss_dict = {
             "train_loss": total_loss,
