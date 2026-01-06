@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import copy
 import logging
 import math
 import os
@@ -19,6 +20,7 @@ from torch.nn import GELU, Embedding, Linear, Sequential
 from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
+from lightly_train import _logging
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
@@ -572,3 +574,150 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                 name = name[len("model.") :]
                 new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)
+
+    @torch.no_grad()
+    def export_onnx(
+        self,
+        *,
+        out: PathLike,
+        batch_size: int = 1,
+        height: int | None = None,
+        width: int | None = None,
+        opset_version: int | None = None,
+        simplify: bool = True,
+        verify: bool = True,
+        format_args: dict[str, Any] | None = None,
+    ) -> None:
+        """Exports the model to ONNX for inference.
+
+        The export uses a dummy input of shape (batch_size, C, H, W) where C is inferred
+        from the first model parameter and (H, W) come from `self.image_size`.
+        The ONNX graph uses dynamic batch size for both inputs and produces
+        three outputs: labels, masks, and scores.
+
+        Optionally simplifies the exported model in-place using onnxslim and
+        verifies numerical closeness against a float32 CPU reference via
+        ONNX Runtime.
+
+        Args:
+            out:
+                Path where the ONNX model will be written.
+            batch_size:
+                Batch size for the ONNX input.
+            height:
+                Height of the ONNX input. If None, will be taken from `self.image_size`.
+            width:
+                Width of the ONNX input. If None, will be taken from `self.image_size`.
+            opset_version:
+                ONNX opset version to target. If None, PyTorch's default opset is used.
+            simplify:
+                If True, run onnxslim to simplify and overwrite the exported model.
+            verify:
+                If True, validate the ONNX file and compare outputs to a float32 CPU
+                reference forward pass.
+            format_args:
+                Optional extra keyword arguments forwarded to `torch.onnx.export`.
+
+        Returns:
+            None. Writes the ONNX model to `out`.
+        """
+        # TODO(Guarin, 01/26): Move warnings module out of commands subpackage and
+        # move import to the top of the file.
+        from lightly_train._commands import _warnings
+
+        _logging.set_up_console_logging()
+        _warnings.filter_export_warnings()
+
+        self.eval()
+
+        first_parameter = next(self.parameters())
+        model_device = first_parameter.device
+        model_dtype = first_parameter.dtype
+
+        height = self.image_size[0] if height is None else height
+        width = self.image_size[1] if width is None else width
+        num_channels = len(self.image_normalize["mean"])
+
+        dummy_input = torch.randn(
+            batch_size,
+            num_channels,
+            height,
+            width,
+            requires_grad=False,
+            device=model_device,
+            dtype=model_dtype,
+        )
+
+        input_names = ["images"]
+        # Instance segmentation returns labels, masks, scores
+        output_names = ["labels", "masks", "scores"]
+
+        torch.onnx.export(
+            self,
+            (dummy_input,),
+            str(out),
+            input_names=input_names,
+            output_names=output_names,
+            opset_version=opset_version,
+            dynamo=False,
+            dynamic_axes={"images": {0: "N"}},
+            **(format_args or {}),
+        )
+
+        if simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            # Simplify.
+            onnxslim.slim(
+                model=str(out),
+                output_model=out,
+                # We skip constant folding as this currently increases the model size by
+                # quite a lot. If we refactor the untile method we might be able to add
+                # constant folding.
+                skip_optimizations=["constant_folding"],
+            )
+
+        if verify:
+            logger.info("Verifying ONNX model")
+            import onnx
+            import onnxruntime as ort
+
+            onnx.checker.check_model(out, full_check=True)
+
+            # Always run the reference input in float32 and on cpu for consistency.
+            reference_model = copy.deepcopy(self).cpu().to(torch.float32).eval()
+            reference_outputs = reference_model(
+                dummy_input.cpu().to(torch.float32),
+            )
+
+            # Get outputs from the ONNX model.
+            session = ort.InferenceSession(out)
+            input_feed = {
+                "images": dummy_input.cpu().numpy(),
+            }
+            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
+
+            # Verify that the outputs from both models are close.
+            if len(outputs_onnx) != len(reference_outputs):
+                raise AssertionError(
+                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                )
+            for output_onnx, output_model, output_name in zip(
+                outputs_onnx, reference_outputs, output_names
+            ):
+                # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                torch.testing.assert_close(
+                    output_onnx,
+                    output_model,
+                    msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
+                    equal_nan=True,
+                    check_device=False,
+                    check_dtype=False,
+                    check_layout=False,
+                    atol=5e-3,
+                    rtol=1e-1,
+                )
+
+        logger.info(f"Successfully exported ONNX model to '{out}'")
