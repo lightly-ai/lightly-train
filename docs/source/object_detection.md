@@ -509,8 +509,10 @@ engine for fast GPU inference.
 ### Requirements
 
 TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
-Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup.
-See the [TensorRT documentation](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html) for more details.
+Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup. See
+the
+[TensorRT documentation](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html)
+for more details.
 
 On CUDA 12.x systems you can often install the Python package via:
 
