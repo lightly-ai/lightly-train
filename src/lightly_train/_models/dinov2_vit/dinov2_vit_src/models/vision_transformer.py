@@ -23,7 +23,7 @@ import torch.nn as nn
 from lightning_utilities.core.imports import RequirementCache
 from torch.nn.init import trunc_normal_
 
-from lightly_train._commands.export_task import is_in_precalculate_for_onnx_export
+from lightly_train._export.onnx_helpers import is_in_precalculate_for_onnx_export
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
     MemEffAttention,
     Mlp,

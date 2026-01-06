@@ -17,7 +17,7 @@ import torch
 from lightning_utilities.core.imports import RequirementCache
 
 import lightly_train
-from lightly_train._commands.export_task import OnnxPrecision
+from lightly_train._export.onnx_helpers import ONNXPrecision
 
 from .. import helpers
 
@@ -84,13 +84,13 @@ def dinov2_vittest14_eomt_4_channels_checkpoint(
 
 
 onnx_export_testset = [
-    (1, 3, 42, 154, OnnxPrecision.F32_TRUE),
-    (1, 4, 154, 42, OnnxPrecision.F32_TRUE),
-    (2, 3, 14, 14, OnnxPrecision.F32_TRUE),
-    (2, 4, None, None, OnnxPrecision.F32_TRUE),
-    (3, 3, 140, None, OnnxPrecision.F16_TRUE),
-    (4, 3, None, 28, OnnxPrecision.F16_TRUE),
-    (4, 4, None, 28, OnnxPrecision.F16_TRUE),
+    (1, 3, 42, 154, ONNXPrecision.F32_TRUE),
+    (1, 4, 154, 42, ONNXPrecision.F32_TRUE),
+    (2, 3, 14, 14, ONNXPrecision.F32_TRUE),
+    (2, 4, None, None, ONNXPrecision.F32_TRUE),
+    (3, 3, 140, None, ONNXPrecision.F16_TRUE),
+    (4, 3, None, 28, ONNXPrecision.F16_TRUE),
+    (4, 4, None, 28, ONNXPrecision.F16_TRUE),
 ]
 
 
@@ -115,7 +115,7 @@ def test_onnx_export(
     num_channels: int,
     height: int | None,
     width: int | None,
-    precision: OnnxPrecision,
+    precision: ONNXPrecision,
     dinov2_vittest14_eomt_checkpoint: Path,
     dinov2_vittest14_eomt_4_channels_checkpoint: Path,
     tmp_path: Path,
@@ -145,7 +145,7 @@ def test_onnx_export(
         device="cpu",  # type: ignore[arg-type]
     )
     expected_outputs = model(validation_input)
-    expected_output_dtypes = [torch.int64, precision.torch()]
+    expected_output_dtypes = [torch.int64, precision.torch_dtype()]
     # We use  torch.testing.assert_close to check if the model outputs the same as when we run the exported
     # onnx file with onnxruntime. Unfortunately the default tolerances are too strict so we specify our own.
     rtol = 1e-2
@@ -167,7 +167,7 @@ def test_onnx_export(
     onnx.checker.check_model(onnx_path, full_check=True)
 
     session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
-    validation_input = validation_input.to(precision.torch())
+    validation_input = validation_input.to(precision.torch_dtype())
     ort_in = {"input": validation_input.numpy()}
     ort_outputs = session.run(["masks", "logits"], ort_in)
     ort_outputs = [torch.from_numpy(y).cpu() for y in ort_outputs]

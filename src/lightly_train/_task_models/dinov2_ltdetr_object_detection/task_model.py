@@ -283,34 +283,39 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         nms_iou_threshold: float = 0.3,
         global_local_iou_threshold: float = 0.1,
     ) -> dict[str, Tensor]:
-        """
-        Run Slicing Aided Hyper Inference (SAHI) inference on the input image.
+        """Run Slicing Aided Hyper Inference (SAHI) inference on the input image.
 
         The image is first converted to a tensor, then:
+
         - Tiled into overlapping crops of size `self.image_size`.
         - A resized full-image version is added as a "global" tile.
         - All tiles (global + local) are passed through the model in parallel.
-        - Predictions are filtered by score and merged using NMS and a
-          global/local consistency heuristic. NMS is only applied on tiles predictions.
+        - Predictions are filtered by score and merged using NMS and a global/local
+          consistency heuristic. NMS is only applied on tiles predictions.
           The heuristic discards tiles predictions that heavily overlaps with global
           predictions.
 
         Args:
-            image: Input image. Can be a path, a PIL image, or a tensor of shape (C, H, W).
-            threshold: Score threshold for filtering low-confidence predictions.
-            overlap: Fractional overlap between tiles in [0, 1). 0.0 means no overlap.
-            nms_iou_threshold: IoU threshold used for non-maximum suppression when merging
-                predictions from tiles and global image. A lower nms_iou_threshold
-                value yields less predictions.
-            global_local_iou_threshold: Minimum IoU required to consider a tile prediction
-                as matching a global prediction when combining them. A lower
-                global_local_iou_threshold yields less predictions.
+            image:
+                Input image. Can be a path, a PIL image, or a tensor of shape (C, H, W).
+            threshold:
+                Score threshold for filtering low-confidence predictions.
+            overlap:
+                Fractional overlap between tiles in [0, 1). 0.0 means no overlap.
+            nms_iou_threshold:
+                IoU threshold used for non-maximum suppression when merging predictions
+                from tiles and global image. A lower nms_iou_threshold value yields less
+                predictions.
+            global_local_iou_threshold:
+                Minimum IoU required to consider a tile prediction as matching a global
+                prediction when combining them. A lower global_local_iou_threshold
+                yields less predictions.
 
         Returns:
             dict[str, Tensor]: A dictionary with:
                 - "labels": Tensor of shape (N,) with predicted class indices.
-                - "bboxes": Tensor of shape (N, 4) with bounding boxes in (x_min, y_min, x_max, y_max)
-                  in the coordinates of the original image.
+                - "bboxes": Tensor of shape (N, 4) with bounding boxes in
+                    (x_min, y_min, x_max, y_max) in the coordinates of the original image.
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
 
