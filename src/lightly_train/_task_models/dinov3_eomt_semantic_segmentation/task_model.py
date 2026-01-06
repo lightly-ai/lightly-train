@@ -21,8 +21,8 @@ from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train import _logging
-from lightly_train._export import tensorrt_helpers
 from lightly_train._data import file_helpers
+from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.layers.attention import (
