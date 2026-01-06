@@ -34,11 +34,11 @@ Documentation of the public API of the `lightly_train` package.
     :exclude-members: __init__, __new__
 
 .. autoclass:: lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model.DINOv2EoMTSemanticSegmentation
-    :members: export_onnx, predict
+    :members: export_onnx, export_tensorrt, predict
     :exclude-members: __init__, __new__
 
 .. autoclass:: lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model.DINOv3EoMTSemanticSegmentation
-    :members: export_onnx, predict
+    :members: export_onnx, export_tensorrt, predict
     :exclude-members: __init__, __new__
 
 ```
