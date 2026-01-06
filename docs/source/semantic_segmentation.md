@@ -32,11 +32,13 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 ### COCO-Stuff
 
-| Implementation | Model                   | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
-| -------------- | ----------------------- | -------- | ----------------- | ---------- | ---------- |
-| LightlyTrain   | dinov3/vits16-eomt-coco | 46.5     | 11.3              | 21.6       | 512×512    |
-| LightlyTrain   | dinov3/vitb16-eomt-coco | 52.0     | 23.1              | 85.7       | 512×512    |
-| LightlyTrain   | dinov3/vitl16-eomt-coco | **54.4** | 49.0              | 303.2      | 512×512    |
+| Implementation | Model                       | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
+| -------------- | --------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain   | dinov3/vitt16-eomt-coco     | 37.9     | 6.0               | 6.0        | 512×512    |
+| LightlyTrain   | dinov3/vitt16plus-eomt-coco | 39.5     | 6.4               | 7.7        | 512×512    |
+| LightlyTrain   | dinov3/vits16-eomt-coco     | 46.5     | 11.3              | 21.6       | 512×512    |
+| LightlyTrain   | dinov3/vitb16-eomt-coco     | 52.0     | 23.1              | 85.7       | 512×512    |
+| LightlyTrain   | dinov3/vitl16-eomt-coco     | **54.4** | 49.0              | 303.2      | 512×512    |
 
 We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200`
 for EoMT.
