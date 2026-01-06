@@ -463,6 +463,20 @@ is a standard format for representing machine learning models in a framework ind
 manner. In particular, it is useful for deploying our models on edge devices where
 PyTorch is not available.
 
+### Requirements
+
+Exporting to ONNX requires some additional packages to be installed. Namely
+
+- [onnx](https://pypi.org/project/onnx/)
+- [onnxruntime](https://pypi.org/project/onnxruntime/) if `verify` is set to `True`.
+- [onnxslim](https://pypi.org/project/onnxslim/) if `simplify` is set to `True`.
+
+You can install them with:
+
+```bash
+pip install "lightly-train[onnx,onnxruntime,onnxslim]"
+```
+
 The following example shows how to export a previously trained model to ONNX.
 
 ```python
@@ -487,17 +501,22 @@ The following notebook shows how to export a model to ONNX in Colab:
 
 ## Exporting a Checkpoint to TensorRT
 
-```{note}
-TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
-Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup.
-See the [TensorRT documentation](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html) for more details.
-On CUDA 12.x systems you can often install the Python package via `pip install tensorrt-cu12`.
-```
-
 TensorRT engines are built from an ONNX representation of the model. The
 `export_tensorrt` method internally exports the model to ONNX (see the ONNX export
 section above) before building a [TensorRT](https://developer.nvidia.com/tensorrt)
 engine for fast GPU inference.
+
+### Requirements
+
+TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
+Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup.
+See the [TensorRT documentation](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html) for more details.
+
+On CUDA 12.x systems you can often install the Python package via:
+
+```bash
+pip install tensorrt-cu12
+```
 
 ```python
 import lightly_train
