@@ -69,7 +69,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int | Literal["auto"] = "auto"
     # Backbone args, e.g., patch size.
-    backbone_args: dict[str, Any]
+    backbone_args: dict[str, Any] | None = None
 
     # Loss terms
     loss_num_points: int = 12544
