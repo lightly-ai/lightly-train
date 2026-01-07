@@ -18,7 +18,7 @@ Documentation of the public API of the `lightly_train` package.
 ```{eval-rst}
 
 .. autoclass:: lightly_train._task_models.dinov3_eomt_instance_segmentation.task_model.DINOv3EoMTInstanceSegmentation
-    :members: export_onnx, predict
+    :members: export_onnx, export_tensorrt, predict
     :exclude-members: __init__, __new__
 
 .. autoclass:: lightly_train._task_models.dinov2_ltdetr_object_detection.task_model.DINOv2LTDETRObjectDetection
