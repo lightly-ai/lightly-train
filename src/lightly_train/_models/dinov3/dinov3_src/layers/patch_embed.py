@@ -6,6 +6,9 @@
 
 # Modifications Copyright 2025 Lightly AG:
 # - Modified load_state_dict to handle different number of input channels
+# - Added `_compute_resize_matrix`, `_apply_resampling` and `resample_patch_embed`
+#   from TIMM (https://github.com/huggingface/pytorch-image-models) to
+#   support flexible patch sizes.
 
 from __future__ import annotations
 
