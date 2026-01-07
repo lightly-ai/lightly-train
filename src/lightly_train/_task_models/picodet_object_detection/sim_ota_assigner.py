@@ -96,6 +96,9 @@ class SimOTAAssigner:
         valid_decoded_bboxes = decoded_bboxes[valid_mask]
 
         pairwise_ious = box_iou(valid_decoded_bboxes, gt_bboxes)
+        matched_pred_ious = decoded_bboxes.new_zeros(
+            num_priors, dtype=pairwise_ious.dtype
+        )
 
         pairwise_giou = generalized_box_iou(valid_decoded_bboxes, gt_bboxes)
         pairwise_giou_cost = 1.0 - pairwise_giou
@@ -266,7 +269,7 @@ class SimOTAAssigner:
             matching_matrix[conflict_indices, best_gt_per_prior[conflict_indices]] = 1
 
         matched_gt_inds = torch.full((num_valid,), -1, dtype=torch.long, device=device)
-        matched_ious = torch.zeros(num_valid, device=device)
+        matched_ious = pairwise_ious.new_zeros(num_valid)
 
         matched_mask = matching_matrix.sum(dim=1) > 0
         if matched_mask.any():
