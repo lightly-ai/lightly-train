@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, Literal, Sequence
+from typing import Any, Literal
 
 from albumentations import BboxParams
 from lightning_utilities.core.imports import RequirementCache
@@ -30,75 +30,26 @@ ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
-class PicoDetScaleJitterArgs(ScaleJitterArgs):  # type: ignore[misc]
-    """Scale jitter arguments aligned with PicoDet reference config."""
-
-    sizes: Sequence[tuple[int, int]] | None = None
-    min_scale: float | None = None
-    max_scale: float | None = None
-    num_scales: int | None = None
-    prob: float = 1.0
-    divisible_by: int | None = 32
-    step_seeding: bool = True
-    seed_offset: int = 0
-
-
-class PicoDetRandomIoUCropArgs(RandomIoUCropArgs):  # type: ignore[misc]
-    """Random IoU crop arguments aligned with PicoDet reference config."""
-
-    min_scale: float = 0.3
-    max_scale: float = 1.0
-    min_aspect_ratio: float = 0.5
-    max_aspect_ratio: float = 2.0
-    sampler_options: Sequence[float] | None = (0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0)
-    crop_trials: int = 40
-    iou_trials: int = 1000
-    prob: float = 1.0
-
-
-class PicoDetPhotometricDistortArgs(RandomPhotometricDistortArgs):  # type: ignore[misc]
-    """Photometric distortion arguments aligned with PicoDet reference config."""
-
-    brightness: tuple[float, float] = (0.875, 1.125)
-    contrast: tuple[float, float] = (0.5, 1.5)
-    saturation: tuple[float, float] = (0.5, 1.5)
-    hue: tuple[float, float] = (-0.05, 0.05)
-    prob: float = 0.5
-
-
 class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
     """PicoDet training transforms aligned with the reference config.
 
-    Reference uses:
-    - MinIoURandomCrop
-    - multi-scale resize (value list), keep_ratio=False
-    - RandomFlip
-    - PhotoMetricDistortion
-    - Normalize (COCO mean/std)
-    - Pad to size_divisor=32
-
-    In LightlyTrain:
-    - MinIoURandomCrop -> RandomIoUCrop
-    - multi-scale list -> ScaleJitter in collate_fn (divisible_by=32)
-    - normalization is in [0,1] space (mean/std divided by 255)
+    By default we keep the pipeline minimal (resize + normalize) to simplify
+    training and reduce augmentation complexity. Extra augmentations can be
+    enabled by providing the corresponding args.
     """
 
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
-    photometric_distort: PicoDetPhotometricDistortArgs | None = Field(
-        default_factory=PicoDetPhotometricDistortArgs
-    )
+    photometric_distort: RandomPhotometricDistortArgs | None = None
     random_zoom_out: None = None
-    random_iou_crop: PicoDetRandomIoUCropArgs | None = Field(
-        default_factory=PicoDetRandomIoUCropArgs
-    )
-    random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
+    random_iou_crop: RandomIoUCropArgs | None = None
+    random_flip: RandomFlipArgs | None = None
     image_size: tuple[int, int] | Literal["auto"] = "auto"
     stop_policy: None = None
-    resize: ResizeArgs | None = None
-    scale_jitter: PicoDetScaleJitterArgs | None = Field(
-        default_factory=PicoDetScaleJitterArgs
+    resize: ResizeArgs | None = Field(
+        default_factory=lambda: ResizeArgs(height="auto", width="auto")
     )
+    scale_jitter: ScaleJitterArgs | None = None
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
             format="yolo",
@@ -149,33 +100,6 @@ class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
                 self.num_channels = 3
 
         if self.scale_jitter is not None:
-            # Match reference multi-scale lists
-            base = self.image_size[0]
-            if base == 320:
-                self.scale_jitter.sizes = [
-                    (256, 256),
-                    (288, 288),
-                    (320, 320),
-                    (352, 352),
-                    (384, 384),
-                ]
-            elif base == 416:
-                self.scale_jitter.sizes = [
-                    (352, 352),
-                    (384, 384),
-                    (416, 416),
-                    (448, 448),
-                    (480, 480),
-                ]
-            else:
-                # For custom sizes, generate a range around the base
-                self.scale_jitter.sizes = [
-                    (base - 64, base - 64),
-                    (base - 32, base - 32),
-                    (base, base),
-                    (base + 32, base + 32),
-                    (base + 64, base + 64),
-                ]
             self.scale_jitter.divisible_by = 32
 
 
