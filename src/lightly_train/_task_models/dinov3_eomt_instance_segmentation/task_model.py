@@ -20,7 +20,7 @@ from torch.nn import GELU, Embedding, Linear, Sequential
 from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
-from lightly_train import _logging
+from lightly_train import _logging, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
@@ -706,18 +706,32 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             for output_onnx, output_model, output_name in zip(
                 outputs_onnx, reference_outputs, output_names
             ):
-                # Absolute and relative tolerances are a bit arbitrary and taken from here:
-                #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
-                torch.testing.assert_close(
-                    output_onnx,
-                    output_model,
-                    msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
-                    equal_nan=True,
-                    check_device=False,
-                    check_dtype=False,
-                    check_layout=False,
-                    atol=5e-3,
-                    rtol=1e-1,
-                )
+                if output_model.dtype in (
+                    torch.bool,
+                    torch.int8,
+                    torch.int16,
+                    torch.int32,
+                    torch.int64,
+                ):
+                    _torch_testing.assert_most_equal(
+                        output_onnx,
+                        output_model,
+                        msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
+                    )
+
+                else:
+                    # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                    #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                    torch.testing.assert_close(
+                        output_onnx,
+                        output_model,
+                        msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
+                        equal_nan=True,
+                        check_device=False,
+                        check_dtype=False,
+                        check_layout=False,
+                        atol=5e-3,
+                        rtol=1e-1,
+                    )
 
         logger.info(f"Successfully exported ONNX model to '{out}'")
