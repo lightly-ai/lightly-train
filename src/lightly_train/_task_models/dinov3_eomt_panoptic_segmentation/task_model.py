@@ -680,13 +680,16 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
         # Reassign segment ids to be contiguous
         segment_id_to_contiguous_id = -segment_ids.new_ones(max_segment_id + 1)
-        unique_segment_ids: Tensor = segment_ids.unique()  # type: ignore
-        # Scatter for cudagraph compatibility. Equivalent to:
-        # segment_id_to_contiguous_id[unique_segment_ids] = torch.arange(...)
-        segment_id_to_contiguous_id = segment_id_to_contiguous_id.scatter(
+        # Build a presence mask without torch.unique for TensorRT compatibility.
+        present_segment_ids = torch.zeros_like(segment_id_to_contiguous_id)
+        present_segment_ids = present_segment_ids.scatter(
             dim=0,
-            index=unique_segment_ids,
-            src=torch.arange(unique_segment_ids.shape[0], device=segment_ids.device),
+            index=segment_ids,
+            src=torch.ones_like(segment_ids),
+        )
+        contiguous_ids = present_segment_ids.cumsum(dim=0) - 1
+        segment_id_to_contiguous_id = contiguous_ids.masked_fill(
+            present_segment_ids == 0, -1
         )
 
         segment_ids = torch.index_select(segment_id_to_contiguous_id, 0, segment_ids)
