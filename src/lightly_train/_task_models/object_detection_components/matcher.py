@@ -128,6 +128,11 @@ class HungarianMatcher(nn.Module):
             + self.cost_giou * cost_giou
         )
         C = C.view(bs, num_queries, -1).cpu()
+
+        # Handle potential NaNs in the cost matrix. This can occur when training with
+        # mixed precision. We use the same fix as:
+        # DEIMv2(https://github.com/Intellindust-AI-Lab/DEIMv2/blob/8241e8d79fd1225694445aec347fa39c708cc7e8/engine/deim/matcher.py#L126)
+        # and D-FINE(https://github.com/Peterande/D-FINE/blob/d6694750683b0c7e9f523ba6953d16f112a376ae/src/zoo/dfine/matcher.py#L117).
         C = torch.nan_to_num(C, nan=1.0)
 
         sizes = [len(v["boxes"]) for v in targets]
