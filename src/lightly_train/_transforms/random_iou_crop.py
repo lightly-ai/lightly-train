@@ -12,12 +12,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
-import albumentations.augmentations.crops.functional as F
 from albumentations.augmentations.crops.transforms import RandomCrop
-from albumentations.core.bbox_utils import (
-    convert_bboxes_from_albumentations,
-    convert_bboxes_to_albumentations,
-)
 from lightning_utilities.core.imports import RequirementCache
 from numpy.typing import NDArray
 
@@ -25,35 +20,10 @@ from lightly_train.types import NDArrayBBoxes, NDArrayImage
 
 ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
 ALBUMENTATIONS_GEQ_1_4_15 = RequirementCache("albumentations>=1.4.15")
-def _to_albumentations_bboxes(
-    bboxes: NDArrayBBoxes, image_shape: tuple[int, int]
-) -> NDArrayBBoxes:
-    return convert_bboxes_to_albumentations(
-        bboxes, source_format="yolo", shape=image_shape
-    )
+ALBUMENTATIONS_GEQ_1_4_11 = RequirementCache("albumentations>=1.4.11")
 
-
-def _from_albumentations_bboxes(
-    bboxes: NDArrayBBoxes, image_shape: tuple[int, int]
-) -> NDArrayBBoxes:
-    return convert_bboxes_from_albumentations(
-        bboxes, target_format="yolo", shape=image_shape
-    )
-
-
-def _crop_bboxes_yolo(
-    bboxes: NDArrayBBoxes,
-    crop_coords: tuple[int, int, int, int],
-    image_shape: tuple[int, int],
-) -> NDArrayBBoxes:
-    if bboxes.size == 0:
-        return bboxes
-    bboxes_albu = _to_albumentations_bboxes(bboxes, image_shape)
-    cropped_albu = F.crop_bboxes_by_coords(
-        bboxes_albu, crop_coords=crop_coords, image_shape=image_shape
-    )
-    crop_shape = (crop_coords[3] - crop_coords[1], crop_coords[2] - crop_coords[0])
-    return _from_albumentations_bboxes(cropped_albu, crop_shape)
+if not ALBUMENTATIONS_GEQ_1_4_21:
+    import albumentations.augmentations.crops.functional as F
 
 
 class RandomIoUCropBase(RandomCrop):  # type: ignore[misc]
@@ -112,15 +82,6 @@ class RandomIoUCropBase(RandomCrop):  # type: ignore[misc]
         self.iou_trials = iou_trials
         self.p = p
 
-    def apply_to_bboxes(
-        self,
-        bboxes: NDArrayBBoxes,
-        crop_coords: tuple[int, int, int, int],
-        **params: Any,
-    ) -> NDArrayBBoxes:
-        image_shape = params["shape"][:2]
-        return _crop_bboxes_yolo(bboxes, crop_coords, image_shape)
-
 
 def _get_crop_coords(
     orig_shape: tuple[int, int],
@@ -145,7 +106,7 @@ def _get_crop_coords(
             a cropped image.
         crop_trials: Number of trials for generating a crop.
         iou_trials: Number of trials for generating a crop with a valid IoU.
-        orig_bboxes: Bounding boxes in albumentations format (normalized xyxy).
+        orig_bboxes: Bounding boxes as ndarray of shape (N, 4), normalized [0, 1].
 
     Returns:
         Crop coordinates as (x_min, y_min, x_max, y_max).
@@ -203,7 +164,6 @@ class RandomIoUCropV3(RandomIoUCropBase):
     ) -> dict[str, Any]:
         orig_image_shape = data["image"].shape[:2]
         orig_bboxes = np.array(data["bboxes"][:, :4])
-        orig_bboxes_albu = _to_albumentations_bboxes(orig_bboxes, orig_image_shape)
         if np.random.rand() < self.p:
             crop_coords = _get_crop_coords(
                 orig_shape=orig_image_shape,
@@ -214,7 +174,7 @@ class RandomIoUCropV3(RandomIoUCropBase):
                 sampler_options=self.options,
                 crop_trials=self.crop_trials,
                 iou_trials=self.iou_trials,
-                orig_bboxes=orig_bboxes_albu,
+                orig_bboxes=orig_bboxes,
             )
             return {"crop_coords": crop_coords, "pad_params": None}
         else:
@@ -238,9 +198,6 @@ class RandomIoUCropV2(RandomIoUCropBase):
             if "bboxes" not in kwargs or len(kwargs["bboxes"]) == 0:
                 kwargs["bboxes"] = np.zeros((0, 4), dtype=np.float32)
             orig_bboxes = np.array(kwargs["bboxes"])[:, :4]
-            orig_bboxes_albu = _to_albumentations_bboxes(
-                orig_bboxes, orig_image_shape
-            )
 
             crop_coords = _get_crop_coords(
                 orig_shape=orig_image_shape,
@@ -251,7 +208,7 @@ class RandomIoUCropV2(RandomIoUCropBase):
                 sampler_options=self.options,
                 crop_trials=self.crop_trials,
                 iou_trials=self.iou_trials,
-                orig_bboxes=orig_bboxes_albu,
+                orig_bboxes=orig_bboxes,
             )
             params = params.copy()
             params.update(
@@ -287,11 +244,14 @@ class RandomIoUCropV2(RandomIoUCropBase):
 
     def apply_to_bboxes(self, bboxes: NDArrayBBoxes, **params: Any) -> NDArrayBBoxes:
         crop_coords = params["crop_coords"]
-        return _crop_bboxes_yolo(
+        x_min, y_min, x_max, y_max = crop_coords
+
+        cropped = F.crop_bboxes_by_coords(
             bboxes,
-            crop_coords=(crop_coords[0], crop_coords[1], crop_coords[2], crop_coords[3]),
+            crop_coords=(x_min, y_min, x_max, y_max),
             image_shape=params["orig_img_shape"],
         )
+        return cropped  # type: ignore[no-any-return]
 
     def apply_to_keypoints(
         self, keypoints: NDArray[np.float32], **params: Any
@@ -313,9 +273,6 @@ class RandomIoUCropV1(RandomIoUCropBase):
             if "bboxes" not in kwargs or len(kwargs["bboxes"]) == 0:
                 kwargs["bboxes"] = np.zeros((0, 4), dtype=np.float32)
             orig_bboxes = np.array(kwargs["bboxes"])[:, :4]
-            orig_bboxes_albu = _to_albumentations_bboxes(
-                orig_bboxes, orig_image_shape
-            )
 
             crop_coords = _get_crop_coords(
                 orig_shape=orig_image_shape,
@@ -326,7 +283,7 @@ class RandomIoUCropV1(RandomIoUCropBase):
                 sampler_options=self.options,
                 crop_trials=self.crop_trials,
                 iou_trials=self.iou_trials,
-                orig_bboxes=orig_bboxes_albu,
+                orig_bboxes=orig_bboxes,
             )
             params = params.copy()
             params.update(
@@ -363,16 +320,26 @@ class RandomIoUCropV1(RandomIoUCropBase):
         self, bbox: tuple[float, float, float, float], **params: Any
     ) -> tuple[float, float, float, float]:
         crop_coords = params["crop_coords"]
-        crop_shape = params["orig_img_shape"]
-        bbox_arr = np.array([bbox], dtype=np.float32)
-        cropped = _crop_bboxes_yolo(
-            bbox_arr,
-            crop_coords=(crop_coords[0], crop_coords[1], crop_coords[2], crop_coords[3]),
-            image_shape=crop_shape,
-        )
-        if cropped.size == 0:
-            return (0.0, 0.0, 0.0, 0.0)
-        return tuple(cropped[0])  # type: ignore[return-value]
+        x_min, y_min, x_max, y_max = crop_coords
+
+        if not ALBUMENTATIONS_GEQ_1_4_11:
+            tr_bbox = F.crop_bbox_by_coords(
+                bbox,
+                crop_coords=(x_min, y_min, x_max, y_max),
+                crop_height=y_max - y_min,
+                crop_width=x_max - x_min,
+                rows=params["orig_img_shape"][0],
+                cols=params["orig_img_shape"][1],
+            )
+            return tr_bbox  # type: ignore[no-any-return]
+        else:
+            tr_bbox = F.crop_bbox_by_coords(
+                bbox,
+                crop_coords=(x_min, y_min, x_max, y_max),
+                rows=params["orig_img_shape"][0],
+                cols=params["orig_img_shape"][1],
+            )
+            return tr_bbox  # type: ignore[no-any-return]
 
     def apply_to_keypoint(
         self, keypoint: NDArray[np.float32], **params: Any
