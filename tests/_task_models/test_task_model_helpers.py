@@ -28,7 +28,7 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model imp
 def test_load_model__download(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("LIGHTLY_TRAIN_MODEL_CACHE_DIR", str(tmp_path))
     model_name = "dinov3/vits16-eomt-coco"
-    model_file_name = "lightlytrain_dinov3_eomt_vits16_cocostuff.pt"
+    model_file_name = r"dinov3_vits16_eomt_coco_??????_????????.pt"
     expected_model_type = DINOv3EoMTSemanticSegmentation
     expected_model_name = "dinov3/vits16-eomt"
 
@@ -37,7 +37,9 @@ def test_load_model__download(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     ) as spy_download_url_to_file:
         model = load_model(model_name)
 
-        assert (tmp_path / model_file_name).is_file()
+        files = list(tmp_path.glob(model_file_name))
+        assert len(files) == 1
+        assert files[0].is_file()
         assert isinstance(model, expected_model_type)
         assert model.model_name == expected_model_name
         assert spy_download_url_to_file.call_count == 1
