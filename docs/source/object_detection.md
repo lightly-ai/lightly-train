@@ -469,15 +469,16 @@ The following example shows how to export a previously trained model to ONNX.
 import lightly_train
 
 # Instantiate the model from a checkpoint.
-model = lightly_train.load_model(
-    "out/my_experiment/exported_models/exported_best.pt"
-)
+model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 
 # Export to ONNX.
 model.export_onnx(
     out="out/my_experiment/exported_models/model.onnx"
 )
 ```
+
+See {py:meth}`~.DINOv3LTDETRObjectDetection.export_onnx` for all available options when
+exporting to ONNX.
 
 The following notebook shows how to export a model to ONNX in Colab:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)
@@ -495,9 +496,7 @@ engine for fast GPU inference.
 import lightly_train
 
 # Instantiate the model from a checkpoint.
-model = lightly_train.load_model(
-    "out/my_experiment/exported_models/exported_best.pt"
-)
+model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 
 # Export to TensorRT from an ONNX file.
 model.export_tensorrt(
@@ -505,6 +504,9 @@ model.export_tensorrt(
     use_fp16=True,
 )
 ```
+
+See {py:meth}`~.DINOv3LTDETRObjectDetection.export_tensorrt` for all available options
+when exporting to TensorRT.
 
 You can also learn more about exporting LTDETR to TensorRT using our Colab notebook:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)
