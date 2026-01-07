@@ -215,6 +215,13 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 task_model_helpers.queries_adjust_num_queries_hook, with_module=True
             )
 
+        # Threshold values used during forward() call. Are stored as attributes to be
+        # folded into the ONNX graph during export as ONNX doesn't support default
+        # function arguments.
+        self._threshold = 0.8
+        self._mask_threshold = 0.5
+        self._mask_overlap_threshold = 0.8
+
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [
@@ -343,15 +350,13 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             "scores": scores,
         }
 
-    def forward(
-        self,
-        x: Tensor,
-        threshold: float = 0.8,
-        mask_threshold: float = 0.5,
-        mask_overlap_threshold: float = 0.8,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         # NOTE(Guarin, 11/25): This implementation only supports batch size 1.
         assert x.shape[0] == 1, "Only batch size 1 is supported in forward()."
+
+        threshold = self._threshold
+        mask_threshold = self._mask_threshold
+        mask_overlap_threshold = self._mask_overlap_threshold
 
         # Function used for ONNX export
         # (1, Q, H, W), (1, Q, K+1)
@@ -641,7 +646,13 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         stuff_segment_ids = segment_ids[is_stuff]
         max_class_id = ignore_class_id
         stuff_label_to_segment_id = -stuff_labels.new_ones(max_class_id + 1)
-        stuff_label_to_segment_id[stuff_labels] = stuff_segment_ids
+        # Scatter for cudagraph compatibility. Equivalent to:
+        # stuff_label_to_segment_id[stuff_labels] = stuff_segment_ids
+        stuff_label_to_segment_id = stuff_label_to_segment_id.scatter(
+            dim=0,
+            index=stuff_labels,
+            src=stuff_segment_ids,
+        )
         # Scatter for cudagraph compatibility. Equivalent to:
         # segment_ids[is_stuff] = stuff_label_to_segment_id[stuff_labels]
         segment_ids = segment_ids.masked_scatter(
@@ -657,7 +668,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         segment_id_to_contiguous_id = segment_id_to_contiguous_id.scatter(
             dim=0,
             index=unique_segment_ids,
-            src=torch.arange(len(unique_segment_ids), device=segment_ids.device),
+            src=torch.arange(unique_segment_ids.shape[0], device=segment_ids.device),
         )
         segment_ids = segment_id_to_contiguous_id[segment_ids]
 
@@ -818,6 +829,9 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         batch_size: int = 1,
         height: int | None = None,
         width: int | None = None,
+        threshold: float = 0.8,
+        mask_threshold: float = 0.5,
+        mask_overlap_threshold: float = 0.8,
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -844,6 +858,16 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 Height of the ONNX input. If None, will be taken from `self.image_size`.
             width:
                 Width of the ONNX input. If None, will be taken from `self.image_size`.
+            threshold:
+                Confidence threshold to keep predicted masks. Will be folded into the
+                ONNX graph as a constant.
+            mask_threshold:
+                Threshold to convert predicted mask logits to binary masks. Will be
+                folded into the ONNX graph as a constant.
+            mask_overlap_threshold:
+                Overlap area threshold for the predicted masks. Used to filter out or
+                merge disconnected mask regions for every instance. Will be folded into
+                the ONNX graph as a constant.
             opset_version:
                 ONNX opset version to target. If None, PyTorch's default opset is used.
             simplify:
@@ -868,6 +892,10 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         _warnings.filter_export_warnings()
 
         self.eval()
+
+        self._threshold = threshold
+        self._mask_threshold = mask_threshold
+        self._mask_overlap_threshold = mask_overlap_threshold
 
         first_parameter = next(self.parameters())
         model_device = first_parameter.device
@@ -920,7 +948,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 # We skip constant folding as this currently increases the model size by
                 # quite a lot. If we refactor the untile method we might be able to add
                 # constant folding.
-                skip_optimizations=["constant_folding"],
+                # skip_optimizations=["constant_folding"],
             )
 
         if verify:
