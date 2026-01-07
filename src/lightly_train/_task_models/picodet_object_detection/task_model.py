@@ -116,7 +116,7 @@ class PicoDetObjectDetection(TaskModel):
             out_channels=96,
             kernel_size=5,
             num_features=4,  # P3, P4, P5, P6
-            expansion=0.5,
+            expansion=1.0,
             num_csp_blocks=1,
             use_depthwise=True,
         )
