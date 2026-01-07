@@ -27,6 +27,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Numerical stability issues in LTDETR's matcher.
+
 ### Security
 
 ## [0.13.2] - 2025-12-29
