@@ -626,6 +626,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
 
                 # Warn user if not strict and first convolution weight is not present.
                 logger.warning(f"Missing key '{key}' in state_dict.")
+                return self.load_state_dict(state_dict, strict=strict, assign=assign)
 
             # Re-sample the projection weights before loading the statedict.
             original_patch_size = original_conv_weight.shape[-1]
