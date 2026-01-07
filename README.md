@@ -232,11 +232,13 @@ using the EoMT method from CVPR 2025.
 
 #### COCO-Stuff Results
 
-| Implementation | Model                   | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
-| -------------- | ----------------------- | -------- | ----------------- | ---------- | ---------- |
-| LightlyTrain   | dinov3/vits16-eomt-coco | 46.5     | 11.3              | 21.6       | 512×512    |
-| LightlyTrain   | dinov3/vitb16-eomt-coco | 52.0     | 23.1              | 85.7       | 512×512    |
-| LightlyTrain   | dinov3/vitl16-eomt-coco | **54.4** | 49.0              | 303.2      | 512×512    |
+| Implementation | Model                       | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
+| -------------- | --------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain   | dinov3/vitt16-eomt-coco     | 37.9     | 6.0               | 6.0        | 512×512    |
+| LightlyTrain   | dinov3/vitt16plus-eomt-coco | 39.5     | 6.4               | 7.7        | 512×512    |
+| LightlyTrain   | dinov3/vits16-eomt-coco     | 45.0     | 11.3              | 21.6       | 512×512    |
+| LightlyTrain   | dinov3/vitb16-eomt-coco     | 50.1     | 23.1              | 85.7       | 512×512    |
+| LightlyTrain   | dinov3/vitl16-eomt-coco     | **52.5** | 49.0              | 303.2      | 512×512    |
 
 Models are trained for 12 epochs with `num_queries=200` on the COCO-Stuff dataset and
 evaluated on the validation set with single-scale testing. Average latency is measured
