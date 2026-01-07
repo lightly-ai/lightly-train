@@ -70,7 +70,7 @@ class UltralyticsModelWrapper(Module, ModelWrapper):
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
 
-    def get_model(self) -> YOLO:
+    def get_model(self) -> YOLO | RTDETR:
         return self._model[0]
 
 
@@ -123,16 +123,21 @@ def _get_backbone(model: YOLO | RTDETR) -> tuple[Sequential, int]:
             return backbone, feature_dim
 
         if RTDETR_ULTRALYTICS_AVAILABLE:
-            from ultralytics.nn.modules.block import Conv, HGBlock
+            from ultralytics.nn.modules.block import (  # type: ignore[attr-defined]
+                Conv,
+                HGBlock,
+            )
 
             if type(last_module) is HGBlock and type(module) is Conv:
-                backbone = seq[:module_idx]
+                backbone = seq[:module_idx]  # type: ignore
                 feature_dim = last_module.ec.conv.out_channels
 
                 return backbone, feature_dim
 
         if YOLOV11_AVAILABLE:
-            from ultralytics.nn.modules.block import C2PSA
+            from ultralytics.nn.modules.block import (
+                C2PSA,  # type: ignore[attr-defined]
+            )
 
             if type(last_module) is C2PSA and type(module) in (
                 Upsample,
@@ -193,7 +198,7 @@ def _cv2_skip_bn_act(cv2: Conv) -> Conv:
     return new_cv2
 
 
-def _enable_gradients(model: YOLO) -> None:
+def _enable_gradients(model: YOLO | RTDETR) -> None:
     """Enables gradients for parameters in the model.
 
     Ultralytics disables by default gradients for models loaded from a checkpoint
