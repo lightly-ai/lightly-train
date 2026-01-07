@@ -46,6 +46,10 @@ def export_tensorrt(
     The engine is serialized and written to `out`.
 
     Args:
+        export_onnx_fn:
+            A callable that exports the model to ONNX when called with
+            keyword arguments. Typically this is the self.export_onnx method for
+            the model to be exported.
         out:
             Path where the TensorRT engine will be saved.
         onnx_args:
