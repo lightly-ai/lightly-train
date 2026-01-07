@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+import logging
+from copy import deepcopy
 from typing import Any, Literal
 
 import torch
@@ -15,6 +17,8 @@ from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self
 
+from lightly_train import _logging
+from lightly_train._commands import _warnings
 from lightly_train._data import file_helpers
 from lightly_train._task_models.picodet_object_detection.csp_pan import CSPPAN
 from lightly_train._task_models.picodet_object_detection.esnet import ESNet
@@ -24,6 +28,8 @@ from lightly_train._task_models.picodet_object_detection.postprocessor import (
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
+
+logger = logging.getLogger(__name__)
 
 # Model configurations
 _MODEL_CONFIGS = {
@@ -259,3 +265,158 @@ class PicoDetObjectDetection(TaskModel):
         )
 
         return results
+
+    @torch.no_grad()
+    def export_onnx(
+        self,
+        out: PathLike,
+        opset_version: int | None = None,
+        simplify: bool = True,
+        verify: bool = True,
+        format_args: dict[str, Any] | None = None,
+        num_channels: int | None = None,
+    ) -> None:
+        """Exports the model to ONNX for inference.
+
+        The export uses a dummy input of shape (1, C, H, W) where C is inferred
+        from the first model parameter and (H, W) come from `self.image_size`.
+        The ONNX graph outputs labels, boxes, and scores in the resized input
+        image space.
+
+        Optionally simplifies the exported model in-place using onnxslim and
+        verifies numerical closeness against a float32 CPU reference via
+        ONNX Runtime.
+
+        Args:
+            out: Path where the ONNX model will be written.
+            opset_version: ONNX opset version to target. If None, PyTorch's
+                default opset is used.
+            simplify: If True, run onnxslim to simplify and overwrite the exported model.
+            verify: If True, validate the ONNX file and compare outputs to a
+                float32 CPU reference forward pass.
+            format_args: Optional extra keyword arguments forwarded to
+                `torch.onnx.export`.
+            num_channels: Number of input channels. If None, will be inferred.
+        """
+        _warnings.filter_export_warnings()
+        _logging.set_up_console_logging()
+
+        self.eval()
+        self.deploy()
+
+        first_parameter = next(self.parameters())
+        model_device = first_parameter.device
+        model_dtype = first_parameter.dtype
+
+        if num_channels is None:
+            if self.image_normalize is not None:
+                num_channels = len(self.image_normalize["mean"])
+                logger.info(
+                    f"Inferred num_channels={num_channels} from image_normalize."
+                )
+            else:
+                for module in self.modules():
+                    if isinstance(module, torch.nn.Conv2d):
+                        num_channels = module.in_channels
+                        logger.info(
+                            f"Inferred num_channels={num_channels} from first Conv. layer."
+                        )
+                        break
+                if num_channels is None:
+                    logger.error(
+                        "Could not infer num_channels. Please provide it explicitly."
+                    )
+                    raise ValueError(
+                        "num_channels must be provided for ONNX export if it cannot be inferred."
+                    )
+
+        dummy_input = torch.randn(
+            1,
+            num_channels,
+            self.image_size[0],
+            self.image_size[1],
+            requires_grad=False,
+            device=model_device,
+            dtype=model_dtype,
+        )
+
+        class _PicoDetOnnxWrapper(torch.nn.Module):
+            def __init__(self, model: PicoDetObjectDetection) -> None:
+                super().__init__()
+                self.model = model
+
+            def forward(self, images: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+                outputs = self.model(images)
+                orig_h, orig_w = images.shape[-2:]
+                results = self.model.postprocessor(
+                    cls_scores=outputs["cls_scores"],
+                    bbox_preds=outputs["bbox_preds"],
+                    original_size=(orig_h, orig_w),
+                    score_threshold=0.0,
+                )
+                return results["labels"], results["bboxes"], results["scores"]
+
+        wrapper = _PicoDetOnnxWrapper(self)
+
+        input_names = ["images"]
+        output_names = ["labels", "boxes", "scores"]
+
+        torch.onnx.export(
+            wrapper,
+            (dummy_input,),
+            str(out),
+            input_names=input_names,
+            output_names=output_names,
+            opset_version=opset_version,
+            dynamo=False,
+            dynamic_axes={"images": {0: "N"}},
+            **(format_args or {}),
+        )
+
+        if simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            onnxslim.slim(
+                str(out),
+                output_model=out,
+            )
+
+        if verify:
+            logger.info("Verifying ONNX model")
+            import onnx
+            import onnxruntime as ort
+
+            onnx.checker.check_model(out, full_check=True)
+
+            reference_model = deepcopy(wrapper).cpu().to(torch.float32).eval()
+            reference_outputs = reference_model(
+                dummy_input.cpu().to(torch.float32),
+            )
+
+            session = ort.InferenceSession(out)
+            input_feed = {
+                "images": dummy_input.cpu().numpy(),
+            }
+            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
+
+            if len(outputs_onnx) != len(reference_outputs):
+                raise AssertionError(
+                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                )
+            for output_onnx, output_model, output_name in zip(
+                outputs_onnx, reference_outputs, output_names
+            ):
+                torch.testing.assert_close(
+                    output_onnx,
+                    output_model,
+                    msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
+                    equal_nan=True,
+                    check_device=False,
+                    check_dtype=False,
+                    check_layout=False,
+                    atol=5e-3,
+                    rtol=1e-1,
+                )
+
+        logger.info(f"Successfully exported ONNX model to '{out}'")
