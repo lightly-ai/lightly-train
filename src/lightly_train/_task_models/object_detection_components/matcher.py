@@ -128,6 +128,7 @@ class HungarianMatcher(nn.Module):
             + self.cost_giou * cost_giou
         )
         C = C.view(bs, num_queries, -1).cpu()
+        C = torch.nan_to_num(C, nan=1.0)
 
         sizes = [len(v["boxes"]) for v in targets]
         indices = [
