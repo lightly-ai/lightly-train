@@ -85,9 +85,9 @@ class PatchEmbed(nn.Module):
 
     def resample_conv_weight(
         self,
-        weight: torch.Tensor,
+        weight: Tensor,
         target_patch_size: int,
-    ) -> torch.Tensor:
+    ) -> Tensor:
         """Resample conv2d patch embedding weights for a new patch size.
 
         Args:
@@ -97,10 +97,11 @@ class PatchEmbed(nn.Module):
         Returns:
             Resampled weight tensor
         """
-        if target_patch_size == self.patch_size:
+        # Comparison assumes square patch sizes.
+        if target_patch_size == self.patch_size[0]:
             return weight
 
-        # Resample using existing function
+        # Resample using existing function.
         weight_resampled = resample_patch_embed(
             weight,
             new_size=[target_patch_size, target_patch_size],
@@ -143,14 +144,29 @@ class PatchEmbed(nn.Module):
 
 
 def _compute_resize_matrix(
-    old_size: Tuple[int, int],
-    new_size: Tuple[int, int],
+    old_size: tuple[int, int],
+    new_size: tuple[int, int],
     interpolation: str,
     antialias: bool,
     device: torch.device,
     dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
-    """Computes the resize matrix basis vectors and interpolates them to new_size."""
+    """Compute the resize matrix used for Pi-Resize.
+
+    Source:
+    https://github.com/huggingface/pytorch-image-models/blob/90cae8c5ab83d2d7e23b1fb2bab1559bfdcbc7e9/timm/layers/patch_embed.py#L266
+
+    Args:
+        old_size: Original spatial size (height, width).
+        new_size: Target spatial size (height, width).
+        interpolation: Interpolation mode used for resizing basis vectors.
+        antialias: Whether to apply antialiasing during interpolation.
+        device: Device on which to create the resize matrix.
+        dtype: Data type of the resize matrix.
+
+    Returns:
+        Resize matrix of shape (new_height * new_width, old_height * old_width).
+    """
     old_h, old_w = old_size
     new_h, new_w = new_size
     old_total = old_h * old_w
@@ -174,14 +190,27 @@ def _compute_resize_matrix(
 
 
 def _apply_resampling(
-    patch_embed: torch.Tensor,
-    pinv_matrix: torch.Tensor,
+    patch_embed: Tensor,
+    pinv_matrix: Tensor,
     new_size_tuple: Tuple[int, int],
     orig_dtype: torch.dtype,
     intermediate_dtype: torch.dtype = torch.float32,
-) -> torch.Tensor:
-    """Simplified resampling w/o vmap use.
-    As proposed by https://github.com/stas-sl
+) -> Tensor:
+    """Apply Pi-Resize resampling using a pseudoinverse resize matrix.
+
+    Source:
+    https://github.com/huggingface/pytorch-image-models/blob/90cae8c5ab83d2d7e23b1fb2bab1559bfdcbc7e9/timm/layers/patch_embed.py#L293
+
+    Args:
+        patch_embed: Patch embedding projection weights of shape
+            (out_channels, in_channels, height, width).
+        pinv_matrix: Pseudoinverse resize matrix of shape (old_hw, new_hw).
+        new_size_tuple: Target spatial size (height, width).
+        orig_dtype: Original dtype of `patch_embed` to restore after resampling.
+        intermediate_dtype: Dtype used for intermediate computation.
+
+    Returns:
+        Resampled patch embedding weights with spatial size `new_size_tuple`.
     """
     c_out, c_in, *_ = patch_embed.shape
     patch_embed = patch_embed.reshape(c_out, c_in, -1).to(dtype=intermediate_dtype)
@@ -196,12 +225,30 @@ def _apply_resampling(
 
 
 def resample_patch_embed(
-    patch_embed: torch.Tensor,
+    patch_embed: Tensor,
     new_size: list[int],
     interpolation: str = "bicubic",
     antialias: bool = True,
-):
-    """Standalone function (computes matrix on each call)."""
+) -> Tensor:
+    """
+    Resample ViT patch-embedding weights using Pi-Resize.
+
+    Source:
+    https://github.com/huggingface/pytorch-image-models/blob/90cae8c5ab83d2d7e23b1fb2bab1559bfdcbc7e9/timm/layers/patch_embed.py#L311
+
+    Implements the pseudoinverse (Pi-Resize) method from:
+    https://arxiv.org/pdf/2212.08013
+
+    Args:
+        patch_embed: Patch embedding projection weights of shape
+            (out_channels, in_channels, height, width).
+        new_size: Target spatial size [height, width].
+        interpolation: Interpolation mode for building the resize operator.
+        antialias: Whether to apply antialiasing.
+
+    Returns:
+        Resampled patch embedding weights with spatial size `new_size`.
+    """
     assert len(patch_embed.shape) == 4, (
         "Input tensor should be 4D (out_ch, in_ch, h, w)"
     )
