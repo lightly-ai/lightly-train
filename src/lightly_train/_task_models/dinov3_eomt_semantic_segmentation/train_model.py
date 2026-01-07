@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, ClassVar, Literal
 
@@ -22,6 +23,9 @@ from torch.optim.optimizer import Optimizer
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
+)
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
+    DinoVisionTransformer,
 )
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import train_model_helpers
@@ -43,6 +47,8 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
+
+logger = logging.getLogger(__name__)
 
 
 class DINOv3EoMTSemanticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
@@ -591,19 +597,42 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
-        """Loads the model state dict.
+        """
+        Load a training checkpoint state dict.
 
-        This acts as a wrapper around load_state_dict.
-        Handles mismatch between model
+
+        If the backbone is a `DinoVisionTransformer` and the checkpoint was trained with a
+        different patch size, resample the patch-embedding projection conv weights to the
+        current patch size before loading.
+
+        Args:
+            state_dict: Checkpoint state dict (model parameters).
+            strict: Forwarded to `load_state_dict`.
+            assign: Forwarded to `load_state_dict` (PyTorch >= 2.0).
+
+        Returns:
+            The result of `self.load_state_dict(state_dict, strict=strict, assign=assign)`.
         """
 
-        # Re-sample the projection weights before loading the statedict.
-        original_conv_weight = state_dict["model.backbone.patch_embed.proj.weight"]
-        original_patch_size = original_conv_weight.shape[-1]
-        target_patch_size = self.model.backbone.patch_size
-        if target_patch_size != original_patch_size:
-            new_conv_weight = self.model.backbone.patch_embed.resample_conv_weight(
-                original_conv_weight, target_patch_size
-            )
-            state_dict["model.backbone.patch_embed.proj.weight"] = new_conv_weight
+        if isinstance(self.model.backbone, DinoVisionTransformer):
+            key = "model.backbone.patch_embed.proj.weight"
+            original_conv_weight = state_dict.get(key)
+
+            if original_conv_weight is None:
+                # Raise error if strict and the first convolution weight is not present.
+                if strict:
+                    logger.error(f"Missing key '{key}' in state_dict.")
+                    raise KeyError(key)
+
+                # Warn user if not strict and first convolution weight is not present.
+                logger.warning(f"Missing key '{key}' in state_dict.")
+
+            # Re-sample the projection weights before loading the statedict.
+            original_patch_size = original_conv_weight.shape[-1]
+            target_patch_size = self.model.backbone.patch_size
+            if target_patch_size != original_patch_size:
+                new_conv_weight = self.model.backbone.patch_embed.resample_conv_weight(
+                    original_conv_weight, target_patch_size
+                )
+                state_dict["model.backbone.patch_embed.proj.weight"] = new_conv_weight
         return self.load_state_dict(state_dict, strict=strict, assign=assign)
