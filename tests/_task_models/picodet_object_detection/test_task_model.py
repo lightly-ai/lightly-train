@@ -42,6 +42,30 @@ def test_load_train_state_dict__no_ema_weights() -> None:
     task_model.load_train_state_dict(state_dict)
 
 
+def test_task_model_forward_shapes() -> None:
+    from lightly_train._task_models.picodet_object_detection.task_model import (
+        PicoDetObjectDetection,
+    )
+
+    model = PicoDetObjectDetection(
+        model_name="picodet/s-416",
+        image_size=(416, 416),
+        num_classes=80,
+        image_normalize=None,
+        load_weights=False,
+    )
+
+    x = torch.randn(2, 3, 416, 416)
+    outputs = model(x)
+
+    assert "cls_scores" in outputs
+    assert "bbox_preds" in outputs
+    assert len(outputs["cls_scores"]) == 4
+    assert len(outputs["bbox_preds"]) == 4
+    assert outputs["cls_scores"][0].shape == (2, 80, 52, 52)
+    assert outputs["bbox_preds"][0].shape == (2, 32, 52, 52)
+
+
 def _create_train_model(
     train_model_args: PicoDetObjectDetectionTrainArgs,
 ) -> PicoDetObjectDetectionTrain:
