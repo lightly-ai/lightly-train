@@ -39,6 +39,7 @@ LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 # 3. Add an entry to the DOWNLOADABLE_MODEL_URL_AND_HASH dictionary below including the
 #    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
+    #### Object Detection
     "dinov2/vits14-noreg-ltdetr-coco": (
         "dinov2_vits14_noreg_ltdetr_coco_251218_4e1f523d.pt",
         "4e1f523db68c94516ee5b35a91f24267657af474bea58b52a7f7e51ec2d8f717",
@@ -75,17 +76,58 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "dinov3_convnext_large_ltdetr_coco_251218_03fe6750.pt",
         "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0",
     ),
+    #### Instance Segmentation
+    "dinov3/vits16-eomt-inst-coco": (
+        "/dinov3_eomt/dinov3_vits16_eomt_inst_coco.pt",
+        "b54dafb12d550958cc5c9818b061fba0d8b819423581d02080221d0199e1cc37",
+    ),
+    "dinov3/vitb16-eomt-inst-coco": (
+        "/dinov3_eomt/dinov3_vitb16_eomt_inst_coco.pt",
+        "a57b5e7afd5cd64422d74d400f30693f80f96fa63184960250fb0878afd3c7f6",
+    ),
+    "dinov3/vitl16-eomt-inst-coco": (
+        "/dinov3_eomt/dinov3_vitl16_eomt_inst_coco.pt",
+        "1aac5ac16dcbc1a12cc6f8d4541bea5e7940937a49f0b1dcea7394956b6e46e5",
+    ),
+    #### Panoptic Segmentation
+    # Trained with 2x schedule (180k steps)
+    "dinov3/vits16-eomt-panoptic-coco": (
+        "dinov3_vits16_eomt_panoptic_coco_251219_89e8a64f.pt",
+        "89e8a64fb601c509df76d09ed6ddb6789e080147cadcff9700cf5792dfc20167",
+    ),
+    # Trained with 2x schedule (180k steps)
+    "dinov3/vitb16-eomt-panoptic-coco": (
+        "dinov3_vitb16_eomt_panoptic_coco_251209_05948298.pt",
+        "0594829822a23935079c35304f3bd1c7fede802114bc1a699780df693f2dea6c",
+    ),
+    "dinov3/vitl16-eomt-panoptic-coco": (
+        "dinov3_vitl16_eomt_panoptic_coco_251209_e0c1e6ae.pt",
+        "e0c1e6aeb245dbe6fd8735ffea48b81978b66b1a320533498de4375c18ad4368",
+    ),
+    "dinov3/vitl16-eomt-panoptic-coco-1280": (
+        "dinov3_vitl16_eomt_panoptic_coco_1280_251209_3da0b210.pt",
+        "3da0b21000bba3747bcb3e4ac4ee1e38641614022281f4b710d7442c643182f2",
+    ),
+    #### Semantic Segmentation
+    "dinov3/vitt16-eomt-coco": (
+        "dinov3_vitt16_eomt_coco_260106_104e563e.pt",
+        "104e563ebcd8b7d2842db5f0cc6f8d0e67f1607a063ab818725e9af6f6fe7c27",
+    ),
+    "dinov3/vitt16plus-eomt-coco": (
+        "dinov3_vitt16plus_eomt_coco_260106_68339a7d.pt",
+        "68339a7d5baa0dd6fdd88660410939eb78fc8a8c9332145b9b8ac91a2291950b",
+    ),
     "dinov3/vits16-eomt-coco": (
-        "dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cocostuff.pt",
-        "5078dd29dc46b83861458f45b6ed94634faaf00bebcd9f0d95c1d808602b1f0c",
+        "dinov3_vits16_eomt_coco_260105_11be50b5.pt",
+        "11be50b578251c974b1fdb413c76e2cd7cfe1e154f6118556bd87477ea205d5a",
     ),
     "dinov3/vitb16-eomt-coco": (
-        "dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cocostuff.pt",
-        "721a84dc05176a1def4fa15b5ddb8fd4e284c200c36d8af8d60d7a0704820bc5",
+        "dinov3_vitb16_eomt_coco_260105_92de5e05.pt",
+        "92de5e0550f51647e201eef3537a35a8bba75b4e41323b9a7df3c54e6ab400b9",
     ),
     "dinov3/vitl16-eomt-coco": (
-        "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cocostuff.pt",
-        "b4b31eaaec5f4ddb1c4e125c3eca18f834841c6d6552976b0c2172ff798fb75a",
+        "dinov3_vitl16_eomt_coco_260105_6169fdd8.pt",
+        "6169fdd8edf7d4648c45c6aa1d09b9a4e917ba51dcbd36acf8fbf04a25d1e516",
     ),
     "dinov3/vits16-eomt-cityscapes": (
         "dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt",
@@ -110,36 +152,6 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     "dinov3/vitl16-eomt-ade20k": (
         "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
         "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
-    ),
-    "dinov3/vits16-eomt-inst-coco": (
-        "/dinov3_eomt/dinov3_vits16_eomt_inst_coco.pt",
-        "b54dafb12d550958cc5c9818b061fba0d8b819423581d02080221d0199e1cc37",
-    ),
-    "dinov3/vitb16-eomt-inst-coco": (
-        "/dinov3_eomt/dinov3_vitb16_eomt_inst_coco.pt",
-        "a57b5e7afd5cd64422d74d400f30693f80f96fa63184960250fb0878afd3c7f6",
-    ),
-    "dinov3/vitl16-eomt-inst-coco": (
-        "/dinov3_eomt/dinov3_vitl16_eomt_inst_coco.pt",
-        "1aac5ac16dcbc1a12cc6f8d4541bea5e7940937a49f0b1dcea7394956b6e46e5",
-    ),
-    # Trained with 2x schedule (180k steps)
-    "dinov3/vits16-eomt-panoptic-coco": (
-        "dinov3_vits16_eomt_panoptic_coco_251219_89e8a64f.pt",
-        "89e8a64fb601c509df76d09ed6ddb6789e080147cadcff9700cf5792dfc20167",
-    ),
-    # Trained with 2x schedule (180k steps)
-    "dinov3/vitb16-eomt-panoptic-coco": (
-        "dinov3_vitb16_eomt_panoptic_coco_251209_05948298.pt",
-        "0594829822a23935079c35304f3bd1c7fede802114bc1a699780df693f2dea6c",
-    ),
-    "dinov3/vitl16-eomt-panoptic-coco": (
-        "dinov3_vitl16_eomt_panoptic_coco_251209_e0c1e6ae.pt",
-        "e0c1e6aeb245dbe6fd8735ffea48b81978b66b1a320533498de4375c18ad4368",
-    ),
-    "dinov3/vitl16-eomt-panoptic-coco-1280": (
-        "dinov3_vitl16_eomt_panoptic_coco_1280_251209_3da0b210.pt",
-        "3da0b21000bba3747bcb3e4ac4ee1e38641614022281f4b710d7442c643182f2",
     ),
 }
 

@@ -14,10 +14,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add TensorRT export for LTDETR models.
 - Add ONNX and TensorRT export for semantic segmentation models.
 - Add example jupyter notebooks for ONNX and TensorRT export.
+- Add tiny semantic segmentation models.
 
 ### Changed
 
-- Change default DINOv3 EoMT semantic segmentation image size from 518x518 to 512x512
+- Change default DINOv3 EoMT semantic segmentation image size from 518x518 to 512x512.
+- New checkpoints for the COCO pretrained DINOv3 EoMT semantic segmentation models.
 
 ### Deprecated
 
