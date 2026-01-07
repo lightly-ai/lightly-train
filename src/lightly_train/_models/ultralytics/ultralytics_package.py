@@ -16,7 +16,7 @@ import torch
 from torch.nn import Module
 
 if TYPE_CHECKING:
-    from ultralytics import YOLO, REDETR  # type: ignore[attr-defined]
+    from ultralytics import RTDETR, YOLO  # type: ignore[attr-defined]
 
 from lightly_train._models import log_usage_example
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -75,7 +75,7 @@ class UltralyticsPackage(Package):
     @classmethod
     def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
         try:
-            from ultralytics import YOLO, RTDETR  # type: ignore[attr-defined]
+            from ultralytics import RTDETR, YOLO  # type: ignore[attr-defined]
         except ImportError:
             return False
         if isinstance(model, ModelWrapper):
@@ -91,7 +91,7 @@ class UltralyticsPackage(Package):
         load_weights: bool = True,
     ) -> Module:
         try:
-            from ultralytics import YOLO, RTDETR  # type: ignore[attr-defined]
+            from ultralytics import RTDETR, YOLO  # type: ignore[attr-defined]
         except ImportError:
             raise ValueError(
                 f"Cannot create model '{model_name}' because '{cls.name}' is not "
@@ -103,7 +103,7 @@ class UltralyticsPackage(Package):
                 f"{num_input_channels}."
             )
         args = {} if model_args is None else model_args
-        model_class = RTDETR if 'detr' in model_name.lower() else YOLO
+        model_class = RTDETR if "detr" in model_name.lower() else YOLO
         model: Module = model_class(model=model_name, **args)
         return model
 
@@ -113,7 +113,10 @@ class UltralyticsPackage(Package):
 
     @classmethod
     def export_model(
-        cls, model: YOLO | RTDETR | ModelWrapper | Any, out: Path, log_example: bool = True
+        cls,
+        model: YOLO | RTDETR | ModelWrapper | Any,
+        out: Path,
+        log_example: bool = True,
     ) -> None:
         try:
             import ultralytics

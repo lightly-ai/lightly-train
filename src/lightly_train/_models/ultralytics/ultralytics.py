@@ -22,7 +22,7 @@ from lightly_train._models.model_wrapper import (
 )
 
 if TYPE_CHECKING:
-    from ultralytics import YOLO, RTDETR  # type: ignore[attr-defined]
+    from ultralytics import RTDETR, YOLO  # type: ignore[attr-defined]
     from ultralytics.nn.modules.block import SPPF, C2f
     from ultralytics.nn.modules.conv import Conv
 
@@ -123,7 +123,7 @@ def _get_backbone(model: YOLO | RTDETR) -> tuple[Sequential, int]:
             return backbone, feature_dim
 
         if RTDETR_ULTRALYTICS_AVAILABLE:
-            from ultralytics.nn.modules.block import HGBlock, Conv
+            from ultralytics.nn.modules.block import Conv, HGBlock
 
             if type(last_module) is HGBlock and type(module) is Conv:
                 backbone = seq[:module_idx]
