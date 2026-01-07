@@ -636,7 +636,10 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             & (area_final > 0)
             & (area_ratio >= mask_overlap_threshold)
         )
-        mask_final = mask_final[keep_area]  # (num_keep_area, H, W)
+        keep_area_indices = torch.nonzero(keep_area, as_tuple=False).flatten()
+        mask_final = torch.index_select(
+            mask_final, 0, keep_area_indices
+        )  # (num_keep_area, H, W)
 
         # Filter labels and scores accordingly. We have to use index_select for
         # cudagraph compatibility. This is equivalent to:
