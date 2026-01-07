@@ -362,6 +362,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         # (1, Q, H, W), (1, Q, K+1)
         # Q = num_queries, K = num_stuff_classes + num_thing_classes
         mask_logits, class_logits = self._forward_logits(x)
+        # (H, W, 2), (num_segments), (num_segments)
         masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
             mask_logits=mask_logits[0],
             class_logits=class_logits[0],
@@ -371,7 +372,12 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         )
 
         # Map internal class IDs to class IDs.
-        masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
+        # masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
+        remapped_ids = torch.index_select(
+            self.internal_class_to_class, 0, masks[..., 0].reshape(-1)
+        )
+        masks[..., 0] = remapped_ids.reshape_as(masks[..., 0])
+
         masks = masks.unsqueeze(0)  # (1, H, W, 2)
         segment_ids = segment_ids.unsqueeze(0)  # (1, num_segments)
         scores = scores.unsqueeze(0)  # (1, num_segments)
@@ -589,11 +595,11 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         """
         device = class_logits.device
         H, W = mask_logits.shape[-2:]
-        scores = class_logits.softmax(dim=-1)  # (B, Q, K+1)
-        scores, labels = scores.max(dim=-1)  # (B, Q), (B, Q)
+        scores = class_logits.softmax(dim=-1)  # (Q, K+1)
+        scores, labels = scores.max(dim=-1)  # (Q,), (Q,)
 
         ignore_class_id = self.internal_ignore_class_id
-        keep = (labels != ignore_class_id) & (scores > threshold)  # (B, Q)
+        keep = (labels != ignore_class_id) & (scores > threshold)  # (Q,)
 
         # Remove ignored queries.
         scores = scores[keep]  # (num_keep,)
@@ -631,8 +637,16 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             & (area_ratio >= mask_overlap_threshold)
         )
         mask_final = mask_final[keep_area]  # (num_keep_area, H, W)
-        labels = labels[keep_area]  # (num_keep_area,)
-        scores = scores[keep_area]  # (num_keep_area,)
+
+        # Filter labels and scores accordingly. We have to use index_select for
+        # cudagraph compatibility. This is equivalent to:
+        # labels = labels[keep_area]
+        # scores = scores[keep_area]
+        # But ONNX throws a error if labels or scores are empty:
+        # Name:'/GatherND_4' Status Message: last dimension of indices must not be larger than rank of input tensor
+        keep_area_indices = torch.nonzero(keep_area, as_tuple=False).flatten()
+        labels = torch.index_select(labels, 0, keep_area_indices)
+        scores = torch.index_select(scores, 0, keep_area_indices)
 
         # Assign id to each segment
         num_keep_area = labels.shape[0]
@@ -641,9 +655,10 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         segment_ids = torch.arange(max_segment_id + 1, device=labels.device)
 
         # Find unique segment id for each stuff class
-        is_stuff = self.is_stuff_class[labels]  # (num_keep_area,)
-        stuff_labels = labels[is_stuff]
-        stuff_segment_ids = segment_ids[is_stuff]
+        is_stuff = torch.index_select(self.is_stuff_class, 0, labels)
+        stuff_indices = torch.nonzero(is_stuff, as_tuple=False).flatten()
+        stuff_labels = torch.index_select(labels, 0, stuff_indices)
+        stuff_segment_ids = torch.index_select(segment_ids, 0, stuff_indices)
         max_class_id = ignore_class_id
         stuff_label_to_segment_id = -stuff_labels.new_ones(max_class_id + 1)
         # Scatter for cudagraph compatibility. Equivalent to:
@@ -657,7 +672,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         # segment_ids[is_stuff] = stuff_label_to_segment_id[stuff_labels]
         segment_ids = segment_ids.masked_scatter(
             is_stuff,
-            stuff_label_to_segment_id[stuff_labels],
+            torch.index_select(stuff_label_to_segment_id, 0, stuff_labels),
         )
 
         # Reassign segment ids to be contiguous
@@ -670,7 +685,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             index=unique_segment_ids,
             src=torch.arange(unique_segment_ids.shape[0], device=segment_ids.device),
         )
-        segment_ids = segment_id_to_contiguous_id[segment_ids]
+
+        segment_ids = torch.index_select(segment_id_to_contiguous_id, 0, segment_ids)
 
         # Create final per-pixel labels and segment tensor
         # (num_keep_area, H, W) where each pixel is either -1 or the class label
