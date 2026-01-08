@@ -262,12 +262,15 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         if self.training:
             self.eval()
 
+        first_param = next(self.parameters())
+        device = first_param.device
+        dtype = first_param.dtype
+
         # Load image
-        device = next(self.parameters()).device
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
-        x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
