@@ -7,12 +7,14 @@
 #
 from __future__ import annotations
 
+import copy
 from typing import Any, ClassVar, Literal
 
 import torch
 import torch.distributed as dist
 from lightning_fabric import Fabric
 from torch import Tensor
+from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import SGD
 from torch.optim.lr_scheduler import (
     CosineAnnealingLR,
@@ -97,7 +99,6 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     momentum: float = 0.9
     weight_decay: float = 4e-5
 
-    # Warmup parameters (following reference: 300 iters, start at 10% of base LR)
     warmup_iters: int = 300
     warmup_ratio: float = 0.1
 
@@ -180,7 +181,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
         self.dfl_loss = DistributionFocalLoss()
         self.giou_loss = GIoULoss()
 
-        # Integral for decoding bbox predictions
         self.integral = Integral(self.reg_max)
 
         self.assigner = SimOTAAssigner(
@@ -192,7 +192,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         )
 
         # EMA model setup (following LTDETR pattern for consistency)
-        # EMA is always enabled - it's essential for training quality
+        # EMA is always enabled
         self._ema_model_state_dict_key_prefix = "ema_model."
         self.ema_model = ModelEMA(
             model=self.model,
@@ -231,7 +231,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
         gt_labels_list = batch["classes"]
 
         batch_size = images.shape[0]
-        device = images.device
         img_h, img_w = images.shape[-2:]
 
         outputs = self.model(images)
@@ -243,195 +242,22 @@ class PicoDetObjectDetectionTrain(TrainModel):
         sizes = [(img_w, img_h)] * batch_size
         gt_boxes_xyxy_list = _denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
 
-        # Decode predictions for each level
-        decode_bbox_preds_pixel: list[Tensor] = []
-        center_and_strides: list[Tensor] = []
-        flatten_cls_preds: list[Tensor] = []
-        flatten_bbox_preds: list[Tensor] = []
-
-        for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_scores, bbox_preds)):
-            stride = self.strides[level_idx]
-            _, _, h, w = cls_score.shape
-            num_points = h * w
-
-            # Generate priors: (H*W, 4) as [cx, cy, stride, stride]
-            y = (torch.arange(h, device=device, dtype=torch.float32) + 0.5) * stride
-            x = (torch.arange(w, device=device, dtype=torch.float32) + 0.5) * stride
-            yy, xx = torch.meshgrid(y, x, indexing="ij")
-            points = torch.stack([xx.flatten(), yy.flatten()], dim=-1)
-            priors = torch.cat(
-                [points, torch.full((num_points, 2), stride, device=device)], dim=-1
-            )
-            center_and_stride = priors.unsqueeze(0).expand(batch_size, -1, -1)
-            center_and_strides.append(center_and_stride)
-
-            # Decode bbox predictions to pixel space
-            center_in_feature = points / stride
-            bbox_pred_flat = bbox_pred.permute(0, 2, 3, 1).reshape(
-                batch_size, num_points, 4 * (self.reg_max + 1)
-            )
-            pred_corners = self.integral(bbox_pred_flat)
-            decode_bbox_pred = distance2bbox(
-                center_in_feature.unsqueeze(0).expand(batch_size, -1, -1), pred_corners
-            )
-            decode_bbox_preds_pixel.append(decode_bbox_pred * stride)
-
-            # Flatten for assignment
-            cls_pred_flat = cls_score.permute(0, 2, 3, 1).reshape(
-                batch_size, num_points, self.num_classes
-            )
-            flatten_cls_preds.append(cls_pred_flat)
-            flatten_bbox_preds.append(bbox_pred_flat)
-
-        # Concatenate across levels
-        all_center_and_strides = torch.cat(center_and_strides, dim=1)
-        all_decoded_bboxes_pixel = torch.cat(decode_bbox_preds_pixel, dim=1)
-        all_cls_preds = torch.cat(flatten_cls_preds, dim=1)
-        all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
-
-        # Process each image - following reference: sum per-image losses then divide
-        all_vfl_losses: list[Tensor] = []
-        all_giou_losses: list[Tensor] = []
-        all_dfl_losses: list[Tensor] = []
-        num_pos_per_image: list[int] = []
-        total_weight_sum = 0.0
-
-        for img_idx in range(batch_size):
-            gt_bboxes = gt_boxes_xyxy_list[img_idx].to(device)
-            gt_labels = gt_labels_list[img_idx].to(device).long()
-
-            cls_pred = all_cls_preds[img_idx]
-            decoded_bboxes_pixel = all_decoded_bboxes_pixel[img_idx]
-            priors = all_center_and_strides[img_idx]
-            bbox_pred = all_bbox_preds[img_idx]
-
-            # Handle empty GT case - still need VFL loss for negatives
-            if gt_bboxes.numel() == 0:
-                # All priors are negative - VFL loss on zeros target
-                vfl_target = cls_pred.new_zeros(cls_pred.shape)
-                vfl_loss = self.vfl_loss(cls_pred, vfl_target)
-                all_vfl_losses.append(vfl_loss)
-                num_pos_per_image.append(0)
-                continue
-
-            # SimOTA assignment with sigmoid scores (following reference)
-            assigned_gt_inds, matched_pred_ious = self.assigner.assign(
-                pred_scores=cls_pred.detach().sigmoid(),
-                priors=priors,
-                decoded_bboxes=decoded_bboxes_pixel.detach(),
-                gt_bboxes=gt_bboxes,
-                gt_labels=gt_labels,
-            )
-
-            pos_mask = assigned_gt_inds > 0
-            num_pos = int(pos_mask.sum().item())
-            num_pos_per_image.append(num_pos)
-
-            # VFL target for all priors (positives get IoU, negatives get 0)
-            vfl_target = cls_pred.new_zeros(cls_pred.shape)
-
-            if num_pos > 0:
-                pos_inds = torch.where(pos_mask)[0]
-                pos_assigned_gt_inds = assigned_gt_inds[pos_mask] - 1
-                pos_gt_bboxes = gt_bboxes[pos_assigned_gt_inds]
-                pos_gt_labels = gt_labels[pos_assigned_gt_inds]
-
-                pos_priors = priors[pos_mask]
-                pos_strides = pos_priors[:, 2:3]
-                pos_centers = pos_priors[:, :2]
-                pos_centers_feature = pos_centers / pos_strides
-
-                pos_bbox_pred = bbox_pred[pos_mask]
-
-                # Decode predictions in feature space
-                pos_pred_corners = self.integral(pos_bbox_pred)
-                pos_decode_bbox_pred = distance2bbox(pos_centers_feature, pos_pred_corners)
-
-                # GT boxes in feature space
-                pos_gt_bboxes_feature = pos_gt_bboxes / pos_strides
-
-                # Compute IoU in feature space for VFL targets (following reference)
-                pos_ious = box_iou_aligned(
-                    pos_decode_bbox_pred.detach(), pos_gt_bboxes_feature.detach()
-                ).clamp(min=1e-6)
-
-                # Set VFL target: IoU at (pos_idx, gt_class) positions
-                # Cast pos_ious to match vfl_target dtype for AMP compatibility
-                vfl_target[pos_inds, pos_gt_labels] = pos_ious.detach().to(
-                    vfl_target.dtype
-                )
-
-                # Weight targets (following reference: max sigmoid score per prior)
-                weight_targets = cls_pred.detach().sigmoid().max(dim=1)[0][pos_inds]
-                total_weight_sum += weight_targets.sum().item()
-
-                # GIoU loss
-                giou_loss = self.giou_loss(
-                    pos_decode_bbox_pred,
-                    pos_gt_bboxes_feature.detach(),
-                    weight=weight_targets,
-                )
-                all_giou_losses.append(giou_loss)
-
-                # DFL targets and loss
-                pos_gt_distances = bbox2distance(
-                    pos_centers_feature, pos_gt_bboxes_feature, reg_max=float(self.reg_max)
-                )
-                dfl_weight = weight_targets.unsqueeze(-1).expand(-1, 4).reshape(-1)
-                dfl_loss = self.dfl_loss(
-                    pos_bbox_pred.reshape(-1, self.reg_max + 1),
-                    pos_gt_distances.reshape(-1),
-                    weight=dfl_weight,
-                )
-                # Following reference: divide by 4.0 per-level (for 4 coordinates)
-                dfl_loss = dfl_loss / 4.0
-                all_dfl_losses.append(dfl_loss)
-
-            # VFL loss (computed for all priors, both positive and negative)
-            vfl_loss = self.vfl_loss(cls_pred, vfl_target)
-            all_vfl_losses.append(vfl_loss)
-
-        # Aggregate losses following reference:
-        # - num_pos uses max(pos, 1) per image then sums (like reference get_targets)
-        # - VFL is divided by num_pos_avg
-        # - GIoU and DFL are divided by weight_sum
-        num_total_pos = sum(max(n, 1) for n in num_pos_per_image)
-
-        # Sync normalization factors across GPUs for distributed training
-        # Following pattern from RTDETRCriterionv2 and mask_loss.py
-        num_pos_tensor = torch.as_tensor(
-            [num_total_pos], dtype=torch.float, device=device
-        )
-        weight_sum_tensor = torch.as_tensor(
-            [total_weight_sum], dtype=torch.float, device=device
+        total_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
+            fabric=fabric,
+            cls_scores=cls_scores,
+            bbox_preds=bbox_preds,
+            gt_boxes_xyxy_list=gt_boxes_xyxy_list,
+            gt_labels_list=gt_labels_list,
         )
 
-        if dist.is_available() and dist.is_initialized():
-            dist.all_reduce(num_pos_tensor)
-            dist.all_reduce(weight_sum_tensor)
-
-        num_pos_avg = torch.clamp(num_pos_tensor / fabric.world_size, min=1).item()
-        weight_sum_avg = torch.clamp(weight_sum_tensor / fabric.world_size, min=1).item()
-
-        zero = torch.tensor(0.0, device=device)
-        loss_vfl = sum(all_vfl_losses, zero) / num_pos_avg
-        loss_giou = sum(all_giou_losses, zero) / weight_sum_avg
-        loss_dfl = sum(all_dfl_losses, zero) / weight_sum_avg
-
-        total_loss = (
-            self.model_args.vfl_weight * loss_vfl
-            + self.model_args.giou_weight * loss_giou
-            + self.model_args.dfl_weight * loss_dfl
+        loss_dict = reduce_dict(
+            {
+                "train_loss": total_loss,
+                "loss_vfl": loss_vfl,
+                "loss_giou": loss_giou,
+                "loss_dfl": loss_dfl,
+            }
         )
-
-        # Average losses across devices for logging (distributed training support)
-        loss_dict = {
-            "train_loss": total_loss,
-            "loss_vfl": loss_vfl,
-            "loss_giou": loss_giou,
-            "loss_dfl": loss_dfl,
-        }
-        loss_dict = reduce_dict(loss_dict)
 
         return TaskStepResult(
             loss=total_loss,
@@ -467,6 +293,14 @@ class PicoDetObjectDetectionTrain(TrainModel):
         img_h, img_w = images.shape[-2:]
         sizes = [(img_w, img_h)] * batch_size
         gt_boxes_xyxy_list = _denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
+
+        total_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
+            fabric=fabric,
+            cls_scores=cls_scores,
+            bbox_preds=bbox_preds,
+            gt_boxes_xyxy_list=gt_boxes_xyxy_list,
+            gt_labels_list=gt_labels_list,
+        )
 
         from lightly_train._task_models.picodet_object_detection.postprocessor import (
             PicoDetPostProcessor,
@@ -509,9 +343,190 @@ class PicoDetObjectDetectionTrain(TrainModel):
         self.map_metric.update(preds, targets)
 
         return TaskStepResult(
-            loss=torch.tensor(0.0, device=device),
-            log_dict={"val_metric/map": self.map_metric},
+            loss=total_loss,
+            log_dict={
+                "val_loss": total_loss.item(),
+                "val_loss/loss_vfl": loss_vfl.item(),
+                "val_loss/loss_giou": loss_giou.item(),
+                "val_loss/loss_dfl": loss_dfl.item(),
+                "val_metric/map": self.map_metric,
+            },
         )
+
+    def _compute_losses(
+        self,
+        *,
+        fabric: Fabric,
+        cls_scores: list[Tensor],
+        bbox_preds: list[Tensor],
+        gt_boxes_xyxy_list: list[Tensor],
+        gt_labels_list: list[Tensor],
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        batch_size = cls_scores[0].shape[0]
+        device = cls_scores[0].device
+
+        decode_bbox_preds_pixel: list[Tensor] = []
+        center_and_strides: list[Tensor] = []
+        flatten_cls_preds: list[Tensor] = []
+        flatten_bbox_preds: list[Tensor] = []
+
+        for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_scores, bbox_preds)):
+            stride = self.strides[level_idx]
+            _, _, h, w = cls_score.shape
+            num_points = h * w
+
+            y = (torch.arange(h, device=device, dtype=torch.float32) + 0.5) * stride
+            x = (torch.arange(w, device=device, dtype=torch.float32) + 0.5) * stride
+            yy, xx = torch.meshgrid(y, x, indexing="ij")
+            points = torch.stack([xx.flatten(), yy.flatten()], dim=-1)
+            priors = torch.cat(
+                [points, torch.full((num_points, 2), stride, device=device)], dim=-1
+            )
+            center_and_stride = priors.unsqueeze(0).expand(batch_size, -1, -1)
+            center_and_strides.append(center_and_stride)
+
+            center_in_feature = points / stride
+            bbox_pred_flat = bbox_pred.permute(0, 2, 3, 1).reshape(
+                batch_size, num_points, 4 * (self.reg_max + 1)
+            )
+            pred_corners = self.integral(bbox_pred_flat)
+            decode_bbox_pred = distance2bbox(
+                center_in_feature.unsqueeze(0).expand(batch_size, -1, -1), pred_corners
+            )
+            decode_bbox_preds_pixel.append(decode_bbox_pred * stride)
+
+            cls_pred_flat = cls_score.permute(0, 2, 3, 1).reshape(
+                batch_size, num_points, self.num_classes
+            )
+            flatten_cls_preds.append(cls_pred_flat)
+            flatten_bbox_preds.append(bbox_pred_flat)
+
+        all_center_and_strides = torch.cat(center_and_strides, dim=1)
+        all_decoded_bboxes_pixel = torch.cat(decode_bbox_preds_pixel, dim=1)
+        all_cls_preds = torch.cat(flatten_cls_preds, dim=1)
+        all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
+
+        all_vfl_losses: list[Tensor] = []
+        all_giou_losses: list[Tensor] = []
+        all_dfl_losses: list[Tensor] = []
+        num_pos_per_image: list[int] = []
+        total_weight_sum = 0.0
+
+        for img_idx in range(batch_size):
+            gt_bboxes = gt_boxes_xyxy_list[img_idx].to(device)
+            gt_labels = gt_labels_list[img_idx].to(device).long()
+
+            cls_pred = all_cls_preds[img_idx]
+            decoded_bboxes_pixel = all_decoded_bboxes_pixel[img_idx]
+            priors = all_center_and_strides[img_idx]
+            bbox_pred = all_bbox_preds[img_idx]
+
+            if gt_bboxes.numel() == 0:
+                vfl_target = cls_pred.new_zeros(cls_pred.shape)
+                vfl_loss = self.vfl_loss(cls_pred, vfl_target)
+                all_vfl_losses.append(vfl_loss)
+                num_pos_per_image.append(0)
+                continue
+
+            assigned_gt_inds, _matched_pred_ious = self.assigner.assign(
+                pred_scores=cls_pred.detach().sigmoid(),
+                priors=priors,
+                decoded_bboxes=decoded_bboxes_pixel.detach(),
+                gt_bboxes=gt_bboxes,
+                gt_labels=gt_labels,
+            )
+
+            pos_mask = assigned_gt_inds > 0
+            num_pos = int(pos_mask.sum().item())
+            num_pos_per_image.append(num_pos)
+
+            vfl_target = cls_pred.new_zeros(cls_pred.shape)
+
+            if num_pos > 0:
+                pos_inds = torch.where(pos_mask)[0]
+                pos_assigned_gt_inds = assigned_gt_inds[pos_mask] - 1
+                pos_gt_bboxes = gt_bboxes[pos_assigned_gt_inds]
+                pos_gt_labels = gt_labels[pos_assigned_gt_inds]
+
+                pos_priors = priors[pos_mask]
+                pos_strides = pos_priors[:, 2:3]
+                pos_centers = pos_priors[:, :2]
+                pos_centers_feature = pos_centers / pos_strides
+
+                pos_bbox_pred = bbox_pred[pos_mask]
+
+                pos_pred_corners = self.integral(pos_bbox_pred)
+                pos_decode_bbox_pred = distance2bbox(
+                    pos_centers_feature, pos_pred_corners
+                )
+
+                pos_gt_bboxes_feature = pos_gt_bboxes / pos_strides
+
+                pos_ious = box_iou_aligned(
+                    pos_decode_bbox_pred.detach(), pos_gt_bboxes_feature.detach()
+                ).clamp(min=1e-6)
+
+                vfl_target[pos_inds, pos_gt_labels] = pos_ious.detach().to(
+                    vfl_target.dtype
+                )
+
+                weight_targets = cls_pred.detach().sigmoid().max(dim=1)[0][pos_inds]
+                total_weight_sum += weight_targets.sum().item()
+
+                giou_loss = self.giou_loss(
+                    pos_decode_bbox_pred,
+                    pos_gt_bboxes_feature.detach(),
+                    weight=weight_targets,
+                )
+                all_giou_losses.append(giou_loss)
+
+                pos_gt_distances = bbox2distance(
+                    pos_centers_feature,
+                    pos_gt_bboxes_feature,
+                    reg_max=float(self.reg_max),
+                )
+                dfl_weight = weight_targets.unsqueeze(-1).expand(-1, 4).reshape(-1)
+                dfl_loss = self.dfl_loss(
+                    pos_bbox_pred.reshape(-1, self.reg_max + 1),
+                    pos_gt_distances.reshape(-1),
+                    weight=dfl_weight,
+                )
+                dfl_loss = dfl_loss / 4.0
+                all_dfl_losses.append(dfl_loss)
+
+            vfl_loss = self.vfl_loss(cls_pred, vfl_target)
+            all_vfl_losses.append(vfl_loss)
+
+        num_total_pos = sum(max(n, 1) for n in num_pos_per_image)
+
+        num_pos_tensor = torch.as_tensor(
+            [num_total_pos], dtype=torch.float, device=device
+        )
+        weight_sum_tensor = torch.as_tensor(
+            [total_weight_sum], dtype=torch.float, device=device
+        )
+
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(num_pos_tensor)
+            dist.all_reduce(weight_sum_tensor)
+
+        num_pos_avg = torch.clamp(num_pos_tensor / fabric.world_size, min=1).item()
+        weight_sum_avg = torch.clamp(
+            weight_sum_tensor / fabric.world_size, min=1
+        ).item()
+
+        zero = torch.tensor(0.0, device=device)
+        loss_vfl = sum(all_vfl_losses, zero) / num_pos_avg
+        loss_giou = sum(all_giou_losses, zero) / weight_sum_avg
+        loss_dfl = sum(all_dfl_losses, zero) / weight_sum_avg
+
+        total_loss = (
+            self.model_args.vfl_weight * loss_vfl
+            + self.model_args.giou_weight * loss_giou
+            + self.model_args.dfl_weight * loss_dfl
+        )
+
+        return total_loss, loss_vfl, loss_giou, loss_dfl
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler.
@@ -537,7 +552,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         warmup_iters = self.model_args.warmup_iters
 
-        # Linear warmup: start at warmup_ratio * lr, linearly increase to lr
         warmup_scheduler = LinearLR(
             optimizer,
             start_factor=self.model_args.warmup_ratio,
@@ -545,13 +559,11 @@ class PicoDetObjectDetectionTrain(TrainModel):
             total_iters=warmup_iters,
         )
 
-        # Cosine annealing after warmup (to min_lr=0)
         cosine_scheduler = CosineAnnealingLR(
             optimizer,
             T_max=total_steps - warmup_iters,
         )
 
-        # Chain warmup + cosine annealing
         scheduler = SequentialLR(
             optimizer,
             schedulers=[warmup_scheduler, cosine_scheduler],
@@ -583,22 +595,16 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         Handles loading from checkpoints that may have EMA weights.
         """
-        import copy
 
-        from torch.nn.modules.module import _IncompatibleKeys
-
-        # Load into the main model
         missing_keys, unexpected_keys = self.model.load_train_state_dict(
             state_dict,
             strict=strict,
             assign=assign,
         )
 
-        # Also load into EMA model if present
         if self.ema_model is not None:
             missing_keys_ema, unexpected_keys_ema = (
                 self.ema_model.model.load_train_state_dict(  # type: ignore[operator]
-                    # Copy to avoid assigning the same weights to both models
                     copy.deepcopy(state_dict),
                     strict=strict,
                     assign=assign,

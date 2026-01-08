@@ -202,25 +202,32 @@ class SimOTAAssigner:
         # Build VFL score matrix: (num_valid * num_gt, num_classes)
         gt_vfl_labels = gt_labels.unsqueeze(0).expand(num_valid, -1).reshape(-1)
         pred_scores_expanded = (
-            pred_scores.unsqueeze(1).expand(-1, num_gt, -1).reshape(-1, self.num_classes)
+            pred_scores.unsqueeze(1)
+            .expand(-1, num_gt, -1)
+            .reshape(-1, self.num_classes)
         )
 
         # VFL target: zeros everywhere except IoU at the GT class
         vfl_target = pairwise_ious.new_zeros(pred_scores_expanded.shape)
-        vfl_target[torch.arange(vfl_target.size(0), device=vfl_target.device), gt_vfl_labels] = (
-            pairwise_ious.reshape(-1)
-        )
+        vfl_target[
+            torch.arange(vfl_target.size(0), device=vfl_target.device), gt_vfl_labels
+        ] = pairwise_ious.reshape(-1)
 
         # VFL focal weight: IoU for positives, focal modulation for negatives
         focal_weight = (
             vfl_target * (vfl_target > 0).float()
-            + alpha * (pred_scores_expanded - vfl_target).abs().pow(gamma) * (vfl_target <= 0).float()
+            + alpha
+            * (pred_scores_expanded - vfl_target).abs().pow(gamma)
+            * (vfl_target <= 0).float()
         )
 
         # BCE (not with_logits since pred_scores are already sigmoid)
         # Clamp to avoid log(0)
         pred_clamped = pred_scores_expanded.clamp(min=1e-7, max=1 - 1e-7)
-        bce = -(vfl_target * pred_clamped.log() + (1 - vfl_target) * (1 - pred_clamped).log())
+        bce = -(
+            vfl_target * pred_clamped.log()
+            + (1 - vfl_target) * (1 - pred_clamped).log()
+        )
         losses_vfl = (bce * focal_weight).sum(dim=1)  # Sum over classes
 
         return losses_vfl.reshape(num_valid, num_gt)

@@ -33,15 +33,19 @@ logger = logging.getLogger(__name__)
 
 # Model configurations
 _MODEL_CONFIGS = {
-    "picodet/s-320": {
-        "model_size": "s",
-        "image_size": (320, 320),
-        "stacked_convs": 2,
-    },
     "picodet/s-416": {
         "model_size": "s",
         "image_size": (416, 416),
         "stacked_convs": 2,
+        "neck_out_channels": 96,
+        "head_feat_channels": 96,
+    },
+    "picodet/l-416": {
+        "model_size": "l",
+        "image_size": (416, 416),
+        "stacked_convs": 4,
+        "neck_out_channels": 160,
+        "head_feat_channels": 160,
     },
 }
 
@@ -54,8 +58,8 @@ class PicoDetObjectDetection(TaskModel):
     CSP-PAN neck, and GFL-style detection head.
 
     Supported models:
-        - picodet/s-320: PicoDet-S at 320×320 input
-        - picodet/s-416: PicoDet-S at 416×416 input
+        - picodet/s-416: PicoDet-S at 416x416 input
+        - picodet/l-416: PicoDet-L at 416x416 input
 
     Args:
         model_name: Model variant name.
@@ -92,7 +96,6 @@ class PicoDetObjectDetection(TaskModel):
         self.num_classes = num_classes
         self.reg_max = reg_max
 
-        # Get model config
         config = _MODEL_CONFIGS.get(model_name)
         if config is None:
             raise ValueError(
@@ -102,24 +105,34 @@ class PicoDetObjectDetection(TaskModel):
 
         model_size_raw = config["model_size"]
         stacked_convs_raw = config["stacked_convs"]
+        neck_out_channels_raw = config["neck_out_channels"]
+        head_feat_channels_raw = config["head_feat_channels"]
         if model_size_raw not in ("s", "m", "l"):
             raise ValueError(f"Invalid model_size: {model_size_raw}")
         if not isinstance(stacked_convs_raw, int):
             raise TypeError(f"stacked_convs must be int, got {type(stacked_convs_raw)}")
+        if not isinstance(neck_out_channels_raw, int):
+            raise TypeError(
+                f"neck_out_channels must be int, got {type(neck_out_channels_raw)}"
+            )
+        if not isinstance(head_feat_channels_raw, int):
+            raise TypeError(
+                f"head_feat_channels must be int, got {type(head_feat_channels_raw)}"
+            )
         model_size_typed: Literal["s", "m", "l"] = model_size_raw  # type: ignore[assignment]
         stacked_convs_typed: int = stacked_convs_raw
+        neck_out_channels_typed: int = neck_out_channels_raw
+        head_feat_channels_typed: int = head_feat_channels_raw
 
-        # Build backbone
         self.backbone = ESNet(
             model_size=model_size_typed,
             out_indices=(2, 9, 12),  # C3, C4, C5
         )
         backbone_out_channels = self.backbone.out_channels
 
-        # Build neck
         self.neck = CSPPAN(
             in_channels=backbone_out_channels,
-            out_channels=96,
+            out_channels=neck_out_channels_typed,
             kernel_size=5,
             num_features=4,  # P3, P4, P5, P6
             expansion=1.0,
@@ -127,11 +140,10 @@ class PicoDetObjectDetection(TaskModel):
             use_depthwise=True,
         )
 
-        # Build head
         self.head = PicoHead(
-            in_channels=96,
+            in_channels=neck_out_channels_typed,
             num_classes=num_classes,
-            feat_channels=96,
+            feat_channels=head_feat_channels_typed,
             stacked_convs=stacked_convs_typed,
             kernel_size=5,
             reg_max=reg_max,
@@ -140,7 +152,6 @@ class PicoDetObjectDetection(TaskModel):
             use_depthwise=True,
         )
 
-        # Build postprocessor
         self.postprocessor = PicoDetPostProcessor(
             num_classes=num_classes,
             reg_max=reg_max,
@@ -180,19 +191,16 @@ class PicoDetObjectDetection(TaskModel):
 
         new_state_dict = {}
         if has_ema_weights:
-            # Prefer EMA weights
             for name, param in state_dict.items():
                 if name.startswith("ema_model.model."):
                     new_name = name[len("ema_model.model.") :]
                     new_state_dict[new_name] = param
         elif has_model_weights:
-            # Fall back to regular model weights
             for name, param in state_dict.items():
                 if name.startswith("model."):
                     new_name = name[len("model.") :]
                     new_state_dict[new_name] = param
         else:
-            # Assume it's already a task model state dict
             new_state_dict = state_dict
 
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
@@ -244,7 +252,6 @@ class PicoDetObjectDetection(TaskModel):
         x = file_helpers.as_image_tensor(image).to(device)
         orig_h, orig_w = x.shape[-2:]
 
-        # Preprocess
         x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
         if self.image_normalize is not None:
             x = transforms_functional.normalize(
@@ -253,10 +260,8 @@ class PicoDetObjectDetection(TaskModel):
         x = transforms_functional.resize(x, list(self.image_size))
         x = x.unsqueeze(0)
 
-        # Forward
         outputs = self(x)
 
-        # Postprocess
         results: dict[str, Tensor] = self.postprocessor(
             cls_scores=outputs["cls_scores"],
             bbox_preds=outputs["bbox_preds"],
