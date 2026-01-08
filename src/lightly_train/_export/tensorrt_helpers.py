@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 import torch
 
 from lightly_train import _logging
 from lightly_train.types import PathLike
+
+if TYPE_CHECKING:
+    import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
 
 logger = logging.getLogger(__name__)
 
@@ -121,22 +124,6 @@ def export_tensorrt(
                 logger.error(parser.get_error(error))
             raise RuntimeError("Failed to parse ONNX file")
 
-    # Precision override: Force FP32 for attention score matmul + softmax
-    # (/MatMul -> /Softmax). This fixes TRT FP16 NaNs while keeping most of the
-    # network FP16.
-    # This is required for EoMT with FP16.
-    def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
-        force_fp32_names = {"/MatMul", "/Softmax"}
-        for i in range(net.num_layers):
-            layer = net.get_layer(i)
-            if layer.name in force_fp32_names:
-                layer.precision = trt.DataType.FLOAT
-                for j in range(layer.num_outputs):
-                    out_tensor = layer.get_output(j)
-                    if out_tensor is not None:
-                        out_tensor.dtype = trt.DataType.FLOAT
-                logger.info(f"Forcing FP32 for layer: {layer.name} ({layer.type})")
-
     if fp32_attention_scores:
         _force_fp32_for_attention_scores(network)
 
@@ -210,3 +197,23 @@ def export_tensorrt(
     with open(out, "wb") as f:
         f.write(engine)
     logger.info("Engine export complete.")
+
+
+def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
+    """Force FP32 precision for attention score computations in the network.
+
+    This fixes TRT FP16 NaNs while keeping most of the network FP16.
+    This is required for EoMT with FP16.
+    """
+    import tensorrt as trt
+
+    force_fp32_names = {"/MatMul", "/Softmax"}
+    for i in range(net.num_layers):
+        layer = net.get_layer(i)
+        if layer.name in force_fp32_names:
+            layer.precision = trt.DataType.FLOAT
+            for j in range(layer.num_outputs):
+                out_tensor = layer.get_output(j)
+                if out_tensor is not None:
+                    out_tensor.dtype = trt.DataType.FLOAT
+            logger.info(f"Forcing FP32 for layer: {layer.name} ({layer.type})")
