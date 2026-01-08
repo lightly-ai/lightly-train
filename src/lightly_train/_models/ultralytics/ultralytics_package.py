@@ -16,7 +16,7 @@ import torch
 from torch.nn import Module
 
 if TYPE_CHECKING:
-    from ultralytics import YOLO  # type: ignore[attr-defined]
+    from ultralytics import RTDETR, YOLO  # type: ignore[attr-defined]
 
 from lightly_train._models import log_usage_example
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -41,7 +41,7 @@ class UltralyticsPackage(Package):
 
         # We currently only support models that have a backbone ending with an SPPF
         # layer. See ultralytics/cfg/models for different architectures.
-        supported_models = {"yolov5", "yolov6", "yolov8", "yolo11", "yolo12"}
+        supported_models = {"yolov5", "yolov6", "yolov8", "yolo11", "yolo12", "rtdetr"}
 
         # These models are downloaded from the ultralytics repository.
         pretrained_models = {
@@ -75,12 +75,12 @@ class UltralyticsPackage(Package):
     @classmethod
     def is_supported_model(cls, model: Module | ModelWrapper) -> bool:
         try:
-            from ultralytics import YOLO  # type: ignore[attr-defined]
+            from ultralytics import RTDETR, YOLO  # type: ignore[attr-defined]
         except ImportError:
             return False
         if isinstance(model, ModelWrapper):
             model = model.get_model()
-        return isinstance(model, YOLO)
+        return isinstance(model, YOLO) or isinstance(model, RTDETR)
 
     @classmethod
     def get_model(
@@ -91,7 +91,7 @@ class UltralyticsPackage(Package):
         load_weights: bool = True,
     ) -> Module:
         try:
-            from ultralytics import YOLO  # type: ignore[attr-defined]
+            from ultralytics import RTDETR, YOLO  # type: ignore[attr-defined]
         except ImportError:
             raise ValueError(
                 f"Cannot create model '{model_name}' because '{cls.name}' is not "
@@ -103,7 +103,8 @@ class UltralyticsPackage(Package):
                 f"{num_input_channels}."
             )
         args = {} if model_args is None else model_args
-        model: Module = YOLO(model=model_name, **args)
+        model_class = RTDETR if "detr" in model_name.lower() else YOLO
+        model: Module = model_class(model=model_name, **args)
         return model
 
     @classmethod
@@ -112,7 +113,10 @@ class UltralyticsPackage(Package):
 
     @classmethod
     def export_model(
-        cls, model: YOLO | ModelWrapper | Any, out: Path, log_example: bool = True
+        cls,
+        model: YOLO | RTDETR | ModelWrapper | Any,
+        out: Path,
+        log_example: bool = True,
     ) -> None:
         try:
             import ultralytics
