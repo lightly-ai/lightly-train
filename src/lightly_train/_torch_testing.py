@@ -18,8 +18,8 @@ def assert_most_equal(
     min_fraction: float = 0.99,
     msg: str | Callable[[str], str] | None = None,
 ) -> None:
-    """Asserts that at least `min_fraction` of the elements in tensors `a` and `b` are
-    equal.
+    """Asserts that at least `min_fraction` of the elements in tensors `actual` and
+    `expected` are equal.
 
     This is useful for verifying that two model outputs are similar when the output
     types are bool/int/long. For example segmentation masks.
