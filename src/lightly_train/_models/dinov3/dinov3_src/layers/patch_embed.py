@@ -101,7 +101,7 @@ class PatchEmbed(nn.Module):
             Resampled weight tensor
         """
         # Comparison assumes square patch sizes.
-        if target_patch_size == self.patch_size[0]:
+        if target_patch_size == weight.shape[-1]:
             return weight
 
         # Resample using existing function.

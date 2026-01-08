@@ -75,7 +75,8 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int | Literal["auto"] = "auto"
     # Backbone args, e.g., patch size.
-    backbone_args: dict[str, Any] | None = None
+    patch_size: int = 16
+    fix_num_upscale_blocks: bool = True
 
     # Loss terms
     loss_num_points: int = 12544
@@ -197,6 +198,9 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         image_size = no_auto(val_transform_args.image_size)
         normalize = no_auto(val_transform_args.normalize)
 
+        # Prepare backbone args.
+        backbone_args = {"patch_size": model_args.patch_size}
+
         self.model = DINOv3EoMTSemanticSegmentation(
             model_name=model_name,
             classes=data_args.included_classes,
@@ -209,9 +213,10 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
-            backbone_args=model_args.backbone_args,
+            backbone_args=backbone_args,
             # TODO (Lionel, 10/25): Pass backbone args.
             load_weights=load_weights,
+            fix_num_upscale_blocks=model_args.fix_num_upscale_blocks,
         )
 
         self.criterion = MaskClassificationLoss(
@@ -635,5 +640,5 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                 new_conv_weight = self.model.backbone.patch_embed.resample_conv_weight(
                     original_conv_weight, target_patch_size
                 )
-                state_dict["model.backbone.patch_embed.proj.weight"] = new_conv_weight
+                state_dict[key] = new_conv_weight
         return self.load_state_dict(state_dict, strict=strict, assign=assign)

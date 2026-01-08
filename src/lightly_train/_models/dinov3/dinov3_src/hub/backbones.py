@@ -153,12 +153,13 @@ def _make_dinov3_vit(
         )
 
         # Re-sample the projection weights before loading the statedict.
-        original_conv_weight = state_dict["patch_embed.proj.weight"]
+        key = "patch_embed.proj.weight"
+        original_conv_weight = state_dict[key]
         if original_conv_weight.shape[-1] != patch_size:
             new_conv_weight = model.patch_embed.resample_conv_weight(
                 original_conv_weight, patch_size
             )
-            state_dict["patch_embed.proj.weight"] = new_conv_weight
+            state_dict[key] = new_conv_weight
         model.load_state_dict(state_dict, strict=True)
     else:
         model.init_weights()
