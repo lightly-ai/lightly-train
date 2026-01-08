@@ -22,7 +22,7 @@ from lightly_train._models.model_wrapper import (
 )
 
 if TYPE_CHECKING:
-    from ultralytics import YOLO  # type: ignore[attr-defined]
+    from ultralytics import RTDETR, YOLO  # type: ignore[attr-defined]
     from ultralytics.nn.modules.block import SPPF, C2f
     from ultralytics.nn.modules.conv import Conv
 
@@ -47,10 +47,11 @@ def _get_direct_url() -> str | None:
 YOLOV12_ULTRALYTICS_AVAILABLE = RequirementCache("ultralytics>=8.3.78")
 YOLOV12_ORIGINAL_AVAILABLE = _get_direct_url() is not None
 YOLOV11_AVAILABLE = RequirementCache("ultralytics>=8.3.0")
+RTDETR_ULTRALYTICS_AVAILABLE = RequirementCache("ultralytics>=8.0.140")
 
 
 class UltralyticsModelWrapper(Module, ModelWrapper):
-    def __init__(self, model: YOLO) -> None:
+    def __init__(self, model: YOLO | RTDETR) -> None:
         super().__init__()
         _enable_gradients(model=model)
         # Set model to training mode. This is necessary for Ultralytics pretrained
@@ -69,11 +70,11 @@ class UltralyticsModelWrapper(Module, ModelWrapper):
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
         return {"pooled_features": self._pool(x["features"])}
 
-    def get_model(self) -> YOLO:
+    def get_model(self) -> YOLO | RTDETR:
         return self._model[0]
 
 
-def _get_backbone(model: YOLO) -> tuple[Sequential, int]:
+def _get_backbone(model: YOLO | RTDETR) -> tuple[Sequential, int]:
     """Extracts the backbone and feature dimension from the model.
 
     Ultralytics doesn't provide a way to get the backbone of the model. All layers
@@ -121,8 +122,22 @@ def _get_backbone(model: YOLO) -> tuple[Sequential, int]:
             feature_dim = last_module.cv2.conv.out_channels  # C2f block
             return backbone, feature_dim
 
+        if RTDETR_ULTRALYTICS_AVAILABLE:
+            from ultralytics.nn.modules.block import (  # type: ignore[attr-defined]
+                Conv,
+                HGBlock,
+            )
+
+            if type(last_module) is HGBlock and type(module) is Conv:
+                backbone = seq[:module_idx]  # type: ignore
+                feature_dim = last_module.ec.conv.out_channels
+
+                return backbone, feature_dim
+
         if YOLOV11_AVAILABLE:
-            from ultralytics.nn.modules.block import C2PSA
+            from ultralytics.nn.modules.block import (
+                C2PSA,  # type: ignore[attr-defined]
+            )
 
             if type(last_module) is C2PSA and type(module) in (
                 Upsample,
@@ -183,7 +198,7 @@ def _cv2_skip_bn_act(cv2: Conv) -> Conv:
     return new_cv2
 
 
-def _enable_gradients(model: YOLO) -> None:
+def _enable_gradients(model: YOLO | RTDETR) -> None:
     """Enables gradients for parameters in the model.
 
     Ultralytics disables by default gradients for models loaded from a checkpoint
