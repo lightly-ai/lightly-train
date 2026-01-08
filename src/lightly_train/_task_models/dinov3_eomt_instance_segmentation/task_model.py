@@ -22,6 +22,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train import _logging, _torch_testing
 from lightly_train._data import file_helpers
+from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.layers.attention import (
@@ -731,3 +732,64 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                     )
 
         logger.info(f"Successfully exported ONNX model to '{out}'")
+
+    @torch.no_grad()
+    def export_tensorrt(
+        self,
+        out: PathLike,
+        onnx_args: dict[str, Any] | None = None,
+        max_batchsize: int = 1,
+        opt_batchsize: int = 1,
+        min_batchsize: int = 1,
+        use_fp16: bool = False,
+        verbose: bool = False,
+    ) -> None:
+        """Build a TensorRT engine from an ONNX model.
+
+        .. note::
+            TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
+            Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup.
+            See the `TensorRT documentation <https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html>`_ for more details.
+            On CUDA 12.x systems you can often install the Python package via `pip install tensorrt-cu12`.
+
+        This loads the ONNX file, parses it with TensorRT, infers the static input
+        shape (C, H, W) from the `"images"` input, and creates an engine with a
+        dynamic batch dimension in the range `[min_batchsize, opt_batchsize, max_batchsize]`.
+        Spatial dimensions must be static in the ONNX model (dynamic H/W are not yet supported).
+
+        The engine is serialized and written to `out`.
+
+        Args:
+            out:
+                Path where the TensorRT engine will be saved.
+            onnx_args:
+                Optional arguments to pass to `export_onnx` when exporting
+                the ONNX model prior to building the TensorRT engine. If None,
+                default arguments are used and the ONNX file is saved alongside
+                the TensorRT engine with the same name but `.onnx` extension.
+            max_batchsize:
+                Maximum supported batch size.
+            opt_batchsize:
+                Batch size TensorRT optimizes for.
+            min_batchsize:
+                Minimum supported batch size.
+            use_fp16:
+                Enable FP16 precision if supported by the platform.
+            verbose:
+                Enable verbose TensorRT logging.
+
+        Raises:
+            FileNotFoundError: If the ONNX file does not exist.
+            RuntimeError: If the ONNX cannot be parsed or engine building fails.
+            ValueError: If batch size constraints are invalid or H/W are dynamic.
+        """
+        tensorrt_helpers.export_tensorrt(
+            export_onnx_fn=self.export_onnx,
+            out=out,
+            onnx_args=onnx_args,
+            max_batchsize=max_batchsize,
+            opt_batchsize=opt_batchsize,
+            min_batchsize=min_batchsize,
+            use_fp16=use_fp16,
+            verbose=verbose,
+        )
