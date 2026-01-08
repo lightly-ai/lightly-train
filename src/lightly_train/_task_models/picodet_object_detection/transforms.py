@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
 from lightning_utilities.core.imports import RequirementCache
@@ -30,6 +30,61 @@ from lightly_train._transforms.transform import (
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1.4.5")
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
+# TODO(Igor, 01/2026): We should refactor these augmentations and the LTDETR ones
+class PicoDetRandomPhotometricDistortArgs(RandomPhotometricDistortArgs):
+    brightness: tuple[float, float] = (0.875, 1.125)
+    contrast: tuple[float, float] = (0.5, 1.5)
+    saturation: tuple[float, float] = (0.5, 1.5)
+    hue: tuple[float, float] = (-0.05, 0.05)
+    prob: float = 0.5
+
+
+class PicoDetRandomZoomOutArgs(RandomZoomOutArgs):
+    prob: float = 0.5
+    fill: float = 0.0
+    side_range: tuple[float, float] = (1.0, 4.0)
+
+
+class PicoDetRandomIoUCropArgs(RandomIoUCropArgs):
+    min_scale: float = 0.3
+    max_scale: float = 1.0
+    min_aspect_ratio: float = 0.5
+    max_aspect_ratio: float = 2.0
+    sampler_options: Sequence[float] | None = None
+    crop_trials: int = 40
+    iou_trials: int = 1000
+    prob: float = 0.8
+
+
+class PicoDetRandomFlipArgs(RandomFlipArgs):
+    horizontal_prob: float = 0.5
+    vertical_prob: float = 0.0
+
+
+class PicoDetScaleJitterArgs(ScaleJitterArgs):
+    sizes: Sequence[tuple[int, int]] | None = [
+        (480, 480),
+        (512, 512),
+        (544, 544),
+        (576, 576),
+        (608, 608),
+        (640, 640),
+        (640, 640),
+        (640, 640),
+        (672, 672),
+        (704, 704),
+        (736, 736),
+        (768, 768),
+        (800, 800),
+    ]
+    min_scale: float | None = None
+    max_scale: float | None = None
+    num_scales: int | None = None
+    prob: float = 1.0
+    divisible_by: int | None = None
+    step_seeding: bool = True
+    seed_offset: int = 0
+
 
 class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
     """PicoDet training transforms aligned with the reference config.
@@ -39,16 +94,24 @@ class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
 
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
-    photometric_distort: RandomPhotometricDistortArgs | None = Field(
-        default_factory=RandomPhotometricDistortArgs
+    photometric_distort: PicoDetRandomPhotometricDistortArgs | None = Field(
+        default_factory=PicoDetRandomPhotometricDistortArgs
     )
-    random_zoom_out: RandomZoomOutArgs | None = Field(default_factory=RandomZoomOutArgs)
-    random_iou_crop: RandomIoUCropArgs | None = Field(default_factory=RandomIoUCropArgs)
-    random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
+    random_zoom_out: PicoDetRandomZoomOutArgs | None = Field(
+        default_factory=PicoDetRandomZoomOutArgs
+    )
+    random_iou_crop: PicoDetRandomIoUCropArgs | None = Field(
+        default_factory=PicoDetRandomIoUCropArgs
+    )
+    random_flip: PicoDetRandomFlipArgs | None = Field(
+        default_factory=PicoDetRandomFlipArgs
+    )
     image_size: tuple[int, int] | Literal["auto"] = "auto"
     stop_policy: None = None
     resize: ResizeArgs | None = None
-    scale_jitter: ScaleJitterArgs | None = Field(default_factory=ScaleJitterArgs)
+    scale_jitter: PicoDetScaleJitterArgs | None = Field(
+        default_factory=PicoDetScaleJitterArgs
+    )
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
             format="yolo",
@@ -70,7 +133,7 @@ class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
         super().resolve_auto(model_init_args=model_init_args)
 
         if self.image_size == "auto":
-            # Default to 416x416 for PicoDet-S
+            # Default to 416x416 for PicoDet
             self.image_size = tuple(model_init_args.get("image_size", (416, 416)))
 
         height, width = self.image_size
@@ -84,7 +147,6 @@ class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
             if normalize is None:
                 self.normalize = None
             elif normalize == "none":
-                # COCO normalization in [0, 1] space
                 self.normalize = NormalizeArgs(
                     mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
                 )
@@ -99,7 +161,7 @@ class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
                 self.num_channels = 3
 
         if self.scale_jitter is not None:
-            self.scale_jitter.divisible_by = 32
+            self.scale_jitter.divisible_by = None
 
 
 class PicoDetObjectDetectionTrainTransform(ObjectDetectionTransform):
@@ -144,7 +206,7 @@ class PicoDetObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
         super().resolve_auto(model_init_args=model_init_args)
 
         if self.image_size == "auto":
-            # Default to 416x416 for PicoDet-S
+            # Default to 416x416 for PicoDet
             self.image_size = tuple(model_init_args.get("image_size", (416, 416)))
 
         height, width = self.image_size
@@ -158,7 +220,6 @@ class PicoDetObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
             if normalize is None:
                 self.normalize = None
             elif normalize == "none":
-                # COCO normalization in [0, 1] space
                 self.normalize = NormalizeArgs(
                     mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
                 )
