@@ -28,7 +28,9 @@ def export_tensorrt(
     opt_batchsize: int = 1,
     min_batchsize: int = 1,
     use_fp16: bool = False,
+    fp32_attention_scores: bool = False,
     verbose: bool = False,
+    debug: bool = False,
 ) -> None:
     """Build a TensorRT engine from an ONNX model.
 
@@ -65,8 +67,12 @@ def export_tensorrt(
             Minimum supported batch size.
         use_fp16:
             Enable FP16 precision if supported by the platform.
+        fp32_attention_scores:
+            Force attention score computations to use FP32 precision.
         verbose:
             Enable verbose TensorRT logging.
+        debug:
+            Enable debug mode for TensorRT engine building.
 
     Raises:
         FileNotFoundError: If the ONNX file does not exist.
@@ -115,6 +121,25 @@ def export_tensorrt(
                 logger.error(parser.get_error(error))
             raise RuntimeError("Failed to parse ONNX file")
 
+    # Precision override: Force FP32 for attention score matmul + softmax
+    # (/MatMul -> /Softmax). This fixes TRT FP16 NaNs while keeping most of the
+    # network FP16.
+    # This is required for EoMT with FP16.
+    def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
+        force_fp32_names = {"/MatMul", "/Softmax"}
+        for i in range(net.num_layers):
+            layer = net.get_layer(i)
+            if layer.name in force_fp32_names:
+                layer.precision = trt.DataType.FLOAT
+                for j in range(layer.num_outputs):
+                    out_tensor = layer.get_output(j)
+                    if out_tensor is not None:
+                        out_tensor.dtype = trt.DataType.FLOAT
+                logger.info(f"Forcing FP32 for layer: {layer.name} ({layer.type})")
+
+    if fp32_attention_scores:
+        _force_fp32_for_attention_scores(network)
+
     # Infer input shape from the ONNX model
     images_input = None
     for i in range(network.num_inputs):
@@ -140,13 +165,29 @@ def export_tensorrt(
     config = builder.create_builder_config()
     config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 1 << 30)  # 1GB
 
+    # Avoid TF32 in mixed precision paths (can affect stability)
+    if hasattr(trt.BuilderFlag, "TF32"):
+        config.clear_flag(trt.BuilderFlag.TF32)
+
     # Verify that fp16 can be used if requested.
     if use_fp16:
         if builder.platform_has_fast_fp16:
             config.set_flag(trt.BuilderFlag.FP16)
+
+            # Ensure TensorRT respects layer.precision and tensor dtype overrides.
+            if hasattr(trt.BuilderFlag, "OBEY_PRECISION_CONSTRAINTS"):
+                config.set_flag(trt.BuilderFlag.OBEY_PRECISION_CONSTRAINTS)
+            elif hasattr(trt.BuilderFlag, "PREFER_PRECISION_CONSTRAINTS"):
+                config.set_flag(trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
+
             logger.info("FP16 optimization enabled.")
         else:
             logger.warning("FP16 not supported on this platform. Proceeding with FP32.")
+
+    if debug:
+        config.set_flag(trt.BuilderFlag.DEBUG)
+        config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
+        logger.info("Debug mode enabled.")
 
     profile = builder.create_optimization_profile()
     if not (min_batchsize <= opt_batchsize <= max_batchsize):
