@@ -671,10 +671,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             onnxslim.slim(
                 model=str(out),
                 output_model=out,
-                # We skip constant folding as this currently increases the model size by
-                # quite a lot. If we refactor the untile method we might be able to add
-                # constant folding.
-                skip_optimizations=["constant_folding"],
             )
 
         if verify:
