@@ -286,3 +286,12 @@ yolo detect train model=out/my_experiment/exported_models/exported_last.pt data=
   - `ultralytics/yolo12x-seg.pt`
   - `ultralytics/yolo12x.yaml`
   - `ultralytics/yolo12x.pt`
+- RT-DETR
+  - `ultralytics/rtdetr-l.yaml`
+  - `ultralytics/rtdetr-l.pt`
+  - `ultralytics/rtdetr-resnet101.yaml`
+  - `ultralytics/rtdetr-resnet101.pt`
+  - `ultralytics/rtdetr-resnet50.yaml`
+  - `ultralytics/rtdetr-resnet50.pt`
+  - `ultralytics/rtdetr-x.yaml`
+  - `ultralytics/rtdetr-x.pt`

@@ -405,6 +405,55 @@ We recommend using the exported best model weights from
 `out/my_experiment/exported_models/exported_best.pt` for this purpose, though a `.ckpt`
 file can also be loaded.
 
+(instance-segmentation-onnx)=
+
+## Exporting a Checkpoint to ONNX
+
+[Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange)
+is a standard format for representing machine learning models in a framework independent
+manner. In particular, it is useful for deploying our models on edge devices where
+PyTorch is not available.
+
+### Requirements
+
+Exporting to ONNX requires some additional packages to be installed. Namely
+
+- [onnx](https://pypi.org/project/onnx/)
+- [onnxruntime](https://pypi.org/project/onnxruntime/) if `verify` is set to `True`.
+- [onnxslim](https://pypi.org/project/onnxslim/) if `simplify` is set to `True`.
+
+You can install them with:
+
+```bash
+pip install "lightly-train[onnx,onnxruntime,onnxslim]"
+```
+
+The following example shows how to export a previously trained model to ONNX.
+
+```python
+import lightly_train
+
+# Instantiate the model from a checkpoint.
+model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+
+# Export the PyTorch model to ONNX.
+model.export_onnx(
+    out="out/my_experiment/exported_models/model.onnx",
+    # batch_size=1, # Set custom batch size, default is 1.
+    # height=512, # Set custom height and width, default is model.image_size.
+    # width=512,
+    # opset_version=15, # Set custom ONNX opset version, default is automatically determined by ONNX.
+    # verify=False, # Disable ONNX model verification, default is True.
+    # simplify=False, # Disable model simplification, default is True.
+)
+```
+
+See {py:meth}`~.DINOv3EoMTInstanceSegmentation.export_onnx` for all available options
+when exporting to ONNX.
+
+The following notebook shows how to export a model to ONNX in Colab:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/instance_segmentation_export.ipynb)
+
 (instance-segmentation-transform-args)=
 
 ## Default Image Transform Arguments
