@@ -682,6 +682,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         segment_id_to_contiguous_id = -segment_ids.new_ones(max_segment_id + 1)
         # Build a presence mask without torch.unique for TensorRT compatibility.
         present_segment_ids = torch.zeros_like(segment_id_to_contiguous_id)
+        # Scatter for cudagraph compatibility. Equivalent to:
+        # present_segment_ids[segment_ids] = 1
         present_segment_ids = present_segment_ids.scatter(
             dim=0,
             index=segment_ids,
