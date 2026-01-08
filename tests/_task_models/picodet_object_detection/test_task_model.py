@@ -9,8 +9,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import torch
+
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
+)
+from lightly_train._task_models.picodet_object_detection.task_model import (
+    PicoDetObjectDetection,
 )
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
@@ -43,10 +48,6 @@ def test_load_train_state_dict__no_ema_weights() -> None:
 
 
 def test_task_model_forward_shapes() -> None:
-    from lightly_train._task_models.picodet_object_detection.task_model import (
-        PicoDetObjectDetection,
-    )
-
     model = PicoDetObjectDetection(
         model_name="picodet/s-416",
         image_size=(416, 416),
