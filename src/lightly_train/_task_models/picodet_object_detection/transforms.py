@@ -22,6 +22,7 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
+    RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
 )
@@ -33,23 +34,21 @@ ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2
 class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
     """PicoDet training transforms aligned with the reference config.
 
-    By default we keep the pipeline minimal (resize + normalize) to simplify
-    training and reduce augmentation complexity. Extra augmentations can be
-    enabled by providing the corresponding args.
+    PicoDet defaults mirror LTDETR training augmentations for consistency.
     """
 
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
-    photometric_distort: RandomPhotometricDistortArgs | None = None
-    random_zoom_out: None = None
-    random_iou_crop: RandomIoUCropArgs | None = None
-    random_flip: RandomFlipArgs | None = None
+    photometric_distort: RandomPhotometricDistortArgs | None = Field(
+        default_factory=RandomPhotometricDistortArgs
+    )
+    random_zoom_out: RandomZoomOutArgs | None = Field(default_factory=RandomZoomOutArgs)
+    random_iou_crop: RandomIoUCropArgs | None = Field(default_factory=RandomIoUCropArgs)
+    random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     image_size: tuple[int, int] | Literal["auto"] = "auto"
     stop_policy: None = None
-    resize: ResizeArgs | None = Field(
-        default_factory=lambda: ResizeArgs(height="auto", width="auto")
-    )
-    scale_jitter: ScaleJitterArgs | None = None
+    resize: ResizeArgs | None = None
+    scale_jitter: ScaleJitterArgs | None = Field(default_factory=ScaleJitterArgs)
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
             format="yolo",
