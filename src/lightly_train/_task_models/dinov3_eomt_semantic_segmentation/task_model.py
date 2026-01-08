@@ -118,7 +118,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         self.internal_class_to_class: Tensor
         self.register_buffer(
             "internal_class_to_class",
-            torch.tensor(internal_class_to_class, dtype=torch.long),
+            torch.tensor(internal_class_to_class, dtype=torch.int32),
             persistent=False,  # No need to save it in the state dict.
         )
 
