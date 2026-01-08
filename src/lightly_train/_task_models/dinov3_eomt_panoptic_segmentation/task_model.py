@@ -354,6 +354,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         # NOTE(Guarin, 11/25): This implementation only supports batch size 1.
         assert x.shape[0] == 1, "Only batch size 1 is supported in forward()."
 
+        # Get thresholds from attributes. Otherwise the ONNX export cannot capture
+        # them. This way they are folded into the ONNX graph as constants.
         threshold = self._threshold
         mask_threshold = self._mask_threshold
         mask_overlap_threshold = self._mask_overlap_threshold
