@@ -599,6 +599,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         H, W = mask_logits.shape[-2:]
         scores = class_logits.softmax(dim=-1)  # (Q, K+1)
         scores, labels = scores.max(dim=-1)  # (Q,), (Q,)
+        mask_probs = mask_logits.sigmoid()  # (Q, H, W)
 
         ignore_class_id = self.internal_ignore_class_id
         keep = (labels != ignore_class_id) & (scores > threshold)  # (Q,)
@@ -611,7 +612,6 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         keep_indices = keep.nonzero(as_tuple=False).flatten()
         scores = scores.index_select(0, keep_indices)  # (num_keep,)
         labels = labels.index_select(0, keep_indices)  # (num_keep,)
-        mask_probs = mask_logits.sigmoid()  # (Q, H, W)
         mask_probs = mask_probs.index_select(0, keep_indices)  # (num_keep, H, W)
 
         # (num_keep, H, W)
