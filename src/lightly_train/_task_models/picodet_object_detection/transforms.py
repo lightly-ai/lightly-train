@@ -30,6 +30,7 @@ from lightly_train._transforms.transform import (
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1.4.5")
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
+
 # TODO(Igor, 01/2026): We should refactor these augmentations and the LTDETR ones
 class PicoDetRandomPhotometricDistortArgs(RandomPhotometricDistortArgs):
     brightness: tuple[float, float] = (0.875, 1.125)
@@ -62,21 +63,7 @@ class PicoDetRandomFlipArgs(RandomFlipArgs):
 
 
 class PicoDetScaleJitterArgs(ScaleJitterArgs):
-    sizes: Sequence[tuple[int, int]] | None = [
-        (480, 480),
-        (512, 512),
-        (544, 544),
-        (576, 576),
-        (608, 608),
-        (640, 640),
-        (640, 640),
-        (640, 640),
-        (672, 672),
-        (704, 704),
-        (736, 736),
-        (768, 768),
-        (800, 800),
-    ]
+    sizes: Sequence[tuple[int, int]] | None = None
     min_scale: float | None = None
     max_scale: float | None = None
     num_scales: int | None = None
@@ -161,7 +148,32 @@ class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
                 self.num_channels = 3
 
         if self.scale_jitter is not None:
-            self.scale_jitter.divisible_by = None
+            base = self.image_size[0]
+            if base == 416:
+                self.scale_jitter.sizes = [
+                    (352, 352),
+                    (384, 384),
+                    (416, 416),
+                    (448, 448),
+                    (480, 480),
+                ]
+            elif base == 320:
+                self.scale_jitter.sizes = [
+                    (256, 256),
+                    (288, 288),
+                    (320, 320),
+                    (352, 352),
+                    (384, 384),
+                ]
+            else:
+                self.scale_jitter.sizes = [
+                    (base - 64, base - 64),
+                    (base - 32, base - 32),
+                    (base, base),
+                    (base + 32, base + 32),
+                    (base + 64, base + 64),
+                ]
+            self.scale_jitter.divisible_by = 32
 
 
 class PicoDetObjectDetectionTrainTransform(ObjectDetectionTransform):
