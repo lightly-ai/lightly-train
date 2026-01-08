@@ -133,7 +133,10 @@ def get_package_from_model(
 
 
 def parse_model_name(model: str) -> tuple[str, str]:
-    parts = model.split("/")
+    # Limit maxsplit to 1 to allow for model names that contain "/". This happens
+    # for example for Ultralytics models loaded from local paths:
+    # model="ultralytics/path/to/model.pt"
+    parts = model.split("/", 1)
     if len(parts) != 2:
         raise ValueError(
             "Model name has incorrect format. Should be 'package/model' but is "
