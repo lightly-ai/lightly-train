@@ -602,10 +602,15 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         keep = (labels != ignore_class_id) & (scores > threshold)  # (Q,)
 
         # Remove ignored queries.
-        scores = scores[keep]  # (num_keep,)
-        labels = labels[keep]  # (num_keep,)
+        # Use index_select for ONNX/TensorRT compatibility. This is equivalent to:
+        # labels = labels[keep]
+        # scores = scores[keep]
+        # mask_probs = mask_probs[keep]
+        keep_indices = keep.nonzero(as_tuple=False).flatten()
+        scores = scores.index_select(0, keep_indices)  # (num_keep,)
+        labels = labels.index_select(0, keep_indices)  # (num_keep,)
         mask_probs = mask_logits.sigmoid()  # (Q, H, W)
-        mask_probs = mask_probs[keep]  # (num_keep, H, W)
+        mask_probs = mask_probs.index_select(0, keep_indices)  # (num_keep, H, W)
 
         # (num_keep, H, W)
         mask_scores = scores[..., None, None] * mask_probs
@@ -636,20 +641,19 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             & (area_final > 0)
             & (area_ratio >= mask_overlap_threshold)
         )
-        keep_area_indices = torch.nonzero(keep_area, as_tuple=False).flatten()
-        mask_final = torch.index_select(
-            mask_final, 0, keep_area_indices
-        )  # (num_keep_area, H, W)
-
         # Filter labels and scores accordingly. We have to use index_select for
         # cudagraph compatibility. This is equivalent to:
         # labels = labels[keep_area]
         # scores = scores[keep_area]
         # But ONNX throws a error if labels or scores are empty:
         # Name:'/GatherND_4' Status Message: last dimension of indices must not be larger than rank of input tensor
-        keep_area_indices = torch.nonzero(keep_area, as_tuple=False).flatten()
-        labels = torch.index_select(labels, 0, keep_area_indices)
-        scores = torch.index_select(scores, 0, keep_area_indices)
+        keep_area_indices = mask_final.nonzero(as_tuple=False).flatten()
+        # (num_keep_area, H, W)
+        mask_final = mask_final.index_select(0, keep_area_indices)
+        # (num_keep_area,)
+        labels = labels.index_select(0, keep_area_indices)
+        # (num_keep_area,)
+        scores = scores.index_select(0, keep_area_indices)
 
         # Assign id to each segment
         num_keep_area = labels.shape[0]
@@ -675,7 +679,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         # segment_ids[is_stuff] = stuff_label_to_segment_id[stuff_labels]
         segment_ids = segment_ids.masked_scatter(
             is_stuff,
-            torch.index_select(stuff_label_to_segment_id, 0, stuff_labels),
+            stuff_label_to_segment_id.index_select(0, stuff_labels),
         )
 
         # Reassign segment ids to be contiguous
@@ -693,8 +697,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         segment_id_to_contiguous_id = contiguous_ids.masked_fill(
             present_segment_ids == 0, -1
         )
-
-        segment_ids = torch.index_select(segment_id_to_contiguous_id, 0, segment_ids)
+        segment_ids = segment_id_to_contiguous_id.index_select(0, segment_ids)
 
         # Create final per-pixel labels and segment tensor
         # (num_keep_area, H, W) where each pixel is either -1 or the class label
