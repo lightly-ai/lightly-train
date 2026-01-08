@@ -647,7 +647,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         # scores = scores[keep_area]
         # But ONNX throws a error if labels or scores are empty:
         # Name:'/GatherND_4' Status Message: last dimension of indices must not be larger than rank of input tensor
-        keep_area_indices = mask_final.nonzero(as_tuple=False).flatten()
+        keep_area_indices = keep_area.nonzero(as_tuple=False).flatten()
         # (num_keep_area, H, W)
         mask_final = mask_final.index_select(0, keep_area_indices)
         # (num_keep_area,)
