@@ -15,6 +15,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add ONNX and TensorRT export for semantic segmentation models.
 - Add example jupyter notebooks for ONNX and TensorRT export.
 - Add tiny semantic segmentation models.
+- Add support for Ultralytics RT-DETR models.
 
 ### Changed
 
