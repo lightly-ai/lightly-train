@@ -123,6 +123,11 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "/dinov3_eomt/dinov3_vitl16_eomt_inst_coco.pt",
         "1aac5ac16dcbc1a12cc6f8d4541bea5e7940937a49f0b1dcea7394956b6e46e5",
     ),
+    # Trained iwth 80k steps and batch size 512
+    "picodet/s-coco-416": (
+        "picodet_s_coco_416_260109_.pt",
+        "3aaa7b8ddf40ed1f171bb8933031a8715094c076d97cd0c99b853c3910954aa2",
+    ),
     # Trained with 2x schedule (180k steps)
     "dinov3/vits16-eomt-panoptic-coco": (
         "dinov3_vits16_eomt_panoptic_coco_251219_89e8a64f.pt",
