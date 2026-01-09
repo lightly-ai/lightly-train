@@ -75,7 +75,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int | Literal["auto"] = "auto"
     # Backbone args, e.g., patch size.
-    patch_size: int = 16
+    patch_size: int | Literal["auto"] = "auto"
     fix_num_upscale_blocks: bool = True
 
     # Loss terms
@@ -112,6 +112,24 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
         model_name: str,
         model_init_args: dict[str, Any],
     ) -> None:
+        # Set the patch size.
+        if self.patch_size == "auto":
+            patch_size = model_init_args.get("patch_size", None)
+            if patch_size is not None:
+                self.patch_size = patch_size
+            else:
+                match = re.match(
+                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
+                    model_name,
+                )
+                if match is None:
+                    raise ValueError(
+                        f"Unknown model name '{model_name}', "
+                        "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
+                        "for all supported models."
+                    )
+                self.patch_size = int(match.group("patch_size"))
+
         if self.num_queries == "auto":
             num_queries = model_init_args.get("num_queries", 100)
             assert isinstance(num_queries, int)  # for mypy
