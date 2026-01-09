@@ -220,7 +220,7 @@ def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
 
 
 def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
-    import tensorboardt as trt
+    import tensorboard as trt
     # Collect the input tensor names of all Softmax layers
     softmax_inputs: set[str] = set()
     for i in range(net.num_layers):
