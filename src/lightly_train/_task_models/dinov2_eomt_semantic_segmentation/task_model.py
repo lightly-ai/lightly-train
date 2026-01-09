@@ -266,6 +266,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         device = first_param.device
         dtype = first_param.dtype
 
+        first_param = next(self.parameters())
+        device = first_param.device
+        dtype = first_param.dtype
+
         # Load image
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
@@ -274,6 +278,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
+
         # Crop size is the short side of the training image size. We resize the image
         # such that the short side of the image matches the crop size.
         crop_size = min(self.image_size)
