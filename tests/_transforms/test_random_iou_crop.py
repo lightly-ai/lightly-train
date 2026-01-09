@@ -267,6 +267,8 @@ class TestRandomIoUCrop:
         assert np.array_equal(transformed_image, image), "Image changed unexpectedly"
         assert np.array_equal(transformed_boxes, boxes), "Boxes changed unexpectedly"
         assert np.array_equal(transformed_classes, classes)
-        assert transformed_image.shape == (h, w, 3), (
-            "Shape mismatch (h/w may be swapped)"
-        )
+        assert transformed_image.shape == (
+            h,
+            w,
+            3,
+        ), "Shape mismatch (h/w may be swapped)"

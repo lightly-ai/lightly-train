@@ -1,0 +1,427 @@
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
+from __future__ import annotations
+
+import logging
+from copy import deepcopy
+from typing import Any, Literal
+
+import torch
+from PIL.Image import Image as PILImage
+from torch import Tensor
+from torchvision.transforms.v2 import functional as transforms_functional
+from typing_extensions import Self
+
+from lightly_train import _logging
+from lightly_train._commands import _warnings
+from lightly_train._data import file_helpers
+from lightly_train._task_models.picodet_object_detection.csp_pan import CSPPAN
+from lightly_train._task_models.picodet_object_detection.esnet import ESNet
+from lightly_train._task_models.picodet_object_detection.pico_head import PicoHead
+from lightly_train._task_models.picodet_object_detection.postprocessor import (
+    PicoDetPostProcessor,
+)
+from lightly_train._task_models.task_model import TaskModel
+from lightly_train.types import PathLike
+
+logger = logging.getLogger(__name__)
+
+# Model configurations
+_MODEL_CONFIGS = {
+    "picodet/s-416": {
+        "model_size": "s",
+        "image_size": (416, 416),
+        "stacked_convs": 2,
+        "neck_out_channels": 96,
+        "head_feat_channels": 96,
+    },
+    "picodet/l-416": {
+        "model_size": "l",
+        "image_size": (416, 416),
+        "stacked_convs": 4,
+        "neck_out_channels": 160,
+        "head_feat_channels": 160,
+    },
+}
+
+
+class PicoDetObjectDetection(TaskModel):
+    """PicoDet-S object detection model.
+
+    PicoDet is a lightweight anchor-free object detector designed for
+    mobile and edge deployment. It uses an Enhanced ShuffleNet backbone,
+    CSP-PAN neck, and GFL-style detection head.
+
+    Supported models:
+        - picodet/s-416: PicoDet-S at 416x416 input
+        - picodet/l-416: PicoDet-L at 416x416 input
+
+    Args:
+        model_name: Model variant name.
+        image_size: Input image size (H, W).
+        num_classes: Number of object classes.
+        image_normalize: Normalization parameters (mean, std in [0,1] space).
+        reg_max: Maximum value for DFL distribution.
+        score_threshold: Default score threshold for inference.
+        iou_threshold: IoU threshold for NMS.
+        max_detections: Maximum number of detections.
+        load_weights: Whether to load pretrained weights (unused for scratch).
+    """
+
+    model_suffix = "picodet"
+
+    def __init__(
+        self,
+        *,
+        model_name: str,
+        image_size: tuple[int, int],
+        num_classes: int,
+        image_normalize: dict[str, list[float]] | None = None,
+        reg_max: int = 7,
+        score_threshold: float = 0.025,
+        iou_threshold: float = 0.6,
+        max_detections: int = 100,
+        load_weights: bool = True,
+    ) -> None:
+        super().__init__(init_args=locals(), ignore_args={"load_weights"})
+
+        self.model_name = model_name
+        self.image_size = image_size
+        self.image_normalize = image_normalize
+        self.num_classes = num_classes
+        self.reg_max = reg_max
+
+        config = _MODEL_CONFIGS.get(model_name)
+        if config is None:
+            raise ValueError(
+                f"Unknown model name '{model_name}'. "
+                f"Available: {list(_MODEL_CONFIGS.keys())}"
+            )
+
+        model_size_raw = config["model_size"]
+        stacked_convs_raw = config["stacked_convs"]
+        neck_out_channels_raw = config["neck_out_channels"]
+        head_feat_channels_raw = config["head_feat_channels"]
+        if model_size_raw not in ("s", "m", "l"):
+            raise ValueError(f"Invalid model_size: {model_size_raw}")
+        if not isinstance(stacked_convs_raw, int):
+            raise TypeError(f"stacked_convs must be int, got {type(stacked_convs_raw)}")
+        if not isinstance(neck_out_channels_raw, int):
+            raise TypeError(
+                f"neck_out_channels must be int, got {type(neck_out_channels_raw)}"
+            )
+        if not isinstance(head_feat_channels_raw, int):
+            raise TypeError(
+                f"head_feat_channels must be int, got {type(head_feat_channels_raw)}"
+            )
+        model_size_typed: Literal["s", "m", "l"] = model_size_raw  # type: ignore[assignment]
+        stacked_convs_typed: int = stacked_convs_raw
+        neck_out_channels_typed: int = neck_out_channels_raw
+        head_feat_channels_typed: int = head_feat_channels_raw
+
+        self.backbone = ESNet(
+            model_size=model_size_typed,
+            out_indices=(2, 9, 12),  # C3, C4, C5
+        )
+        backbone_out_channels = self.backbone.out_channels
+
+        self.neck = CSPPAN(
+            in_channels=backbone_out_channels,
+            out_channels=neck_out_channels_typed,
+            kernel_size=5,
+            num_features=4,  # P3, P4, P5, P6
+            expansion=1.0,
+            num_csp_blocks=1,
+            use_depthwise=True,
+        )
+
+        self.head = PicoHead(
+            in_channels=neck_out_channels_typed,
+            num_classes=num_classes,
+            feat_channels=head_feat_channels_typed,
+            stacked_convs=stacked_convs_typed,
+            kernel_size=5,
+            reg_max=reg_max,
+            strides=(8, 16, 32, 64),
+            share_cls_reg=True,
+            use_depthwise=True,
+        )
+
+        self.postprocessor = PicoDetPostProcessor(
+            num_classes=num_classes,
+            reg_max=reg_max,
+            strides=(8, 16, 32, 64),
+            score_threshold=score_threshold,
+            iou_threshold=iou_threshold,
+            max_detections=max_detections,
+        )
+
+    @classmethod
+    def list_model_names(cls) -> list[str]:
+        """Return list of supported model names."""
+        return list(_MODEL_CONFIGS.keys())
+
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        """Check if a model name is supported."""
+        return model in _MODEL_CONFIGS
+
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> Any:
+        """Load the state dict from a training checkpoint.
+
+        Loads EMA weights if available, otherwise falls back to model weights.
+
+        Args:
+            state_dict: Checkpoint state dict.
+            strict: Whether to strictly enforce key matching.
+            assign: Whether to assign parameters instead of copying.
+
+        Returns:
+            Incompatible keys from loading.
+        """
+        has_ema_weights = any(k.startswith("ema_model.model.") for k in state_dict)
+        has_model_weights = any(k.startswith("model.") for k in state_dict)
+
+        new_state_dict = {}
+        if has_ema_weights:
+            for name, param in state_dict.items():
+                if name.startswith("ema_model.model."):
+                    new_name = name[len("ema_model.model.") :]
+                    new_state_dict[new_name] = param
+        elif has_model_weights:
+            for name, param in state_dict.items():
+                if name.startswith("model."):
+                    new_name = name[len("model.") :]
+                    new_state_dict[new_name] = param
+        else:
+            new_state_dict = state_dict
+
+        return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
+
+    def deploy(self) -> Self:
+        """Set the model to deployment mode."""
+        self.eval()
+        self.postprocessor.deploy()
+        return self
+
+    def forward(self, images: Tensor) -> dict[str, list[Tensor]]:
+        """Forward pass returning raw per-level predictions.
+
+        Args:
+            images: Input tensor of shape (B, C, H, W).
+
+        Returns:
+            Dictionary with:
+            - cls_scores: List of (B, num_classes, H, W) per level.
+            - bbox_preds: List of (B, 4*(reg_max+1), H, W) per level.
+        """
+        feats = self.backbone(images)
+        feats = self.neck(feats)
+        cls_scores, bbox_preds = self.head(feats)
+        return {"cls_scores": cls_scores, "bbox_preds": bbox_preds}
+
+    @torch.no_grad()
+    def predict(
+        self,
+        image: PathLike | PILImage | Tensor,
+        threshold: float = 0.6,
+    ) -> dict[str, Tensor]:
+        """Run inference on a single image.
+
+        Args:
+            image: Input image as path, PIL image, or tensor (C, H, W).
+            threshold: Score threshold for detections.
+
+        Returns:
+            Dictionary with:
+            - labels: Tensor of shape (N,) with class indices.
+            - bboxes: Tensor of shape (N, 4) with boxes in xyxy format.
+            - scores: Tensor of shape (N,) with confidence scores.
+        """
+        self._track_inference()
+        self.eval()
+
+        device = next(self.parameters()).device
+        x = file_helpers.as_image_tensor(image).to(device)
+        orig_h, orig_w = x.shape[-2:]
+
+        x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
+        if self.image_normalize is not None:
+            x = transforms_functional.normalize(
+                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+            )
+        x = transforms_functional.resize(x, list(self.image_size))
+        x = x.unsqueeze(0)
+
+        outputs = self(x)
+
+        results: dict[str, Tensor] = self.postprocessor(
+            cls_scores=outputs["cls_scores"],
+            bbox_preds=outputs["bbox_preds"],
+            original_size=(orig_h, orig_w),
+            score_threshold=threshold,
+        )
+
+        return results
+
+    @torch.no_grad()
+    def export_onnx(
+        self,
+        out: PathLike,
+        opset_version: int | None = None,
+        simplify: bool = True,
+        verify: bool = True,
+        format_args: dict[str, Any] | None = None,
+        num_channels: int | None = None,
+    ) -> None:
+        """Exports the model to ONNX for inference.
+
+        The export uses a dummy input of shape (1, C, H, W) where C is inferred
+        from the first model parameter and (H, W) come from `self.image_size`.
+        The ONNX graph outputs labels, boxes, and scores in the resized input
+        image space.
+
+        Optionally simplifies the exported model in-place using onnxslim and
+        verifies numerical closeness against a float32 CPU reference via
+        ONNX Runtime.
+
+        Args:
+            out: Path where the ONNX model will be written.
+            opset_version: ONNX opset version to target. If None, PyTorch's
+                default opset is used.
+            simplify: If True, run onnxslim to simplify and overwrite the exported model.
+            verify: If True, validate the ONNX file and compare outputs to a
+                float32 CPU reference forward pass.
+            format_args: Optional extra keyword arguments forwarded to
+                `torch.onnx.export`.
+            num_channels: Number of input channels. If None, will be inferred.
+        """
+        _warnings.filter_export_warnings()
+        _logging.set_up_console_logging()
+
+        self.eval()
+        self.deploy()
+
+        first_parameter = next(self.parameters())
+        model_device = first_parameter.device
+        model_dtype = first_parameter.dtype
+
+        if num_channels is None:
+            if self.image_normalize is not None:
+                num_channels = len(self.image_normalize["mean"])
+                logger.info(
+                    f"Inferred num_channels={num_channels} from image_normalize."
+                )
+            else:
+                for module in self.modules():
+                    if isinstance(module, torch.nn.Conv2d):
+                        num_channels = module.in_channels
+                        logger.info(
+                            f"Inferred num_channels={num_channels} from first Conv. layer."
+                        )
+                        break
+                if num_channels is None:
+                    logger.error(
+                        "Could not infer num_channels. Please provide it explicitly."
+                    )
+                    raise ValueError(
+                        "num_channels must be provided for ONNX export if it cannot be inferred."
+                    )
+
+        dummy_input = torch.randn(
+            1,
+            num_channels,
+            self.image_size[0],
+            self.image_size[1],
+            requires_grad=False,
+            device=model_device,
+            dtype=model_dtype,
+        )
+
+        class _PicoDetOnnxWrapper(torch.nn.Module):
+            def __init__(self, model: PicoDetObjectDetection) -> None:
+                super().__init__()
+                self.model = model
+
+            def forward(self, images: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+                outputs = self.model(images)
+                orig_h, orig_w = images.shape[-2:]
+                results = self.model.postprocessor(
+                    cls_scores=outputs["cls_scores"],
+                    bbox_preds=outputs["bbox_preds"],
+                    original_size=(orig_h, orig_w),
+                    score_threshold=0.0,
+                )
+                return results["labels"], results["bboxes"], results["scores"]
+
+        wrapper = _PicoDetOnnxWrapper(self)
+
+        input_names = ["images"]
+        output_names = ["labels", "boxes", "scores"]
+
+        torch.onnx.export(
+            wrapper,
+            (dummy_input,),
+            str(out),
+            input_names=input_names,
+            output_names=output_names,
+            opset_version=opset_version,
+            dynamo=False,
+            dynamic_axes={"images": {0: "N"}},
+            **(format_args or {}),
+        )
+
+        if simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            onnxslim.slim(
+                str(out),
+                output_model=out,
+            )
+
+        if verify:
+            logger.info("Verifying ONNX model")
+            import onnx
+            import onnxruntime as ort
+
+            onnx.checker.check_model(out, full_check=True)
+
+            reference_model = deepcopy(wrapper).cpu().to(torch.float32).eval()
+            reference_outputs = reference_model(
+                dummy_input.cpu().to(torch.float32),
+            )
+
+            session = ort.InferenceSession(out)
+            input_feed = {
+                "images": dummy_input.cpu().numpy(),
+            }
+            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
+
+            if len(outputs_onnx) != len(reference_outputs):
+                raise AssertionError(
+                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                )
+            for output_onnx, output_model, output_name in zip(
+                outputs_onnx, reference_outputs, output_names
+            ):
+                torch.testing.assert_close(
+                    output_onnx,
+                    output_model,
+                    msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
+                    equal_nan=True,
+                    check_device=False,
+                    check_dtype=False,
+                    check_layout=False,
+                    atol=5e-3,
+                    rtol=1e-1,
+                )
+
+        logger.info(f"Successfully exported ONNX model to '{out}'")
