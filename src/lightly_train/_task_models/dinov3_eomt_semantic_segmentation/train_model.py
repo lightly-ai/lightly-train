@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, ClassVar, Literal
 
@@ -22,6 +23,9 @@ from torch.optim.optimizer import Optimizer
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
+)
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
+    DinoVisionTransformer,
 )
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import train_model_helpers
@@ -43,6 +47,8 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
+
+logger = logging.getLogger(__name__)
 
 
 class DINOv3EoMTSemanticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
@@ -68,6 +74,9 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int | Literal["auto"] = "auto"
+    # Backbone args, e.g., patch size.
+    patch_size: int | Literal["auto"] = "auto"
+    fix_num_upscale_blocks: bool = True
 
     # Loss terms
     loss_num_points: int = 12544
@@ -103,6 +112,24 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
         model_name: str,
         model_init_args: dict[str, Any],
     ) -> None:
+        # Set the patch size.
+        if self.patch_size == "auto":
+            patch_size = model_init_args.get("patch_size", None)
+            if patch_size is not None:
+                self.patch_size = patch_size
+            else:
+                match = re.match(
+                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
+                    model_name,
+                )
+                if match is None:
+                    raise ValueError(
+                        f"Unknown model name '{model_name}', "
+                        "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
+                        "for all supported models."
+                    )
+                self.patch_size = int(match.group("patch_size"))
+
         if self.num_queries == "auto":
             num_queries = model_init_args.get("num_queries", 100)
             assert isinstance(num_queries, int)  # for mypy
@@ -189,6 +216,9 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         image_size = no_auto(val_transform_args.image_size)
         normalize = no_auto(val_transform_args.normalize)
 
+        # Prepare backbone args.
+        backbone_args = {"patch_size": model_args.patch_size}
+
         self.model = DINOv3EoMTSemanticSegmentation(
             model_name=model_name,
             classes=data_args.included_classes,
@@ -201,8 +231,10 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             num_joint_blocks=num_joint_blocks,
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
+            backbone_args=backbone_args,
             # TODO (Lionel, 10/25): Pass backbone args.
             load_weights=load_weights,
+            fix_num_upscale_blocks=model_args.fix_num_upscale_blocks,
         )
 
         self.criterion = MaskClassificationLoss(
@@ -584,3 +616,47 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             optimizer=optimizer,
             max_norm=self.model_args.gradient_clip_val,
         )
+
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> Any:
+        """
+        Load a training checkpoint state dict.
+
+
+        If the backbone is a `DinoVisionTransformer` and the checkpoint was trained with a
+        different patch size, resample the patch-embedding projection conv weights to the
+        current patch size before loading.
+
+        Args:
+            state_dict: Checkpoint state dict (model parameters).
+            strict: Forwarded to `load_state_dict`.
+            assign: Forwarded to `load_state_dict` (PyTorch >= 2.0).
+
+        Returns:
+            The result of `self.load_state_dict(state_dict, strict=strict, assign=assign)`.
+        """
+
+        if isinstance(self.model.backbone, DinoVisionTransformer):
+            key = "model.backbone.patch_embed.proj.weight"
+            original_conv_weight = state_dict.get(key)
+
+            if original_conv_weight is None:
+                # Raise error if strict and the first convolution weight is not present.
+                if strict:
+                    logger.error(f"Missing key '{key}' in state_dict.")
+                    raise KeyError(key)
+
+                # Warn user if not strict and first convolution weight is not present.
+                logger.warning(f"Missing key '{key}' in state_dict.")
+                return self.load_state_dict(state_dict, strict=strict, assign=assign)
+
+            # Re-sample the projection weights before loading the statedict.
+            original_patch_size = original_conv_weight.shape[-1]
+            target_patch_size = self.model.backbone.patch_size
+            if target_patch_size != original_patch_size:
+                new_conv_weight = self.model.backbone.patch_embed.resample_conv_weight(
+                    original_conv_weight, target_patch_size
+                )
+                state_dict[key] = new_conv_weight
+        return self.load_state_dict(state_dict, strict=strict, assign=assign)

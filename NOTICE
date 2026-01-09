@@ -44,6 +44,13 @@ This project incorporates the following third-party components:
   - Let `ModelEMA` inherit from `torch.nn.Module` in `ema.py`.
   - Remove `to`, `state_dict`, and `load_state_dict` methods from `ModelEMA` in `ema.py`.
 
+**TIMM**
+- Source: https://github.com/huggingface/pytorch-image-models
+- License: Apache License 2.0
+- License file: licences/TIMM_LICENSE
+- Modifications:
+  - Minor typing and docstrings modifications in ` from 
+    `src/lightly_train/_models/dinov3/dinov3_src/layers/patch_embed.py`.
 ---
 
 All third-party code is used in accordance with their respective licenses.
