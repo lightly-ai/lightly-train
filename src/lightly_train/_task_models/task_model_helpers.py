@@ -130,24 +130,24 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "6169fdd8edf7d4648c45c6aa1d09b9a4e917ba51dcbd36acf8fbf04a25d1e516",
     ),
     "dinov3/vitt32-eomt-coco": (
-        "dinov3_vitt32_eomt_coco_260106_8714dcb1.pt",
-        "8714dcb16033dcdb4760f70f53920da31051bc87c80b2abdb47051eb885fe2b9",
+        "dinov3_vitt32_eomt_coco_260106_3ce75c95.pt",
+        "3ce75c958aa0d31e3ac14d0bc1e0ca34ccb5b9ab5b141ec40c7f83c1950a2186",
     ),
     "dinov3/vitt32plus-eomt-coco": (
-        "dinov3_vitt32plus_eomt_coco_260106_62936211.pt",
-        "629362111134c1f0bd8a9f8c882498023984779e249163eb5dc41999f191f474",
+        "dinov3_vitt32plus_eomt_coco_260106_68e19609.pt",
+        "68e196093301bc8a4e73005cebe1cccca75f5c14e58e732d1d9c555ea44e2088",
     ),
     "dinov3/vits32-eomt-coco": (
-        "dinov3_vits32_eomt_coco_260106_aaeb0db1.pt",
-        "aaeb0db1c22675e031d6abd75df54587ce5822445bbb92906f900fc4e85442cc",
+        "dinov3_vits32_eomt_coco_260106_06595b53.pt",
+        "06595b53b0ee63032e8f7882a2d1e877c84b996c8313727a6694abf42e871d05",
     ),
     "dinov3/vitb32-eomt-coco": (
-        "dinov3_vitb32_eomt_coco_260106_e9e97912.pt",
-        "e9e979122ce36e8659ce2d1cf93a8d4b8537ad5e9d4c3f017238e3804c84b4c4",
+        "dinov3_vitb32_eomt_coco_260106_62cf509e.pt",
+        "62cf509e156257347274837087592f27743ba51722c4949bec90688859cc6b6a",
     ),
     "dinov3/vitl32-eomt-coco": (
-        "dinov3_vitl32_eomt_coco_260106_571b3ee6.pt",
-        "571b3ee620a82dcf92c92d8aa28163afb2bbe7e6a5c4a73227714407688560ff",
+        "dinov3_vitl32_eomt_coco_260106_f51348fb.pt",
+        "f51348fb4c794889ae35b8d9e2cfe383b42e09e975d2854f2e96fed155edd7d9",
     ),
     "dinov3/vits16-eomt-cityscapes": (
         "dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt",
