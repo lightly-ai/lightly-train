@@ -217,3 +217,44 @@ def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
                 if out_tensor is not None:
                     out_tensor.dtype = trt.DataType.FLOAT
             logger.info(f"Forcing FP32 for layer: {layer.name} ({layer.type})")
+
+
+def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
+    # Collect the input tensor names of all Softmax layers
+    softmax_inputs: set[str] = set()
+    for i in range(net.num_layers):
+        layer = net.get_layer(i)
+        if layer.type == trt.LayerType.SOFTMAX:
+            inp = layer.get_input(0)
+            if inp is not None:
+                softmax_inputs.add(inp.name)
+
+    forced_softmax = 0
+    forced_matmul = 0
+
+    for i in range(net.num_layers):
+        layer = net.get_layer(i)
+
+        # Always keep Softmax in FP32
+        if layer.type == trt.LayerType.SOFTMAX:
+            layer.precision = trt.DataType.FLOAT
+            for j in range(layer.num_outputs):
+                out = layer.get_output(j)
+                if out is not None:
+                    out.dtype = trt.DataType.FLOAT
+            forced_softmax += 1
+            continue
+
+        # Keep only the "scores" MatMul (the one feeding Softmax) in FP32
+        if layer.type == trt.LayerType.MATRIX_MULTIPLY:
+            for j in range(layer.num_outputs):
+                out = layer.get_output(j)
+                if out is not None and out.name in softmax_inputs:
+                    layer.precision = trt.DataType.FLOAT
+                    out.dtype = trt.DataType.FLOAT
+                    forced_matmul += 1
+                    break
+
+    logger.info(
+        f"Forced FP32 on attention-score MatMul layers: {forced_matmul}, Softmax layers: {forced_softmax}"
+    )
