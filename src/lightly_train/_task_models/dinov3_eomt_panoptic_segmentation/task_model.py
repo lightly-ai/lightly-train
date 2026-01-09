@@ -1091,5 +1091,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
             use_fp16=use_fp16,
+            # FP32 attention scores required for FP16 model stability. Otherwise output
+            # contains NaN.
+            fp32_attention_scores=use_fp16,
             verbose=verbose,
         )
