@@ -46,9 +46,7 @@ class ModelEMA(Module):
         self.decay = decay
         self.warmups = warmups
         self.updates = 0  # number of EMA updates
-        self.decay_fn = lambda x: decay * (
-            1 - math.exp(-x / warmups)
-        )  # decay exponential ramp (to help early epochs)
+        self.decay_fn = decay_fn  # decay exponential ramp (to help early epochs)
 
         for p in self.model.parameters():
             p.requires_grad_(False)
@@ -57,7 +55,9 @@ class ModelEMA(Module):
         # Update EMA parameters
         with torch.no_grad():
             self.updates += 1
-            d = self.decay_fn(self.updates)
+            d = self.decay_fn(
+                decay=self.decay, warmup_steps=self.warmups, step=self.updates
+            )
             msd = model.state_dict()
             for k, v in self.model.state_dict().items():
                 if v.dtype.is_floating_point:
@@ -71,3 +71,10 @@ class ModelEMA(Module):
 
     def extra_repr(self) -> str:
         return f"decay={self.decay}, warmups={self.warmups}"
+
+
+def decay_fn(decay: float, warmup_steps: int, step: int) -> float:
+    if warmup_steps <= 0:
+        return decay
+    else:
+        return decay * (1 - math.exp(-step / warmup_steps))
