@@ -48,6 +48,10 @@ You can also explore inferencing with these model weights using our Colab notebo
 We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200`
 for EoMT.
 
+(fig-miou-latency)=
+
+![Semantic segmentation mIoU against latency](_static/images/semantic_segmentation/miou_against_latency.jpg)
+
 ### Cityscapes
 
 | Implementation | Model                         | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
@@ -59,10 +63,6 @@ for EoMT.
 
 We trained with 107 epochs (~20k steps) on the Cityscapes dataset with `num_queries=200`
 for EoMT.
-
-(fig-miou-latency)=
-
-![Semantic segmentation mIoU against latency](_static/images/semantic_segmentation/miou_against_latency.jpg)
 
 ## Semantic Segmentation with EoMT
 
@@ -227,8 +227,8 @@ pretrained model without harming compatibility of the pretrained weights. Intern
 the patch embedding weights are automatically resized to the requested patch size using
 the method introduced in [FlexiViT](https://arxiv.org/pdf/2212.08013).
 
-As illustrated in {ref}`this figure <fig-miou-latency>`, increasing the patch size leads to a
-significant speed-up with only a moderate impact on performance.
+As illustrated in this {ref}`figure <fig-miou-latency>`, increasing the patch size leads
+to a significant speed-up with only a moderate impact on performance.
 
 (semantic-segmentation-eomt-dinov3-model-weights)=
 
