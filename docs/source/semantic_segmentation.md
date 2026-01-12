@@ -64,7 +64,6 @@ for EoMT.
 
 ![Semantic segmentation mIoU against latency](_static/images/semantic_segmentation/miou_against_latency.jpg)
 
-
 ## Semantic Segmentation with EoMT
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
