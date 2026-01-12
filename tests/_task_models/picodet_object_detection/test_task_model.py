@@ -72,7 +72,7 @@ def _create_train_model(
 ) -> PicoDetObjectDetectionTrain:
     train_model_args.resolve_auto(
         total_steps=1000,
-        model_name="picodet/s-320",
+        model_name="picodet/s-416",
         model_init_args={},
     )
     data_args = YOLOObjectDetectionDataArgs(
@@ -82,12 +82,12 @@ def _create_train_model(
         names={0: "class_0", 1: "class_1"},
     )
     train_transform_args = PicoDetObjectDetectionTrainTransformArgs()
-    train_transform_args.resolve_auto(model_init_args={"image_size": (320, 320)})
+    train_transform_args.resolve_auto(model_init_args={"image_size": (416, 416)})
     val_transform_args = PicoDetObjectDetectionValTransformArgs()
-    val_transform_args.resolve_auto(model_init_args={"image_size": (320, 320)})
+    val_transform_args.resolve_auto(model_init_args={"image_size": (416, 416)})
 
     train_model = PicoDetObjectDetectionTrain(
-        model_name="picodet/s-320",
+        model_name="picodet/s-416",
         model_args=train_model_args,
         data_args=data_args,
         train_transform_args=train_transform_args,
