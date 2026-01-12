@@ -11,7 +11,7 @@ import functools
 import logging
 import re
 from pathlib import Path
-from typing import Any, Callable, TypedDict
+from typing import Any, Callable, Optional, TypedDict
 
 import torch
 
@@ -161,7 +161,7 @@ class DINOv3Package(Package):
     @classmethod
     def model_name_to_statedict_name(
         cls, model_name: str, *, original_patch_size: int = 16
-    ) -> str:
+    ) -> tuple[str, Optional[str]]:
         """
         Map vit*{patch_size}{suffix} -> vit*{original_patch_size}{suffix} for checkpoint selection.
         Leaves non-matching names unchanged.
