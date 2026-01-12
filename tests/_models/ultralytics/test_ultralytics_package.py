@@ -18,7 +18,9 @@ from lightly_train._models.ultralytics.ultralytics_package import UltralyticsPac
 if importlib_util.find_spec("ultralytics") is None:
     pytest.skip("ultralytics is not installed", allow_module_level=True)
 
-from ultralytics import RTDETR, YOLO  # type: ignore[attr-defined]
+from ultralytics import YOLO  # type: ignore[attr-defined]
+
+YOLO_WORLD_AVAILABLE = RequirementCache(module="ultralytics.YOLOWorld")
 
 
 class TestUltralyticsPackage:
@@ -45,8 +47,14 @@ class TestUltralyticsPackage:
         wrapped_model = UltralyticsPackage.get_model_wrapper(model=model)
         assert UltralyticsPackage.is_supported_model(wrapped_model)
 
+    @pytest.mark.skipif(
+        not YOLO_WORLD_AVAILABLE,
+        reason="YOLOWorld is not available",
+    )
     def test_is_supported_model__false(self) -> None:
-        model = RTDETR("rtdetr-l.yaml")
+        from ultralytics import YOLOWorld  # type: ignore[attr-defined]
+
+        model = YOLOWorld("yolov8s-world.yaml")
         assert not UltralyticsPackage.is_supported_model(model)
 
     @pytest.mark.parametrize(
