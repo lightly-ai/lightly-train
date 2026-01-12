@@ -232,11 +232,13 @@ using the EoMT method from CVPR 2025.
 
 #### COCO-Stuff Results
 
-| Implementation | Model                   | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
-| -------------- | ----------------------- | -------- | ----------------- | ---------- | ---------- |
-| LightlyTrain   | dinov3/vits16-eomt-coco | 46.5     | 11.3              | 21.6       | 512×512    |
-| LightlyTrain   | dinov3/vitb16-eomt-coco | 52.0     | 23.1              | 85.7       | 512×512    |
-| LightlyTrain   | dinov3/vitl16-eomt-coco | **54.4** | 49.0              | 303.2      | 512×512    |
+| Implementation | Model                       | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
+| -------------- | --------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain   | dinov3/vitt16-eomt-coco     | 37.9     | 6.0               | 6.0        | 512×512    |
+| LightlyTrain   | dinov3/vitt16plus-eomt-coco | 39.5     | 6.4               | 7.7        | 512×512    |
+| LightlyTrain   | dinov3/vits16-eomt-coco     | 45.0     | 11.3              | 21.6       | 512×512    |
+| LightlyTrain   | dinov3/vitb16-eomt-coco     | 50.1     | 23.1              | 85.7       | 512×512    |
+| LightlyTrain   | dinov3/vitl16-eomt-coco     | **52.5** | 49.0              | 303.2      | 512×512    |
 
 Models are trained for 12 epochs with `num_queries=200` on the COCO-Stuff dataset and
 evaluated on the validation set with single-scale testing. Average latency is measured
@@ -450,7 +452,7 @@ LightlyTrain supports the following model and workflow combinations.
 | DINOv2                                     |           ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html)           |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/methods/dinov2.html)    |
 | Torchvision ResNet, ConvNext, ShuffleNetV2 |            ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html)            |  ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/torchvision.html)  |
 | TIMM models                                |               ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/timm.html)                |     ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/timm.html)      |
-| Ultralytics YOLOv5–YOLO12                  |            ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html)            |  ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html)  |
+| Ultralytics YOLOv5–YOLO12, RT-DETR         |            ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html)            |  ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/ultralytics.html)  |
 | RT-DETR, RT-DETRv2                         |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html)               |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rtdetr.html)     |
 | RF-DETR                                    |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html)               |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html)     |
 | YOLOv12                                    |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)              |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)    |

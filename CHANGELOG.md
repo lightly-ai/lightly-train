@@ -9,19 +9,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Added Slicing Aided Hyper Inference (SAHI) for object detection to improve small
-  objects recall at inference.
-- TensorRT export for LTDETR models.
-- Example jupyter notebook for ONNX and TensorRT export.
+- Add Slicing Aided Hyper Inference (SAHI) for object detection to improve small objects
+  recall at inference.
+- Add TensorRT export for LTDETR models.
+- Add ONNX and TensorRT export for instance segmentation models.
+- Add ONNX and TensorRT export for panoptic segmentation models.
+- Add ONNX and TensorRT export for semantic segmentation models.
+- Add example jupyter notebooks for ONNX and TensorRT export.
+- Add tiny semantic segmentation models.
+- Add support for Ultralytics RT-DETR models.
 - PicoDet family of object detection models for low-power embedded devices.
 
 ### Changed
+
+- Change default DINOv3 EoMT semantic segmentation image size from 518x518 to 512x512.
+- New checkpoints for the COCO pretrained DINOv3 EoMT semantic segmentation models.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- Numerical stability issues in LTDETR's matcher.
 
 ### Security
 

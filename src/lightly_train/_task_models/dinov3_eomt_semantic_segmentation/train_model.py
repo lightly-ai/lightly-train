@@ -114,7 +114,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
                 self.num_joint_blocks = num_joint_blocks
             else:
                 match = re.match(
-                    r"dinov3/(?P<model_size>vit(s|l|b|g|h|7b)).*", model_name
+                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b)).*", model_name
                 )
                 if match is None:
                     raise ValueError(
@@ -124,6 +124,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
                     )
                 model_size = match.group("model_size")
                 self.num_joint_blocks = {
+                    "vitt": 3,
                     "vits": 3,
                     "vitb": 3,
                     "vitl": 4,

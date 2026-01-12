@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import copy
 import logging
 import math
 import os
@@ -20,7 +21,9 @@ from torch.nn import functional as F
 from torchvision.transforms.functional import InterpolationMode
 from torchvision.transforms.v2 import functional as transforms_functional
 
+from lightly_train import _logging, _torch_testing
 from lightly_train._data import file_helpers
+from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.layers.attention import (
@@ -212,6 +215,13 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 task_model_helpers.queries_adjust_num_queries_hook, with_module=True
             )
 
+        # Threshold values used during forward() call. Are stored as attributes to be
+        # folded into the ONNX graph during export as ONNX doesn't support default
+        # function arguments.
+        self._threshold = 0.8
+        self._mask_threshold = 0.5
+        self._mask_overlap_threshold = 0.8
+
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [
@@ -340,20 +350,21 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             "scores": scores,
         }
 
-    def forward(
-        self,
-        x: Tensor,
-        threshold: float = 0.8,
-        mask_threshold: float = 0.5,
-        mask_overlap_threshold: float = 0.8,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         # NOTE(Guarin, 11/25): This implementation only supports batch size 1.
         assert x.shape[0] == 1, "Only batch size 1 is supported in forward()."
+
+        # Get thresholds from attributes. Otherwise the ONNX export cannot capture
+        # them. This way they are folded into the ONNX graph as constants.
+        threshold = self._threshold
+        mask_threshold = self._mask_threshold
+        mask_overlap_threshold = self._mask_overlap_threshold
 
         # Function used for ONNX export
         # (1, Q, H, W), (1, Q, K+1)
         # Q = num_queries, K = num_stuff_classes + num_thing_classes
         mask_logits, class_logits = self._forward_logits(x)
+        # (H, W, 2), (num_segments), (num_segments)
         masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
             mask_logits=mask_logits[0],
             class_logits=class_logits[0],
@@ -363,7 +374,12 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         )
 
         # Map internal class IDs to class IDs.
-        masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
+        # masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
+        remapped_ids = torch.index_select(
+            self.internal_class_to_class, 0, masks[..., 0].reshape(-1)
+        )
+        masks[..., 0] = remapped_ids.reshape_as(masks[..., 0])
+
         masks = masks.unsqueeze(0)  # (1, H, W, 2)
         segment_ids = segment_ids.unsqueeze(0)  # (1, num_segments)
         scores = scores.unsqueeze(0)  # (1, num_segments)
@@ -581,17 +597,22 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         """
         device = class_logits.device
         H, W = mask_logits.shape[-2:]
-        scores = class_logits.softmax(dim=-1)  # (B, Q, K+1)
-        scores, labels = scores.max(dim=-1)  # (B, Q), (B, Q)
+        scores = class_logits.softmax(dim=-1)  # (Q, K+1)
+        scores, labels = scores.max(dim=-1)  # (Q,), (Q,)
+        mask_probs = mask_logits.sigmoid()  # (Q, H, W)
 
         ignore_class_id = self.internal_ignore_class_id
-        keep = (labels != ignore_class_id) & (scores > threshold)  # (B, Q)
+        keep = (labels != ignore_class_id) & (scores > threshold)  # (Q,)
 
         # Remove ignored queries.
-        scores = scores[keep]  # (num_keep,)
-        labels = labels[keep]  # (num_keep,)
-        mask_probs = mask_logits.sigmoid()  # (Q, H, W)
-        mask_probs = mask_probs[keep]  # (num_keep, H, W)
+        # Use index_select for ONNX/TensorRT compatibility. This is equivalent to:
+        # labels = labels[keep]
+        # scores = scores[keep]
+        # mask_probs = mask_probs[keep]
+        keep_indices = keep.nonzero(as_tuple=False).flatten()
+        scores = scores.index_select(0, keep_indices)  # (num_keep,)
+        labels = labels.index_select(0, keep_indices)  # (num_keep,)
+        mask_probs = mask_probs.index_select(0, keep_indices)  # (num_keep, H, W)
 
         # (num_keep, H, W)
         mask_scores = scores[..., None, None] * mask_probs
@@ -622,9 +643,19 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             & (area_final > 0)
             & (area_ratio >= mask_overlap_threshold)
         )
-        mask_final = mask_final[keep_area]  # (num_keep_area, H, W)
-        labels = labels[keep_area]  # (num_keep_area,)
-        scores = scores[keep_area]  # (num_keep_area,)
+        # Filter labels and scores accordingly. We have to use index_select for
+        # cudagraph compatibility. This is equivalent to:
+        # labels = labels[keep_area]
+        # scores = scores[keep_area]
+        # But ONNX throws a error if labels or scores are empty:
+        # Name:'/GatherND_4' Status Message: last dimension of indices must not be larger than rank of input tensor
+        keep_area_indices = keep_area.nonzero(as_tuple=False).flatten()
+        # (num_keep_area, H, W)
+        mask_final = mask_final.index_select(0, keep_area_indices)
+        # (num_keep_area,)
+        labels = labels.index_select(0, keep_area_indices)
+        # (num_keep_area,)
+        scores = scores.index_select(0, keep_area_indices)
 
         # Assign id to each segment
         num_keep_area = labels.shape[0]
@@ -633,30 +664,42 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         segment_ids = torch.arange(max_segment_id + 1, device=labels.device)
 
         # Find unique segment id for each stuff class
-        is_stuff = self.is_stuff_class[labels]  # (num_keep_area,)
-        stuff_labels = labels[is_stuff]
-        stuff_segment_ids = segment_ids[is_stuff]
+        is_stuff = torch.index_select(self.is_stuff_class, 0, labels)
+        stuff_indices = torch.nonzero(is_stuff, as_tuple=False).flatten()
+        stuff_labels = torch.index_select(labels, 0, stuff_indices)
+        stuff_segment_ids = torch.index_select(segment_ids, 0, stuff_indices)
         max_class_id = ignore_class_id
         stuff_label_to_segment_id = -stuff_labels.new_ones(max_class_id + 1)
-        stuff_label_to_segment_id[stuff_labels] = stuff_segment_ids
+        # Scatter for cudagraph compatibility. Equivalent to:
+        # stuff_label_to_segment_id[stuff_labels] = stuff_segment_ids
+        stuff_label_to_segment_id = stuff_label_to_segment_id.scatter(
+            dim=0,
+            index=stuff_labels,
+            src=stuff_segment_ids,
+        )
         # Scatter for cudagraph compatibility. Equivalent to:
         # segment_ids[is_stuff] = stuff_label_to_segment_id[stuff_labels]
         segment_ids = segment_ids.masked_scatter(
             is_stuff,
-            stuff_label_to_segment_id[stuff_labels],
+            stuff_label_to_segment_id.index_select(0, stuff_labels),
         )
 
         # Reassign segment ids to be contiguous
         segment_id_to_contiguous_id = -segment_ids.new_ones(max_segment_id + 1)
-        unique_segment_ids: Tensor = segment_ids.unique()  # type: ignore
+        # Build a presence mask without torch.unique for TensorRT compatibility.
+        present_segment_ids = torch.zeros_like(segment_id_to_contiguous_id)
         # Scatter for cudagraph compatibility. Equivalent to:
-        # segment_id_to_contiguous_id[unique_segment_ids] = torch.arange(...)
-        segment_id_to_contiguous_id = segment_id_to_contiguous_id.scatter(
+        # present_segment_ids[segment_ids] = 1
+        present_segment_ids = present_segment_ids.scatter(
             dim=0,
-            index=unique_segment_ids,
-            src=torch.arange(len(unique_segment_ids), device=segment_ids.device),
+            index=segment_ids,
+            src=torch.ones_like(segment_ids),
         )
-        segment_ids = segment_id_to_contiguous_id[segment_ids]
+        contiguous_ids = present_segment_ids.cumsum(dim=0) - 1
+        segment_id_to_contiguous_id = contiguous_ids.masked_fill(
+            present_segment_ids == 0, -1
+        )
+        segment_ids = segment_id_to_contiguous_id.index_select(0, segment_ids)
 
         # Create final per-pixel labels and segment tensor
         # (num_keep_area, H, W) where each pixel is either -1 or the class label
@@ -806,3 +849,247 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 name = name[len("model.") :]
                 new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)
+
+    @torch.no_grad()
+    def export_onnx(
+        self,
+        *,
+        out: PathLike,
+        batch_size: int = 1,
+        height: int | None = None,
+        width: int | None = None,
+        threshold: float = 0.8,
+        mask_threshold: float = 0.5,
+        mask_overlap_threshold: float = 0.8,
+        opset_version: int | None = None,
+        simplify: bool = True,
+        verify: bool = True,
+        format_args: dict[str, Any] | None = None,
+    ) -> None:
+        """Exports the model to ONNX for inference.
+
+        The export uses a dummy input of shape (batch_size, C, H, W) where C is inferred
+        from the first model parameter and (H, W) come from `self.image_size`.
+        The ONNX graph uses dynamic batch size for input images. The output masks,
+        segment_ids, and scores have dynamic shapes depending on the number of detected
+        segments.
+
+        Optionally simplifies the exported model in-place using onnxslim and
+        verifies numerical closeness against a float32 CPU reference via
+        ONNX Runtime.
+
+        Args:
+            out:
+                Path where the ONNX model will be written.
+            batch_size:
+                Batch size for the ONNX input. Only batch size 1 is supported.
+            height:
+                Height of the ONNX input. If None, will be taken from `self.image_size`.
+            width:
+                Width of the ONNX input. If None, will be taken from `self.image_size`.
+            threshold:
+                Confidence threshold to keep predicted masks. Will be folded into the
+                ONNX graph as a constant.
+            mask_threshold:
+                Threshold to convert predicted mask logits to binary masks. Will be
+                folded into the ONNX graph as a constant.
+            mask_overlap_threshold:
+                Overlap area threshold for the predicted masks. Used to filter out or
+                merge disconnected mask regions for every instance. Will be folded into
+                the ONNX graph as a constant.
+            opset_version:
+                ONNX opset version to target. If None, PyTorch's default opset is used.
+            simplify:
+                If True, run onnxslim to simplify and overwrite the exported model.
+            verify:
+                If True, validate the ONNX file and compare outputs to a float32 CPU
+                reference forward pass.
+            format_args:
+                Optional extra keyword arguments forwarded to `torch.onnx.export`.
+
+        Returns:
+            None. Writes the ONNX model to `out`.
+        """
+        # TODO(Guarin, 12/25): Move warnings module out of commands subpackage and
+        # move import to the top of the file.
+        from lightly_train._commands import _warnings
+
+        if batch_size != 1:
+            raise ValueError("Only batch_size=1 is supported for ONNX export.")
+
+        _logging.set_up_console_logging()
+        _warnings.filter_export_warnings()
+
+        self.eval()
+
+        self._threshold = threshold
+        self._mask_threshold = mask_threshold
+        self._mask_overlap_threshold = mask_overlap_threshold
+
+        first_parameter = next(self.parameters())
+        model_device = first_parameter.device
+        model_dtype = first_parameter.dtype
+
+        height = self.image_size[0] if height is None else height
+        width = self.image_size[1] if width is None else width
+        num_channels = len(self.image_normalize["mean"])
+
+        dummy_input = torch.randn(
+            batch_size,
+            num_channels,
+            height,
+            width,
+            requires_grad=False,
+            device=model_device,
+            dtype=model_dtype,
+        )
+
+        input_names = ["images"]
+        output_names = ["masks", "segment_ids", "scores"]
+
+        # Define dynamic axes.
+        dynamic_axes = {
+            "images": {0: "batch_size"},
+            "masks": {1: "num_segments"},
+            "segment_ids": {1: "num_segments"},
+            "scores": {1: "num_segments"},
+        }
+
+        torch.onnx.export(
+            self,
+            (dummy_input,),
+            str(out),
+            input_names=input_names,
+            output_names=output_names,
+            opset_version=opset_version,
+            dynamo=False,
+            dynamic_axes=dynamic_axes,
+            **(format_args or {}),
+        )
+
+        if simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            # Simplify.
+            onnxslim.slim(
+                model=str(out),
+                output_model=out,
+            )
+
+        if verify:
+            logger.info("Verifying ONNX model")
+            import onnx
+            import onnxruntime as ort
+
+            onnx.checker.check_model(out, full_check=True)
+
+            # Always run the reference input in float32 and on cpu for consistency.
+            reference_model = copy.deepcopy(self).cpu().to(torch.float32).eval()
+            reference_outputs = reference_model(
+                dummy_input.cpu().to(torch.float32),
+            )
+
+            # Get outputs from the ONNX model.
+            session = ort.InferenceSession(out)
+            input_feed = {
+                "images": dummy_input.cpu().numpy(),
+            }
+            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
+
+            # Verify that the outputs from both models are close.
+            if len(outputs_onnx) != len(reference_outputs):
+                raise AssertionError(
+                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                )
+            for output_onnx, output_model, output_name in zip(
+                outputs_onnx, reference_outputs, output_names
+            ):
+
+                def msg(s: str) -> str:
+                    return f'ONNX validation failed for output "{output_name}": {s}'
+
+                if output_model.dtype in (
+                    torch.bool,
+                    torch.int8,
+                    torch.int16,
+                    torch.int32,
+                    torch.int64,
+                ):
+                    _torch_testing.assert_most_equal(
+                        output_onnx,
+                        output_model,
+                        msg=msg,
+                    )
+
+                # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                #   https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                torch.testing.assert_close(
+                    output_onnx,
+                    output_model,
+                    msg=msg,
+                    equal_nan=True,
+                    check_device=False,
+                    check_dtype=False,
+                    check_layout=False,
+                    atol=5e-3,
+                    rtol=1e-1,
+                )
+
+        logger.info(f"Successfully exported ONNX model to '{out}'")
+
+    @torch.no_grad()
+    def export_tensorrt(
+        self,
+        out: PathLike,
+        onnx_args: dict[str, Any] | None = None,
+        max_batchsize: int = 1,
+        opt_batchsize: int = 1,
+        min_batchsize: int = 1,
+        use_fp16: bool = False,
+        verbose: bool = False,
+    ) -> None:
+        """Build a TensorRT engine from an ONNX model.
+
+        .. note::
+            TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
+            Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup.
+            See the `TensorRT documentation <https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html>`_ for more details.
+            On CUDA 12.x systems you can often install the Python package via `pip install tensorrt-cu12`.
+
+        This loads the ONNX file, parses it with TensorRT, infers the static input
+        shape (C, H, W) from the `"images"` input, and creates an engine with a
+        dynamic batch dimension in the range `[min_batchsize, opt_batchsize, max_batchsize]`.
+        Spatial dimensions must be static in the ONNX model (dynamic H/W are not yet supported).
+
+        The engine is serialized and written to `out`.
+
+        Args:
+            out:
+                Path where the TensorRT engine will be saved.
+            onnx_args:
+                Optional arguments to pass to `export_onnx` when exporting
+                the ONNX model prior to building the TensorRT engine. If None,
+                default arguments are used and the ONNX file is saved alongside
+                the TensorRT engine with the same name but `.onnx` extension.
+            max_batchsize:
+                Maximum supported batch size.
+            opt_batchsize:
+                Batch size TensorRT optimizes for.
+            min_batchsize:
+                Minimum supported batch size.
+            use_fp16:
+                Enable FP16 precision if supported by the platform.
+            verbose:
+                Enable verbose TensorRT logging.
+        """
+        tensorrt_helpers.export_tensorrt(
+            export_onnx_fn=self.export_onnx,
+            out=out,
+            onnx_args=onnx_args,
+            max_batchsize=max_batchsize,
+            opt_batchsize=opt_batchsize,
+            min_batchsize=min_batchsize,
+            use_fp16=use_fp16,
+            verbose=verbose,
+        )
