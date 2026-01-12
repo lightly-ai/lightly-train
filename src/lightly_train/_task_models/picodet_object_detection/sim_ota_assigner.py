@@ -230,7 +230,7 @@ class SimOTAAssigner:
         )
         losses_vfl = (bce * focal_weight).sum(dim=1)  # Sum over classes
 
-        return losses_vfl.reshape(num_valid, num_gt)
+        return torch.reshape(losses_vfl, (num_valid, num_gt))
 
     def _dynamic_k_matching(
         self,

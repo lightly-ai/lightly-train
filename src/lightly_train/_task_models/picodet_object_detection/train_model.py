@@ -15,7 +15,7 @@ import torch.distributed as dist
 from lightning_fabric import Fabric
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
-from torch.optim import SGD
+from torch.optim.sgd import SGD
 from torch.optim.lr_scheduler import (
     CosineAnnealingLR,
     LinearLR,
