@@ -58,6 +58,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
+        fix_num_upscale_blocks: bool = True,
     ) -> None:
         """
         Args:
@@ -95,6 +96,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                 Additional arguments to pass to the DINOv3 backbone.
             load_weights:
                 If False, then no pretrained weights are loaded.
+            fix_num_upscale_blocks:
+                If False, then the number of up-scaling blocks is dependent on the patch
+                size. If True, the number of up-caling blocks is set to 2.
         """
         super().__init__(
             locals(), ignore_args={"backbone_weights", "backbone_url", "load_weights"}
@@ -173,7 +177,12 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             Linear(embed_dim, embed_dim),
         )
 
-        num_upscale = max(1, math.ceil(math.log2(self.patch_size)) - 2)
+        # Set the number of up-scaling blocks.
+        if fix_num_upscale_blocks:
+            # Two blocks.
+            num_upscale = max(1, math.ceil(math.log2(16)) - 2)
+        else:
+            num_upscale = max(1, math.ceil(math.log2(self.patch_size)) - 2)
         self.upscale = Sequential(
             *[ScaleBlock(embed_dim) for _ in range(num_upscale)],
         )
