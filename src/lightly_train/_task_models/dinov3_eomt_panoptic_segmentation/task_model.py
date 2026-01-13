@@ -11,7 +11,7 @@ import copy
 import logging
 import math
 import os
-from typing import Any
+from typing import Any, Literal
 
 import torch
 from PIL.Image import Image as PILImage
@@ -858,6 +858,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         self,
         *,
         out: PathLike,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         batch_size: int = 1,
         height: int | None = None,
         width: int | None = None,
@@ -884,6 +885,9 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         Args:
             out:
                 Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
+                uses the model's current dtype.
             batch_size:
                 Batch size for the ONNX input. Only batch size 1 is supported.
             height:
@@ -931,7 +935,18 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
         first_parameter = next(self.parameters())
         model_device = first_parameter.device
-        model_dtype = first_parameter.dtype
+        dtype = first_parameter.dtype
+
+        if precision == "fp32":
+            dtype = torch.float32
+        elif precision == "fp16":
+            dtype = torch.float16
+        elif precision != "auto":
+            raise ValueError(
+                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+            )
+
+        self.to(dtype)
 
         height = self.image_size[0] if height is None else height
         width = self.image_size[1] if width is None else width
@@ -944,7 +959,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             width,
             requires_grad=False,
             device=model_device,
-            dtype=model_dtype,
+            dtype=dtype,
         )
 
         input_names = ["images"]

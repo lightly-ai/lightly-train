@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from copy import deepcopy
-from typing import Any
+from typing import Any, Literal
 
 import torch
 from PIL.Image import Image as PILImage
@@ -735,7 +735,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     @torch.no_grad()
     def export_onnx(
         self,
+        *,
         out: PathLike,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -756,6 +758,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         Args:
             out:
                 Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
+                uses the model's current dtype.
             opset_version:
                 ONNX opset version to target. If None, PyTorch's default opset is used.
             simplify:
@@ -785,7 +790,20 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # Infer info from first parameter.
         model_device = first_parameter.device
-        model_dtype = first_parameter.dtype
+        dtype = first_parameter.dtype
+
+        if precision == "fp32":
+            dtype = torch.float32
+        elif precision == "fp16":
+            dtype = torch.float16
+        elif precision != "auto":
+            raise ValueError(
+                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+            )
+
+        self.to(dtype)
+        self.deploy()
+        model_device = next(self.parameters()).device
 
         # Try to infer num_channels if not provided.
         if num_channels is None:
@@ -821,7 +839,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             self.image_size[1],
             requires_grad=False,
             device=model_device,
-            dtype=model_dtype,
+            dtype=dtype,
         )
 
         # TODO(Thomas, 12/25): Add warm-up forward if needed.
