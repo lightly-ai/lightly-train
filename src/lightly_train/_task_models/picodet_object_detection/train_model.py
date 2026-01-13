@@ -15,15 +15,12 @@ import torch.distributed as dist
 from lightning_fabric import Fabric
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
-from torch.optim.lr_scheduler import (
-    CosineAnnealingLR,
-    LinearLR,
-    LRScheduler,
-    SequentialLR,
-)
+from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
+from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
@@ -45,6 +42,9 @@ from lightly_train._task_models.picodet_object_detection.pico_head import (
     bbox2distance,
     distance2bbox,
 )
+from lightly_train._task_models.picodet_object_detection.postprocessor import (
+    PicoDetPostProcessor,
+)
 from lightly_train._task_models.picodet_object_detection.sim_ota_assigner import (
     SimOTAAssigner,
 )
@@ -63,6 +63,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train.types import ObjectDetectionBatch
+from lightly.utils.scheduler import CosineWarmupScheduler
 
 
 class PicoDetObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
@@ -76,17 +77,19 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     """Training arguments for PicoDet-S.
 
     Args:
-        learning_rate: Learning rate for SGD optimizer.
+        lr: Learning rate for SGD optimizer.
         momentum: Momentum for SGD optimizer.
         weight_decay: Weight decay for SGD optimizer.
-        warmup_iters: Number of warmup iterations with linear LR increase.
+        lr_warmup_steps: Number of warmup iterations with linear LR increase.
         warmup_ratio: Starting LR ratio during warmup (e.g., 0.1 = start at 10% of base LR).
-        vfl_weight: Weight for varifocal loss.
-        giou_weight: Weight for GIoU loss.
-        dfl_weight: Weight for distribution focal loss.
+        loss_vfl_weight: Weight for varifocal loss.
+        loss_giou_weight: Weight for GIoU loss.
+        loss_dfl_weight: Weight for distribution focal loss.
         simota_center_radius: Center radius for SimOTA assignment.
         simota_candidate_topk: Top-k candidates for dynamic k in SimOTA.
         simota_iou_weight: IoU weight in SimOTA cost matrix.
+        ema_momentum: EMA momentum for model averaging.
+        ema_warmup_steps: Warmup steps before applying EMA momentum.
     """
 
     default_batch_size: ClassVar[int] = 80
@@ -95,20 +98,22 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
         PicoDetObjectDetectionTaskSaveCheckpointArgs
     )
 
-    learning_rate: float = 0.1
+    lr: float = 0.1
     momentum: float = 0.9
     weight_decay: float = 4e-5
 
-    warmup_iters: int = 300
+    lr_warmup_steps: int = 300
     warmup_ratio: float = 0.1
 
-    vfl_weight: float = 1.0
-    giou_weight: float = 2.0
-    dfl_weight: float = 0.25
+    loss_vfl_weight: float = 1.0
+    loss_giou_weight: float = 2.0
+    loss_dfl_weight: float = 0.25
 
     simota_center_radius: float = 2.5
     simota_candidate_topk: int = 10
     simota_iou_weight: float = 6.0
+    ema_momentum: float = 0.9998
+    ema_warmup_steps: int = 2000
 
 
 class PicoDetObjectDetectionTrain(TrainModel):
@@ -139,36 +144,19 @@ class PicoDetObjectDetectionTrain(TrainModel):
         self.model_args = model_args
 
         num_classes = len(data_args.included_classes)
-        resolved_image_size: tuple[int, int]
-        if val_transform_args.image_size == "auto":
-            from lightly_train._task_models.picodet_object_detection.task_model import (
-                _MODEL_CONFIGS,
-            )
+        resolved_image_size = no_auto(val_transform_args.image_size)
 
-            config = _MODEL_CONFIGS.get(model_name, {})
-            config_size_raw = config.get("image_size", (416, 416))
-            if isinstance(config_size_raw, tuple) and len(config_size_raw) == 2:
-                resolved_image_size = (int(config_size_raw[0]), int(config_size_raw[1]))
-            else:
-                resolved_image_size = (416, 416)
+        normalize = no_auto(val_transform_args.normalize)
+        if normalize is None:
+            image_normalize = None
         else:
-            resolved_image_size = val_transform_args.image_size
-
-        image_normalize: dict[str, list[float]] | None = None
-        normalize_args = val_transform_args.normalize
-        if normalize_args is not None and normalize_args != "auto":
-            from lightly_train._transforms.transform import NormalizeArgs
-
-            if isinstance(normalize_args, NormalizeArgs):
-                image_normalize = {
-                    "mean": list(normalize_args.mean),
-                    "std": list(normalize_args.std),
-                }
+            image_normalize = normalize.model_dump()
 
         self.model = PicoDetObjectDetection(
             model_name=model_name,
             image_size=resolved_image_size,
             num_classes=num_classes,
+            classes=data_args.included_classes,
             image_normalize=image_normalize,
             load_weights=load_weights,
         )
@@ -196,21 +184,12 @@ class PicoDetObjectDetectionTrain(TrainModel):
         self._ema_model_state_dict_key_prefix = "ema_model."
         self.ema_model = ModelEMA(
             model=self.model,
-            decay=0.9998,
-            warmups=2000,
+            decay=model_args.ema_momentum,
+            warmups=model_args.ema_warmup_steps,
         )
 
-        self._map_metric: Any = None
-
-    @property
-    def map_metric(self) -> Any:
-        """Lazy load mAP metric."""
-        if self._map_metric is None:
-            from torchmetrics.detection.mean_ap import MeanAveragePrecision
-
-            self._map_metric = MeanAveragePrecision()
-            self._map_metric.warn_on_many_detections = False
-        return self._map_metric
+        self.map_metric = MeanAveragePrecision()
+        self.map_metric.warn_on_many_detections = False
 
     def get_task_model(self) -> PicoDetObjectDetection:
         """Return the task model for inference/export.
@@ -233,7 +212,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         batch_size = images.shape[0]
         img_h, img_w = images.shape[-2:]
 
-        outputs = self.model(images)
+        outputs = self.model._forward_train(images)
         cls_scores = outputs["cls_scores"]
         bbox_preds = outputs["bbox_preds"]
 
@@ -253,9 +232,9 @@ class PicoDetObjectDetectionTrain(TrainModel):
         loss_dict = reduce_dict(
             {
                 "train_loss": total_loss,
-                "loss_vfl": loss_vfl,
-                "loss_giou": loss_giou,
-                "loss_dfl": loss_dfl,
+                "train_loss/loss_vfl": loss_vfl,
+                "train_loss/loss_giou": loss_giou,
+                "train_loss/loss_dfl": loss_dfl,
             }
         )
 
@@ -284,7 +263,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         # Use EMA model for validation
         self.ema_model.model.eval()
         with torch.no_grad():
-            outputs = self.ema_model.model(images)
+            outputs = self.ema_model.model._forward_train(images)
 
         cls_scores = outputs["cls_scores"]
         bbox_preds = outputs["bbox_preds"]
@@ -300,10 +279,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
             bbox_preds=bbox_preds,
             gt_boxes_xyxy_list=gt_boxes_xyxy_list,
             gt_labels_list=gt_labels_list,
-        )
-
-        from lightly_train._task_models.picodet_object_detection.postprocessor import (
-            PicoDetPostProcessor,
         )
 
         postprocessor = self.model.postprocessor
@@ -339,7 +314,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 }
             )
 
-        self.map_metric.to(device)
         self.map_metric.update(preds, targets)
 
         return TaskStepResult(
@@ -521,9 +495,9 @@ class PicoDetObjectDetectionTrain(TrainModel):
         loss_dfl = sum(all_dfl_losses, zero) / weight_sum_avg
 
         total_loss = (
-            self.model_args.vfl_weight * loss_vfl
-            + self.model_args.giou_weight * loss_giou
-            + self.model_args.dfl_weight * loss_dfl
+            self.model_args.loss_vfl_weight * loss_vfl
+            + self.model_args.loss_giou_weight * loss_giou
+            + self.model_args.loss_dfl_weight * loss_dfl
         )
 
         return total_loss, loss_vfl, loss_giou, loss_dfl
@@ -531,43 +505,29 @@ class PicoDetObjectDetectionTrain(TrainModel):
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler.
 
-        Following reference implementation:
-        - Linear warmup for warmup_iters steps, starting at warmup_ratio * lr
-        - Cosine annealing to min_lr=0 for remaining steps
+        Uses cosine schedule with warmup steps.
         """
         param_groups = [
             {
                 "name": "default",
                 "params": list(self.model.parameters()),
-                "lr": self.model_args.learning_rate,
+                "lr": self.model_args.lr,
                 "weight_decay": self.model_args.weight_decay,
             }
         ]
         optimizer = SGD(
             param_groups,
-            lr=self.model_args.learning_rate,
+            lr=self.model_args.lr,
             momentum=self.model_args.momentum,
             weight_decay=self.model_args.weight_decay,
         )
 
-        warmup_iters = self.model_args.warmup_iters
-
-        warmup_scheduler = LinearLR(
-            optimizer,
-            start_factor=self.model_args.warmup_ratio,
-            end_factor=1.0,
-            total_iters=warmup_iters,
-        )
-
-        cosine_scheduler = CosineAnnealingLR(
-            optimizer,
-            T_max=total_steps - warmup_iters,
-        )
-
-        scheduler = SequentialLR(
-            optimizer,
-            schedulers=[warmup_scheduler, cosine_scheduler],
-            milestones=[warmup_iters],
+        warmup_steps = self.model_args.lr_warmup_steps
+        max_steps = int(self.trainer.estimated_stepping_batches)
+        scheduler = CosineWarmupScheduler(
+            optimizer=optimizer,
+            warmup_epochs=warmup_steps,
+            max_epochs=max_steps,
         )
 
         return optimizer, scheduler

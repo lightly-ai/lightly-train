@@ -57,14 +57,12 @@ def test_task_model_forward_shapes() -> None:
     )
 
     x = torch.randn(2, 3, 416, 416)
-    outputs = model(x)
+    labels, boxes, scores = model(x)
 
-    assert "cls_scores" in outputs
-    assert "bbox_preds" in outputs
-    assert len(outputs["cls_scores"]) == 4
-    assert len(outputs["bbox_preds"]) == 4
-    assert outputs["cls_scores"][0].shape == (2, 80, 52, 52)
-    assert outputs["bbox_preds"][0].shape == (2, 32, 52, 52)
+    max_detections = model.postprocessor.max_detections
+    assert labels.shape == (2, max_detections)
+    assert boxes.shape == (2, max_detections, 4)
+    assert scores.shape == (2, max_detections)
 
 
 def _create_train_model(
