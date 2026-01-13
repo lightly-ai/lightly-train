@@ -34,6 +34,11 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 | Implementation | Model                       | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
 | -------------- | --------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain   | dinov3/vitt32-eomt-coco     | 34.0     | 4.2               | 6.0        | 512×512    |
+| LightlyTrain   | dinov3/vitt32plus-eomt-coco | 36.0     | 4.4               | 7.7        | 512×512    |
+| LightlyTrain   | dinov3/vits32-eomt-coco     | 42.4     | 5.4               | 21.6       | 512×512    |
+| LightlyTrain   | dinov3/vitb32-eomt-coco     | 48.3     | 9.4               | 85.7       | 512×512    |
+| LightlyTrain   | dinov3/vitl32-eomt-coco     | 51.2     | 17.5              | 303.2      | 512×512    |
 | LightlyTrain   | dinov3/vitt16-eomt-coco     | 37.9     | 6.0               | 6.0        | 512×512    |
 | LightlyTrain   | dinov3/vitt16plus-eomt-coco | 39.5     | 6.4               | 7.7        | 512×512    |
 | LightlyTrain   | dinov3/vits16-eomt-coco     | 45.0     | 11.3              | 21.6       | 512×512    |
@@ -42,6 +47,10 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200`
 for EoMT.
+
+(fig-miou-latency)=
+
+![Semantic segmentation mIoU against latency](_static/images/semantic_segmentation/miou_against_latency.jpg)
 
 ### Cityscapes
 
@@ -192,6 +201,34 @@ if __name__ == "__main__":
         },
     )
 ```
+
+(semantic-segmentation-eomt-dinov3-patch-size)=
+
+### Changing the Patch Size
+
+Increasing the patch size is an effective way to speed up inference and training. You
+can change the patch size via the `model_args` parameter:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vits16-eomt-coco",
+        model_args={"patch_size": 32},
+        # ...,
+    )
+```
+
+As shown above, the patch size can be set to a value different from the one used in the
+pretrained model without harming compatibility of the pretrained weights. Internally,
+the patch embedding weights are automatically resized to the requested patch size using
+the method introduced in [FlexiViT](https://arxiv.org/pdf/2212.08013).
+
+As illustrated in this {ref}`figure <fig-miou-latency>`, increasing the patch size leads
+to a significant speed-up with only a moderate impact on performance.
 
 (semantic-segmentation-eomt-dinov3-model-weights)=
 

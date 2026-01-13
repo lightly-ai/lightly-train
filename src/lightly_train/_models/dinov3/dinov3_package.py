@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import functools
 import logging
+import re
 from pathlib import Path
-from typing import Any, Callable, TypedDict
+from typing import Any, Callable, Optional, TypedDict
 
 import torch
 
@@ -147,6 +148,35 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
 
 class DINOv3Package(Package):
     name = "dinov3"
+    # Matches:
+    #   vits16, vits32-notpretrained, vitl14-sat493m, vit7b32_distillationv1, vitt16plus, ...
+    # Captures:
+    #   stem  -> "vit" + ("7b" or one letter)
+    #   patch -> digits right after stem
+    #   suffix-> anything after patch (including "plus", "-notpretrained", "-sat493m", etc.)
+    _VIT_PATCHED_RE = re.compile(
+        r"^(?P<stem>vit(?:7b|[tsblh]))(?P<patch_size>\d+)(?P<suffix>.*)$"
+    )
+
+    @classmethod
+    def model_name_to_statedict_name(
+        cls, model_name: str, *, original_patch_size: int = 16
+    ) -> tuple[str, Optional[str]]:
+        """
+        Map vit*{patch_size}{suffix} -> vit*{original_patch_size}{suffix} for checkpoint selection.
+        Leaves non-matching names unchanged.
+        """
+        m = cls._VIT_PATCHED_RE.match(model_name)
+        if not m:
+            return model_name, None
+
+        stem = m.group("stem")  # E.g. "vits", "vitl", "vit7b", "vitt".
+        suffix = m.group(
+            "suffix"
+        )  # Preserves "plus", "-notpretrained", "-sat493m", etc.
+        patch_size = m.group("patch_size")
+
+        return f"{stem}{original_patch_size}{suffix}", patch_size
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -194,8 +224,18 @@ class DINOv3Package(Package):
         args: dict[str, Any] = {"in_chans": num_input_channels}
         if model_args is not None:
             args.update(model_args)
-        model_info = MODEL_NAME_TO_INFO[model_name]
+
+        # We interpret entries from MODEL_NAME_TO_INFO as statedict not models.
+        # Therefore model_name must be mapped to statedict_name.
+        statedict_name, patch_size = cls.model_name_to_statedict_name(model_name)
+
+        model_info = MODEL_NAME_TO_INFO[statedict_name]
         model_builder = model_info["builder"]
+
+        # Update the patch size argument from the model_builder.
+        # If patch_size is None the model is not a ViT and the patch_size must not be set.
+        if patch_size is not None:
+            args["patch_size"] = int(patch_size)
         if (
             load_weights
             and ("weights" not in args)

@@ -238,6 +238,11 @@ using the EoMT method from CVPR 2025.
 
 | Implementation | Model                       | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
 | -------------- | --------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain   | dinov3/vitt32-eomt-coco     | 34.0     | 4.2               | 6.0        | 512×512    |
+| LightlyTrain   | dinov3/vitt32plus-eomt-coco | 36.0     | 4.4               | 7.7        | 512×512    |
+| LightlyTrain   | dinov3/vits32-eomt-coco     | 42.4     | 5.4               | 21.6       | 512×512    |
+| LightlyTrain   | dinov3/vitb32-eomt-coco     | 48.3     | 9.4               | 85.7       | 512×512    |
+| LightlyTrain   | dinov3/vitl32-eomt-coco     | 51.2     | 17.5              | 303.2      | 512×512    |
 | LightlyTrain   | dinov3/vitt16-eomt-coco     | 37.9     | 6.0               | 6.0        | 512×512    |
 | LightlyTrain   | dinov3/vitt16plus-eomt-coco | 39.5     | 6.4               | 7.7        | 512×512    |
 | LightlyTrain   | dinov3/vits16-eomt-coco     | 45.0     | 11.3              | 21.6       | 512×512    |
