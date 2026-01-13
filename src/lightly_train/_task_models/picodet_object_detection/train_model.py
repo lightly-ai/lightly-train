@@ -12,6 +12,7 @@ from typing import Any, ClassVar, Literal
 
 import torch
 import torch.distributed as dist
+from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
@@ -63,7 +64,6 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train.types import ObjectDetectionBatch
-from lightly.utils.scheduler import CosineWarmupScheduler
 
 
 class PicoDetObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
