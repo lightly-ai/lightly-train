@@ -105,7 +105,9 @@ def export_tensorrt(
     _warnings.filter_export_warnings()
     _logging.set_up_console_logging()
 
-    trt_logger = trt.Logger(trt.Logger.VERBOSE if verbose else trt.Logger.INFO)
+    trt_logger = trt.Logger(
+        trt.Logger.VERBOSE if (verbose or debug) else trt.Logger.INFO
+    )
 
     builder = trt.Builder(trt_logger)
     network_flags = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
@@ -213,6 +215,11 @@ def export_tensorrt(
 def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
     import tensorrt as trt
 
+    io_tensors = {
+        *(net.get_input(i) for i in range(net.num_inputs)),
+        *(net.get_output(i) for i in range(net.num_outputs)),
+    }
+
     # Collect inputs of layers whose name contains "Softmax"
     softmax_inputs: set[str] = set()
     for i in range(net.num_layers):
@@ -233,10 +240,10 @@ def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
             layer.precision = trt.DataType.FLOAT
             for j in range(layer.num_outputs):
                 out = layer.get_output(j)
-                if out is not None:
+                if out in io_tensors:
                     out.dtype = trt.DataType.FLOAT
             forced_softmax += 1
-            logger.info(f"Forcing FP32 for Softmax layer: {layer.name}")
+            logger.debug(f"Forcing FP32 for Softmax layer: {layer.name}")
             continue
 
         # Force only MatMul whose output feeds a Softmax (attention scores)
@@ -245,12 +252,14 @@ def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
                 out = layer.get_output(j)
                 if out is not None and out.name in softmax_inputs:
                     layer.precision = trt.DataType.FLOAT
-                    out.dtype = trt.DataType.FLOAT
+                    if out in io_tensors:
+                        out.dtype = trt.DataType.FLOAT
                     forced_matmul += 1
-                    logger.info(
+                    logger.debug(
                         f"Forcing FP32 for attention-score MatMul layer: {layer.name}"
                     )
                     break
+            continue
 
     logger.info(
         f"Forced FP32 on Softmax layers: {forced_softmax}, attention-score MatMul layers: {forced_matmul}"

@@ -811,16 +811,18 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
 
-        # Need to manually convert some layers to FP32 for numerical stability.
         def update_network_fn(net: trt.INetworkDefinition) -> None:
             import tensorrt as trt
 
-            # All layers after the first Sigmoid that are in this list are converted to
-            # FP32.
             wanted = ("ReduceSum", "Div", "Mul", "Sigmoid")
 
+            io_tensors = {
+                *(net.get_input(i) for i in range(net.num_inputs)),
+                *(net.get_output(i) for i in range(net.num_outputs)),
+            }
+
             # find first Sigmoid layer index
-            start_idx = None
+            start_idx: int | None = None
             for i in range(net.num_layers):
                 layer = net.get_layer(i)
                 if "Sigmoid" in layer.name:
@@ -830,17 +832,21 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                 logger.warning("No Sigmoid layer found; nothing to update.")
                 return
 
-            forced = 0
             for i in range(start_idx, net.num_layers):
                 layer = net.get_layer(i)
                 if any(k in layer.name for k in wanted):
                     layer.precision = trt.DataType.FLOAT
+
                     for j in range(layer.num_outputs):
                         out = layer.get_output(j)
-                        if out is not None:
+                        if out is None:
+                            continue
+
+                        # Only set dtype for network I/O tensors to avoid TRT warnings.
+                        if out in io_tensors:
                             out.dtype = trt.DataType.FLOAT
-                    forced += 1
-                    logger.info(f"Forcing FP32 for layer: {layer.name}")
+
+                    logger.debug(f"Forcing FP32 for layer: {layer.name}")
 
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
