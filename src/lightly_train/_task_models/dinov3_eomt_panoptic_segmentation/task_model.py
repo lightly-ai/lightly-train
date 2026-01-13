@@ -856,8 +856,8 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
     @torch.no_grad()
     def export_onnx(
         self,
-        *,
         out: PathLike,
+        *,
         precision: Literal["auto", "fp32", "fp16"] = "auto",
         batch_size: int = 1,
         height: int | None = None,
@@ -1060,11 +1060,12 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
     def export_tensorrt(
         self,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         onnx_args: dict[str, Any] | None = None,
         max_batchsize: int = 1,
         opt_batchsize: int = 1,
         min_batchsize: int = 1,
-        use_fp16: bool = False,
         verbose: bool = False,
     ) -> None:
         """Build a TensorRT engine from an ONNX model.
@@ -1085,6 +1086,9 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         Args:
             out:
                 Path where the TensorRT engine will be saved.
+            precision:
+                Precision for ONNX export and TensorRT engine building. Either
+                "auto", "fp32", or "fp16". "auto" uses the model's current dtype.
             onnx_args:
                 Optional arguments to pass to `export_onnx` when exporting
                 the ONNX model prior to building the TensorRT engine. If None,
@@ -1096,21 +1100,22 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 Batch size TensorRT optimizes for.
             min_batchsize:
                 Minimum supported batch size.
-            use_fp16:
-                Enable FP16 precision if supported by the platform.
             verbose:
                 Enable verbose TensorRT logging.
         """
+        model_dtype = next(self.parameters()).dtype
+
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
             out=out,
+            precision=precision,
+            model_dtype=model_dtype,
             onnx_args=onnx_args,
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            use_fp16=use_fp16,
             # FP32 attention scores required for FP16 model stability. Otherwise output
             # contains NaN.
-            fp32_attention_scores=use_fp16,
+            fp32_attention_scores=precision == "fp16",
             verbose=verbose,
         )
