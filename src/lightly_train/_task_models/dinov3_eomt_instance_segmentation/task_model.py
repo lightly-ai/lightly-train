@@ -11,7 +11,7 @@ import copy
 import logging
 import math
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 from PIL.Image import Image as PILImage
@@ -37,6 +37,9 @@ from lightly_train._task_models.dinov3_eomt_instance_segmentation.scale_block im
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
+
+if TYPE_CHECKING:
+    import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
 
 logger = logging.getLogger(__name__)
 
@@ -459,15 +462,37 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         self, mask_logits: Tensor, class_logits: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
         # Get score and label for each query.
-        scores = class_logits.softmax(dim=-1)[..., :-1]  # (1, Q, K)
+        # NOTE(Guarin, 01/26): Calculate softmax always in fp32 for numerical
+        # stability. Otherwise converting a fp32 model to fp16 results in NaNs.
+        scores = class_logits.softmax(dim=-1, dtype=torch.float32)[..., :-1].type_as(
+            class_logits
+        )  # (1, Q, K)
         scores, labels = torch.max(scores, dim=-1)  # (1, Q), (1, Q)
 
         # Multiply scores with mask scores.
         masks = mask_logits > 0  # (1, Q, H, W)
+
+        #### WARNING
+        # Be careful when modifying anything here. These operations
+        # must be kept in FP32 to avoid numerical issues in FP16 models. Test on
+        # TensorRT FP16 when making any changes. You have to force TensorRT to use FP32.
+        # See export_tensorrt in this file for details.
+        mask_logits_fp32 = mask_logits.float()
+        masks_fp32 = masks.float()
+
         # (1, Q)
-        mask_scores = (mask_logits.sigmoid().flatten(2) * masks.flatten(2)).sum(2)
-        mask_scores = mask_scores / (masks.flatten(2).sum(2) + 1e-6)
+        score_per_query = (
+            mask_logits_fp32.sigmoid().flatten(2) * masks_fp32.flatten(2)
+        ).sum(2)
+        mask_pixels_per_query = masks_fp32.flatten(2).sum(2)
+        mask_scores = score_per_query / mask_pixels_per_query
+        mask_scores = torch.where(
+            mask_pixels_per_query > 0, mask_scores, torch.zeros_like(mask_scores)
+        )
+
         scores = scores * mask_scores  # (1, Q)
+        scores = scores.type_as(mask_logits)
+        #####
 
         # (1, Q), (1, Q, H, W), (1, Q)
         return labels, masks, scores
@@ -653,7 +678,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         )
 
         input_names = ["images"]
-        # Instance segmentation returns labels, masks, scores
         output_names = ["labels", "masks", "scores"]
 
         torch.onnx.export(
@@ -786,6 +810,38 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
+
+        # Need to manually convert some layers to FP32 for numerical stability.
+        def update_network_fn(net: trt.INetworkDefinition) -> None:
+            import tensorrt as trt
+
+            # All layers after the first Sigmoid that are in this list are converted to
+            # FP32.
+            wanted = ("ReduceSum", "Div", "Mul", "Sigmoid")
+
+            # find first Sigmoid layer index
+            start_idx = None
+            for i in range(net.num_layers):
+                layer = net.get_layer(i)
+                if "Sigmoid" in layer.name:
+                    start_idx = i
+                    break
+            if start_idx is None:
+                logger.warning("No Sigmoid layer found; nothing to update.")
+                return
+
+            forced = 0
+            for i in range(start_idx, net.num_layers):
+                layer = net.get_layer(i)
+                if any(k in layer.name for k in wanted):
+                    layer.precision = trt.DataType.FLOAT
+                    for j in range(layer.num_outputs):
+                        out = layer.get_output(j)
+                        if out is not None:
+                            out.dtype = trt.DataType.FLOAT
+                    forced += 1
+                    logger.info(f"Forcing FP32 for layer: {layer.name}")
+
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
             out=out,
@@ -798,4 +854,5 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             # contains NaN.
             fp32_attention_scores=use_fp16,
             verbose=verbose,
+            update_network_fn=update_network_fn,
         )

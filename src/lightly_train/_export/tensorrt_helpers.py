@@ -34,6 +34,7 @@ def export_tensorrt(
     fp32_attention_scores: bool = False,
     verbose: bool = False,
     debug: bool = False,
+    update_network_fn: Callable[[trt.INetworkDefinition], None] | None = None,
 ) -> None:
     """Build a TensorRT engine from an ONNX model.
 
@@ -76,6 +77,10 @@ def export_tensorrt(
             Enable verbose TensorRT logging.
         debug:
             Enable debug mode for TensorRT engine building.
+        update_network_fn:
+            Optional function that takes the TensorRT network definition
+            as input and can be used to modify the network before building
+            the engine.
 
     Raises:
         FileNotFoundError: If the ONNX file does not exist.
@@ -115,8 +120,11 @@ def export_tensorrt(
 
     # Export the model to ONNX.
     export_onnx_fn(**onnx_args)
-
     onnx_out = onnx_args["out"]
+
+    if debug:
+        _debug_mark_all_layers_as_outputs(onnx_out)
+
     logger.info(f"Loading ONNX file from {onnx_out}")
     with open(onnx_out, "rb") as f:
         if not parser.parse(f.read()):
@@ -126,6 +134,9 @@ def export_tensorrt(
 
     if fp32_attention_scores:
         _force_fp32_for_attention_scores(network)
+
+    if update_network_fn is not None:
+        update_network_fn(network)
 
     # Infer input shape from the ONNX model
     images_input = None
@@ -200,32 +211,13 @@ def export_tensorrt(
 
 
 def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
-    """Force FP32 precision for attention score computations in the network.
-
-    This fixes TRT FP16 NaNs while keeping most of the network FP16.
-    This is required for EoMT with FP16.
-    """
     import tensorrt as trt
 
-    force_fp32_names = {"/MatMul", "/Softmax"}
-    for i in range(net.num_layers):
-        layer = net.get_layer(i)
-        if layer.name in force_fp32_names:
-            layer.precision = trt.DataType.FLOAT
-            for j in range(layer.num_outputs):
-                out_tensor = layer.get_output(j)
-                if out_tensor is not None:
-                    out_tensor.dtype = trt.DataType.FLOAT
-            logger.info(f"Forcing FP32 for layer: {layer.name} ({layer.type})")
-
-
-def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
-    import tensorrt as trt
-    # Collect the input tensor names of all Softmax layers
+    # Collect inputs of layers whose name contains "Softmax"
     softmax_inputs: set[str] = set()
     for i in range(net.num_layers):
         layer = net.get_layer(i)
-        if layer.type == trt.LayerType.SOFTMAX:
+        if "Softmax" in layer.name:
             inp = layer.get_input(0)
             if inp is not None:
                 softmax_inputs.add(inp.name)
@@ -236,26 +228,78 @@ def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
     for i in range(net.num_layers):
         layer = net.get_layer(i)
 
-        # Always keep Softmax in FP32
-        if layer.type == trt.LayerType.SOFTMAX:
+        # Force all Softmax layers to FP32 (covers attention + class softmax)
+        if "Softmax" in layer.name:
             layer.precision = trt.DataType.FLOAT
             for j in range(layer.num_outputs):
                 out = layer.get_output(j)
                 if out is not None:
                     out.dtype = trt.DataType.FLOAT
             forced_softmax += 1
+            logger.info(f"Forcing FP32 for Softmax layer: {layer.name}")
             continue
 
-        # Keep only the "scores" MatMul (the one feeding Softmax) in FP32
-        if layer.type == trt.LayerType.MATRIX_MULTIPLY:
+        # Force only MatMul whose output feeds a Softmax (attention scores)
+        if "MatMul" in layer.name:
             for j in range(layer.num_outputs):
                 out = layer.get_output(j)
                 if out is not None and out.name in softmax_inputs:
                     layer.precision = trt.DataType.FLOAT
                     out.dtype = trt.DataType.FLOAT
                     forced_matmul += 1
+                    logger.info(
+                        f"Forcing FP32 for attention-score MatMul layer: {layer.name}"
+                    )
                     break
 
     logger.info(
-        f"Forced FP32 on attention-score MatMul layers: {forced_matmul}, Softmax layers: {forced_softmax}"
+        f"Forced FP32 on Softmax layers: {forced_softmax}, attention-score MatMul layers: {forced_matmul}"
     )
+
+
+def _debug_mark_all_layers_as_outputs(out: Path) -> None:
+    """Mark all intermediate tensors as model outputs for debugging.
+
+    You can then debug the model with:
+        polygraphy run model.trt --model-type engine --trt --validate --fail-fast > out_trt.txt
+
+    And compare with ONNX:
+        polygraphy run model.onnx --trt --fp16 --validate --fail-fast --trt-outputs $(cat all_outputs.txt) > out_onnx.txt
+    """
+    from typing import Set
+
+    import onnx
+    from onnx import helper, shape_inference
+
+    def save_all_outputs(inp: Path, out: Path) -> None:
+        m = onnx.load(inp)
+
+        seen: set[str] = set()
+        with open(out, "w") as f:
+            for n in m.graph.node:
+                for o in n.output:
+                    if o and o not in seen:
+                        seen.add(o)
+                        f.write(o + "\n")
+
+    save_all_outputs(out, out.parent / "all_outputs.txt")
+
+    def make_all_outputs(inp: Path, out: Path) -> None:
+        m = onnx.load(inp)
+        m = shape_inference.infer_shapes(m)  # ensures type info
+        g = m.graph
+
+        existing: Set[str] = {o.name for o in g.output}
+        vi = {x.name: x for x in list(g.value_info) + list(g.input) + list(g.output)}
+
+        for n in g.node:
+            for t in n.output:
+                if not t or t in existing or t not in vi:
+                    continue
+                tt = vi[t].type.tensor_type
+                g.output.append(helper.make_tensor_value_info(t, tt.elem_type, None))
+                existing.add(t)
+
+        onnx.save(m, out)
+
+    make_all_outputs(out, out)
