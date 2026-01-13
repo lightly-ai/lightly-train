@@ -182,6 +182,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         # EMA model setup (following LTDETR pattern for consistency)
         # EMA is always enabled
         self._ema_model_state_dict_key_prefix = "ema_model."
+        self.ema_model: ModelEMA
         self.ema_model = ModelEMA(
             model=self.model,
             decay=model_args.ema_momentum,
@@ -261,9 +262,10 @@ class PicoDetObjectDetectionTrain(TrainModel):
         device = images.device
 
         # Use EMA model for validation
-        self.ema_model.model.eval()
+        model_to_use = self.ema_model.model
+        model_to_use.eval()
         with torch.no_grad():
-            outputs = self.ema_model.model._forward_train(images)
+            outputs = model_to_use._forward_train(images)  # type: ignore[operator]
 
         cls_scores = outputs["cls_scores"]
         bbox_preds = outputs["bbox_preds"]
@@ -523,7 +525,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         )
 
         warmup_steps = self.model_args.lr_warmup_steps
-        max_steps = int(self.trainer.estimated_stepping_batches)
+        max_steps = total_steps
         scheduler = CosineWarmupScheduler(
             optimizer=optimizer,
             warmup_epochs=warmup_steps,
