@@ -24,18 +24,21 @@ notebook:
 
 ### COCO
 
-| Implementation | Model                        | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
-| -------------- | ---------------------------- | ------------ | ----------------- | ---------- | ---------- |
-| LightlyTrain   | dinov3/vits16-eomt-inst-coco | 32.6         | 19.4              | 21.6       | 640×640    |
-| LightlyTrain   | dinov3/vitb16-eomt-inst-coco | 40.3         | 39.7              | 85.7       | 640×640    |
-| LightlyTrain   | dinov3/vitl16-eomt-inst-coco | **46.2**     | 80.0              | 303.2      | 640×640    |
-| Original EoMT  | dinov3/vitl16-eomt-inst-coco | 45.9         | -                 | 303.2      | 640×640    |
+| Implementation | Model                            | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
+| -------------- | -------------------------------- | ------------ | ----------------- | ---------- | ---------- |
+| LightlyTrain   | dinov3/vitt16-eomt-inst-coco     | 25.4         | 12.7              | 6.0        | 640×640    |
+| LightlyTrain   | dinov3/vitt16plus-eomt-inst-coco | 27.6         | 13.3              | 7.7        | 640×640    |
+| LightlyTrain   | dinov3/vits16-eomt-inst-coco     | 32.6         | 19.4              | 21.6       | 640×640    |
+| LightlyTrain   | dinov3/vitb16-eomt-inst-coco     | 40.3         | 39.7              | 85.7       | 640×640    |
+| LightlyTrain   | dinov3/vitl16-eomt-inst-coco     | **46.2**     | 80.0              | 303.2      | 640×640    |
+| Original EoMT  | dinov3/vitl16-eomt-inst-coco     | 45.9         | -                 | 303.2      | 640×640    |
 
 Training follows the protocol in the original
-[EoMT paper](https://arxiv.org/abs/2503.19108). Models are trained for 90K steps (~12
-epochs) on the COCO dataset with batch size `16` and learning rate `2e-4`. The average
-latency values were measured with model compilation using `torch.compile` on a single
-NVIDIA T4 GPU with FP16 precision.
+[EoMT paper](https://arxiv.org/abs/2503.19108). All models are trained on the COCO
+dataset with batch size `16` and learning rate `2e-4`. Models using `vitt16` or
+`vitt16plus` train for 540K steps (~72 epochs). The remaining ones are trained for 90K
+steps (~12 epochs). The average latency values were measured with model compilation
+using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 
 (instance-segmentation-train)=
 
