@@ -225,6 +225,8 @@ def _yolo_to_xyxy(batch_boxes: list[Tensor]) -> list[Tensor]:
     converted_boxes = []
     for sample_boxes in batch_boxes:
         cxcywh = sample_boxes
+        if cxcywh.ndim == 1:
+            cxcywh = cxcywh.reshape(-1, 4)
         x_min = cxcywh[:, 0] - cxcywh[:, 2] / 2
         y_min = cxcywh[:, 1] - cxcywh[:, 3] / 2
         x_max = cxcywh[:, 0] + cxcywh[:, 2] / 2
