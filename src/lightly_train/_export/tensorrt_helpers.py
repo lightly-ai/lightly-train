@@ -200,27 +200,8 @@ def export_tensorrt(
 
 
 def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
-    """Force FP32 precision for attention score computations in the network.
-
-    This fixes TRT FP16 NaNs while keeping most of the network FP16.
-    This is required for EoMT with FP16.
-    """
     import tensorrt as trt
 
-    force_fp32_names = {"/MatMul", "/Softmax"}
-    for i in range(net.num_layers):
-        layer = net.get_layer(i)
-        if layer.name in force_fp32_names:
-            layer.precision = trt.DataType.FLOAT
-            for j in range(layer.num_outputs):
-                out_tensor = layer.get_output(j)
-                if out_tensor is not None:
-                    out_tensor.dtype = trt.DataType.FLOAT
-            logger.info(f"Forcing FP32 for layer: {layer.name} ({layer.type})")
-
-
-def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:
-    import tensorrt as trt
     # Collect the input tensor names of all Softmax layers
     softmax_inputs: set[str] = set()
     for i in range(net.num_layers):
