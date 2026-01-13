@@ -15,7 +15,6 @@ import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
-from typing_extensions import Self
 
 from lightly_train import _logging
 from lightly_train._commands import _warnings
@@ -223,11 +222,6 @@ class PicoDetObjectDetection(TaskModel):
 
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
-    def deploy(self) -> Self:
-        """Set the model to deployment mode."""
-        self.eval()
-        return self
-
     def _forward_train(self, images: Tensor) -> dict[str, list[Tensor]]:
         """Forward pass returning raw per-level predictions.
 
@@ -282,22 +276,33 @@ class PicoDetObjectDetection(TaskModel):
         )
 
         max_detections = self.postprocessor.max_detections
+        batch_size = images.shape[0]
         labels_out = torch.full(
-            (images.shape[0], max_detections),
+            (batch_size, max_detections),
             -1,
             device=images.device,
             dtype=torch.long,
         )
         boxes_out = torch.zeros(
-            (images.shape[0], max_detections, 4),
+            (batch_size, max_detections, 4),
             device=images.device,
             dtype=results[0]["bboxes"].dtype,
         )
         scores_out = torch.zeros(
-            (images.shape[0], max_detections),
+            (batch_size, max_detections),
             device=images.device,
             dtype=results[0]["scores"].dtype,
         )
+
+        if batch_size == 1:
+            result = results[0]
+            num = min(result["labels"].numel(), max_detections)
+            if num > 0:
+                labels = self.internal_class_to_class[result["labels"]]
+                labels_out[0, :num] = labels[:num]
+                boxes_out[0, :num] = result["bboxes"][:num]
+                scores_out[0, :num] = result["scores"][:num]
+            return labels_out, boxes_out, scores_out
 
         for idx, result in enumerate(results):
             num = min(result["labels"].numel(), max_detections)
