@@ -253,65 +253,51 @@ class PicoDetObjectDetection(TaskModel):
             - boxes: Tensor of shape (B, N, 4) in xyxy format.
             - scores: Tensor of shape (B, N) with confidence scores.
         """
+        if images.shape[0] != 1:
+            raise ValueError("PicoDet forward only supports batch size 1.")
+
         if orig_target_size is None:
-            h, w = images.shape[-2:]
-            orig_target_size_ = torch.tensor([h, w], device=images.device).repeat(
-                images.shape[0], 1
-            )
+            orig_h, orig_w = images.shape[-2:]
         else:
             orig_target_size_ = orig_target_size.to(
                 device=images.device, dtype=torch.int64
             )
-            if orig_target_size_.ndim == 1:
-                orig_target_size_ = orig_target_size_.unsqueeze(0)
-            if orig_target_size_.shape[0] == 1 and images.shape[0] > 1:
-                orig_target_size_ = orig_target_size_.repeat(images.shape[0], 1)
+            if orig_target_size_.ndim == 2:
+                orig_target_size_ = orig_target_size_[0]
+            orig_h, orig_w = int(orig_target_size_[0]), int(orig_target_size_[1])
 
         outputs = self._forward_train(images)
-        results = self.postprocessor.forward_batch(
-            cls_scores=outputs["cls_scores"],
-            bbox_preds=outputs["bbox_preds"],
-            original_sizes=orig_target_size_,
+        result = self.postprocessor(
+            cls_scores=[cs[:1] for cs in outputs["cls_scores"]],
+            bbox_preds=[bp[:1] for bp in outputs["bbox_preds"]],
+            original_size=(orig_h, orig_w),
             score_threshold=0.0,
         )
 
         max_detections = self.postprocessor.max_detections
-        batch_size = images.shape[0]
         labels_out = torch.full(
-            (batch_size, max_detections),
+            (1, max_detections),
             -1,
             device=images.device,
             dtype=torch.long,
         )
         boxes_out = torch.zeros(
-            (batch_size, max_detections, 4),
+            (1, max_detections, 4),
             device=images.device,
-            dtype=results[0]["bboxes"].dtype,
+            dtype=result["bboxes"].dtype,
         )
         scores_out = torch.zeros(
-            (batch_size, max_detections),
+            (1, max_detections),
             device=images.device,
-            dtype=results[0]["scores"].dtype,
+            dtype=result["scores"].dtype,
         )
 
-        if batch_size == 1:
-            result = results[0]
-            num = min(result["labels"].numel(), max_detections)
-            if num > 0:
-                labels = self.internal_class_to_class[result["labels"]]
-                labels_out[0, :num] = labels[:num]
-                boxes_out[0, :num] = result["bboxes"][:num]
-                scores_out[0, :num] = result["scores"][:num]
-            return labels_out, boxes_out, scores_out
-
-        for idx, result in enumerate(results):
-            num = min(result["labels"].numel(), max_detections)
-            if num == 0:
-                continue
+        num = min(result["labels"].numel(), max_detections)
+        if num > 0:
             labels = self.internal_class_to_class[result["labels"]]
-            labels_out[idx, :num] = labels[:num]
-            boxes_out[idx, :num] = result["bboxes"][:num]
-            scores_out[idx, :num] = result["scores"][:num]
+            labels_out[0, :num] = labels[:num]
+            boxes_out[0, :num] = result["bboxes"][:num]
+            scores_out[0, :num] = result["scores"][:num]
 
         return labels_out, boxes_out, scores_out
 
