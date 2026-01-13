@@ -49,6 +49,8 @@ pip install lightly-train
 
 ## Workflows
 
+![Tasks](docs/source/_static/images/tasks/tasks.png)
+
 <details open>
 <summary><strong>Object Detection</strong></summary>
 

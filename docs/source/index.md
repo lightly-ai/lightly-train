@@ -68,43 +68,43 @@ transformer and YOLO models on detection and segmentation tasks for edge deploym
 
 ```{grid-item-card} Object Detection
 :link: object_detection.html
-<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
+<img src="_static/images/tasks/object_detection.png" height="64"><br>
 Train LTDETR detection models with DINOv2 or DINOv3 backbones.<br>
 ```
 
 ```{grid-item-card} Instance Segmentation
 :link: instance_segmentation.html
-<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
+<img src="_static/images/tasks/instance_segmentation.png" height="64"><br>
 Train EoMT segmentation models with DINOv3 backbones.<br>
 ```
 
 ```{grid-item-card} Panoptic Segmentation
 :link: panoptic_segmentation.html
-<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
+<img src="_static/images/tasks/panoptic_segmentation.png" height="64"><br>
 Train EoMT segmentation models with DINOv3 backbones.<br>
 ```
 
 ```{grid-item-card} Semantic Segmentation
 :link: semantic_segmentation.html
-<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
+<img src="_static/images/tasks/semantic_segmentation.png" height="64"><br>
 Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 ```
 
 ```{grid-item-card} Distillation
 :link: pretrain_distill/methods/distillation.html
-<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
+<img src="_static/images/tasks/distillation.png" height="64"><br>
 Distill knowledge from DINOv2 or DINOv3 into any model architecture.<br>
 ```
 
 ```{grid-item-card} Pretraining
 :link: pretrain_distill/methods/dinov2.html
-<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
+<img src="_static/images/tasks/pretraining.png" height="64"><br>
 Pretrain DINOv2 foundation models on your domain data.<br>
 ```
 
 ```{grid-item-card} Autolabeling
 :link: predict_autolabel.html
-<!-- <img src="_static/images/object_detection/street.jpg" height="64"><br> -->
+<img src="_static/images/tasks/autolabeling.png" height="64"><br>
 Generate high-quality pseudo labels for detection and segmentation tasks.<br>
 ```
 ````
