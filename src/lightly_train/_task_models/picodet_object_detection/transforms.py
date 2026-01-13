@@ -31,7 +31,6 @@ ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
-# TODO(Igor, 01/2026): We should refactor these augmentations and the LTDETR ones
 class PicoDetRandomPhotometricDistortArgs(RandomPhotometricDistortArgs):
     brightness: tuple[float, float] = (0.875, 1.125)
     contrast: tuple[float, float] = (0.5, 1.5)
