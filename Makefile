@@ -97,6 +97,10 @@ add-header:
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scheduler.py \
 		-x src/lightly_train/_models/dinov3/dinov3_src \
 		-x src/lightly_train/_task_models/object_detection_components \
+		-x src/lightly_train/_task_models/picodet_object_detection/csp_pan.py \
+		-x src/lightly_train/_task_models/picodet_object_detection/esnet.py \
+		-x src/lightly_train/_task_models/picodet_object_detection/losses.py \
+		-x src/lightly_train/_task_models/picodet_object_detection/pico_head.py \
 		-E py
 	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
@@ -124,6 +128,14 @@ add-header:
 	# Apply Lightly's header to tiling_utils.py
 	licenseheaders -t dev_tools/licenseheader.tmpl \
 		-f src/lightly_train/_task_models/object_detection_components/tiling_utils.py \
+		-E py
+
+	# Apply the PicoDet license header to PicoDet-derived files
+	licenseheaders -t dev_tools/picodet_licenseheader.tmpl \
+		-f src/lightly_train/_task_models/picodet_object_detection/csp_pan.py \
+		src/lightly_train/_task_models/picodet_object_detection/esnet.py \
+		src/lightly_train/_task_models/picodet_object_detection/losses.py \
+		src/lightly_train/_task_models/picodet_object_detection/pico_head.py \
 		-E py
 
 	# Apply the Apache 2.0 license header to DEIMv2 derived files
