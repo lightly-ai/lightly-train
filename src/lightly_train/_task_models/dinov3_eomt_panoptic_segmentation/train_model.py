@@ -150,20 +150,26 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
                     "vit7b": 5,
                 }[model_size]
 
-        # Infer the number of training phases from the number of joint blocks.
-        num_training_phases = self.num_joint_blocks + 2
+        if (
+            self.attn_mask_annealing_steps_start == "auto"
+            or self.attn_mask_annealing_steps_end == "auto"
+        ):
+            # Infer the number of training phases from the number of joint blocks.
+            num_training_phases = self.num_joint_blocks + 2
 
-        # The phases all have the same duration.
-        phases = [
-            round(i * total_steps / num_training_phases)
-            for i in range(num_training_phases + 1)
-        ]
+            # The phases all have the same duration.
+            phases = [
+                round(i * total_steps / num_training_phases)
+                for i in range(num_training_phases + 1)
+            ]
 
-        # Set the start and stop of each phases.
-        # DINOv3 panoptic segmentation has a special first phase that runs only during
-        # the warmup steps.
-        self.attn_mask_annealing_steps_start = [0] + phases[2:-2]
-        self.attn_mask_annealing_steps_end = [self.lr_warmup_steps[1]] + phases[3:-1]
+            # Set the start and stop of each phases.
+            # DINOv3 panoptic segmentation has a special first phase that runs only during
+            # the warmup steps.
+            self.attn_mask_annealing_steps_start = [0] + phases[2:-2]
+            self.attn_mask_annealing_steps_end = [self.lr_warmup_steps[1]] + phases[
+                3:-1
+            ]
 
         # Ensure the number of phases is correct.
         assert len(self.attn_mask_annealing_steps_start) == self.num_joint_blocks
