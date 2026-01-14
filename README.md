@@ -186,11 +186,12 @@ method from CVPR 2025.
 | LightlyTrain                         | dinov3/vits16-eomt-inst-coco     | 32.6         | 19.4              | 21.6       | 640×640    |
 | LightlyTrain                         | dinov3/vitb16-eomt-inst-coco     | 40.3         | 39.7              | 85.7       | 640×640    |
 | LightlyTrain                         | dinov3/vitl16-eomt-inst-coco     | **46.2**     | 80.0              | 303.2      | 640×640    |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco     | 45.9         | -                 | 303.2      | 640x640    |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco     | 45.9         | -                 | 303.2      | 640×640    |
 
-Models are trained for 12 epochs on the COCO 2017 dataset and evaluated on the
-validation set with single-scale testing. Average latency is measured on a single NVIDIA
-T4 GPU with batch size 1. All models are optimized using `torch.compile`.
+Tiny models are trained for 48 epochs, while all other models are trained for 12 epochs
+on the COCO 2017 dataset and evaluated on the validation set with single-scale testing.
+Average latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are
+optimized using `torch.compile`.
 
 #### Usage
 
