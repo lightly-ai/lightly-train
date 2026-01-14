@@ -510,13 +510,13 @@ def picodet_gfl_cls_reuse_or_reinit_hook(
             continue
         weight_key = f"{prefix}gfl_cls.{idx}.weight"
         bias_key = f"{prefix}gfl_cls.{idx}.bias"
-        is_reinit = _reuse_or_reinit(
-            head_module,
-            state_dict,
-            weight_key=weight_key,
-            bias_key=bias_key,
-        )
-        if is_reinit:
+        weight = state_dict.get(weight_key)
+        if weight is None:
+            continue
+        if weight.shape != head_module.weight.shape:  # type: ignore[operator]
+            state_dict[weight_key] = head_module.weight.detach().clone()  # type: ignore[operator]
+            if bias_key in state_dict:
+                state_dict[bias_key] = head_module.bias.detach().clone()  # type: ignore[operator]
             mismatches += 1
 
     if mismatches:
