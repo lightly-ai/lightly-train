@@ -19,6 +19,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from lightly_train._task_models import task_model_helpers
+
 
 class DepthwiseSeparableConv(nn.Module):
     """Depthwise separable convolution for the detection head.
@@ -288,6 +290,17 @@ class PicoHead(nn.Module):
                 )
 
         self.integral = Integral(reg_max)
+
+        if hasattr(self, "register_load_state_dict_pre_hook"):
+            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.picodet_gfl_cls_reuse_or_reinit_hook
+            )
+        else:
+            # Backwards compatibility for PyTorch <= 2.4
+            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
+                task_model_helpers.picodet_gfl_cls_reuse_or_reinit_hook,
+                with_module=True,
+            )
 
         self._init_weights()
 

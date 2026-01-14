@@ -491,3 +491,37 @@ def _reuse_or_reinit(
     state_dict[bias_key] = head_module.bias.detach().clone()  # type: ignore[operator]
 
     return True
+
+
+def picodet_gfl_cls_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    gfl_cls_module = getattr(module, "gfl_cls", None)
+    if not isinstance(gfl_cls_module, ModuleList):
+        return
+
+    mismatches = 0
+    for idx, head_module in enumerate(gfl_cls_module):
+        if head_module is None:
+            continue
+        weight_key = f"{prefix}gfl_cls.{idx}.weight"
+        bias_key = f"{prefix}gfl_cls.{idx}.bias"
+        is_reinit = _reuse_or_reinit(
+            head_module,
+            state_dict,
+            weight_key=weight_key,
+            bias_key=bias_key,
+        )
+        if is_reinit:
+            mismatches += 1
+
+    if mismatches:
+        logger.info(
+            "Checkpoint provides different number of classes for PicoDet gfl_cls. "
+            "Reinitializing %d heads.",
+            mismatches,
+        )
