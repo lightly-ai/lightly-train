@@ -44,6 +44,17 @@ This project incorporates the following third-party components:
   - Let `ModelEMA` inherit from `torch.nn.Module` in `ema.py`.
   - Remove `to`, `state_dict`, and `load_state_dict` methods from `ModelEMA` in `ema.py`.
 
+**PicoDet (Picodet_Pytorch)**
+- Source: https://github.com/Bo396543018/Picodet_Pytorch
+- License: Apache License 2.0
+- License file: licences/PICODET_PYTORCH_LICENSE
+- Modifications:
+  - Adapted model components for integration and typing. Affected files:
+    `src/lightly_train/_task_models/picodet_object_detection/esnet.py`,
+    `src/lightly_train/_task_models/picodet_object_detection/csp_pan.py`,
+    `src/lightly_train/_task_models/picodet_object_detection/pico_head.py`,
+    `src/lightly_train/_task_models/picodet_object_detection/losses.py`.
+
 **TIMM**
 - Source: https://github.com/huggingface/pytorch-image-models
 - License: Apache License 2.0
