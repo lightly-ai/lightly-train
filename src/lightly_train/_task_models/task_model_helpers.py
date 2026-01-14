@@ -77,6 +77,14 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0",
     ),
     #### Instance Segmentation
+    "dinov3/vitt16-eomt-inst-coco": (  # 6x schedule
+        "dinov3_vitt16_eomt_inst_coco_260109_45e0aff8.pt",
+        "45e0aff8c5c8054a3240fcbc368b4e7f87e8066c1e100e3ef9d9c60c7d949a17",
+    ),
+    "dinov3/vitt16plus-eomt-inst-coco": (  # 6x schedule
+        "dinov3_vitt16plus_eomt_inst_coco_260109_0e20aa05.pt",
+        "0e20aa05ef15003d7d9462400d32ecc671e7a8d256ae061d42dd4f8978feb621",
+    ),
     "dinov3/vits16-eomt-inst-coco": (
         "/dinov3_eomt/dinov3_vits16_eomt_inst_coco.pt",
         "b54dafb12d550958cc5c9818b061fba0d8b819423581d02080221d0199e1cc37",
