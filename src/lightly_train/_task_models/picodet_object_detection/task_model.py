@@ -292,13 +292,6 @@ class PicoDetObjectDetection(TaskModel):
             dtype=result["scores"].dtype,
         )
 
-        num = min(result["labels"].numel(), max_detections)
-        if num > 0:
-            labels = self.internal_class_to_class[result["labels"]]
-            labels_out[0, :num] = labels[:num]
-            boxes_out[0, :num] = result["bboxes"][:num]
-            scores_out[0, :num] = result["scores"][:num]
-
         return labels_out, boxes_out, scores_out
 
     @torch.no_grad()
