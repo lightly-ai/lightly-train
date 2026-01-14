@@ -1018,7 +1018,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                 model_dict = {
                                     "model_class_path": state["model_class_path"],
                                     "model_init_args": state["model_init_args"],
-                                    "train_model": train_model.state_dict(),
+                                    "train_model": train_model.get_export_state_dict(),
                                 }
 
                                 helpers.export_model(
