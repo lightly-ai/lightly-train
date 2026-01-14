@@ -439,12 +439,7 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 # Export the PyTorch model to ONNX.
 model.export_onnx(
     out="out/my_experiment/exported_models/model.onnx",
-    # batch_size=1, # Set custom batch size, default is 1.
-    # height=512, # Set custom height and width, default is model.image_size.
-    # width=512,
-    # opset_version=15, # Set custom ONNX opset version, default is automatically determined by ONNX.
-    # verify=False, # Disable ONNX model verification, default is True.
-    # simplify=False, # Disable model simplification, default is True.
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
 )
 ```
 
@@ -486,6 +481,7 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 # Export to TensorRT from an ONNX file.
 model.export_tensorrt(
     out="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
 )
 ```
 
