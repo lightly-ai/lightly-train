@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from copy import deepcopy
-from typing import Any
+from typing import Any, Literal
 
 import torch
 from PIL.Image import Image as PILImage
@@ -736,6 +736,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     def export_onnx(
         self,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -756,6 +758,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         Args:
             out:
                 Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
+                uses the model's current precision.
             opset_version:
                 ONNX opset version to target. If None, PyTorch's default opset is used.
             simplify:
@@ -785,7 +790,20 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # Infer info from first parameter.
         model_device = first_parameter.device
-        model_dtype = first_parameter.dtype
+        dtype = first_parameter.dtype
+
+        if precision == "fp32":
+            dtype = torch.float32
+        elif precision == "fp16":
+            dtype = torch.float16
+        elif precision != "auto":
+            raise ValueError(
+                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+            )
+
+        self.to(dtype)
+        self.deploy()
+        model_device = next(self.parameters()).device
 
         # Try to infer num_channels if not provided.
         if num_channels is None:
@@ -821,7 +839,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             self.image_size[1],
             requires_grad=False,
             device=model_device,
-            dtype=model_dtype,
+            dtype=dtype,
         )
 
         # TODO(Thomas, 12/25): Add warm-up forward if needed.
@@ -908,11 +926,12 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     def export_tensorrt(
         self,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         onnx_args: dict[str, Any] | None = None,
         max_batchsize: int = 1,
         opt_batchsize: int = 1,
         min_batchsize: int = 1,
-        use_fp16: bool = False,
         verbose: bool = False,
     ) -> None:
         """Build a TensorRT engine from an ONNX model.
@@ -933,6 +952,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         Args:
             out:
                 Path where the TensorRT engine will be saved.
+            precision:
+                Precision for ONNX export and TensorRT engine building. Either
+                "auto", "fp32", or "fp16". "auto" uses the model's current precision.
             onnx_args:
                 Optional arguments to pass to `export_onnx` when exporting
                 the ONNX model prior to building the TensorRT engine. If None,
@@ -944,8 +966,6 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 Batch size TensorRT optimizes for.
             min_batchsize:
                 Minimum supported batch size.
-            use_fp16:
-                Enable FP16 precision if supported by the platform.
             verbose:
                 Enable verbose TensorRT logging.
 
@@ -954,16 +974,19 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
+        model_dtype = next(self.parameters()).dtype
+
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
             out=out,
+            precision=precision,
+            model_dtype=model_dtype,
             onnx_args=onnx_args,
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            use_fp16=use_fp16,
             # FP32 attention scores required for FP16 model stability. Otherwise output
             # contains NaN.
-            fp32_attention_scores=use_fp16,
+            fp32_attention_scores=True,
             verbose=verbose,
         )

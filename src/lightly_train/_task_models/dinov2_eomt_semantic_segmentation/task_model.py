@@ -11,7 +11,7 @@ import copy
 import logging
 import math
 import os
-from typing import Any
+from typing import Any, Literal
 
 import torch
 from PIL.Image import Image as PILImage
@@ -632,8 +632,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     @torch.no_grad()
     def export_onnx(
         self,
-        *,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         batch_size: int = 1,
         height: int | None = None,
         width: int | None = None,
@@ -656,6 +657,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         Args:
             out:
                 Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
+                uses the model's current precision.
             batch_size:
                 Batch size for the ONNX input.
             height:
@@ -686,7 +690,18 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
         first_parameter = next(self.parameters())
         model_device = first_parameter.device
-        model_dtype = first_parameter.dtype
+        dtype = first_parameter.dtype
+
+        if precision == "fp32":
+            dtype = torch.float32
+        elif precision == "fp16":
+            dtype = torch.float16
+        elif precision != "auto":
+            raise ValueError(
+                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+            )
+
+        self.to(dtype)
 
         height = self.image_size[0] if height is None else height
         width = self.image_size[1] if width is None else width
@@ -699,7 +714,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             width,
             requires_grad=False,
             device=model_device,
-            dtype=model_dtype,
+            dtype=dtype,
         )
 
         # Precalculate interpolated positional encoding for ONNX export.
@@ -783,11 +798,12 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     def export_tensorrt(
         self,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         onnx_args: dict[str, Any] | None = None,
         max_batchsize: int = 1,
         opt_batchsize: int = 1,
         min_batchsize: int = 1,
-        use_fp16: bool = False,
         verbose: bool = False,
     ) -> None:
         """Build a TensorRT engine from an ONNX model.
@@ -808,6 +824,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         Args:
             out:
                 Path where the TensorRT engine will be saved.
+            precision:
+                Precision for ONNX export and TensorRT engine building. Either
+                "auto", "fp32", or "fp16". "auto" uses the model's current precision.
             onnx_args:
                 Optional arguments to pass to `export_onnx` when exporting
                 the ONNX model prior to building the TensorRT engine. If None,
@@ -819,8 +838,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 Batch size TensorRT optimizes for.
             min_batchsize:
                 Minimum supported batch size.
-            use_fp16:
-                Enable FP16 precision if supported by the platform.
             verbose:
                 Enable verbose TensorRT logging.
 
@@ -829,13 +846,19 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
+        model_dtype = next(self.parameters()).dtype
+
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
             out=out,
+            precision=precision,
+            model_dtype=model_dtype,
             onnx_args=onnx_args,
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            use_fp16=use_fp16,
+            # FP32 attention scores required for FP16 model stability. Otherwise output
+            # contains NaN.
+            fp32_attention_scores=True,
             verbose=verbose,
         )

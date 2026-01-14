@@ -11,7 +11,7 @@ import copy
 import logging
 import math
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 from PIL.Image import Image as PILImage
@@ -607,8 +607,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
     @torch.no_grad()
     def export_onnx(
         self,
-        *,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         batch_size: int = 1,
         height: int | None = None,
         width: int | None = None,
@@ -631,6 +632,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         Args:
             out:
                 Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
+                uses the model's current precision.
             batch_size:
                 Batch size for the ONNX input.
             height:
@@ -661,7 +665,18 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         first_parameter = next(self.parameters())
         model_device = first_parameter.device
-        model_dtype = first_parameter.dtype
+        dtype = first_parameter.dtype
+
+        if precision == "fp32":
+            dtype = torch.float32
+        elif precision == "fp16":
+            dtype = torch.float16
+        elif precision != "auto":
+            raise ValueError(
+                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+            )
+
+        self.to(dtype)
 
         height = self.image_size[0] if height is None else height
         width = self.image_size[1] if width is None else width
@@ -674,7 +689,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             width,
             requires_grad=False,
             device=model_device,
-            dtype=model_dtype,
+            dtype=dtype,
         )
 
         input_names = ["images"]
@@ -764,11 +779,12 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
     def export_tensorrt(
         self,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         onnx_args: dict[str, Any] | None = None,
         max_batchsize: int = 1,
         opt_batchsize: int = 1,
         min_batchsize: int = 1,
-        use_fp16: bool = False,
         verbose: bool = False,
     ) -> None:
         """Build a TensorRT engine from an ONNX model.
@@ -789,6 +805,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         Args:
             out:
                 Path where the TensorRT engine will be saved.
+            precision:
+                Precision for ONNX export and TensorRT engine building. Either
+                "auto", "fp32", or "fp16". "auto" uses the model's current precision.
             onnx_args:
                 Optional arguments to pass to `export_onnx` when exporting
                 the ONNX model prior to building the TensorRT engine. If None,
@@ -800,8 +819,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                 Batch size TensorRT optimizes for.
             min_batchsize:
                 Minimum supported batch size.
-            use_fp16:
-                Enable FP16 precision if supported by the platform.
             verbose:
                 Enable verbose TensorRT logging.
 
@@ -810,7 +827,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
-
         def update_network_fn(net: trt.INetworkDefinition) -> None:
             import tensorrt as trt
 
@@ -848,17 +864,20 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
                     logger.debug(f"Forcing FP32 for layer: {layer.name}")
 
+        model_dtype = next(self.parameters()).dtype
+
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
             out=out,
+            precision=precision,
+            model_dtype=model_dtype,
             onnx_args=onnx_args,
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            use_fp16=use_fp16,
             # FP32 attention scores required for FP16 model stability. Otherwise output
             # contains NaN.
-            fp32_attention_scores=use_fp16,
+            fp32_attention_scores=True,
             verbose=verbose,
             update_network_fn=update_network_fn,
         )

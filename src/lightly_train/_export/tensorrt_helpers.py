@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 import torch
 
@@ -24,13 +24,15 @@ logger = logging.getLogger(__name__)
 
 @torch.no_grad()
 def export_tensorrt(
+    *,
     export_onnx_fn: Callable[..., None],
     out: PathLike,
+    precision: Literal["auto", "fp32", "fp16"],
+    model_dtype: torch.dtype,
     onnx_args: dict[str, Any] | None = None,
     max_batchsize: int = 1,
     opt_batchsize: int = 1,
     min_batchsize: int = 1,
-    use_fp16: bool = False,
     fp32_attention_scores: bool = False,
     verbose: bool = False,
     debug: bool = False,
@@ -58,6 +60,11 @@ def export_tensorrt(
             the model to be exported.
         out:
             Path where the TensorRT engine will be saved.
+        precision:
+            Precision hint used for TensorRT engine building.
+        model_dtype:
+            The dtype of the model being exported. Used to determine how to handle
+            `precision="auto"`.
         onnx_args:
             Optional arguments to pass to `export_onnx` when exporting
             the ONNX model prior to building the TensorRT engine. If None,
@@ -69,8 +76,6 @@ def export_tensorrt(
             Batch size TensorRT optimizes for.
         min_batchsize:
             Minimum supported batch size.
-        use_fp16:
-            Enable FP16 precision if supported by the platform.
         fp32_attention_scores:
             Force attention score computations to use FP32 precision.
         verbose:
@@ -115,9 +120,7 @@ def export_tensorrt(
 
     parser = trt.OnnxParser(network, trt_logger)
 
-    # Set the ONNX export path.
-    if onnx_args is None:
-        onnx_args = {}
+    onnx_args = {} if onnx_args is None else onnx_args
     onnx_args.setdefault("out", Path(out).with_suffix(".onnx"))
 
     # Export the model to ONNX.
@@ -169,8 +172,8 @@ def export_tensorrt(
     if hasattr(trt.BuilderFlag, "TF32"):
         config.clear_flag(trt.BuilderFlag.TF32)
 
-    # Verify that fp16 can be used if requested.
-    if use_fp16:
+    # Use FP16 if requested and supported.
+    if precision == "fp16" or (model_dtype == torch.float16 and precision == "auto"):
         if builder.platform_has_fast_fp16:
             config.set_flag(trt.BuilderFlag.FP16)
 
