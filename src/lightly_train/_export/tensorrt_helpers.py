@@ -159,7 +159,7 @@ def export_tensorrt(
     if hasattr(trt.BuilderFlag, "TF32"):
         config.clear_flag(trt.BuilderFlag.TF32)
 
-    # Verify that fp16 can be used if requested.
+    # Use FP16 if requested and supported.
     if precision == "fp16" or (model_dtype == torch.float16 and precision == "auto"):
         if builder.platform_has_fast_fp16:
             config.set_flag(trt.BuilderFlag.FP16)

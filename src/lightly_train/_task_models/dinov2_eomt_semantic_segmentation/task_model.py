@@ -659,7 +659,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 Path where the ONNX model will be written.
             precision:
                 Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
-                uses the model's current dtype.
+                uses the model's current precision.
             batch_size:
                 Batch size for the ONNX input.
             height:
@@ -826,7 +826,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 Path where the TensorRT engine will be saved.
             precision:
                 Precision for ONNX export and TensorRT engine building. Either
-                "auto", "fp32", or "fp16". "auto" uses the model's current dtype.
+                "auto", "fp32", or "fp16". "auto" uses the model's current precision.
             onnx_args:
                 Optional arguments to pass to `export_onnx` when exporting
                 the ONNX model prior to building the TensorRT engine. If None,
@@ -846,14 +846,19 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
+        model_dtype = next(self.parameters()).dtype
+
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
             out=out,
             precision=precision,
-            model_dtype=next(self.parameters()).dtype,
+            model_dtype=model_dtype,
             onnx_args=onnx_args,
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
+            # FP32 attention scores required for FP16 model stability. Otherwise output
+            # contains NaN.
+            fp32_attention_scores=True,
             verbose=verbose,
         )
