@@ -49,6 +49,8 @@ pip install lightly-train
 
 ## Workflows
 
+![Tasks](docs/source/_static/images/tasks/tasks.png)
+
 <details open>
 <summary><strong>Object Detection</strong></summary>
 
@@ -177,16 +179,19 @@ method from CVPR 2025.
 
 #### COCO Results
 
-| Implementation                       | Model                        | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
-| ------------------------------------ | ---------------------------- | ------------ | ----------------- | ---------- | ---------- |
-| LightlyTrain                         | dinov3/vits16-eomt-inst-coco | 32.6         | 19.4              | 21.6       | 640×640    |
-| LightlyTrain                         | dinov3/vitb16-eomt-inst-coco | 40.3         | 39.7              | 85.7       | 640×640    |
-| LightlyTrain                         | dinov3/vitl16-eomt-inst-coco | **46.2**     | 80.0              | 303.2      | 640×640    |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco | 45.9         | -                 | 303.2      | 640×640    |
+| Implementation                       | Model                            | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
+| ------------------------------------ | -------------------------------- | ------------ | ----------------- | ---------- | ---------- |
+| LightlyTrain                         | dinov3/vitt16-eomt-inst-coco     | 25.4         | 12.7              | 6.0        | 640×640    |
+| LightlyTrain                         | dinov3/vitt16plus-eomt-inst-coco | 27.6         | 13.3              | 7.7        | 640×640    |
+| LightlyTrain                         | dinov3/vits16-eomt-inst-coco     | 32.6         | 19.4              | 21.6       | 640×640    |
+| LightlyTrain                         | dinov3/vitb16-eomt-inst-coco     | 40.3         | 39.7              | 85.7       | 640×640    |
+| LightlyTrain                         | dinov3/vitl16-eomt-inst-coco     | **46.2**     | 80.0              | 303.2      | 640×640    |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco     | 45.9         | -                 | 303.2      | 640×640    |
 
-Models are trained for 12 epochs on the COCO 2017 dataset and evaluated on the
-validation set with single-scale testing. Average latency is measured on a single NVIDIA
-T4 GPU with batch size 1. All models are optimized using `torch.compile`.
+Tiny models are trained for 48 epochs, while all other models are trained for 12 epochs
+on the COCO 2017 dataset and evaluated on the validation set with single-scale testing.
+Average latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are
+optimized using `torch.compile`.
 
 #### Usage
 
@@ -234,6 +239,11 @@ using the EoMT method from CVPR 2025.
 
 | Implementation | Model                       | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
 | -------------- | --------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain   | dinov3/vitt32-eomt-coco     | 34.0     | 4.2               | 6.0        | 512×512    |
+| LightlyTrain   | dinov3/vitt32plus-eomt-coco | 36.0     | 4.4               | 7.7        | 512×512    |
+| LightlyTrain   | dinov3/vits32-eomt-coco     | 42.4     | 5.4               | 21.6       | 512×512    |
+| LightlyTrain   | dinov3/vitb32-eomt-coco     | 48.3     | 9.4               | 85.7       | 512×512    |
+| LightlyTrain   | dinov3/vitl32-eomt-coco     | 51.2     | 17.5              | 303.2      | 512×512    |
 | LightlyTrain   | dinov3/vitt16-eomt-coco     | 37.9     | 6.0               | 6.0        | 512×512    |
 | LightlyTrain   | dinov3/vitt16plus-eomt-coco | 39.5     | 6.4               | 7.7        | 512×512    |
 | LightlyTrain   | dinov3/vits16-eomt-coco     | 45.0     | 11.3              | 21.6       | 512×512    |

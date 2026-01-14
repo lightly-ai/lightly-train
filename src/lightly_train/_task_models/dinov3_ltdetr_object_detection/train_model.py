@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import copy
 import re
-from dataclasses import field
 from typing import Any, ClassVar, Literal
 
 import torch
 from lightning_fabric import Fabric
+from pydantic import Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
@@ -82,38 +82,40 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     ema_warmup_steps: int = 2000
 
     # Matcher configuration
-    matcher_weight_dict: dict[str, float] = field(
-        default_factory=lambda: {"cost_class": 2, "cost_bbox": 5, "cost_giou": 2}
+    matcher_weight_dict: dict[str, float] = Field(
+        default_factory=lambda: {"cost_class": 2.0, "cost_bbox": 5.0, "cost_giou": 2.0}
     )
     matcher_use_focal_loss: bool = True
     matcher_alpha: float = 0.25
     matcher_gamma: float = 2.0
 
     # Criterion configuration
-    criterion_weight_dict: dict[str, float] = field(
-        default_factory=lambda: {"loss_vfl": 1, "loss_bbox": 5, "loss_giou": 2}
+    loss_weight_dict: dict[str, float] = Field(
+        default_factory=lambda: {"loss_vfl": 1.0, "loss_bbox": 5.0, "loss_giou": 2.0}
     )
-    criterion_losses: list[str] = field(default_factory=lambda: ["vfl", "boxes"])
-    criterion_alpha: float = 0.75
-    criterion_gamma: float = 2.0
+    losses: list[str] = Field(default_factory=lambda: ["vfl", "boxes"])
+    loss_alpha: float = 0.75
+    loss_gamma: float = 2.0
 
     # Miscellaneous
-    clip_max_norm: float = 0.1
+    gradient_clip_val: float = 0.1
 
     # Optimizer configuration
-    optimizer_lr: float = 1e-4
+    lr: float = Field(default=1e-4, validation_alias="optimizer_lr")
+    weight_decay: float = Field(default=1e-4, validation_alias="optimizer_weight_decay")
     optimizer_betas: tuple[float, float] = (0.9, 0.999)
-    optimizer_weight_decay: float = 1e-4
 
     # Per-parameter-group overrides
-    backbone_lr: float = 1e-6
+    backbone_lr_factor: float = 1e-2
     backbone_weight_decay: float | None = None  # Use default if None
 
     detector_weight_decay: float = 0.0
 
     # Scheduler configuration
     scheduler_start_factor: float = 0.01
-    scheduler_warmup_steps: int = 2000
+    lr_warmup_steps: int = Field(
+        default=2000, validation_alias="scheduler_warmup_steps"
+    )
 
 
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
@@ -175,14 +177,14 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         self.criterion = RTDETRCriterionv2(  # type: ignore[no-untyped-call]
             matcher=matcher,
-            weight_dict=model_args.criterion_weight_dict,
-            losses=model_args.criterion_losses,
-            alpha=model_args.criterion_alpha,
-            gamma=model_args.criterion_gamma,
+            weight_dict=model_args.loss_weight_dict,
+            losses=model_args.losses,
+            alpha=model_args.loss_alpha,
+            gamma=model_args.loss_gamma,
             num_classes=len(data_args.included_classes),
         )
 
-        self.clip_max_norm = model_args.clip_max_norm
+        self.clip_max_norm = model_args.gradient_clip_val
 
         # Validation metric.
         self.map_metric = MeanAveragePrecision()
@@ -348,9 +350,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
         param_groups = []
-        base_weight_decay = self.model_args.optimizer_weight_decay
-        base_lr = self.model_args.optimizer_lr
-        backbone_lr = self.model_args.backbone_lr
+        base_weight_decay = self.model_args.weight_decay
+        base_lr = self.model_args.lr
+        backbone_lr = base_lr * self.model_args.backbone_lr_factor
         detector_weight_decay = self.model_args.detector_weight_decay
 
         # Backbone group without normalization layers.
@@ -407,14 +409,14 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             )
         optim = AdamW(
             param_groups,
-            lr=self.model_args.optimizer_lr,
+            lr=self.model_args.lr,
             betas=self.model_args.optimizer_betas,
-            weight_decay=self.model_args.optimizer_weight_decay,
+            weight_decay=self.model_args.weight_decay,
         )
         # TODO (Thomas, 11/25): Change to flat-cosine with warmup.
         scheduler = LinearLR(
             optimizer=optim,
-            total_iters=self.model_args.scheduler_warmup_steps,
+            total_iters=self.model_args.lr_warmup_steps,
             start_factor=self.model_args.scheduler_start_factor,
         )
 
