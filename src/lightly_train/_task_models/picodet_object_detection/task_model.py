@@ -220,6 +220,11 @@ class PicoDetObjectDetection(TaskModel):
         else:
             new_state_dict = state_dict
 
+        if "internal_class_to_class" not in new_state_dict:
+            new_state_dict["internal_class_to_class"] = (
+                self.internal_class_to_class.detach().clone()
+            )
+
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
     def _forward_train(self, images: Tensor) -> dict[str, list[Tensor]]:
