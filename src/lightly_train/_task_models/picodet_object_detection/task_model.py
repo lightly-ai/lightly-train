@@ -333,11 +333,16 @@ class PicoDetObjectDetection(TaskModel):
         x = transforms_functional.resize(x, list(self.image_size))
         x = x.unsqueeze(0)
 
-        labels, boxes, scores = self(
-            x, orig_target_size=torch.tensor([[orig_h, orig_w]], device=device)
+        outputs = self._forward_train(x)
+        results = self.postprocessor(
+            cls_scores=outputs["cls_scores"],
+            bbox_preds=outputs["bbox_preds"],
+            original_size=(orig_h, orig_w),
+            score_threshold=threshold,
         )
-        keep = scores > threshold
-        labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
+        labels = self.internal_class_to_class[results["labels"]]
+        boxes = results["bboxes"]
+        scores = results["scores"]
         return {
             "labels": labels,
             "bboxes": boxes,
