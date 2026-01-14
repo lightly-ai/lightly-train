@@ -40,7 +40,7 @@ from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 if TYPE_CHECKING:
-    import tensorrt as trt
+    import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
 
 logger = logging.getLogger(__name__)
 
