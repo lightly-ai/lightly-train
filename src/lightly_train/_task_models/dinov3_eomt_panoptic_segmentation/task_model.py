@@ -1113,6 +1113,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             verbose:
                 Enable verbose TensorRT logging.
         """
+
         def update_network_fn(net: trt.INetworkDefinition) -> None:
             import tensorrt as trt
 

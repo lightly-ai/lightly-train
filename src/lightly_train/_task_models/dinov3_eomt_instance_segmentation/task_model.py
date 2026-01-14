@@ -827,6 +827,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
+
         def update_network_fn(net: trt.INetworkDefinition) -> None:
             import tensorrt as trt
 
