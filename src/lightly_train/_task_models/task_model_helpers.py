@@ -98,6 +98,15 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "1aac5ac16dcbc1a12cc6f8d4541bea5e7940937a49f0b1dcea7394956b6e46e5",
     ),
     #### Panoptic Segmentation
+    # Trained with 4x schedule (360k steps and the masking schedule of 90K steps)
+    "dinov3/vitt16-eomt-panoptic-coco": (
+        "dinov3_vitt16_eomt_panoptic_coco_260113_770c0a1f.pt",
+        "770c0a1f024b9a78a6669d44968e2ab15b6d812839ce0c28732889ec5370ceea",
+    ),
+    "dinov3/vitt16plus-eomt-panoptic-coco": (
+        "dinov3_vitt16plus_eomt_panoptic_coco_260113_25765911.pt",
+        "25765911e4ebc6d735f385e8350a1c9924b4ccf08657d3868fbaa95ff4cc64e9",
+    ),
     # Trained with 2x schedule (180k steps)
     "dinov3/vits16-eomt-panoptic-coco": (
         "dinov3_vits16_eomt_panoptic_coco_251219_89e8a64f.pt",
