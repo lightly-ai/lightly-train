@@ -728,6 +728,12 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
                 for key, val in value.items():
                     if key in agg_metrics:
                         metrics[f"{name}/{key}"] = val.item()
+                    elif "per_class" in key:
+                        # Single scalar means the class-wise metrics are disabled.
+                        if val.ndim > 0:
+                            for i, v in enumerate(val):
+                                new_key = key.replace("per_class", "class")
+                                metrics[f"{name}/{new_key}_{i}"] = v.item()
             else:
                 # Class-wise metrics that look like this:
                 # {"class 1": 0.5, "class 2": 0.7, ...}
