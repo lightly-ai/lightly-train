@@ -488,6 +488,7 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 # Export to ONNX.
 model.export_onnx(
     out="out/my_experiment/exported_models/model.onnx"
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
 )
 ```
 
@@ -529,7 +530,7 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 # Export to TensorRT from an ONNX file.
 model.export_tensorrt(
     out="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
-    use_fp16=True,
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
 )
 ```
 

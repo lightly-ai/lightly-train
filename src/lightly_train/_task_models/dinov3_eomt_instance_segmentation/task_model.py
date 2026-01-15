@@ -11,7 +11,7 @@ import copy
 import logging
 import math
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 from PIL.Image import Image as PILImage
@@ -37,6 +37,9 @@ from lightly_train._task_models.dinov3_eomt_instance_segmentation.scale_block im
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
+
+if TYPE_CHECKING:
+    import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
 
 logger = logging.getLogger(__name__)
 
@@ -261,12 +264,15 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         if self.training:
             self.eval()
 
+        first_param = next(self.parameters())
+        device = first_param.device
+        dtype = first_param.dtype
+
         # Load image
-        device = next(self.parameters()).device
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
-        x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
         x = transforms_functional.normalize(
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
@@ -456,15 +462,37 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         self, mask_logits: Tensor, class_logits: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
         # Get score and label for each query.
-        scores = class_logits.softmax(dim=-1)[..., :-1]  # (1, Q, K)
+        # NOTE(Guarin, 01/26): Calculate softmax always in fp32 for numerical
+        # stability. Otherwise converting a fp32 model to fp16 results in NaNs.
+        scores = class_logits.softmax(dim=-1, dtype=torch.float32)[..., :-1].type_as(
+            class_logits
+        )  # (1, Q, K)
         scores, labels = torch.max(scores, dim=-1)  # (1, Q), (1, Q)
 
         # Multiply scores with mask scores.
         masks = mask_logits > 0  # (1, Q, H, W)
+
+        #### WARNING
+        # Be careful when modifying anything here. These operations
+        # must be kept in FP32 to avoid numerical issues in FP16 models. Test on
+        # TensorRT FP16 when making any changes. You have to force TensorRT to use FP32.
+        # See export_tensorrt in this file for details.
+        mask_logits_fp32 = mask_logits.float()
+        masks_fp32 = masks.float()
+
         # (1, Q)
-        mask_scores = (mask_logits.sigmoid().flatten(2) * masks.flatten(2)).sum(2)
-        mask_scores = mask_scores / (masks.flatten(2).sum(2) + 1e-6)
+        score_per_query = (
+            mask_logits_fp32.sigmoid().flatten(2) * masks_fp32.flatten(2)
+        ).sum(2)
+        mask_pixels_per_query = masks_fp32.flatten(2).sum(2)
+        mask_scores = score_per_query / mask_pixels_per_query
+        mask_scores = torch.where(
+            mask_pixels_per_query > 0, mask_scores, torch.zeros_like(mask_scores)
+        )
+
         scores = scores * mask_scores  # (1, Q)
+        scores = scores.type_as(mask_logits)
+        #####
 
         # (1, Q), (1, Q, H, W), (1, Q)
         return labels, masks, scores
@@ -579,8 +607,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
     @torch.no_grad()
     def export_onnx(
         self,
-        *,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         batch_size: int = 1,
         height: int | None = None,
         width: int | None = None,
@@ -603,6 +632,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         Args:
             out:
                 Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
+                uses the model's current precision.
             batch_size:
                 Batch size for the ONNX input.
             height:
@@ -633,7 +665,18 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         first_parameter = next(self.parameters())
         model_device = first_parameter.device
-        model_dtype = first_parameter.dtype
+        dtype = first_parameter.dtype
+
+        if precision == "fp32":
+            dtype = torch.float32
+        elif precision == "fp16":
+            dtype = torch.float16
+        elif precision != "auto":
+            raise ValueError(
+                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+            )
+
+        self.to(dtype)
 
         height = self.image_size[0] if height is None else height
         width = self.image_size[1] if width is None else width
@@ -646,11 +689,10 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             width,
             requires_grad=False,
             device=model_device,
-            dtype=model_dtype,
+            dtype=dtype,
         )
 
         input_names = ["images"]
-        # Instance segmentation returns labels, masks, scores
         output_names = ["labels", "masks", "scores"]
 
         torch.onnx.export(
@@ -737,11 +779,12 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
     def export_tensorrt(
         self,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         onnx_args: dict[str, Any] | None = None,
         max_batchsize: int = 1,
         opt_batchsize: int = 1,
         min_batchsize: int = 1,
-        use_fp16: bool = False,
         verbose: bool = False,
     ) -> None:
         """Build a TensorRT engine from an ONNX model.
@@ -762,6 +805,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         Args:
             out:
                 Path where the TensorRT engine will be saved.
+            precision:
+                Precision for ONNX export and TensorRT engine building. Either
+                "auto", "fp32", or "fp16". "auto" uses the model's current precision.
             onnx_args:
                 Optional arguments to pass to `export_onnx` when exporting
                 the ONNX model prior to building the TensorRT engine. If None,
@@ -773,8 +819,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                 Batch size TensorRT optimizes for.
             min_batchsize:
                 Minimum supported batch size.
-            use_fp16:
-                Enable FP16 precision if supported by the platform.
             verbose:
                 Enable verbose TensorRT logging.
 
@@ -783,13 +827,58 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
+
+        def update_network_fn(net: trt.INetworkDefinition) -> None:
+            import tensorrt as trt
+
+            wanted = ("ReduceSum", "Div", "Mul", "Sigmoid")
+
+            io_tensors = {
+                *(net.get_input(i) for i in range(net.num_inputs)),
+                *(net.get_output(i) for i in range(net.num_outputs)),
+            }
+
+            # find first Sigmoid layer index
+            start_idx: int | None = None
+            for i in range(net.num_layers):
+                layer = net.get_layer(i)
+                if "Sigmoid" in layer.name:
+                    start_idx = i
+                    break
+            if start_idx is None:
+                logger.warning("No Sigmoid layer found; nothing to update.")
+                return
+
+            for i in range(start_idx, net.num_layers):
+                layer = net.get_layer(i)
+                if any(k in layer.name for k in wanted):
+                    layer.precision = trt.DataType.FLOAT
+
+                    for j in range(layer.num_outputs):
+                        out = layer.get_output(j)
+                        if out is None:
+                            continue
+
+                        # Only set dtype for network I/O tensors to avoid TRT warnings.
+                        if out in io_tensors:
+                            out.dtype = trt.DataType.FLOAT
+
+                    logger.debug(f"Forcing FP32 for layer: {layer.name}")
+
+        model_dtype = next(self.parameters()).dtype
+
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
             out=out,
+            precision=precision,
+            model_dtype=model_dtype,
             onnx_args=onnx_args,
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            use_fp16=use_fp16,
+            # FP32 attention scores required for FP16 model stability. Otherwise output
+            # contains NaN.
+            fp32_attention_scores=True,
             verbose=verbose,
+            update_network_fn=update_network_fn,
         )
