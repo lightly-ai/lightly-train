@@ -443,6 +443,7 @@ class PicoDetObjectDetection(TaskModel):
             onnxslim.slim(
                 str(out),
                 output_model=out,
+                skip_optimizations=["constant_folding"],
             )
 
         if verify:
@@ -458,9 +459,8 @@ class PicoDetObjectDetection(TaskModel):
             )
 
             session = ort.InferenceSession(out)
-            input_name = session.get_inputs()[0].name
             input_feed = {
-                input_name: dummy_input.cpu().numpy(),
+                "images": dummy_input.cpu().numpy(),
             }
             outputs_onnx = session.run(output_names=None, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
