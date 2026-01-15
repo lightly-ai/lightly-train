@@ -27,6 +27,8 @@ notebook:
 
 | Implementation                       | Model                                 | Val PQ   | Avg. Latency (ms) | Params (M) | Input Size |
 | ------------------------------------ | ------------------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain                         | dinov3/vitt16-eomt-panoptic-coco      | 38.0     | 13.5              | 6.0        | 640×640    |
+| LightlyTrain                         | dinov3/vittplus16-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
 | LightlyTrain                         | dinov3/vits16-eomt-panoptic-coco      | 46.8     | 21.2              | 23.4       | 640×640    |
 | LightlyTrain                         | dinov3/vitb16-eomt-panoptic-coco      | 53.2     | 39.4              | 92.5       | 640×640    |
 | LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco      | 57.0     | 80.1              | 315.1      | 640×640    |
@@ -34,11 +36,11 @@ notebook:
 | EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9     | -                 | 315.1      | 1280×1280  |
 
 Training follows the protocol in the original
-[EoMT paper](https://arxiv.org/abs/2503.19108). Small and base models are trained for
-180K steps (24 epochs) and large models for 90K steps (12 epochs) on the COCO dataset
-with batch size `16` and learning rate `2e-4`. The average latency values were measured
-with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16
-precision.
+[EoMT paper](https://arxiv.org/abs/2503.19108). Tiny models are trained for 360K steps
+(48 epochs), small and base models for 180K steps (24 epochs) and large models for 90K
+steps (12 epochs) on the COCO dataset with batch size `16` and learning rate `2e-4`. The
+average latency values were measured with model compilation using `torch.compile` on a
+single NVIDIA T4 GPU with FP16 precision.
 
 (panoptic-segmentation-train)=
 

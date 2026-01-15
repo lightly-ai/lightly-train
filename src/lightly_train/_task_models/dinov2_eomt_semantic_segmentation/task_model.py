@@ -266,10 +266,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         device = first_param.device
         dtype = first_param.dtype
 
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
-
         # Load image
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
