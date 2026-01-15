@@ -12,9 +12,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add Slicing Aided Hyper Inference (SAHI) for object detection to improve small objects
   recall at inference.
 - Add TensorRT export for LTDETR models.
-- Add ONNX and TensorRT export for instance segmentation models.
-- Add ONNX and TensorRT export for panoptic segmentation models.
-- Add ONNX and TensorRT export for semantic segmentation models.
+- Add FP16/FP32 ONNX and TensorRT export for instance segmentation models.
+- Add FP16/FP32 ONNX and TensorRT export for panoptic segmentation models.
+- Add FP16/FP32 ONNX and TensorRT export for semantic segmentation models.
 - Add example jupyter notebooks for ONNX and TensorRT export.
 - Add tiny semantic segmentation models.
 - Add tiny instance segmentation models.
