@@ -60,6 +60,9 @@ if __name__ == "__main__":
                 1: "bicycle",
                 # ...
             },
+            # Optional, classes that are in the dataset but should be ignored during
+            # training.
+            # "ignore_classes": [0],
         }
     )
 ```
@@ -362,6 +365,14 @@ my_data_dir/
         ├── image2.txt
         └── ...
 ```
+
+Each class in the dataset must be listed in the `names` dictionary. The keys are the
+class IDs used inside the YOLO annotations and the values are the human-readable class
+names. All class IDs that appear in the label files must be present in the dictionary;
+otherwise Lightly**Train** raises an error when it encounters an unknown class ID. If
+you would like to skip specific classes during training, add their IDs to the optional
+`ignore_classes` list. The trainer omits these classes from loss computation and the
+exported model does not predict them.
 
 (object-detection-logging)=
 
