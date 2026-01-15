@@ -35,7 +35,7 @@ NDArrayBinaryMask = NDArray[np.bool_]  # (H, W)
 NDArrayBinaryMasks = NDArray[np.bool_]  # (n_instances, H, W)
 # Binary masks as integers for compatibility with albumentations as it doesn't support
 # boolean masks.
-NDArrayBinaryMasksInt = NDArray[np.int_]  # (n_instances, H, W)
+NDArrayBinaryMasksInt = NDArray[np.uint8]  # (n_instances, H, W)
 
 
 class TransformInput(TypedDict):
