@@ -603,6 +603,36 @@ def create_coco_panoptic_segmentation_dataset(
     )
 
 
+def create_image_classification_dataset(
+    tmp_path: Path,
+    class_names: list[str],
+    num_files_per_class: int = 2,
+    height: int = 128,
+    width: int = 128,
+) -> None:
+    """Create a minimal image classification dataset."""
+    # Define directories.
+    train_images = tmp_path / "train"
+    val_images = tmp_path / "val"
+
+    # Create directories.
+    for dir in [train_images, val_images]:
+        dir.mkdir(parents=True, exist_ok=True)
+
+        # Create class directories.
+        for class_name in class_names:
+            class_dir = dir / class_name
+            class_dir.mkdir(parents=True, exist_ok=True)
+
+            # Create images.
+            create_images(
+                image_dir=class_dir,
+                files=num_files_per_class,
+                height=height,
+                width=width,
+            )
+
+
 def assert_same_params(
     a: type[PydanticConfig] | Callable,  # type: ignore[type-arg]
     b: type[PydanticConfig] | Callable,  # type: ignore[type-arg]
