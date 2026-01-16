@@ -16,10 +16,13 @@ transformer and YOLO models on detection and segmentation tasks for edge deploym
 
 ## News
 
+- \[[0.14.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-14-0)\] -
+  2026-01-19: ⚡️ **New Tiny Models and ONNX/TensorRT FP16 Support:** All tasks now
+  support tiny DINOv3 models and ONNX/TensorRT export in FP16 precision for faster
+  inference! ⚡️
 - \[[0.13.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-13-0)\] -
   2025-12-15: 🐥 **New Tiny Object Detection Models:** We release tiny DINOv3 models
   pretrained on COCO for
-  [object detection](https://docs.lightly.ai/train/stable/object_detection.html#coco)! 🐥
 - \[[0.12.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-12-0)\] -
   2025-11-06: 💡 **New DINOv3 Object Detection:** Run inference or fine-tune DINOv3
   models for
