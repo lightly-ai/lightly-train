@@ -491,3 +491,25 @@ class PicoDetObjectDetection(TaskModel):
                 )
 
         logger.info(f"Successfully exported ONNX model to '{out}'")
+
+    def export_tensorrt(
+        self,
+        out: PathLike,
+        onnx_args: dict[str, Any] | None = None,
+        max_batchsize: int = 1,
+        opt_batchsize: int = 1,
+        min_batchsize: int = 1,
+        use_fp16: bool = False,
+        verbose: bool = False,
+    ) -> None:
+        """Build a TensorRT engine from an ONNX model."""
+        tensorrt_helpers.export_tensorrt(
+            export_onnx_fn=self.export_onnx,
+            out=out,
+            onnx_args=onnx_args,
+            max_batchsize=max_batchsize,
+            opt_batchsize=opt_batchsize,
+            min_batchsize=min_batchsize,
+            use_fp16=use_fp16,
+            verbose=verbose,
+        )
