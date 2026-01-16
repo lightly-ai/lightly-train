@@ -19,6 +19,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train import _logging
 from lightly_train._commands import _warnings
 from lightly_train._data import file_helpers
+from lightly_train._export import tensorrt_helpers
 from lightly_train._task_models.picodet_object_detection.csp_pan import CSPPAN
 from lightly_train._task_models.picodet_object_detection.esnet import ESNet
 from lightly_train._task_models.picodet_object_detection.pico_head import PicoHead
