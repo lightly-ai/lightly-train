@@ -13,7 +13,7 @@ from typing import Any, ClassVar, Literal
 
 import torch
 from lightning_fabric import Fabric
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
@@ -99,8 +99,14 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     gradient_clip_val: float = 0.1
 
     # Optimizer configuration
-    lr: float = Field(default=1e-4, validation_alias="optimizer_lr")
-    weight_decay: float = Field(default=1e-4, validation_alias="optimizer_weight_decay")
+    lr: float = Field(
+        default=1e-4,
+        validation_alias=AliasChoices("lr", "optimizer_lr"),
+    )
+    weight_decay: float = Field(
+        default=1e-4,
+        validation_alias=AliasChoices("weight_decay", "optimizer_weight_decay"),
+    )
     optimizer_betas: tuple[float, float] = (0.9, 0.999)
 
     # Per-parameter-group overrides
@@ -114,7 +120,7 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     scheduler_gamma: float = 0.1
     lr_warmup_steps: int | None = Field(
         default=None,  # TODO (Thomas, 10/25): Change to flat-cosine with warmup.
-        validation_alias="scheduler_warmup_steps",
+        validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
     metric_log_classwise: bool = False
