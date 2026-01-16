@@ -16,12 +16,12 @@ from lightly_train._data.image_classification_dataset import (
     ImageClassificationDataArgs,
     ImageClassificationDataset,
 )
-from lightly_train._transforms.task_transform import TaskTransform
+from lightly_train._transforms.task_transform import TaskTransform, TaskTransformArgs
 
 from .. import helpers
 
 
-class IdentityTaskTransformArgs:
+class IdentityTaskTransformArgs(TaskTransformArgs):
     """Dummy args class for the identity transform."""
 
     pass
@@ -41,7 +41,7 @@ class TestImageClassifiactionDataset:
         classes = {0: "class_0", 1: "class_1"}
         helpers.create_image_classification_dataset(
             tmp_path=tmp_path,
-            class_names=classes.values(),
+            class_names=list(classes.values()),
             num_files_per_class=num_files_per_class,
             height=64,
             width=128,
