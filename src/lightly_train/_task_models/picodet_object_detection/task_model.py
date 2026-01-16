@@ -493,6 +493,7 @@ class PicoDetObjectDetection(TaskModel):
 
         logger.info(f"Successfully exported ONNX model to '{out}'")
 
+    @torch.no_grad()
     def export_tensorrt(
         self,
         out: PathLike,
