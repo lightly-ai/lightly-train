@@ -258,9 +258,6 @@ class PicoDetObjectDetection(TaskModel):
             - boxes: Tensor of shape (B, N, 4) in xyxy format.
             - scores: Tensor of shape (B, N) with confidence scores.
         """
-        if images.shape[0] != 1:
-            raise ValueError("PicoDet forward only supports batch size 1.")
-
         if orig_target_size is None:
             orig_h, orig_w = images.shape[-2:]
         else:
@@ -296,6 +293,15 @@ class PicoDetObjectDetection(TaskModel):
             device=images.device,
             dtype=result["scores"].dtype,
         )
+
+        # PicoDet postprocessing returns variable-length outputs, so we pad to
+        # fixed shapes for ONNX; LTDETR already returns fixed-size tensors.
+        if result["labels"].numel() > 0:
+            num_detections = min(result["labels"].numel(), max_detections)
+            labels = self.internal_class_to_class[result["labels"]]
+            labels_out[0, :num_detections] = labels[:num_detections]
+            boxes_out[0, :num_detections] = result["bboxes"][:num_detections]
+            scores_out[0, :num_detections] = result["scores"][:num_detections]
 
         return labels_out, boxes_out, scores_out
 
@@ -459,9 +465,8 @@ class PicoDetObjectDetection(TaskModel):
             )
 
             session = ort.InferenceSession(out)
-            input_name = session.get_inputs()[0].name
             input_feed = {
-                input_name: dummy_input.cpu().numpy(),
+                "images": dummy_input.cpu().numpy(),
             }
             outputs_onnx = session.run(output_names=None, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
