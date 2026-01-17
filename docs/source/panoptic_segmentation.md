@@ -27,6 +27,8 @@ notebook:
 
 | Implementation                       | Model                                 | Val PQ   | Avg. Latency (ms) | Params (M) | Input Size |
 | ------------------------------------ | ------------------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain                         | dinov3/vitt16-eomt-panoptic-coco      | 38.0     | 13.5              | 6.0        | 640×640    |
+| LightlyTrain                         | dinov3/vittplus16-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
 | LightlyTrain                         | dinov3/vits16-eomt-panoptic-coco      | 46.8     | 21.2              | 23.4       | 640×640    |
 | LightlyTrain                         | dinov3/vitb16-eomt-panoptic-coco      | 53.2     | 39.4              | 92.5       | 640×640    |
 | LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco      | 57.0     | 80.1              | 315.1      | 640×640    |
@@ -34,11 +36,11 @@ notebook:
 | EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9     | -                 | 315.1      | 1280×1280  |
 
 Training follows the protocol in the original
-[EoMT paper](https://arxiv.org/abs/2503.19108). Small and base models are trained for
-180K steps (24 epochs) and large models for 90K steps (12 epochs) on the COCO dataset
-with batch size `16` and learning rate `2e-4`. The average latency values were measured
-with model compilation using `torch.compile` on a single NVIDIA T4 GPU with FP16
-precision.
+[EoMT paper](https://arxiv.org/abs/2503.19108). Tiny models are trained for 360K steps
+(48 epochs), small and base models for 180K steps (24 epochs) and large models for 90K
+steps (12 epochs) on the COCO dataset with batch size `16` and learning rate `2e-4`. The
+average latency values were measured with model compilation using `torch.compile` on a
+single NVIDIA T4 GPU with FP16 precision.
 
 (panoptic-segmentation-train)=
 
@@ -463,7 +465,10 @@ import lightly_train
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 
 # Export to ONNX.
-model.export_onnx(out="out/my_experiment/exported_models/model.onnx")
+model.export_onnx(
+    out="out/my_experiment/exported_models/model.onnx",
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
+)
 ```
 
 See {py:meth}`~.DINOv3EoMTPanopticSegmentation.export_onnx` for all available options
@@ -504,6 +509,7 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 # Export to TensorRT from an ONNX file.
 model.export_tensorrt(
     out="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
 )
 ```
 

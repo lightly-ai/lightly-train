@@ -116,7 +116,7 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
                 self.num_joint_blocks = num_joint_blocks
             else:
                 match = re.match(
-                    r"dinov3/(?P<model_size>vit(s|l|b|g|h|7b)).*", model_name
+                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b)).*", model_name
                 )
                 if match is None:
                     raise ValueError(
@@ -126,6 +126,7 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
                     )
                 model_size = match.group("model_size")
                 self.num_joint_blocks = {
+                    "vitt": 3,
                     "vits": 3,
                     "vitb": 3,
                     "vitl": 4,
@@ -136,18 +137,22 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
                     "vit7b": 5,
                 }[model_size]
 
-        # Infer the number of training phases from the number of joint blocks.
-        num_training_phases = self.num_joint_blocks + 2
+        if (
+            self.attn_mask_annealing_steps_start == "auto"
+            or self.attn_mask_annealing_steps_end == "auto"
+        ):
+            # Infer the number of training phases from the number of joint blocks.
+            num_training_phases = self.num_joint_blocks + 2
 
-        # The phases all have the same duration.
-        phases = [
-            round(i * total_steps / num_training_phases)
-            for i in range(num_training_phases + 1)
-        ]
+            # The phases all have the same duration.
+            phases = [
+                round(i * total_steps / num_training_phases)
+                for i in range(num_training_phases + 1)
+            ]
 
-        # Set the start and stop of each phases.
-        self.attn_mask_annealing_steps_start = phases[1:-2]
-        self.attn_mask_annealing_steps_end = phases[2:-1]
+            # Set the start and stop of each phases.
+            self.attn_mask_annealing_steps_start = phases[1:-2]
+            self.attn_mask_annealing_steps_end = phases[2:-1]
 
         # Ensure the number of phases is correct.
         assert len(self.attn_mask_annealing_steps_start) == self.num_joint_blocks

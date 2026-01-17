@@ -60,6 +60,9 @@ if __name__ == "__main__":
                 1: "bicycle",
                 # ...
             },
+            # Optional, classes that are in the dataset but should be ignored during
+            # training.
+            # "ignore_classes": [0],
         }
     )
 ```
@@ -363,6 +366,14 @@ my_data_dir/
         └── ...
 ```
 
+Each class in the dataset must be listed in the `names` dictionary. The keys are the
+class IDs used inside the YOLO annotations and the values are the human-readable class
+names. All class IDs that appear in the label files must be present in the dictionary;
+otherwise Lightly**Train** raises an error when it encounters an unknown class ID. If
+you would like to skip specific classes during training, add their IDs to the optional
+`ignore_classes` list. The trainer omits these classes from loss computation and the
+exported model does not predict them.
+
 (object-detection-logging)=
 
 ## Logging
@@ -488,6 +499,7 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 # Export to ONNX.
 model.export_onnx(
     out="out/my_experiment/exported_models/model.onnx"
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
 )
 ```
 
@@ -529,7 +541,7 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 # Export to TensorRT from an ONNX file.
 model.export_tensorrt(
     out="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
-    use_fp16=True,
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
 )
 ```
 

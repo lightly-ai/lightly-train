@@ -77,6 +77,14 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0",
     ),
     #### Instance Segmentation
+    "dinov3/vitt16-eomt-inst-coco": (  # 6x schedule
+        "dinov3_vitt16_eomt_inst_coco_260109_45e0aff8.pt",
+        "45e0aff8c5c8054a3240fcbc368b4e7f87e8066c1e100e3ef9d9c60c7d949a17",
+    ),
+    "dinov3/vitt16plus-eomt-inst-coco": (  # 6x schedule
+        "dinov3_vitt16plus_eomt_inst_coco_260109_0e20aa05.pt",
+        "0e20aa05ef15003d7d9462400d32ecc671e7a8d256ae061d42dd4f8978feb621",
+    ),
     "dinov3/vits16-eomt-inst-coco": (
         "/dinov3_eomt/dinov3_vits16_eomt_inst_coco.pt",
         "b54dafb12d550958cc5c9818b061fba0d8b819423581d02080221d0199e1cc37",
@@ -90,6 +98,15 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "1aac5ac16dcbc1a12cc6f8d4541bea5e7940937a49f0b1dcea7394956b6e46e5",
     ),
     #### Panoptic Segmentation
+    # Trained with 4x schedule (360k steps and the masking schedule of 90K steps)
+    "dinov3/vitt16-eomt-panoptic-coco": (
+        "dinov3_vitt16_eomt_panoptic_coco_260113_770c0a1f.pt",
+        "770c0a1f024b9a78a6669d44968e2ab15b6d812839ce0c28732889ec5370ceea",
+    ),
+    "dinov3/vitt16plus-eomt-panoptic-coco": (
+        "dinov3_vitt16plus_eomt_panoptic_coco_260113_25765911.pt",
+        "25765911e4ebc6d735f385e8350a1c9924b4ccf08657d3868fbaa95ff4cc64e9",
+    ),
     # Trained with 2x schedule (180k steps)
     "dinov3/vits16-eomt-panoptic-coco": (
         "dinov3_vits16_eomt_panoptic_coco_251219_89e8a64f.pt",

@@ -246,13 +246,15 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
 
-        device = next(self.parameters()).device
+        first_param = next(self.parameters())
+        device = first_param.device
+        dtype = first_param.dtype
+
+        # Load image
         x = file_helpers.as_image_tensor(image).to(device)
+        image_h, image_w = x.shape[-2:]
 
-        h, w = x.shape[-2:]
-
-        x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
-
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
         # Normalize the image.
         if self.image_normalize is not None:
             x = transforms_functional.normalize(
@@ -264,7 +266,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         # Select high-confidence predictions. Noteworthy that the selection approach
         # flattens the first two dimensions and would not work with batchsize > 1.
         labels, boxes, scores = self(
-            x, orig_target_size=torch.tensor([[h, w]], device=device)
+            x, orig_target_size=torch.tensor([[image_h, image_w]], device=device)
         )
         keep = scores > threshold
         labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
