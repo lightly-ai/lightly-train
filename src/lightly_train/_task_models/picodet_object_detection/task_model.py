@@ -16,7 +16,7 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
 
-from lightly_train import _logging
+from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
@@ -360,6 +360,8 @@ class PicoDetObjectDetection(TaskModel):
     def export_onnx(
         self,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -379,6 +381,9 @@ class PicoDetObjectDetection(TaskModel):
 
         Args:
             out: Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
+                uses the model's current precision.
             opset_version: ONNX opset version to target. If None, PyTorch's
                 default opset is used.
             simplify: If True, run onnxslim to simplify and overwrite the exported model.
@@ -395,7 +400,19 @@ class PicoDetObjectDetection(TaskModel):
 
         first_parameter = next(self.parameters())
         model_device = first_parameter.device
-        model_dtype = first_parameter.dtype
+        dtype = first_parameter.dtype
+
+        if precision == "fp32":
+            dtype = torch.float32
+        elif precision == "fp16":
+            dtype = torch.float16
+        elif precision != "auto":
+            raise ValueError(
+                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+            )
+
+        self.to(dtype)
+        model_device = next(self.parameters()).device
 
         if num_channels is None:
             if self.image_normalize is not None:
@@ -426,7 +443,7 @@ class PicoDetObjectDetection(TaskModel):
             self.image_size[1],
             requires_grad=False,
             device=model_device,
-            dtype=model_dtype,
+            dtype=dtype,
         )
 
         input_names = ["images"]
@@ -479,28 +496,41 @@ class PicoDetObjectDetection(TaskModel):
             for output_onnx, output_model, output_name in zip(
                 outputs_onnx, reference_outputs, output_names
             ):
-                torch.testing.assert_close(
-                    output_onnx,
-                    output_model,
-                    msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
-                    equal_nan=True,
-                    check_device=False,
-                    check_dtype=False,
-                    check_layout=False,
-                    atol=5e-3,
-                    rtol=1e-1,
-                )
+
+                def msg(s: str) -> str:
+                    return f'ONNX validation failed for output "{output_name}": {s}'
+
+                if output_model.is_floating_point:
+                    torch.testing.assert_close(
+                        output_onnx,
+                        output_model,
+                        msg=msg,
+                        equal_nan=True,
+                        check_device=False,
+                        check_dtype=False,
+                        check_layout=False,
+                        atol=5e-3,
+                        rtol=1e-1,
+                    )
+                else:
+                    _torch_testing.assert_most_equal(
+                        output_onnx,
+                        output_model,
+                        msg=msg,
+                    )
 
         logger.info(f"Successfully exported ONNX model to '{out}'")
 
+    @torch.no_grad()
     def export_tensorrt(
         self,
         out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
         onnx_args: dict[str, Any] | None = None,
         max_batchsize: int = 1,
         opt_batchsize: int = 1,
         min_batchsize: int = 1,
-        use_fp16: bool = False,
         verbose: bool = False,
     ) -> None:
         """Build a TensorRT engine from an ONNX model.
@@ -521,6 +551,9 @@ class PicoDetObjectDetection(TaskModel):
         Args:
             out:
                 Path where the TensorRT engine will be saved.
+            precision:
+                Precision for ONNX export and TensorRT engine building. Either
+                "auto", "fp32", or "fp16". "auto" uses the model's current precision.
             onnx_args:
                 Optional arguments to pass to `export_onnx` when exporting
                 the ONNX model prior to building the TensorRT engine. If None,
@@ -532,8 +565,6 @@ class PicoDetObjectDetection(TaskModel):
                 Batch size TensorRT optimizes for.
             min_batchsize:
                 Minimum supported batch size.
-            use_fp16:
-                Enable FP16 precision if supported by the platform.
             verbose:
                 Enable verbose TensorRT logging.
 
@@ -542,13 +573,16 @@ class PicoDetObjectDetection(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
+        model_dtype = next(self.parameters()).dtype
+
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
             out=out,
+            precision=precision,
+            model_dtype=model_dtype,
             onnx_args=onnx_args,
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            use_fp16=use_fp16,
             verbose=verbose,
         )
