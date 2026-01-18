@@ -76,11 +76,11 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "dinov3_convnext_large_ltdetr_coco_251218_03fe6750.pt",
         "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0",
     ),
-    "picodet-s-coco-416-260109": (
+    "picodet-s-coco": (
         "picodet_s_coco_416_260109_ee0a9f46.pt",
         "ee0a9f4617c36222bdee77a7d87c9e041262af418679ae24143c5d284cb68511",
     ),
-    "picodet-l-coco-416-260109": (
+    "picodet-l-coco": (
         "picodet_l_coco_416_260109_7096f43c.pt",
         "7096f43c43e85d5bb46b6e96a4890d24894bb3dec497f5b826cdf2d3e8547226",
     ),
