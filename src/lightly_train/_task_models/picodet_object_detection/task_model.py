@@ -12,6 +12,7 @@ from copy import deepcopy
 from typing import Any, Literal
 
 import torch
+from packaging import version
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
@@ -449,16 +450,23 @@ class PicoDetObjectDetection(TaskModel):
         input_names = ["images"]
         output_names = ["labels", "boxes", "scores"]
 
+        # Older torch.onnx.export versions don't accept the "dynamo" kwarg.
+        export_kwargs: dict[str, Any] = {
+            "input_names": input_names,
+            "output_names": output_names,
+            "opset_version": opset_version,
+            "dynamic_axes": {"images": {0: "N"}},
+            **(format_args or {}),
+        }
+        torch_version = version.parse(torch.__version__.split("+", 1)[0])
+        if torch_version >= version.parse("2.2.0"):
+            export_kwargs["dynamo"] = False
+
         torch.onnx.export(
             self,
             (dummy_input,),
             str(out),
-            input_names=input_names,
-            output_names=output_names,
-            opset_version=opset_version,
-            dynamo=False,
-            dynamic_axes={"images": {0: "N"}},
-            **(format_args or {}),
+            **export_kwargs,
         )
 
         if simplify:
