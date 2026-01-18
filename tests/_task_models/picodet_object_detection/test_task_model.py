@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import onnx
+import pytest
 import torch
+from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
@@ -66,7 +67,10 @@ def test_task_model_forward_shapes() -> None:
     assert scores.shape == (1, max_detections)
 
 
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
+    import onnx
+
     model = PicoDetObjectDetection(
         model_name="picodet/s-416",
         image_size=(416, 416),
