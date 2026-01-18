@@ -81,7 +81,7 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "ee0a9f4617c36222bdee77a7d87c9e041262af418679ae24143c5d284cb68511",
     ),
     "picodet-l-coco-416-260109": (
-        "picodet_s_coco_416_260109_ee0a9f46.pt",
+        "picodet_l_coco_416_260109_7096f43c.pt",
         "7096f43c43e85d5bb46b6e96a4890d24894bb3dec497f5b826cdf2d3e8547226",
     ),
     #### Instance Segmentation

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import onnx
 import torch
 
 from lightly_train._data.yolo_object_detection_dataset import (
@@ -63,6 +64,23 @@ def test_task_model_forward_shapes() -> None:
     assert labels.shape == (1, max_detections)
     assert boxes.shape == (1, max_detections, 4)
     assert scores.shape == (1, max_detections)
+
+
+def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
+    model = PicoDetObjectDetection(
+        model_name="picodet/s-416",
+        image_size=(416, 416),
+        num_classes=80,
+        load_weights=False,
+    )
+
+    out = tmp_path / "picodet.onnx"
+    model.export_onnx(out=out, simplify=False, verify=False)
+
+    onnx_model = onnx.load(out)
+    op_types = {node.op_type for node in onnx_model.graph.node}
+    assert "NonMaxSuppression" not in op_types
+    assert "If" not in op_types
 
 
 def _create_train_model(

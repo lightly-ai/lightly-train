@@ -164,11 +164,18 @@ class PicoDetPostProcessor(nn.Module):
         scores = torch.cat(per_level_scores, dim=0)
         labels = torch.cat(per_level_labels, dim=0)
 
-        keep = batched_nms(boxes, scores, labels, self.iou_threshold)
-        keep = keep[: self.max_detections]
-        boxes = boxes[keep]
-        scores = scores[keep]
-        labels = labels[keep]
+        if self.deploy_mode:
+            scores_sorted, idxs = scores.sort(descending=True)
+            idxs = idxs[: self.max_detections]
+            boxes = boxes[idxs]
+            labels = labels[idxs]
+            scores = scores_sorted[: self.max_detections]
+        else:
+            keep = batched_nms(boxes, scores, labels, self.iou_threshold)
+            keep = keep[: self.max_detections]
+            boxes = boxes[keep]
+            scores = scores[keep]
+            labels = labels[keep]
 
         scale_x = orig_w / float(in_w)
         scale_y = orig_h / float(in_h)

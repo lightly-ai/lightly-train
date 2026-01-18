@@ -297,12 +297,11 @@ class PicoDetObjectDetection(TaskModel):
 
         # PicoDet postprocessing returns variable-length outputs, so we pad to
         # fixed shapes for ONNX; LTDETR already returns fixed-size tensors.
-        if result["labels"].numel() > 0:
-            num_detections = min(result["labels"].numel(), max_detections)
-            labels = self.internal_class_to_class[result["labels"]]
-            labels_out[0, :num_detections] = labels[:num_detections]
-            boxes_out[0, :num_detections] = result["bboxes"][:num_detections]
-            scores_out[0, :num_detections] = result["scores"][:num_detections]
+        labels = self.internal_class_to_class[result["labels"]]
+        num_detections = labels.shape[0]
+        labels_out[0, :num_detections] = labels
+        boxes_out[0, :num_detections] = result["bboxes"]
+        scores_out[0, :num_detections] = result["scores"]
 
         return labels_out, boxes_out, scores_out
 
@@ -397,6 +396,7 @@ class PicoDetObjectDetection(TaskModel):
         _logging.set_up_console_logging()
 
         self.eval()
+        self.postprocessor.deploy()
 
         first_parameter = next(self.parameters())
         model_device = first_parameter.device
