@@ -720,10 +720,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_model_cls=train_model_cls, checkpoint_args=config.save_checkpoint_args
     )
 
-    if model_init_args is None:
-        model_init_args = (
-            {} if checkpoint is None else checkpoint.get("model_init_args", {})
-        )
+    model_init_args = {} if model_init_args is None else model_init_args
 
     train_transform_args, val_transform_args = helpers.get_transform_args(
         train_model_cls=train_model_cls,
