@@ -57,23 +57,6 @@ class PicoDetObjectDetection(TaskModel):
     PicoDet is a lightweight anchor-free object detector designed for
     mobile and edge deployment. It uses an Enhanced ShuffleNet backbone,
     CSP-PAN neck, and GFL-style detection head.
-
-    Supported models:
-        - picodet/s-416: PicoDet-S at 416x416 input
-        - picodet/l-416: PicoDet-L at 416x416 input
-
-    Args:
-        model_name: Model variant name.
-        image_size: Input image size (H, W).
-        num_classes: Number of object classes.
-        classes: Mapping from class id to class name. Used to map internal class ids
-            back to the original dataset class ids.
-        image_normalize: Normalization parameters (mean, std in [0,1] space).
-        reg_max: Maximum value for DFL distribution.
-        score_threshold: Default score threshold for inference.
-        iou_threshold: IoU threshold for NMS.
-        max_detections: Maximum number of detections.
-        load_weights: Whether to load pretrained weights (unused for scratch).
     """
 
     model_suffix = "picodet"
@@ -380,18 +363,22 @@ class PicoDetObjectDetection(TaskModel):
         ONNX Runtime.
 
         Args:
-            out: Path where the ONNX model will be written.
+            out:
+                Path where the ONNX model will be written.
             precision:
                 Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
                 uses the model's current precision.
-            opset_version: ONNX opset version to target. If None, PyTorch's
-                default opset is used.
-            simplify: If True, run onnxslim to simplify and overwrite the exported model.
-            verify: If True, validate the ONNX file and compare outputs to a
-                float32 CPU reference forward pass.
-            format_args: Optional extra keyword arguments forwarded to
-                `torch.onnx.export`.
-            num_channels: Number of input channels. If None, will be inferred.
+            opset_version:
+                ONNX opset version to target. If None, PyTorch's default opset is used.
+            simplify:
+                If True, run onnxslim to simplify and overwrite the exported model.
+            verify:
+                If True, validate the ONNX file and compare outputs to a float32 CPU
+                reference forward pass.
+            format_args:
+                Optional extra keyword arguments forwarded to `torch.onnx.export`.
+            num_channels:
+                Number of input channels. If None, will be inferred.
         """
         _warnings.filter_export_warnings()
         _logging.set_up_console_logging()
