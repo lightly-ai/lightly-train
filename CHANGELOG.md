@@ -64,7 +64,10 @@ are supported!
 
 ### Fixed
 
-- Fixed numerical stability issues in LTDETR's matcher.
+- Fix numerical stability issues in LTDETR's matcher.
+- Fix issue when resuming from interrupted runs with custom model args.
+
+### Security
 
 ## [0.13.2] - 2025-12-29
 
