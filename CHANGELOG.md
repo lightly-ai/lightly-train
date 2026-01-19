@@ -37,6 +37,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - Numerical stability issues in LTDETR's matcher.
+- Issue when resuming from interrupted runs with custom model args.
 
 ### Security
 
