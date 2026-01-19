@@ -20,6 +20,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add tiny instance segmentation models.
 - Add tiny panoptic segmentation models.
 - Add support for Ultralytics RT-DETR models.
+- PicoDet family of object detection models for low-power embedded devices.
 - Add support for different patch size in EoMT and semantic segmentation.
 - Add classwise metrics support for object detection models.
 - Add ignore_classes support for object detection models.
