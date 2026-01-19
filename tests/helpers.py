@@ -7,12 +7,14 @@
 #
 from __future__ import annotations
 
+import csv
 import inspect
 import json
+import random
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Literal
 
 import numpy as np
 import torch
@@ -631,6 +633,77 @@ def create_image_classification_dataset(
                 height=height,
                 width=width,
             )
+
+
+def create_multilabel_image_classification_dataset(
+    tmp_path: Path,
+    classes: dict[int, str],
+    *,
+    num_files: int = 8,
+    height: int = 128,
+    width: int = 128,
+    csv_image_col: str = "image_path",
+    csv_label_col: str = "label",
+    csv_label_type: Literal["name", "id"] = "name",
+    label_delimiter: str = ",",
+    seed: int = 0,
+) -> None:
+    """Create a minimal multi-label image classification dataset + per-split CSVs.
+
+    Layout:
+      tmp_path/train/img__ids=0-3-7__i=00000.png  (absolute paths written to CSV)
+      tmp_path/val/  ...
+
+    Filename encodes the class IDs as: ids=0-3-7
+    (hyphen-separated to avoid delimiter/CSV quoting issues)
+
+    CSV stores labels either as:
+      - ids: "0,3,7"
+      - names: "class_0,class_3,class_7"
+    joined with `label_delimiter`.
+    """
+    class_ids = sorted(classes.keys())
+
+    for split in ["train", "val"]:
+        split_dir = tmp_path / split
+        split_dir.mkdir(parents=True, exist_ok=True)
+
+        csv_path = tmp_path / f"{split}.csv"
+        with csv_path.open("w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=[csv_image_col, csv_label_col])
+            writer.writeheader()
+
+            for i in range(num_files):
+                # Randomly select the number of classes for this sample.
+                k = random.randint(1, len(class_ids))
+
+                # Randomly select classes.
+                selected_ids = sorted(random.sample(class_ids, k=k))
+
+                # Encode IDs in filename for easy verification in tests.
+                ids_in_name = "-".join(map(str, selected_ids))
+                image_path = (
+                    split_dir / f"img__ids={ids_in_name}__i={i:05d}.png"
+                ).resolve()
+
+                # Store the image.
+                create_image(path=image_path, height=height, width=width)
+
+                # Prepare the labels in the expected format.
+                if csv_label_type == "id":
+                    labels_str = label_delimiter.join(map(str, selected_ids))
+                else:
+                    labels_str = label_delimiter.join(
+                        classes[cid] for cid in selected_ids
+                    )
+
+                # Add a row to the csv file.
+                writer.writerow(
+                    {
+                        csv_image_col: str(image_path),
+                        csv_label_col: labels_str,
+                    }
+                )
 
 
 def assert_same_params(
