@@ -123,6 +123,8 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
+    metric_log_classwise: bool = False
+
 
 class DINOv2LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
@@ -191,7 +193,9 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         self.clip_max_norm = model_args.gradient_clip_val
 
         # Validation metric.
-        self.map_metric = MeanAveragePrecision()
+        self.map_metric = MeanAveragePrecision(
+            class_metrics=model_args.metric_log_classwise,
+        )
         self.map_metric.warn_on_many_detections = False
 
     def load_train_state_dict(

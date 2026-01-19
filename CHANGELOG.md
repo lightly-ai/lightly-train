@@ -21,6 +21,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [0.14.0] - 2026-01-19
 
+**New PicoDet Models:** We release a preview of PicoDet object detection models for
+[low-power embedded devices](https://docs.lightly.ai/train/stable/object_detection.html#benchmark-results)!
+
 **New Tiny Models:** We release tiny DINOv3 based models for
 [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#benchmark-results),
 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#benchmark-results),
@@ -38,6 +41,7 @@ are supported!
 
 ### Added
 
+- Add PicoDet family of object detection models for low-power embedded devices.
 - Add tiny semantic segmentation models.
 - Add tiny instance segmentation models.
 - Add tiny panoptic segmentation models.
@@ -50,6 +54,8 @@ are supported!
   recall at inference.
 - Add pretraining support for Ultralytics RT-DETR models.
 - Add support for different patch size in EoMT and semantic segmentation.
+- Add classwise metrics support for object detection models.
+- Add ignore_classes support for object detection models.
 
 ### Changed
 

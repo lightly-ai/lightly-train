@@ -60,6 +60,9 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model im
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
 )
+from lightly_train._task_models.picodet_object_detection.train_model import (
+    PicoDetObjectDetectionTrain,
+)
 from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
@@ -93,6 +96,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv3EoMTSemanticSegmentationTrain,
     DINOv2LTDETRObjectDetectionTrain,
     DINOv3LTDETRObjectDetectionTrain,
+    PicoDetObjectDetectionTrain,
 ]
 
 
@@ -728,6 +732,12 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
                 for key, val in value.items():
                     if key in agg_metrics:
                         metrics[f"{name}/{key}"] = val.item()
+                    elif "per_class" in key:
+                        # Single scalar means the class-wise metrics are disabled.
+                        if val.ndim > 0:
+                            for i, v in enumerate(val):
+                                new_key = key.replace("per_class", "class")
+                                metrics[f"{name}/{new_key}_{i}"] = v.item()
             else:
                 # Class-wise metrics that look like this:
                 # {"class 1": 0.5, "class 2": 0.7, ...}

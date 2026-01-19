@@ -2,6 +2,17 @@
 lightly_train_docker_test_data
 out
 
+# TensorRT
+*.trt
+
+# ONNX
+*.onnx
+
+# Torch
+*.pt
+*.pth
+*.ckpt
+
 ### Ultralytics ###
 # Ultralytics downloads files to the current work directory.
 yolo*.pt

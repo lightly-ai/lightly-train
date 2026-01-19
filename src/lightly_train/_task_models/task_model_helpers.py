@@ -76,6 +76,14 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "dinov3_convnext_large_ltdetr_coco_251218_03fe6750.pt",
         "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0",
     ),
+    "picodet-s-coco": (
+        "picodet_s_coco_416_260109_ee0a9f46.pt",
+        "ee0a9f4617c36222bdee77a7d87c9e041262af418679ae24143c5d284cb68511",
+    ),
+    "picodet-l-coco": (
+        "picodet_l_coco_416_260109_7096f43c.pt",
+        "7096f43c43e85d5bb46b6e96a4890d24894bb3dec497f5b826cdf2d3e8547226",
+    ),
     #### Instance Segmentation
     "dinov3/vitt16-eomt-inst-coco": (  # 6x schedule
         "dinov3_vitt16_eomt_inst_coco_260109_45e0aff8.pt",
@@ -508,3 +516,37 @@ def _reuse_or_reinit(
     state_dict[bias_key] = head_module.bias.detach().clone()  # type: ignore[operator]
 
     return True
+
+
+def picodet_gfl_cls_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    gfl_cls_module = getattr(module, "gfl_cls", None)
+    if not isinstance(gfl_cls_module, ModuleList):
+        return
+
+    mismatches = 0
+    for idx, head_module in enumerate(gfl_cls_module):
+        if head_module is None:
+            continue
+        weight_key = f"{prefix}gfl_cls.{idx}.weight"
+        bias_key = f"{prefix}gfl_cls.{idx}.bias"
+        weight = state_dict.get(weight_key)
+        if weight is None:
+            continue
+        if weight.shape != head_module.weight.shape:  # type: ignore[operator]
+            state_dict[weight_key] = head_module.weight.detach().clone()  # type: ignore[operator]
+            if bias_key in state_dict:
+                state_dict[bias_key] = head_module.bias.detach().clone()  # type: ignore[operator]
+            mismatches += 1
+
+    if mismatches:
+        logger.info(
+            "Checkpoint provides different number of classes for PicoDet gfl_cls. "
+            "Reinitializing %d heads.",
+            mismatches,
+        )
