@@ -646,21 +646,34 @@ def create_multilabel_image_classification_dataset(
     csv_label_col: str = "label",
     csv_label_type: Literal["name", "id"] = "name",
     label_delimiter: str = ",",
-    seed: int = 0,
 ) -> None:
-    """Create a minimal multi-label image classification dataset + per-split CSVs.
+    """Create a minimal multi-label image classification dataset with per-split CSVs.
 
-    Layout:
-      tmp_path/train/img__ids=0-3-7__i=00000.png  (absolute paths written to CSV)
-      tmp_path/val/  ...
+    Creates two splits (`train`, `val`) under `tmp_path`. For each split, generates
+    `num_files` images and a corresponding CSV file (`train.csv`, `val.csv`) that maps
+    each image path to one or more labels. Labels are randomly sampled per image.
 
-    Filename encodes the class IDs as: ids=0-3-7
-    (hyphen-separated to avoid delimiter/CSV quoting issues)
+    The images are stored directly under the split directory (no class subfolders).
+    Each filename encodes the selected class IDs so tests can verify correctness:
+    `img__ids=0-3-7__i=00000.png`.
 
-    CSV stores labels either as:
-      - ids: "0,3,7"
-      - names: "class_0,class_3,class_7"
-    joined with `label_delimiter`.
+    The CSV stores labels either as class IDs or class names, joined by `label_delimiter`:
+    - If `csv_label_type="id"`: e.g. `"0,3,7"`
+    - If `csv_label_type="name"`: e.g. `"class_0,class_3,class_7"`
+
+    Args:
+        tmp_path: Base directory where the dataset will be created.
+        classes: Mapping from class ID to class name.
+        num_files: Number of images (and CSV rows) to create per split.
+        height: Height of the generated images in pixels.
+        width: Width of the generated images in pixels.
+        csv_image_col: Name of the CSV column containing the image path.
+        csv_label_col: Name of the CSV column containing the label string.
+        csv_label_type: Whether labels in the CSV are class `"name"`s or `"id"`s.
+        label_delimiter: Delimiter used to join multiple labels in the CSV label column.
+
+    Returns:
+        None. Creates files on disk under `tmp_path`.
     """
     class_ids = sorted(classes.keys())
 
