@@ -824,7 +824,10 @@ import lightly_train
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 
 # Export to ONNX.
-model.export_onnx(out="out/my_experiment/exported_models/model.onnx")
+model.export_onnx(
+    out="out/my_experiment/exported_models/model.onnx",
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
+)
 ```
 
 See {py:meth}`~.DINOv3EoMTSemanticSegmentation.export_onnx` for all available options
@@ -865,6 +868,7 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 # Export to TensorRT from an ONNX file.
 model.export_tensorrt(
     out="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
 )
 ```
 

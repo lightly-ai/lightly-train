@@ -60,6 +60,9 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model im
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
 )
+from lightly_train._task_models.picodet_object_detection.train_model import (
+    PicoDetObjectDetectionTrain,
+)
 from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
@@ -93,6 +96,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv3EoMTSemanticSegmentationTrain,
     DINOv2LTDETRObjectDetectionTrain,
     DINOv3LTDETRObjectDetectionTrain,
+    PicoDetObjectDetectionTrain,
 ]
 
 
@@ -728,6 +732,12 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
                 for key, val in value.items():
                     if key in agg_metrics:
                         metrics[f"{name}/{key}"] = val.item()
+                    elif "per_class" in key:
+                        # Single scalar means the class-wise metrics are disabled.
+                        if val.ndim > 0:
+                            for i, v in enumerate(val):
+                                new_key = key.replace("per_class", "class")
+                                metrics[f"{name}/{new_key}_{i}"] = v.item()
             else:
                 # Class-wise metrics that look like this:
                 # {"class 1": 0.5, "class 2": 0.7, ...}
@@ -801,7 +811,7 @@ def export_model(
     torch.save(model_dict, model_path)
 
 
-def read_model_name_from_ckpt(ckpt_path: PathLike) -> str:
+def read_model_init_args_from_ckpt(ckpt_path: PathLike) -> dict[str, Any]:
     """Return `model_init_args.model_name` from a checkpoint.
 
     Tries loading on the meta device (no tensor data) when supported; otherwise falls
@@ -826,7 +836,7 @@ def read_model_name_from_ckpt(ckpt_path: PathLike) -> str:
     except (TypeError, RuntimeError, NotImplementedError, AttributeError):
         ckpt = torch.load(p, map_location="cpu", weights_only=False)
 
-    return cast(str, ckpt["model_init_args"]["model_name"])
+    return cast(dict[str, Any], ckpt["model_init_args"])
 
 
 def load_checkpoint(
@@ -836,7 +846,7 @@ def load_checkpoint(
     model: str,
     checkpoint: PathLike | None,
     task: str,
-) -> tuple[CheckpointDict | None, Path | None, str]:
+) -> tuple[CheckpointDict | None, Path | None, str, dict[str, Any] | None]:
     """Build a checkpoint context from the current run configuration.
 
     Args:
@@ -887,14 +897,16 @@ def load_checkpoint(
         # We don't return the loaded checkpoint here because it has to be loaded with
         # fabric.load(ckpt_path, state) for resume to work properly.
 
-        # Update the model_name from the checkpoint.
+        # Get the model_init_args and update the model_name from the checkpoint.
         # This is needed when resuming from a crashed run and the model_name contains
         # an extra suffix, e.g., '-coco'.
-        model_name = read_model_name_from_ckpt(ckpt_path)
+        model_init_args = read_model_init_args_from_ckpt(ckpt_path)
+        model_name = model_init_args["model_name"]
         return (
             None,
             ckpt_path,
             model_name,
+            model_init_args,
         )
     elif checkpoint is not None:
         if model_path is not None:
@@ -908,7 +920,7 @@ def load_checkpoint(
         ckpt_path = model_path
     else:
         # No checkpoint to load. Backbone will be initialized from model name.
-        return (None, None, model_name)
+        return (None, None, model_name, None)
 
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
@@ -939,6 +951,7 @@ def load_checkpoint(
         ),
         ckpt_path,
         model_name,
+        model_init_args,
     )
 
 

@@ -13,7 +13,7 @@ from typing import Any, ClassVar, Literal
 
 import torch
 from lightning_fabric import Fabric
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
@@ -101,8 +101,14 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     gradient_clip_val: float = 0.1
 
     # Optimizer configuration
-    lr: float = Field(default=1e-4, validation_alias="optimizer_lr")
-    weight_decay: float = Field(default=1e-4, validation_alias="optimizer_weight_decay")
+    lr: float = Field(
+        default=1e-4,
+        validation_alias=AliasChoices("lr", "optimizer_lr"),
+    )
+    weight_decay: float = Field(
+        default=1e-4,
+        validation_alias=AliasChoices("weight_decay", "optimizer_weight_decay"),
+    )
     optimizer_betas: tuple[float, float] = (0.9, 0.999)
 
     # Per-parameter-group overrides
@@ -114,8 +120,11 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     # Scheduler configuration
     scheduler_start_factor: float = 0.01
     lr_warmup_steps: int = Field(
-        default=2000, validation_alias="scheduler_warmup_steps"
+        default=2000,
+        validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
+
+    metric_log_classwise: bool = False
 
 
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
@@ -187,7 +196,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.clip_max_norm = model_args.gradient_clip_val
 
         # Validation metric.
-        self.map_metric = MeanAveragePrecision()
+        self.map_metric = MeanAveragePrecision(
+            class_metrics=model_args.metric_log_classwise,
+        )
         self.map_metric.warn_on_many_detections = False
 
     def load_train_state_dict(

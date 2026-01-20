@@ -25,6 +25,8 @@ using TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 
 | Implementation |               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size |
 | :------------: | :-------------------------------: | :---------------------: | :----------: | :--------: | :--------: |
+|  LightlyTrain  |          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |  416×416   |
+|  LightlyTrain  |          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |  416×416   |
 |  LightlyTrain  |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |  640×640   |
 |  LightlyTrain  |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |  640×640   |
 |  LightlyTrain  |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |  640×640   |
@@ -33,6 +35,8 @@ using TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 |  LightlyTrain  | dinov3/convnext-small-ltdetr-coco |          56.9           |     17.7     |    82.7    |  640×640   |
 |  LightlyTrain  | dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |  640×640   |
 |  LightlyTrain  | dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |  640×640   |
+
+\*Picodet models are in preview and we report preliminary results.
 
 ## Object Detection with LTDETR
 
@@ -60,6 +64,9 @@ if __name__ == "__main__":
                 1: "bicycle",
                 # ...
             },
+            # Optional, classes that are in the dataset but should be ignored during
+            # training.
+            # "ignore_classes": [0],
         }
     )
 ```
@@ -363,6 +370,14 @@ my_data_dir/
         └── ...
 ```
 
+Each class in the dataset must be listed in the `names` dictionary. The keys are the
+class IDs used inside the YOLO annotations and the values are the human-readable class
+names. All class IDs that appear in the label files must be present in the dictionary;
+otherwise Lightly**Train** raises an error when it encounters an unknown class ID. If
+you would like to skip specific classes during training, add their IDs to the optional
+`ignore_classes` list. The trainer omits these classes from loss computation and the
+exported model does not predict them.
+
 (object-detection-logging)=
 
 ## Logging
@@ -488,6 +503,7 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 # Export to ONNX.
 model.export_onnx(
     out="out/my_experiment/exported_models/model.onnx"
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
 )
 ```
 
@@ -529,7 +545,7 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 # Export to TensorRT from an ONNX file.
 model.export_tensorrt(
     out="out/my_experiment/exported_models/model.trt", # TensorRT engine destination.
-    use_fp16=True,
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
 )
 ```
 
