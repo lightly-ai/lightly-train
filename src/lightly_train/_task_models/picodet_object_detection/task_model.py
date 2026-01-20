@@ -21,9 +21,15 @@ from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
+from lightly_train._task_models.object_detection_components.box_ops import (
+    box_cxcywh_to_xyxy,
+)
 from lightly_train._task_models.picodet_object_detection.csp_pan import CSPPAN
 from lightly_train._task_models.picodet_object_detection.esnet import ESNet
-from lightly_train._task_models.picodet_object_detection.pico_head import PicoHead
+from lightly_train._task_models.picodet_object_detection.pico_head import (
+    PicoHead,
+    PicoHeadO2O,
+)
 from lightly_train._task_models.picodet_object_detection.postprocessor import (
     PicoDetPostProcessor,
 )
@@ -153,6 +159,12 @@ class PicoDetObjectDetection(TaskModel):
             share_cls_reg=True,
             use_depthwise=True,
         )
+        self.o2o_head = PicoHeadO2O(
+            in_channels=neck_out_channels_typed,
+            num_classes=num_classes,
+            num_queries=100,
+            hidden_dim=head_feat_channels_typed,
+        )
 
         self.postprocessor = PicoDetPostProcessor(
             num_classes=num_classes,
@@ -212,7 +224,7 @@ class PicoDetObjectDetection(TaskModel):
 
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
-    def _forward_train(self, images: Tensor) -> dict[str, list[Tensor]]:
+    def _forward_train(self, images: Tensor) -> dict[str, Tensor | list[Tensor]]:
         """Forward pass returning raw per-level predictions.
 
         Args:
@@ -226,12 +238,19 @@ class PicoDetObjectDetection(TaskModel):
         feats = self.backbone(images)
         feats = self.neck(feats)
         cls_scores, bbox_preds = self.head(feats)
-        return {"cls_scores": cls_scores, "bbox_preds": bbox_preds}
+        o2o_obj, o2o_cls, o2o_boxes = self.o2o_head(feats[-1])
+        return {
+            "cls_scores": cls_scores,
+            "bbox_preds": bbox_preds,
+            "o2o_obj_logits": o2o_obj,
+            "o2o_cls_logits": o2o_cls,
+            "o2o_box_preds": o2o_boxes,
+        }
 
     def forward(
         self, images: Tensor, orig_target_size: Tensor | None = None
     ) -> tuple[Tensor, Tensor, Tensor]:
-        """Forward pass returning final predictions for inference/ONNX.
+        """Forward pass returning o2o predictions for inference/ONNX.
 
         Args:
             images: Input tensor of shape (B, C, H, W).
@@ -239,9 +258,9 @@ class PicoDetObjectDetection(TaskModel):
 
         Returns:
             Tuple of:
-            - labels: Tensor of shape (B, N) with class indices.
-            - boxes: Tensor of shape (B, N, 4) in xyxy format.
-            - scores: Tensor of shape (B, N) with confidence scores.
+            - boxes_xyxy: Tensor of shape (B, Q, 4) in xyxy pixel format.
+            - obj_logits: Tensor of shape (B, Q) with objectness logits.
+            - cls_logits: Tensor of shape (B, Q, C) with class logits.
         """
         if orig_target_size is None:
             orig_h, orig_w = images.shape[-2:]
@@ -253,41 +272,13 @@ class PicoDetObjectDetection(TaskModel):
                 orig_target_size_ = orig_target_size_[0]
             orig_h, orig_w = int(orig_target_size_[0]), int(orig_target_size_[1])
 
-        outputs = self._forward_train(images)
-        result = self.postprocessor(
-            cls_scores=[cs[:1] for cs in outputs["cls_scores"]],
-            bbox_preds=[bp[:1] for bp in outputs["bbox_preds"]],
-            original_size=(orig_h, orig_w),
-            score_threshold=0.0,
-        )
-
-        max_detections = self.postprocessor.max_detections
-        labels_out = torch.full(
-            (1, max_detections),
-            -1,
-            device=images.device,
-            dtype=torch.long,
-        )
-        boxes_out = torch.zeros(
-            (1, max_detections, 4),
-            device=images.device,
-            dtype=result["bboxes"].dtype,
-        )
-        scores_out = torch.zeros(
-            (1, max_detections),
-            device=images.device,
-            dtype=result["scores"].dtype,
-        )
-
-        # PicoDet postprocessing returns variable-length outputs, so we pad to
-        # fixed shapes for ONNX; LTDETR already returns fixed-size tensors.
-        labels = self.internal_class_to_class[result["labels"]]
-        num_detections = labels.shape[0]
-        labels_out[0, :num_detections] = labels
-        boxes_out[0, :num_detections] = result["bboxes"]
-        scores_out[0, :num_detections] = result["scores"]
-
-        return labels_out, boxes_out, scores_out
+        feats = self.backbone(images)
+        feats = self.neck(feats)
+        obj_logits, cls_logits, box_preds = self.o2o_head(feats[-1])
+        boxes_xyxy = box_cxcywh_to_xyxy(box_preds)
+        scale = boxes_xyxy.new_tensor([orig_w, orig_h, orig_w, orig_h])
+        boxes_xyxy = torch.min(boxes_xyxy * scale, scale).clamp(min=0)
+        return boxes_xyxy, obj_logits, cls_logits
 
     @torch.no_grad()
     def predict(
@@ -323,16 +314,21 @@ class PicoDetObjectDetection(TaskModel):
         x = transforms_functional.resize(x, list(self.image_size))
         x = x.unsqueeze(0)
 
-        outputs = self._forward_train(x)
-        results = self.postprocessor(
-            cls_scores=outputs["cls_scores"],
-            bbox_preds=outputs["bbox_preds"],
-            original_size=(orig_h, orig_w),
-            score_threshold=threshold,
-        )
-        labels = self.internal_class_to_class[results["labels"]]
-        boxes = results["bboxes"]
-        scores = results["scores"]
+        feats = self.backbone(x)
+        feats = self.neck(feats)
+        obj_logits, cls_logits, box_preds = self.o2o_head(feats[-1])
+        boxes = box_cxcywh_to_xyxy(box_preds)[0]
+        scale = boxes.new_tensor([orig_w, orig_h, orig_w, orig_h])
+        boxes = torch.min(boxes * scale, scale).clamp(min=0)
+        internal_labels = cls_logits[0].argmax(dim=-1)
+        cls_for_label = cls_logits[0].gather(1, internal_labels.unsqueeze(1)).squeeze(1)
+        scores = torch.sigmoid(obj_logits[0]) * torch.sigmoid(cls_for_label)
+        labels = self.internal_class_to_class[internal_labels]
+        if threshold > 0:
+            keep = scores >= threshold
+            labels = labels[keep]
+            boxes = boxes[keep]
+            scores = scores[keep]
         return {
             "labels": labels,
             "bboxes": boxes,
@@ -355,8 +351,8 @@ class PicoDetObjectDetection(TaskModel):
 
         The export uses a dummy input of shape (1, C, H, W) where C is inferred
         from the first model parameter and (H, W) come from `self.image_size`.
-        The ONNX graph outputs labels, boxes, and scores in the resized input
-        image space.
+        The ONNX graph outputs decoded boxes plus raw objectness and class logits:
+        boxes_xyxy, obj_logit, cls_logits.
 
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
@@ -435,7 +431,7 @@ class PicoDetObjectDetection(TaskModel):
         )
 
         input_names = ["images"]
-        output_names = ["labels", "boxes", "scores"]
+        output_names = ["boxes_xyxy", "obj_logit", "cls_logits"]
 
         # Older torch.onnx.export versions don't accept the "dynamo" kwarg.
         export_kwargs: dict[str, Any] = {

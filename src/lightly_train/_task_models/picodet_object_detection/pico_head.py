@@ -49,7 +49,7 @@ class DepthwiseSeparableConv(nn.Module):
         )
         self.pointwise = nn.Conv2d(in_channels, out_channels, 1, bias=False)
         self.bn = nn.BatchNorm2d(out_channels)
-        self.act = nn.Hardswish(inplace=True)
+        self.act = nn.ReLU(inplace=True)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.depthwise(x)
@@ -242,7 +242,7 @@ class PicoHead(nn.Module):
                                 bias=False,
                             ),
                             nn.BatchNorm2d(feat_channels),
-                            nn.Hardswish(inplace=True),
+                            nn.ReLU(inplace=True),
                         )
                     )
             self.cls_convs.append(cls_convs)
@@ -266,7 +266,7 @@ class PicoHead(nn.Module):
                                     bias=False,
                                 ),
                                 nn.BatchNorm2d(feat_channels),
-                                nn.Hardswish(inplace=True),
+                                nn.ReLU(inplace=True),
                             )
                         )
                 self.reg_convs.append(reg_convs)
@@ -426,3 +426,74 @@ class PicoHead(nn.Module):
         all_decoded_bboxes = torch.cat(decoded_bboxes_list, dim=1)
 
         return all_points, all_cls_scores, all_decoded_bboxes
+
+
+class PicoHeadO2O(nn.Module):
+    """One-to-one query head for PicoDet.
+
+    This head produces a fixed number of predictions (Q) without NMS or TopK.
+    It uses a lightweight query pooling mechanism over a single feature map.
+
+    Args:
+        in_channels: Number of input channels for the feature map.
+        num_classes: Number of object classes.
+        num_queries: Number of fixed predictions to emit.
+        hidden_dim: Hidden dimension for query features.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        num_queries: int = 100,
+        hidden_dim: int | None = None,
+    ) -> None:
+        super().__init__()
+        hidden_dim = in_channels if hidden_dim is None else hidden_dim
+        self.num_queries = num_queries
+        self.num_classes = num_classes
+
+        self.attn_conv = nn.Conv2d(in_channels, num_queries, kernel_size=1)
+        self.query_proj = nn.Linear(in_channels, hidden_dim)
+        self.act = nn.ReLU(inplace=True)
+        self.obj_head = nn.Linear(hidden_dim, 1)
+        self.cls_head = nn.Linear(hidden_dim, num_classes)
+        self.box_head = nn.Linear(hidden_dim, 4)
+
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, std=0.01)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def forward(self, feat: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        """Forward pass.
+
+        Args:
+            feat: Feature map of shape (B, C, H, W).
+
+        Returns:
+            Tuple of:
+            - obj_logits: (B, Q)
+            - cls_logits: (B, Q, C)
+            - box_preds: (B, Q, 4) in normalized cxcywh format.
+        """
+        batch_size, channels, height, width = feat.shape
+        attn = self.attn_conv(feat).reshape(batch_size, self.num_queries, -1)
+        attn = torch.softmax(attn, dim=-1)
+
+        feat_flat = feat.reshape(batch_size, channels, height * width).transpose(1, 2)
+        pooled = torch.bmm(attn, feat_flat)
+        pooled = self.act(self.query_proj(pooled))
+
+        obj_logits = self.obj_head(pooled).squeeze(-1)
+        cls_logits = self.cls_head(pooled)
+        box_preds = self.box_head(pooled).sigmoid()
+        return obj_logits, cls_logits, box_preds

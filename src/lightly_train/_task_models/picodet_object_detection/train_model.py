@@ -8,10 +8,11 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, cast
 
 import torch
 import torch.distributed as dist
+import torch.nn.functional as F
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
 from torch import Tensor
@@ -27,6 +28,9 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._distributed import reduce_dict
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._task_models.object_detection_components.box_ops import (
+    box_cxcywh_to_xyxy,
+)
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.object_detection_components.utils import (
     _denormalize_xyxy_boxes,
@@ -43,11 +47,9 @@ from lightly_train._task_models.picodet_object_detection.pico_head import (
     bbox2distance,
     distance2bbox,
 )
-from lightly_train._task_models.picodet_object_detection.postprocessor import (
-    PicoDetPostProcessor,
-)
 from lightly_train._task_models.picodet_object_detection.sim_ota_assigner import (
     SimOTAAssigner,
+    TaskAlignedTop1Assigner,
 )
 from lightly_train._task_models.picodet_object_detection.task_model import (
     PicoDetObjectDetection,
@@ -178,6 +180,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             cls_weight=1.0,
             num_classes=num_classes,
         )
+        self.o2o_assigner = TaskAlignedTop1Assigner(alpha=0.5, beta=6.0)
 
         # EMA model setup (following LTDETR pattern for consistency)
         # EMA is always enabled
@@ -214,25 +217,43 @@ class PicoDetObjectDetectionTrain(TrainModel):
         img_h, img_w = images.shape[-2:]
 
         outputs = self.model._forward_train(images)
-        cls_scores = outputs["cls_scores"]
-        bbox_preds = outputs["bbox_preds"]
+        cls_scores_list = cast(list[Tensor], outputs["cls_scores"])
+        bbox_preds_list = cast(list[Tensor], outputs["bbox_preds"])
+        o2o_obj_logits = cast(Tensor, outputs["o2o_obj_logits"])
+        o2o_cls_logits = cast(Tensor, outputs["o2o_cls_logits"])
+        o2o_box_preds = cast(Tensor, outputs["o2o_box_preds"])
 
         # Convert GT from YOLO format to pixel xyxy
         gt_boxes_xyxy_norm = _yolo_to_xyxy(gt_bboxes_yolo)
         sizes = [(img_w, img_h)] * batch_size
         gt_boxes_xyxy_list = _denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
 
-        total_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
+        dense_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
             fabric=fabric,
-            cls_scores=cls_scores,
-            bbox_preds=bbox_preds,
+            cls_scores=cls_scores_list,
+            bbox_preds=bbox_preds_list,
             gt_boxes_xyxy_list=gt_boxes_xyxy_list,
             gt_labels_list=gt_labels_list,
         )
+        o2o_loss, loss_o2o_obj, loss_o2o_cls, loss_o2o_box = self._compute_o2o_losses(
+            obj_logits=o2o_obj_logits,
+            cls_logits=o2o_cls_logits,
+            box_preds=o2o_box_preds,
+            gt_boxes_xyxy_list=gt_boxes_xyxy_list,
+            gt_labels_list=gt_labels_list,
+            image_size=(img_h, img_w),
+        )
+
+        total_loss = o2o_loss + 0.5 * dense_loss
 
         loss_dict = reduce_dict(
             {
                 "train_loss": total_loss,
+                "train_loss/loss_o2o": o2o_loss,
+                "train_loss/loss_o2o_obj": loss_o2o_obj,
+                "train_loss/loss_o2o_cls": loss_o2o_cls,
+                "train_loss/loss_o2o_box": loss_o2o_box,
+                "train_loss/loss_dense": dense_loss,
                 "train_loss/loss_vfl": loss_vfl,
                 "train_loss/loss_giou": loss_giou,
                 "train_loss/loss_dfl": loss_dfl,
@@ -267,38 +288,49 @@ class PicoDetObjectDetectionTrain(TrainModel):
         with torch.no_grad():
             outputs = model_to_use._forward_train(images)  # type: ignore[operator]
 
-        cls_scores = outputs["cls_scores"]
-        bbox_preds = outputs["bbox_preds"]
+        cls_scores_list = cast(list[Tensor], outputs["cls_scores"])
+        bbox_preds_list = cast(list[Tensor], outputs["bbox_preds"])
+        o2o_obj_logits = cast(Tensor, outputs["o2o_obj_logits"])
+        o2o_cls_logits = cast(Tensor, outputs["o2o_cls_logits"])
+        o2o_box_preds = cast(Tensor, outputs["o2o_box_preds"])
 
         gt_boxes_xyxy_norm = _yolo_to_xyxy(gt_bboxes_yolo)
         img_h, img_w = images.shape[-2:]
         sizes = [(img_w, img_h)] * batch_size
         gt_boxes_xyxy_list = _denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
 
-        total_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
+        dense_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
             fabric=fabric,
-            cls_scores=cls_scores,
-            bbox_preds=bbox_preds,
+            cls_scores=cls_scores_list,
+            bbox_preds=bbox_preds_list,
             gt_boxes_xyxy_list=gt_boxes_xyxy_list,
             gt_labels_list=gt_labels_list,
         )
-
-        postprocessor = self.model.postprocessor
-        assert isinstance(postprocessor, PicoDetPostProcessor)
-        predictions = postprocessor.forward_batch(
-            cls_scores=cls_scores,
-            bbox_preds=bbox_preds,
-            original_sizes=torch.tensor([[img_h, img_w]] * batch_size, device=device),
-            score_threshold=0.001,
+        o2o_loss, loss_o2o_obj, loss_o2o_cls, loss_o2o_box = self._compute_o2o_losses(
+            obj_logits=o2o_obj_logits,
+            cls_logits=o2o_cls_logits,
+            box_preds=o2o_box_preds,
+            gt_boxes_xyxy_list=gt_boxes_xyxy_list,
+            gt_labels_list=gt_labels_list,
+            image_size=(img_h, img_w),
         )
+        total_loss = o2o_loss + 0.5 * dense_loss
+
+        boxes_xyxy = box_cxcywh_to_xyxy(o2o_box_preds)
+        scale = boxes_xyxy.new_tensor([img_w, img_h, img_w, img_h])
+        boxes_xyxy = torch.min(boxes_xyxy * scale, scale).clamp(min=0)
+        cls_labels = o2o_cls_logits.argmax(dim=-1)
+        cls_scores = o2o_cls_logits.gather(2, cls_labels.unsqueeze(-1)).squeeze(-1)
+        scores = torch.sigmoid(o2o_obj_logits) * torch.sigmoid(cls_scores)
+        cls_labels = self.model.internal_class_to_class[cls_labels]
 
         preds = []
         targets = []
 
         for i in range(batch_size):
-            pred_boxes = predictions[i]["bboxes"].detach()
-            pred_scores = predictions[i]["scores"].detach()
-            pred_labels = predictions[i]["labels"].detach()
+            pred_boxes = boxes_xyxy[i].detach()
+            pred_scores = scores[i].detach()
+            pred_labels = cls_labels[i].detach()
             gt_boxes = gt_boxes_xyxy_list[i].to(device).detach()
             gt_labels_i = gt_labels_list[i].to(device).long().detach()
 
@@ -322,6 +354,11 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss=total_loss,
             log_dict={
                 "val_loss": total_loss.item(),
+                "val_loss/loss_o2o": o2o_loss.item(),
+                "val_loss/loss_o2o_obj": loss_o2o_obj.item(),
+                "val_loss/loss_o2o_cls": loss_o2o_cls.item(),
+                "val_loss/loss_o2o_box": loss_o2o_box.item(),
+                "val_loss/loss_dense": dense_loss.item(),
                 "val_loss/loss_vfl": loss_vfl.item(),
                 "val_loss/loss_giou": loss_giou.item(),
                 "val_loss/loss_dfl": loss_dfl.item(),
@@ -503,6 +540,72 @@ class PicoDetObjectDetectionTrain(TrainModel):
         )
 
         return total_loss, loss_vfl, loss_giou, loss_dfl
+
+    def _compute_o2o_losses(
+        self,
+        *,
+        obj_logits: Tensor,
+        cls_logits: Tensor,
+        box_preds: Tensor,
+        gt_boxes_xyxy_list: list[Tensor],
+        gt_labels_list: list[Tensor],
+        image_size: tuple[int, int],
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        batch_size = obj_logits.shape[0]
+        device = obj_logits.device
+
+        total_obj = torch.zeros((), device=device)
+        total_cls = torch.zeros((), device=device)
+        total_box = torch.zeros((), device=device)
+
+        img_h, img_w = image_size
+        boxes_xyxy = box_cxcywh_to_xyxy(box_preds)
+        scale = boxes_xyxy.new_tensor([img_w, img_h, img_w, img_h])
+        boxes_xyxy = torch.min(boxes_xyxy * scale, scale).clamp(min=0)
+
+        for img_idx in range(batch_size):
+            pred_boxes = boxes_xyxy[img_idx]
+            pred_cls_logits = cls_logits[img_idx]
+            pred_obj_logits = obj_logits[img_idx]
+            gt_boxes = gt_boxes_xyxy_list[img_idx].to(device)
+            gt_labels = gt_labels_list[img_idx].to(device).long()
+
+            assigned_gt, assigned_labels, _assigned_scores = self.o2o_assigner.assign(
+                pred_boxes_xyxy=pred_boxes,
+                pred_cls_logits=pred_cls_logits,
+                gt_boxes_xyxy=gt_boxes,
+                gt_labels=gt_labels,
+            )
+
+            pos_mask = assigned_gt >= 0
+            obj_target = pos_mask.to(dtype=pred_obj_logits.dtype)
+            cls_target = pred_cls_logits.new_zeros(pred_cls_logits.shape)
+            if pos_mask.any():
+                cls_target[pos_mask] = F.one_hot(
+                    assigned_labels[pos_mask], num_classes=self.num_classes
+                ).to(dtype=pred_cls_logits.dtype)
+
+            obj_loss = F.binary_cross_entropy_with_logits(
+                pred_obj_logits, obj_target, reduction="mean"
+            )
+            cls_loss = F.binary_cross_entropy_with_logits(
+                pred_cls_logits, cls_target, reduction="mean"
+            )
+            if pos_mask.any():
+                target_boxes = gt_boxes[assigned_gt[pos_mask]]
+                box_loss = self.giou_loss(pred_boxes[pos_mask], target_boxes)
+            else:
+                box_loss = torch.zeros((), device=device)
+
+            total_obj = total_obj + obj_loss
+            total_cls = total_cls + cls_loss
+            total_box = total_box + box_loss
+
+        total_obj = total_obj / batch_size
+        total_cls = total_cls / batch_size
+        total_box = total_box / batch_size
+        total_loss = total_obj + total_cls + total_box
+        return total_loss, total_obj, total_cls, total_box
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler.
