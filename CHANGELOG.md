@@ -9,18 +9,50 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Add Slicing Aided Hyper Inference (SAHI) for object detection to improve small objects
-  recall at inference.
-- Add TensorRT export for LTDETR models.
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.14.0] - 2026-01-19
+
+**New PicoDet Models:** We release a preview of PicoDet object detection models for
+[low-power embedded devices](https://docs.lightly.ai/train/stable/object_detection.html#benchmark-results)!
+
+**New Tiny Models:** We release tiny DINOv3 based models for
+[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#benchmark-results),
+[panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#benchmark-results),
+and
+[semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#benchmark-results)!
+
+**New ONNX and TensorRT FP16 Export:** You can now export all supported models to ONNX
+and TensorRT in FP16 precision for faster inference!
+[Object detection](https://docs.lightly.ai/train/stable/object_detection.html#exporting-a-checkpoint-to-onnx),
+[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#exporting-a-checkpoint-to-onnx),
+[panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#exporting-a-checkpoint-to-onnx),
+and
+[semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#exporting-a-checkpoint-to-onnx)
+are supported!
+
+### Added
+
+- Add PicoDet family of object detection models for low-power embedded devices.
+- Add tiny semantic segmentation models.
+- Add tiny instance segmentation models.
+- Add tiny panoptic segmentation models.
+- Add FP16/FP32 ONNX and TensorRT export for object detection models.
 - Add FP16/FP32 ONNX and TensorRT export for instance segmentation models.
 - Add FP16/FP32 ONNX and TensorRT export for panoptic segmentation models.
 - Add FP16/FP32 ONNX and TensorRT export for semantic segmentation models.
 - Add example jupyter notebooks for ONNX and TensorRT export.
-- Add tiny semantic segmentation models.
-- Add tiny instance segmentation models.
-- Add tiny panoptic segmentation models.
-- Add support for Ultralytics RT-DETR models.
-- PicoDet family of object detection models for low-power embedded devices.
+- Add Slicing Aided Hyper Inference (SAHI) for object detection to improve small objects
+  recall at inference.
+- Add pretraining support for Ultralytics RT-DETR models.
 - Add support for different patch size in EoMT and semantic segmentation.
 - Add classwise metrics support for object detection models.
 - Add ignore_classes support for object detection models.
@@ -30,14 +62,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Change default DINOv3 EoMT semantic segmentation image size from 518x518 to 512x512.
 - New checkpoints for the COCO pretrained DINOv3 EoMT semantic segmentation models.
 
-### Deprecated
-
-### Removed
-
 ### Fixed
 
-- Numerical stability issues in LTDETR's matcher.
-- Issue when resuming from interrupted runs with custom model args.
+- Fix numerical stability issues in LTDETR's matcher.
+- Fix issue when resuming from interrupted runs with custom model args.
 
 ### Security
 
