@@ -155,7 +155,7 @@ class TestImageClassificationDataset:
         )
 
     @pytest.mark.parametrize(
-        "csv_label_type,csv_label_col",
+        "csv_label_type,csv_label_column",
         [("id", "class_id"), ("name", "label")],
     )
     @pytest.mark.parametrize("label_delimiter", [",", ";"])
@@ -163,7 +163,7 @@ class TestImageClassificationDataset:
         self,
         tmp_path: Path,
         csv_label_type: Literal["id", "name"],
-        csv_label_col: str,
+        csv_label_column: str,
         label_delimiter: str,
     ) -> None:
         # Set the classes.
@@ -176,8 +176,8 @@ class TestImageClassificationDataset:
             num_files=6,
             height=64,
             width=128,
-            csv_image_col="image_path",
-            csv_label_col=csv_label_col,
+            csv_image_column="image_path",
+            csv_label_column=csv_label_column,
             csv_label_type=csv_label_type,
             label_delimiter=label_delimiter,
         )
@@ -188,8 +188,8 @@ class TestImageClassificationDataset:
             classes=classes,
             train_csv=tmp_path / "train.csv",
             val_csv=tmp_path / "val.csv",
-            csv_image_col="image_path",
-            csv_label_col=csv_label_col,
+            csv_image_column="image_path",
+            csv_label_column=csv_label_column,
             csv_label_type=csv_label_type,
             label_delimiter=label_delimiter,
         )
@@ -231,7 +231,9 @@ class TestImageClassificationDataset:
             )
 
             assert sample["classes"].dtype == torch.long
-            assert torch.equal(sample["classes"], expected_int_ids)
+            assert torch.equal(
+                sample["classes"].sort().values, expected_int_ids.sort().values
+            )
 
     def test__csv_ignore_classes_filters_labels_and_skips_empty(
         self, tmp_path: Path
@@ -271,8 +273,8 @@ class TestImageClassificationDataset:
             val=tmp_path / "val",
             classes=classes,
             train_csv=csv_path,
-            csv_image_col="image_path",
-            csv_label_col="class_id",
+            csv_image_column="image_path",
+            csv_label_column="class_id",
             csv_label_type="id",
             label_delimiter=",",
             ignore_classes={7},

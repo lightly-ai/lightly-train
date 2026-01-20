@@ -642,8 +642,8 @@ def create_multilabel_image_classification_dataset(
     num_files: int = 8,
     height: int = 128,
     width: int = 128,
-    csv_image_col: str = "image_path",
-    csv_label_col: str = "label",
+    csv_image_column: str = "image_path",
+    csv_label_column: str = "label",
     csv_label_type: Literal["name", "id"] = "name",
     label_delimiter: str = ",",
 ) -> None:
@@ -683,7 +683,7 @@ def create_multilabel_image_classification_dataset(
 
         csv_path = tmp_path / f"{split}.csv"
         with csv_path.open("w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=[csv_image_col, csv_label_col])
+            writer = csv.DictWriter(f, fieldnames=[csv_image_column, csv_label_column])
             writer.writeheader()
 
             for i in range(num_files):
@@ -713,8 +713,8 @@ def create_multilabel_image_classification_dataset(
                 # Add a row to the csv file.
                 writer.writerow(
                     {
-                        csv_image_col: str(image_path),
-                        csv_label_col: labels_str,
+                        csv_image_column: str(image_path),
+                        csv_label_column: labels_str,
                     }
                 )
 

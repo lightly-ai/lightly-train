@@ -58,7 +58,8 @@ class ImageClassificationDataset(TaskDataset):
         class_ids_str = class_ids_str.strip()
         internal_class_ids = []
         for class_id_str in class_ids_str.split(self.dataset_args.label_delimiter):
-            if class_id_str.strip() != "":
+            class_id_str = class_id_str.strip()
+            if class_id_str:
                 # Map to internal class id.
                 internal_class_id = self.class_id_to_internal_class_id[
                     int(class_id_str)
@@ -71,10 +72,6 @@ class ImageClassificationDataset(TaskDataset):
         image_info = self.image_info[index]
         image_path = Path(image_info["image_path"])
         class_ids_str = image_info["class_id"]
-
-        # Verify that the image exists.
-        if not image_path.exists():
-            raise FileNotFoundError(f"Image file {image_path} does not exist.")
 
         # Load the image as numpy array.
         image_np = file_helpers.open_image_numpy(image_path)
@@ -107,8 +104,8 @@ class ImageClassificationDataArgs(TaskDataArgs):
     test_csv: PathLike | None = None
 
     # Attributes of the .csv files.
-    csv_image_col: str = "image_path"
-    csv_label_col: str = "label"
+    csv_image_column: str = "image_path"
+    csv_label_column: str = "label"
     csv_label_type: Literal["name", "id"] = "name"
 
     def train_imgs_path(self) -> Path:
@@ -126,8 +123,8 @@ class ImageClassificationDataArgs(TaskDataArgs):
             annotations_csv=Path(self.train_csv)
             if self.train_csv is not None
             else None,
-            csv_image_col=self.csv_image_col,
-            csv_label_col=self.csv_label_col,
+            csv_image_column=self.csv_image_column,
+            csv_label_column=self.csv_label_column,
             csv_label_type=self.csv_label_type,
             label_delimiter=self.label_delimiter,
             ignore_classes=self.ignore_classes,
@@ -140,8 +137,8 @@ class ImageClassificationDataArgs(TaskDataArgs):
             image_dir=Path(self.val),
             classes=self.classes,
             annotations_csv=Path(self.val_csv) if self.val_csv is not None else None,
-            csv_image_col=self.csv_image_col,
-            csv_label_col=self.csv_label_col,
+            csv_image_column=self.csv_image_column,
+            csv_label_column=self.csv_label_column,
             csv_label_type=self.csv_label_type,
             label_delimiter=self.label_delimiter,
             ignore_classes=self.ignore_classes,
@@ -167,8 +164,8 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
     annotations_csv: Path | None = None
 
     # CSV columns.
-    csv_image_col: str = "image_path"
-    csv_label_col: str = "label"
+    csv_image_column: str = "image_path"
+    csv_label_column: str = "label"
 
     # Type of the labels in the csv: class names or class ids.
     csv_label_type: Literal["name", "id"] = "name"
@@ -223,21 +220,21 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
             # Sanity checks for csv format.
             if reader.fieldnames is None:
                 raise ValueError(f"CSV {self.annotations_csv} has no header.")
-            if self.csv_image_col not in reader.fieldnames:
+            if self.csv_image_column not in reader.fieldnames:
                 raise ValueError(
-                    f"CSV {self.annotations_csv} missing required column '{self.csv_image_col}'. "
+                    f"CSV {self.annotations_csv} missing required column '{self.csv_image_column}'. "
                     f"Found columns: {reader.fieldnames}"
                 )
-            if self.csv_label_col not in reader.fieldnames:
+            if self.csv_label_column not in reader.fieldnames:
                 raise ValueError(
-                    f"CSV {self.annotations_csv} missing required column '{self.csv_label_col}'. "
+                    f"CSV {self.annotations_csv} missing required column '{self.csv_label_column}'. "
                     f"Found columns: {reader.fieldnames}"
                 )
 
             # Iterate over the csv's rows.
             for row in reader:
-                image_path = (row.get(self.csv_image_col) or "").strip()
-                labels_str = (row.get(self.csv_label_col) or "").strip()
+                image_path = (row.get(self.csv_image_column) or "").strip()
+                labels_str = (row.get(self.csv_label_column) or "").strip()
 
                 # Skip incomplete rows.
                 # TODO(Thomas, 01/26): Add a flag to disable skipping invalid rows.
@@ -247,32 +244,32 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
                 # Verify that the image path is absolute.
                 if not Path(image_path).is_absolute():
                     raise ValueError(
-                        f"CSV {self.annotations_csv}: '{self.csv_image_col}' must be an absolute path "
+                        f"CSV {self.annotations_csv}: '{self.csv_image_column}' must be an absolute path "
                         f"but got '{image_path}'."
                     )
 
                 if self.csv_label_type == "name":
                     # Map class names to class IDs.
-                    class_ids = [
+                    class_ids = {
                         name_to_id[class_name_str.strip()]
                         for class_name_str in labels_str.split(self.label_delimiter)
                         if class_name_str.strip() != ""
-                    ]
+                    }
                 else:
                     # Handle potential spaces in class IDs.
-                    class_ids = [
+                    class_ids = {
                         int(class_id.strip())
                         for class_id in labels_str.split(self.label_delimiter)
                         if class_id.strip() != ""
-                    ]
+                    }
 
                 # Don't collect from ignore classes.
                 if self.ignore_classes is not None:
-                    class_ids = [
+                    class_ids = {
                         class_id
                         for class_id in class_ids
                         if class_id not in self.ignore_classes
-                    ]
+                    }
                     if not class_ids:
                         continue
 
