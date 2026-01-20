@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Sequence
 from typing import (
+    Any,
     Literal,
     Set,
     Type,
@@ -96,8 +97,8 @@ class RandomRotationArgs(PydanticConfig):
     # Required because of: https://github.com/pydantic/pydantic/issues/10571
     @field_validator("degrees", mode="before")
     @classmethod
-    def validate_degrees(cls, v) -> float | tuple[float, float]:
-        if isinstance(v, Iterable):
+    def validate_degrees(cls, v: Any) -> Any:
+        if isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
             return tuple(v)
         return v
 
