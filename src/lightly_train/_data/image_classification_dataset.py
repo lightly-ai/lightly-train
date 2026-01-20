@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Literal
 
 import torch
+from pydantic import Field
 from torch import Tensor
 
 from lightly_train._data import file_helpers, label_helpers
@@ -40,7 +41,7 @@ class ImageClassificationDataset(TaskDataset):
         self.class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
                 class_ids=self.dataset_args.classes.keys(),
-                ignore_classes=None,
+                ignore_classes=self.dataset_args.ignore_classes,
             )
         )
 
@@ -98,6 +99,7 @@ class ImageClassificationDataArgs(TaskDataArgs):
     test: PathLike | None = None
     classes: dict[int, str]
     label_delimiter: str = ","
+    ignore_classes: set[int] | None = Field(default=None, strict=False)
 
     # Paths to .csv files mapping image paths and labels.
     train_csv: PathLike | None = None
@@ -128,6 +130,7 @@ class ImageClassificationDataArgs(TaskDataArgs):
             csv_label_col=self.csv_label_col,
             csv_label_type=self.csv_label_type,
             label_delimiter=self.label_delimiter,
+            ignore_classes=self.ignore_classes,
         )
 
     def get_val_args(
@@ -141,18 +144,24 @@ class ImageClassificationDataArgs(TaskDataArgs):
             csv_label_col=self.csv_label_col,
             csv_label_type=self.csv_label_type,
             label_delimiter=self.label_delimiter,
+            ignore_classes=self.ignore_classes,
         )
 
     @property
     def included_classes(self) -> dict[int, str]:
         """Returns included classes."""
-        # TODO(Thomas, 01/26): Implement ignore classes.
-        return self.classes
+        ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+        return {
+            class_id: class_name
+            for class_id, class_name in self.classes.items()
+            if class_id not in ignore_classes
+        }
 
 
 class ImageClassificationDatasetArgs(TaskDatasetArgs):
     image_dir: Path
     classes: dict[int, str]
+    ignore_classes: set[int] | None
 
     # Optional .csv file with mapping from image path to label.
     annotations_csv: Path | None = None
