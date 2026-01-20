@@ -187,6 +187,10 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
         name_to_id = {name: class_id for class_id, name in self.classes.items()}
 
         for class_name, class_id in sorted(name_to_id.items(), key=lambda x: x[1]):
+            # Don't collect from ignore_classes.
+            if self.ignore_classes is not None and class_id in self.ignore_classes:
+                continue
+
             class_dir = self.image_dir / class_name
             # Only consider directories that are in `classes`.
             if not class_dir.exists():
@@ -254,14 +258,26 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
                         for class_name_str in labels_str.split(self.label_delimiter)
                         if class_name_str.strip() != ""
                     ]
-                    class_ids_str = self.label_delimiter.join(map(str, class_ids))
                 else:
                     # Handle potential spaces in class IDs.
-                    class_ids_str = self.label_delimiter.join(
-                        class_id.strip()
+                    class_ids = [
+                        int(class_id.strip())
                         for class_id in labels_str.split(self.label_delimiter)
                         if class_id.strip() != ""
-                    )
+                    ]
+
+                # Don't collect from ignore classes.
+                if self.ignore_classes is not None:
+                    class_ids = [
+                        class_id
+                        for class_id in class_ids
+                        if class_id not in self.ignore_classes
+                    ]
+                    if not class_ids:
+                        continue
+
+                # Keep only non-ignore classes.
+                class_ids_str = self.label_delimiter.join(map(str, class_ids))
 
                 yield {
                     "image_path": image_path,
