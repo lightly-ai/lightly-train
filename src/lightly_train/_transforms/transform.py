@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import (
     Literal,
     Set,
@@ -16,10 +16,11 @@ from typing import (
     TypeVar,
 )
 
+import cv2
 import pydantic
 from albumentations import BasicTransform
 from lightly.transforms.utils import IMAGENET_NORMALIZE
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
@@ -83,9 +84,22 @@ class RandomPhotometricDistortArgs(PydanticConfig):
     prob: float = Field(ge=0.0, le=1.0)
 
 
+class RandomRotate90Args(PydanticConfig):
+    prob: float
+
+
 class RandomRotationArgs(PydanticConfig):
     prob: float
-    degrees: int
+    degrees: float | tuple[float, float]
+    interpolation: int = cv2.INTER_AREA
+
+    # Required because of: https://github.com/pydantic/pydantic/issues/10571
+    @field_validator("degrees", mode="before")
+    @classmethod
+    def validate_degrees(cls, v) -> float | tuple[float, float]:
+        if isinstance(v, Iterable):
+            return tuple(v)
+        return v
 
 
 class RandomZoomOutArgs(PydanticConfig):

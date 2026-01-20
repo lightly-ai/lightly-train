@@ -22,6 +22,8 @@ from lightly_train._transforms.transform import (
     NormalizeArgs,
     RandomCropArgs,
     RandomFlipArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
@@ -79,6 +81,8 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     color_jitter: DINOv3EoMTInstanceSegmentationColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
         default_factory=DINOv3EoMTInstanceSegmentationScaleJitterArgs
@@ -127,6 +131,8 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = None
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
     smallest_max_size: SmallestMaxSizeArgs | None = None
