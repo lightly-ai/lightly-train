@@ -74,7 +74,7 @@ class RandomIoUCropArgs(PydanticConfig):
     sampler_options: Sequence[float] | None
     crop_trials: int
     iou_trials: int
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
 
 
 class RandomPhotometricDistortArgs(PydanticConfig):
@@ -86,11 +86,11 @@ class RandomPhotometricDistortArgs(PydanticConfig):
 
 
 class RandomRotate90Args(PydanticConfig):
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
 
 
 class RandomRotationArgs(PydanticConfig):
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
     degrees: float | tuple[float, float]
     interpolation: int = cv2.INTER_AREA
 
@@ -110,7 +110,7 @@ class RandomZoomOutArgs(PydanticConfig):
 
 
 class ColorJitterArgs(PydanticConfig):
-    prob: float  # Probability to apply ColorJitter
+    prob: float = Field(ge=0.0, le=1.0)  # Probability to apply ColorJitter
     strength: float  # Multiplier for the parameters below
     brightness: float
     contrast: float
@@ -119,7 +119,7 @@ class ColorJitterArgs(PydanticConfig):
 
 
 class GaussianBlurArgs(PydanticConfig):
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
     sigmas: tuple[float, float]
     blur_limit: int | tuple[int, int]
 
@@ -142,7 +142,7 @@ class GaussianBlurArgs(PydanticConfig):
 
 
 class SolarizeArgs(PydanticConfig):
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
     threshold: float
 
 
@@ -198,7 +198,7 @@ class StopPolicyArgs(PydanticConfig):
 class SmallestMaxSizeArgs(PydanticConfig):
     # Maximum size of the smallest side of the image.
     max_size: int | list[int] | Literal["auto"]
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
 
     def resolve_auto(self, height: int, width: int) -> None:
         if self.max_size == "auto":
@@ -211,7 +211,7 @@ class RandomCropArgs(PydanticConfig):
     pad_position: str
     pad_if_needed: bool  # Pad if crop size exceeds image size.
     fill: tuple[float, ...] | float  # Padding value for images.
-    prob: float  # Probability to apply RandomCrop.
+    prob: float = Field(ge=0.0, le=1.0)  # Probability to apply RandomCrop.
 
     def resolve_auto(self, height: int, width: int) -> None:
         if self.height == "auto":
