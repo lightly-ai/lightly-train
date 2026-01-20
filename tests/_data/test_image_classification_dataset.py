@@ -7,10 +7,14 @@
 #
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
+import pytest
 import torch
+from lightly.transforms.utils import IMAGENET_NORMALIZE
+from torchvision.transforms import functional as F
 
 from lightly_train._data.image_classification_dataset import (
     ImageClassificationDataArgs,
@@ -27,14 +31,19 @@ class IdentityTaskTransformArgs(TaskTransformArgs):
     pass
 
 
-class IdentityTaskTransform(TaskTransform):
+class DummyTaskTransform(TaskTransform):
     transform_args_cls = IdentityTaskTransformArgs
 
     def __call__(self, input: Any) -> Any:
-        return input
+        image = input["image"]
+        image = F.to_tensor(image)
+        image = F.normalize(
+            image, mean=IMAGENET_NORMALIZE["mean"], std=IMAGENET_NORMALIZE["std"]
+        )
+        return {"image": image}
 
 
-class TestImageClassifiactionDataset:
+class TestImageClassificationDataset:
     def test__image_folder(self, tmp_path: Path) -> None:
         # Create the dummy dataset.
         num_files_per_class = 2
@@ -62,7 +71,7 @@ class TestImageClassifiactionDataset:
         )
 
         val_dataset = ImageClassificationDataset(
-            dataset_args=args.get_val_args(),
+            dataset_args=val_args,
             transform=_get_transform(),
             image_info=list(val_args.list_image_info()),
         )
@@ -79,10 +88,151 @@ class TestImageClassifiactionDataset:
         assert torch.all(sample["classes"] <= 1)
 
         sample = val_dataset[0]
+        assert sample["image"].dtype == torch.float32
         assert sample["image"].shape == (3, 64, 128)
+        assert sample["classes"].dtype == torch.long
         assert sample["classes"].shape == (1,)
+        # Classes are mapped to internal class ids in [0, num_included_classes - 1]
+        assert torch.all(sample["classes"] <= 1)
+
+    def test__image_folder_non_contiguous(self, tmp_path: Path) -> None:
+        # Create the dummy dataset.
+        num_files_per_class = 2
+        classes = {3: "class_3", 7: "class_7"}
+        helpers.create_image_classification_dataset(
+            tmp_path=tmp_path,
+            class_names=list(classes.values()),
+            num_files_per_class=num_files_per_class,
+            height=64,
+            width=128,
+        )
+
+        args = ImageClassificationDataArgs(
+            train=tmp_path / "train",
+            val=tmp_path / "val",
+            names=classes,
+        )
+        train_args = args.get_train_args()
+        val_args = args.get_val_args()
+
+        train_dataset = ImageClassificationDataset(
+            dataset_args=train_args,
+            transform=_get_transform(),
+            image_info=list(train_args.list_image_info()),
+        )
+        val_dataset = ImageClassificationDataset(
+            dataset_args=val_args,
+            transform=_get_transform(),
+            image_info=list(val_args.list_image_info()),
+        )
+
+        assert len(train_dataset) == len(classes) * num_files_per_class
+
+        # Collect the seen classes.
+        seen: set[int] = set()
+        for i in range(len(train_dataset)):
+            sample = train_dataset[i]
+            assert sample["classes"].dtype == torch.long
+            assert sample["classes"].shape == (1,)
+
+            internal_id = int(sample["classes"].item())
+            # Internal IDs must be contiguous in [0, num_classes-1]
+            assert 0 <= internal_id < len(classes)
+            seen.add(internal_id)
+
+        # We should see both classes in the dataset.
+        assert seen == {0, 1}
+
+        # Check the mapping is as expected.
+        assert set(train_dataset.class_id_to_internal_class_id.values()) == {0, 1}
+        assert set(train_dataset.class_id_to_internal_class_id.keys()) == {3, 7}
+
+        # Check that the train and validation mapping is identical
+        assert (
+            train_dataset.class_id_to_internal_class_id
+            == val_dataset.class_id_to_internal_class_id
+        )
+
+    @pytest.mark.parametrize(
+        "csv_label_type,csv_label_col",
+        [("id", "class_id"), ("name", "label")],
+    )
+    @pytest.mark.parametrize("label_delimiter", [",", ";"])
+    def test__csv_random_multilabel_encoded_in_path(
+        self,
+        tmp_path: Path,
+        csv_label_type: Literal["id", "name"],
+        csv_label_col: str,
+        label_delimiter: str,
+    ) -> None:
+        # Set the classes.
+        classes = {3: "class_3", 7: "class_7", 11: "class_11"}
+
+        # Create the dataset (images and csv files).
+        helpers.create_multilabel_image_classification_dataset(
+            tmp_path=tmp_path,
+            classes=classes,
+            num_files=6,
+            height=64,
+            width=128,
+            csv_image_col="image_path",
+            csv_label_col=csv_label_col,
+            csv_label_type=csv_label_type,
+            label_delimiter=label_delimiter,
+        )
+
+        args = ImageClassificationDataArgs(
+            train=tmp_path / "train",
+            val=tmp_path / "val",
+            names=classes,
+            train_csv=tmp_path / "train.csv",
+            val_csv=tmp_path / "val.csv",
+            csv_image_col="image_path",
+            csv_label_col=csv_label_col,
+            csv_label_type=csv_label_type,
+            label_delimiter=label_delimiter,
+        )
+
+        train_args = args.get_train_args()
+        val_args = args.get_val_args()
+
+        train_dataset = ImageClassificationDataset(
+            dataset_args=train_args,
+            transform=_get_transform(),
+            image_info=list(train_args.list_image_info()),
+        )
+        val_dataset = ImageClassificationDataset(
+            dataset_args=val_args,
+            transform=_get_transform(),
+            image_info=list(val_args.list_image_info()),
+        )
+
+        # Verify the length of datasets.
+        assert len(train_dataset) == 6
+        assert len(val_dataset) == 6
+
+        ext_to_int = train_dataset.class_id_to_internal_class_id
+        assert set(ext_to_int.keys()) == set(classes.keys())
+        assert set(ext_to_int.values()) == set(range(len(classes)))
+
+        for i in range(len(train_dataset)):
+            sample = train_dataset[i]
+            img_path = Path(sample["image_path"])
+            assert img_path.is_absolute()
+
+            m = re.search(r"ids=([0-9\-]+)__i=", img_path.name)
+            assert m is not None
+            expected_ext_ids = [int(x) for x in m.group(1).split("-") if x != ""]
+
+            expected_int_ids = torch.tensor(
+                [ext_to_int[cid] for cid in expected_ext_ids],
+                dtype=torch.long,
+            )
+
+            assert sample["classes"].dtype == torch.long
+            assert torch.equal(sample["classes"], expected_int_ids)
 
 
-def _get_transform() -> IdentityTaskTransform:
+def _get_transform() -> DummyTaskTransform:
     transform_args = IdentityTaskTransformArgs()
-    return IdentityTaskTransform(transform_args=transform_args)
+    return DummyTaskTransform(transform_args=transform_args)
