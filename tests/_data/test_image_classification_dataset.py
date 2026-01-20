@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import csv
 import re
 from pathlib import Path
 from typing import Any, Literal
@@ -231,6 +232,83 @@ class TestImageClassificationDataset:
 
             assert sample["classes"].dtype == torch.long
             assert torch.equal(sample["classes"], expected_int_ids)
+
+    def test__csv_ignore_classes_filters_labels_and_skips_empty(
+        self, tmp_path: Path
+    ) -> None:
+        # Create the dummy dataset.
+        num_files_per_class = 2
+        classes = {3: "class_3", 7: "class_7", 11: "class_11"}
+        helpers.create_image_classification_dataset(
+            tmp_path=tmp_path,
+            class_names=list(classes.values()),
+            num_files_per_class=num_files_per_class,
+            height=64,
+            width=128,
+        )
+
+        train_dir = tmp_path / "train"
+
+        # Pick one image per class folder (absolute paths).
+        img3 = sorted((train_dir / "class_3").iterdir())[0].resolve()
+        img7 = sorted((train_dir / "class_7").iterdir())[0].resolve()
+        img11 = sorted((train_dir / "class_11").iterdir())[0].resolve()
+
+        # Create a CSV:
+        # - First row: mixed labels (3,7) -> after ignore [7], should become (3)
+        # - Second row: only ignored label (7) -> should be skipped
+        # - Third row: label (11) -> kept
+        csv_path = tmp_path / "train.csv"
+        with csv_path.open("w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["image_path", "class_id"])
+            writer.writeheader()
+            writer.writerow({"image_path": str(img3), "class_id": "3,7"})
+            writer.writerow({"image_path": str(img7), "class_id": "7"})
+            writer.writerow({"image_path": str(img11), "class_id": "11"})
+
+        args = ImageClassificationDataArgs(
+            train=train_dir,
+            val=tmp_path / "val",
+            classes=classes,
+            train_csv=csv_path,
+            csv_image_col="image_path",
+            csv_label_col="class_id",
+            csv_label_type="id",
+            label_delimiter=",",
+            ignore_classes={7},
+        )
+
+        train_args = args.get_train_args()
+
+        # list_image_info() should already apply ignore filtering:
+        # - (3,7) -> (3)
+        # - (7) -> removed (skipped)
+        # - (11) -> kept
+        image_info = list(train_args.list_image_info())
+        assert len(image_info) == 2
+        assert set(item["class_id"] for item in image_info) == {"3", "11"}
+
+        train_dataset = ImageClassificationDataset(
+            dataset_args=train_args,
+            transform=_get_transform(),
+            image_info=image_info,
+        )
+
+        # Mapping should only include non-ignored classes.
+        assert set(train_dataset.class_id_to_internal_class_id.keys()) == {3, 11}
+        assert set(train_dataset.class_id_to_internal_class_id.values()) == {0, 1}
+
+        # Verify samples contain only non-ignored internal labels and shapes are correct.
+        for i in range(len(train_dataset)):
+            sample = train_dataset[i]
+            assert sample["image"].dtype == torch.float32
+            assert sample["image"].shape == (3, 64, 128)
+            assert sample["classes"].dtype == torch.long
+            assert sample["classes"].ndim == 1
+            assert torch.all(sample["classes"] <= 1)
+            assert (
+                sample["classes"].numel() == 1
+            )  # After ignore, each sample is single-labeled in this context.
 
 
 def _get_transform() -> DummyTaskTransform:
