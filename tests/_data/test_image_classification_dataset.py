@@ -59,7 +59,7 @@ class TestImageClassificationDataset:
         args = ImageClassificationDataArgs(
             train=tmp_path / "train",
             val=tmp_path / "val",
-            names=classes,
+            classes=classes,
         )
         train_args = args.get_train_args()
         val_args = args.get_val_args()
@@ -110,7 +110,7 @@ class TestImageClassificationDataset:
         args = ImageClassificationDataArgs(
             train=tmp_path / "train",
             val=tmp_path / "val",
-            names=classes,
+            classes=classes,
         )
         train_args = args.get_train_args()
         val_args = args.get_val_args()
@@ -184,7 +184,7 @@ class TestImageClassificationDataset:
         args = ImageClassificationDataArgs(
             train=tmp_path / "train",
             val=tmp_path / "val",
-            names=classes,
+            classes=classes,
             train_csv=tmp_path / "train.csv",
             val_csv=tmp_path / "val.csv",
             csv_image_col="image_path",

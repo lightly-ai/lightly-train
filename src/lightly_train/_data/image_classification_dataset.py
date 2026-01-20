@@ -96,7 +96,7 @@ class ImageClassificationDataArgs(TaskDataArgs):
     train: PathLike
     val: PathLike
     test: PathLike | None = None
-    names: dict[int, str]
+    classes: dict[int, str]
     label_delimiter: str = ","
 
     # Paths to .csv files mapping image paths and labels.
@@ -120,7 +120,7 @@ class ImageClassificationDataArgs(TaskDataArgs):
     ) -> ImageClassificationDatasetArgs:
         return ImageClassificationDatasetArgs(
             image_dir=Path(self.train),
-            classes=self.names,
+            classes=self.classes,
             annotations_csv=Path(self.train_csv)
             if self.train_csv is not None
             else None,
@@ -135,7 +135,7 @@ class ImageClassificationDataArgs(TaskDataArgs):
     ) -> ImageClassificationDatasetArgs:
         return ImageClassificationDatasetArgs(
             image_dir=Path(self.val),
-            classes=self.names,
+            classes=self.classes,
             annotations_csv=Path(self.val_csv) if self.val_csv is not None else None,
             csv_image_col=self.csv_image_col,
             csv_label_col=self.csv_label_col,
@@ -147,7 +147,7 @@ class ImageClassificationDataArgs(TaskDataArgs):
     def included_classes(self) -> dict[int, str]:
         """Returns included classes."""
         # TODO(Thomas, 01/26): Implement ignore classes.
-        return self.names
+        return self.classes
 
 
 class ImageClassificationDatasetArgs(TaskDatasetArgs):
