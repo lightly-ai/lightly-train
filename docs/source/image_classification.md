@@ -42,20 +42,20 @@ Your dataset directory should be organized like this:
 ```text
 my_data_dir/
 ├── train
-│   ├── class_0
+│   ├── cat
 │   │   ├── img1.jpg
 │   │   ├── img2.jpg
 │   │   └── ...
-│   ├── class_1
+│   ├── car
 │   │   ├── img1.jpg
 │   │   ├── img2.jpg
 │   │   └── ...
 │   └── ...
 └── val
-    ├── class_0
+    ├── cat
     │   ├── img1.jpg
     │   └── ...
-    ├── class_1
+    ├── car
     │   ├── img1.jpg
     │   └── ...
     └── ...
@@ -90,8 +90,7 @@ In this setup:
 
 - Each image belongs to exactly one class.
 - Class names are taken from the directory names.
-- Class IDs are assigned according to the names mapping passed to
-  ImageClassificationDataArgs.
+- Class IDs are assigned according to the passed `classes` dictionary.
 
 ### CSV-based Datasets (Single-label and Multi-label)
 
@@ -160,7 +159,30 @@ Notes:
 
 The behavior of CSV parsing can be configured via the `data` argument:
 
-- `csv_image_col`: Name of the image path column (default: `"image_path"`).
-- `csv_label_col`: Name of the label column (default: `"label"`).
-- `csv_label_type`: "name" or `"id"` (default: `"name"`).
-- `label_delimiter`: Delimiter for multiple labels (default: `","`).
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.image_classification(
+        out="out/my_experiment",
+        model="dinov3/vits16-classification",
+        data={
+            "train_csv": "my_data_dir/train.csv",
+            "val": "my_data_dir/val.csv",
+            "classes": {                   
+                0: "cat",
+                1: "car",
+                2: "dog",
+                # ...
+            },
+            # Optional, classes that are in the dataset but should be ignored during
+            # training.
+            "ignore_classes": [0], 
+            # Extra arguments for CSV-based datasets.
+            "csv_image_column": "image_path", # Name of the column storing image paths.
+            "csv_label_column": "label",      # Name of the column storing labels.
+            "csv_label_type": "name",         # Type of labels either "name" or "id".
+            "label_delimiter": ",",           # Delimiter used to separate the labels. 
+        },
+    )
+```
