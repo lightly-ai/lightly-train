@@ -285,128 +285,27 @@ All models are
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
 and fine-tuned by Lightly.
 
+## Training Settings
+
+See [](train-settings) for an overview of all available training settings.
+
 (instance-segmentation-logging)=
-
-## Logging
-
-Logging is configured with the `logger_args` argument. The following loggers are
-supported:
-
-- [`mlflow`](instance-segmentation-mlflow): Logs training metrics to MLflow (disabled by
-  default, requires MLflow to be installed)
-- [`tensorboard`](instance-segmentation-tensorboard): Logs training metrics to
-  TensorBoard (enabled by default, requires TensorBoard to be installed)
-- [`wandb`](instance-segmentation-wandb): Logs training metrics to Weights & Biases
-  (disabled by default, requires wandb to be installed)
 
 (instance-segmentation-mlflow)=
 
-### MLflow
-
-```{important}
-MLflow must be installed with `pip install "lightly-train[mlflow]"`.
-```
-
-The mlflow logger can be configured with the following arguments:
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
-        out="out/my_experiment",
-        model="dinov3/vitl16-eomt-inst-coco",
-        data={
-            # ...
-        },
-        logger_args={
-            "mlflow": {
-                "experiment_name": "my_experiment",
-                "run_name": "my_run",
-                "tracking_uri": "tracking_uri",
-            },
-        },
-    )
-```
-
 (instance-segmentation-tensorboard)=
-
-### TensorBoard
-
-TensorBoard logs are automatically saved to the output directory. Run TensorBoard in a
-new terminal to visualize the training progress:
-
-```bash
-tensorboard --logdir out/my_experiment
-```
-
-Disable the TensorBoard logger with:
-
-```python
-logger_args={"tensorboard": None}
-```
 
 (instance-segmentation-wandb)=
 
-### Weights & Biases
+## Logging
 
-```{important}
-Weights & Biases must be installed with `pip install "lightly-train[wandb]"`.
-```
-
-The Weights & Biases logger can be configured with the following arguments:
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
-        out="out/my_experiment",
-        model="dinov3/vitl16-eomt-inst-coco",
-        data={
-            # ...
-        },
-        logger_args={
-            "wandb": {
-                "project": "my_project",
-                "name": "my_experiment",
-                "log_model": False,        # Set to True to upload model checkpoints
-            },
-        },
-    )
-```
+See [](train-settings-logging) on how to configure logging.
 
 (instance-segmentation-resume-training)=
 
 ## Resume Training
 
-There are two distinct ways to continue training, depending on your intention.
-
-### Resume Interrupted Training
-
-Use `resume_interrupted=True` to **resume a previously interrupted or crashed training
-run**. This will pick up exactly where the training left off.
-
-- You **must use the same `out` directory** as the original run.
-- You **must not change any training parameters** (e.g., learning rate, batch size,
-  data, etc.).
-- This is intended for continuing the **same** run without modification.
-
-This will utilize the `.ckpt` checkpoint file `out/my_experiment/checkpoints/last.ckpt`
-to restore the entire training state, including model weights, optimizer state, and
-epoch count.
-
-### Load Weights for a New Run
-
-As stated above, you can specify `model="<checkpoint path">` to further fine-tune a
-model from a previous run.
-
-- You are free to **change training parameters**.
-- This is useful for continuing training with a different setup.
-
-We recommend using the exported best model weights from
-`out/my_experiment/exported_models/exported_best.pt` for this purpose, though a `.ckpt`
-file can also be loaded.
+See [](train-settings-resume-training) on how to resume training.
 
 (instance-segmentation-onnx)=
 
@@ -498,30 +397,8 @@ You can also learn more about exporting EoMT to TensorRT using our Colab noteboo
 
 ## Default Image Transform Arguments
 
-The following are the default train transform arguments. The validation arguments are
-automatically inferred from the train arguments.
-
-You can configure the image size and normalization like this:
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
-        out="out/my_experiment",
-        model="dinov3/vitl16-eomt-inst-coco",
-        data={
-            # ...
-        }
-        transform_args={
-            "image_size": (640, 640),     # (height, width)
-            "normalize": {
-                "mean": [0.485, 0.456, 0.406],
-                "std": [0.229, 0.224, 0.225],
-            },
-        },
-    )
-```
+The following are the default image transform arguments. See
+[](train-settings-transforms) on how to customize transform settings.
 
 `````{dropdown} EoMT Instance Segmentation DINOv3 Default Transform Arguments
 ````{dropdown} Train
@@ -533,19 +410,3 @@ if __name__ == "__main__":
 ```
 ````
 `````
-
-In case you need different parameters for training and validation, you can pass an
-optional `val` dictionary to `transform_args` to override the validation parameters:
-
-```python
-transform_args={
-    "image_size": (640, 640), # (height, width)
-    "normalize": {
-        "mean": [0.485, 0.456, 0.406],
-        "std": [0.229, 0.224, 0.225],
-    },
-    "val": {    # Override validation parameters
-        "image_size": (512, 512), # (height, width)
-    }
-}
-```
