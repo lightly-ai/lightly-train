@@ -107,21 +107,53 @@ A CSV file must contain:
 - one column specifying the image path
 - one column specifying the label(s)
 
-Example CSV (`train.csv`) with class IDs:
+The image path can be absolute or relative to the CSV file location.
+
+For example, given the following dataset layout:
+
+```text
+my_data_dir/
+├── train
+│   ├── cat
+│   │   ├── img1.jpg
+│   │   ├── img2.jpg
+│   │   └── ...
+│   ├── car
+│   │   ├── img1.jpg
+│   │   ├── img2.jpg
+│   │   └── ...
+│   └── ...
+├── val
+│   ├── cat
+│   │   ├── img1.jpg
+│   │   └── ...
+│   ├── car
+│   │   ├── img1.jpg
+│   │   └── ...
+│   └── ...
+├── train.csv
+└── val.csv
+```
+
+A corresponding `train.csv` with class names could look like this:
 
 ```
 image_path,label
-/absolute/path/to/image1.jpg,"0,2"
-/absolute/path/to/image2.jpg,"1"
+train/cat/img1.jpg,"cat"
+train/cat/img2.jpg,"cat,dog"
+train/car/img1.jpg,"car"
 ```
 
-Example CSV (`train.csv`) with class names:
+and with class IDs:
 
 ```
-image_path,label
-/absolute/path/to/image1.jpg,"cat,dog"
-/absolute/path/to/image2.jpg,"car"
+train/cat/img1.jpg,"0"
+train/cat/img2.jpg,"0,2"
+train/car/img1.jpg,"1"
 ```
+
+In this case, the image paths are interpreted relative to the directory containing the
+CSV file, i.e., `my_data_dir/`.
 
 To train with this CSV-based structure, set the `data` argument like this:
 
@@ -150,8 +182,9 @@ if __name__ == "__main__":
 
 Notes:
 
-- Image paths must be absolute paths.
-- Multiple labels are separated by a delimiter (default: ,).
+- Image paths must either be absolute or relative to the directory containing the CSV
+  file.
+- Multiple labels are separated by a delimiter (default: `","`).
 - When using commas as label delimiters, the label field must be quoted.
 - Labels can be specified either as class IDs or class names.
 

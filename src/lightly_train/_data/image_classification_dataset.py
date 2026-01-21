@@ -229,12 +229,13 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
                 if image_path == "" or labels_str == "":
                     continue
 
-                # Verify that the image path is absolute.
-                if not Path(image_path).is_absolute():
-                    raise ValueError(
-                        f"CSV {self.dir_or_file}: '{self.csv_image_column}' must be an absolute path "
-                        f"but got '{image_path}'."
-                    )
+                # Resolve relative paths against the CSV file location.
+                image_path_p = Path(image_path)
+                if not image_path_p.is_absolute():
+                    image_path_p = (self.dir_or_file.parent / image_path_p).resolve()
+                else:
+                    image_path_p = image_path_p.resolve()
+                image_path = str(image_path_p)
 
                 if self.csv_label_type == "name":
                     # Map class names to class IDs.
