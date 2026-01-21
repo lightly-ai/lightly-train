@@ -380,7 +380,7 @@ exported model does not predict them.
 
 ## Training Settings
 
-See [](train-settings) for an overview of all available training settings.
+See [](train-settings) on how to configure training settings.
 
 (object-detection-logging)=
 

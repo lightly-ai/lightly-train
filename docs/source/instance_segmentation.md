@@ -287,7 +287,7 @@ and fine-tuned by Lightly.
 
 ## Training Settings
 
-See [](train-settings) for an overview of all available training settings.
+See [](train-settings) on how to configure training settings.
 
 (instance-segmentation-logging)=
 

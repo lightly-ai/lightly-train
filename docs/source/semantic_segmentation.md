@@ -532,7 +532,7 @@ All DINOv2 models are
 
 ## Training Settings
 
-See [](train-settings) for an overview of all available training settings.
+See [](train-settings) on how to configure training settings.
 
 (semantic-segmentation-logging)=
 

@@ -256,7 +256,7 @@ and fine-tuned by Lightly, except the `vitt` models which are pretrained by Ligh
 
 ## Training Settings
 
-See [](train-settings) for an overview of all available training settings.
+See [](train-settings) on how to configure training settings.
 
 (panoptic-segmentation-logging)=
 
