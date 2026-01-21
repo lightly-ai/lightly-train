@@ -27,6 +27,16 @@ please refer to the [Pretrain/Distill Settings](#pretrain-settings) page.
 | [`transform_args`](#transform_args)             | `dict`                        | `None`         | Data transform configuration (e.g. image size, normalization).                                                                                                      |
 | [`save_checkpoint_args`](#save_checkpoint_args) | `dict`                        | `None`         | Checkpoint saving configuration (e.g. save frequency).                                                                                                              |
 
+```{tip}
+LightlyTrain automatically selects suitable default values based on the chosen model,
+dataset, and hardware. You only need to set parameters that you want to customize.
+
+Look for the `Resolved Args` dictionary in the `train.log` file in the output directory
+of your run to see the final settings that were applied. This will include any
+overrides, automatically resolved values, and model-specific settings that are not
+listed on this page.
+```
+
 (train-settings-output)=
 
 ## Output
