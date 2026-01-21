@@ -487,6 +487,7 @@ class PicoHeadO2O(nn.Module):
         """
         batch_size, channels, height, width = feat.shape
         attn = self.attn_conv(feat).reshape(batch_size, self.num_queries, -1)
+        attn = attn.clamp(min=-10.0, max=10.0)
         attn = torch.softmax(attn, dim=-1)
 
         feat_flat = feat.reshape(batch_size, channels, height * width).transpose(1, 2)
