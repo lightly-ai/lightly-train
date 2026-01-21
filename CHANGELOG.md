@@ -10,6 +10,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - Add Image classification dataset.
+- Add random rotation transforms for all fine-tuning tasks.
 
 ### Changed
 

@@ -132,6 +132,8 @@ def _get_transform() -> InstanceSegmentationTransform:
         num_channels="auto",
         normalize=NormalizeArgs(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         random_flip=None,
+        random_rotate_90=None,
+        random_rotate=None,
         color_jitter=None,
         scale_jitter=None,
         smallest_max_size=None,

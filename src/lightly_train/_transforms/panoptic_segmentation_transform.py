@@ -18,7 +18,9 @@ from albumentations import (
     HorizontalFlip,
     OneOf,
     RandomCrop,
+    RandomRotate90,
     Resize,
+    Rotate,
     SmallestMaxSize,
     VerticalFlip,
 )
@@ -41,6 +43,8 @@ from lightly_train._transforms.transform import (
     NormalizeArgs,
     RandomCropArgs,
     RandomFlipArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
@@ -69,6 +73,8 @@ class PanopticSegmentationTransformArgs(TaskTransformArgs):
     num_channels: int | Literal["auto"]
     normalize: NormalizeArgs | Literal["auto"]
     random_flip: RandomFlipArgs | None
+    random_rotate_90: RandomRotate90Args | None
+    random_rotate: RandomRotationArgs | None
     color_jitter: ColorJitterArgs | None
     # TODO: Lionel(09/25): These are currently not fully used.
     scale_jitter: ScaleJitterArgs | None
@@ -198,6 +204,18 @@ class PanopticSegmentationTransform(TaskTransform):
                 ]
             if transform_args.random_flip.vertical_prob > 0.0:
                 transform += [VerticalFlip(p=transform_args.random_flip.vertical_prob)]
+
+        if transform_args.random_rotate_90 is not None:
+            transform += [RandomRotate90(p=transform_args.random_rotate_90.prob)]
+
+        if transform_args.random_rotate is not None:
+            transform += [
+                Rotate(
+                    limit=transform_args.random_rotate.degrees,
+                    interpolation=transform_args.random_rotate.interpolation,
+                    p=transform_args.random_rotate.prob,
+                )
+            ]
 
         # Optionally apply color jitter.
         if transform_args.color_jitter is not None:
