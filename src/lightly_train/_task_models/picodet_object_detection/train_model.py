@@ -575,7 +575,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_boxes = gt_boxes_xyxy_list[img_idx].to(device)
             gt_labels = gt_labels_list[img_idx].to(device).long()
 
-            assigned_gt, assigned_labels, _assigned_scores = self.o2o_assigner.assign(
+            assigned_gt, assigned_labels, assigned_ious = self.o2o_assigner.assign(
                 pred_boxes_xyxy=pred_boxes,
                 pred_cls_logits=pred_cls_logits,
                 gt_boxes_xyxy=gt_boxes,
@@ -583,22 +583,25 @@ class PicoDetObjectDetectionTrain(TrainModel):
             )
 
             pos_mask = assigned_gt >= 0
-            obj_target = pos_mask.to(dtype=pred_obj_logits.dtype)
             cls_target = pred_cls_logits.new_zeros(pred_cls_logits.shape)
             if pos_mask.any():
                 cls_target[pos_mask] = F.one_hot(
                     assigned_labels[pos_mask], num_classes=self.num_classes
-                ).to(dtype=pred_cls_logits.dtype)
+                ).to(dtype=pred_cls_logits.dtype) * assigned_ious[pos_mask].unsqueeze(-1)
 
-            obj_loss = F.binary_cross_entropy_with_logits(
-                pred_obj_logits, obj_target, reduction="mean"
-            )
+            obj_target = torch.zeros_like(pred_obj_logits)
             if pos_mask.any():
-                cls_loss = F.binary_cross_entropy_with_logits(
-                    pred_cls_logits[pos_mask], cls_target[pos_mask], reduction="mean"
-                )
-            else:
-                cls_loss = torch.zeros((), device=device)
+                obj_target[pos_mask] = assigned_ious[pos_mask].clamp(0, 1)
+
+            obj_loss_raw = F.binary_cross_entropy_with_logits(
+                pred_obj_logits, obj_target, reduction="none"
+            )
+            num_pos = pos_mask.sum().clamp(min=1)
+            obj_loss = obj_loss_raw.sum() / num_pos
+
+            cls_loss_raw = self.vfl_loss(pred_cls_logits, cls_target)
+            cls_norm = cls_target.sum().clamp(min=1.0)
+            cls_loss = cls_loss_raw / cls_norm
             if pos_mask.any():
                 target_boxes = gt_boxes[assigned_gt[pos_mask]]
                 box_loss = self.giou_loss(pred_boxes[pos_mask], target_boxes)

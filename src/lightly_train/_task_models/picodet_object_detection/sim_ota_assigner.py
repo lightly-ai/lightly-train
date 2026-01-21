@@ -52,7 +52,7 @@ class TaskAlignedTop1Assigner:
             Tuple of:
             - assigned_gt_index: (N,) index of matched GT or -1.
             - assigned_labels: (N,) matched labels or -1.
-            - assigned_scores: (N,) matching metric score.
+            - assigned_ious: (N,) IoU for matched predictions.
         """
         device = pred_boxes_xyxy.device
         num_preds = pred_boxes_xyxy.shape[0]
@@ -61,8 +61,8 @@ class TaskAlignedTop1Assigner:
             assigned_labels = torch.full(
                 (num_preds,), -1, device=device, dtype=torch.long
             )
-            assigned_scores = torch.zeros((num_preds,), device=device)
-            return assigned_gt, assigned_labels, assigned_scores
+            assigned_ious = torch.zeros((num_preds,), device=device)
+            return assigned_gt, assigned_labels, assigned_ious
 
         ious = box_iou(pred_boxes_xyxy, gt_boxes_xyxy)
         cls_prob = pred_cls_logits.sigmoid()
@@ -81,8 +81,8 @@ class TaskAlignedTop1Assigner:
             assigned_labels = torch.full(
                 (num_preds,), -1, device=device, dtype=torch.long
             )
-            assigned_scores = torch.zeros((num_preds,), device=device)
-            return assigned_gt, assigned_labels, assigned_scores
+            assigned_ious = torch.zeros((num_preds,), device=device)
+            return assigned_gt, assigned_labels, assigned_ious
 
         pair_metric = metric[pred_idx, gt_idx]
         order = torch.argsort(pair_metric, descending=True)
@@ -93,7 +93,7 @@ class TaskAlignedTop1Assigner:
         )
 
         assigned_gt = torch.full((num_preds,), -1, device=device, dtype=torch.long)
-        assigned_scores = torch.zeros((num_preds,), device=device)
+        assigned_ious = torch.zeros((num_preds,), device=device)
 
         for k in order.tolist():
             p = int(pred_idx[k])
@@ -103,14 +103,14 @@ class TaskAlignedTop1Assigner:
             pred_taken[p] = True
             gt_taken[g] = True
             assigned_gt[p] = g
-            assigned_scores[p] = pair_metric[k]
+            assigned_ious[p] = ious[p, g]
             if bool(gt_taken.all()):
                 break
 
         assigned_labels = torch.full((num_preds,), -1, device=device, dtype=torch.long)
         pos_mask = assigned_gt >= 0
         assigned_labels[pos_mask] = gt_labels[assigned_gt[pos_mask]]
-        return assigned_gt, assigned_labels, assigned_scores
+        return assigned_gt, assigned_labels, assigned_ious
 
 
 class SimOTAAssigner:
