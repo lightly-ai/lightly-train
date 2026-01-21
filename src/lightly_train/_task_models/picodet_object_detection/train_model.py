@@ -562,6 +562,11 @@ class PicoDetObjectDetectionTrain(TrainModel):
         boxes_xyxy = box_cxcywh_to_xyxy(box_preds)
         scale = boxes_xyxy.new_tensor([img_w, img_h, img_w, img_h])
         boxes_xyxy = torch.min(boxes_xyxy * scale, scale).clamp(min=0)
+        x1, y1, x2, y2 = boxes_xyxy.unbind(dim=-1)
+        eps = 1e-6
+        x2 = torch.max(x2, x1 + eps)
+        y2 = torch.max(y2, y1 + eps)
+        boxes_xyxy = torch.stack((x1, y1, x2, y2), dim=-1)
 
         for img_idx in range(batch_size):
             pred_boxes = boxes_xyxy[img_idx]
@@ -588,9 +593,12 @@ class PicoDetObjectDetectionTrain(TrainModel):
             obj_loss = F.binary_cross_entropy_with_logits(
                 pred_obj_logits, obj_target, reduction="mean"
             )
-            cls_loss = F.binary_cross_entropy_with_logits(
-                pred_cls_logits, cls_target, reduction="mean"
-            )
+            if pos_mask.any():
+                cls_loss = F.binary_cross_entropy_with_logits(
+                    pred_cls_logits[pos_mask], cls_target[pos_mask], reduction="mean"
+                )
+            else:
+                cls_loss = torch.zeros((), device=device)
             if pos_mask.any():
                 target_boxes = gt_boxes[assigned_gt[pos_mask]]
                 box_loss = self.giou_loss(pred_boxes[pos_mask], target_boxes)
