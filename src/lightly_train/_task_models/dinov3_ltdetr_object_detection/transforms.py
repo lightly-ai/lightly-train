@@ -23,6 +23,8 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
@@ -111,6 +113,8 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     random_flip: DINOv3LTDETRObjectDetectionRandomFlipArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionRandomFlipArgs
     )
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
@@ -176,6 +180,8 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_zoom_out: None = None
     random_iou_crop: None = None
     random_flip: None = None
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
     stop_policy: None = None
     resize: ResizeArgs | None = Field(

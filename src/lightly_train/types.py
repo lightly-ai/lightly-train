@@ -169,6 +169,18 @@ class MaskPanopticSegmentationBatch(TypedDict):
     binary_masks: list[PanopticBinaryMasksDict]  # One dict per image.
 
 
+class ImageClassificationDatasetItem(TypedDict):
+    image_path: ImageFilename
+    image: Tensor
+    classes: Tensor
+
+
+class ImageClassificationBatch(TypedDict):
+    image_path: list[ImageFilename]  # length==batch_size
+    image: Tensor  # Tensor with shape (batch_size, 3, H, W).
+    classes: list[Tensor]
+
+
 # Replaces torch.optim.optimizer.ParamsT
 # as it is only available in torch>=v2.2.
 # Importing it conditionally cannot make typing work for both older

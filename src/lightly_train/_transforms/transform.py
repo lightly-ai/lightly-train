@@ -8,18 +8,20 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import (
+    Any,
     Literal,
     Set,
     Type,
     TypeVar,
 )
 
+import cv2
 import pydantic
 from albumentations import BasicTransform
 from lightly.transforms.utils import IMAGENET_NORMALIZE
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
@@ -72,7 +74,7 @@ class RandomIoUCropArgs(PydanticConfig):
     sampler_options: Sequence[float] | None
     crop_trials: int
     iou_trials: int
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
 
 
 class RandomPhotometricDistortArgs(PydanticConfig):
@@ -83,9 +85,22 @@ class RandomPhotometricDistortArgs(PydanticConfig):
     prob: float = Field(ge=0.0, le=1.0)
 
 
+class RandomRotate90Args(PydanticConfig):
+    prob: float = Field(ge=0.0, le=1.0)
+
+
 class RandomRotationArgs(PydanticConfig):
-    prob: float
-    degrees: int
+    prob: float = Field(ge=0.0, le=1.0)
+    degrees: float | tuple[float, float]
+    interpolation: int = cv2.INTER_AREA
+
+    # Required because of: https://github.com/pydantic/pydantic/issues/10571
+    @field_validator("degrees", mode="before")
+    @classmethod
+    def validate_degrees(cls, v: Any) -> Any:
+        if isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
+            return tuple(v)
+        return v
 
 
 class RandomZoomOutArgs(PydanticConfig):
@@ -95,7 +110,7 @@ class RandomZoomOutArgs(PydanticConfig):
 
 
 class ColorJitterArgs(PydanticConfig):
-    prob: float  # Probability to apply ColorJitter
+    prob: float = Field(ge=0.0, le=1.0)  # Probability to apply ColorJitter
     strength: float  # Multiplier for the parameters below
     brightness: float
     contrast: float
@@ -104,7 +119,7 @@ class ColorJitterArgs(PydanticConfig):
 
 
 class GaussianBlurArgs(PydanticConfig):
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
     sigmas: tuple[float, float]
     blur_limit: int | tuple[int, int]
 
@@ -127,7 +142,7 @@ class GaussianBlurArgs(PydanticConfig):
 
 
 class SolarizeArgs(PydanticConfig):
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
     threshold: float
 
 
@@ -183,7 +198,7 @@ class StopPolicyArgs(PydanticConfig):
 class SmallestMaxSizeArgs(PydanticConfig):
     # Maximum size of the smallest side of the image.
     max_size: int | list[int] | Literal["auto"]
-    prob: float
+    prob: float = Field(ge=0.0, le=1.0)
 
     def resolve_auto(self, height: int, width: int) -> None:
         if self.max_size == "auto":
@@ -196,7 +211,7 @@ class RandomCropArgs(PydanticConfig):
     pad_position: str
     pad_if_needed: bool  # Pad if crop size exceeds image size.
     fill: tuple[float, ...] | float  # Padding value for images.
-    prob: float  # Probability to apply RandomCrop.
+    prob: float = Field(ge=0.0, le=1.0)  # Probability to apply RandomCrop.
 
     def resolve_auto(self, height: int, width: int) -> None:
         if self.height == "auto":

@@ -22,6 +22,8 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
@@ -92,6 +94,8 @@ class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
     random_flip: PicoDetRandomFlipArgs | None = Field(
         default_factory=PicoDetRandomFlipArgs
     )
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     image_size: tuple[int, int] | Literal["auto"] = "auto"
     stop_policy: None = None
     resize: ResizeArgs | None = None
@@ -190,6 +194,8 @@ class PicoDetObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_zoom_out: None = None
     random_iou_crop: None = None
     random_flip: None = None
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     image_size: tuple[int, int] | Literal["auto"] = "auto"
     stop_policy: None = None
     resize: ResizeArgs | None = Field(
