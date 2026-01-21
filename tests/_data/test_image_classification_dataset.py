@@ -183,11 +183,9 @@ class TestImageClassificationDataset:
         )
 
         args = ImageClassificationDataArgs(
-            train=tmp_path / "train",
-            val=tmp_path / "val",
+            train=tmp_path / "train.csv",
+            val=tmp_path / "val.csv",
             classes=classes,
-            train_csv=tmp_path / "train.csv",
-            val_csv=tmp_path / "val.csv",
             csv_image_column="image_path",
             csv_label_column=csv_label_column,
             csv_label_type=csv_label_type,
@@ -269,10 +267,9 @@ class TestImageClassificationDataset:
             writer.writerow({"image_path": str(img11), "class_id": "11"})
 
         args = ImageClassificationDataArgs(
-            train=train_dir,
-            val=tmp_path / "val",
+            train=csv_path,
+            val=csv_path,  # Using the same CSV for the sake of the test.
             classes=classes,
-            train_csv=csv_path,
             csv_image_column="image_path",
             csv_label_column="class_id",
             csv_label_type="id",

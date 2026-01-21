@@ -98,11 +98,6 @@ class ImageClassificationDataArgs(TaskDataArgs):
     label_delimiter: str = ","
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
-    # Paths to .csv files mapping image paths and labels.
-    train_csv: PathLike | None = None
-    val_csv: PathLike | None = None
-    test_csv: PathLike | None = None
-
     # Attributes of the .csv files.
     csv_image_column: str = "image_path"
     csv_label_column: str = "label"
@@ -118,11 +113,8 @@ class ImageClassificationDataArgs(TaskDataArgs):
         self,
     ) -> ImageClassificationDatasetArgs:
         return ImageClassificationDatasetArgs(
-            image_dir=Path(self.train),
+            dir_or_file=Path(self.train),
             classes=self.classes,
-            annotations_csv=Path(self.train_csv)
-            if self.train_csv is not None
-            else None,
             csv_image_column=self.csv_image_column,
             csv_label_column=self.csv_label_column,
             csv_label_type=self.csv_label_type,
@@ -134,9 +126,8 @@ class ImageClassificationDataArgs(TaskDataArgs):
         self,
     ) -> ImageClassificationDatasetArgs:
         return ImageClassificationDatasetArgs(
-            image_dir=Path(self.val),
+            dir_or_file=Path(self.val),
             classes=self.classes,
-            annotations_csv=Path(self.val_csv) if self.val_csv is not None else None,
             csv_image_column=self.csv_image_column,
             csv_label_column=self.csv_label_column,
             csv_label_type=self.csv_label_type,
@@ -156,12 +147,9 @@ class ImageClassificationDataArgs(TaskDataArgs):
 
 
 class ImageClassificationDatasetArgs(TaskDatasetArgs):
-    image_dir: Path
+    dir_or_file: Path
     classes: dict[int, str]
     ignore_classes: set[int] | None
-
-    # Optional .csv file with mapping from image path to label.
-    annotations_csv: Path | None = None
 
     # CSV columns.
     csv_image_column: str = "image_path"
@@ -174,7 +162,7 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
     label_delimiter: str = ","
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
-        if self.annotations_csv is None:
+        if self.dir_or_file.is_dir():
             yield from self._list_image_info_from_folder()
         else:
             yield from self._list_image_info_from_csv()
@@ -188,7 +176,7 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
             if self.ignore_classes is not None and class_id in self.ignore_classes:
                 continue
 
-            class_dir = self.image_dir / class_name
+            class_dir = self.dir_or_file / class_name
             # Only consider directories that are in `classes`.
             if not class_dir.exists():
                 continue
@@ -210,24 +198,24 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
         name_to_id = {name: class_id for class_id, name in self.classes.items()}
 
         # Verify the .csv files is provided and exists.
-        assert self.annotations_csv is not None
-        if not self.annotations_csv.exists():
-            raise FileNotFoundError(f"CSV file {self.annotations_csv} does not exist.")
+        assert self.dir_or_file is not None
+        if not self.dir_or_file.exists():
+            raise FileNotFoundError(f"CSV file {self.dir_or_file} does not exist.")
 
-        with self.annotations_csv.open("r", newline="") as f:
+        with self.dir_or_file.open("r", newline="") as f:
             reader = csv.DictReader(f)
 
             # Sanity checks for csv format.
             if reader.fieldnames is None:
-                raise ValueError(f"CSV {self.annotations_csv} has no header.")
+                raise ValueError(f"CSV {self.dir_or_file} has no header.")
             if self.csv_image_column not in reader.fieldnames:
                 raise ValueError(
-                    f"CSV {self.annotations_csv} missing required column '{self.csv_image_column}'. "
+                    f"CSV {self.dir_or_file} missing required column '{self.csv_image_column}'. "
                     f"Found columns: {reader.fieldnames}"
                 )
             if self.csv_label_column not in reader.fieldnames:
                 raise ValueError(
-                    f"CSV {self.annotations_csv} missing required column '{self.csv_label_column}'. "
+                    f"CSV {self.dir_or_file} missing required column '{self.csv_label_column}'. "
                     f"Found columns: {reader.fieldnames}"
                 )
 
@@ -244,7 +232,7 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
                 # Verify that the image path is absolute.
                 if not Path(image_path).is_absolute():
                     raise ValueError(
-                        f"CSV {self.annotations_csv}: '{self.csv_image_column}' must be an absolute path "
+                        f"CSV {self.dir_or_file}: '{self.csv_image_column}' must be an absolute path "
                         f"but got '{image_path}'."
                     )
 
