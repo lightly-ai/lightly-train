@@ -186,7 +186,7 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
             for image_filename in file_helpers.list_image_filenames_from_dir(
                 image_dir=class_dir
             ):
-                image_filepath = class_dir / Path(image_filename)
+                image_filepath = class_dir / image_filename
                 # Labels are comma-separated to support multi-labels.
                 yield {
                     "image_path": str(image_filepath),
@@ -198,7 +198,6 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
         name_to_id = {name: class_id for class_id, name in self.classes.items()}
 
         # Verify the .csv files is provided and exists.
-        assert self.dir_or_file is not None
         if not self.dir_or_file.exists():
             raise FileNotFoundError(f"CSV file {self.dir_or_file} does not exist.")
 
@@ -219,6 +218,12 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
                     f"Found columns: {reader.fieldnames}"
                 )
 
+            # Set the directory relative to which paths are resolved.
+            root_dir = self.dir_or_file.parent
+
+            # Get the set of supported image extensions.
+            supported_image_extensions = file_helpers._supported_image_extensions()
+
             # Iterate over the csv's rows.
             for row in reader:
                 image_path = (row.get(self.csv_image_column) or "").strip()
@@ -229,12 +234,23 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
                 if image_path == "" or labels_str == "":
                     continue
 
-                # Resolve relative paths against the CSV file location.
+                # Verify that the file is from a supported image format.
                 image_path_p = Path(image_path)
+                extension = image_path_p.suffix.lower()
+                if extension not in supported_image_extensions:
+                    continue
+
+                # Resolve relative paths against the CSV file location.
                 if not image_path_p.is_absolute():
-                    image_path_p = (self.dir_or_file.parent / image_path_p).resolve()
+                    image_path_p = root_dir / image_path_p
                 else:
-                    image_path_p = image_path_p.resolve()
+                    image_path_p = image_path_p
+
+                # Check if the image exists and is a regular file.
+                if not image_path_p.is_file():
+                    continue
+
+                # Convert to string.
                 image_path = str(image_path_p)
 
                 if self.csv_label_type == "name":
