@@ -235,7 +235,13 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_boxes_xyxy_list=gt_boxes_xyxy_list,
             gt_labels_list=gt_labels_list,
         )
-        o2o_loss, loss_o2o_obj, loss_o2o_cls, loss_o2o_box = self._compute_o2o_losses(
+        (
+            o2o_loss,
+            loss_o2o_obj,
+            loss_o2o_cls,
+            loss_o2o_box,
+            o2o_stats,
+        ) = self._compute_o2o_losses(
             obj_logits=o2o_obj_logits,
             cls_logits=o2o_cls_logits,
             box_preds=o2o_box_preds,
@@ -257,6 +263,10 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "train_loss/loss_vfl": loss_vfl,
                 "train_loss/loss_giou": loss_giou,
                 "train_loss/loss_dfl": loss_dfl,
+                # Debug o2o stats; remove after investigation.
+                "debug/o2o_num_pos": o2o_stats["o2o_num_pos"],
+                "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"],
+                "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"],
             }
         )
 
@@ -306,7 +316,13 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_boxes_xyxy_list=gt_boxes_xyxy_list,
             gt_labels_list=gt_labels_list,
         )
-        o2o_loss, loss_o2o_obj, loss_o2o_cls, loss_o2o_box = self._compute_o2o_losses(
+        (
+            o2o_loss,
+            loss_o2o_obj,
+            loss_o2o_cls,
+            loss_o2o_box,
+            o2o_stats,
+        ) = self._compute_o2o_losses(
             obj_logits=o2o_obj_logits,
             cls_logits=o2o_cls_logits,
             box_preds=o2o_box_preds,
@@ -362,6 +378,10 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "val_loss/loss_vfl": loss_vfl.item(),
                 "val_loss/loss_giou": loss_giou.item(),
                 "val_loss/loss_dfl": loss_dfl.item(),
+                # Debug o2o stats; remove after investigation.
+                "debug/o2o_num_pos": o2o_stats["o2o_num_pos"].item(),
+                "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"].item(),
+                "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"].item(),
                 "val_metric/map": self.map_metric,
             },
         )
@@ -550,13 +570,16 @@ class PicoDetObjectDetectionTrain(TrainModel):
         gt_boxes_xyxy_list: list[Tensor],
         gt_labels_list: list[Tensor],
         image_size: tuple[int, int],
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, dict[str, Tensor]]:
         batch_size = obj_logits.shape[0]
         device = obj_logits.device
 
         total_obj = torch.zeros((), device=device)
         total_cls = torch.zeros((), device=device)
         total_box = torch.zeros((), device=device)
+        total_pos = torch.zeros((), device=device)
+        total_iou = torch.zeros((), device=device)
+        total_cls_target = torch.zeros((), device=device)
 
         img_h, img_w = image_size
         boxes_xyxy = box_cxcywh_to_xyxy(box_preds)
@@ -584,10 +607,14 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
             pos_mask = assigned_gt >= 0
             cls_target = pred_cls_logits.new_zeros(pred_cls_logits.shape)
+            num_pos = pos_mask.sum()
+            total_pos = total_pos + num_pos
             if pos_mask.any():
                 cls_target[pos_mask] = F.one_hot(
                     assigned_labels[pos_mask], num_classes=self.num_classes
                 ).to(dtype=pred_cls_logits.dtype) * assigned_ious[pos_mask].unsqueeze(-1)
+                total_iou = total_iou + assigned_ious[pos_mask].sum()
+                total_cls_target = total_cls_target + cls_target[pos_mask].sum()
 
             obj_target = torch.zeros_like(pred_obj_logits)
             if pos_mask.any():
@@ -596,8 +623,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             obj_loss_raw = F.binary_cross_entropy_with_logits(
                 pred_obj_logits, obj_target, reduction="none"
             )
-            num_pos = pos_mask.sum().clamp(min=1)
-            obj_loss = obj_loss_raw.sum() / num_pos
+            obj_loss = obj_loss_raw.sum() / num_pos.clamp(min=1)
 
             cls_loss_raw = self.vfl_loss(pred_cls_logits, cls_target)
             cls_norm = cls_target.sum().clamp(min=1.0)
@@ -616,7 +642,12 @@ class PicoDetObjectDetectionTrain(TrainModel):
         total_cls = total_cls / batch_size
         total_box = total_box / batch_size
         total_loss = total_obj + total_cls + total_box
-        return total_loss, total_obj, total_cls, total_box
+        stats = {
+            "o2o_num_pos": total_pos,
+            "o2o_mean_iou": total_iou / total_pos.clamp(min=1),
+            "o2o_cls_target_sum": total_cls_target,
+        }
+        return total_loss, total_obj, total_cls, total_box, stats
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler.
