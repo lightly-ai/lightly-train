@@ -474,13 +474,13 @@ Settings to configure checkpoint saving behavior. By default, LightlyTrain saves
 `last.ckpt` and `best.ckpt` while tracking a validation metric defined by the selected
 model.
 
-| Key                    | Type               | Description                                                                                      |
-| ---------------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
-| `save_every_num_steps` | `int`              | Training step interval for saving checkpoints.                                                   |
-| `save_last`            | `bool`             | Persist `last.ckpt` after each save cycle. Disable only when storage is constrained.             |
-| `save_best`            | `bool`             | Track the best-performing checkpoint according to `watch_metric`.                                |
-| `watch_metric`         | `str`              | Validation metric name (for example `"val_metric/map"`) monitored for best-checkpoint selection. |
-| `mode`                 | `"min"`<br>`"max"` | Direction used when ranking `watch_metric`.                                                      |
+| Key                                             | Type               | Description                                                                                      |
+| ----------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
+| [`save_every_num_steps`](#save_every_num_steps) | `int`              | Training step interval for saving checkpoints.                                                   |
+| [`save_last`](#save_last)                       | `bool`             | Persist `last.ckpt` after each save cycle. Disable only when storage is constrained.             |
+| [`save_best`](#save_best)                       | `bool`             | Track the best-performing checkpoint according to `watch_metric`.                                |
+| [`watch_metric`](#watch_metric)                 | `str`              | Validation metric name (for example `"val_metric/map"`) monitored for best-checkpoint selection. |
+| [`mode`](#mode)                                 | `"min"`<br>`"max"` | Direction used when ranking `watch_metric`.                                                      |
 
 #### `save_every_num_steps`
 
@@ -578,16 +578,16 @@ scenarios. You can customize transform parameters via the [](#transform_args) se
 Dictionary to configure data transforms applied during training. The most commonly
 customized parameters are listed in the table below:
 
-| Key                | Type              | Description                                                |
-| ------------------ | ----------------- | ---------------------------------------------------------- |
-| `image_size`       | `tuple[int, int]` | Image height and width after random cropping and resize.   |
-| `normalize`        | `dict`            | Mean and standard deviation used for input normalization.  |
-| `random_flip`      | `dict`            | Horizontal or vertical flip probabilities.                 |
-| `random_rotate`    | `dict`            | Rotation angle range and probability.                      |
-| `random_rotate_90` | `dict`            | 90-degree rotation probability.                            |
-| `color_jitter`     | `dict`            | Strength of color jitter augmentation.                     |
-| `channel_drop`     | `dict`            | Channel dropping configuration for multi-channel datasets. |
-| `val`              | `dict`            | Validation transform configuration.                        |
+| Key                                     | Type              | Description                                                |
+| --------------------------------------- | ----------------- | ---------------------------------------------------------- |
+| [`image_size`](#image_size)             | `tuple[int, int]` | Image height and width after random cropping and resize.   |
+| [`normalize`](#normalize)               | `dict`            | Mean and standard deviation used for input normalization.  |
+| [`random_flip`](#random_flip)           | `dict`            | Horizontal or vertical flip probabilities.                 |
+| [`random_rotate`](#random_rotate)       | `dict`            | Rotation angle range and probability.                      |
+| [`random_rotate_90`](#random_rotate_90) | `dict`            | 90-degree rotation probability.                            |
+| [`color_jitter`](#color_jitter)         | `dict`            | Strength of color jitter augmentation.                     |
+| [`channel_drop`](#channel_drop)         | `dict`            | Channel dropping configuration for multi-channel datasets. |
+| [`val`](#val)                           | `dict`            | Validation transform configuration.                        |
 
 Check the respective task pages for the default transforms applied:
 
