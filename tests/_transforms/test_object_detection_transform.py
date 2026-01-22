@@ -29,6 +29,8 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
@@ -46,6 +48,14 @@ def _get_channel_drop_args() -> ChannelDropArgs:
 
 def _get_random_flip_args() -> RandomFlipArgs:
     return RandomFlipArgs(horizontal_prob=0.5, vertical_prob=0.5)
+
+
+def _get_random_rotate_90_args() -> RandomRotate90Args:
+    return RandomRotate90Args(prob=0.3)
+
+
+def _get_random_rotate_args() -> RandomRotationArgs:
+    return RandomRotationArgs(prob=0.4, degrees=30.0)
 
 
 def _get_photometric_distort_args() -> RandomPhotometricDistortArgs:
@@ -129,6 +139,8 @@ PossibleArgsTuple = (
     [None, _get_random_zoom_out_args()],
     [None, _get_random_iou_crop_args()],
     [None, _get_random_flip_args()],
+    [None, _get_random_rotate_90_args()],
+    [None, _get_random_rotate_args()],
     # TODO: Lionel (09/25) Add StopPolicyArgs test cases.
     [None, _get_scale_jitter_args()],
     [None, _get_resize_args()],
@@ -140,7 +152,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, scale_jitter, resize, normalize",
+        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, random_rotate_90, random_rotate, scale_jitter, resize, normalize",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -149,6 +161,8 @@ class TestObjectDetectionTransform:
         photometric_distort: RandomPhotometricDistortArgs | None,
         random_zoom_out: RandomZoomOutArgs | None,
         random_flip: RandomFlipArgs | None,
+        random_rotate_90: RandomRotate90Args | None,
+        random_rotate: RandomRotationArgs | None,
         scale_jitter: ScaleJitterArgs | None,
         resize: ResizeArgs | None,
         random_iou_crop: RandomIoUCropArgs | None,
@@ -164,6 +178,8 @@ class TestObjectDetectionTransform:
             random_zoom_out=random_zoom_out,
             random_iou_crop=random_iou_crop,
             random_flip=random_flip,
+            random_rotate_90=random_rotate_90,
+            random_rotate=random_rotate,
             image_size=image_size,
             bbox_params=bbox_params,
             stop_policy=stop_policy,
@@ -204,6 +220,8 @@ class TestObjectDetectionTransform:
             random_zoom_out=_get_random_zoom_out_args(),
             random_iou_crop=_get_random_iou_crop_args(),
             random_flip=_get_random_flip_args(),
+            random_rotate_90=_get_random_rotate_90_args(),
+            random_rotate=_get_random_rotate_args(),
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
             stop_policy=_get_stop_policy_args(),

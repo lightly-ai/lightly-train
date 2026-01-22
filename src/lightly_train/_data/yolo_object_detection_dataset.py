@@ -14,6 +14,7 @@ from typing import ClassVar
 import numpy as np
 import pydantic
 import torch
+from pydantic import Field
 
 from lightly_train._data import file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.task_batch_collation import (
@@ -48,7 +49,7 @@ class YOLOObjectDetectionDataset(TaskDataset):
         self.class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
                 class_ids=self.dataset_args.classes.keys(),
-                ignore_classes=None,
+                ignore_classes=self.dataset_args.ignore_classes,
             )
         )
 
@@ -68,6 +69,17 @@ class YOLOObjectDetectionDataset(TaskDataset):
         bboxes_np, class_labels_np = (
             file_helpers.open_yolo_object_detection_label_numpy(label_path)
         )
+
+        # Remove instances with class IDs that are not in the included classes.
+        keep = np.array(
+            [
+                int(class_id) in self.class_id_to_internal_class_id
+                for class_id in class_labels_np
+            ],
+            dtype=bool,
+        )
+        bboxes_np = bboxes_np[keep]
+        class_labels_np = class_labels_np[keep]
 
         # Map class IDs to internal class IDs.
         internal_class_labels_np = np.array(
@@ -113,6 +125,7 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
     val: PathLike
     test: PathLike | None = None
     names: dict[int, str]
+    ignore_classes: set[int] | None = Field(default=None, strict=False)
 
     def train_imgs_path(self) -> Path:
         return Path(self.train)
@@ -140,7 +153,10 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
         assert image_dir is not None
         assert label_dir is not None
         return YOLOObjectDetectionDatasetArgs(
-            image_dir=image_dir, label_dir=label_dir, classes=self.names
+            image_dir=image_dir,
+            label_dir=label_dir,
+            classes=self.names,
+            ignore_classes=self.ignore_classes,
         )
 
     def get_val_args(self) -> YOLOObjectDetectionDatasetArgs:
@@ -154,19 +170,28 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
         assert image_dir is not None
         assert label_dir is not None
         return YOLOObjectDetectionDatasetArgs(
-            image_dir=image_dir, label_dir=label_dir, classes=self.names
+            image_dir=image_dir,
+            label_dir=label_dir,
+            classes=self.names,
+            ignore_classes=self.ignore_classes,
         )
 
     @property
     def included_classes(self) -> dict[int, str]:
         """Returns included classes."""
-        return self.names
+        ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+        return {
+            class_id: class_name
+            for class_id, class_name in self.names.items()
+            if class_id not in ignore_classes
+        }
 
 
 class YOLOObjectDetectionDatasetArgs(TaskDatasetArgs):
     image_dir: Path
     label_dir: Path
     classes: dict[int, str]
+    ignore_classes: set[int] | None
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
         for image_filename in file_helpers.list_image_filenames_from_dir(

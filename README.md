@@ -16,6 +16,10 @@ transformer and YOLO models on detection and segmentation tasks for edge deploym
 
 ## News
 
+- \[[0.14.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-14-0)\] -
+  2026-01-19: 🐣 **PicoDet, Tiny Models, and ONNX/TensorRT FP16 Support:** PicoDet object
+  detection models for low-power embedded devices! All tasks now support tiny DINOv3
+  models and ONNX/TensorRT export in FP16 precision for faster inference! 🐣
 - \[[0.13.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-13-0)\] -
   2025-12-15: 🐥 **New Tiny Object Detection Models:** We release tiny DINOv3 models
   pretrained on COCO for
@@ -60,6 +64,8 @@ Train LTDETR detection models with DINOv2 or DINOv3 backbones.
 
 | Implementation |               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size |
 | :------------: | :-------------------------------: | :---------------------: | :----------: | :--------: | :--------: |
+|  LightlyTrain  |          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |  416×416   |
+|  LightlyTrain  |          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |  416×416   |
 |  LightlyTrain  |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |  640×640   |
 |  LightlyTrain  |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |  640×640   |
 |  LightlyTrain  |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |  640×640   |
@@ -68,6 +74,8 @@ Train LTDETR detection models with DINOv2 or DINOv3 backbones.
 |  LightlyTrain  | dinov3/convnext-small-ltdetr-coco |          56.9           |     17.7     |    82.7    |  640×640   |
 |  LightlyTrain  | dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |  640×640   |
 |  LightlyTrain  | dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |  640×640   |
+
+\*Picodet models are in preview and we report preliminary results.
 
 Models are trained on the COCO 2017 dataset and evaluated on the validation set with
 single-scale testing. Latency is measured with TensorRT on a NVIDIA T4 GPU with batch
@@ -122,16 +130,18 @@ method from CVPR 2025.
 
 | Implementation                       | Model                                 | Val PQ   | Avg. Latency (ms) | Params (M) | Input Size |
 | ------------------------------------ | ------------------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain                         | dinov3/vitt16-eomt-panoptic-coco      | 38.0     | 13.5              | 6.0        | 640×640    |
+| LightlyTrain                         | dinov3/vittplus16-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
 | LightlyTrain                         | dinov3/vits16-eomt-panoptic-coco      | 46.8     | 21.2              | 23.4       | 640×640    |
 | LightlyTrain                         | dinov3/vitb16-eomt-panoptic-coco      | 53.2     | 39.4              | 92.5       | 640×640    |
 | LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco      | 57.0     | 80.1              | 315.1      | 640×640    |
 | LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco-1280 | **59.0** | 500.1             | 315.1      | 1280×1280  |
 | EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9     | -                 | 315.1      | 1280×1280  |
 
-Small and base models are trained for 24 epochs and large models for 12 epochs on the
-COCO 2017 dataset and evaluated on the validation set with single-scale testing. Avg.
-Latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are
-optimized using `torch.compile`.
+Tiny models are trained for 48 epochs, small and base models for 24 epochs and large
+models for 12 epochs on the COCO 2017 dataset and evaluated on the validation set with
+single-scale testing. Avg. Latency is measured on a single NVIDIA T4 GPU with batch size
+1\. All models are optimized using `torch.compile`.
 
 #### Usage
 
@@ -179,20 +189,19 @@ method from CVPR 2025.
 
 #### COCO Results
 
-| Implementation | Model | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
-| -------------- | ----- | ------------ | ----------------- | ---------- | ---------- |
+| Implementation                       | Model                            | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
+| ------------------------------------ | -------------------------------- | ------------ | ----------------- | ---------- | ---------- |
+| LightlyTrain                         | dinov3/vitt16-eomt-inst-coco     | 25.4         | 12.7              | 6.0        | 640×640    |
+| LightlyTrain                         | dinov3/vitt16plus-eomt-inst-coco | 27.6         | 13.3              | 7.7        | 640×640    |
+| LightlyTrain                         | dinov3/vits16-eomt-inst-coco     | 32.6         | 19.4              | 21.6       | 640×640    |
+| LightlyTrain                         | dinov3/vitb16-eomt-inst-coco     | 40.3         | 39.7              | 85.7       | 640×640    |
+| LightlyTrain                         | dinov3/vitl16-eomt-inst-coco     | **46.2**     | 80.0              | 303.2      | 640×640    |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco     | 45.9         | -                 | 303.2      | 640×640    |
 
-| LightlyTrain | dinov3/vitt16-eomt-inst-coco | 25.4 | 12.7 | 6.0 | 640×640 | |
-LightlyTrain | dinov3/vitt16plus-eomt-inst-coco | 27.6 | 13.3 | 7.7 | 640×640 | |
-LightlyTrain | dinov3/vits16-eomt-inst-coco | 32.6 | 19.4 | 21.6 | 640×640 | |
-LightlyTrain | dinov3/vitb16-eomt-inst-coco | 40.3 | 39.7 | 85.7 | 640×640 | |
-LightlyTrain | dinov3/vitl16-eomt-inst-coco | **46.2** | 80.0 | 303.2 | 640×640 | | EoMT
-(CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco | 45.9 | - | 303.2 |
-640×640 |
-
-Models are trained for 12 epochs on the COCO 2017 dataset and evaluated on the
-validation set with single-scale testing. Average latency is measured on a single NVIDIA
-T4 GPU with batch size 1. All models are optimized using `torch.compile`.
+Tiny models are trained for 48 epochs, while all other models are trained for 12 epochs
+on the COCO 2017 dataset and evaluated on the validation set with single-scale testing.
+Average latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are
+optimized using `torch.compile`.
 
 #### Usage
 

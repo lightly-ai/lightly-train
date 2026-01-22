@@ -14,7 +14,9 @@ from albumentations import (
     BboxParams,
     Compose,
     HorizontalFlip,
+    RandomRotate90,
     Resize,
+    Rotate,
     ToFloat,
     VerticalFlip,
 )
@@ -44,6 +46,8 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
@@ -71,6 +75,8 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     random_zoom_out: RandomZoomOutArgs | None
     random_iou_crop: RandomIoUCropArgs | None
     random_flip: RandomFlipArgs | None
+    random_rotate_90: RandomRotate90Args | None
+    random_rotate: RandomRotationArgs | None
     image_size: ImageSizeTuple | Literal["auto"]
     stop_policy: StopPolicyArgs | None
     scale_jitter: ScaleJitterArgs | None
@@ -169,6 +175,19 @@ class ObjectDetectionTransform(TaskTransform):
                 self.individual_transforms += [
                     VerticalFlip(p=transform_args.random_flip.vertical_prob)
                 ]
+
+        if transform_args.random_rotate_90 is not None:
+            self.individual_transforms += [
+                RandomRotate90(p=transform_args.random_rotate_90.prob)
+            ]
+        if transform_args.random_rotate is not None:
+            self.individual_transforms += [
+                Rotate(
+                    limit=transform_args.random_rotate.degrees,
+                    interpolation=transform_args.random_rotate.interpolation,
+                    p=transform_args.random_rotate.prob,
+                )
+            ]
 
         if transform_args.resize is not None:
             self.individual_transforms += [

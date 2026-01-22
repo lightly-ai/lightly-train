@@ -35,7 +35,7 @@ NDArrayBinaryMask = NDArray[np.bool_]  # (H, W)
 NDArrayBinaryMasks = NDArray[np.bool_]  # (n_instances, H, W)
 # Binary masks as integers for compatibility with albumentations as it doesn't support
 # boolean masks.
-NDArrayBinaryMasksInt = NDArray[np.int_]  # (n_instances, H, W)
+NDArrayBinaryMasksInt = NDArray[np.uint8]  # (n_instances, H, W)
 
 
 class TransformInput(TypedDict):
@@ -167,6 +167,18 @@ class MaskPanopticSegmentationBatch(TypedDict):
     # Tensor with shape (batch_size, H, W, 2) or list of Tensors with shape (H, W, 2).
     masks: Tensor | list[Tensor]
     binary_masks: list[PanopticBinaryMasksDict]  # One dict per image.
+
+
+class ImageClassificationDatasetItem(TypedDict):
+    image_path: ImageFilename
+    image: Tensor
+    classes: Tensor
+
+
+class ImageClassificationBatch(TypedDict):
+    image_path: list[ImageFilename]  # length==batch_size
+    image: Tensor  # Tensor with shape (batch_size, 3, H, W).
+    classes: list[Tensor]
 
 
 # Replaces torch.optim.optimizer.ParamsT

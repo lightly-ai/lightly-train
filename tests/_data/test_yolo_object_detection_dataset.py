@@ -27,6 +27,8 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
@@ -44,6 +46,8 @@ class DummyTransformArgs(ObjectDetectionTransformArgs):
     random_zoom_out: RandomZoomOutArgs | None = None
     random_iou_crop: RandomIoUCropArgs | None = None
     random_flip: RandomFlipArgs | None = None
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple = (32, 32)
     stop_policy: StopPolicyArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
