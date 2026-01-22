@@ -39,6 +39,7 @@ class TaskAlignedTop1Assigner:
         pred_cls_logits: Tensor,
         gt_boxes_xyxy: Tensor,
         gt_labels: Tensor,
+        prior_centers: Tensor | None = None,
     ) -> tuple[Tensor, Tensor, Tensor]:
         """Assign predictions to ground truth.
 
@@ -47,6 +48,8 @@ class TaskAlignedTop1Assigner:
             pred_cls_logits: Predicted class logits (N, C).
             gt_boxes_xyxy: Ground-truth boxes (M, 4) in xyxy pixel coords.
             gt_labels: Ground-truth labels (M,).
+            prior_centers: Optional prior centers (N, 2) in pixel coords for
+                spatial prior masking (center inside gt).
 
         Returns:
             Tuple of:
@@ -74,6 +77,12 @@ class TaskAlignedTop1Assigner:
         metric = (pair_cls.clamp(min=1e-9) ** self.alpha) * (
             ious.clamp(min=1e-9) ** self.beta
         )
+        if prior_centers is not None:
+            cx = prior_centers[:, 0].unsqueeze(1)
+            cy = prior_centers[:, 1].unsqueeze(1)
+            in_gt = (cx > gt_boxes_xyxy[:, 0]) & (cx < gt_boxes_xyxy[:, 2])
+            in_gt = in_gt & (cy > gt_boxes_xyxy[:, 1]) & (cy < gt_boxes_xyxy[:, 3])
+            metric = torch.where(in_gt, metric, torch.zeros_like(metric))
 
         pred_idx, gt_idx = torch.nonzero(metric > 0.0, as_tuple=True)
         if pred_idx.numel() == 0:

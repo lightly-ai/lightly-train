@@ -61,10 +61,11 @@ def test_task_model_forward_shapes() -> None:
     x = torch.randn(1, 3, 416, 416)
     boxes, obj_logits, cls_logits = model(x)
 
-    num_queries = model.o2o_head.num_queries
-    assert boxes.shape == (1, num_queries, 4)
-    assert obj_logits.shape == (1, num_queries)
-    assert cls_logits.shape == (1, num_queries, 80)
+    strides = model.o2o_head.strides
+    num_preds = sum((416 // s) * (416 // s) for s in strides)
+    assert boxes.shape == (1, num_preds, 4)
+    assert obj_logits.shape == (1, num_preds)
+    assert cls_logits.shape == (1, num_preds, 80)
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")

@@ -28,9 +28,6 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._distributed import reduce_dict
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
-from lightly_train._task_models.object_detection_components.box_ops import (
-    box_cxcywh_to_xyxy,
-)
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.object_detection_components.utils import (
     _denormalize_xyxy_boxes,
@@ -219,9 +216,8 @@ class PicoDetObjectDetectionTrain(TrainModel):
         outputs = self.model._forward_train(images)
         cls_scores_list = cast(list[Tensor], outputs["cls_scores"])
         bbox_preds_list = cast(list[Tensor], outputs["bbox_preds"])
-        o2o_obj_logits = cast(Tensor, outputs["o2o_obj_logits"])
-        o2o_cls_logits = cast(Tensor, outputs["o2o_cls_logits"])
-        o2o_box_preds = cast(Tensor, outputs["o2o_box_preds"])
+        o2o_cls_scores = cast(list[Tensor], outputs["o2o_cls_scores"])
+        o2o_bbox_preds = cast(list[Tensor], outputs["o2o_bbox_preds"])
 
         # Convert GT from YOLO format to pixel xyxy
         gt_boxes_xyxy_norm = _yolo_to_xyxy(gt_bboxes_yolo)
@@ -242,9 +238,8 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss_o2o_box,
             o2o_stats,
         ) = self._compute_o2o_losses(
-            obj_logits=o2o_obj_logits,
-            cls_logits=o2o_cls_logits,
-            box_preds=o2o_box_preds,
+            cls_scores=o2o_cls_scores,
+            bbox_preds=o2o_bbox_preds,
             gt_boxes_xyxy_list=gt_boxes_xyxy_list,
             gt_labels_list=gt_labels_list,
             image_size=(img_h, img_w),
@@ -300,9 +295,8 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         cls_scores_list = cast(list[Tensor], outputs["cls_scores"])
         bbox_preds_list = cast(list[Tensor], outputs["bbox_preds"])
-        o2o_obj_logits = cast(Tensor, outputs["o2o_obj_logits"])
-        o2o_cls_logits = cast(Tensor, outputs["o2o_cls_logits"])
-        o2o_box_preds = cast(Tensor, outputs["o2o_box_preds"])
+        o2o_cls_scores = cast(list[Tensor], outputs["o2o_cls_scores"])
+        o2o_bbox_preds = cast(list[Tensor], outputs["o2o_bbox_preds"])
 
         gt_boxes_xyxy_norm = _yolo_to_xyxy(gt_bboxes_yolo)
         img_h, img_w = images.shape[-2:]
@@ -323,21 +317,23 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss_o2o_box,
             o2o_stats,
         ) = self._compute_o2o_losses(
-            obj_logits=o2o_obj_logits,
-            cls_logits=o2o_cls_logits,
-            box_preds=o2o_box_preds,
+            cls_scores=o2o_cls_scores,
+            bbox_preds=o2o_bbox_preds,
             gt_boxes_xyxy_list=gt_boxes_xyxy_list,
             gt_labels_list=gt_labels_list,
             image_size=(img_h, img_w),
         )
         total_loss = o2o_loss + 0.5 * dense_loss
 
-        boxes_xyxy = box_cxcywh_to_xyxy(o2o_box_preds)
-        scale = boxes_xyxy.new_tensor([img_w, img_h, img_w, img_h])
-        boxes_xyxy = torch.min(boxes_xyxy * scale, scale).clamp(min=0)
-        cls_labels = o2o_cls_logits.argmax(dim=-1)
-        cls_scores = o2o_cls_logits.gather(2, cls_labels.unsqueeze(-1)).squeeze(-1)
-        scores = torch.sigmoid(o2o_obj_logits) * torch.sigmoid(cls_scores)
+        boxes_xyxy, cls_logits = model_to_use._decode_o2o_predictions(
+            cls_scores_list=o2o_cls_scores,
+            bbox_preds_list=o2o_bbox_preds,
+            image_size=(img_h, img_w),
+            input_size=(int(img_h), int(img_w)),
+        )
+        cls_labels = cls_logits.argmax(dim=-1)
+        cls_scores = cls_logits.gather(2, cls_labels.unsqueeze(-1)).squeeze(-1)
+        scores = torch.sigmoid(cls_scores)
         cls_labels = self.model.internal_class_to_class[cls_labels]
 
         preds = []
@@ -564,15 +560,14 @@ class PicoDetObjectDetectionTrain(TrainModel):
     def _compute_o2o_losses(
         self,
         *,
-        obj_logits: Tensor,
-        cls_logits: Tensor,
-        box_preds: Tensor,
+        cls_scores: list[Tensor],
+        bbox_preds: list[Tensor],
         gt_boxes_xyxy_list: list[Tensor],
         gt_labels_list: list[Tensor],
         image_size: tuple[int, int],
     ) -> tuple[Tensor, Tensor, Tensor, Tensor, dict[str, Tensor]]:
-        batch_size = obj_logits.shape[0]
-        device = obj_logits.device
+        batch_size = cls_scores[0].shape[0]
+        device = cls_scores[0].device
 
         total_obj = torch.zeros((), device=device)
         total_cls = torch.zeros((), device=device)
@@ -581,20 +576,56 @@ class PicoDetObjectDetectionTrain(TrainModel):
         total_iou = torch.zeros((), device=device)
         total_cls_target = torch.zeros((), device=device)
 
+        decode_bbox_preds_pixel: list[Tensor] = []
+        center_and_strides: list[Tensor] = []
+        flatten_cls_preds: list[Tensor] = []
+
+        for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_scores, bbox_preds)):
+            stride = self.strides[level_idx]
+            _, _, h, w = cls_score.shape
+            num_points = h * w
+
+            y = (torch.arange(h, device=device, dtype=torch.float32) + 0.5) * stride
+            x = (torch.arange(w, device=device, dtype=torch.float32) + 0.5) * stride
+            yy, xx = torch.meshgrid(y, x, indexing="ij")
+            points = torch.stack([xx.flatten(), yy.flatten()], dim=-1)
+            priors = torch.cat(
+                [points, torch.full((num_points, 2), stride, device=device)], dim=-1
+            )
+            center_and_stride = priors.unsqueeze(0).expand(batch_size, -1, -1)
+            center_and_strides.append(center_and_stride)
+
+            center_in_feature = points / stride
+            bbox_pred_flat = bbox_pred.permute(0, 2, 3, 1).reshape(
+                batch_size, num_points, 4 * (self.reg_max + 1)
+            )
+            pred_corners = self.integral(bbox_pred_flat)
+            decode_bbox_pred = distance2bbox(
+                center_in_feature.unsqueeze(0).expand(batch_size, -1, -1), pred_corners
+            )
+            decode_bbox_preds_pixel.append(decode_bbox_pred * stride)
+
+            cls_pred_flat = cls_score.permute(0, 2, 3, 1).reshape(
+                batch_size, num_points, self.num_classes
+            )
+            flatten_cls_preds.append(cls_pred_flat)
+
+        all_center_and_strides = torch.cat(center_and_strides, dim=1)
+        all_decoded_bboxes_pixel = torch.cat(decode_bbox_preds_pixel, dim=1)
+        all_cls_preds = torch.cat(flatten_cls_preds, dim=1)
+
         img_h, img_w = image_size
-        boxes_xyxy = box_cxcywh_to_xyxy(box_preds)
-        scale = boxes_xyxy.new_tensor([img_w, img_h, img_w, img_h])
-        boxes_xyxy = torch.min(boxes_xyxy * scale, scale).clamp(min=0)
-        x1, y1, x2, y2 = boxes_xyxy.unbind(dim=-1)
-        eps = 1e-6
-        x2 = torch.max(x2, x1 + eps)
-        y2 = torch.max(y2, y1 + eps)
-        boxes_xyxy = torch.stack((x1, y1, x2, y2), dim=-1)
+        scale_limit = all_decoded_bboxes_pixel.new_tensor(
+            [img_w, img_h, img_w, img_h]
+        )
+        all_decoded_bboxes_pixel = torch.min(
+            all_decoded_bboxes_pixel, scale_limit
+        ).clamp(min=0)
 
         for img_idx in range(batch_size):
-            pred_boxes = boxes_xyxy[img_idx]
-            pred_cls_logits = cls_logits[img_idx]
-            pred_obj_logits = obj_logits[img_idx]
+            pred_boxes = all_decoded_bboxes_pixel[img_idx]
+            pred_cls_logits = all_cls_preds[img_idx]
+            priors = all_center_and_strides[img_idx]
             gt_boxes = gt_boxes_xyxy_list[img_idx].to(device)
             gt_labels = gt_labels_list[img_idx].to(device).long()
 
@@ -603,6 +634,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 pred_cls_logits=pred_cls_logits,
                 gt_boxes_xyxy=gt_boxes,
                 gt_labels=gt_labels,
+                prior_centers=priors[:, :2],
             )
 
             pos_mask = assigned_gt >= 0
@@ -616,23 +648,17 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 total_iou = total_iou + assigned_ious[pos_mask].sum()
                 total_cls_target = total_cls_target + cls_target[pos_mask].sum()
 
-            obj_target = torch.zeros_like(pred_obj_logits)
-            if pos_mask.any():
-                obj_target[pos_mask] = assigned_ious[pos_mask].clamp(0, 1)
-
-            obj_loss_raw = F.binary_cross_entropy_with_logits(
-                pred_obj_logits, obj_target, reduction="none"
-            )
-            obj_loss = obj_loss_raw.sum() / num_pos.clamp(min=1)
-
             cls_loss_raw = self.vfl_loss(pred_cls_logits, cls_target)
             cls_norm = cls_target.sum().clamp(min=1.0)
             cls_loss = cls_loss_raw / cls_norm
+
             if pos_mask.any():
                 target_boxes = gt_boxes[assigned_gt[pos_mask]]
                 box_loss = self.giou_loss(pred_boxes[pos_mask], target_boxes)
             else:
                 box_loss = torch.zeros((), device=device)
+
+            obj_loss = torch.zeros((), device=device)
 
             total_obj = total_obj + obj_loss
             total_cls = total_cls + cls_loss

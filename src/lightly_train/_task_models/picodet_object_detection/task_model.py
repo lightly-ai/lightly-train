@@ -21,14 +21,11 @@ from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
-from lightly_train._task_models.object_detection_components.box_ops import (
-    box_cxcywh_to_xyxy,
-)
 from lightly_train._task_models.picodet_object_detection.csp_pan import CSPPAN
 from lightly_train._task_models.picodet_object_detection.esnet import ESNet
 from lightly_train._task_models.picodet_object_detection.pico_head import (
     PicoHead,
-    PicoHeadO2O,
+    distance2bbox,
 )
 from lightly_train._task_models.picodet_object_detection.postprocessor import (
     PicoDetPostProcessor,
@@ -159,11 +156,16 @@ class PicoDetObjectDetection(TaskModel):
             share_cls_reg=True,
             use_depthwise=True,
         )
-        self.o2o_head = PicoHeadO2O(
+        self.o2o_head = PicoHead(
             in_channels=neck_out_channels_typed,
             num_classes=num_classes,
-            num_queries=100,
-            hidden_dim=head_feat_channels_typed,
+            feat_channels=head_feat_channels_typed,
+            stacked_convs=stacked_convs_typed,
+            kernel_size=5,
+            reg_max=reg_max,
+            strides=(8, 16, 32, 64),
+            share_cls_reg=True,
+            use_depthwise=True,
         )
 
         self.postprocessor = PicoDetPostProcessor(
@@ -238,14 +240,68 @@ class PicoDetObjectDetection(TaskModel):
         feats = self.backbone(images)
         feats = self.neck(feats)
         cls_scores, bbox_preds = self.head(feats)
-        o2o_obj, o2o_cls, o2o_boxes = self.o2o_head(feats[0])
+        o2o_cls_scores, o2o_bbox_preds = self.o2o_head(feats)
         return {
             "cls_scores": cls_scores,
             "bbox_preds": bbox_preds,
-            "o2o_obj_logits": o2o_obj,
-            "o2o_cls_logits": o2o_cls,
-            "o2o_box_preds": o2o_boxes,
+            "o2o_cls_scores": o2o_cls_scores,
+            "o2o_bbox_preds": o2o_bbox_preds,
         }
+
+    def _decode_o2o_predictions(
+        self,
+        *,
+        cls_scores_list: list[Tensor],
+        bbox_preds_list: list[Tensor],
+        image_size: tuple[int, int],
+        input_size: tuple[int, int],
+    ) -> tuple[Tensor, Tensor]:
+        batch_size = cls_scores_list[0].shape[0]
+        device = cls_scores_list[0].device
+        decode_bbox_preds_pixel: list[Tensor] = []
+        flatten_cls_preds: list[Tensor] = []
+
+        for level_idx, (cls_score, bbox_pred) in enumerate(
+            zip(cls_scores_list, bbox_preds_list)
+        ):
+            stride = self.o2o_head.strides[level_idx]
+            _, _, h, w = cls_score.shape
+            num_points = h * w
+
+            y = (torch.arange(h, device=device, dtype=torch.float32) + 0.5) * stride
+            x = (torch.arange(w, device=device, dtype=torch.float32) + 0.5) * stride
+            yy, xx = torch.meshgrid(y, x, indexing="ij")
+            points = torch.stack([xx.flatten(), yy.flatten()], dim=-1)
+
+            center_in_feature = points / stride
+            bbox_pred_flat = bbox_pred.permute(0, 2, 3, 1).reshape(
+                batch_size, num_points, 4 * (self.reg_max + 1)
+            )
+            pred_corners = self.o2o_head.integral(bbox_pred_flat)
+            decode_bbox_pred = distance2bbox(
+                center_in_feature.unsqueeze(0).expand(batch_size, -1, -1), pred_corners
+            )
+            decode_bbox_preds_pixel.append(decode_bbox_pred * stride)
+
+            cls_pred_flat = cls_score.permute(0, 2, 3, 1).reshape(
+                batch_size, num_points, self.num_classes
+            )
+            flatten_cls_preds.append(cls_pred_flat)
+
+        boxes_xyxy = torch.cat(decode_bbox_preds_pixel, dim=1)
+        cls_logits = torch.cat(flatten_cls_preds, dim=1)
+
+        input_h, input_w = input_size
+        orig_h, orig_w = image_size
+        if (orig_h, orig_w) != (input_h, input_w):
+            scale = boxes_xyxy.new_tensor(
+                [orig_w / input_w, orig_h / input_h, orig_w / input_w, orig_h / input_h]
+            )
+            boxes_xyxy = boxes_xyxy * scale
+
+        scale_limit = boxes_xyxy.new_tensor([orig_w, orig_h, orig_w, orig_h])
+        boxes_xyxy = torch.min(boxes_xyxy, scale_limit).clamp(min=0)
+        return boxes_xyxy, cls_logits
 
     def forward(
         self, images: Tensor, orig_target_size: Tensor | None = None
@@ -258,9 +314,9 @@ class PicoDetObjectDetection(TaskModel):
 
         Returns:
             Tuple of:
-            - boxes_xyxy: Tensor of shape (B, Q, 4) in xyxy pixel format.
-            - obj_logits: Tensor of shape (B, Q) with objectness logits.
-            - cls_logits: Tensor of shape (B, Q, C) with class logits.
+            - boxes_xyxy: Tensor of shape (B, N, 4) in xyxy pixel format.
+            - obj_logits: Tensor of shape (B, N) with objectness logits.
+            - cls_logits: Tensor of shape (B, N, C) with class logits.
         """
         if orig_target_size is None:
             orig_h, orig_w = images.shape[-2:]
@@ -274,10 +330,15 @@ class PicoDetObjectDetection(TaskModel):
 
         feats = self.backbone(images)
         feats = self.neck(feats)
-        obj_logits, cls_logits, box_preds = self.o2o_head(feats[0])
-        boxes_xyxy = box_cxcywh_to_xyxy(box_preds)
-        scale = boxes_xyxy.new_tensor([orig_w, orig_h, orig_w, orig_h])
-        boxes_xyxy = torch.min(boxes_xyxy * scale, scale).clamp(min=0)
+        cls_scores_list, bbox_preds_list = self.o2o_head(feats)
+        input_size = (int(images.shape[-2]), int(images.shape[-1]))
+        boxes_xyxy, cls_logits = self._decode_o2o_predictions(
+            cls_scores_list=cls_scores_list,
+            bbox_preds_list=bbox_preds_list,
+            image_size=(orig_h, orig_w),
+            input_size=input_size,
+        )
+        obj_logits = cls_logits.max(dim=-1).values
         return boxes_xyxy, obj_logits, cls_logits
 
     @torch.no_grad()
@@ -316,13 +377,17 @@ class PicoDetObjectDetection(TaskModel):
 
         feats = self.backbone(x)
         feats = self.neck(feats)
-        obj_logits, cls_logits, box_preds = self.o2o_head(feats[0])
-        boxes = box_cxcywh_to_xyxy(box_preds)[0]
-        scale = boxes.new_tensor([orig_w, orig_h, orig_w, orig_h])
-        boxes = torch.min(boxes * scale, scale).clamp(min=0)
+        cls_scores_list, bbox_preds_list = self.o2o_head(feats)
+        boxes_xyxy, cls_logits = self._decode_o2o_predictions(
+            cls_scores_list=cls_scores_list,
+            bbox_preds_list=bbox_preds_list,
+            image_size=(orig_h, orig_w),
+            input_size=tuple(self.image_size),
+        )
+        boxes = boxes_xyxy[0]
         internal_labels = cls_logits[0].argmax(dim=-1)
         cls_for_label = cls_logits[0].gather(1, internal_labels.unsqueeze(1)).squeeze(1)
-        scores = torch.sigmoid(obj_logits[0]) * torch.sigmoid(cls_for_label)
+        scores = torch.sigmoid(cls_for_label)
         labels = self.internal_class_to_class[internal_labels]
         if threshold > 0:
             keep = scores >= threshold
