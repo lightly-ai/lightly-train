@@ -14,7 +14,7 @@ please refer to the [Pretrain/Distill Settings](#pretrain-settings) page.
 | [`model_args`](#model_args)                     | `dict`                        | `None`         | Task/model-specific training hyperparameters.                                                                                                                       |
 | [`steps`](#steps)                               | `int`                         | `"auto"`       | Number of training steps. `"auto"` selects a model-dependent default.                                                                                               |
 | [`precision`](#precision)                       | `str`                         | `"bf16-mixed"` | Numeric precision mode (e.g. `"16-true"`, `"32-true"`, `"bf16-mixed"`).                                                                                             |
-| [`batch_size`](#batch_size)                     | `int`                         | `"auto"`       | Global batch size across all devices. Per-device batch size is derived from `batch_size / (devices * num_nodes)`.                                                   |
+| [`batch_size`](#batch_size)                     | `int`                         | `"auto"`       | Global batch size across all devices.                                                                                                                               |
 | [`num_workers`](#num_workers)                   | `int`                         | `"auto"`       | DataLoader worker processes per device. `"auto"` chooses a value based on available CPU cores.                                                                      |
 | [`devices`](#devices)                           | `int`<br>`str`<br>`list[int]` | `"auto"`       | Devices to use for training. `"auto"` selects all available devices for the chosen `accelerator`.                                                                   |
 | [`num_nodes`](#num_nodes)                       | `int`                         | `1`            | Number of nodes for distributed training.                                                                                                                           |
@@ -43,14 +43,15 @@ listed on this page.
 
 ### `out`
 
-The output directory where the model checkpoints and logs are saved. We recommend to
-create a new directory for each run.
+The output directory where the model checkpoints and logs are saved. Create a new
+directory for each run! LightlyTrain will raise an error if the output directory already
+exists unless the [`overwrite`](#overwrite) flag is set to `True`.
 
 ### `overwrite`
 
 Set to `True` to overwrite the contents of an existing `out` directory. By default,
-Lightly Train raises an error if the specified output directory already exists to
-prevent accidental data loss.
+LightlyTrain raises an error if the specified output directory already exists to prevent
+accidental data loss.
 
 (train-settings-data)=
 
@@ -71,8 +72,8 @@ for details on the expected dataset structure and configuration options.
 ### `batch_size`
 
 Global batch size across all devices. The batch size per device/GPU is computed as
-`batch_size / (devices * num_nodes)`. By default, `batch_size` is set to `"auto"`, which
-selects a model-dependent default value.
+`batch_size / (num_devices * num_nodes)`. By default, `batch_size` is set to `"auto"`,
+which selects a model-dependent default value.
 
 ### `num_workers`
 
@@ -133,11 +134,45 @@ import lightly_train
 
 lightly_train.train_object_detection(
     ...,
+    model="dinov3/vitt16-ltdetr",  # Model without fine-tuned weights.
     model_args={
         "backbone_weights": "/path/to/backbone_weights.ckpt",
     },
 )
 ```
+
+The backbone weights argument is ignored when loading an existing checkpoint via the
+[`model`](#model) argument:
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    model="out/my_experiment/checkpoints/last.ckpt",  # Loads full checkpoint including backbone weights.
+    model_args={
+        "backbone_weights": "/path/to/backbone_weights.ckpt",  # Ignored when loading from checkpoint.
+    },
+)
+```
+
+Similarly, the backbone weights argument is also ignored when loading one of the
+built-in fine-tuned models:
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    model="dinov3/vitt16-ltdetr-coco",  # Loads built-in fine-tuned model.
+    model_args={
+        "backbone_weights": "/path/to/backbone_weights.ckpt",  # Ignored when loading built-in model.
+    },
+)
+```
+
+The backbone weights are only loaded when training starts from scratch using a model
+identifier without a dataset suffix (e.g. `-coco`, `-cityscapes`, etc.).
 
 #### `metric_log_classwise`
 
@@ -172,11 +207,12 @@ Epoch based training is currently not supported.
 Training precision setting. Must be one of the following strings:
 
 - `"bf16-mixed"`: Default. Operations run in bfloat16 where supported, weights are saved
-  in float32.
+  in float32. Not supported on all hardware.
 - `"16-true"`: All operations and weights in float16. Fastest but may be unstable
   depending on model, hardware, and dataset.
 - `"16-mixed"`: Most operations run in float16 precision. Not supported on all hardware.
 - `"32-true"`: All operations and weights are in float32. Slower but more stable.
+  Supported on all hardware.
 
 ### `seed`
 
@@ -209,6 +245,186 @@ Distributed training strategy, for example `"ddp"` or `"fsdp"`. By default, this
 to `"auto"`, which selects a suitable strategy based on the chosen accelerator and
 number of devices. We recommend to keep this at `"auto"` unless you have specific
 requirements.
+
+(train-settings-resume-training)=
+
+## Resume Training
+
+There are two ways to continue training from a previous run:
+
+1. [Resume an interrupted/crashed run](#resume_interrupted) and finish training with the
+   same parameters.
+   - You **CANNOT** change any training parameters (including steps)!
+   - You **CANNOT** change the `out` directory.
+   - YOU **CANNOT** change the dataset.
+   - This restores the exact training state, including optimizer parameters and current
+     step.
+1. [Load a checkpoint from a previous run](#load-checkpoint-for-a-new-run) and fine-tune
+   with different parameters.
+   - You **CAN** change training parameters.
+   - You **MUST** specify a new `out` directory.
+   - You **CAN** change the dataset.
+   - This initializes model weights from the checkpoint but starts a fresh training
+     state.
+
+### `resume_interrupted`
+
+Use when a run terminates unexpectedly and you want to continue from the latest
+checkpoint stored in `out/checkpoints/last.ckpt`. Do not modify any other training
+arguments! This will restore the exact training state, including optimizer parameters,
+current step, and any learning rate or other schedules from the previous run. The flag
+is intended for crash recovery only. See [](#load-checkpoint-for-a-new-run) for
+continuing training with different parameters, for example to train for more steps.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    out="out/my_experiment",  # Same output directory as the interrupted run.
+    resume_interrupted=True,  # Resume from last.ckpt in out directory.
+)
+```
+
+### Load Checkpoint for a New Run
+
+To continue training from a previous run but change training parameters (for example to
+train for more steps), set the `model` argument to the path of an exported model from a
+previous run and specify a new `out` directory. This way, training starts fresh but
+initializes weights from the provided checkpoint.
+
+We recommend using the exported best model weights from
+`out/my_experiment/exported_models/exported_best.pt` for this purpose.
+
+See [`resume_interrupted`](#resume_interrupted) if you want to recover from a crashed
+run instead.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    out="out/my_new_experiment",  # New output directory for new run.
+    model="out/my_experiment/exported_models/exported_best.pt",  # Load model from previous run.
+    steps=2000,  # Change training parameters as needed.
+)
+```
+
+(train-settings-checkpoint-saving)=
+
+## Checkpoint Saving
+
+LightlyTrain saves two types of checkpoints during training:
+
+1. `out/my_experiment/checkpoints`: Full checkpoints including optimizer, scheduler, and
+   training state. Used to resume training with
+   [`resume_interrupted`](#resume_interrupted).
+   - `last.ckpt`: Latest checkpoint saved at regular intervals.
+   - `best.ckpt`: Best-performing checkpoint based on a validation metric.
+1. `out/my_experiment/exported_models`: Lightweight exported models containing only
+   model weights. Used for inference and any further fine-tuning.
+   - `exported_last.pt`: Model weights from the latest checkpoint.
+   - `exported_best.pt`: Model weights from the best-performing checkpoint.
+
+Use the exported models in `out/my_experiment/exported_models/` for any downstream tasks
+whenever training completed successfully. Use `out/my_experiment/checkpoints/` only to
+resume training with [`resume_interrupted`](#resume_interrupted) after an unexpected
+interruption.
+
+### `save_checkpoint_args`
+
+Settings to configure checkpoint saving behavior. By default, LightlyTrain saves
+`last.ckpt` and `best.ckpt` while tracking a validation metric defined by the selected
+model.
+
+| Key                                             | Type               | Description                                                                                           |
+| ----------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
+| [`save_every_num_steps`](#save_every_num_steps) | `int`              | Training step interval for saving checkpoints.                                                        |
+| [`save_last`](#save_last)                       | `bool`             | Persist `last.ckpt` after each save cycle. Disable only when storage is constrained.                  |
+| [`save_best`](#save_best)                       | `bool`             | Track the best-performing checkpoint according to [`watch_metric`](#watch_metric).                    |
+| [`watch_metric`](#watch_metric)                 | `str`              | Validation metric name (for example `"val_metric/map"`) monitored when selecting the best checkpoint. |
+| [`mode`](#mode)                                 | `"min"`<br>`"max"` | Operation used when selecting the best checkpoint based on [`watch_metric`](#watch_metric).           |
+
+#### `save_every_num_steps`
+
+Number of training steps between each checkpoint save. Default is `1000`. Decrease to
+save more frequently. Too frequent saving may slow down training.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    save_checkpoint_args={
+        "save_every_num_steps": 500,  # Save checkpoint every 500 steps.
+    },
+)
+```
+
+#### `save_last`
+
+If set to `True`, the latest checkpoint and exported model (`last.ckpt` and
+`exported_last.pt`) are saved at each save interval. Default is `True`. Disable only
+when storage space is limited.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    save_checkpoint_args={
+        "save_last": False,  # Disable saving last.ckpt
+    },
+)
+```
+
+#### `save_best`
+
+If set to `True`, the best-performing checkpoint and exported model (`best.ckpt` and
+`exported_best.pt`) are tracked and saved based on the validation metric defined by
+[`watch_metric`](#watch_metric). Default is `True`.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    save_checkpoint_args={
+        "save_best": False,  # Disable saving best.ckpt
+    },
+)
+```
+
+#### `watch_metric`
+
+Validation metric used to determine the best checkpoint when [`save_best`](#save_best)
+is `True`. The default metric depends on the selected model.
+
+Default metrics:
+
+- Object Detection: `"val_metric/map"` (Mean Average Precision)
+- Instance Segmentation: `"val_metric/map"` (Mean Average Precision)
+- Panoptic Segmentation: `"val_metric/pq"` (Panoptic Quality)
+- Semantic Segmentation: `"val_metric/miou"` (Mean Intersection over Union)
+
+Check the logs for all available validation metrics for your task and model. See also
+[`metric_log_classwise`](#metric_log_classwise) to enable class-wise metric logging.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    save_checkpoint_args={
+        "watch_metric": "val_metric/map",  # Use mAP as the best-checkpoint metric.
+        "mode": "max", # Higher is better for mAP. Set to "min" for metrics where lower is better.
+    },
+)
+```
+
+#### `mode`
+
+Operation used when selecting the best checkpoint based on
+[`watch_metric`](#watch_metric). Must be either `"min"` (lower is better) or `"max"`
+(higher is better). Default depends on the selected [`watch_metric`](#watch_metric).
 
 (train-settings-logging)=
 
@@ -250,7 +466,7 @@ lightly_train.train_object_detection(
             # Optional custom run name.
             "run_name": "my_run",
             # Optional tags dictionary.
-            "tags": {"team": "reasearch"},
+            "tags": {"team": "research"},
             # Optional address of local or remote tracking server, e.g. "http://localhost:5000"
             "tracking_uri": "tracking_uri",
             # Enable checkpoint uploading to MLflow. (default: False)
@@ -291,7 +507,7 @@ lightly_train.train_object_detection(
             # Optional version, mainly used to resume a previous run.
             "version": "my_version",
             # Optional, upload model checkpoints as artifacts. (default: False)
-            "log_model": False, 
+            "log_model": False,
             # Optional name for uploaded checkpoints. (default: None)
             "checkpoint_name": "checkpoint.ckpt",
             # Optional, run offline without syncing to the W&B server. (default: False)
@@ -331,11 +547,6 @@ lightly_train.train_object_detection(
         "tensorboard": None,  # Disable TensorBoard logging.
     },
 )
-```
-
-```bash
-
-tensorboard --logdir out/my_experiment
 ```
 
 #### `log_every_num_steps`
@@ -388,190 +599,14 @@ lightly_train.train_object_detection(
 )
 ```
 
-(train-settings-resume-training)=
-
-## Resume Training
-
-There are two ways to continue training from a previous run:
-
-1. [Resume an interrupted/crashed run](#resume_interrupted) and finish training with the
-   same parameters.
-   - You **CANNOT** change any training parameters (including steps)!
-   - You **CANNOT** change the `out` directory.
-   - YOU **CANNOT** change the dataset.
-   - This restores the exact training state, including optimizer parameters and current
-     step.
-1. [Load a checkpoint from a previous run](#load-checkpoint-for-a-new-run) and fine-tune
-   with different parameters.
-   - You **CAN** change training parameters.
-   - You **MUST** specify a new `out` directory.
-   - You **CAN** change the dataset.
-   - This initializes model weights from the checkpoint but starts a fresh training
-     state.
-
-### `resume_interrupted`
-
-Use when a run terminates unexpectedly and you want to continue from the latest
-checkpoint stored in `out/checkpoints/last.ckpt`. Do not modify any other training
-arguments! This will restore the exact training state, including optimizer parameters,
-current step, and any learning rate or other schedules from the previous run. The flag
-is inteded for crash recovery only. See [](#load-checkpoint-for-a-new-run) for
-continuing training with different parameters, for example to train for more steps.
-
-```python
-import lightly_train
-
-lightly_train.train_object_detection(
-    out="out/my_experiment",  # Same output directory as the interrupted run.
-    resume_interrupted=True,  # Resume from last.ckpt in out directory.
-)
-```
-
-### Load Checkpoint for a New Run
-
-To continue training from a previous run but change training parameters (for example to
-train for more steps), set the `model` argument to the path of an exported model from a
-previous run and specify a new `out` directory. This way, training starts fresh but
-initializes weights from the provided checkpoint.
-
-We recommend using the exported best model weights from
-`out/my_experiment/exported_models/exported_best.pt` for this purpose.
-
-See [](#resume_interrupted) if you want to recover from a crashed run instead.
-
-```python
-import lightly_train
-
-lightly_train.train_object_detection(
-    out="out/my_new_experiment",  # New output directory for new run.
-    model="out/my_experiment/exported_models/exported_best.pt",  # Load model from previous run.
-    steps=2000,  # Change training parameters as needed.
-)
-```
-
-(train-settings-checkpoint-saving)=
-
-## Checkpoint Saving
-
-LightlyTrain saves two types of checkpoints during training:
-
-1. `out/my_experiment/checkpoints`: Full checkpoints including optimizer, scheduler, and
-   training state. Used to resume training with [](#resume_interrupted).
-   - `last.ckpt`: Latest checkpoint saved at regular intervals.
-   - `best.ckpt`: Best-performing checkpoint based on a validation metric.
-1. `out/my_experiment/exported_models`: Lightweight exported models containing only
-   model weights. Used for inference and any further fine-tuning.
-   - `exported_last.pt`: Model weights from the latest checkpoint.
-   - `exported_best.pt`: Model weights from the best-performing checkpoint.
-
-Use the exported models in `out/my_experiment/exported_models/` for any downstream tasks
-whenever training completed successfully. Use `out/my_experiment/checkpoints/` only to
-resume training with [](#resume_interrupted) after an unexpected interruption.
-
-### `save_checkpoint_args`
-
-Settings to configure checkpoint saving behavior. By default, LightlyTrain saves
-`last.ckpt` and `best.ckpt` while tracking a validation metric defined by the selected
-model.
-
-| Key                                             | Type               | Description                                                                                      |
-| ----------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
-| [`save_every_num_steps`](#save_every_num_steps) | `int`              | Training step interval for saving checkpoints.                                                   |
-| [`save_last`](#save_last)                       | `bool`             | Persist `last.ckpt` after each save cycle. Disable only when storage is constrained.             |
-| [`save_best`](#save_best)                       | `bool`             | Track the best-performing checkpoint according to `watch_metric`.                                |
-| [`watch_metric`](#watch_metric)                 | `str`              | Validation metric name (for example `"val_metric/map"`) monitored for best-checkpoint selection. |
-| [`mode`](#mode)                                 | `"min"`<br>`"max"` | Direction used when ranking `watch_metric`.                                                      |
-
-#### `save_every_num_steps`
-
-Number of training steps between each checkpoint save. Default is `1000`. Decrease to
-save more frequently. Too frequent saving may slow down training.
-
-```python
-import lightly_train
-
-lightly_train.train_object_detection(
-    ...,
-    save_checkpoint_args={
-        "save_every_num_steps": 500,  # Save checkpoint every 500 steps.
-    },
-)
-```
-
-#### `save_last`
-
-If set to `True`, the latest checkpoint and exported model (`last.ckpt` and
-`exported_last.pt`) are saved at each save interval. Default is `True`. Disable only
-when storage space is limited.
-
-```python
-import lightly_train
-
-lightly_train.train_object_detection(
-    ...,
-    save_checkpoint_args={
-        "save_last": False,  # Disable saving last.ckpt
-    },
-)
-```
-
-#### `save_best`
-
-If set to `True`, the best-performing checkpoint and exported model (`best.ckpt` and
-`exported_best.pt`) are tracked and saved based on the validation metric defined by
-[](#watch_metric). Default is `True`.
-
-```python
-import lightly_train
-
-lightly_train.train_object_detection(
-    ...,
-    save_checkpoint_args={
-        "save_best": False,  # Disable saving best.ckpt
-    },
-)
-```
-
-#### `watch_metric`
-
-Validation metric used to determine the best checkpoint when [`save_best`](#save_best)
-is `True`. The default metric depends on the selected model.
-
-Default metrics:
-
-- Object Detection: `"val_metric/map"` (Mean Average Precision)
-- Instance Segmentation: `"val_metric/map"` (Mean Average Precision)
-- Panoptic Segmentation: `"val_metric/pq"` (Panoptic Quality)
-- Semantic Segmentation: `"val_metric/miou"` (Mean Intersection over Union)
-
-Check the logs for all available validation metrics for your task and model. See also
-[](#metric_log_classwise) to enable class-wise metric logging.
-
-```python
-import lightly_train
-
-lightly_train.train_object_detection(
-    ...,
-    save_checkpoint_args={
-        "watch_metric": "val_metric/map",  # Use mAP as the best-checkpoint metric.
-        "mode": "max", # Higher is better for mAP. Set to "min" for metrics where lower is better.
-    },
-)
-```
-
-#### `mode`
-
-Direction used when ranking the `watch_metric` for best-checkpoint selection. Must be
-either `"min"` (lower is better) or `"max"` (higher is better). Default depends on the
-selected `watch_metric`.
-
 (train-settings-transforms)=
 
 ## Transforms
 
 LightlyTrain automatically applies suitable data augmentations and preprocessing steps
 for each model and task. The default transforms are designed to work well in most
-scenarios. You can customize transform parameters via the [](#transform_args) setting.
+scenarios. You can customize transform parameters via the
+[`transform_args`](#transform_args) setting.
 
 ### `transform_args`
 
@@ -600,7 +635,7 @@ Check the respective task pages for the default transforms applied:
 
 Tuple specifying the height and width of input images after cropping and resizing. The
 default size depends on the selected model. Increase for higher-resolution inputs or
-decrease to speed up training.
+decrease to speed up training. Not all image sizes are supported by all models.
 
 ```python
 import lightly_train
