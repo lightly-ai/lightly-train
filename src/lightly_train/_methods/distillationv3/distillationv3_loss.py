@@ -51,7 +51,7 @@ class DistillationV3Loss(Module):
             student_features_global: Tensor containing student global representations from the current batch.
                 The expected shape is (batch_size, feature_dim).
             student_features_local: Tensor containing student local representations from the current batch.
-                The expected shape is (batch_size, feature_dim).
+                The expected shape is (batch_size, n_tokens, feature_dim).
             queue: Tensor containing teacher representations from the current and previous batches.
                 The expected shape is (queue_size, feature_dim).
 
