@@ -75,7 +75,8 @@ class YOLOObjectDetectionDataset(TaskDataset):
             [
                 int(class_id) in self.class_id_to_internal_class_id
                 for class_id in class_labels_np
-            ]
+            ],
+            dtype=bool,
         )
         bboxes_np = bboxes_np[keep]
         class_labels_np = class_labels_np[keep]
