@@ -349,7 +349,7 @@ class DistillationV3(Method):
 
         # Forward the student features through the projection head to match the dimension of the teacher: (B, C) -> (B, D).
         x_global = self.student_projection_head_global(x_global)
-        x_local = self.student_projection_head_global(x_local)
+        x_local = self.student_projection_head_local(x_local)
 
         # Resize the student spatial features to have the same resolution
         # as the teacher spatial features.
@@ -400,7 +400,11 @@ class DistillationV3(Method):
 
     def trainable_modules(self) -> TrainableModules:
         return TrainableModules(
-            modules=[self.student_embedding_model, self.student_projection_head_global]
+            modules=[
+                self.student_embedding_model,
+                self.student_projection_head_global,
+                self.student_projection_head_local,
+            ]
         )
 
     def configure_gradient_clipping(
