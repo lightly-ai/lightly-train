@@ -238,7 +238,7 @@ class PicoDetObjectDetection(TaskModel):
         feats = self.backbone(images)
         feats = self.neck(feats)
         cls_scores, bbox_preds = self.head(feats)
-        o2o_obj, o2o_cls, o2o_boxes = self.o2o_head(feats[-1])
+        o2o_obj, o2o_cls, o2o_boxes = self.o2o_head(feats[0])
         return {
             "cls_scores": cls_scores,
             "bbox_preds": bbox_preds,
@@ -274,7 +274,7 @@ class PicoDetObjectDetection(TaskModel):
 
         feats = self.backbone(images)
         feats = self.neck(feats)
-        obj_logits, cls_logits, box_preds = self.o2o_head(feats[-1])
+        obj_logits, cls_logits, box_preds = self.o2o_head(feats[0])
         boxes_xyxy = box_cxcywh_to_xyxy(box_preds)
         scale = boxes_xyxy.new_tensor([orig_w, orig_h, orig_w, orig_h])
         boxes_xyxy = torch.min(boxes_xyxy * scale, scale).clamp(min=0)
@@ -316,7 +316,7 @@ class PicoDetObjectDetection(TaskModel):
 
         feats = self.backbone(x)
         feats = self.neck(feats)
-        obj_logits, cls_logits, box_preds = self.o2o_head(feats[-1])
+        obj_logits, cls_logits, box_preds = self.o2o_head(feats[0])
         boxes = box_cxcywh_to_xyxy(box_preds)[0]
         scale = boxes.new_tensor([orig_w, orig_h, orig_w, orig_h])
         boxes = torch.min(boxes * scale, scale).clamp(min=0)
