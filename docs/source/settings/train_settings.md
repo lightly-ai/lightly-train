@@ -4,7 +4,7 @@
 
 This page covers the settings available for training tasks like object detection and
 segmentation in LightlyTrain. For settings related to pretraining and distillation,
-please refer to the [Pretrain/Distill Settings](#pretrain-settings) page.
+please refer to the [](pretrain-settings) page.
 
 | Name                                            | Type                          | Default        | Description                                                                                                                                                         |
 | ----------------------------------------------- | ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
