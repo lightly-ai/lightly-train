@@ -338,6 +338,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         preds = []
         targets = []
+        max_detections = model_to_use.postprocessor.max_detections
 
         for i in range(batch_size):
             pred_boxes = boxes_xyxy[i].detach()
@@ -345,6 +346,14 @@ class PicoDetObjectDetectionTrain(TrainModel):
             pred_labels = cls_labels[i].detach()
             gt_boxes = gt_boxes_xyxy_list[i].to(device).detach()
             gt_labels_i = gt_labels_list[i].to(device).long().detach()
+
+            if pred_scores.numel() > max_detections:
+                topk_scores, topk_idx = torch.topk(
+                    pred_scores, k=max_detections, largest=True
+                )
+                pred_boxes = pred_boxes[topk_idx]
+                pred_labels = pred_labels[topk_idx]
+                pred_scores = topk_scores
 
             preds.append(
                 {
