@@ -84,6 +84,7 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
         loss_vfl_weight: Weight for varifocal loss.
         loss_giou_weight: Weight for GIoU loss.
         loss_dfl_weight: Weight for distribution focal loss.
+        loss_o2o_l1_weight: Weight for the o2o L1 box loss term.
         simota_center_radius: Center radius for SimOTA assignment.
         simota_candidate_topk: Top-k candidates for dynamic k in SimOTA.
         simota_iou_weight: IoU weight in SimOTA cost matrix.
@@ -107,6 +108,7 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     loss_vfl_weight: float = 1.0
     loss_giou_weight: float = 2.0
     loss_dfl_weight: float = 0.25
+    loss_o2o_l1_weight: float = 0.1
 
     simota_center_radius: float = 2.5
     simota_candidate_topk: int = 10
@@ -663,7 +665,9 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
             if pos_mask.any():
                 target_boxes = gt_boxes[assigned_gt[pos_mask]]
-                box_loss = self.giou_loss(pred_boxes[pos_mask], target_boxes)
+                giou_loss = self.giou_loss(pred_boxes[pos_mask], target_boxes)
+                l1_loss = F.l1_loss(pred_boxes[pos_mask], target_boxes, reduction="mean")
+                box_loss = giou_loss + self.model_args.loss_o2o_l1_weight * l1_loss
             else:
                 box_loss = torch.zeros((), device=device)
 
