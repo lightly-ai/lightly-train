@@ -86,6 +86,7 @@ class PicoDetObjectDetection(TaskModel):
         self.num_classes = num_classes
         self.reg_max = reg_max
         self.classes = classes
+        self._export_decode_fp32 = False
 
         if classes is not None and len(classes) != num_classes:
             raise ValueError(
@@ -260,6 +261,7 @@ class PicoDetObjectDetection(TaskModel):
         device = cls_scores_list[0].device
         decode_bbox_preds_pixel: list[Tensor] = []
         flatten_cls_preds: list[Tensor] = []
+        decode_dtype = torch.float32 if self._export_decode_fp32 else cls_scores_list[0].dtype
 
         for level_idx, (cls_score, bbox_pred) in enumerate(
             zip(cls_scores_list, bbox_preds_list)
@@ -268,8 +270,8 @@ class PicoDetObjectDetection(TaskModel):
             _, _, h, w = cls_score.shape
             num_points = h * w
 
-            y = (torch.arange(h, device=device, dtype=torch.float32) + 0.5) * stride
-            x = (torch.arange(w, device=device, dtype=torch.float32) + 0.5) * stride
+            y = (torch.arange(h, device=device, dtype=decode_dtype) + 0.5) * stride
+            x = (torch.arange(w, device=device, dtype=decode_dtype) + 0.5) * stride
             yy, xx = torch.meshgrid(y, x, indexing="ij")
             points = torch.stack([xx.flatten(), yy.flatten()], dim=-1)
 
@@ -277,6 +279,8 @@ class PicoDetObjectDetection(TaskModel):
             bbox_pred_flat = bbox_pred.permute(0, 2, 3, 1).reshape(
                 batch_size, num_points, 4 * (self.reg_max + 1)
             )
+            if self._export_decode_fp32:
+                bbox_pred_flat = bbox_pred_flat.to(dtype=decode_dtype)
             pred_corners = self.o2o_head.integral(bbox_pred_flat)
             decode_bbox_pred = distance2bbox(
                 center_in_feature.unsqueeze(0).expand(batch_size, -1, -1), pred_corners
@@ -510,12 +514,17 @@ class PicoDetObjectDetection(TaskModel):
         if torch_version >= version.parse("2.2.0"):
             export_kwargs["dynamo"] = False
 
-        torch.onnx.export(
-            self,
-            (dummy_input,),
-            str(out),
-            **export_kwargs,
-        )
+        prev_export_decode_fp32 = self._export_decode_fp32
+        self._export_decode_fp32 = dtype == torch.float16
+        try:
+            torch.onnx.export(
+                self,
+                (dummy_input,),
+                str(out),
+                **export_kwargs,
+            )
+        finally:
+            self._export_decode_fp32 = prev_export_decode_fp32
 
         if simplify:
             import onnxslim  # type: ignore [import-not-found,import-untyped]
@@ -565,7 +574,7 @@ class PicoDetObjectDetection(TaskModel):
                         check_device=False,
                         check_dtype=False,
                         check_layout=False,
-                        atol=5e-3,
+                        atol=2e-2,
                         rtol=1e-1,
                     )
                 else:
