@@ -101,15 +101,12 @@ class DistillationV3Args(MethodArgs):
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None
 
-    # Deprecated. Does not have any effect.
-    teacher_url: str | None = None
-
     # Scaling method for the learning rate.
     lr_scale_method: Literal["linear", "sqrt"] = "sqrt"
     reference_batch_size: int = 1536
 
     # Loss weighting.
-    local_loss_weight: float = 1.0
+    loss_local_weight: float = 1.0
 
     def resolve_auto(
         self,
@@ -252,7 +249,7 @@ class DistillationV3(Method):
         )
 
         # Combine the losses.
-        loss = global_loss + self.method_args.local_loss_weight * local_loss
+        loss = global_loss + self.method_args.loss_local_weight * local_loss
 
         return TrainingStepResult(
             loss=loss,
