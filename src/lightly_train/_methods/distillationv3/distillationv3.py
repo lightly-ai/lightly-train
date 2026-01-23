@@ -392,7 +392,7 @@ class DistillationV3(Method):
         optim_type: OptimizerType | Literal["auto"],
     ) -> type[OptimizerArgs]:
         classes: dict[OptimizerType | Literal["auto"], type[OptimizerArgs]] = {
-            "auto": DistillationV3LARSArgs,
+            "auto": DistillationV3AdamWArgs,
             OptimizerType.LARS: DistillationV3LARSArgs,
             OptimizerType.ADAMW: DistillationV3AdamWArgs,
         }
