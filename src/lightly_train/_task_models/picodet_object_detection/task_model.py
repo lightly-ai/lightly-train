@@ -158,7 +158,7 @@ class PicoDetObjectDetection(TaskModel):
             use_depthwise=True,
         )
         self.o2o_head = PicoHead(
-            in_channels=neck_out_channels_typed,
+            in_channels=neck_out_channels_typed + 2,
             num_classes=num_classes,
             feat_channels=head_feat_channels_typed,
             stacked_convs=stacked_convs_typed,
@@ -177,6 +177,16 @@ class PicoDetObjectDetection(TaskModel):
             iou_threshold=iou_threshold,
             max_detections=max_detections,
         )
+
+    def _add_coord_channels(self, feat: Tensor) -> Tensor:
+        """Concatenate normalized x/y coordinate channels to inject spatial priors."""
+        _, _, height, width = feat.shape
+        y = torch.linspace(0.0, 1.0, height, device=feat.device, dtype=feat.dtype)
+        x = torch.linspace(0.0, 1.0, width, device=feat.device, dtype=feat.dtype)
+        yy, xx = torch.meshgrid(y, x, indexing="ij")
+        coords = torch.stack([xx, yy], dim=0).unsqueeze(0)
+        coords = coords.expand(feat.shape[0], -1, -1, -1)
+        return torch.cat([feat, coords], dim=1)
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -241,7 +251,8 @@ class PicoDetObjectDetection(TaskModel):
         feats = self.backbone(images)
         feats = self.neck(feats)
         cls_scores, bbox_preds = self.head(feats)
-        o2o_cls_scores, o2o_bbox_preds = self.o2o_head(feats)
+        o2o_feats = [self._add_coord_channels(feat) for feat in feats]
+        o2o_cls_scores, o2o_bbox_preds = self.o2o_head(o2o_feats)
         return {
             "cls_scores": cls_scores,
             "bbox_preds": bbox_preds,
@@ -334,7 +345,8 @@ class PicoDetObjectDetection(TaskModel):
 
         feats = self.backbone(images)
         feats = self.neck(feats)
-        cls_scores_list, bbox_preds_list = self.o2o_head(feats)
+        o2o_feats = [self._add_coord_channels(feat) for feat in feats]
+        cls_scores_list, bbox_preds_list = self.o2o_head(o2o_feats)
         input_size = (int(images.shape[-2]), int(images.shape[-1]))
         boxes_xyxy, cls_logits = self._decode_o2o_predictions(
             cls_scores_list=cls_scores_list,
@@ -381,7 +393,8 @@ class PicoDetObjectDetection(TaskModel):
 
         feats = self.backbone(x)
         feats = self.neck(feats)
-        cls_scores_list, bbox_preds_list = self.o2o_head(feats)
+        o2o_feats = [self._add_coord_channels(feat) for feat in feats]
+        cls_scores_list, bbox_preds_list = self.o2o_head(o2o_feats)
         boxes_xyxy, cls_logits = self._decode_o2o_predictions(
             cls_scores_list=cls_scores_list,
             bbox_preds_list=bbox_preds_list,
