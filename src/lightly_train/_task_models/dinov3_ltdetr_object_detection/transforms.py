@@ -18,6 +18,7 @@ from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.transform import (
+    ChannelDropArgs,
     NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
@@ -98,7 +99,7 @@ class DINOv3LTDETRObjectDetectionResizeArgs(ResizeArgs):
 
 
 class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
-    channel_drop: None = None
+    channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: (
         DINOv3LTDETRObjectDetectionRandomPhotometricDistortArgs | None

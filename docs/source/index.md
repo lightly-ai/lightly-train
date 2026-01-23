@@ -241,6 +241,7 @@ semantic_segmentation
 pretrain_distill/index
 predict_autolabel
 embed
+Settings <settings/train_settings>
 data/index
 performance/index
 docker

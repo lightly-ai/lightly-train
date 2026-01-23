@@ -15,15 +15,6 @@ from lightly_train._methods import method_helpers
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
     DINOv2LinearSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
-    DINOv2LTDETRObjectDetectionTrain,
-)
-from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
-    DINOv3LTDETRObjectDetectionTrain,
-)
-from lightly_train._task_models.picodet_object_detection.train_model import (
-    PicoDetObjectDetectionTrain,
-)
 
 THIS_DIR = Path(__file__).parent.resolve()
 DOCS_DIR = THIS_DIR / "source"
@@ -103,13 +94,8 @@ def dump_transform_args_for_methods(dest_dir: Path) -> None:
 def dump_transform_args_for_tasks(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
-        # TODO(Thomas, 10/25): Allow to dump transform args for object detection tasks too.
-        # TODO(Guarin, 11/25): Allow to dump transform args for instance segmentation tasks too.
         if train_model_cls in {
             DINOv2LinearSemanticSegmentationTrain,
-            DINOv2LTDETRObjectDetectionTrain,
-            DINOv3LTDETRObjectDetectionTrain,
-            PicoDetObjectDetectionTrain,
         }:
             continue
         transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
