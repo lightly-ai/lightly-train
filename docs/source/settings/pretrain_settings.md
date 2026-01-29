@@ -171,8 +171,8 @@ Training precision setting. Must be one of the following strings:
 
 ### `float32_matmul_precision`
 
-Controls PyTorch's float32 matmul precision context. Choose among `"auto"`, `highest`,
-`high`, or `medium`. Keep it at `"auto"` unless you observe numerical instability or
+Controls PyTorch's float32 matmul precision context. Choose among `"auto"`, `"highest"`,
+`"high"`, or `"medium"`. Keep it at `"auto"` unless you observe numerical instability or
 want to trade precision for speed.
 
 ### `seed`
