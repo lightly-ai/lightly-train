@@ -21,7 +21,7 @@ in LightlyTrain. For task-specific fine-tuning options, see the [](train-setting
 | [`resume_interrupted`](#resume_interrupted)             | `bool`                        | `False`          | Resume an interrupted run from the same `out` directory, including optimizer state and epoch.     |
 | [`checkpoint`](#checkpoint)                             | `str`<br>`Path`               | `None`           | Path to a checkpoint to initialize weights from before starting a new run.                        |
 | [`overwrite`](#overwrite)                               | `bool`                        | `False`          | If `True`, overwrite the `out` directory if it already exists.                                    |
-| [`accelerator`](#accelerator)                           | `str`                         | `"auto"`         | Hardware backend: `"cpu"`, `gpu`, `mps`, or `"auto"` to pick the best available.                  |
+| [`accelerator`](#accelerator)                           | `str`                         | `"auto"`         | Hardware backend: `"cpu"`, `"gpu"`, `"mps"`, or `"auto"` to pick the best available.              |
 | [`strategy`](#strategy)                                 | `str`                         | `"auto"`         | Distributed training strategy (e.g. `ddp`). `"auto"` selects a suitable default.                  |
 | [`precision`](#precision)                               | `str`                         | `"auto"`         | Numeric precision mode (e.g. `bf16-mixed`, `16-mixed`).                                           |
 | [`float32_matmul_precision`](#float32_matmul_precision) | `str`                         | `"auto"`         | Precision for float32 matrix multiplication.                                                      |
@@ -125,7 +125,7 @@ Lightly's distillation recipe. See [](methods) for the full list of supported me
 
 ### `method_args`
 
-Dictionary with method-specific hyperparameters. LightlyTrain choses sensible defaults
+Dictionary with method-specific hyperparameters. LightlyTrain chooses sensible defaults
 for each method, so you only need to set this if you want to customize specific
 settings.
 
@@ -171,8 +171,8 @@ Training precision setting. Must be one of the following strings:
 
 ### `float32_matmul_precision`
 
-Controls PyTorch's float32 matmul precision context. Choose among `"auto"`, `highest`,
-`high`, or `medium`. Keep it at `"auto"` unless you observe numerical instability or
+Controls PyTorch's float32 matmul precision context. Choose among `"auto"`, `"highest"`,
+`"high"`, or `"medium"`. Keep it at `"auto"` unless you observe numerical instability or
 want to trade precision for speed.
 
 ### `seed`
@@ -311,7 +311,7 @@ pip install "lightly-train[mlflow]"
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.pretrain(
 	...,
 	loggers={
 		"mlflow": {
@@ -350,7 +350,7 @@ pip install "lightly-train[wandb]"
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.pretrain(
 	...,
 	loggers={
 		"wandb": {
@@ -395,7 +395,7 @@ Disable TensorBoard logging by setting this argument to `None`:
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.pretrain(
 	...,
 	loggers={
 		"tensorboard": None,  # Disable TensorBoard logging.
@@ -652,7 +652,7 @@ Not all models support color jitter augmentation.
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.pretrain(
     ...,
     transform_args={
         "color_jitter": {
@@ -735,7 +735,7 @@ training models on datasets with varying channel availability. Requires
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.pretrain(
     ...,
     transform_args={
         "channel_drop": {
