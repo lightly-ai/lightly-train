@@ -395,7 +395,7 @@ Disable TensorBoard logging by setting this argument to `None`:
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.pretrain(
 	...,
 	loggers={
 		"tensorboard": None,  # Disable TensorBoard logging.
