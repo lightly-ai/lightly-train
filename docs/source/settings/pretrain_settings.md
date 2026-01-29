@@ -125,7 +125,7 @@ Lightly's distillation recipe. See [](methods) for the full list of supported me
 
 ### `method_args`
 
-Dictionary with method-specific hyperparameters. LightlyTrain choses sensible defaults
+Dictionary with method-specific hyperparameters. LightlyTrain chooses sensible defaults
 for each method, so you only need to set this if you want to customize specific
 settings.
 
