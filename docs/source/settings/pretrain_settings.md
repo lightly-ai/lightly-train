@@ -21,7 +21,7 @@ in LightlyTrain. For task-specific fine-tuning options, see the [](train-setting
 | [`resume_interrupted`](#resume_interrupted)             | `bool`                        | `False`          | Resume an interrupted run from the same `out` directory, including optimizer state and epoch.     |
 | [`checkpoint`](#checkpoint)                             | `str`<br>`Path`               | `None`           | Path to a checkpoint to initialize weights from before starting a new run.                        |
 | [`overwrite`](#overwrite)                               | `bool`                        | `False`          | If `True`, overwrite the `out` directory if it already exists.                                    |
-| [`accelerator`](#accelerator)                           | `str`                         | `"auto"`         | Hardware backend: `"cpu"`, `gpu`, `mps`, or `"auto"` to pick the best available.                  |
+| [`accelerator`](#accelerator)                           | `str`                         | `"auto"`         | Hardware backend: `"cpu"`, `"gpu"`, `"mps"`, or `"auto"` to pick the best available.              |
 | [`strategy`](#strategy)                                 | `str`                         | `"auto"`         | Distributed training strategy (e.g. `ddp`). `"auto"` selects a suitable default.                  |
 | [`precision`](#precision)                               | `str`                         | `"auto"`         | Numeric precision mode (e.g. `bf16-mixed`, `16-mixed`).                                           |
 | [`float32_matmul_precision`](#float32_matmul_precision) | `str`                         | `"auto"`         | Precision for float32 matrix multiplication.                                                      |
