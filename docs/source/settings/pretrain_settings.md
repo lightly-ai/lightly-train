@@ -10,7 +10,7 @@ in LightlyTrain. For task-specific fine-tuning options, see the [](train-setting
 | [`out`](#out)                                           | `str`<br>`Path`               | —                | Output directory where checkpoints, logs, and exported models are written.                        |
 | [`data`](#data)                                         | `str`<br>`Path`<br>`list`     | —                | Path or list of paths to directory with training images.                                          |
 | [`model`](#model)                                       | `str`<br>`Path`<br>`Module`   | —                | Model identifier (e.g. "dinov2/vits14") or a custom PyTorch module to wrap.                       |
-| [`method`](#method)                                     | `str`                         | `"distillation"` | Self-supervised method to run (e.g. "dino", "msn").                                               |
+| [`method`](#method)                                     | `str`                         | `"distillation"` | Self-supervised method to run (e.g. "dinov2", "simclr").                                          |
 | [`method_args`](#method_args)                           | `dict`                        | `None`           | Method-specific hyperparameters.                                                                  |
 | [`embed_dim`](#embed_dim)                               | `int`                         | `None`           | Optional embedding dimensionality override.                                                       |
 | [`epochs`](#epochs)                                     | `int`                         | `auto`           | Number of training epochs. `auto` derives a value from dataset size and batch size.               |
@@ -413,7 +413,6 @@ LightlyTrain saves two types of checkpoints during training:
    training state. Used to resume training with
    [`resume_interrupted`](#resume_interrupted).
    - `last.ckpt`: Latest checkpoint saved at regular intervals.
-   - `best.ckpt`: Best-performing checkpoint based on a validation metric.
 1. `out/my_experiment/exported_models`: Lightweight exported models containing only
    model weights. Used for further fine-tuning.
    - `exported_last.pt`: Model weights from the latest checkpoint.
@@ -484,8 +483,6 @@ lightly_train.pretrain(
 			"dirpath": "out/custom_checkpoints",
 			# Optional filename pattern using Lightning tokens such as "{epoch}".
 			"filename": "epoch{epoch}-step{step}",
-			# Track a metric and keep the best checkpoints.
-			"monitor": "val_loss",
 			# Log Lightning's checkpointing messages.
 			"verbose": True,
 			# Keep a copy of the final checkpoint alongside the best ones.
@@ -494,10 +491,6 @@ lightly_train.pretrain(
 			"save_top_k": 3,
 			# Store full checkpoints including optimizer and scheduler state.
 			"save_weights_only": False,
-			# Direction for comparing monitored metrics.
-			"mode": "min",
-			# Include the monitored metric name in checkpoint filenames.
-			"auto_insert_metric_name": True,
 		},
 	},
 )
