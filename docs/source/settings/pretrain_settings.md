@@ -719,9 +719,6 @@ lightly_train.pretrain(
 )
 ```
 
-Methods Distillation and SimCLR have no transform configuration options beyond the
-globally available ones listed above.
-
 (method-transform-args-channel-drop)=
 
 #### `channel_drop`
@@ -748,7 +745,7 @@ lightly_train.pretrain(
 
 #### `global_view_1`
 
-DINO-specific modifications for the second global view. Cannot be disabled; use nested
+DINO-specific configuration for the second global view. Cannot be disabled. Use nested
 keys to tune the transforms.
 
 ```python
