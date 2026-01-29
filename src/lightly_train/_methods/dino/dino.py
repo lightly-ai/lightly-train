@@ -417,9 +417,12 @@ class DINO(Method):
                     "Either student_freeze_last_layer_epochs or "
                     "student_freeze_last_layer_steps must be set."
                 )
+            steps_per_epoch = int(
+                self.trainer.estimated_stepping_batches / self.trainer.max_epochs
+            )
             freeze_last_layer_steps = (
                 no_auto(self.method_args.student_freeze_last_layer_epochs)
-                * self.global_batch_size
+                * steps_per_epoch
             )
 
         if self.trainer.global_step < freeze_last_layer_steps:
