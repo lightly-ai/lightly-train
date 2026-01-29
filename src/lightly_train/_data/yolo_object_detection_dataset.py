@@ -70,8 +70,8 @@ class YOLOObjectDetectionDataset(TaskDataset):
                 file_helpers.open_yolo_object_detection_label_numpy(label_path)
             )
         else:
-            bboxes_np = np.zeros((0, 4), dtype=np.float32)
-            class_labels_np = np.zeros((0,), dtype=np.int_)
+            bboxes_np = np.zeros((0, 4), dtype=np.float64)
+            class_labels_np = np.zeros((0,), dtype=np.int64)
 
         # Remove instances with class IDs that are not in the included classes.
         keep = np.array(
