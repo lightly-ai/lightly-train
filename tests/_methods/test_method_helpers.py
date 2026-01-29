@@ -15,6 +15,7 @@ from lightly_train._methods.dino.dino import DINO
 from lightly_train._methods.dinov2.dinov2 import DINOv2
 from lightly_train._methods.distillation.distillation import Distillation
 from lightly_train._methods.distillationv2.distillationv2 import DistillationV2
+from lightly_train._methods.distillationv3.distillationv3 import DistillationV3
 from lightly_train._methods.method import Method
 from lightly_train._methods.simclr.simclr import SimCLR
 
@@ -31,6 +32,7 @@ from ..helpers import DummyCustomModel
         ("simclr", SimCLR),
         ("distillationv1", Distillation),
         ("distillationv2", DistillationV2),
+        ("distillationv3", DistillationV3),
         (helpers.get_method(wrapped_model=DummyCustomModel()), SimCLR),
     ],
 )
@@ -46,6 +48,7 @@ def test_list_methods_private() -> None:
         "distillation",
         "distillationv1",
         "distillationv2",
+        "distillationv3",
         "simclr",
     ]
 
@@ -57,5 +60,6 @@ def test_list_methods_public() -> None:
         "distillation",
         "distillationv1",
         "distillationv2",
+        "distillationv3",
         "simclr",
     ]
