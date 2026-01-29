@@ -311,7 +311,7 @@ pip install "lightly-train[mlflow]"
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.pretrain(
 	...,
 	loggers={
 		"mlflow": {
