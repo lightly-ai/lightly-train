@@ -354,7 +354,8 @@ class DINO(Method):
         # Create parameter groups for the last layer
         params_last_layer = list(self.student_projection_head.last_layer.parameters())
 
-        # Remove last layer params.
+        # Remove last layer params. The last layer doesn't contain any no weight decay
+        # params.
         last_layer_ids = {id(p) for p in params_last_layer}
         params_weight_decay = [
             p for p in params_weight_decay if id(p) not in last_layer_ids
