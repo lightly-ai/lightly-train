@@ -742,7 +742,7 @@ training models on datasets with varying channel availability. Requires
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.pretrain(
     ...,
     transform_args={
         "channel_drop": {
