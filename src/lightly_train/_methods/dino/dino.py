@@ -417,6 +417,9 @@ class DINO(Method):
                     "Either student_freeze_last_layer_epochs or "
                     "student_freeze_last_layer_steps must be set."
                 )
+            if self.trainer.max_epochs is None:
+                raise ValueError("trainer.max_epochs is None")
+
             steps_per_epoch = int(
                 self.trainer.estimated_stepping_batches / self.trainer.max_epochs
             )

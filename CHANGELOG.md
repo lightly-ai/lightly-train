@@ -15,8 +15,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- DINO now updates the teacher temperature, momentum, and last layer freezing based on
-  the number of training steps instead of epochs.
+- DINO now updates the teacher temperature, and last layer freezing based on the number
+  of training steps instead of epochs.
 
 ### Deprecated
 
