@@ -350,7 +350,7 @@ pip install "lightly-train[wandb]"
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.pretrain(
 	...,
 	loggers={
 		"wandb": {
