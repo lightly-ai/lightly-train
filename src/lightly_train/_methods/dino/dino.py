@@ -8,14 +8,16 @@
 from __future__ import annotations
 
 import copy
+import math
 from typing import Any, Literal
 
 import torch
 from lightly.loss import DINOLoss
 from lightly.models.modules.heads import DINOProjectionHead
-from lightly.models.utils import update_momentum
+from lightly.models.utils import get_weight_decay_parameters, update_momentum
 from lightly.utils import optim
-from lightly.utils.scheduler import cosine_schedule
+from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
+from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
 from torch.nn import Flatten
 from torch.optim.optimizer import Optimizer
@@ -48,13 +50,16 @@ class DINOArgs(MethodArgs):
     hidden_dim: int = 2048
     bottleneck_dim: int = 256
     output_dim: int | Literal["auto"] = "auto"
-    student_freeze_last_layer_epochs: int = 1
+    student_freeze_last_layer_epochs: int | None = None
+    student_freeze_last_layer_steps: int | Literal["auto"] | None = "auto"
     batch_norm: bool = False
     norm_last_layer: bool = True
     # loss
     teacher_temp: float | Literal["auto"] = "auto"
     warmup_teacher_temp: float | Literal["auto"] = "auto"
-    warmup_teacher_temp_epochs: int | Literal["auto"] = "auto"
+    warmup_teacher_temp_epochs: int | None = None
+    warmup_teacher_temp_steps: int | Literal["auto"] | None = "auto"
+    warmup_teacher_temp_max_steps_fraction: float = 0.3  # Max 30% of total steps.
     student_temp: float = 0.1
     center_momentum: float = 0.9
     # momentum
@@ -63,6 +68,11 @@ class DINOArgs(MethodArgs):
     # weight decay
     weight_decay_start: float | Literal["auto"] = "auto"
     weight_decay_end: float | Literal["auto"] = "auto"
+    # learning rate
+    # Default lr warmup steps based on 10 epochs on ImageNet with batch size 8192:
+    # 10 * 1280000 / 8192 ~= 1560
+    warmup_steps: int = 1560
+    warmup_max_steps_fraction: float = 0.1  # Max 10% of total steps.
 
     def resolve_auto(
         self,
@@ -112,19 +122,27 @@ class DINOArgs(MethodArgs):
                 ),
             )
 
-        if self.warmup_teacher_temp_epochs == "auto":
-            # Default warmup teacher temperature epochs of 30 is too high when training
-            # for only a few total epochs. Have the warmup period be 30% of all epochs,
-            # but with a maximum of 30 epochs.
-            self.warmup_teacher_temp_epochs = int(
-                _scaling.interpolate(
-                    scaling_info.epochs,
-                    input_start=0,
-                    input_end=100,
-                    value_start=0,
-                    value_end=30,
-                )
-            )
+        if self.warmup_teacher_temp_steps == "auto":
+            if self.warmup_teacher_temp_epochs is None:
+                # Default DINO settings are 30 epochs warmup on ImageNet with 1.28M images
+                # at batch size 8192. This is 30 * 1280000 / 8192 ~= 4700 steps.
+                # We don't want to warmup for a fixed number of epochs because that would
+                # be too long for large datasets that are only trained for a few epochs.
+                # So we set a fixed number of steps.
+                self.warmup_teacher_temp_steps = 4700
+            else:
+                self.warmup_teacher_temp_steps = None
+
+        if self.student_freeze_last_layer_steps == "auto":
+            if self.student_freeze_last_layer_epochs is None:
+                # Default DINO settings are 1 epoch freeze on ImageNet with 1.28M images
+                # at batch size 8192. This is 1 * 1280000 / 8192 ~= 160 steps.
+                # We don't want to freeze for a fixed number of epochs because that would
+                # be too long for large datasets that are only trained for a few epochs.
+                # So we set a fixed number of steps.
+                self.student_freeze_last_layer_steps = 160
+            else:
+                self.student_freeze_last_layer_steps = None
 
         if self.momentum_start == "auto":
             # Default momentum start of 0.996 is too high for small datasets. Lower momentum
@@ -184,7 +202,7 @@ class DINO(Method):
             bottleneck_dim=method_args.bottleneck_dim,
             output_dim=no_auto(method_args.output_dim),
             batch_norm=method_args.batch_norm,
-            freeze_last_layer=0,
+            freeze_last_layer=-1,
             norm_last_layer=method_args.norm_last_layer,
         )
         self.student_embedding_model = copy.deepcopy(self.teacher_embedding_model)
@@ -194,7 +212,7 @@ class DINO(Method):
             bottleneck_dim=method_args.bottleneck_dim,
             output_dim=no_auto(method_args.output_dim),
             batch_norm=method_args.batch_norm,
-            freeze_last_layer=method_args.student_freeze_last_layer_epochs,
+            freeze_last_layer=-1,
             norm_last_layer=method_args.norm_last_layer,
         )
         self.flatten = Flatten(start_dim=1)
@@ -202,7 +220,6 @@ class DINO(Method):
             output_dim=no_auto(method_args.output_dim),
             teacher_temp=no_auto(method_args.teacher_temp),
             warmup_teacher_temp=no_auto(method_args.warmup_teacher_temp),
-            warmup_teacher_temp_epochs=no_auto(method_args.warmup_teacher_temp_epochs),
             student_temp=method_args.student_temp,
             center_momentum=method_args.center_momentum,
         )
@@ -240,13 +257,35 @@ class DINO(Method):
             # Process only global views
             x_student = self._forward_student(global_views)
 
+        if self.trainer.max_epochs is None:
+            raise ValueError("trainer.max_epochs is None")
+
+        teacher_temp = _teacher_temp_schedule(
+            temp=no_auto(self.method_args.teacher_temp),
+            warmup_temp=no_auto(self.method_args.warmup_teacher_temp),
+            warmup_epochs=self.method_args.warmup_teacher_temp_epochs,
+            warmup_steps=no_auto(self.method_args.warmup_teacher_temp_steps),
+            warmup_max_steps_fraction=self.method_args.warmup_teacher_temp_max_steps_fraction,
+            step=self.trainer.global_step,
+            max_steps=int(self.trainer.estimated_stepping_batches),
+            steps_per_epoch=int(
+                self.trainer.estimated_stepping_batches / self.trainer.max_epochs
+            ),
+        )
+
         loss = self.criterion(
             teacher_out=x_teacher.chunk(2),
             student_out=x_student.chunk(len_views),
-            epoch=self.current_epoch,
+            teacher_temp=teacher_temp,
         )
 
-        return TrainingStepResult(loss=loss)
+        return TrainingStepResult(
+            loss=loss,
+            log_dict={
+                "momentum": momentum,
+                "teacher_temp": teacher_temp,
+            },
+        )
 
     @torch.no_grad()
     def _forward_teacher(self, x: Tensor) -> Tensor:
@@ -292,7 +331,71 @@ class DINO(Method):
             gradient_clip_val=3.0,
             gradient_clip_algorithm="norm",
         )
-        self.student_projection_head.cancel_last_layer_gradients(self.current_epoch)
+
+    # Ignore the return type, because pytorch-lightning types it wrongly.
+    # See https://github.com/Lightning-AI/pytorch-lightning/issues/20106
+    def configure_optimizers(self) -> OptimizerLRScheduler:
+        # Scale the learning rate based on the global batch size.
+        lr_scale: float = self.global_batch_size / self.method_args.reference_batch_size
+        if self.method_args.lr_scale_method == "sqrt":
+            lr_scale = math.sqrt(lr_scale)
+
+        self.optimizer_args.lr *= lr_scale  # type: ignore[attr-defined]
+
+        # Split parameters into groups with and without weight decay
+        trainable_modules = self.trainable_modules()
+        params_weight_decay, params_no_weight_decay = get_weight_decay_parameters(
+            modules=trainable_modules.modules
+        )
+        if trainable_modules.modules_no_weight_decay is not None:
+            for m in trainable_modules.modules_no_weight_decay:
+                params_no_weight_decay.extend(m.parameters())
+
+        # Create parameter groups for the last layer
+        params_last_layer = list(self.student_projection_head.last_layer.parameters())
+
+        # Remove last layer params.
+        last_layer_ids = {id(p) for p in params_last_layer}
+        params_weight_decay = [
+            p for p in params_weight_decay if id(p) not in last_layer_ids
+        ]
+
+        params: list[dict[str, Any]] = [
+            {"name": "params", "params": params_weight_decay},
+            {
+                "name": "params_last_layer",
+                "params": params_last_layer,
+            },
+        ]
+        if params_no_weight_decay:
+            params.append(
+                {
+                    "name": "params_no_weight_decay",
+                    "params": params_no_weight_decay,
+                    "weight_decay": 0.0,
+                }
+            )
+
+        optim = self.optimizer_args.get_optimizer(params=params, lr_scale=lr_scale)
+
+        warmup_steps = min(
+            no_auto(self.method_args.warmup_steps),
+            int(
+                self.trainer.estimated_stepping_batches
+                * self.method_args.warmup_max_steps_fraction
+            ),
+        )
+
+        scheduler = {
+            "scheduler": CosineWarmupScheduler(
+                optimizer=optim,
+                # The arguments are called "epochs" but they can also be steps.
+                warmup_epochs=warmup_steps,
+                max_epochs=int(self.trainer.estimated_stepping_batches),
+            ),
+            "interval": "step",
+        }
+        return [optim], [scheduler]  # type: ignore[return-value]
 
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
         weight_decay = cosine_schedule(
@@ -301,10 +404,54 @@ class DINO(Method):
             start_value=self.method_args.weight_decay_start,
             end_value=self.method_args.weight_decay_end,
         )
-        optim.update_param_groups(
-            optimizer, updates=[{"name": "params", "weight_decay": weight_decay}]
+
+        updates = [{"name": "params", "weight_decay": weight_decay}]
+
+        freeze_last_layer_steps = no_auto(
+            self.method_args.student_freeze_last_layer_steps
         )
+        if freeze_last_layer_steps is None:
+            if self.method_args.student_freeze_last_layer_epochs is None:
+                raise ValueError(
+                    "Either student_freeze_last_layer_epochs or "
+                    "student_freeze_last_layer_steps must be set."
+                )
+            freeze_last_layer_steps = (
+                no_auto(self.method_args.student_freeze_last_layer_epochs)
+                * self.global_batch_size
+            )
+
+        if self.trainer.global_step < freeze_last_layer_steps:
+            updates.append(
+                {"name": "params_last_layer", "lr": 0.0, "weight_decay": 0.0}
+            )
+        else:
+            updates.append({"name": "params_last_layer", "weight_decay": weight_decay})
+
+        optim.update_param_groups(optimizer, updates=updates)
 
     @staticmethod
     def transform_cls() -> type[MethodTransform]:
         return DINOTransform
+
+
+def _teacher_temp_schedule(
+    temp: float,
+    warmup_temp: float,
+    warmup_epochs: int | None,
+    warmup_steps: int | None,
+    warmup_max_steps_fraction: float,
+    step: int,
+    max_steps: int,
+    steps_per_epoch: int,
+) -> float:
+    if warmup_steps is None:
+        if warmup_epochs is None:
+            raise ValueError(
+                "Either warmup_epochs or warmup_steps must be provided but both are None."
+            )
+        warmup_steps = int(warmup_epochs * steps_per_epoch)
+
+    if step < warmup_steps and step < (max_steps * warmup_max_steps_fraction):
+        return warmup_temp + step * (temp - warmup_temp) / warmup_steps
+    return temp
