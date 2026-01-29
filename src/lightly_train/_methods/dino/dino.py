@@ -282,8 +282,8 @@ class DINO(Method):
         return TrainingStepResult(
             loss=loss,
             log_dict={
-                "momentum": momentum,
-                "teacher_temp": teacher_temp,
+                "schedule/momentum": momentum,
+                "schedule/teacher_temp": teacher_temp,
             },
         )
 
