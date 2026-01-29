@@ -659,7 +659,7 @@ Not all models support color jitter augmentation.
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.pretrain(
     ...,
     transform_args={
         "color_jitter": {
