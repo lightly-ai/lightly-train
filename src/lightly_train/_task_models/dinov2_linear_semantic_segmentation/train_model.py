@@ -225,7 +225,11 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
 
         return TaskStepResult(loss=loss, log_dict=log_dict)
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+    def get_optimizer(
+        self,
+        total_steps: int,
+        batch_size: int,
+    ) -> tuple[Optimizer, LRScheduler]:
         params_wd, params_no_wd = get_weight_decay_parameters([self])
         params_wd = [p for p in params_wd if p.requires_grad]
         params_no_wd = [p for p in params_no_wd if p.requires_grad]
@@ -237,9 +241,10 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
                 "weight_decay": 0.0,
             },
         ]
+        lr = self.model_args.lr * batch_size / self.model_args.default_batch_size
         optimizer = AdamW(
             params=params,
-            lr=self.model_args.lr,
+            lr=lr,
             weight_decay=self.model_args.weight_decay,
         )
         scheduler = CosineWarmupScheduler(
