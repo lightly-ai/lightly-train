@@ -61,14 +61,17 @@ class YOLOObjectDetectionDataset(TaskDataset):
 
         if not image_path.exists():
             raise FileNotFoundError(f"Image file {image_path} does not exist.")
-        if not label_path.exists():
-            raise FileNotFoundError(f"Label file {label_path} does not exist.")
 
         image_np = file_helpers.open_image_numpy(image_path)
         h, w, _ = image_np.shape
-        bboxes_np, class_labels_np = (
-            file_helpers.open_yolo_object_detection_label_numpy(label_path)
-        )
+
+        if label_path.exists():
+            bboxes_np, class_labels_np = (
+                file_helpers.open_yolo_object_detection_label_numpy(label_path)
+            )
+        else:
+            bboxes_np = np.zeros((0, 4), dtype=np.float32)
+            class_labels_np = np.zeros((0,), dtype=np.int_)
 
         # Remove instances with class IDs that are not in the included classes.
         keep = np.array(
@@ -76,7 +79,7 @@ class YOLOObjectDetectionDataset(TaskDataset):
                 int(class_id) in self.class_id_to_internal_class_id
                 for class_id in class_labels_np
             ],
-            dtype=bool,
+            dtype=np.bool_,
         )
         bboxes_np = bboxes_np[keep]
         class_labels_np = class_labels_np[keep]
@@ -86,7 +89,8 @@ class YOLOObjectDetectionDataset(TaskDataset):
             [
                 self.class_id_to_internal_class_id[int(class_id)]
                 for class_id in class_labels_np
-            ]
+            ],
+            dtype=np.int_,
         )
 
         transformed = self.transform(
@@ -126,6 +130,7 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
     test: PathLike | None = None
     names: dict[int, str]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
+    skip_if_label_file_missing: bool = False
 
     def train_imgs_path(self) -> Path:
         return Path(self.train)
@@ -157,6 +162,7 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
             label_dir=label_dir,
             classes=self.names,
             ignore_classes=self.ignore_classes,
+            skip_if_label_file_missing=self.skip_if_label_file_missing,
         )
 
     def get_val_args(self) -> YOLOObjectDetectionDatasetArgs:
@@ -174,6 +180,7 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
             label_dir=label_dir,
             classes=self.names,
             ignore_classes=self.ignore_classes,
+            skip_if_label_file_missing=self.skip_if_label_file_missing,
         )
 
     @property
@@ -192,6 +199,7 @@ class YOLOObjectDetectionDatasetArgs(TaskDatasetArgs):
     label_dir: Path
     classes: dict[int, str]
     ignore_classes: set[int] | None
+    skip_if_label_file_missing: bool
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
         for image_filename in file_helpers.list_image_filenames_from_dir(
@@ -199,13 +207,16 @@ class YOLOObjectDetectionDatasetArgs(TaskDatasetArgs):
         ):
             image_filepath = self.image_dir / Path(image_filename)
             label_filepath = self.label_dir / Path(image_filename).with_suffix(".txt")
+
             # TODO (Thomas, 10/25): Log warning if label file does not exist.
             # And keep track of how many files are missing labels.
-            if label_filepath.exists():
-                yield {
-                    "image_path": str(image_filepath),
-                    "label_path": str(label_filepath),
-                }
+            if self.skip_if_label_file_missing and not label_filepath.exists():
+                continue
+
+            yield {
+                "image_path": str(image_filepath),
+                "label_path": str(label_filepath),
+            }
 
     @staticmethod
     def get_dataset_cls() -> type[YOLOObjectDetectionDataset]:
