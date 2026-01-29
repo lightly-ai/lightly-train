@@ -752,7 +752,9 @@ lightly_train.train_object_detection(
 
 Dictionary to configure channel dropping augmentation for multi-channel datasets. It
 randomly drops channels until only a specified number of channels remain. Useful for
-training models on datasets with varying channel availability.
+training models on datasets with varying channel availability. Requires
+`LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"` to be set in the environment. See
+[](multi-channel) for details.
 
 ```python
 import lightly_train
