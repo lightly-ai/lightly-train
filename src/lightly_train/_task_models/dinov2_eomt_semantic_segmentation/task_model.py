@@ -697,6 +697,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         *,
         precision: Literal["auto", "fp32", "fp16"] = "auto",
         batch_size: int = 1,
+        dynamic_batch_size: bool = True,
         height: int | None = None,
         width: int | None = None,
         opset_version: int | None = None,
@@ -706,10 +707,11 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     ) -> None:
         """Exports the model to ONNX for inference.
 
-        The export uses a dummy input of shape (batch_size, C, H, W) where C is inferred
-        from the first model parameter and (H, W) come from `self.image_size`.
-        The ONNX graph uses dynamic batch size for both inputs and produces
-        two outputs: masks and logits.
+        The export uses a dummy input of shape (batch_size, C, H, W) where C is
+        inferred from the first model parameter and (H, W) come from
+        `self.image_size`. If `dynamic_batch_size` is True, the ONNX graph will
+        have a dynamic batch dimension for the input. The graph produces two
+        outputs: masks and logits.
 
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
@@ -723,6 +725,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 uses the model's current precision.
             batch_size:
                 Batch size for the ONNX input.
+            dynamic_batch_size:
+                If True, the ONNX graph will have a dynamic batch dimension for the
+                input. If False, the batch dimension is fixed to `batch_size`.
             height:
                 Height of the ONNX input. If None, will be taken from `self.image_size`.
             width:
@@ -768,6 +773,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         width = self.image_size[1] if width is None else width
         num_channels = len(self.image_normalize["mean"])
 
+        if dynamic_batch_size:
+            batch_size = 2
+        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+
         dummy_input = torch.randn(
             batch_size,
             num_channels,
@@ -793,7 +802,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             output_names=output_names,
             opset_version=opset_version,
             dynamo=False,
-            dynamic_axes={"images": {0: "N"}},
+            dynamic_axes=dynamic_axes,
             **(format_args or {}),
         )
 

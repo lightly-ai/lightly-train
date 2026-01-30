@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Literal
 
 import pytest
+from lightning_utilities.core.imports import RequirementCache
 from torch import nn
 from torch.optim.lr_scheduler import LinearLR
 
@@ -19,6 +20,9 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
+    DINOv3LTDETRObjectDetection,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
     DINOv3LTDETRObjectDetectionTrainArgs,
@@ -170,3 +174,49 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
         train_model.get_optimizer(total_steps=1000, global_batch_size=16)
 
     assert "the schedule will not complete as intended" in caplog.text
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
+    import numpy as np
+    import onnx
+    import onnxruntime as ort
+
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, simplify=False, verify=True)
+
+    onnx_model = onnx.load(out)
+    input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
+    assert input_batch_dim.dim_param == "N"
+
+    session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+    inputs = np.random.randn(3, 3, 256, 256).astype(np.float32)
+    session.run(None, {"images": inputs})
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(
+        out=out, batch_size=3, dynamic_batch_size=False, simplify=False, verify=True
+    )

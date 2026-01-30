@@ -23,7 +23,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
-from lightly_train._export import tensorrt_helpers
+from lightly_train._export import onnx_helpers, tensorrt_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Attention
@@ -1032,6 +1032,10 @@ class DINOv2EoMTPanopticSegmentation(TaskModel):
             device=model_device,
             dtype=dtype,
         )
+
+        # Precalculate interpolated positional encoding for ONNX export.
+        with onnx_helpers.precalculate_for_onnx_export():
+            self(dummy_input)
 
         input_names = ["images"]
         output_names = ["masks", "segment_ids", "scores"]
