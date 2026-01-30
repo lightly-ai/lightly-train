@@ -262,6 +262,15 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "debug/o2o_num_pos": o2o_stats["o2o_num_pos"],
                 "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"],
                 "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"],
+                "debug/o2o_gt_small": o2o_stats["o2o_gt_small"],
+                "debug/o2o_gt_medium": o2o_stats["o2o_gt_medium"],
+                "debug/o2o_gt_large": o2o_stats["o2o_gt_large"],
+                "debug/o2o_gt_center_small": o2o_stats["o2o_gt_center_small"],
+                "debug/o2o_gt_center_medium": o2o_stats["o2o_gt_center_medium"],
+                "debug/o2o_gt_center_large": o2o_stats["o2o_gt_center_large"],
+                "debug/o2o_gt_matched_small": o2o_stats["o2o_gt_matched_small"],
+                "debug/o2o_gt_matched_medium": o2o_stats["o2o_gt_matched_medium"],
+                "debug/o2o_gt_matched_large": o2o_stats["o2o_gt_matched_large"],
             }
         )
 
@@ -387,6 +396,15 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "debug/o2o_num_pos": o2o_stats["o2o_num_pos"].item(),
                 "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"].item(),
                 "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"].item(),
+                "debug/o2o_gt_small": o2o_stats["o2o_gt_small"].item(),
+                "debug/o2o_gt_medium": o2o_stats["o2o_gt_medium"].item(),
+                "debug/o2o_gt_large": o2o_stats["o2o_gt_large"].item(),
+                "debug/o2o_gt_center_small": o2o_stats["o2o_gt_center_small"].item(),
+                "debug/o2o_gt_center_medium": o2o_stats["o2o_gt_center_medium"].item(),
+                "debug/o2o_gt_center_large": o2o_stats["o2o_gt_center_large"].item(),
+                "debug/o2o_gt_matched_small": o2o_stats["o2o_gt_matched_small"].item(),
+                "debug/o2o_gt_matched_medium": o2o_stats["o2o_gt_matched_medium"].item(),
+                "debug/o2o_gt_matched_large": o2o_stats["o2o_gt_matched_large"].item(),
                 "val_metric/map": self.map_metric,
             },
         )
@@ -584,6 +602,15 @@ class PicoDetObjectDetectionTrain(TrainModel):
         total_pos = torch.zeros((), device=device)
         total_iou = torch.zeros((), device=device)
         total_cls_target = torch.zeros((), device=device)
+        total_gt_small = torch.zeros((), device=device)
+        total_gt_medium = torch.zeros((), device=device)
+        total_gt_large = torch.zeros((), device=device)
+        total_gt_center_small = torch.zeros((), device=device)
+        total_gt_center_medium = torch.zeros((), device=device)
+        total_gt_center_large = torch.zeros((), device=device)
+        total_gt_matched_small = torch.zeros((), device=device)
+        total_gt_matched_medium = torch.zeros((), device=device)
+        total_gt_matched_large = torch.zeros((), device=device)
 
         decode_bbox_preds_pixel: list[Tensor] = []
         center_and_strides: list[Tensor] = []
@@ -638,6 +665,29 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_boxes = gt_boxes_xyxy_list[img_idx].to(device)
             gt_labels = gt_labels_list[img_idx].to(device).long()
 
+            if gt_boxes.numel() > 0:
+                gt_wh = (gt_boxes[:, 2:] - gt_boxes[:, :2]).clamp(min=0)
+                gt_area = gt_wh[:, 0] * gt_wh[:, 1]
+                small = gt_area < 32**2
+                medium = (gt_area >= 32**2) & (gt_area < 96**2)
+                large = gt_area >= 96**2
+
+                total_gt_small = total_gt_small + small.sum()
+                total_gt_medium = total_gt_medium + medium.sum()
+                total_gt_large = total_gt_large + large.sum()
+
+                centers = priors[:, :2]
+                cx = centers[:, 0].unsqueeze(1)
+                cy = centers[:, 1].unsqueeze(1)
+                in_gt = (cx >= gt_boxes[:, 0]) & (cx <= gt_boxes[:, 2])
+                in_gt = in_gt & (cy >= gt_boxes[:, 1]) & (cy <= gt_boxes[:, 3])
+                has_center = in_gt.any(dim=0)
+                total_gt_center_small = total_gt_center_small + has_center[small].sum()
+                total_gt_center_medium = (
+                    total_gt_center_medium + has_center[medium].sum()
+                )
+                total_gt_center_large = total_gt_center_large + has_center[large].sum()
+
             assigned_gt, assigned_labels, assigned_ious = self.o2o_assigner.assign(
                 pred_boxes_xyxy=pred_boxes,
                 pred_cls_logits=pred_cls_logits,
@@ -647,6 +697,25 @@ class PicoDetObjectDetectionTrain(TrainModel):
             )
 
             pos_mask = assigned_gt >= 0
+            if gt_boxes.numel() > 0 and pos_mask.any():
+                matched = torch.zeros(
+                    (gt_boxes.shape[0],), device=device, dtype=torch.bool
+                )
+                matched[assigned_gt[pos_mask]] = True
+                gt_wh = (gt_boxes[:, 2:] - gt_boxes[:, :2]).clamp(min=0)
+                gt_area = gt_wh[:, 0] * gt_wh[:, 1]
+                small = gt_area < 32**2
+                medium = (gt_area >= 32**2) & (gt_area < 96**2)
+                large = gt_area >= 96**2
+                total_gt_matched_small = (
+                    total_gt_matched_small + matched[small].sum()
+                )
+                total_gt_matched_medium = (
+                    total_gt_matched_medium + matched[medium].sum()
+                )
+                total_gt_matched_large = (
+                    total_gt_matched_large + matched[large].sum()
+                )
             cls_target = pred_cls_logits.new_zeros(pred_cls_logits.shape)
             num_pos = pos_mask.sum()
             total_pos = total_pos + num_pos
@@ -681,6 +750,15 @@ class PicoDetObjectDetectionTrain(TrainModel):
             "o2o_num_pos": total_pos,
             "o2o_mean_iou": total_iou / total_pos.clamp(min=1),
             "o2o_cls_target_sum": total_cls_target,
+            "o2o_gt_small": total_gt_small,
+            "o2o_gt_medium": total_gt_medium,
+            "o2o_gt_large": total_gt_large,
+            "o2o_gt_center_small": total_gt_center_small,
+            "o2o_gt_center_medium": total_gt_center_medium,
+            "o2o_gt_center_large": total_gt_center_large,
+            "o2o_gt_matched_small": total_gt_matched_small,
+            "o2o_gt_matched_medium": total_gt_matched_medium,
+            "o2o_gt_matched_large": total_gt_matched_large,
         }
         return total_loss, total_obj, total_cls, total_box, stats
 
