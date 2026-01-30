@@ -433,8 +433,7 @@ class PicoDetObjectDetection(TaskModel):
 
         The export uses a dummy input of shape (1, C, H, W) where C is inferred
         from the first model parameter and (H, W) come from `self.image_size`.
-        The ONNX graph outputs decoded boxes plus raw objectness and class logits:
-        boxes_xyxy, obj_logit, cls_logits.
+        The ONNX graph outputs labels, boxes, and scores.
 
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
@@ -513,7 +512,21 @@ class PicoDetObjectDetection(TaskModel):
         )
 
         input_names = ["images"]
-        output_names = ["boxes_xyxy", "obj_logit", "cls_logits"]
+        output_names = ["labels", "boxes", "scores"]
+
+        class _PicoDetExportWrapper(torch.nn.Module):
+            def __init__(self, model: PicoDetObjectDetection) -> None:
+                super().__init__()
+                self.model = model
+
+            def forward(self, images: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+                boxes_xyxy, obj_logit, cls_logits = self.model(images)
+                scores = torch.sigmoid(obj_logit)
+                labels = cls_logits.argmax(dim=-1).to(torch.int64)
+                labels = self.model.internal_class_to_class[labels]
+                return labels, boxes_xyxy, scores
+
+        export_model = _PicoDetExportWrapper(self)
 
         # Older torch.onnx.export versions don't accept the "dynamo" kwarg.
         export_kwargs: dict[str, Any] = {
@@ -531,7 +544,7 @@ class PicoDetObjectDetection(TaskModel):
         self._export_decode_fp32 = dtype == torch.float16
         try:
             torch.onnx.export(
-                self,
+                export_model,
                 (dummy_input,),
                 str(out),
                 **export_kwargs,
@@ -556,7 +569,8 @@ class PicoDetObjectDetection(TaskModel):
             onnx.checker.check_model(out, full_check=True)
 
             reference_model = deepcopy(self).cpu().to(torch.float32).eval()
-            reference_outputs = reference_model(
+            reference_export_model = _PicoDetExportWrapper(reference_model)
+            reference_outputs = reference_export_model(
                 dummy_input.cpu().to(torch.float32),
             )
 
