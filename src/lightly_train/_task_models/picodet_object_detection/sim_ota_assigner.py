@@ -20,7 +20,8 @@ class TaskAlignedTop1Assigner:
     """Task-aligned top-1 assigner for one-to-one matching.
 
     This assigns each ground-truth to at most one prediction using a
-    greedy top-1 selection based on a task-aligned metric.
+    GT-centric top-1 selection based on a task-aligned metric with
+    collision resolution.
 
     Args:
         alpha: Power for classification score in the metric.
@@ -93,8 +94,7 @@ class TaskAlignedTop1Assigner:
                     in_gt[nearest_idx, missing] = True
             metric = torch.where(in_gt, metric, torch.zeros_like(metric))
 
-        pred_idx, gt_idx = torch.nonzero(metric > 0.0, as_tuple=True)
-        if pred_idx.numel() == 0:
+        if metric.max() <= 0:
             assigned_gt = torch.full((num_preds,), -1, device=device, dtype=torch.long)
             assigned_labels = torch.full(
                 (num_preds,), -1, device=device, dtype=torch.long
@@ -102,28 +102,30 @@ class TaskAlignedTop1Assigner:
             assigned_ious = torch.zeros((num_preds,), device=device)
             return assigned_gt, assigned_labels, assigned_ious
 
-        pair_metric = metric[pred_idx, gt_idx]
-        order = torch.argsort(pair_metric, descending=True)
-
-        pred_taken = torch.zeros((num_preds,), device=device, dtype=torch.bool)
-        gt_taken = torch.zeros(
-            (gt_boxes_xyxy.shape[0],), device=device, dtype=torch.bool
-        )
-
+        num_gt = gt_boxes_xyxy.shape[0]
         assigned_gt = torch.full((num_preds,), -1, device=device, dtype=torch.long)
         assigned_ious = torch.zeros((num_preds,), device=device)
+        gt_assigned = torch.zeros((num_gt,), device=device, dtype=torch.bool)
+        metric_work = metric.clone()
 
-        for k in order.tolist():
-            p = int(pred_idx[k])
-            g = int(gt_idx[k])
-            if pred_taken[p] or gt_taken[g]:
-                continue
-            pred_taken[p] = True
-            gt_taken[g] = True
-            assigned_gt[p] = g
-            assigned_ious[p] = ious[p, g]
-            if bool(gt_taken.all()):
+        while True:
+            remaining = (~gt_assigned) & (metric_work.max(dim=0).values > 0)
+            if not bool(remaining.any()):
                 break
+            best_scores, best_preds = metric_work[:, remaining].max(dim=0)
+            gt_indices = torch.nonzero(remaining, as_tuple=False).squeeze(1)
+
+            unique_preds, inv = torch.unique(best_preds, return_inverse=True)
+            for idx, pred_idx in enumerate(unique_preds):
+                gt_mask = inv == idx
+                if not bool(gt_mask.any()):
+                    continue
+                best_local = torch.argmax(best_scores[gt_mask])
+                gt_global = gt_indices[gt_mask][best_local]
+                assigned_gt[pred_idx] = gt_global
+                assigned_ious[pred_idx] = ious[pred_idx, gt_global]
+                gt_assigned[gt_global] = True
+                metric_work[pred_idx, :] = 0
 
         assigned_labels = torch.full((num_preds,), -1, device=device, dtype=torch.long)
         pos_mask = assigned_gt >= 0
