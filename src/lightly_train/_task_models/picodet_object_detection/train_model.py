@@ -431,7 +431,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
         center_and_strides: list[Tensor] = []
         flatten_cls_preds: list[Tensor] = []
         flatten_bbox_preds: list[Tensor] = []
-        flatten_bbox_preds: list[Tensor] = []
 
         for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_scores, bbox_preds)):
             stride = self.strides[level_idx]
@@ -463,13 +462,13 @@ class PicoDetObjectDetectionTrain(TrainModel):
             )
             flatten_cls_preds.append(cls_pred_flat)
             flatten_bbox_preds.append(bbox_pred_flat)
-            flatten_bbox_preds.append(bbox_pred_flat)
 
         all_center_and_strides = torch.cat(center_and_strides, dim=1)
         all_decoded_bboxes_pixel = torch.cat(decode_bbox_preds_pixel, dim=1)
         all_cls_preds = torch.cat(flatten_cls_preds, dim=1)
         all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
-        all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
+        assert all_cls_preds.shape[1] == all_bbox_preds.shape[1]
+        assert all_cls_preds.shape[1] == all_center_and_strides.shape[1]
 
         all_vfl_losses: list[Tensor] = []
         all_giou_losses: list[Tensor] = []
@@ -625,6 +624,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         decode_bbox_preds_pixel: list[Tensor] = []
         center_and_strides: list[Tensor] = []
         flatten_cls_preds: list[Tensor] = []
+        flatten_bbox_preds: list[Tensor] = []
 
         for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_scores, bbox_preds)):
             stride = self.strides[level_idx]
@@ -655,10 +655,14 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 batch_size, num_points, self.num_classes
             )
             flatten_cls_preds.append(cls_pred_flat)
+            flatten_bbox_preds.append(bbox_pred_flat)
 
         all_center_and_strides = torch.cat(center_and_strides, dim=1)
         all_decoded_bboxes_pixel = torch.cat(decode_bbox_preds_pixel, dim=1)
         all_cls_preds = torch.cat(flatten_cls_preds, dim=1)
+        all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
+        assert all_cls_preds.shape[1] == all_bbox_preds.shape[1]
+        assert all_cls_preds.shape[1] == all_center_and_strides.shape[1]
 
         img_h, img_w = image_size
         scale_limit = all_decoded_bboxes_pixel.new_tensor(
