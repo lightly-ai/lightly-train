@@ -831,7 +831,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # Create dummy input using same device and dtype as the model.
         dummy_input = torch.randn(
-            1,
+            2,
             num_channels,
             self.image_size[
                 0

@@ -425,7 +425,7 @@ class PicoDetObjectDetection(TaskModel):
                     )
 
         dummy_input = torch.randn(
-            1,
+            2,
             num_channels,
             self.image_size[0],
             self.image_size[1],

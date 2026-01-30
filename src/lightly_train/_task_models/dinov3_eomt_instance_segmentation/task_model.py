@@ -613,6 +613,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         batch_size: int = 1,
         height: int | None = None,
         width: int | None = None,
+        dynamic_batch_size: bool = True,
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -682,6 +683,12 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         width = self.image_size[1] if width is None else width
         num_channels = len(self.image_normalize["mean"])
 
+        # if the batch size is dynamic the dummy input must have multiple batches
+        # as torch might still think the batch size is one
+        if dynamic_batch_size:
+            batch_size = 2
+        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+
         dummy_input = torch.randn(
             batch_size,
             num_channels,
@@ -703,7 +710,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             output_names=output_names,
             opset_version=opset_version,
             dynamo=False,
-            dynamic_axes={"images": {0: "N"}},
+            dynamic_axes=dynamic_axes,
             **(format_args or {}),
         )
 
