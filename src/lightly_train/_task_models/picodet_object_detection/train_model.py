@@ -84,6 +84,7 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
         loss_vfl_weight: Weight for varifocal loss.
         loss_giou_weight: Weight for GIoU loss.
         loss_dfl_weight: Weight for distribution focal loss.
+        loss_o2o_dfl_weight: Weight for the o2o DFL loss term.
         simota_center_radius: Center radius for SimOTA assignment.
         simota_candidate_topk: Top-k candidates for dynamic k in SimOTA.
         simota_iou_weight: IoU weight in SimOTA cost matrix.
@@ -107,6 +108,7 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     loss_vfl_weight: float = 1.0
     loss_giou_weight: float = 2.0
     loss_dfl_weight: float = 0.25
+    loss_o2o_dfl_weight: float = 0.25
 
     simota_center_radius: float = 2.5
     simota_candidate_topk: int = 10
@@ -236,6 +238,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss_o2o_obj,
             loss_o2o_cls,
             loss_o2o_box,
+            loss_o2o_dfl,
             o2o_stats,
         ) = self._compute_o2o_losses(
             cls_scores=o2o_cls_scores,
@@ -254,6 +257,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "train_loss/loss_o2o_obj": loss_o2o_obj,
                 "train_loss/loss_o2o_cls": loss_o2o_cls,
                 "train_loss/loss_o2o_box": loss_o2o_box,
+                "train_loss/loss_o2o_dfl": loss_o2o_dfl,
                 "train_loss/loss_dense": dense_loss,
                 "train_loss/loss_vfl": loss_vfl,
                 "train_loss/loss_giou": loss_giou,
@@ -324,6 +328,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss_o2o_obj,
             loss_o2o_cls,
             loss_o2o_box,
+            loss_o2o_dfl,
             o2o_stats,
         ) = self._compute_o2o_losses(
             cls_scores=o2o_cls_scores,
@@ -388,6 +393,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "val_loss/loss_o2o_obj": loss_o2o_obj.item(),
                 "val_loss/loss_o2o_cls": loss_o2o_cls.item(),
                 "val_loss/loss_o2o_box": loss_o2o_box.item(),
+                "val_loss/loss_o2o_dfl": loss_o2o_dfl.item(),
                 "val_loss/loss_dense": dense_loss.item(),
                 "val_loss/loss_vfl": loss_vfl.item(),
                 "val_loss/loss_giou": loss_giou.item(),
@@ -425,6 +431,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         center_and_strides: list[Tensor] = []
         flatten_cls_preds: list[Tensor] = []
         flatten_bbox_preds: list[Tensor] = []
+        flatten_bbox_preds: list[Tensor] = []
 
         for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_scores, bbox_preds)):
             stride = self.strides[level_idx]
@@ -456,10 +463,12 @@ class PicoDetObjectDetectionTrain(TrainModel):
             )
             flatten_cls_preds.append(cls_pred_flat)
             flatten_bbox_preds.append(bbox_pred_flat)
+            flatten_bbox_preds.append(bbox_pred_flat)
 
         all_center_and_strides = torch.cat(center_and_strides, dim=1)
         all_decoded_bboxes_pixel = torch.cat(decode_bbox_preds_pixel, dim=1)
         all_cls_preds = torch.cat(flatten_cls_preds, dim=1)
+        all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
         all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
 
         all_vfl_losses: list[Tensor] = []
@@ -599,6 +608,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         total_obj = torch.zeros((), device=device)
         total_cls = torch.zeros((), device=device)
         total_box = torch.zeros((), device=device)
+        total_dfl = torch.zeros((), device=device)
         total_pos = torch.zeros((), device=device)
         total_iou = torch.zeros((), device=device)
         total_cls_target = torch.zeros((), device=device)
@@ -661,6 +671,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         for img_idx in range(batch_size):
             pred_boxes = all_decoded_bboxes_pixel[img_idx]
             pred_cls_logits = all_cls_preds[img_idx]
+            pred_bbox = all_bbox_preds[img_idx]
             priors = all_center_and_strides[img_idx]
             gt_boxes = gt_boxes_xyxy_list[img_idx].to(device)
             gt_labels = gt_labels_list[img_idx].to(device).long()
@@ -732,15 +743,38 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
             if pos_mask.any():
                 target_boxes = gt_boxes[assigned_gt[pos_mask]]
-                box_loss = self.giou_loss(pred_boxes[pos_mask], target_boxes)
+                giou_loss = self.giou_loss(pred_boxes[pos_mask], target_boxes)
+                pos_priors = priors[pos_mask]
+                pos_strides = pos_priors[:, 2:3]
+                pos_centers = pos_priors[:, :2]
+                pos_centers_feature = pos_centers / pos_strides
+                pos_gt_bboxes_feature = target_boxes / pos_strides
+                pos_bbox_pred = pred_bbox[pos_mask]
+                pos_gt_distances = bbox2distance(
+                    pos_centers_feature,
+                    pos_gt_bboxes_feature,
+                    reg_max=float(self.reg_max),
+                )
+                dfl_weight = assigned_ious[pos_mask].unsqueeze(-1).expand(-1, 4).reshape(
+                    -1
+                )
+                dfl_loss = self.dfl_loss(
+                    pos_bbox_pred.reshape(-1, self.reg_max + 1),
+                    pos_gt_distances.reshape(-1),
+                    weight=dfl_weight,
+                )
+                dfl_loss = dfl_loss / 4.0
+                box_loss = giou_loss + self.model_args.loss_o2o_dfl_weight * dfl_loss
             else:
                 box_loss = torch.zeros((), device=device)
+                dfl_loss = torch.zeros((), device=device)
 
             obj_loss = torch.zeros((), device=device)
 
             total_obj = total_obj + obj_loss
             total_cls = total_cls + cls_loss
             total_box = total_box + box_loss
+            total_dfl = total_dfl + dfl_loss
 
         total_obj = total_obj / batch_size
         total_cls = total_cls / batch_size
@@ -760,7 +794,8 @@ class PicoDetObjectDetectionTrain(TrainModel):
             "o2o_gt_matched_medium": total_gt_matched_medium,
             "o2o_gt_matched_large": total_gt_matched_large,
         }
-        return total_loss, total_obj, total_cls, total_box, stats
+        total_dfl = total_dfl / batch_size
+        return total_loss, total_obj, total_cls, total_box, total_dfl, stats
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler.
