@@ -69,9 +69,9 @@ class DINOArgs(MethodArgs):
     weight_decay_start: float | Literal["auto"] = "auto"
     weight_decay_end: float | Literal["auto"] = "auto"
     # learning rate
-    # Default lr warmup steps based on 10 epochs on ImageNet with batch size 8192:
-    # 10 * 1280000 / 8192 ~= 1560
-    warmup_steps: int = 1560
+    # Default lr warmup steps based on 10 epochs on ImageNet with batch size 1024.:
+    # 10 * 1280000 / 1024 ~= 12500
+    warmup_steps: int = 12500
     warmup_max_steps_fraction: float = 0.1  # Max 10% of total steps.
 
     def resolve_auto(
@@ -125,22 +125,22 @@ class DINOArgs(MethodArgs):
         if self.warmup_teacher_temp_steps == "auto":
             if self.warmup_teacher_temp_epochs is None:
                 # Default DINO settings are 30 epochs warmup on ImageNet with 1.28M images
-                # at batch size 8192. This is 30 * 1280000 / 8192 ~= 4700 steps.
+                # at batch size 1024. This is 30 * 1280000 / 1024 ~= 37500 steps.
                 # We don't want to warmup for a fixed number of epochs because that would
                 # be too long for large datasets that are only trained for a few epochs.
                 # So we set a fixed number of steps.
-                self.warmup_teacher_temp_steps = 4700
+                self.warmup_teacher_temp_steps = 37500
             else:
                 self.warmup_teacher_temp_steps = None
 
         if self.student_freeze_last_layer_steps == "auto":
             if self.student_freeze_last_layer_epochs is None:
                 # Default DINO settings are 1 epoch freeze on ImageNet with 1.28M images
-                # at batch size 8192. This is 1 * 1280000 / 8192 ~= 160 steps.
+                # at batch size 1024. This is 1 * 1280000 / 1024 ~= 1250 steps.
                 # We don't want to freeze for a fixed number of epochs because that would
                 # be too long for large datasets that are only trained for a few epochs.
                 # So we set a fixed number of steps.
-                self.student_freeze_last_layer_steps = 160
+                self.student_freeze_last_layer_steps = 1250
             else:
                 self.student_freeze_last_layer_steps = None
 
@@ -459,6 +459,8 @@ def _teacher_temp_schedule(
             )
         warmup_steps = int(warmup_epochs * steps_per_epoch)
 
-    if step < warmup_steps and step < (max_steps * warmup_max_steps_fraction):
+    warmup_steps = max(warmup_steps, int(max_steps * warmup_max_steps_fraction))
+
+    if step < warmup_steps:
         return warmup_temp + step * (temp - warmup_temp) / warmup_steps
     return temp
