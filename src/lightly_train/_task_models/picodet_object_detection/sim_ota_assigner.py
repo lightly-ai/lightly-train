@@ -87,7 +87,7 @@ class TaskAlignedTop1Assigner:
             if not bool(has_center.all()):
                 gt_centers = (gt_boxes_xyxy[:, 0:2] + gt_boxes_xyxy[:, 2:4]) / 2
                 diff = prior_centers[:, None, :] - gt_centers[None, :, :]
-                dist2 = (diff ** 2).sum(dim=-1)
+                dist2 = (diff**2).sum(dim=-1)
                 missing = ~has_center
                 if bool(missing.any()):
                     nearest_idx = dist2[:, missing].argmin(dim=0)

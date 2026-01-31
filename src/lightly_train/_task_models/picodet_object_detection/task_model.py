@@ -299,7 +299,9 @@ class PicoDetObjectDetection(TaskModel):
         device = cls_scores_list[0].device
         decode_bbox_preds_pixel: list[Tensor] = []
         flatten_cls_preds: list[Tensor] = []
-        decode_dtype = torch.float32 if self._export_decode_fp32 else cls_scores_list[0].dtype
+        decode_dtype = (
+            torch.float32 if self._export_decode_fp32 else cls_scores_list[0].dtype
+        )
 
         for level_idx, (cls_score, bbox_pred) in enumerate(
             zip(cls_scores_list, bbox_preds_list)

@@ -62,7 +62,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
-from lightly_train.types import ObjectDetectionBatch
+from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
 class PicoDetObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
@@ -412,7 +412,9 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "debug/o2o_gt_center_medium": o2o_stats["o2o_gt_center_medium"].item(),
                 "debug/o2o_gt_center_large": o2o_stats["o2o_gt_center_large"].item(),
                 "debug/o2o_gt_matched_small": o2o_stats["o2o_gt_matched_small"].item(),
-                "debug/o2o_gt_matched_medium": o2o_stats["o2o_gt_matched_medium"].item(),
+                "debug/o2o_gt_matched_medium": o2o_stats[
+                    "o2o_gt_matched_medium"
+                ].item(),
                 "debug/o2o_gt_matched_large": o2o_stats["o2o_gt_matched_large"].item(),
                 "val_metric/map": self.map_metric,
             },
@@ -668,9 +670,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         assert all_cls_preds.shape[1] == all_center_and_strides.shape[1]
 
         img_h, img_w = image_size
-        scale_limit = all_decoded_bboxes_pixel.new_tensor(
-            [img_w, img_h, img_w, img_h]
-        )
+        scale_limit = all_decoded_bboxes_pixel.new_tensor([img_w, img_h, img_w, img_h])
         all_decoded_bboxes_pixel = torch.min(
             all_decoded_bboxes_pixel, scale_limit
         ).clamp(min=0)
@@ -725,22 +725,20 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 small = gt_area < 32**2
                 medium = (gt_area >= 32**2) & (gt_area < 96**2)
                 large = gt_area >= 96**2
-                total_gt_matched_small = (
-                    total_gt_matched_small + matched[small].sum()
-                )
+                total_gt_matched_small = total_gt_matched_small + matched[small].sum()
                 total_gt_matched_medium = (
                     total_gt_matched_medium + matched[medium].sum()
                 )
-                total_gt_matched_large = (
-                    total_gt_matched_large + matched[large].sum()
-                )
+                total_gt_matched_large = total_gt_matched_large + matched[large].sum()
             cls_target = pred_cls_logits.new_zeros(pred_cls_logits.shape)
             num_pos = pos_mask.sum()
             total_pos = total_pos + num_pos
             if pos_mask.any():
                 cls_target[pos_mask] = F.one_hot(
                     assigned_labels[pos_mask], num_classes=self.num_classes
-                ).to(dtype=pred_cls_logits.dtype) * assigned_ious[pos_mask].unsqueeze(-1)
+                ).to(dtype=pred_cls_logits.dtype) * assigned_ious[pos_mask].unsqueeze(
+                    -1
+                )
                 total_iou = total_iou + assigned_ious[pos_mask].sum()
                 total_cls_target = total_cls_target + cls_target[pos_mask].sum()
 
@@ -762,8 +760,8 @@ class PicoDetObjectDetectionTrain(TrainModel):
                     pos_gt_bboxes_feature,
                     reg_max=float(self.reg_max),
                 )
-                dfl_weight = assigned_ious[pos_mask].unsqueeze(-1).expand(-1, 4).reshape(
-                    -1
+                dfl_weight = (
+                    assigned_ious[pos_mask].unsqueeze(-1).expand(-1, 4).reshape(-1)
                 )
                 dfl_loss = self.dfl_loss(
                     pos_bbox_pred.reshape(-1, self.reg_max + 1),
