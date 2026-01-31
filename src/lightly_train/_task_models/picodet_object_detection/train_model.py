@@ -76,6 +76,7 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     """Training arguments for PicoDet-S.
 
     Args:
+        backbone_weights: Optional path to backbone checkpoint to load.
         lr: Learning rate for SGD optimizer.
         momentum: Momentum for SGD optimizer.
         weight_decay: Weight decay for SGD optimizer.
@@ -97,6 +98,8 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
         PicoDetObjectDetectionTaskSaveCheckpointArgs
     )
+
+    backbone_weights: PathLike | None = None
 
     lr: float = 0.1
     momentum: float = 0.9
