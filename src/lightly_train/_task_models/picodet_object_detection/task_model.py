@@ -196,12 +196,24 @@ class PicoDetObjectDetection(TaskModel):
             return
 
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
-        if isinstance(state_dict, dict) and "state_dict" in state_dict:
-            state_dict = state_dict["state_dict"]
+        if isinstance(state_dict, dict):
+            for key in ("state_dict", "model", "model_state_dict", "student"):
+                if key in state_dict and isinstance(state_dict[key], dict):
+                    state_dict = state_dict[key]
+                    break
 
         if isinstance(state_dict, dict):
-            prefixes = ("model.", "backbone.")
-            if any(key.startswith(prefixes) for key in state_dict):
+            if all(key.startswith("module.") for key in state_dict):
+                state_dict = {
+                    key[len("module.") :]: value for key, value in state_dict.items()
+                }
+
+            prefixes = ("_model.", "model.", "backbone.")
+            if all(key.startswith(prefixes) for key in state_dict):
+                state_dict = {
+                    key.split(".", 1)[1]: value for key, value in state_dict.items()
+                }
+            elif any(key.startswith(prefixes) for key in state_dict):
                 state_dict = {
                     key.split(".", 1)[1]: value
                     for key, value in state_dict.items()
