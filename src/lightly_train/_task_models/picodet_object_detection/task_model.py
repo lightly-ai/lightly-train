@@ -140,6 +140,8 @@ class PicoDetObjectDetection(TaskModel):
         )
         backbone_out_channels = self.backbone.out_channels
 
+        print("Attempting to load backbone weights: ", load_weights, backbone_weights)
+
         if load_weights and backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
@@ -221,12 +223,17 @@ class PicoDetObjectDetection(TaskModel):
                 }
 
         missing, unexpected = self.backbone.load_state_dict(state_dict, strict=False)
+        total_backbone_keys = len(self.backbone.state_dict())
+        loaded_keys = total_backbone_keys - len(missing)
+        logger.info(
+            "Backbone weights loaded: %d/%d keys matched.",
+            loaded_keys,
+            total_backbone_keys,
+        )
         if missing:
             logger.warning("Missing keys when loading backbone: %s", missing)
         if unexpected:
             logger.warning("Unexpected keys when loading backbone: %s", unexpected)
-        if not missing and not unexpected:
-            logger.info("Backbone weights loaded successfully.")
 
     @classmethod
     def list_model_names(cls) -> list[str]:
