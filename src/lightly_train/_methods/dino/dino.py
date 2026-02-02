@@ -277,6 +277,7 @@ class DINO(Method):
             teacher_out=x_teacher.chunk(2),
             student_out=x_student.chunk(len_views),
             teacher_temp=teacher_temp,
+            epoch=self.current_epoch,  # Unused but kept for backward compatibility
         )
 
         return TrainingStepResult(
