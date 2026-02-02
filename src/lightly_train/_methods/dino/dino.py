@@ -351,14 +351,16 @@ class DINO(Method):
             for m in trainable_modules.modules_no_weight_decay:
                 params_no_weight_decay.extend(m.parameters())
 
-        # Create parameter groups for the last layer
+        # Create parameter groups for the last layer.
         params_last_layer = list(self.student_projection_head.last_layer.parameters())
 
-        # Remove last layer params. The last layer doesn't contain any no weight decay
-        # params.
+        # Remove last layer params from other parameter groups.
         last_layer_ids = {id(p) for p in params_last_layer}
         params_weight_decay = [
             p for p in params_weight_decay if id(p) not in last_layer_ids
+        ]
+        params_no_weight_decay = [
+            p for p in params_no_weight_decay if id(p) not in last_layer_ids
         ]
 
         params: list[dict[str, Any]] = [
@@ -423,7 +425,7 @@ class DINO(Method):
             steps_per_epoch = int(
                 self.trainer.estimated_stepping_batches / self.trainer.max_epochs
             )
-            freeze_last_layer_steps = (
+            freeze_last_layer_steps = int(
                 no_auto(self.method_args.student_freeze_last_layer_epochs)
                 * steps_per_epoch
             )

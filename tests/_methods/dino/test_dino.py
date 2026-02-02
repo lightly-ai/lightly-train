@@ -37,9 +37,9 @@ class TestDINOArgs:
         assert args.teacher_temp == 0.07
         assert args.warmup_teacher_temp == 0.04
         assert args.warmup_teacher_temp_epochs is None
-        assert args.warmup_teacher_temp_steps == 4700
+        assert args.warmup_teacher_temp_steps == 37500
         assert args.student_freeze_last_layer_epochs is None
-        assert args.student_freeze_last_layer_steps == 160
+        assert args.student_freeze_last_layer_steps == 1250
         assert args.momentum_start == 0.996
         assert not args.has_auto()
 
@@ -55,9 +55,9 @@ class TestDINOArgs:
         assert args.teacher_temp == 0.02
         assert args.warmup_teacher_temp == 0.02
         assert args.warmup_teacher_temp_epochs is None
-        assert args.warmup_teacher_temp_steps == 4700
+        assert args.warmup_teacher_temp_steps == 37500
         assert args.student_freeze_last_layer_epochs is None
-        assert args.student_freeze_last_layer_steps == 160
+        assert args.student_freeze_last_layer_steps == 1250
         assert args.momentum_start == 0.99
         assert not args.has_auto()
 
@@ -73,9 +73,9 @@ class TestDINOArgs:
         assert args.teacher_temp == 0.07
         assert args.warmup_teacher_temp == 0.04
         assert args.warmup_teacher_temp_epochs is None
-        assert args.warmup_teacher_temp_steps == 4700
+        assert args.warmup_teacher_temp_steps == 37500
         assert args.student_freeze_last_layer_epochs is None
-        assert args.student_freeze_last_layer_steps == 160
+        assert args.student_freeze_last_layer_steps == 1250
         assert args.momentum_start == 0.996
         assert not args.has_auto()
 
