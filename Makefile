@@ -225,7 +225,7 @@ DOCKER_EXTRAS := --extra mlflow --extra tensorboard --extra timm --extra wandb -
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
-EXCLUDE_NEWER_DATE := "2025-12-29"
+EXCLUDE_NEWER_DATE := "2026-02-02"
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
 # on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
@@ -243,16 +243,20 @@ ifeq ($(UNAME_S),Linux)
 ifdef CI
 PINNED_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 PINNED_TORCH_VERSION_PY312 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
+PINNED_TORCH_VERSION_PY313 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp313-cp313-linux_x86_64.whl"
 PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 PINNED_TORCHVISION_VERSION_PY312 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
+PINNED_TORCHVISION_VERSION_PY313 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp313-cp313-linux_x86_64.whl"
 MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 endif
 else
 PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
 PINNED_TORCH_VERSION_PY312 := "torch==2.4.0"
+PINNED_TORCH_VERSION_PY313 := "torch==2.4.0"
 PINNED_TORCHVISION_VERSION_PY38 := "torchvision==0.19.0"
 PINNED_TORCHVISION_VERSION_PY312 := "torchvision==0.19.0"
+PINNED_TORCHVISION_VERSION_PY313 := "torchvision==0.19.0"
 MINIMAL_TORCH_VERSION_PY38 := "torch==2.1.0"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision==0.16.0"
 endif
@@ -328,6 +332,16 @@ install-pinned-3.12:
 	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY312}" --requirement pyproject.toml \
 		${PINNED_TORCH_VERSION_PY312} ${PINNED_TORCHVISION_VERSION_PY312}
 
+# Install package for Python 3.13 with dependencies pinned to the latest compatible
+# version available at EXCLUDE_NEWER_DATE.
+#
+# For Python 3.13 we install the package with RFDETR and without SuperGradients.
+# See install-pinned-3.8 for more information.
+.PHONY: install-pinned-3.13
+install-pinned-3.13:
+	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY312}" --requirement pyproject.toml \
+		${PINNED_TORCH_VERSION_PY313} ${PINNED_TORCHVISION_VERSION_PY313}
+
 # Install package with the latest dependencies for Python 3.8.
 .PHONY: install-latest-3.8
 install-latest-3.8:
@@ -338,9 +352,10 @@ install-latest-3.8:
 install-latest-3.12:
 	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY312}" "torch<2.9.0"
 
-# Install package with same dependencies as for Python 3.12
+# Install package with the latest dependencies for Python 3.13.
 .PHONY: install-latest-3.13
-install-latest-3.13: install-latest-3.12
+install-latest-3.13:
+	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY312}" "torch<2.9.0"
 
 # Install package for building docs.
 .PHONY: install-docs
