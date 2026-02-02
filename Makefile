@@ -213,6 +213,7 @@ EXTRAS_PY38 := [dev,dicom,mlflow,notebook,onnx,super-gradients,tensorboard,timm,
 # RFDETR has installation issues because of onnxsim dependency on CI with Python 3.12.
 # Onnx dependencies in RFDETR should become optional in RFDETR >1.1.0.
 EXTRAS_PY312 := [dev,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY313 := [dev,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies. And SuperGradients is not compatible with
@@ -243,20 +244,20 @@ ifeq ($(UNAME_S),Linux)
 ifdef CI
 PINNED_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 PINNED_TORCH_VERSION_PY312 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
-PINNED_TORCH_VERSION_PY313 := "torch@https://download.pytorch.org/whl/cu118/torch-2.5.0%2Bcu118-cp313-cp313-linux_x86_64.whl"
+PINNED_TORCH_VERSION_PY313 := "torch@https://download.pytorch.org/whl/cu118/torch-2.7.0%2Bcu118-cp313-cp313-linux_x86_64.whl"
 PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 PINNED_TORCHVISION_VERSION_PY312 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
-PINNED_TORCHVISION_VERSION_PY313 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.20.0%2Bcu118-cp313-cp313-linux_x86_64.whl"
+PINNED_TORCHVISION_VERSION_PY313 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.22.0%2Bcu118-cp313-cp313-linux_x86_64.whl"
 MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 endif
 else
 PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
 PINNED_TORCH_VERSION_PY312 := "torch==2.4.0"
-PINNED_TORCH_VERSION_PY313 := "torch==2.5.0"
+PINNED_TORCH_VERSION_PY313 := "torch==2.7.0"
 PINNED_TORCHVISION_VERSION_PY38 := "torchvision==0.19.0"
 PINNED_TORCHVISION_VERSION_PY312 := "torchvision==0.19.0"
-PINNED_TORCHVISION_VERSION_PY313 := "torchvision==0.20.0"
+PINNED_TORCHVISION_VERSION_PY313 := "torchvision==0.22.0"
 MINIMAL_TORCH_VERSION_PY38 := "torch==2.1.0"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision==0.16.0"
 endif
@@ -325,7 +326,6 @@ install-pinned-3.8:
 # Install package for Python 3.12 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE.
 #
-# For Python 3.12 we install the package with RFDETR and without SuperGradients.
 # See install-pinned-3.8 for more information.
 .PHONY: install-pinned-3.12
 install-pinned-3.12:
@@ -335,11 +335,10 @@ install-pinned-3.12:
 # Install package for Python 3.13 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE.
 #
-# For Python 3.13 we install the package with RFDETR and without SuperGradients.
 # See install-pinned-3.8 for more information.
 .PHONY: install-pinned-3.13
 install-pinned-3.13:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY312}" --requirement pyproject.toml \
+	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY313}" --requirement pyproject.toml \
 		${PINNED_TORCH_VERSION_PY313} ${PINNED_TORCHVISION_VERSION_PY313}
 
 # Install package with the latest dependencies for Python 3.8.
@@ -355,12 +354,12 @@ install-latest-3.12:
 # Install package with the latest dependencies for Python 3.13.
 .PHONY: install-latest-3.13
 install-latest-3.13:
-	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY312}" "torch<2.9.0"
+	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY313}" "torch<2.9.0"
 
 # Install package for building docs.
 .PHONY: install-docs
 install-docs:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY312}" --requirement pyproject.toml
+	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY313}" --requirement pyproject.toml
 
 # Install package dependencies in Docker image.
 # Uninstall opencv-python and opencv-python-headless because they are both installed by rfdetr
