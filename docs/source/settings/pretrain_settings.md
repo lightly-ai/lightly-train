@@ -163,7 +163,7 @@ Training precision setting. Must be one of the following strings:
 
 - `"bf16-mixed"`: Default. Operations run in bfloat16 where supported, weights are saved
   in float32. Not supported on all hardware.
-- `"16-true"`: All operations and weights in float16. Fastest but may be unstable
+- `"16-true"`: All operations and weights are in float16. Fastest but may be unstable
   depending on model, hardware, and dataset.
 - `"16-mixed"`: Most operations run in float16 precision. Not supported on all hardware.
 - `"32-true"`: All operations and weights are in float32. Slower but more stable.
