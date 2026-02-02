@@ -522,7 +522,7 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         checkpoint=last_ckpt_path,
         accelerator="cpu",
         devices=1,
-        optim_args={"lr": 10},  # Make sure that parameters change meaningfully.
+        optim_args={"lr": 100},  # Make sure that parameters change meaningfully.
     )
     spy_load_state_dict.assert_called_once()
     call_args = spy_load_state_dict.call_args_list[0]
