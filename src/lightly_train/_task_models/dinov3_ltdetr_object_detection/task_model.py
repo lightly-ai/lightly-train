@@ -514,7 +514,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             A dictionary with:
                 - "labels": Tensor of shape (N,) with predicted class indices.
                 - "bboxes": Tensor of shape (N, 4) with bounding boxes in
-                  (x_min, y_min, x_max, y_max) in the coordinates of the original image.
+                  (x_min, y_min, x_max, y_max) in absolute pixel coordinates of the
+                  original image.
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
         self._track_inference()
@@ -588,7 +589,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 global_local_iou_threshold yields less predictions.
 
         Returns:
-            dict[str, Tensor]: A dictionary with:
+            A dictionary with:
                 - "labels": Tensor of shape (N,) with predicted class indices.
                 - "bboxes": Tensor of shape (N, 4) with bounding boxes in (x_min, y_min, x_max, y_max)
                   in the coordinates of the original image.
