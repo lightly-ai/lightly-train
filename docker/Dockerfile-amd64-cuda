@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install -y make curl
 # Install Pillow-SIMD dependencies.
 RUN apt-get update && apt-get install -y python3.11-dev libjpeg8-dev libjpeg-turbo-progs libtiff5-dev libwebp-dev gcc
 
+# Install cv2 dependencies.
+RUN apt-get update && apt-get install -y libxcb1
+
 # Create working directory
 WORKDIR /home/lightly_train
 
