@@ -76,7 +76,7 @@ class TrainModel(Module):
     def get_optimizer(
         self,
         total_steps: int,
-        batch_size: int,
+        global_batch_size: int,
     ) -> tuple[Optimizer, LRScheduler]:
         raise NotImplementedError()
 

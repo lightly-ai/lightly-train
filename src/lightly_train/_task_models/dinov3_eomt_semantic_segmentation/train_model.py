@@ -547,7 +547,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
     def get_optimizer(
         self,
         total_steps: int,
-        batch_size: int,
+        global_batch_size: int,
     ) -> tuple[Optimizer, LRScheduler]:
         # TODO(Guarin, 07/25): It seems like EoMT doesn't exclude norm/bias params
         # from weight decay. We might want to change this.
@@ -556,7 +556,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         other_param_groups = []
         backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         block_i = backbone_blocks
-        lr = self.model_args.lr * batch_size / self.model_args.default_batch_size
+        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
 
         for name, param in reversed(list(self.named_parameters())):
             param_lr = lr

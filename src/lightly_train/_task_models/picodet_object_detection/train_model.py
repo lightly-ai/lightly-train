@@ -507,13 +507,13 @@ class PicoDetObjectDetectionTrain(TrainModel):
     def get_optimizer(
         self,
         total_steps: int,
-        batch_size: int,
+        global_batch_size: int,
     ) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler.
 
         Uses cosine schedule with warmup steps.
         """
-        lr = self.model_args.lr * batch_size / self.model_args.default_batch_size
+        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
         param_groups = [
             {
                 "name": "default",

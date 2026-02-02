@@ -832,7 +832,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_model.set_train_mode()
         optimizer, scheduler = train_model.get_optimizer(
             total_steps=config.steps,
-            batch_size=config.batch_size,
+            global_batch_size=config.batch_size,
         )
         # NOTE(Guarin, 07/25): Fabric returns wrapped versions of the model and
         # optimizer but for all practical purposes we can treat them as the original

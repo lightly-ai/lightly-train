@@ -361,10 +361,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     def get_optimizer(
         self,
         total_steps: int,
-        batch_size: int,
+        global_batch_size: int,
     ) -> tuple[Optimizer, LRScheduler]:
         # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
-        lr = self.model_args.lr * batch_size / self.model_args.default_batch_size
+        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
         param_groups = []
         base_weight_decay = self.model_args.weight_decay
         backbone_lr = lr * self.model_args.backbone_lr_factor
