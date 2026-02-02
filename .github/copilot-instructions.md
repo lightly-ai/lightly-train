@@ -1,3 +1,8 @@
+# Introduction
+
+Follow installation, contributing, and testing instructions from
+[CONTRIBUTING.md](../CONTRIBUTING.md) in the project root.
+
 # Python coding guidelines
 
 ## Imports
@@ -58,8 +63,12 @@ For TODOs, use a format `# TODO({Name}, {month}/{year}): {full_sentence_comment}
 
 ## Comments
 
-For comments outside of docstrings, use full sentences and proper punctuation. E.g.
-`# This is a comment.` instead of `# this is a comment`.
+For comments outside of docstrings, use full sentences and proper punctuation when
+writing comments. E.g. `# This is a comment.` instead of `# this is a comment`. Ignore
+requirement for full sentences and punctuation when reviewing code.
+
+Wrap comments at 88 characters when writing them. Ignore comment line length when
+reviewing code.
 
 ## Assertions
 
@@ -115,6 +124,8 @@ Be specific when ignoring type errors, e.g. `# type: ignore[no-untyped-call]` in
 Type all PyTorch tensors with `from torch import Tensor`. Note that things like
 `FloatTensor` and `LongTensor` should NOT be used.
 
+Run type checks with `make type-check`.
+
 ## Testing
 
 Always use pytest, never unittest.
@@ -129,6 +140,8 @@ When testing a special case of a function or method append a `__{special_case}` 
 test name. E.g. the test for the function `compute_mean(arr: list[float])` for the empty
 array case should be named `test_compute_mean__empty_array`.
 
-# Markdown documentation style guidelines
+Run tests with `pytest path/to/test_file.py`.
 
-Make sure Lines are wrapped at 88 characters.
+## Linting
+
+Format code with `make format`. Check formatting with `make format-check`.
