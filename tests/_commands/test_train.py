@@ -436,7 +436,14 @@ def test_pretrain__TrainConfig__model_dump(tmp_path: Path) -> None:
 
     # Check for some specific attributes.
     assert dumped_config_direct["optim_args"]["betas"] == (0.9, 0.999)
-    assert dumped_config_direct["method_args"]["warmup_teacher_temp_epochs"] == 30
+    assert dumped_config_direct["method_args"]["warmup_teacher_temp_epochs"] is None
+    assert dumped_config_direct["method_args"]["warmup_teacher_temp_steps"] == 37500
+    assert (
+        dumped_config_direct["method_args"]["student_freeze_last_layer_epochs"] is None
+    )
+    assert (
+        dumped_config_direct["method_args"]["student_freeze_last_layer_steps"] == 1250
+    )
 
 
 def test_pretrain__log_resolved_config(
