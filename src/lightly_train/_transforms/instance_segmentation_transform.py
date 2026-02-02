@@ -262,6 +262,28 @@ class InstanceSegmentationTransform(TaskTransform):
     def __call__(
         self, input: InstanceSegmentationTransformInput
     ) -> InstanceSegmentationTransformOutput:
+        # Handle the case when there are no masks. Albumentations doesn't like passing
+        # empty numpy arrays as masks.
+        if len(input["binary_masks"]) == 0:
+            # Transform only the image without masks.
+            transformed = self.transform(
+                image=input["image"],
+                # Pass empty lists to avoid albumentations errors. Yes this is weird,
+                # empty numpy arrays don't work but empty lists do.
+                masks=[],
+                bboxes=[],
+                class_labels=[],
+                indices=[],
+            )
+            image = transformed["image"]
+            H, W = image.shape[-2:]
+            return {
+                "image": image,
+                "binary_masks": image.new_zeros(0, H, W, dtype=torch.int),
+                "bboxes": np.array([], dtype=np.float64).reshape(0, 4),
+                "class_labels": np.array([], dtype=np.int64),
+            }
+
         # Mask augmentations only work correctly when passed as `masks` to albumentations.
         # Passing as `binary_masks` and adding `additional_targets={"binary_masks": "masks"}`
         # doesn't work. "mask" also doesn't work as target.
