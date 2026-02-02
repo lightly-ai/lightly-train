@@ -252,7 +252,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
                 scores <= threshold are discarded.
 
         Returns:
-            dict[str, Tensor]: A dictionary with:
+            A dictionary with:
                 - "labels": Tensor of shape (N,) with predicted class indices.
                 - "bboxes": Tensor of shape (N, 4) with bounding boxes in
                   (x_min, y_min, x_max, y_max) in the coordinates of the original image.
