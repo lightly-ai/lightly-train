@@ -460,8 +460,9 @@ def _teacher_temp_schedule(
                 "Either warmup_epochs or warmup_steps must be provided but both are None."
             )
         warmup_steps = int(warmup_epochs * steps_per_epoch)
-
-    warmup_steps = max(warmup_steps, int(max_steps * warmup_max_steps_fraction))
+        # Make sure warmup does not exceed the maximum fraction of total steps. This
+        # avoids too long warmup for very large datasets with few epochs.
+        warmup_steps = min(warmup_steps, int(max_steps * warmup_max_steps_fraction))
 
     if step < warmup_steps:
         return warmup_temp + step * (temp - warmup_temp) / warmup_steps
