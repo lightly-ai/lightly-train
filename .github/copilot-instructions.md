@@ -3,6 +3,9 @@
 Follow installation, contributing, and testing instructions from
 [CONTRIBUTING.md](../CONTRIBUTING.md) in the project root.
 
+Always run code in the current virtual environment in `.venv/bin/activate` unless
+otherwise specified.
+
 # Python coding guidelines
 
 ## Imports
