@@ -354,7 +354,7 @@ install-latest-3.12:
 # Install package with the latest dependencies for Python 3.13.
 .PHONY: install-latest-3.13
 install-latest-3.13:
-	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY313}" "torch<2.9.0"
+	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY313}"
 
 # Install package for building docs.
 .PHONY: install-docs
