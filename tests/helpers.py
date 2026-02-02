@@ -507,7 +507,9 @@ def create_normalized_yolo_instance_segmentation_labels(
         with open(label_path, "w") as f:
             # Write empty file for empty label indices.
             if idx not in empty_label_indices:
-                f.write("0 0.30 0.30 0.45 0.27 0.49 0.50 0.44 0.70 0.31 0.73 0.26 0.50\n")
+                f.write(
+                    "0 0.30 0.30 0.45 0.27 0.49 0.50 0.44 0.70 0.31 0.73 0.26 0.50\n"
+                )
 
 
 def create_yolo_object_detection_dataset(
