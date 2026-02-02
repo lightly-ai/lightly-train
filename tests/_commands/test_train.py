@@ -545,7 +545,9 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         if key.startswith("fc."):
             # Skip the last layer as it is not pretrained.
             continue
-        assert not torch.equal(first_state_dict[key], second_state_dict[key])
+        assert not torch.equal(first_state_dict[key], second_state_dict[key]), (
+            f"Parameter {key} did not change: {first_state_dict[key]}"
+        )
 
     # Check that last.ckpt and exported_model.pt contain same information. If this fails
     # it means that checkpoint loading is not working correctly.
@@ -557,7 +559,9 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         if key.startswith("fc."):
             # Skip the last layer as it is not pretrained.
             continue
-        assert torch.equal(second_state_dict[key], exported_state_dict[key])
+        assert torch.equal(second_state_dict[key], exported_state_dict[key]), (
+            f"Parameter {key} differs between checkpoint and exported model: {second_state_dict[key]} vs. {exported_state_dict[key]}"
+        )
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
