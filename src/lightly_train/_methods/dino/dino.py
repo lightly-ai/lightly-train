@@ -50,7 +50,7 @@ class DINOArgs(MethodArgs):
     hidden_dim: int = 2048
     bottleneck_dim: int = 256
     output_dim: int | Literal["auto"] = "auto"
-    student_freeze_last_layer_epochs: int | None = None
+    student_freeze_last_layer_epochs: int | None = None  # Deprecate
     student_freeze_last_layer_steps: int | Literal["auto"] | None = "auto"
     batch_norm: bool = False
     norm_last_layer: bool = True
@@ -122,6 +122,24 @@ class DINOArgs(MethodArgs):
                 ),
             )
 
+        if (
+            self.warmup_teacher_temp_steps is None
+            and self.warmup_teacher_temp_epochs is None
+        ):
+            raise ValueError(
+                "warmup_teacher_temp_epochs and warmup_teacher_temp_steps cannot both "
+                "be None."
+            )
+        if isinstance(self.warmup_teacher_temp_steps, int) and isinstance(
+            self.warmup_teacher_temp_epochs, int
+        ):
+            raise ValueError(
+                f"warmup_teacher_temp_epochs={self.warmup_teacher_temp_epochs} and "
+                f"warmup_teacher_temp_steps={self.warmup_teacher_temp_steps} cannot "
+                "both be set at the same time. Please set only warmup_teacher_temp_steps "
+                "as warmup_teacher_temp_epochs is deprecated."
+            )
+
         if self.warmup_teacher_temp_steps == "auto":
             if self.warmup_teacher_temp_epochs is None:
                 # Default DINO settings are 30 epochs warmup on ImageNet with 1.28M images
@@ -132,6 +150,25 @@ class DINOArgs(MethodArgs):
                 self.warmup_teacher_temp_steps = 37500
             else:
                 self.warmup_teacher_temp_steps = None
+
+        if (
+            self.student_freeze_last_layer_steps is None
+            and self.student_freeze_last_layer_epochs is None
+        ):
+            raise ValueError(
+                "student_freeze_last_layer_epochs and student_freeze_last_layer_steps "
+                "cannot both be None."
+            )
+        if isinstance(self.student_freeze_last_layer_steps, int) and isinstance(
+            self.student_freeze_last_layer_epochs, int
+        ):
+            raise ValueError(
+                f"student_freeze_last_layer_epochs={self.student_freeze_last_layer_epochs} "
+                f"and student_freeze_last_layer_steps={self.student_freeze_last_layer_steps} "
+                "cannot both be set at the same time. Please set only "
+                "student_freeze_last_layer_steps as student_freeze_last_layer_epochs is "
+                "deprecated."
+            )
 
         if self.student_freeze_last_layer_steps == "auto":
             if self.student_freeze_last_layer_epochs is None:
@@ -268,7 +305,7 @@ class DINO(Method):
             warmup_max_steps_fraction=self.method_args.warmup_teacher_temp_max_steps_fraction,
             step=self.trainer.global_step,
             max_steps=int(self.trainer.estimated_stepping_batches),
-            steps_per_epoch=int(
+            steps_per_epoch=math.ceil(
                 self.trainer.estimated_stepping_batches / self.trainer.max_epochs
             ),
         )
@@ -340,8 +377,6 @@ class DINO(Method):
         lr_scale: float = self.global_batch_size / self.method_args.reference_batch_size
         if self.method_args.lr_scale_method == "sqrt":
             lr_scale = math.sqrt(lr_scale)
-
-        self.optimizer_args.lr *= lr_scale  # type: ignore[attr-defined]
 
         # Split parameters into groups with and without weight decay
         trainable_modules = self.trainable_modules()
