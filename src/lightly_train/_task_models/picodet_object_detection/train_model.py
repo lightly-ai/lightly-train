@@ -8,10 +8,11 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, cast
 
 import torch
 import torch.distributed as dist
+import torch.nn.functional as F
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
 from torch import Tensor
@@ -43,11 +44,9 @@ from lightly_train._task_models.picodet_object_detection.pico_head import (
     bbox2distance,
     distance2bbox,
 )
-from lightly_train._task_models.picodet_object_detection.postprocessor import (
-    PicoDetPostProcessor,
-)
 from lightly_train._task_models.picodet_object_detection.sim_ota_assigner import (
     SimOTAAssigner,
+    TaskAlignedTop1Assigner,
 )
 from lightly_train._task_models.picodet_object_detection.task_model import (
     PicoDetObjectDetection,
@@ -63,7 +62,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
-from lightly_train.types import ObjectDetectionBatch
+from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
 class PicoDetObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
@@ -77,6 +76,7 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     """Training arguments for PicoDet-S.
 
     Args:
+        backbone_weights: Optional path to backbone checkpoint to load.
         lr: Learning rate for SGD optimizer.
         momentum: Momentum for SGD optimizer.
         weight_decay: Weight decay for SGD optimizer.
@@ -85,6 +85,7 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
         loss_vfl_weight: Weight for varifocal loss.
         loss_giou_weight: Weight for GIoU loss.
         loss_dfl_weight: Weight for distribution focal loss.
+        loss_o2o_dfl_weight: Weight for the o2o DFL loss term.
         simota_center_radius: Center radius for SimOTA assignment.
         simota_candidate_topk: Top-k candidates for dynamic k in SimOTA.
         simota_iou_weight: IoU weight in SimOTA cost matrix.
@@ -98,6 +99,8 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
         PicoDetObjectDetectionTaskSaveCheckpointArgs
     )
 
+    backbone_weights: PathLike | None = None
+
     lr: float = 0.1
     momentum: float = 0.9
     weight_decay: float = 4e-5
@@ -108,6 +111,7 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     loss_vfl_weight: float = 1.0
     loss_giou_weight: float = 2.0
     loss_dfl_weight: float = 0.25
+    loss_o2o_dfl_weight: float = 0.25
 
     simota_center_radius: float = 2.5
     simota_candidate_topk: int = 10
@@ -158,6 +162,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             num_classes=num_classes,
             classes=data_args.included_classes,
             image_normalize=image_normalize,
+            backbone_weights=model_args.backbone_weights,
             load_weights=load_weights,
         )
 
@@ -178,6 +183,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             cls_weight=1.0,
             num_classes=num_classes,
         )
+        self.o2o_assigner = TaskAlignedTop1Assigner(alpha=0.5, beta=6.0)
 
         # EMA model setup (following LTDETR pattern for consistency)
         # EMA is always enabled
@@ -214,28 +220,65 @@ class PicoDetObjectDetectionTrain(TrainModel):
         img_h, img_w = images.shape[-2:]
 
         outputs = self.model._forward_train(images)
-        cls_scores = outputs["cls_scores"]
-        bbox_preds = outputs["bbox_preds"]
+        cls_scores_list = cast(list[Tensor], outputs["cls_scores"])
+        bbox_preds_list = cast(list[Tensor], outputs["bbox_preds"])
+        o2o_cls_scores = cast(list[Tensor], outputs["o2o_cls_scores"])
+        o2o_bbox_preds = cast(list[Tensor], outputs["o2o_bbox_preds"])
 
         # Convert GT from YOLO format to pixel xyxy
         gt_boxes_xyxy_norm = _yolo_to_xyxy(gt_bboxes_yolo)
         sizes = [(img_w, img_h)] * batch_size
         gt_boxes_xyxy_list = _denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
 
-        total_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
+        dense_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
             fabric=fabric,
-            cls_scores=cls_scores,
-            bbox_preds=bbox_preds,
+            cls_scores=cls_scores_list,
+            bbox_preds=bbox_preds_list,
             gt_boxes_xyxy_list=gt_boxes_xyxy_list,
             gt_labels_list=gt_labels_list,
         )
+        (
+            o2o_loss,
+            loss_o2o_obj,
+            loss_o2o_cls,
+            loss_o2o_box,
+            loss_o2o_dfl,
+            o2o_stats,
+        ) = self._compute_o2o_losses(
+            cls_scores=o2o_cls_scores,
+            bbox_preds=o2o_bbox_preds,
+            gt_boxes_xyxy_list=gt_boxes_xyxy_list,
+            gt_labels_list=gt_labels_list,
+            image_size=(img_h, img_w),
+        )
+
+        total_loss = o2o_loss + 0.5 * dense_loss
 
         loss_dict = reduce_dict(
             {
                 "train_loss": total_loss,
+                "train_loss/loss_o2o": o2o_loss,
+                "train_loss/loss_o2o_obj": loss_o2o_obj,
+                "train_loss/loss_o2o_cls": loss_o2o_cls,
+                "train_loss/loss_o2o_box": loss_o2o_box,
+                "train_loss/loss_o2o_dfl": loss_o2o_dfl,
+                "train_loss/loss_dense": dense_loss,
                 "train_loss/loss_vfl": loss_vfl,
                 "train_loss/loss_giou": loss_giou,
                 "train_loss/loss_dfl": loss_dfl,
+                # TODO(igorsusmelj): remove o2o debug stats after investigation.
+                "debug/o2o_num_pos": o2o_stats["o2o_num_pos"],
+                "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"],
+                "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"],
+                "debug/o2o_gt_small": o2o_stats["o2o_gt_small"],
+                "debug/o2o_gt_medium": o2o_stats["o2o_gt_medium"],
+                "debug/o2o_gt_large": o2o_stats["o2o_gt_large"],
+                "debug/o2o_gt_center_small": o2o_stats["o2o_gt_center_small"],
+                "debug/o2o_gt_center_medium": o2o_stats["o2o_gt_center_medium"],
+                "debug/o2o_gt_center_large": o2o_stats["o2o_gt_center_large"],
+                "debug/o2o_gt_matched_small": o2o_stats["o2o_gt_matched_small"],
+                "debug/o2o_gt_matched_medium": o2o_stats["o2o_gt_matched_medium"],
+                "debug/o2o_gt_matched_large": o2o_stats["o2o_gt_matched_large"],
             }
         )
 
@@ -267,40 +310,68 @@ class PicoDetObjectDetectionTrain(TrainModel):
         with torch.no_grad():
             outputs = model_to_use._forward_train(images)  # type: ignore[operator]
 
-        cls_scores = outputs["cls_scores"]
-        bbox_preds = outputs["bbox_preds"]
+        cls_scores_list = cast(list[Tensor], outputs["cls_scores"])
+        bbox_preds_list = cast(list[Tensor], outputs["bbox_preds"])
+        o2o_cls_scores = cast(list[Tensor], outputs["o2o_cls_scores"])
+        o2o_bbox_preds = cast(list[Tensor], outputs["o2o_bbox_preds"])
 
         gt_boxes_xyxy_norm = _yolo_to_xyxy(gt_bboxes_yolo)
         img_h, img_w = images.shape[-2:]
         sizes = [(img_w, img_h)] * batch_size
         gt_boxes_xyxy_list = _denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
 
-        total_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
+        dense_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
             fabric=fabric,
-            cls_scores=cls_scores,
-            bbox_preds=bbox_preds,
+            cls_scores=cls_scores_list,
+            bbox_preds=bbox_preds_list,
             gt_boxes_xyxy_list=gt_boxes_xyxy_list,
             gt_labels_list=gt_labels_list,
         )
-
-        postprocessor = self.model.postprocessor
-        assert isinstance(postprocessor, PicoDetPostProcessor)
-        predictions = postprocessor.forward_batch(
-            cls_scores=cls_scores,
-            bbox_preds=bbox_preds,
-            original_sizes=torch.tensor([[img_h, img_w]] * batch_size, device=device),
-            score_threshold=0.001,
+        (
+            o2o_loss,
+            loss_o2o_obj,
+            loss_o2o_cls,
+            loss_o2o_box,
+            loss_o2o_dfl,
+            o2o_stats,
+        ) = self._compute_o2o_losses(
+            cls_scores=o2o_cls_scores,
+            bbox_preds=o2o_bbox_preds,
+            gt_boxes_xyxy_list=gt_boxes_xyxy_list,
+            gt_labels_list=gt_labels_list,
+            image_size=(img_h, img_w),
         )
+        total_loss = o2o_loss + 0.5 * dense_loss
+
+        boxes_xyxy, cls_logits = model_to_use._decode_o2o_predictions(
+            cls_scores_list=o2o_cls_scores,
+            bbox_preds_list=o2o_bbox_preds,
+            image_size=(img_h, img_w),
+            input_size=(int(img_h), int(img_w)),
+        )
+        cls_labels = cls_logits.argmax(dim=-1)
+        cls_scores = cls_logits.gather(2, cls_labels.unsqueeze(-1)).squeeze(-1)
+        scores = torch.sigmoid(cls_scores)
+        cls_labels = self.model.internal_class_to_class[cls_labels]
 
         preds = []
         targets = []
+        max_detections = model_to_use.postprocessor.max_detections
 
         for i in range(batch_size):
-            pred_boxes = predictions[i]["bboxes"].detach()
-            pred_scores = predictions[i]["scores"].detach()
-            pred_labels = predictions[i]["labels"].detach()
+            pred_boxes = boxes_xyxy[i].detach()
+            pred_scores = scores[i].detach()
+            pred_labels = cls_labels[i].detach()
             gt_boxes = gt_boxes_xyxy_list[i].to(device).detach()
             gt_labels_i = gt_labels_list[i].to(device).long().detach()
+
+            if pred_scores.numel() > max_detections:
+                topk_scores, topk_idx = torch.topk(
+                    pred_scores, k=max_detections, largest=True
+                )
+                pred_boxes = pred_boxes[topk_idx]
+                pred_labels = pred_labels[topk_idx]
+                pred_scores = topk_scores
 
             preds.append(
                 {
@@ -322,9 +393,30 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss=total_loss,
             log_dict={
                 "val_loss": total_loss.item(),
+                "val_loss/loss_o2o": o2o_loss.item(),
+                "val_loss/loss_o2o_obj": loss_o2o_obj.item(),
+                "val_loss/loss_o2o_cls": loss_o2o_cls.item(),
+                "val_loss/loss_o2o_box": loss_o2o_box.item(),
+                "val_loss/loss_o2o_dfl": loss_o2o_dfl.item(),
+                "val_loss/loss_dense": dense_loss.item(),
                 "val_loss/loss_vfl": loss_vfl.item(),
                 "val_loss/loss_giou": loss_giou.item(),
                 "val_loss/loss_dfl": loss_dfl.item(),
+                # TODO(igorsusmelj): remove o2o debug stats after investigation.
+                "debug/o2o_num_pos": o2o_stats["o2o_num_pos"].item(),
+                "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"].item(),
+                "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"].item(),
+                "debug/o2o_gt_small": o2o_stats["o2o_gt_small"].item(),
+                "debug/o2o_gt_medium": o2o_stats["o2o_gt_medium"].item(),
+                "debug/o2o_gt_large": o2o_stats["o2o_gt_large"].item(),
+                "debug/o2o_gt_center_small": o2o_stats["o2o_gt_center_small"].item(),
+                "debug/o2o_gt_center_medium": o2o_stats["o2o_gt_center_medium"].item(),
+                "debug/o2o_gt_center_large": o2o_stats["o2o_gt_center_large"].item(),
+                "debug/o2o_gt_matched_small": o2o_stats["o2o_gt_matched_small"].item(),
+                "debug/o2o_gt_matched_medium": o2o_stats[
+                    "o2o_gt_matched_medium"
+                ].item(),
+                "debug/o2o_gt_matched_large": o2o_stats["o2o_gt_matched_large"].item(),
                 "val_metric/map": self.map_metric,
             },
         )
@@ -381,6 +473,8 @@ class PicoDetObjectDetectionTrain(TrainModel):
         all_decoded_bboxes_pixel = torch.cat(decode_bbox_preds_pixel, dim=1)
         all_cls_preds = torch.cat(flatten_cls_preds, dim=1)
         all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
+        assert all_cls_preds.shape[1] == all_bbox_preds.shape[1]
+        assert all_cls_preds.shape[1] == all_center_and_strides.shape[1]
 
         all_vfl_losses: list[Tensor] = []
         all_giou_losses: list[Tensor] = []
@@ -504,6 +598,217 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         return total_loss, loss_vfl, loss_giou, loss_dfl
 
+    def _compute_o2o_losses(
+        self,
+        *,
+        cls_scores: list[Tensor],
+        bbox_preds: list[Tensor],
+        gt_boxes_xyxy_list: list[Tensor],
+        gt_labels_list: list[Tensor],
+        image_size: tuple[int, int],
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, dict[str, Tensor]]:
+        batch_size = cls_scores[0].shape[0]
+        device = cls_scores[0].device
+
+        total_obj = torch.zeros((), device=device)
+        total_cls = torch.zeros((), device=device)
+        total_box = torch.zeros((), device=device)
+        total_dfl = torch.zeros((), device=device)
+        total_pos = torch.zeros((), device=device)
+        total_iou = torch.zeros((), device=device)
+        total_cls_target = torch.zeros((), device=device)
+        total_gt_small = torch.zeros((), device=device)
+        total_gt_medium = torch.zeros((), device=device)
+        total_gt_large = torch.zeros((), device=device)
+        total_gt_center_small = torch.zeros((), device=device)
+        total_gt_center_medium = torch.zeros((), device=device)
+        total_gt_center_large = torch.zeros((), device=device)
+        total_gt_matched_small = torch.zeros((), device=device)
+        total_gt_matched_medium = torch.zeros((), device=device)
+        total_gt_matched_large = torch.zeros((), device=device)
+
+        decode_bbox_preds_pixel: list[Tensor] = []
+        center_and_strides: list[Tensor] = []
+        flatten_cls_preds: list[Tensor] = []
+        flatten_bbox_preds: list[Tensor] = []
+
+        for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_scores, bbox_preds)):
+            stride = self.strides[level_idx]
+            _, _, h, w = cls_score.shape
+            num_points = h * w
+
+            y = (torch.arange(h, device=device, dtype=torch.float32) + 0.5) * stride
+            x = (torch.arange(w, device=device, dtype=torch.float32) + 0.5) * stride
+            yy, xx = torch.meshgrid(y, x, indexing="ij")
+            points = torch.stack([xx.flatten(), yy.flatten()], dim=-1)
+            priors = torch.cat(
+                [points, torch.full((num_points, 2), stride, device=device)], dim=-1
+            )
+            center_and_stride = priors.unsqueeze(0).expand(batch_size, -1, -1)
+            center_and_strides.append(center_and_stride)
+
+            center_in_feature = points / stride
+            bbox_pred_flat = bbox_pred.permute(0, 2, 3, 1).reshape(
+                batch_size, num_points, 4 * (self.reg_max + 1)
+            )
+            pred_corners = self.integral(bbox_pred_flat)
+            decode_bbox_pred = distance2bbox(
+                center_in_feature.unsqueeze(0).expand(batch_size, -1, -1), pred_corners
+            )
+            decode_bbox_preds_pixel.append(decode_bbox_pred * stride)
+
+            cls_pred_flat = cls_score.permute(0, 2, 3, 1).reshape(
+                batch_size, num_points, self.num_classes
+            )
+            flatten_cls_preds.append(cls_pred_flat)
+            flatten_bbox_preds.append(bbox_pred_flat)
+
+        all_center_and_strides = torch.cat(center_and_strides, dim=1)
+        all_decoded_bboxes_pixel = torch.cat(decode_bbox_preds_pixel, dim=1)
+        all_cls_preds = torch.cat(flatten_cls_preds, dim=1)
+        all_bbox_preds = torch.cat(flatten_bbox_preds, dim=1)
+        assert all_cls_preds.shape[1] == all_bbox_preds.shape[1]
+        assert all_cls_preds.shape[1] == all_center_and_strides.shape[1]
+
+        img_h, img_w = image_size
+        scale_limit = all_decoded_bboxes_pixel.new_tensor([img_w, img_h, img_w, img_h])
+        all_decoded_bboxes_pixel = torch.min(
+            all_decoded_bboxes_pixel, scale_limit
+        ).clamp(min=0)
+
+        for img_idx in range(batch_size):
+            pred_boxes = all_decoded_bboxes_pixel[img_idx]
+            pred_cls_logits = all_cls_preds[img_idx]
+            pred_bbox = all_bbox_preds[img_idx]
+            priors = all_center_and_strides[img_idx]
+            gt_boxes = gt_boxes_xyxy_list[img_idx].to(device)
+            gt_labels = gt_labels_list[img_idx].to(device).long()
+
+            if gt_boxes.numel() > 0:
+                gt_wh = (gt_boxes[:, 2:] - gt_boxes[:, :2]).clamp(min=0)
+                gt_area = gt_wh[:, 0] * gt_wh[:, 1]
+                small = gt_area < 32**2
+                medium = (gt_area >= 32**2) & (gt_area < 96**2)
+                large = gt_area >= 96**2
+
+                total_gt_small = total_gt_small + small.sum()
+                total_gt_medium = total_gt_medium + medium.sum()
+                total_gt_large = total_gt_large + large.sum()
+
+                centers = priors[:, :2]
+                cx = centers[:, 0].unsqueeze(1)
+                cy = centers[:, 1].unsqueeze(1)
+                in_gt = (cx >= gt_boxes[:, 0]) & (cx <= gt_boxes[:, 2])
+                in_gt = in_gt & (cy >= gt_boxes[:, 1]) & (cy <= gt_boxes[:, 3])
+                has_center = in_gt.any(dim=0)
+                total_gt_center_small = total_gt_center_small + has_center[small].sum()
+                total_gt_center_medium = (
+                    total_gt_center_medium + has_center[medium].sum()
+                )
+                total_gt_center_large = total_gt_center_large + has_center[large].sum()
+
+            assigned_gt, assigned_labels, assigned_ious = self.o2o_assigner.assign(
+                pred_boxes_xyxy=pred_boxes,
+                pred_cls_logits=pred_cls_logits,
+                gt_boxes_xyxy=gt_boxes,
+                gt_labels=gt_labels,
+                prior_centers=priors[:, :2],
+            )
+
+            pos_mask = assigned_gt >= 0
+            if gt_boxes.numel() > 0 and pos_mask.any():
+                matched = torch.zeros(
+                    (gt_boxes.shape[0],), device=device, dtype=torch.bool
+                )
+                matched[assigned_gt[pos_mask]] = True
+                gt_wh = (gt_boxes[:, 2:] - gt_boxes[:, :2]).clamp(min=0)
+                gt_area = gt_wh[:, 0] * gt_wh[:, 1]
+                small = gt_area < 32**2
+                medium = (gt_area >= 32**2) & (gt_area < 96**2)
+                large = gt_area >= 96**2
+                total_gt_matched_small = total_gt_matched_small + matched[small].sum()
+                total_gt_matched_medium = (
+                    total_gt_matched_medium + matched[medium].sum()
+                )
+                total_gt_matched_large = total_gt_matched_large + matched[large].sum()
+            cls_target = pred_cls_logits.new_zeros(pred_cls_logits.shape)
+            num_pos = pos_mask.sum()
+            total_pos = total_pos + num_pos
+            if pos_mask.any():
+                cls_target[pos_mask] = F.one_hot(
+                    assigned_labels[pos_mask], num_classes=self.num_classes
+                ).to(dtype=pred_cls_logits.dtype) * assigned_ious[pos_mask].unsqueeze(
+                    -1
+                )
+                total_iou = total_iou + assigned_ious[pos_mask].sum()
+                total_cls_target = total_cls_target + cls_target[pos_mask].sum()
+
+            cls_loss_raw = self.vfl_loss(pred_cls_logits, cls_target)
+            cls_norm = cls_target.sum().clamp(min=1.0)
+            cls_loss = cls_loss_raw / cls_norm
+
+            if pos_mask.any():
+                target_boxes = gt_boxes[assigned_gt[pos_mask]]
+                weight_targets = assigned_ious[pos_mask]
+                weight_sum = weight_targets.sum().clamp(min=1.0)
+                giou_loss = self.giou_loss(
+                    pred_boxes[pos_mask],
+                    target_boxes,
+                    weight=weight_targets,
+                )
+                pos_priors = priors[pos_mask]
+                pos_strides = pos_priors[:, 2:3]
+                pos_centers = pos_priors[:, :2]
+                pos_centers_feature = pos_centers / pos_strides
+                pos_gt_bboxes_feature = target_boxes / pos_strides
+                pos_bbox_pred = pred_bbox[pos_mask]
+                pos_gt_distances = bbox2distance(
+                    pos_centers_feature,
+                    pos_gt_bboxes_feature,
+                    reg_max=float(self.reg_max),
+                )
+                dfl_weight = weight_targets.unsqueeze(-1).expand(-1, 4).reshape(-1)
+                dfl_loss = self.dfl_loss(
+                    pos_bbox_pred.reshape(-1, self.reg_max + 1),
+                    pos_gt_distances.reshape(-1),
+                    weight=dfl_weight,
+                )
+                dfl_loss = dfl_loss / 4.0
+                giou_loss = giou_loss / weight_sum
+                dfl_loss = dfl_loss / weight_sum
+                box_loss = giou_loss + self.model_args.loss_o2o_dfl_weight * dfl_loss
+            else:
+                box_loss = torch.zeros((), device=device)
+                dfl_loss = torch.zeros((), device=device)
+
+            obj_loss = torch.zeros((), device=device)
+
+            total_obj = total_obj + obj_loss
+            total_cls = total_cls + cls_loss
+            total_box = total_box + box_loss
+            total_dfl = total_dfl + dfl_loss
+
+        total_obj = total_obj / batch_size
+        total_cls = total_cls / batch_size
+        total_box = total_box / batch_size
+        total_loss = total_obj + total_cls + total_box
+        stats = {
+            "o2o_num_pos": total_pos,
+            "o2o_mean_iou": total_iou / total_pos.clamp(min=1),
+            "o2o_cls_target_sum": total_cls_target,
+            "o2o_gt_small": total_gt_small,
+            "o2o_gt_medium": total_gt_medium,
+            "o2o_gt_large": total_gt_large,
+            "o2o_gt_center_small": total_gt_center_small,
+            "o2o_gt_center_medium": total_gt_center_medium,
+            "o2o_gt_center_large": total_gt_center_large,
+            "o2o_gt_matched_small": total_gt_matched_small,
+            "o2o_gt_matched_medium": total_gt_matched_medium,
+            "o2o_gt_matched_large": total_gt_matched_large,
+        }
+        total_dfl = total_dfl / batch_size
+        return total_loss, total_obj, total_cls, total_box, total_dfl, stats
+
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler.
 
@@ -524,7 +829,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             weight_decay=self.model_args.weight_decay,
         )
 
-        warmup_steps = self.model_args.lr_warmup_steps
+        warmup_steps = min(self.model_args.lr_warmup_steps, total_steps)
         max_steps = total_steps
         scheduler = CosineWarmupScheduler(
             optimizer=optimizer,

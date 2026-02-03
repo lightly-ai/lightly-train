@@ -16,6 +16,123 @@ from lightly_train._task_models.picodet_object_detection.losses import (
 )
 
 
+class TaskAlignedTop1Assigner:
+    """Task-aligned top-1 assigner for one-to-one matching.
+
+    This assigns each ground-truth to at most one prediction using a
+    GT-centric top-1 selection based on a task-aligned metric with
+    collision resolution.
+
+    Args:
+        alpha: Power for classification score in the metric.
+        beta: Power for IoU in the metric.
+    """
+
+    def __init__(self, alpha: float = 0.5, beta: float = 6.0) -> None:
+        self.alpha = float(alpha)
+        self.beta = float(beta)
+
+    @torch.no_grad()
+    def assign(
+        self,
+        *,
+        pred_boxes_xyxy: Tensor,
+        pred_cls_logits: Tensor,
+        gt_boxes_xyxy: Tensor,
+        gt_labels: Tensor,
+        prior_centers: Tensor | None = None,
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        """Assign predictions to ground truth.
+
+        Args:
+            pred_boxes_xyxy: Predicted boxes (N, 4) in xyxy pixel coords.
+            pred_cls_logits: Predicted class logits (N, C).
+            gt_boxes_xyxy: Ground-truth boxes (M, 4) in xyxy pixel coords.
+            gt_labels: Ground-truth labels (M,).
+            prior_centers: Optional prior centers (N, 2) in pixel coords for
+                spatial prior masking (center inside gt).
+
+        Returns:
+            Tuple of:
+            - assigned_gt_index: (N,) index of matched GT or -1.
+            - assigned_labels: (N,) matched labels or -1.
+            - assigned_ious: (N,) IoU for matched predictions.
+        """
+        device = pred_boxes_xyxy.device
+        num_preds = pred_boxes_xyxy.shape[0]
+        if gt_boxes_xyxy.numel() == 0:
+            assigned_gt = torch.full((num_preds,), -1, device=device, dtype=torch.long)
+            assigned_labels = torch.full(
+                (num_preds,), -1, device=device, dtype=torch.long
+            )
+            assigned_ious = torch.zeros((num_preds,), device=device)
+            return assigned_gt, assigned_labels, assigned_ious
+
+        ious = box_iou(pred_boxes_xyxy, gt_boxes_xyxy)
+        cls_prob = pred_cls_logits.sigmoid()
+        gt_onehot = torch.nn.functional.one_hot(
+            gt_labels, num_classes=pred_cls_logits.shape[1]
+        ).to(dtype=cls_prob.dtype)
+        pair_cls = cls_prob @ gt_onehot.t()
+
+        metric = (pair_cls.clamp(min=1e-5) ** self.alpha) * (
+            ious.clamp(min=1e-5) ** self.beta
+        )
+        if prior_centers is not None:
+            cx = prior_centers[:, 0].unsqueeze(1)
+            cy = prior_centers[:, 1].unsqueeze(1)
+            in_gt = (cx >= gt_boxes_xyxy[:, 0]) & (cx <= gt_boxes_xyxy[:, 2])
+            in_gt = in_gt & (cy >= gt_boxes_xyxy[:, 1]) & (cy <= gt_boxes_xyxy[:, 3])
+            has_center = in_gt.any(dim=0)
+            if not bool(has_center.all()):
+                gt_centers = (gt_boxes_xyxy[:, 0:2] + gt_boxes_xyxy[:, 2:4]) / 2
+                diff = prior_centers[:, None, :] - gt_centers[None, :, :]
+                dist2 = (diff**2).sum(dim=-1)
+                missing = ~has_center
+                if bool(missing.any()):
+                    nearest_idx = dist2[:, missing].argmin(dim=0)
+                    in_gt[nearest_idx, missing] = True
+            metric = torch.where(in_gt, metric, torch.zeros_like(metric))
+
+        if metric.max() <= 0:
+            assigned_gt = torch.full((num_preds,), -1, device=device, dtype=torch.long)
+            assigned_labels = torch.full(
+                (num_preds,), -1, device=device, dtype=torch.long
+            )
+            assigned_ious = torch.zeros((num_preds,), device=device)
+            return assigned_gt, assigned_labels, assigned_ious
+
+        num_gt = gt_boxes_xyxy.shape[0]
+        assigned_gt = torch.full((num_preds,), -1, device=device, dtype=torch.long)
+        assigned_ious = torch.zeros((num_preds,), device=device)
+        gt_assigned = torch.zeros((num_gt,), device=device, dtype=torch.bool)
+        metric_work = metric.clone()
+
+        while True:
+            remaining = (~gt_assigned) & (metric_work.max(dim=0).values > 0)
+            if not bool(remaining.any()):
+                break
+            best_scores, best_preds = metric_work[:, remaining].max(dim=0)
+            gt_indices = torch.nonzero(remaining, as_tuple=False).squeeze(1)
+
+            unique_preds, inv = torch.unique(best_preds, return_inverse=True)
+            for idx, pred_idx in enumerate(unique_preds):
+                gt_mask = inv == idx
+                if not bool(gt_mask.any()):
+                    continue
+                best_local = torch.argmax(best_scores[gt_mask])
+                gt_global = gt_indices[gt_mask][best_local]
+                assigned_gt[pred_idx] = gt_global
+                assigned_ious[pred_idx] = ious[pred_idx, gt_global]
+                gt_assigned[gt_global] = True
+                metric_work[pred_idx, :] = 0
+
+        assigned_labels = torch.full((num_preds,), -1, device=device, dtype=torch.long)
+        pos_mask = assigned_gt >= 0
+        assigned_labels[pos_mask] = gt_labels[assigned_gt[pos_mask]]
+        return assigned_gt, assigned_labels, assigned_ious
+
+
 class SimOTAAssigner:
     """Simplified Optimal Transport Assignment for anchor-free detection.
 

@@ -63,7 +63,12 @@ class PicoDetPostProcessor(nn.Module):
         self.deploy_mode = True
 
     def _generate_grid_points(
-        self, height: int, width: int, stride: int, device: torch.device
+        self,
+        height: int,
+        width: int,
+        stride: int,
+        device: torch.device,
+        dtype: torch.dtype,
     ) -> Tensor:
         """Generate grid center points for a feature map.
 
@@ -76,8 +81,8 @@ class PicoDetPostProcessor(nn.Module):
         Returns:
             Grid points of shape (H*W, 2) as [x, y] in pixel coordinates.
         """
-        y = (torch.arange(height, device=device, dtype=torch.float32) + 0.5) * stride
-        x = (torch.arange(width, device=device, dtype=torch.float32) + 0.5) * stride
+        y = (torch.arange(height, device=device, dtype=dtype) + 0.5) * stride
+        x = (torch.arange(width, device=device, dtype=dtype) + 0.5) * stride
         yy, xx = torch.meshgrid(y, x, indexing="ij")
         return torch.stack([xx.flatten(), yy.flatten()], dim=-1)
 
@@ -128,7 +133,9 @@ class PicoDetPostProcessor(nn.Module):
                 bbox_pred[0].permute(1, 2, 0).reshape(-1, 4 * (self.reg_max + 1))
             )
 
-            points = self._generate_grid_points(height, width, stride, device)
+            points = self._generate_grid_points(
+                height, width, stride, device, dtype=cls_score.dtype
+            )
 
             scores = cls_score.sigmoid().reshape(-1, num_classes)
             valid_mask = scores > score_thr

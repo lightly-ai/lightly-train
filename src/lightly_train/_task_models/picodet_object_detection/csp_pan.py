@@ -50,7 +50,7 @@ class DepthwiseSeparableConv(nn.Module):
         )
         self.pointwise = nn.Conv2d(in_channels, out_channels, 1, bias=False)
         self.bn = nn.BatchNorm2d(out_channels)
-        self.act = nn.Hardswish(inplace=True)
+        self.act = nn.ReLU(inplace=True)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.depthwise(x)
@@ -83,7 +83,7 @@ class ConvBNAct(nn.Module):
             bias=False,
         )
         self.bn = nn.BatchNorm2d(out_channels)
-        self.act = nn.Hardswish(inplace=True)
+        self.act = nn.ReLU(inplace=True)
 
     def forward(self, x: Tensor) -> Tensor:
         out: Tensor = self.act(self.bn(self.conv(x)))
