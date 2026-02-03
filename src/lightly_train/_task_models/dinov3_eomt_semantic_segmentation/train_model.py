@@ -598,7 +598,9 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                 if not current_group:
                     current_group = group
                     grouped.append(current_group)
-                elif group["lr"] != current_group["lr"]:
+                elif group["lr"] != current_group["lr"] or group.get(
+                    "weight_decay"
+                ) != current_group.get("weight_decay"):
                     assert last_group is not None
                     current_group["name"] = (
                         f"{current_group['name']}-{last_group['name']}"
