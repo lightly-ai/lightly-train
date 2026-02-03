@@ -22,6 +22,7 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
 )
+from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import train_model_helpers
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.scheduler import (
@@ -459,8 +460,9 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             return (1.0 - progress).pow(self.model_args.poly_power)  # type: ignore[no-any-return]
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
-        # TODO(Guarin, 07/25): It seems like EoMT doesn't exclude norm/bias params
-        # from weight decay. We might want to change this.
+        _, params_no_wd_list = optimizer_helpers.get_weight_decay_parameters([self])
+        params_no_wd = set(params_no_wd_list)
+
         backbone_params = set(self.model.backbone.parameters())
         backbone_param_groups = []
         other_param_groups = []
@@ -492,16 +494,33 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                     )
                     lr *= llrd ** (backbone_blocks - 1 - block_i)
 
-                backbone_param_groups.append(
-                    {"params": [param], "lr": lr, "name": name}
+                if param in params_no_wd:
+                    backbone_param_groups.append(
+                        {
+                            "params": [param],
+                            "lr": lr,
+                            "weight_decay": 0.0,
+                            "name": name,
+                        }
+                    )
+                else:
+                    backbone_param_groups.append(
+                        {"params": [param], "lr": lr, "name": name}
+                    )
+            elif param in params_no_wd:
+                other_param_groups.append(
+                    {
+                        "params": [param],
+                        "lr": self.model_args.lr,
+                        "weight_decay": 0.0,
+                        "name": name,
+                    }
                 )
             else:
                 other_param_groups.append(
                     {"params": [param], "lr": self.model_args.lr, "name": name}
                 )
 
-        # TODO(Guarin, 07/25): Added this to reduce number of logged lr/wd values.
-        # Might want to revisit this. Maybe we can make it nicer based on block names?
         def group_param_groups(
             param_groups: list[dict[str, Any]],
         ) -> list[dict[str, Any]]:
@@ -512,7 +531,9 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 if not current_group:
                     current_group = group
                     grouped.append(current_group)
-                elif group["lr"] != current_group["lr"]:
+                elif group["lr"] != current_group["lr"] or group.get(
+                    "weight_decay"
+                ) != current_group.get("weight_decay"):
                     assert last_group is not None
                     current_group["name"] = (
                         f"{current_group['name']}-{last_group['name']}"
@@ -522,6 +543,20 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 else:
                     current_group["params"].extend(group["params"])
                 last_group = group
+            for group in grouped:
+                name = group.get("name", "")
+                if (
+                    "backbone.cls_token" in name
+                    or "queries" in name
+                    or "attn.qkv.weight" in name
+                    or "class_head.weight" in name
+                    or "mask_head.0.weight" in name
+                    or "upscale.0.conv1.weight" in name
+                ):
+                    pass
+                else:
+                    # Do not log lr/wd for most groups to reduce logging overhead.
+                    group["log"] = False
             return grouped
 
         grouped_backbone_param_groups = group_param_groups(backbone_param_groups)

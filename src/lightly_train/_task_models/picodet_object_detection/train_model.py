@@ -26,6 +26,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._distributed import reduce_dict
+from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.object_detection_components.utils import (
@@ -509,13 +510,23 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         Uses cosine schedule with warmup steps.
         """
+        params_wd, params_no_wd = optimizer_helpers.get_weight_decay_parameters(
+            [self.model]
+        )
+
         param_groups = [
             {
-                "name": "default",
-                "params": list(self.model.parameters()),
+                "name": "params",
+                "params": params_wd,
                 "lr": self.model_args.lr,
                 "weight_decay": self.model_args.weight_decay,
-            }
+            },
+            {
+                "name": "params_no_weight_decay",
+                "params": params_no_wd,
+                "lr": self.model_args.lr,
+                "weight_decay": 0.0,
+            },
         ]
         optimizer = SGD(
             param_groups,
@@ -524,8 +535,8 @@ class PicoDetObjectDetectionTrain(TrainModel):
             weight_decay=self.model_args.weight_decay,
         )
 
-        warmup_steps = self.model_args.lr_warmup_steps
         max_steps = total_steps
+        warmup_steps = min(max_steps, self.model_args.lr_warmup_steps)
         scheduler = CosineWarmupScheduler(
             optimizer=optimizer,
             warmup_epochs=warmup_steps,
