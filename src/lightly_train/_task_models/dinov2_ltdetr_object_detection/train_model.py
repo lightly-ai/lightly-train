@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import copy
-import re
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -25,6 +24,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._distributed import reduce_dict
+from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
     DINOv2LTDETRObjectDetection,
@@ -357,27 +357,79 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         )
 
     def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
-        # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
-        param_groups = [
-            {
-                "name": "backbone",
-                "params": [
-                    p
-                    for n, p in self.model.named_parameters()
-                    if re.match(r"^(?=.*backbone)(?!.*norm).*$", n)
-                ],
-                "lr": self.model_args.lr * self.model_args.backbone_lr_factor,
-            },
-            {
-                "name": "detector",
-                "params": [
-                    p
-                    for n, p in self.model.named_parameters()
-                    if re.match(r"^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$", n)
-                ],
-                "weight_decay": self.model_args.detector_weight_decay,
-            },
-        ]
+        _, params_no_wd_list = optimizer_helpers.get_weight_decay_parameters(
+            modules=[self.model]
+        )
+        params_no_wd = set(params_no_wd_list)
+
+        param_groups = []
+        backbone_lr = self.model_args.lr * self.model_args.backbone_lr_factor
+        detector_weight_decay = self.model_args.detector_weight_decay
+
+        backbone_params = list(self.model.backbone.parameters())
+        backbone_params_wd = [p for p in backbone_params if p not in params_no_wd]
+        backbone_params_no_wd = [p for p in backbone_params if p in params_no_wd]
+        if backbone_params_wd:
+            param_groups.append(
+                {
+                    "name": "backbone",
+                    "params": backbone_params_wd,
+                    "lr": backbone_lr,
+                }
+            )
+        if backbone_params_no_wd:
+            param_groups.append(
+                {
+                    "name": "backbone_no_wd",
+                    "params": backbone_params_no_wd,
+                    "lr": backbone_lr,
+                    "weight_decay": 0.0,
+                }
+            )
+
+        detector_params = list(self.model.encoder.parameters()) + list(
+            self.model.decoder.parameters()
+        )
+        detector_params_wd = [p for p in detector_params if p not in params_no_wd]
+        detector_params_no_wd = [p for p in detector_params if p in params_no_wd]
+        if detector_params_wd:
+            param_groups.append(
+                {
+                    "name": "detector",
+                    "params": detector_params_wd,
+                    "weight_decay": detector_weight_decay,
+                }
+            )
+        if detector_params_no_wd:
+            param_groups.append(
+                {
+                    "name": "detector_no_wd",
+                    "params": detector_params_no_wd,
+                    "weight_decay": 0.0,
+                }
+            )
+
+        # Default group for all remaining parameters.
+        used_params = set(backbone_params + detector_params)
+        default_params = [p for p in self.model.parameters() if p not in used_params]
+        default_params_wd = [p for p in default_params if p in params_no_wd]
+        default_params_no_wd = [p for p in default_params if p not in params_no_wd]
+        if default_params_wd:
+            param_groups.append(
+                {
+                    "name": "default",
+                    "params": default_params_wd,
+                }
+            )
+        if default_params_no_wd:
+            param_groups.append(
+                {
+                    "name": "default_no_wd",
+                    "params": default_params_no_wd,
+                    "weight_decay": 0.0,
+                }
+            )
+
         optim = AdamW(
             param_groups,
             lr=self.model_args.lr,
