@@ -458,7 +458,7 @@ class DINO(Method):
             if self.trainer.max_epochs is None:
                 raise ValueError("trainer.max_epochs is None")
 
-            steps_per_epoch = int(
+            steps_per_epoch = math.ceil(
                 self.trainer.estimated_stepping_batches / self.trainer.max_epochs
             )
             freeze_last_layer_steps = int(
