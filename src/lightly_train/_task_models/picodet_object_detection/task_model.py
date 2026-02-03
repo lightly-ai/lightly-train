@@ -16,6 +16,7 @@ import torch
 from packaging import version
 from PIL.Image import Image as PILImage
 from torch import Tensor
+from torchvision.ops import batched_nms
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train import _logging, _torch_testing
@@ -454,6 +455,15 @@ class PicoDetObjectDetection(TaskModel):
         labels = self.internal_class_to_class[internal_labels]
         if threshold > 0:
             keep = scores >= threshold
+            labels = labels[keep]
+            boxes = boxes[keep]
+            scores = scores[keep]
+
+        if scores.numel() > 0:
+            keep = batched_nms(
+                boxes, scores, labels, self.postprocessor.iou_threshold
+            )
+            keep = keep[: self.postprocessor.max_detections]
             labels = labels[keep]
             boxes = boxes[keep]
             scores = scores[keep]

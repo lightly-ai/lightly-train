@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import pytest
@@ -62,7 +63,7 @@ def test_task_model_forward_shapes() -> None:
     boxes, obj_logits, cls_logits = model(x)
 
     strides = model.o2o_head.strides
-    num_preds = sum((416 // s) * (416 // s) for s in strides)
+    num_preds = sum(math.ceil(416 / s) ** 2 for s in strides)
     assert boxes.shape == (1, num_preds, 4)
     assert obj_logits.shape == (1, num_preds)
     assert cls_logits.shape == (1, num_preds, 80)

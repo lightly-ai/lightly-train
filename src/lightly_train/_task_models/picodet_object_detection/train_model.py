@@ -21,6 +21,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
+from torchvision.ops import batched_nms
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_object_detection_dataset import (
@@ -266,7 +267,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "train_loss/loss_vfl": loss_vfl,
                 "train_loss/loss_giou": loss_giou,
                 "train_loss/loss_dfl": loss_dfl,
-                # Debug o2o stats; remove after investigation.
+                # TODO(igorsusmelj): remove o2o debug stats after investigation.
                 "debug/o2o_num_pos": o2o_stats["o2o_num_pos"],
                 "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"],
                 "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"],
@@ -365,13 +366,17 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_boxes = gt_boxes_xyxy_list[i].to(device).detach()
             gt_labels_i = gt_labels_list[i].to(device).long().detach()
 
-            if pred_scores.numel() > max_detections:
-                topk_scores, topk_idx = torch.topk(
-                    pred_scores, k=max_detections, largest=True
+            if pred_scores.numel() > 0:
+                keep = batched_nms(
+                    pred_boxes,
+                    pred_scores,
+                    pred_labels,
+                    model_to_use.postprocessor.iou_threshold,
                 )
-                pred_boxes = pred_boxes[topk_idx]
-                pred_labels = pred_labels[topk_idx]
-                pred_scores = topk_scores
+                keep = keep[:max_detections]
+                pred_boxes = pred_boxes[keep]
+                pred_labels = pred_labels[keep]
+                pred_scores = pred_scores[keep]
 
             preds.append(
                 {
@@ -402,7 +407,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "val_loss/loss_vfl": loss_vfl.item(),
                 "val_loss/loss_giou": loss_giou.item(),
                 "val_loss/loss_dfl": loss_dfl.item(),
-                # Debug o2o stats; remove after investigation.
+                # TODO(igorsusmelj): remove o2o debug stats after investigation.
                 "debug/o2o_num_pos": o2o_stats["o2o_num_pos"].item(),
                 "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"].item(),
                 "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"].item(),
@@ -823,7 +828,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             weight_decay=self.model_args.weight_decay,
         )
 
-        warmup_steps = self.model_args.lr_warmup_steps
+        warmup_steps = min(self.model_args.lr_warmup_steps, total_steps)
         max_steps = total_steps
         scheduler = CosineWarmupScheduler(
             optimizer=optimizer,

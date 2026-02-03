@@ -75,8 +75,8 @@ class TaskAlignedTop1Assigner:
         ).to(dtype=cls_prob.dtype)
         pair_cls = cls_prob @ gt_onehot.t()
 
-        metric = (pair_cls.clamp(min=1e-9) ** self.alpha) * (
-            ious.clamp(min=1e-9) ** self.beta
+        metric = (pair_cls.clamp(min=1e-5) ** self.alpha) * (
+            ious.clamp(min=1e-5) ** self.beta
         )
         if prior_centers is not None:
             cx = prior_centers[:, 0].unsqueeze(1)
