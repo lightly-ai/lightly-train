@@ -24,6 +24,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix missing libxcb1 dependency in Dockerfile causing cv2 import errors.
+
 ### Security
 
 ## [0.14.0] - 2026-01-19
