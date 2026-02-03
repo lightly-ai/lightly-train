@@ -436,7 +436,14 @@ def test_pretrain__TrainConfig__model_dump(tmp_path: Path) -> None:
 
     # Check for some specific attributes.
     assert dumped_config_direct["optim_args"]["betas"] == (0.9, 0.999)
-    assert dumped_config_direct["method_args"]["warmup_teacher_temp_epochs"] == 30
+    assert dumped_config_direct["method_args"]["warmup_teacher_temp_epochs"] is None
+    assert dumped_config_direct["method_args"]["warmup_teacher_temp_steps"] == 37500
+    assert (
+        dumped_config_direct["method_args"]["student_freeze_last_layer_epochs"] is None
+    )
+    assert (
+        dumped_config_direct["method_args"]["student_freeze_last_layer_steps"] == 1250
+    )
 
 
 def test_pretrain__log_resolved_config(
@@ -522,7 +529,7 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         checkpoint=last_ckpt_path,
         accelerator="cpu",
         devices=1,
-        optim_args={"lr": 10},  # Make sure that parameters change meaningfully.
+        optim_args={"lr": 1000},  # Make sure that parameters change meaningfully.
     )
     spy_load_state_dict.assert_called_once()
     call_args = spy_load_state_dict.call_args_list[0]
@@ -538,7 +545,9 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         if key.startswith("fc."):
             # Skip the last layer as it is not pretrained.
             continue
-        assert not torch.equal(first_state_dict[key], second_state_dict[key])
+        assert not torch.equal(first_state_dict[key], second_state_dict[key]), (
+            f"Parameter {key} did not change: {first_state_dict[key]}"
+        )
 
     # Check that last.ckpt and exported_model.pt contain same information. If this fails
     # it means that checkpoint loading is not working correctly.
@@ -550,7 +559,9 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         if key.startswith("fc."):
             # Skip the last layer as it is not pretrained.
             continue
-        assert torch.equal(second_state_dict[key], exported_state_dict[key])
+        assert torch.equal(second_state_dict[key], exported_state_dict[key]), (
+            f"Parameter {key} differs between checkpoint and exported model: {second_state_dict[key]} vs. {exported_state_dict[key]}"
+        )
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
