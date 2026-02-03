@@ -21,7 +21,6 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
-from torchvision.ops import batched_nms
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_object_detection_dataset import (
@@ -366,17 +365,13 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_boxes = gt_boxes_xyxy_list[i].to(device).detach()
             gt_labels_i = gt_labels_list[i].to(device).long().detach()
 
-            if pred_scores.numel() > 0:
-                keep = batched_nms(
-                    pred_boxes,
-                    pred_scores,
-                    pred_labels,
-                    model_to_use.postprocessor.iou_threshold,
+            if pred_scores.numel() > max_detections:
+                topk_scores, topk_idx = torch.topk(
+                    pred_scores, k=max_detections, largest=True
                 )
-                keep = keep[:max_detections]
-                pred_boxes = pred_boxes[keep]
-                pred_labels = pred_labels[keep]
-                pred_scores = pred_scores[keep]
+                pred_boxes = pred_boxes[topk_idx]
+                pred_labels = pred_labels[topk_idx]
+                pred_scores = topk_scores
 
             preds.append(
                 {
@@ -754,7 +749,13 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
             if pos_mask.any():
                 target_boxes = gt_boxes[assigned_gt[pos_mask]]
-                giou_loss = self.giou_loss(pred_boxes[pos_mask], target_boxes)
+                weight_targets = assigned_ious[pos_mask]
+                weight_sum = weight_targets.sum().clamp(min=1.0)
+                giou_loss = self.giou_loss(
+                    pred_boxes[pos_mask],
+                    target_boxes,
+                    weight=weight_targets,
+                )
                 pos_priors = priors[pos_mask]
                 pos_strides = pos_priors[:, 2:3]
                 pos_centers = pos_priors[:, :2]
@@ -766,15 +767,15 @@ class PicoDetObjectDetectionTrain(TrainModel):
                     pos_gt_bboxes_feature,
                     reg_max=float(self.reg_max),
                 )
-                dfl_weight = (
-                    assigned_ious[pos_mask].unsqueeze(-1).expand(-1, 4).reshape(-1)
-                )
+                dfl_weight = weight_targets.unsqueeze(-1).expand(-1, 4).reshape(-1)
                 dfl_loss = self.dfl_loss(
                     pos_bbox_pred.reshape(-1, self.reg_max + 1),
                     pos_gt_distances.reshape(-1),
                     weight=dfl_weight,
                 )
                 dfl_loss = dfl_loss / 4.0
+                giou_loss = giou_loss / weight_sum
+                dfl_loss = dfl_loss / weight_sum
                 box_loss = giou_loss + self.model_args.loss_o2o_dfl_weight * dfl_loss
             else:
                 box_loss = torch.zeros((), device=device)
