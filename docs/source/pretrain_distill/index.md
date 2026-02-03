@@ -468,6 +468,5 @@ Distillation <methods/distillation>
 Pretrain DINOv2 <methods/dinov2>
 All Methods <methods/index>
 models/index
-method_transform_args
 export
 ```
