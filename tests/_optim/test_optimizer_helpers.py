@@ -92,7 +92,7 @@ def test_get_weight_decay_parameters() -> None:
     assert len(params_no_wd) > 0
 
     param_id_to_name: dict[int, str] = {}
-    for name, param in model.named_parameters(): # type: ignore
+    for name, param in model.named_parameters():  # type: ignore
         param_id_to_name[id(param)] = name
 
     names_wd = {param_id_to_name[id(p)] for p in params_wd}
