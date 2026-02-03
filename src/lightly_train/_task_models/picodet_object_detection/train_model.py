@@ -519,7 +519,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "name": "params",
                 "params": params_wd,
                 "lr": self.model_args.lr,
-                "weight_decay": self.model_args.weight_decay,
             },
             {
                 "name": "params_no_weight_decay",
