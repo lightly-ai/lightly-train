@@ -251,6 +251,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_labels_list=gt_labels_list,
             image_size=(img_h, img_w),
         )
+        o2o_peak_kept = self.model._count_o2o_peaks(o2o_cls_scores)
 
         total_loss = o2o_loss + 0.5 * dense_loss
 
@@ -270,6 +271,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "debug/o2o_num_pos": o2o_stats["o2o_num_pos"],
                 "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"],
                 "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"],
+                "debug/o2o_peak_kept": o2o_peak_kept,
                 "debug/o2o_gt_small": o2o_stats["o2o_gt_small"],
                 "debug/o2o_gt_medium": o2o_stats["o2o_gt_medium"],
                 "debug/o2o_gt_large": o2o_stats["o2o_gt_large"],
@@ -341,6 +343,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_labels_list=gt_labels_list,
             image_size=(img_h, img_w),
         )
+        o2o_peak_kept = model_to_use._count_o2o_peaks(o2o_cls_scores)
         total_loss = o2o_loss + 0.5 * dense_loss
 
         boxes_xyxy, cls_logits = model_to_use._decode_o2o_predictions(
@@ -406,6 +409,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "debug/o2o_num_pos": o2o_stats["o2o_num_pos"].item(),
                 "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"].item(),
                 "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"].item(),
+                "debug/o2o_peak_kept": o2o_peak_kept.item(),
                 "debug/o2o_gt_small": o2o_stats["o2o_gt_small"].item(),
                 "debug/o2o_gt_medium": o2o_stats["o2o_gt_medium"].item(),
                 "debug/o2o_gt_large": o2o_stats["o2o_gt_large"].item(),

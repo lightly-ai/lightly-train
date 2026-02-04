@@ -13,6 +13,7 @@ from copy import deepcopy
 from typing import Any, Literal
 
 import torch
+import torch.nn.functional as F
 from packaging import version
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -186,6 +187,32 @@ class PicoDetObjectDetection(TaskModel):
             iou_threshold=iou_threshold,
             max_detections=max_detections,
         )
+        self._o2o_peak_score_threshold = 0.05
+        self._o2o_peak_kernel = 3
+        self._o2o_suppress_logit = -1e6
+
+    def _apply_o2o_peak_filter(self, cls_score: Tensor) -> Tensor:
+        """Suppress non-peak logits to sparsify dense o2o predictions."""
+        scores = cls_score.sigmoid().amax(dim=1, keepdim=True)
+        pooled = F.max_pool2d(
+            scores, kernel_size=self._o2o_peak_kernel, stride=1, padding=1
+        )
+        keep = (scores >= self._o2o_peak_score_threshold) & (scores == pooled)
+        suppressed = cls_score.new_full((), self._o2o_suppress_logit)
+        return torch.where(keep, cls_score, suppressed)
+
+    def _count_o2o_peaks(self, cls_scores_list: list[Tensor]) -> Tensor:
+        """Return mean number of peaks per image for debug logging."""
+        total_peaks = torch.zeros((), device=cls_scores_list[0].device)
+        for cls_score in cls_scores_list:
+            scores = cls_score.sigmoid().amax(dim=1, keepdim=True)
+            pooled = F.max_pool2d(
+                scores, kernel_size=self._o2o_peak_kernel, stride=1, padding=1
+            )
+            keep = (scores >= self._o2o_peak_score_threshold) & (scores == pooled)
+            total_peaks = total_peaks + keep.sum()
+        batch_size = cls_scores_list[0].shape[0]
+        return total_peaks / float(batch_size)
 
     def load_backbone_weights(self, path: PathLike) -> None:
         """Load backbone weights from a checkpoint file.
@@ -329,6 +356,7 @@ class PicoDetObjectDetection(TaskModel):
             _, _, h, w = cls_score.shape
             num_points = h * w
 
+            cls_score = self._apply_o2o_peak_filter(cls_score)
             y = (torch.arange(h, device=device, dtype=decode_dtype) + 0.5) * stride
             x = (torch.arange(w, device=device, dtype=decode_dtype) + 0.5) * stride
             yy, xx = torch.meshgrid(y, x, indexing="ij")
