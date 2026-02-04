@@ -412,8 +412,8 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         # Default group for all remaining parameters.
         used_params = set(backbone_params + detector_params)
         default_params = [p for p in self.model.parameters() if p not in used_params]
-        default_params_wd = [p for p in default_params if p in params_no_wd]
-        default_params_no_wd = [p for p in default_params if p not in params_no_wd]
+        default_params_wd = [p for p in default_params if p not in params_no_wd]
+        default_params_no_wd = [p for p in default_params if p in params_no_wd]
         if default_params_wd:
             param_groups.append(
                 {
