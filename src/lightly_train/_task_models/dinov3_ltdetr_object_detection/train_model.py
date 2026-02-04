@@ -358,12 +358,16 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             },
         )
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+    def get_optimizer(
+        self,
+        total_steps: int,
+        global_batch_size: int,
+    ) -> tuple[Optimizer, LRScheduler]:
         # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
+        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
         param_groups = []
         base_weight_decay = self.model_args.weight_decay
-        base_lr = self.model_args.lr
-        backbone_lr = base_lr * self.model_args.backbone_lr_factor
+        backbone_lr = lr * self.model_args.backbone_lr_factor
         detector_weight_decay = self.model_args.detector_weight_decay
 
         # Backbone group without normalization layers.
@@ -394,7 +398,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 {
                     "name": "detector",
                     "params": detector_params,
-                    "lr": base_lr,
+                    "lr": lr,
                     "weight_decay": detector_weight_decay,
                 }
             )
@@ -414,13 +418,13 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 {
                     "name": "default",
                     "params": default_params,
-                    "lr": base_lr,
+                    "lr": lr,
                     "weight_decay": base_weight_decay,
                 }
             )
         optim = AdamW(
             param_groups,
-            lr=self.model_args.lr,
+            lr=lr,
             betas=self.model_args.optimizer_betas,
             weight_decay=self.model_args.weight_decay,
         )

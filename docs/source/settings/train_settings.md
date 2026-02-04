@@ -109,8 +109,10 @@ architecture. The table lists the most commonly tuned options:
 #### `lr`
 
 Base learning rate for the optimizer. All models come with a good default learning rate.
-Only set this value if you want to override the default for your specific use case. We
-recommend to perform learning rate sweeps to find the optimal value for your dataset.
+The learning rate is automatically scaled based on the global batch size. It does not
+have to be manually adjusted in most cases. To find the optimal learning rate for your
+dataset, we recommend to perform learning rate sweeps by increasing and decreasing the
+learning rate by a factor of 3x.
 
 ```python
 import lightly_train
