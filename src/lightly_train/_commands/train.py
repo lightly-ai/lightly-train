@@ -474,9 +474,9 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
         )
         log_resolved_config(config=config, loggers=logger_instances)
         with _torch_weights_only_false():
-            # trainer.fit has a weights_only argument from lightning 2.6 onwards.
-            # The above context manager can be removed once we drop support for earlier
-            # lightning versions.
+            # TODO(Guarin, 02/26): trainer.fit has a weights_only argument from
+            # lightning 2.6 onwards. The above context manager can be removed once we
+            # drop support for earlier lightning versions.
             trainer_instance.fit(
                 model=method_instance,
                 train_dataloaders=dataloader,
