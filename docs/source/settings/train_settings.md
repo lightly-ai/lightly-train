@@ -208,7 +208,7 @@ Training precision setting. Must be one of the following strings:
 
 - `"bf16-mixed"`: Default. Operations run in bfloat16 where supported, weights are saved
   in float32. Not supported on all hardware.
-- `"16-true"`: All operations and weights in float16. Fastest but may be unstable
+- `"16-true"`: All operations and weights are in float16. Fastest but may be unstable
   depending on model, hardware, and dataset.
 - `"16-mixed"`: Most operations run in float16 precision. Not supported on all hardware.
 - `"32-true"`: All operations and weights are in float32. Slower but more stable.
@@ -752,7 +752,9 @@ lightly_train.train_object_detection(
 
 Dictionary to configure channel dropping augmentation for multi-channel datasets. It
 randomly drops channels until only a specified number of channels remain. Useful for
-training models on datasets with varying channel availability.
+training models on datasets with varying channel availability. Requires
+`LIGHTLY_TRAIN_IMAGE_MODE="UNCHANGED"` to be set in the environment. See
+[](multi-channel) for details.
 
 ```python
 import lightly_train
