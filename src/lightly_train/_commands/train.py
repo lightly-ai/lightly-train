@@ -41,6 +41,7 @@ from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
+from lightly_train._torch_helpers import _torch_weights_only_false
 from lightly_train._transforms.transform import MethodTransformArgs
 from lightly_train.types import PathLike
 
@@ -472,11 +473,15 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             method=method_instance,
         )
         log_resolved_config(config=config, loggers=logger_instances)
-        trainer_instance.fit(
-            model=method_instance,
-            train_dataloaders=dataloader,
-            ckpt_path="last" if config.resume_interrupted else None,
-        )
+        with _torch_weights_only_false():
+            # TODO(Guarin, 02/26): trainer.fit has a weights_only argument from
+            # lightning 2.6 onwards. The above context manager can be removed once we
+            # drop support for earlier lightning versions.
+            trainer_instance.fit(
+                model=method_instance,
+                train_dataloaders=dataloader,
+                ckpt_path="last" if config.resume_interrupted else None,
+            )
 
     if config.epochs == 0:
         logger.info("No training epochs specified. Saving model and exiting.")
