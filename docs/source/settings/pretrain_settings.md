@@ -267,7 +267,11 @@ at `"auto"` unless you have specific requirements.
 ### `optim_args`
 
 Dictionary overriding optimizer hyperparameters. Supported keys depend on the selected
-optimizer. For example:
+optimizer. The most commonly used key is the learning rate (`lr`). All models come with
+a good default learning rate. The learning rate is automatically scaled based on the
+global batch size. It does not have to be manually adjusted in most cases. To find the
+optimal learning rate for your dataset, we recommend to perform learning rate sweeps by
+increasing and decreasing the learning rate by a factor of 3x.
 
 ```python
 import lightly_train
