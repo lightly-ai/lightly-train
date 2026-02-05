@@ -544,7 +544,11 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         for i in range(len(preds)):
             metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])  # type: ignore[operator]
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+    def get_optimizer(
+        self,
+        total_steps: int,
+        global_batch_size: int,
+    ) -> tuple[Optimizer, LRScheduler]:
         # TODO(Guarin, 07/25): It seems like EoMT doesn't exclude norm/bias params
         # from weight decay. We might want to change this.
         backbone_params = set(self.model.backbone.parameters())
@@ -552,9 +556,10 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         other_param_groups = []
         backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         block_i = backbone_blocks
+        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
 
         for name, param in reversed(list(self.named_parameters())):
-            lr = self.model_args.lr
+            param_lr = lr
             if param in backbone_params:
                 name_list = name.split(".")
                 is_block = False
@@ -563,13 +568,13 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                         block_i = int(name_list[i + 1])
                         is_block = True
                 if is_block or block_i == 0:
-                    lr *= self.model_args.llrd ** (backbone_blocks - 1 - block_i)
+                    param_lr *= self.model_args.llrd ** (backbone_blocks - 1 - block_i)
                 backbone_param_groups.append(
-                    {"params": [param], "lr": lr, "name": name}
+                    {"params": [param], "lr": param_lr, "name": name}
                 )
             else:
                 other_param_groups.append(
-                    {"params": [param], "lr": self.model_args.lr, "name": name}
+                    {"params": [param], "lr": param_lr, "name": name}
                 )
 
         # TODO(Guarin, 07/25): Added this to reduce number of logged lr/wd values.

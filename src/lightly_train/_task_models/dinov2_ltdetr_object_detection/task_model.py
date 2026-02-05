@@ -242,6 +242,23 @@ class DINOv2LTDETRObjectDetection(TaskModel):
     def predict(
         self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
     ) -> dict[str, Tensor]:
+        """Run inference on a single image and return detected boxes, labels and scores.
+
+        Args:
+            image:
+                Input image. Can be a path, a PIL image, or a tensor of shape (C, H, W).
+            threshold:
+                Score threshold to filter low-confidence predictions. Predictions with
+                scores <= threshold are discarded.
+
+        Returns:
+            A dictionary with:
+                - "labels": Tensor of shape (N,) with predicted class indices.
+                - "bboxes": Tensor of shape (N, 4) with bounding boxes in
+                  (x_min, y_min, x_max, y_max) in absolute pixel coordinates of the
+                  original image.
+                - "scores": Tensor of shape (N,) with confidence scores for each prediction.
+        """
         self._track_inference()
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
@@ -314,10 +331,10 @@ class DINOv2LTDETRObjectDetection(TaskModel):
                 yields less predictions.
 
         Returns:
-            dict[str, Tensor]: A dictionary with:
+            A dictionary with:
                 - "labels": Tensor of shape (N,) with predicted class indices.
                 - "bboxes": Tensor of shape (N, 4) with bounding boxes in
-                    (x_min, y_min, x_max, y_max) in the coordinates of the original image.
+                    (x_min, y_min, x_max, y_max) in absolute pixel coordinates of the original image.
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
 

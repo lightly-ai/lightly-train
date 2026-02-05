@@ -356,8 +356,13 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             },
         )
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+    def get_optimizer(
+        self,
+        total_steps: int,
+        global_batch_size: int,
+    ) -> tuple[Optimizer, LRScheduler]:
         # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
+        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
         param_groups = [
             {
                 "name": "backbone",
@@ -366,7 +371,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                     for n, p in self.model.named_parameters()
                     if re.match(r"^(?=.*backbone)(?!.*norm).*$", n)
                 ],
-                "lr": self.model_args.lr * self.model_args.backbone_lr_factor,
+                "lr": lr * self.model_args.backbone_lr_factor,
             },
             {
                 "name": "detector",
@@ -380,7 +385,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         ]
         optim = AdamW(
             param_groups,
-            lr=self.model_args.lr,
+            lr=lr,
             betas=self.model_args.optimizer_betas,
             weight_decay=self.model_args.weight_decay,
         )

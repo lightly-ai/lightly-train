@@ -8,7 +8,7 @@ Lightly**Train** is available on [PyPI](https://pypi.org/project/lightly-train/)
 be installed via pip or other package managers.
 
 ```{warning}
-To successfully install Lightly**Train** the Python version has to be >=3.8 and <=3.12 .
+To successfully install Lightly**Train** the Python version has to be >=3.8 and <=3.13 .
 ```
 
 ```bash
@@ -35,6 +35,7 @@ See {ref}`docker` for Docker installation instructions.
 
 | `lightly-train` |     `torch`     | `torchvision` | `pytorch-lightning` |      Python      |
 | :-------------: | :-------------: | :-----------: | :-----------------: | :--------------: |
+|   `>=0.14.1`    |     `>=2.1`     |   `>=0.16`    |       `>=2.1`       | `>=3.8`, `<3.14` |
 |    `>=0.12`     |     `>=2.1`     |   `>=0.16`    |       `>=2.1`       | `>=3.8`, `<3.13` |
 |     `>=0.6`     | `>=2.1`, `<2.6` |   `>=0.16`    |       `>=2.1`       | `>=3.8`, `<3.13` |
 
