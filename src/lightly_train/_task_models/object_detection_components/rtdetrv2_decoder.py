@@ -794,6 +794,56 @@ class RTDETRTransformerv2(nn.Module):
         ]
 
 
+def denoising_class_embed_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    denoising_class_embed_weight_key = f"{prefix}denoising_class_embed.weight"
+    denoising_class_embed_weight = state_dict.get(denoising_class_embed_weight_key)
+    if denoising_class_embed_weight is None:
+        return
+
+    denoising_class_embed_module = getattr(module, "denoising_class_embed", None)
+    if denoising_class_embed_module is None:
+        return
+
+    num_classes_state = denoising_class_embed_weight.shape[0]
+    num_classes_module = denoising_class_embed_module.num_embeddings
+    device = denoising_class_embed_module.weight.device
+    if num_classes_state == num_classes_module:
+        return
+    else:
+        logger.info(
+            f"Checkpoint provides {num_classes_state - 1} classes but module expects {num_classes_module - 1}. Reinitializing denoising class embed.",
+        )
+        # Keep the module initialization by overwriting the checkpoint weights with the
+        # current parameter tensors.
+        if num_classes_state > num_classes_module:
+            # Keep first num_classes_module-1 classes, copy last class from module.
+            denoising_class_embed_weight = torch.cat(
+                [
+                    denoising_class_embed_weight[: num_classes_module - 1, :].to(device),
+                    denoising_class_embed_module.weight[-1:, :].detach().clone(),
+                ],
+                dim=0,
+            )
+        else:
+            # Keep first num_classes_state-1 classes, overwrite remaining with last
+            # num_classes_module-(num_classes_state-1) classes.
+            remaining_classes = num_classes_module - (num_classes_state - 1)
+            denoising_class_embed_weight = torch.cat(
+                [
+                    denoising_class_embed_weight[: num_classes_state - 1, :].to(device),
+                    denoising_class_embed_module.weight[-remaining_classes:, :].detach().clone(),
+                ],
+                dim=0,
+            )
+        state_dict[denoising_class_embed_weight_key] = denoising_class_embed_weight
+
+
 def score_head_reuse_or_reinit_hook(
     module: Module,
     state_dict: dict[str, Any],
@@ -801,9 +851,6 @@ def score_head_reuse_or_reinit_hook(
     *args: Any,
     **kwargs: Any,
 ) -> None:
-    """Reuse or reinitialize encoder and decoder score heads when number of classes
-    changes.
-    """
     _score_head_reuse_or_reinit_hook(
         module,
         state_dict,
@@ -824,7 +871,6 @@ def _score_head_reuse_or_reinit_hook(
     prefix: str,
     enc_or_dec: Literal["enc", "dec"],
 ) -> None:
-    """Helper to reuse or reinitialize a specific score head."""
     module_name = f"{enc_or_dec}_score_head"
     score_head_module = getattr(module, module_name, None)
     if score_head_module is None:
@@ -859,53 +905,36 @@ def _reuse_or_reinit(
     weight_key: str,
     bias_key: str,
 ) -> bool:
-    """Check if head module needs reinitialization and do so if needed."""
     score_head_weight = state_dict.get(weight_key)
     if score_head_weight is None:
         return False
 
     num_classes_state = score_head_weight.shape[0]
-    out_features = getattr(head_module, "out_features", None)
-    if out_features is None or num_classes_state == out_features:
+    num_classes_module = getattr(head_module, "out_features", None)
+    if num_classes_module is None or num_classes_state == num_classes_module:
         return False
-
+    
+    device = head_module.weight.device
     # Keep the module initialization by overwriting the checkpoint weights with the
     # current parameter tensors.
-    state_dict[weight_key] = head_module.weight.detach().clone()  # type: ignore[operator]
-    state_dict[bias_key] = head_module.bias.detach().clone()  # type: ignore[operator]
-
+    if num_classes_state > num_classes_module:
+        weights = state_dict[weight_key][:num_classes_module, :]
+        biases = state_dict[bias_key][:num_classes_module]
+    elif num_classes_state < num_classes_module:
+        weights = torch.cat(
+            [
+                state_dict[weight_key].to(device),
+                head_module.weight[num_classes_state :, :].detach().clone(),  # type: ignore
+            ],
+            dim=0,
+        )
+        biases = torch.cat(
+            [
+                state_dict[bias_key].to(device),
+                head_module.bias[num_classes_state :].detach().clone(),  # type: ignore
+            ],
+            dim=0,
+        )
+    state_dict[weight_key] = weights
+    state_dict[bias_key] = biases
     return True
-
-
-def denoising_class_embed_reuse_or_reinit_hook(
-    module: Module,
-    state_dict: dict[str, Any],
-    prefix: str,
-    *args: Any,
-    **kwargs: Any,
-) -> None:
-    """Reuse or reinitialize denoising class embeddings when number of classes
-    changes.
-    """
-    denoising_class_embed_weight_key = f"{prefix}denoising_class_embed.weight"
-    denoising_class_embed_weight = state_dict.get(denoising_class_embed_weight_key)
-    if denoising_class_embed_weight is None:
-        return
-
-    denoising_class_embed_module = getattr(module, "denoising_class_embed", None)
-    if denoising_class_embed_module is None:
-        return
-
-    num_classes_state = denoising_class_embed_weight.shape[0]
-    num_classes_module = denoising_class_embed_module.num_embeddings
-    if num_classes_state == num_classes_module:
-        return
-    else:
-        logger.info(
-            f"Checkpoint provides {num_classes_state - 1} classes but module expects {num_classes_module - 1}. Reinitializing denoising class embed.",
-        )
-        # Keep the module initialization by overwriting the checkpoint weights with the
-        # current parameter tensors.
-        state_dict[denoising_class_embed_weight_key] = (
-            denoising_class_embed_module.weight.detach().clone()
-        )
