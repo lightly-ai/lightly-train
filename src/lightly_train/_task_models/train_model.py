@@ -73,7 +73,11 @@ class TrainModel(Module):
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+    def get_optimizer(
+        self,
+        total_steps: int,
+        global_batch_size: int,
+    ) -> tuple[Optimizer, LRScheduler]:
         raise NotImplementedError()
 
     def set_train_mode(self) -> None:

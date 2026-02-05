@@ -505,11 +505,16 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         return total_loss, loss_vfl, loss_giou, loss_dfl
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+    def get_optimizer(
+        self,
+        total_steps: int,
+        global_batch_size: int,
+    ) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler.
 
         Uses cosine schedule with warmup steps.
         """
+        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
         params_wd, params_no_wd = optimizer_helpers.get_weight_decay_parameters(
             [self.model]
         )
@@ -518,18 +523,18 @@ class PicoDetObjectDetectionTrain(TrainModel):
             {
                 "name": "params",
                 "params": params_wd,
-                "lr": self.model_args.lr,
+                "lr": lr,
             },
             {
                 "name": "params_no_weight_decay",
                 "params": params_no_wd,
-                "lr": self.model_args.lr,
+                "lr": lr,
                 "weight_decay": 0.0,
             },
         ]
         optimizer = SGD(
             param_groups,
-            lr=self.model_args.lr,
+            lr=lr,
             momentum=self.model_args.momentum,
             weight_decay=self.model_args.weight_decay,
         )

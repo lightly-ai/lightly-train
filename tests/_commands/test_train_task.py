@@ -42,7 +42,15 @@ except ImportError:
 def test_train_object_detection(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
-    helpers.create_yolo_object_detection_dataset(data, split_first=True)
+    # Create dataset with 4 files, including one without a label file (index 2) and
+    # one with an empty label file (index 3).
+    helpers.create_yolo_object_detection_dataset(
+        data,
+        split_first=True,
+        num_files=4,
+        missing_label_indices=[2],
+        empty_label_indices=[3],
+    )
 
     # Check training
     lightly_train.train_object_detection(
@@ -100,8 +108,14 @@ def test_train_instance_segmentation(
 ) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
+    # Create dataset with 6 files, including one without a label file (index 4) and
+    # one with an empty label file (index 5).
     helpers.create_yolo_instance_segmentation_dataset(
-        data, split_first=True, num_files=4
+        data,
+        split_first=True,
+        num_files=6,
+        missing_label_indices=[4],
+        empty_label_indices=[5],
     )
 
     # Check training
