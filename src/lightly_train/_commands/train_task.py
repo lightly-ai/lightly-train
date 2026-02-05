@@ -944,10 +944,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     task=config.task,
                 )
                 for group in optimizer.param_groups:
-                    train_log_dict[f"learning_rate/{group['name']}"] = group["lr"]
-                    train_log_dict[f"weight_decay/{group['name']}"] = group[
-                        "weight_decay"
-                    ]
+                    if group.get("log", True):
+                        train_log_dict[f"learning_rate/{group['name']}"] = group["lr"]
+                        train_log_dict[f"weight_decay/{group['name']}"] = group[
+                            "weight_decay"
+                        ]
                 fabric.log_dict(train_log_dict, step=step)
                 helpers.reset_metrics(train_result.log_dict)
 
