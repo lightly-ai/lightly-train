@@ -374,6 +374,11 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             global_batch_size / self.model_args.default_batch_size
         )
         backbone_lr = lr * self.model_args.backbone_lr_factor
+        backbone_weight_decay = (
+            self.model_args.backbone_weight_decay
+            if self.model_args.backbone_weight_decay is not None
+            else self.model_args.weight_decay
+        )
         detector_weight_decay = self.model_args.detector_weight_decay
 
         backbone_params = list(self.model.backbone.parameters())
@@ -385,6 +390,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                     "name": "backbone",
                     "params": backbone_params_wd,
                     "lr": backbone_lr,
+                    "weight_decay": backbone_weight_decay,
                 }
             )
         if backbone_params_no_wd:
