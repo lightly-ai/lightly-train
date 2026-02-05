@@ -17,6 +17,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Missing object detection and instance segmentation label files are treated as images
+  without objects instead of being skipped. This can be configured by setting the
+  `skip_if_label_file_missing` flag in the `data` argument of the
+  `train_object_detection` and `train_instance_segmentation` functions respectively.
 - DINO now updates the teacher temperature and last layer freezing based on the number
   of training steps instead of epochs.
 
