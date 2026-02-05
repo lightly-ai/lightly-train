@@ -12,6 +12,7 @@
 # Modifications Copyright 2025 Lightly AG:
 # - Modified load_state_dict to handle different number of input channels
 
+from __future__ import annotations
 
 import math
 from typing import Callable, Optional, Tuple, Union

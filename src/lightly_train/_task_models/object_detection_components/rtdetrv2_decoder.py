@@ -11,11 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.#
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
+
 # Modifications Copyright 2025 Lightly AG:
 # - added load state dict pre hooks to reinitialize the classification score heads
 #   and denoising class embedding if the number of classes has changed
 # - implemented `score_head_reuse_or_reinit_hook`, `_score_head_reuse_or_reinit_hook`,
 #   `_reuse_or_reinit`, and `denoising_class_embed_reuse_or_reinit_hook` functions
+from __future__ import annotations
 
 import copy
 import functools
