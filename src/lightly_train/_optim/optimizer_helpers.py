@@ -115,7 +115,7 @@ def get_weight_decay_parameters(
         for name, param in module.named_parameters():
             param_id_to_info[id(param)] = {"name": name, "param": param, "module": None}
         for mod in module.modules():
-            for param in mod.parameters():
+            for param in mod.parameters(recurse=False):
                 param_id_to_info[id(param)]["module"] = mod
 
     params = []
