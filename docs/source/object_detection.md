@@ -67,6 +67,10 @@ if __name__ == "__main__":
             # Optional, classes that are in the dataset but should be ignored during
             # training.
             # "ignore_classes": [0],
+            #
+            # Optional, skip images without label files. By default, these are included
+            # as negative samples.
+            # "skip_if_label_file_missing": True,
         }
     )
 ```
@@ -377,6 +381,37 @@ otherwise Lightly**Train** raises an error when it encounters an unknown class I
 you would like to skip specific classes during training, add their IDs to the optional
 `ignore_classes` list. The trainer omits these classes from loss computation and the
 exported model does not predict them.
+
+### Missing Labels
+
+There are three cases in which an image may not have any corresponding labels:
+
+1. The label file is missing.
+1. The label file is empty.
+1. The label file only contains annotations for classes that are in `ignore_classes`.
+
+LightlyTrain treats all three cases as "negative" samples and includes the images in
+training with an empty list of bounding boxes.
+
+If you would like to exclude images without label files from training, you can set the
+`skip_if_label_file_missing` argument in the `data` configuration. This only excludes
+images without a label file (case 1) but still includes cases 2 and 3 as negative
+samples.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    data={
+        "path": "my_data_dir",
+        "train": "images/train",
+        "val": "images/val",
+        "names": {...},
+        "skip_if_label_file_missing": True, # Skip images without label files.
+    }
+)
+```
 
 ## Training Settings
 

@@ -14,6 +14,7 @@ from typing import ClassVar, Sequence
 import numpy as np
 import pydantic
 import torch
+from pydantic import Field
 
 from lightly_train._data import file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.file_helpers import ImageMode
@@ -192,8 +193,7 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
     test: PathLike | None = None
     # "names" instead of "classes" to match YOLO convention.
     names: dict[int, str]
-    # TODO(Guarin, 10/25): Implement ignore classes.
-    ignore_classes: None = None
+    ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_label_file_missing: bool = False
 
     def train_imgs_path(self) -> Path:
@@ -211,9 +211,13 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
 
     @property
     def included_classes(self) -> dict[int, str]:
-        """Returns classes that are not ignored."""
-        # TODO(Guarin, 10/25): Implement ignore classes.
-        return self.names
+        """Returns included classes."""
+        ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+        return {
+            class_id: class_name
+            for class_id, class_name in self.names.items()
+            if class_id not in ignore_classes
+        }
 
     @property
     def num_included_classes(self) -> int:
@@ -262,7 +266,7 @@ class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
     image_dir: Path
     label_dir: Path
     classes: dict[int, str]
-    ignore_classes: None
+    ignore_classes: set[int] | None
     skip_if_label_file_missing: bool
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
