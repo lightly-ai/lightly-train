@@ -45,7 +45,7 @@ def register_load_state_dict_pre_hook(
             hook(module: Module, state_dict: dict[str, Any], prefix: str, *args: Any, **kwargs: Any) -> None
     """
     if hasattr(module, "register_load_state_dict_pre_hook"):
-        module.register_load_state_dict_pre_hook(hook)
+        module.register_load_state_dict_pre_hook(hook)  # type: ignore[no-untyped-call]
     else:
         # Backwards compatibility for PyTorch <= 2.4
-        module._register_load_state_dict_pre_hook(hook, with_module=True)
+        module._register_load_state_dict_pre_hook(hook, with_module=True)  # type: ignore[no-untyped-call]
