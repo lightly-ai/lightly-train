@@ -21,7 +21,7 @@ from torch.nn import functional as F
 from torchvision.transforms.functional import InterpolationMode
 from torchvision.transforms.v2 import functional as transforms_functional
 
-from lightly_train import _logging, _torch_testing
+from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
@@ -208,15 +208,9 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
 
-        if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.queries_adjust_num_queries_hook
-            )
-        else:
-            # Backwards compatibility for PyTorch <= 2.4
-            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.queries_adjust_num_queries_hook, with_module=True
-            )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, task_model_helpers.queries_adjust_num_queries_hook
+        )
 
         # Threshold values used during forward() call. Are stored as attributes to be
         # folded into the ONNX graph during export as ONNX doesn't support default

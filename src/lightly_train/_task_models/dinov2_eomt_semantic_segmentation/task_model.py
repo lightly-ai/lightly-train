@@ -20,7 +20,7 @@ from torch.nn import GELU, Embedding, Linear, Sequential
 from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
-from lightly_train import _logging, _torch_testing
+from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import onnx_helpers, tensorrt_helpers
 from lightly_train._models import package_helpers
@@ -174,21 +174,12 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
 
-        if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.queries_adjust_num_queries_hook
-            )
-            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.class_head_reuse_or_reinit_hook
-            )
-        else:
-            # Backwards compatibility for PyTorch <= 2.4
-            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.queries_adjust_num_queries_hook, with_module=True
-            )
-            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.class_head_reuse_or_reinit_hook, with_module=True
-            )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, task_model_helpers.queries_adjust_num_queries_hook
+        )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, task_model_helpers.class_head_reuse_or_reinit_hook
+        )
 
     @classmethod
     def list_model_names(cls) -> list[str]:
