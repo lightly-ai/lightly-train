@@ -32,10 +32,10 @@ from lightly_train._models.dinov3.dinov3_src.layers.attention import (
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
-from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.scale_block import (
     ScaleBlock,
 )
+from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -209,7 +209,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         )
 
         _torch_helpers.register_load_state_dict_pre_hook(
-            self, task_model_helpers.queries_adjust_num_queries_hook
+            self, hooks.queries_adjust_num_queries_hook
         )
 
         # Threshold values used during forward() call. Are stored as attributes to be

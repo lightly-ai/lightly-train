@@ -29,10 +29,10 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Att
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
-from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
 )
+from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -175,10 +175,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         )
 
         _torch_helpers.register_load_state_dict_pre_hook(
-            self, task_model_helpers.queries_adjust_num_queries_hook
+            self, hooks.queries_adjust_num_queries_hook
         )
         _torch_helpers.register_load_state_dict_pre_hook(
-            self, task_model_helpers.class_head_reuse_or_reinit_hook
+            self, hooks.class_head_reuse_or_reinit_hook
         )
 
     @classmethod

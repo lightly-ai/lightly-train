@@ -12,24 +12,26 @@
 # limitations under the License.#
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
 # Modifications Copyright 2025 Lightly AG:
-# - added a load state dict pre hook to reinitialize the
-#   classification score heads and denoising class embedding if the number of classes
-#   has changed
+# - added load state dict pre hooks to reinitialize the classification score heads
+#   and denoising class embedding if the number of classes has changed
+# - implemented `score_head_reuse_or_reinit_hook`, `_score_head_reuse_or_reinit_hook`,
+#   `_reuse_or_reinit`, and `denoising_class_embed_reuse_or_reinit_hook` functions
 
 import copy
 import functools
+import logging
 import math
 from collections import OrderedDict
-from typing import List
+from typing import Any, List, Literal
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 from torch import Tensor
+from torch.nn import Module, ModuleList
 
 from lightly_train import _torch_helpers
-from lightly_train._task_models import task_model_helpers
 
 from .denoising import get_contrastive_denoising_training_group
 from .utils import (
@@ -38,6 +40,8 @@ from .utils import (
     get_activation,
     inverse_sigmoid,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MLP(nn.Module):
@@ -492,11 +496,11 @@ class RTDETRTransformerv2(nn.Module):
             self.register_buffer("valid_mask", valid_mask, persistent=False)
 
         _torch_helpers.register_load_state_dict_pre_hook(
-            self, task_model_helpers.score_head_reuse_or_reinit_hook
+            self, score_head_reuse_or_reinit_hook
         )
         if num_denoising > 0:
             _torch_helpers.register_load_state_dict_pre_hook(
-                self, task_model_helpers.denoising_class_embed_reuse_or_reinit_hook
+                self, denoising_class_embed_reuse_or_reinit_hook
             )
 
         self._reset_parameters()
@@ -786,3 +790,120 @@ class RTDETRTransformerv2(nn.Module):
             {"pred_logits": a, "pred_boxes": b}
             for a, b in zip(outputs_class, outputs_coord)
         ]
+
+
+def score_head_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """Reuse or reinitialize encoder and decoder score heads when number of classes
+    changes.
+    """
+    _score_head_reuse_or_reinit_hook(
+        module,
+        state_dict,
+        prefix,
+        enc_or_dec="enc",
+    )
+    _score_head_reuse_or_reinit_hook(
+        module,
+        state_dict,
+        prefix,
+        enc_or_dec="dec",
+    )
+
+
+def _score_head_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    enc_or_dec: Literal["enc", "dec"],
+) -> None:
+    """Helper to reuse or reinitialize a specific score head."""
+    module_name = f"{enc_or_dec}_score_head"
+    score_head_module = getattr(module, module_name, None)
+    if score_head_module is None:
+        return
+
+    if isinstance(score_head_module, ModuleList):
+        for idx, head_module in enumerate(score_head_module):
+            is_reinit = _reuse_or_reinit(
+                head_module,
+                state_dict,
+                weight_key=f"{prefix}{module_name}.{idx}.weight",
+                bias_key=f"{prefix}{module_name}.{idx}.bias",
+            )
+    else:
+        is_reinit = _reuse_or_reinit(
+            score_head_module,
+            state_dict,
+            weight_key=f"{prefix}{module_name}.weight",
+            bias_key=f"{prefix}{module_name}.bias",
+        )
+
+    if is_reinit:
+        logger.info(
+            f"Checkpoint provides different number of classes for {module_name}. Reinitializing score head.",
+        )
+
+
+def _reuse_or_reinit(
+    head_module: Module,
+    state_dict: dict[str, Any],
+    *,
+    weight_key: str,
+    bias_key: str,
+) -> bool:
+    """Check if head module needs reinitialization and do so if needed."""
+    score_head_weight = state_dict.get(weight_key)
+    if score_head_weight is None:
+        return False
+
+    num_classes_state = score_head_weight.shape[0]
+    out_features = getattr(head_module, "out_features", None)
+    if out_features is None or num_classes_state == out_features:
+        return False
+
+    # Keep the module initialization by overwriting the checkpoint weights with the
+    # current parameter tensors.
+    state_dict[weight_key] = head_module.weight.detach().clone()  # type: ignore[operator]
+    state_dict[bias_key] = head_module.bias.detach().clone()  # type: ignore[operator]
+
+    return True
+
+
+def denoising_class_embed_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """Reuse or reinitialize denoising class embeddings when number of classes
+    changes.
+    """
+    denoising_class_embed_weight_key = f"{prefix}denoising_class_embed.weight"
+    denoising_class_embed_weight = state_dict.get(denoising_class_embed_weight_key)
+    if denoising_class_embed_weight is None:
+        return
+
+    denoising_class_embed_module = getattr(module, "denoising_class_embed", None)
+    if denoising_class_embed_module is None:
+        return
+
+    num_classes_state = denoising_class_embed_weight.shape[0]
+    num_classes_module = denoising_class_embed_module.num_embeddings
+    if num_classes_state == num_classes_module:
+        return
+    else:
+        logger.info(
+            f"Checkpoint provides {num_classes_state - 1} classes but module expects {num_classes_module - 1}. Reinitializing denoising class embed.",
+        )
+        # Keep the module initialization by overwriting the checkpoint weights with the
+        # current parameter tensors.
+        state_dict[denoising_class_embed_weight_key] = (
+            denoising_class_embed_module.weight.detach().clone()
+        )

@@ -19,14 +19,13 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
-from lightly_train._configs.validate import no_auto
 from lightly_train import _torch_helpers
+from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
-from lightly_train._task_models import train_model_helpers
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -39,6 +38,7 @@ from lightly_train._task_models.dinov3_eomt_instance_segmentation.transforms imp
     DINOv3EoMTInstanceSegmentationValTransform,
     DINOv3EoMTInstanceSegmentationValTransformArgs,
 )
+from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
@@ -233,7 +233,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         self.val_map = self.train_map.clone()
 
         _torch_helpers.register_load_state_dict_pre_hook(
-            self, train_model_helpers.criterion_empty_weight_reinit_hook
+            self, hooks.criterion_empty_weight_reinit_hook
         )
 
     def get_task_model(self) -> DINOv3EoMTInstanceSegmentation:
