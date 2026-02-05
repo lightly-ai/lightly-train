@@ -187,30 +187,35 @@ class PicoDetObjectDetection(TaskModel):
             iou_threshold=iou_threshold,
             max_detections=max_detections,
         )
-        self._o2o_peak_score_threshold = 0.05
-        self._o2o_peak_kernel = 3
+        self._o2o_peak_score_thresholds = (0.02, 0.04, 0.06, 0.08)
+        self._o2o_peak_kernels = (3, 5, 5, 5)
         self._o2o_suppress_logit = -1e6
 
-    def _apply_o2o_peak_filter(self, cls_score: Tensor) -> Tensor:
+    def _apply_o2o_peak_filter(self, cls_score: Tensor, level_idx: int) -> Tensor:
         """Suppress non-peak logits to sparsify dense o2o predictions."""
         scores = cls_score.sigmoid().amax(dim=1, keepdim=True)
+        threshold = self._o2o_peak_score_thresholds[level_idx]
+        kernel = self._o2o_peak_kernels[level_idx]
         pooled = F.max_pool2d(
-            scores, kernel_size=self._o2o_peak_kernel, stride=1, padding=1
+            scores, kernel_size=kernel, stride=1, padding=kernel // 2
         )
-        keep = (scores >= self._o2o_peak_score_threshold) & (scores == pooled)
+        keep = (scores >= threshold) & (scores == pooled)
         suppressed = cls_score.new_full((), self._o2o_suppress_logit)
         return torch.where(keep, cls_score, suppressed)
 
     def _count_o2o_peaks(self, cls_scores_list: list[Tensor]) -> Tensor:
-        """Return mean number of peaks per image for debug logging."""
-        total_peaks = torch.zeros((), device=cls_scores_list[0].device)
-        for cls_score in cls_scores_list:
+        """Return mean number of peaks per level per image for debug logging."""
+        device = cls_scores_list[0].device
+        total_peaks = torch.zeros((len(cls_scores_list),), device=device)
+        for level_idx, cls_score in enumerate(cls_scores_list):
             scores = cls_score.sigmoid().amax(dim=1, keepdim=True)
+            threshold = self._o2o_peak_score_thresholds[level_idx]
+            kernel = self._o2o_peak_kernels[level_idx]
             pooled = F.max_pool2d(
-                scores, kernel_size=self._o2o_peak_kernel, stride=1, padding=1
+                scores, kernel_size=kernel, stride=1, padding=kernel // 2
             )
-            keep = (scores >= self._o2o_peak_score_threshold) & (scores == pooled)
-            total_peaks = total_peaks + keep.sum()
+            keep = (scores >= threshold) & (scores == pooled)
+            total_peaks[level_idx] = keep.sum()
         batch_size = cls_scores_list[0].shape[0]
         return total_peaks / float(batch_size)
 
@@ -356,7 +361,7 @@ class PicoDetObjectDetection(TaskModel):
             _, _, h, w = cls_score.shape
             num_points = h * w
 
-            cls_score = self._apply_o2o_peak_filter(cls_score)
+            cls_score = self._apply_o2o_peak_filter(cls_score, level_idx)
             y = (torch.arange(h, device=device, dtype=decode_dtype) + 0.5) * stride
             x = (torch.arange(w, device=device, dtype=decode_dtype) + 0.5) * stride
             yy, xx = torch.meshgrid(y, x, indexing="ij")
