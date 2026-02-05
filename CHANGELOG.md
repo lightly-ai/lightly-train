@@ -32,6 +32,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - Fix missing libxcb1 dependency in Dockerfile causing cv2 import errors.
+- Fix issue when fine-tuning panoptic segmentation models with a different number of
+  classes than the pretrained model.
 
 ### Security
 
