@@ -369,7 +369,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         lr = self.model_args.lr * math.sqrt(
             global_batch_size / self.model_args.default_batch_size
         )
-        backbone_lr = self.model_args.lr * self.model_args.backbone_lr_factor
+        backbone_lr = lr * self.model_args.backbone_lr_factor
         detector_weight_decay = self.model_args.detector_weight_decay
 
         backbone_params = list(self.model.backbone.parameters())
