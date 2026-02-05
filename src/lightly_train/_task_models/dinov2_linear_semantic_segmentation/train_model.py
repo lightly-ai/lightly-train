@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import math
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -241,7 +242,9 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
                 "weight_decay": 0.0,
             },
         ]
-        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
+        lr = self.model_args.lr * math.sqrt(
+            global_batch_size / self.model_args.default_batch_size
+        )
         optimizer = AdamW(
             params=params,
             lr=lr,

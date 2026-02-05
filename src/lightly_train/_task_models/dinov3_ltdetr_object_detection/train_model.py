@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import re
 from typing import Any, ClassVar, Literal
 
@@ -364,7 +365,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         global_batch_size: int,
     ) -> tuple[Optimizer, LRScheduler]:
         # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
-        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
+        lr = self.model_args.lr * math.sqrt(
+            global_batch_size / self.model_args.default_batch_size
+        )
         param_groups = []
         base_weight_decay = self.model_args.weight_decay
         backbone_lr = lr * self.model_args.backbone_lr_factor

@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, ClassVar, Literal
 
@@ -518,7 +519,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         block_i = backbone_blocks
-        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
+        lr = self.model_args.lr * math.sqrt(
+            global_batch_size / self.model_args.default_batch_size
+        )
 
         for name, param in reversed(list(self.named_parameters())):
             param_lr = lr

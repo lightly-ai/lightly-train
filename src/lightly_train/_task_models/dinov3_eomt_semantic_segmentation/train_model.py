@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 from typing import Any, ClassVar, Literal
 
@@ -560,7 +561,9 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         other_param_groups = []
         backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         block_i = backbone_blocks
-        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
+        lr = self.model_args.lr * math.sqrt(
+            global_batch_size / self.model_args.default_batch_size
+        )
 
         for name, param in reversed(list(self.named_parameters())):
             param_lr = lr
