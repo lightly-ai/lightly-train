@@ -643,11 +643,6 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             max_norm=self.model_args.gradient_clip_val,
         )
 
-    def load_train_state_dict(
-        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
-    ) -> Any:
-        return self.load_state_dict(state_dict, strict=strict)
-
 
 def _mark_ignore_regions(
     target_masks: Tensor,
