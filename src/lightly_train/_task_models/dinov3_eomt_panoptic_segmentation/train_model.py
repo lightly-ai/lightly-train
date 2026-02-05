@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, ClassVar, Literal
 
@@ -502,7 +503,13 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             )
             return (1.0 - progress).pow(self.model_args.poly_power)  # type: ignore[no-any-return]
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+    def get_optimizer(
+        self,
+        total_steps: int,
+        global_batch_size: int,
+    ) -> tuple[Optimizer, LRScheduler]:
+        # TODO(Guarin, 07/25): It seems like EoMT doesn't exclude norm/bias params
+        # from weight decay. We might want to change this.
         _, params_no_wd_list = optimizer_helpers.get_weight_decay_parameters([self])
         params_no_wd = set(params_no_wd_list)
 
@@ -512,9 +519,12 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         block_i = backbone_blocks
+        lr = self.model_args.lr * math.sqrt(
+            global_batch_size / self.model_args.default_batch_size
+        )
 
         for name, param in reversed(list(self.named_parameters())):
-            lr = self.model_args.lr
+            param_lr = lr
             if param in backbone_params:
                 name_list = name.split(".")
                 is_block = False
@@ -535,33 +545,33 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                         if is_joint_block
                         else self.model_args.llrd
                     )
-                    lr *= llrd ** (backbone_blocks - 1 - block_i)
+                    param_lr *= llrd ** (backbone_blocks - 1 - block_i)
 
                 if param in params_no_wd:
                     backbone_param_groups.append(
                         {
                             "params": [param],
-                            "lr": lr,
+                            "lr": param_lr,
                             "weight_decay": 0.0,
                             "name": name,
                         }
                     )
                 else:
                     backbone_param_groups.append(
-                        {"params": [param], "lr": lr, "name": name}
+                        {"params": [param], "lr": param_lr, "name": name}
                     )
             elif param in params_no_wd:
                 other_param_groups.append(
                     {
                         "params": [param],
-                        "lr": self.model_args.lr,
+                        "lr": param_lr,
                         "weight_decay": 0.0,
                         "name": name,
                     }
                 )
             else:
                 other_param_groups.append(
-                    {"params": [param], "lr": self.model_args.lr, "name": name}
+                    {"params": [param], "lr": param_lr, "name": name}
                 )
 
         def group_param_groups(

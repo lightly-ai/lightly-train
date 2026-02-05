@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import math
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -356,13 +357,18 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             },
         )
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+    def get_optimizer(
+        self, total_steps: int, global_batch_size: int
+    ) -> tuple[Optimizer, LRScheduler]:
         _, params_no_wd_list = optimizer_helpers.get_weight_decay_parameters(
             modules=[self.model]
         )
         params_no_wd = set(params_no_wd_list)
 
         param_groups = []
+        lr = self.model_args.lr * math.sqrt(
+            global_batch_size / self.model_args.default_batch_size
+        )
         backbone_lr = self.model_args.lr * self.model_args.backbone_lr_factor
         detector_weight_decay = self.model_args.detector_weight_decay
 
@@ -432,7 +438,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
 
         optim = AdamW(
             param_groups,
-            lr=self.model_args.lr,
+            lr=lr,
             betas=self.model_args.optimizer_betas,
             weight_decay=self.model_args.weight_decay,
         )

@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python: ["3.8", "3.12"]
+        python: ["3.8", "3.12", "3.13"]
     steps:
       - name: Setup cmake
         # TODO(04/25, Guarin): Check if this is still needed on GitHub hosted runners.
