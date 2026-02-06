@@ -15,6 +15,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add DistillationV3 tailored for ViT models.
 - Skip weight decay for bias/norm/token/etc. layers.
 - Add automatic fine-tuning learning rate scaling based on batch size for all tasks.
+- Log fine-tuning training time breakdown.
 
 ### Changed
 
