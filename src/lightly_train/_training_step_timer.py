@@ -15,7 +15,6 @@ class TrainingStepTimer:
 
     def __init__(self) -> None:
         self._step_start_times: dict[str, float] = {}
-        self._step_last_durations: dict[str, float] = {}
         self._step_total_times: dict[str, float] = {}
 
     def start_step(self, step: str) -> None:
@@ -28,7 +27,6 @@ class TrainingStepTimer:
             raise ValueError(f"Step '{step}' was not started")
 
         duration = time.perf_counter() - self._step_start_times[step]
-        self._step_last_durations[step] = duration
         self._step_total_times[step] = self._step_total_times.get(step, 0.0) + duration
         del self._step_start_times[step]
 
