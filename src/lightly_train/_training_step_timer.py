@@ -32,10 +32,6 @@ class TrainingStepTimer:
         self._step_total_times[step] = self._step_total_times.get(step, 0.0) + duration
         del self._step_start_times[step]
 
-    def last_step_sec(self, step: str) -> float:
-        """Get seconds the last step took."""
-        return self._step_last_durations.get(step, 0.0)
-
     def total_step_sec(self, step: str) -> float:
         """Get total seconds spent in step."""
         return self._step_total_times.get(step, 0.0)
@@ -61,4 +57,66 @@ class TrainingStepTimer:
         return {
             step: round((self.total_step_sec(step) / total_time) * 100, decimal_places)
             for step in steps
+        }
+
+    def percentage_for_prefix(
+        self, prefix: str, decimal_places: int = 1
+    ) -> dict[str, float]:
+        """Get percentage of time spent in steps starting with the given prefix.
+
+        Args:
+            prefix: Prefix to filter steps by.
+            decimal_places: Number of decimal places to round to.
+
+        Returns:
+            Dictionary mapping step names (with prefix removed) to their percentage
+            of total time across all steps.
+        """
+        matching_steps = [
+            s for s in self._step_total_times.keys() if s.startswith(prefix)
+        ]
+        if not matching_steps:
+            return {}
+
+        total_time = sum(self.total_step_sec(step) for step in matching_steps)
+        if total_time == 0:
+            return {step.removeprefix(prefix): 0.0 for step in matching_steps}
+
+        return {
+            step.removeprefix(prefix): round(
+                (self.total_step_sec(step) / total_time) * 100, decimal_places
+            )
+            for step in matching_steps
+        }
+
+    def percentage_for_prefix_group(
+        self, prefixes: dict[str, list[str]], decimal_places: int = 1
+    ) -> dict[str, float]:
+        """Get percentage of time spent in groups of steps defined by prefixes.
+
+        Args:
+            prefixes: Dictionary mapping group names to lists of step prefixes.
+            decimal_places: Number of decimal places to round to.
+        Returns:
+            Dictionary mapping group names to their percentage of total time across all steps.
+        """
+        seen_steps = set()
+        group_times = {}
+        for group_name, prefix_list in prefixes.items():
+            group_time = 0.0
+            for step in self._step_total_times.keys():
+                if step in seen_steps:
+                    continue
+                if any(step.startswith(p) for p in prefix_list):
+                    seen_steps.add(step)
+                    group_time += self.total_step_sec(step)
+            group_times[group_name] = group_time
+
+        total_time = sum(group_times.values())
+        if total_time == 0:
+            return {group: 0.0 for group in group_times}
+
+        return {
+            group: round((time / total_time) * 100, decimal_places)
+            for group, time in group_times.items()
         }
