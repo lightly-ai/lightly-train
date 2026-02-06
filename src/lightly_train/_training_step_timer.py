@@ -80,10 +80,10 @@ class TrainingStepTimer:
 
         total_time = sum(self.total_step_sec(step) for step in matching_steps)
         if total_time == 0:
-            return {step.removeprefix(prefix): 0.0 for step in matching_steps}
+            return {step[len(prefix) :]: 0.0 for step in matching_steps}
 
         return {
-            step.removeprefix(prefix): round(
+            step[len(prefix) :]: round(
                 (self.total_step_sec(step) / total_time) * 100, decimal_places
             )
             for step in matching_steps

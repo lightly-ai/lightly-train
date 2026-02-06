@@ -996,6 +996,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 fabric.barrier()
                 logger.info("Validating...")
                 train_model.eval()
+                val_dataloader_iter = iter(val_dataloader)
                 for val_step in range(len(val_dataloader)):
                     is_last_val_step = val_step + 1 == len(val_dataloader)
                     is_val_log_step = val_step == 0 or (
@@ -1005,7 +1006,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     )
 
                     timer.start_step("val_dataload")
-                    val_batch = next(iter(val_dataloader))
+                    val_batch = next(val_dataloader_iter)
                     timer.end_step("val_dataload")
 
                     # Validation forward pass.
