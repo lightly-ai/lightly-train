@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import copy
 import math
-import re
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -29,6 +28,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._distributed import reduce_dict
+from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
@@ -364,67 +364,88 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         total_steps: int,
         global_batch_size: int,
     ) -> tuple[Optimizer, LRScheduler]:
-        # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
+        _, params_no_wd_list = optimizer_helpers.get_weight_decay_parameters(
+            modules=[self.model]
+        )
+        params_no_wd = set(params_no_wd_list)
+
+        param_groups = []
         lr = self.model_args.lr * math.sqrt(
             global_batch_size / self.model_args.default_batch_size
         )
-        param_groups = []
-        base_weight_decay = self.model_args.weight_decay
         backbone_lr = lr * self.model_args.backbone_lr_factor
+        backbone_weight_decay = (
+            self.model_args.backbone_weight_decay
+            if self.model_args.backbone_weight_decay is not None
+            else self.model_args.weight_decay
+        )
         detector_weight_decay = self.model_args.detector_weight_decay
 
-        # Backbone group without normalization layers.
-        backbone_params = [
-            p
-            for n, p in self.model.named_parameters()
-            if re.match(r"^(?=.*backbone)(?!.*(norm|bn)).*$", n)
-        ]
-        if backbone_params:
+        backbone_params = list(self.model.backbone.parameters())
+        backbone_params_wd = [p for p in backbone_params if p not in params_no_wd]
+        backbone_params_no_wd = [p for p in backbone_params if p in params_no_wd]
+        if backbone_params_wd:
             param_groups.append(
                 {
                     "name": "backbone",
-                    "params": backbone_params,
+                    "params": backbone_params_wd,
                     "lr": backbone_lr,
-                    "weight_decay": base_weight_decay,
+                    "weight_decay": backbone_weight_decay,
+                }
+            )
+        if backbone_params_no_wd:
+            param_groups.append(
+                {
+                    "name": "backbone_no_wd",
+                    "params": backbone_params_no_wd,
+                    "lr": backbone_lr,
+                    "weight_decay": 0.0,
                 }
             )
 
-        # Normalization layers from the detector (encoder/decoder).
-        # TODO (Thomas, 10/25): Add one extra group for the normalization layers in the backbone.
-        detector_params = [
-            p
-            for n, p in self.model.named_parameters()
-            if re.match(r"^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$", n)
-        ]
-        if detector_params:
+        detector_params = list(self.model.encoder.parameters()) + list(
+            self.model.decoder.parameters()
+        )
+        detector_params_wd = [p for p in detector_params if p not in params_no_wd]
+        detector_params_no_wd = [p for p in detector_params if p in params_no_wd]
+        if detector_params_wd:
             param_groups.append(
                 {
                     "name": "detector",
-                    "params": detector_params,
-                    "lr": lr,
+                    "params": detector_params_wd,
                     "weight_decay": detector_weight_decay,
+                }
+            )
+        if detector_params_no_wd:
+            param_groups.append(
+                {
+                    "name": "detector_no_wd",
+                    "params": detector_params_no_wd,
+                    "weight_decay": 0.0,
                 }
             )
 
         # Default group for all remaining parameters.
-        used_params = set(
-            p
-            for param_group in param_groups
-            for p in param_group["params"]  # type: ignore[attr-defined]
-        )
-        default_params = [
-            p for _, p in self.model.named_parameters() if p not in used_params
-        ]
-
-        if default_params:
+        used_params = set(backbone_params + detector_params)
+        default_params = [p for p in self.model.parameters() if p not in used_params]
+        default_params_wd = [p for p in default_params if p not in params_no_wd]
+        default_params_no_wd = [p for p in default_params if p in params_no_wd]
+        if default_params_wd:
             param_groups.append(
                 {
                     "name": "default",
-                    "params": default_params,
-                    "lr": lr,
-                    "weight_decay": base_weight_decay,
+                    "params": default_params_wd,
                 }
             )
+        if default_params_no_wd:
+            param_groups.append(
+                {
+                    "name": "default_no_wd",
+                    "params": default_params_no_wd,
+                    "weight_decay": 0.0,
+                }
+            )
+
         optim = AdamW(
             param_groups,
             lr=lr,
