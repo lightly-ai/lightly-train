@@ -954,6 +954,7 @@ def _reuse_or_reinit(
         True if weights/biases were adjusted, False otherwise.
     """
     checkpoint_weight = state_dict.get(weight_key)
+    checkpoint_bias = state_dict.get(bias_key)
     if checkpoint_weight is None:
         return False
 
@@ -967,7 +968,8 @@ def _reuse_or_reinit(
     if num_classes_checkpoint > num_classes_module:
         # Checkpoint has more classes: truncate to module's expected size
         adjusted_weights = checkpoint_weight[:num_classes_module, :]
-        adjusted_biases = state_dict[bias_key][:num_classes_module]
+        if checkpoint_bias is not None:
+            adjusted_biases = checkpoint_bias[:num_classes_module]
     else:
         # Checkpoint has fewer classes: pad with module's initialized weights
         adjusted_weights = torch.cat(
@@ -977,14 +979,16 @@ def _reuse_or_reinit(
             ],
             dim=0,
         )
-        adjusted_biases = torch.cat(
-            [
-                state_dict[bias_key].to(device),
-                head_module.bias[num_classes_checkpoint:].detach().clone(),  # type: ignore[index]
-            ],
-            dim=0,
-        )
+        if checkpoint_bias is not None:
+            adjusted_biases = torch.cat(
+                [
+                    checkpoint_bias.to(device),
+                    head_module.bias[num_classes_checkpoint:].detach().clone(),  # type: ignore[index]
+                ],
+                dim=0,
+            )
 
     state_dict[weight_key] = adjusted_weights
-    state_dict[bias_key] = adjusted_biases
+    if checkpoint_bias is not None:
+        state_dict[bias_key] = adjusted_biases
     return True
