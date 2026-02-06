@@ -49,6 +49,7 @@ from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
 from lightly_train._train_task_state import (
     TrainTaskState,
 )
+from lightly_train._training_step_timer import TrainingStepTimer
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -887,6 +888,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
         infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
+        timer = TrainingStepTimer()
+
         for name, param in train_model.named_parameters():
             logger.debug(f"grad={param.requires_grad} {name}")
         for name, module in train_model.named_modules():
@@ -921,21 +924,40 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 config.save_checkpoint_args.save_every_num_steps
             ) == 0
 
+            # Training data loading.
+            timer.start_step("train_data_loading")
             batch = next(infinite_train_dataloader)
+            timer.end_step("train_data_loading")
+
+            # Training forward pass.
+            timer.start_step("train_forward")
             train_result = train_model.training_step(
                 fabric=fabric, batch=batch, step=step
             )
+            timer.end_step("train_forward")
+
+            # Training backward pass, optimizer step, and scheduler step.
+            timer.start_step("train_backward")
             fabric.backward(train_result.loss)
             train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
+            timer.end_step("train_backward")
 
             # Call the on_train_batch_end hook.
             train_model.on_train_batch_end()
 
             if is_log_step or is_last_step:
                 train_log_dict = helpers.compute_metrics(train_result.log_dict)
+
+                # Add profiling metrics (% time spent in each operation).
+                timing_percentages = timer.total_percentage(
+                    ["train_forward", "train_backward", "train_data_loading"]
+                )
+                for key, value in timing_percentages.items():
+                    train_log_dict[f"profiling/{key}"] = value
+
                 helpers.log_step(
                     split="train",
                     step=step,

@@ -40,11 +40,25 @@ class TrainingStepTimer:
         """Get total seconds spent in step."""
         return self._step_total_times.get(step, 0.0)
 
-    def total_percentage(self, steps: list[str] | None = None) -> dict[str, float]:
-        """Get percentage of time spent in each step."""
+    def total_percentage(
+        self, steps: list[str] | None = None, decimal_places: int = 1
+    ) -> dict[str, float]:
+        """Get percentage of time spent in each step.
+
+        Args:
+            steps: List of step names to include. If None, includes all steps.
+            decimal_places: Number of decimal places to round to.
+
+        Returns:
+            Dictionary mapping step names to their percentage of total time.
+        """
         if steps is None:
             steps = list(self._step_total_times.keys())
         total_time = sum(self.total_step_sec(step) for step in steps)
         if total_time == 0:
             return {step: 0.0 for step in steps}
-        return {step: (self.total_step_sec(step) / total_time) * 100 for step in steps}
+
+        return {
+            step: round((self.total_step_sec(step) / total_time) * 100, decimal_places)
+            for step in steps
+        }
