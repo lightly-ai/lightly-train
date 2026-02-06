@@ -21,7 +21,7 @@ from torch.nn import functional as F
 from torchvision.transforms.functional import InterpolationMode
 from torchvision.transforms.v2 import functional as transforms_functional
 
-from lightly_train import _logging, _torch_testing
+from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
@@ -32,10 +32,10 @@ from lightly_train._models.dinov3.dinov3_src.layers.attention import (
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
-from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.scale_block import (
     ScaleBlock,
 )
+from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -208,15 +208,9 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
 
-        if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.queries_adjust_num_queries_hook
-            )
-        else:
-            # Backwards compatibility for PyTorch <= 2.4
-            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.queries_adjust_num_queries_hook, with_module=True
-            )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, hooks.queries_adjust_num_queries_hook
+        )
 
         # Threshold values used during forward() call. Are stored as attributes to be
         # folded into the ONNX graph during export as ONNX doesn't support default

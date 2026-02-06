@@ -22,6 +22,11 @@ When importing:
   - Third-party imports
   - Local imports and group them accordingly with a blank line between each group.
 - Always add `from __future__ import annotations` at the top of the file.
+- Always import classes fully qualified, e.g. `from torch.nn import Module`. Never use
+  `from torch import nn` and then `nn.Module`.
+- Never import functions directly, e.g. `from torch.nn.functional import relu`. Instead,
+  import the containing module and call the function using dot notation, e.g.
+  `import torch.nn.functional as F` and then `F.relu()`.
 
 ## File Layout
 
@@ -128,6 +133,9 @@ Type all PyTorch tensors with `from torch import Tensor`. Note that things like
 `FloatTensor` and `LongTensor` should NOT be used.
 
 Run type checks with `make type-check`.
+
+Never use strings for type hints, e.g. `def foo(x: 'int') -> 'str': ...`. Instead, use
+the actual types, e.g. `def foo(x: int) -> str: ...`.
 
 ## Testing
 
