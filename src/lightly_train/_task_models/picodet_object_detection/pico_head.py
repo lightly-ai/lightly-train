@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import ModuleList
+from torch.nn import Module, ModuleList
 
 from lightly_train import _torch_helpers
 
@@ -426,7 +426,7 @@ class PicoHead(nn.Module):
 
 
 def picodet_gfl_cls_reuse_or_reinit_hook(
-    module: "torch.nn.Module",
+    module: Module,
     state_dict: dict[str, Any],
     prefix: str,
     *args: Any,
