@@ -12,14 +12,18 @@
 # limitations under the License.#
 from __future__ import annotations
 
-from typing import Sequence
+import logging
+from typing import Any, Sequence
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
+from torch.nn import Module, ModuleList
 
-from lightly_train._task_models import task_model_helpers
+from lightly_train import _torch_helpers
+
+logger = logging.getLogger(__name__)
 
 
 class DepthwiseSeparableConv(nn.Module):
@@ -291,16 +295,9 @@ class PicoHead(nn.Module):
 
         self.integral = Integral(reg_max)
 
-        if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.picodet_gfl_cls_reuse_or_reinit_hook
-            )
-        else:
-            # Backwards compatibility for PyTorch <= 2.4
-            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.picodet_gfl_cls_reuse_or_reinit_hook,
-                with_module=True,
-            )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, picodet_gfl_cls_reuse_or_reinit_hook
+        )
 
         self._init_weights()
 
@@ -426,3 +423,38 @@ class PicoHead(nn.Module):
         all_decoded_bboxes = torch.cat(decoded_bboxes_list, dim=1)
 
         return all_points, all_cls_scores, all_decoded_bboxes
+
+
+def picodet_gfl_cls_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """Reuse or reinitialize GFL classification heads when number of classes changes."""
+    gfl_cls_module = getattr(module, "gfl_cls", None)
+    if not isinstance(gfl_cls_module, ModuleList):
+        return
+
+    mismatches = 0
+    for idx, head_module in enumerate(gfl_cls_module):
+        if head_module is None:
+            continue
+        weight_key = f"{prefix}gfl_cls.{idx}.weight"
+        bias_key = f"{prefix}gfl_cls.{idx}.bias"
+        weight = state_dict.get(weight_key)
+        if weight is None:
+            continue
+        if weight.shape != head_module.weight.shape:  # type: ignore[operator]
+            state_dict[weight_key] = head_module.weight.detach().clone()  # type: ignore[operator]
+            if bias_key in state_dict:
+                state_dict[bias_key] = head_module.bias.detach().clone()  # type: ignore[operator]
+            mismatches += 1
+
+    if mismatches:
+        logger.info(
+            "Checkpoint provides different number of classes for PicoDet gfl_cls. "
+            "Reinitializing %d heads.",
+            mismatches,
+        )

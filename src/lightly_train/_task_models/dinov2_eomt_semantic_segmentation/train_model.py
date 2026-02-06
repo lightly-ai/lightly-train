@@ -20,13 +20,13 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
+from lightly_train import _torch_helpers
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
-from lightly_train._task_models import train_model_helpers
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -39,6 +39,7 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.transforms imp
     DINOv2EoMTSemanticSegmentationValTransform,
     DINOv2EoMTSemanticSegmentationValTransformArgs,
 )
+from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
@@ -273,15 +274,9 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             ]
         )
 
-        if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                train_model_helpers.criterion_empty_weight_reinit_hook
-            )
-        else:
-            # Backwards compatibility for PyTorch <= 2.4
-            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                train_model_helpers.criterion_empty_weight_reinit_hook, with_module=True
-            )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, hooks.criterion_empty_weight_reinit_hook
+        )
 
     def get_task_model(self) -> DINOv2EoMTSemanticSegmentation:
         return self.model
