@@ -71,6 +71,7 @@ from lightly_train._train_task_state import (
     CheckpointDict,
     TrainTaskState,
 )
+from lightly_train._training_step_timer import TrainingStepTimer
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -669,6 +670,7 @@ def log_step(
     max_steps: int,
     log_dict: dict[str, Any],
     task: str,
+    timer: TrainingStepTimer | None = None,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
@@ -683,8 +685,63 @@ def log_step(
     for name, value in log_dict.items():
         if name in name_to_display_name:
             parts.append(f"{name_to_display_name[name]}: {value:.4f}")
+
+    # Add timing percentages for steps matching the split prefix.
+    timing_parts = []
+    if timer is not None:
+        prefix = f"{split}_"
+        timing_percentages = timer.percentage_for_prefix(prefix=prefix)
+        for key, value in timing_percentages.items():
+            name = " ".join(map(lambda s: s.capitalize(), key.split("_")))
+            timing_parts.append(f"{name}: {value:.1f}%")
+    if timing_parts:
+        parts.append(f"Time Spent [{', '.join(timing_parts)}]")
+
     line = " | ".join(parts)
     logger.info(line)
+
+
+def log_timer_debug(timer: TrainingStepTimer) -> None:
+    """Log detailed timing percentages as debug information.
+
+    Args:
+        timer: The timer instance to log percentages from.
+    """
+    percentages = timer.total_percentage()
+    if not percentages:
+        return
+    parts = []
+    for step_name, percentage in sorted(percentages.items()):
+        name = " ".join(map(lambda s: s.capitalize(), step_name.split("_")))
+        parts.append(f"{name}: {percentage:.1f}%")
+    line = f"Time Spent [{', '.join(parts)}]"
+    logger.debug(line)
+
+
+def add_timer_logs(timer: TrainingStepTimer, log_dict: dict[str, Any]) -> None:
+    """Add overall timing percentages to the log dictionary.
+
+    Adds profiling/train_time_perc, profiling/val_time_perc, and
+    profiling/dataload_time_perc to the log_dict.
+
+    Args:
+        timer: The timer instance to get percentages from.
+        log_dict: The dictionary to add timing percentages to.
+    """
+    times_perc = timer.percentage_for_prefix_group(
+        prefixes={
+            "train_dataload": ["train_dataload"],
+            "train": ["train"],
+            "val_dataload": ["val_dataload"],
+            "val": ["val"],
+            "checkpoint": ["checkpoint"],
+        }
+    )
+    log_dict["profiling/train_dataload_time_perc"] = times_perc["train_dataload"]
+    log_dict["profiling/train_time_perc"] = times_perc["train"]
+    log_dict["profiling/val_dataload_time_perc"] = times_perc["val_dataload"]
+    log_dict["profiling/val_time_perc"] = times_perc["val"]
+    log_dict["profiling/checkpoint_time_perc"] = times_perc["checkpoint"]
 
 
 def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
