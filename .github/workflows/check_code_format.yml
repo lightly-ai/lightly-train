@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python: ["3.8", "3.12", "3.13"]
+        python: ["3.8", "3.13"]
     steps:
       - name: Setup cmake
         # TODO(04/25, Guarin): Check if this is still needed on GitHub hosted runners.
@@ -72,7 +72,7 @@ jobs:
       - name: Run Format Check
         # Run the format check only on the latest Python version as earlier versions
         # might format the code differently.
-        if: ${{ matrix.python == '3.12' }}
+        if: ${{ matrix.python == '3.13' }}
         run: |
           make format-check
       - name: Run Type Check

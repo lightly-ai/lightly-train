@@ -210,9 +210,8 @@ EXTRAS_PY38 := [dev,dicom,mlflow,notebook,onnx,super-gradients,tensorboard,timm,
 
 # SuperGradients is not compatible with Python>=3.10. It is also not easy to install
 # on MacOS. Therefore we exclude it from the default extras.
-# RFDETR has installation issues because of onnxsim dependency on CI with Python 3.12.
+# RFDETR has installation issues because of onnxsim dependency on CI with Python 3.13.
 # Onnx dependencies in RFDETR should become optional in RFDETR >1.1.0.
-EXTRAS_PY312 := [dev,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
 EXTRAS_PY313 := [dev,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
@@ -243,20 +242,16 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
 ifdef CI
 PINNED_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-PINNED_TORCH_VERSION_PY312 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
 PINNED_TORCH_VERSION_PY313 := "torch@https://download.pytorch.org/whl/cu118/torch-2.7.0%2Bcu118-cp313-cp313-manylinux_2_28_x86_64.whl"
 PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-PINNED_TORCHVISION_VERSION_PY312 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
 PINNED_TORCHVISION_VERSION_PY313 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.22.0%2Bcu118-cp313-cp313-manylinux_2_28_x86_64.whl"
 MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 endif
 else
 PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
-PINNED_TORCH_VERSION_PY312 := "torch==2.4.0"
 PINNED_TORCH_VERSION_PY313 := "torch==2.7.0"
 PINNED_TORCHVISION_VERSION_PY38 := "torchvision==0.19.0"
-PINNED_TORCHVISION_VERSION_PY312 := "torchvision==0.19.0"
 PINNED_TORCHVISION_VERSION_PY313 := "torchvision==0.22.0"
 MINIMAL_TORCH_VERSION_PY38 := "torch==2.1.0"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision==0.16.0"
@@ -323,15 +318,6 @@ install-pinned-3.8:
 	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY38}" --requirement pyproject.toml \
 		${PINNED_TORCH_VERSION_PY38} ${PINNED_TORCHVISION_VERSION_PY38}
 
-# Install package for Python 3.12 with dependencies pinned to the latest compatible
-# version available at EXCLUDE_NEWER_DATE.
-#
-# See install-pinned-3.8 for more information.
-.PHONY: install-pinned-3.12
-install-pinned-3.12:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY312}" --requirement pyproject.toml \
-		${PINNED_TORCH_VERSION_PY312} ${PINNED_TORCHVISION_VERSION_PY312}
-
 # Install package for Python 3.13 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE.
 #
@@ -345,11 +331,6 @@ install-pinned-3.13:
 .PHONY: install-latest-3.8
 install-latest-3.8:
 	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY38}"
-
-# Install package with the latest dependencies for Python 3.12.
-.PHONY: install-latest-3.12
-install-latest-3.12:
-	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY312}" "torch<2.9.0"
 
 # Install package with the latest dependencies for Python 3.13.
 .PHONY: install-latest-3.13
