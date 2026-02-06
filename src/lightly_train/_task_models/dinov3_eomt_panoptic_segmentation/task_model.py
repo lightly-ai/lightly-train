@@ -211,9 +211,6 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         _torch_helpers.register_load_state_dict_pre_hook(
             self, hooks.queries_adjust_num_queries_hook
         )
-        _torch_helpers.register_load_state_dict_pre_hook(
-            self, hooks.class_head_reuse_or_reinit_hook
-        )
 
         # Threshold values used during forward() call. Are stored as attributes to be
         # folded into the ONNX graph during export as ONNX doesn't support default

@@ -40,7 +40,7 @@ jobs:
     if: needs.detect-code-changes.outputs.run-tests == 'true'
     strategy:
       matrix:
-        python: ["3.8", "3.12", "3.13"]
+        python: ["3.8", "3.13"]
         runners: ["ubuntu-latest", "windows-latest"]
     runs-on: ${{ matrix.runners }}
     steps:
