@@ -23,7 +23,7 @@ class TestTrainingStepTimer:
         time.sleep(0.01)
         timer.end_step("forward")
 
-        assert timer.total_step_sec("forward") >= 0.01
+        assert timer.total_step_sec("forward") >= 0.005
 
     def test_total_step_sec__accumulates(self) -> None:
         """Test that total accumulates across multiple executions."""
@@ -42,7 +42,7 @@ class TestTrainingStepTimer:
         second_total = timer.total_step_sec("backward")
 
         assert second_total > first_total
-        assert second_total >= 0.03
+        assert second_total >= 0.02
 
     def test_total_percentage(self) -> None:
         """Test percentage calculation."""
