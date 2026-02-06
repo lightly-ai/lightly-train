@@ -958,6 +958,22 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 for key, value in timing_percentages.items():
                     train_log_dict[f"profiling/{key}"] = value
 
+                # Add comprehensive timing summary at end of training.
+                if is_last_step:
+                    comprehensive_timing = timer.total_percentage(
+                        [
+                            "train_forward",
+                            "train_backward",
+                            "train_data_loading",
+                            "val_forward",
+                            "val_data_loading",
+                            "metrics",
+                            "checkpoint_saving",
+                        ]
+                    )
+                    for key, value in comprehensive_timing.items():
+                        train_log_dict[f"profiling/total_{key}"] = value
+
                 helpers.log_step(
                     split="train",
                     step=step,
@@ -977,6 +993,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             if config.save_checkpoint_args.save_last and (
                 is_save_ckpt_step or is_last_step
             ):
+                # Checkpoint saving and export.
+                timer.start_step("checkpoint_saving")
                 helpers.save_checkpoint(
                     fabric=fabric, out_dir=out_dir, state=state, best_or_last="last"
                 )
@@ -990,6 +1008,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 helpers.export_model(
                     out_dir=out_dir, model_dict=model_dict, best_or_last="last"
                 )
+                timer.end_step("checkpoint_saving")
 
             if is_val_step or is_last_step:
                 fabric.barrier()
@@ -1002,12 +1021,48 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         % no_auto(config.logger_args.val_log_every_num_steps)
                         == 0
                     )
+
+                    # Validation data loading.
+                    timer.start_step("val_data_loading")
+                    # Note: val_batch already loaded by enumerate, so we just mark the time.
+                    timer.end_step("val_data_loading")
+
+                    # Validation forward pass.
+                    timer.start_step("val_forward")
                     with torch.no_grad():
                         val_result = train_model.validation_step(
                             fabric=fabric, batch=val_batch
                         )
+                    timer.end_step("val_forward")
+
                     if is_last_val_step:
+                        # Metric computation.
+                        timer.start_step("metrics")
                         val_log_dict = helpers.compute_metrics(val_result.log_dict)
+                        timer.end_step("metrics")
+
+                        # Add profiling metrics (% time spent in each operation).
+                        timing_percentages = timer.total_percentage(
+                            ["val_forward", "val_data_loading"]
+                        )
+                        for key, value in timing_percentages.items():
+                            val_log_dict[f"profiling/{key}"] = value
+
+                        # Add comprehensive timing summary at end of validation.
+                        comprehensive_timing = timer.total_percentage(
+                            [
+                                "train_forward",
+                                "train_backward",
+                                "train_data_loading",
+                                "val_forward",
+                                "val_data_loading",
+                                "metrics",
+                                "checkpoint_saving",
+                            ]
+                        )
+                        for key, value in comprehensive_timing.items():
+                            val_log_dict[f"profiling/total_{key}"] = value
+
                         helpers.log_step(
                             split="val",
                             step=val_step,
@@ -1034,6 +1089,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                 logger.info(
                                     f"The best validation metric {config.save_checkpoint_args.watch_metric}={watch_metric:.4f} was reached."
                                 )
+                                # Best checkpoint saving and export.
+                                timer.start_step("checkpoint_saving")
                                 helpers.save_checkpoint(
                                     fabric=fabric,
                                     out_dir=out_dir,
@@ -1052,6 +1109,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                     model_dict=model_dict,
                                     best_or_last="best",
                                 )
+                                timer.end_step("checkpoint_saving")
 
                             best_metric = watch_metric
 
