@@ -49,6 +49,7 @@ from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
 from lightly_train._train_task_state import (
     TrainTaskState,
 )
+from lightly_train._training_step_timer import TrainingStepTimer
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -887,6 +888,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
         infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
+        timer = TrainingStepTimer()
+
         for name, param in train_model.named_parameters():
             logger.debug(f"grad={param.requires_grad} {name}")
         for name, module in train_model.named_modules():
@@ -921,28 +924,45 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 config.save_checkpoint_args.save_every_num_steps
             ) == 0
 
+            # Training data loading.
+            timer.start_step("train_dataload")
             batch = next(infinite_train_dataloader)
+            timer.end_step("train_dataload")
+
+            # Training forward pass.
+            timer.start_step("train_forward")
             train_result = train_model.training_step(
                 fabric=fabric, batch=batch, step=step
             )
+            timer.end_step("train_forward")
+
+            # Training backward pass, optimizer step, and scheduler step.
+            timer.start_step("train_backward")
             fabric.backward(train_result.loss)
             train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
+            timer.end_step("train_backward")
 
             # Call the on_train_batch_end hook.
             train_model.on_train_batch_end()
 
             if is_log_step or is_last_step:
+                timer.start_step("train_metrics")
                 train_log_dict = helpers.compute_metrics(train_result.log_dict)
+                timer.end_step("train_metrics")
+
                 helpers.log_step(
                     split="train",
                     step=step,
                     max_steps=config.steps,
                     log_dict=train_log_dict,
                     task=config.task,
+                    timer=timer,
                 )
+                helpers.add_timer_logs(timer=timer, log_dict=train_log_dict)
+
                 for group in optimizer.param_groups:
                     if group.get("log", True):
                         train_log_dict[f"learning_rate/{group['name']}"] = group["lr"]
@@ -955,6 +975,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             if config.save_checkpoint_args.save_last and (
                 is_save_ckpt_step or is_last_step
             ):
+                # Checkpoint saving and export.
+                timer.start_step("checkpoint_saving")
                 helpers.save_checkpoint(
                     fabric=fabric, out_dir=out_dir, state=state, best_or_last="last"
                 )
@@ -968,31 +990,48 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 helpers.export_model(
                     out_dir=out_dir, model_dict=model_dict, best_or_last="last"
                 )
+                timer.end_step("checkpoint_saving")
 
             if is_val_step or is_last_step:
                 fabric.barrier()
                 logger.info("Validating...")
                 train_model.eval()
-                for val_step, val_batch in enumerate(val_dataloader):
+                val_dataloader_iter = iter(val_dataloader)
+                for val_step in range(len(val_dataloader)):
                     is_last_val_step = val_step + 1 == len(val_dataloader)
                     is_val_log_step = val_step == 0 or (
                         (val_step + 1)
                         % no_auto(config.logger_args.val_log_every_num_steps)
                         == 0
                     )
+
+                    timer.start_step("val_dataload")
+                    val_batch = next(val_dataloader_iter)
+                    timer.end_step("val_dataload")
+
+                    # Validation forward pass.
+                    timer.start_step("val_forward")
                     with torch.no_grad():
                         val_result = train_model.validation_step(
                             fabric=fabric, batch=val_batch
                         )
+                    timer.end_step("val_forward")
+
                     if is_last_val_step:
+                        # Metric computation.
+                        timer.start_step("val_metrics")
                         val_log_dict = helpers.compute_metrics(val_result.log_dict)
+                        timer.end_step("val_metrics")
+
                         helpers.log_step(
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
                             log_dict=val_log_dict,
                             task=config.task,
+                            timer=timer,
                         )
+                        helpers.add_timer_logs(timer=timer, log_dict=val_log_dict)
                         fabric.log_dict(val_log_dict, step=step)
                         helpers.reset_metrics(val_result.log_dict)
 
@@ -1012,6 +1051,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                 logger.info(
                                     f"The best validation metric {config.save_checkpoint_args.watch_metric}={watch_metric:.4f} was reached."
                                 )
+                                # Best checkpoint saving and export.
+                                timer.start_step("checkpoint_saving")
                                 helpers.save_checkpoint(
                                     fabric=fabric,
                                     out_dir=out_dir,
@@ -1030,8 +1071,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                     model_dict=model_dict,
                                     best_or_last="best",
                                 )
-
+                                timer.end_step("checkpoint_saving")
                             best_metric = watch_metric
+                        helpers.log_timer_debug(timer=timer)
 
                     elif is_val_log_step:
                         # Show that we are making progress. Metrics are only calculated
@@ -1042,9 +1084,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             max_steps=len(val_dataloader),
                             log_dict={},
                             task=config.task,
+                            timer=timer,
                         )
                 train_model.set_train_mode()
                 fabric.barrier()
+        helpers.log_timer_debug(timer=timer)
         logger.info(
             f"Best result: {config.save_checkpoint_args.watch_metric}={best_metric:.4f}"
         )
