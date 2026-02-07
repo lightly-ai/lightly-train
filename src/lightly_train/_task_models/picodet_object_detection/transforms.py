@@ -119,8 +119,13 @@ class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
         super().resolve_auto(model_init_args=model_init_args)
 
         if self.image_size == "auto":
-            # Default to 416x416 for PicoDet
-            self.image_size = tuple(model_init_args.get("image_size", (416, 416)))
+            model_name = model_init_args.get("model_name")
+            default_image_size = (
+                (640, 640) if model_name == "picodet/l-640" else (416, 416)
+            )
+            self.image_size = tuple(
+                model_init_args.get("image_size", default_image_size)
+            )
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
@@ -217,8 +222,13 @@ class PicoDetObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
         super().resolve_auto(model_init_args=model_init_args)
 
         if self.image_size == "auto":
-            # Default to 416x416 for PicoDet
-            self.image_size = tuple(model_init_args.get("image_size", (416, 416)))
+            model_name = model_init_args.get("model_name")
+            default_image_size = (
+                (640, 640) if model_name == "picodet/l-640" else (416, 416)
+            )
+            self.image_size = tuple(
+                model_init_args.get("image_size", default_image_size)
+            )
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:

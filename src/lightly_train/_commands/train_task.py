@@ -721,6 +721,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     )
 
     model_init_args = {} if model_init_args is None else model_init_args
+    if "model_name" not in model_init_args:
+        model_init_args["model_name"] = config.model
 
     train_transform_args, val_transform_args = helpers.get_transform_args(
         train_model_cls=train_model_cls,

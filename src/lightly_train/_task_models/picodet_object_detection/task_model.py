@@ -46,9 +46,9 @@ _MODEL_CONFIGS = {
         "neck_out_channels": 96,
         "head_feat_channels": 96,
     },
-    "picodet/l-416": {
+    "picodet/l-640": {
         "model_size": "l",
-        "image_size": (416, 416),
+        "image_size": (640, 640),
         "stacked_convs": 4,
         "neck_out_channels": 160,
         "head_feat_channels": 160,
