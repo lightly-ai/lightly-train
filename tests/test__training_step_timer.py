@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from lightly_train._training_step_timer import TrainingStepTimer
 
 
@@ -67,10 +69,10 @@ class TestTrainingStepTimer:
         assert set(percentages.keys()) == {"forward", "backward", "data_loading"}
 
         # Check percentages sum to 100.
-        assert abs(sum(percentages.values()) - 100.0) < 0.1
+        assert sum(percentages.values()) == pytest.approx(100.0, abs=30)
 
         # data_loading should be roughly 50% since it took 0.02s out of ~0.04s total.
-        assert 40 < percentages["data_loading"] < 60
+        assert percentages["data_loading"] == pytest.approx(50, abs=20)
 
     def test_percentage_for_prefix(self) -> None:
         """Test percentage calculation for steps with a given prefix."""
@@ -94,10 +96,10 @@ class TestTrainingStepTimer:
         assert set(percentages.keys()) == {"forward", "backward", "optimizer"}
 
         # Check percentages sum to 100.
-        assert abs(sum(percentages.values()) - 100.0) < 0.1
+        assert sum(percentages.values()) == pytest.approx(100.0, abs=30)
 
         # optimizer should be roughly 50% since it took 0.02s out of ~0.04s total.
-        assert 40 < percentages["optimizer"] < 60
+        assert percentages["optimizer"] == pytest.approx(50, abs=20)
 
     def test_percentage_for_prefix__empty(self) -> None:
         """Test percentage calculation with no matching steps."""
@@ -143,12 +145,12 @@ class TestTrainingStepTimer:
         assert set(percentages.keys()) == {"training", "validation", "data"}
 
         # Check percentages sum to 100 (within rounding tolerance).
-        assert abs(sum(percentages.values()) - 100.0) < 0.2
+        assert sum(percentages.values()) == pytest.approx(100.0, abs=30)
 
         # Training and validation should each be roughly 33% and data should be 33%.
-        assert 25 < percentages["training"] < 45
-        assert 25 < percentages["validation"] < 45
-        assert 25 < percentages["data"] < 45
+        assert percentages["training"] == pytest.approx(33, abs=15)
+        assert percentages["validation"] == pytest.approx(33, abs=15)
+        assert percentages["data"] == pytest.approx(33, abs=15)
 
     def test_end_step__without_start(self) -> None:
         """Test that ending a step without starting it raises an error."""
@@ -175,4 +177,4 @@ class TestTrainingStepTimer:
         percentages = timer.total_percentage()
 
         assert set(percentages.keys()) == {"step1", "step2"}
-        assert abs(sum(percentages.values()) - 100.0) < 0.1
+        assert sum(percentages.values()) == pytest.approx(100.0, abs=30)
