@@ -9,22 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Add Python 3.13 support.
-- Add Image classification dataset.
-- Add random rotation transforms for all fine-tuning tasks.
-- Add DistillationV3 tailored for ViT models.
-- Skip weight decay for bias/norm/token/etc. layers.
-- Add automatic fine-tuning learning rate scaling based on batch size for all tasks.
-- Log fine-tuning training time breakdown.
-
 ### Changed
-
-- Missing object detection and instance segmentation label files are treated as images
-  without objects instead of being skipped. This can be configured by setting the
-  `skip_if_label_file_missing` flag in the `data` argument of the
-  `train_object_detection` and `train_instance_segmentation` functions respectively.
-- DINO now updates the teacher temperature and last layer freezing based on the number
-  of training steps instead of epochs.
 
 ### Deprecated
 
@@ -32,11 +17,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+### Security
+
+## [0.14.1] - 2026-02-09
+
+### Added
+
+- Add Python 3.13 support.
+- Add random rotation transforms for all fine-tuning tasks.
+- Add DistillationV3 preview tailored for ViT models.
+- Skip weight decay for bias/norm/token/etc. layers.
+- Add automatic fine-tuning learning rate scaling based on batch size for all tasks.
+- Log fine-tuning training time breakdown.
+
+### Changed
+
+- Missing object detection and instance segmentation label files are now treated as
+  images without objects instead of being skipped. This can be configured by setting the
+  `skip_if_label_file_missing` flag in the `data` argument of the
+  `train_object_detection` and `train_instance_segmentation` functions respectively.
+- DINO now updates the teacher temperature and last layer freezing based on the number
+  of training steps instead of epochs.
+
+### Fixed
+
 - Fix missing libxcb1 dependency in Dockerfile causing cv2 import errors.
 - Fix issue when fine-tuning panoptic segmentation models with a different number of
   classes than the pretrained model.
-
-### Security
 
 ## [0.14.0] - 2026-01-19
 
