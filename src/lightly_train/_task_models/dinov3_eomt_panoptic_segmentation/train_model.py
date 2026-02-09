@@ -20,6 +20,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torchvision.transforms.functional import InterpolationMode
 
+from lightly_train import _torch_helpers
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_panoptic_segmentation_dataset import (
     MaskPanopticSegmentationDataArgs,
@@ -38,6 +39,7 @@ from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.transforms imp
     DINOv3EoMTPanopticSegmentationValTransform,
     DINOv3EoMTPanopticSegmentationValTransformArgs,
 )
+from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
@@ -267,6 +269,10 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             return_per_class=True,
         )
         self.val_pq = self.train_pq.clone()
+
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, hooks.criterion_empty_weight_reinit_hook
+        )
 
     def get_task_model(self) -> DINOv3EoMTPanopticSegmentation:
         return self.model
