@@ -172,12 +172,17 @@ class MaskPanopticSegmentationBatch(TypedDict):
 class ImageClassificationDatasetItem(TypedDict):
     image_path: ImageFilename
     image: Tensor
+    # Tensor with shape (n_labels,) with the class labels for multilabel classification,
+    # or (1,) with the class label for multiclass classification.
     classes: Tensor
 
 
 class ImageClassificationBatch(TypedDict):
     image_path: list[ImageFilename]  # length==batch_size
     image: Tensor  # Tensor with shape (batch_size, 3, H, W).
+    # One tensor per image, each of shape (n_labels,) with the class labels for
+    # multilabel classification, or (1,) with the class label for multiclass
+    # classification.
     classes: list[Tensor]
 
 

@@ -59,8 +59,7 @@ def _get_RandomResizedCrop(
     args: RandomResizedCropArgs,
 ) -> RandomResizedCrop:
     # A lot of though went into the choice of interpolation method here.
-    # See details in https://github.com/lightly-ai/lightly-train/pull/284
-
+    # See details in https://github.com/lightly-ai/lightly-train-old/pull/284
     assert args.scale is not None
     if ALBUMENTATIONS_VERSION_2XX:
         return RandomResizedCrop(

@@ -27,6 +27,10 @@ from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
+from lightly_train._data.image_classification_dataset import (
+    ImageClassificationMulticlassDataArgs,
+    ImageClassificationMultilabelDataArgs,
+)
 from lightly_train._data.infinite_cycle_iterator import InfiniteCycleIterator
 from lightly_train._data.mask_panoptic_segmentation_dataset import (
     MaskPanopticSegmentationDataArgs,
@@ -53,6 +57,164 @@ from lightly_train._training_step_timer import TrainingStepTimer
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
+
+
+def train_image_classification(
+    *,
+    out: PathLike,
+    data: dict[str, Any] | str,
+    model: str,
+    classification_task: Literal["multiclass", "multilabel"] = "multiclass",
+    steps: int | Literal["auto"] = "auto",
+    batch_size: int | Literal["auto"] = "auto",
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    resume_interrupted: bool = False,
+    checkpoint: PathLike | None = None,
+    reuse_class_head: bool = False,
+    overwrite: bool = False,
+    accelerator: str = "auto",
+    strategy: str = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    seed: int | None = 0,
+    logger_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
+) -> None:
+    """Train an instance segmentation model.
+
+    See the documentation for more information: https://docs.lightly.ai/train/stable/image_classification.html
+
+        The training process can be monitored with TensorBoard:
+
+    .. code-block:: bash
+
+        tensorboard --logdir out
+
+    After training, the last model checkpoint is saved in the out directory to:
+    ``out/checkpoints/last.ckpt`` and also exported to ``out/exported_models/exported_last.pt``.
+
+    Args:
+        out:
+            The output directory where the model checkpoints and logs are saved.
+        data:
+            The dataset configuration or path to a YAML file with the configuration.
+            See the documentation for more information:
+            https://docs.lightly.ai/train/stable/image_classification.html#data
+        model:
+            The model to train. For example, "dinov3/vitt16", or a path to a local model
+            checkpoint.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter.
+        classification_task:
+            The type of image classification task. Can be either "multiclass" or
+            "multilabel". In a multiclass classification task, each image is assigned
+            to exactly one class. In a multilabel classification task, each image can
+            be assigned to multiple classes.
+        steps:
+            The number of training steps.
+        batch_size:
+            Global batch size. The batch size per device/GPU is inferred from this value
+            and the number of devices and nodes.
+        num_workers:
+            Number of workers for the dataloader per device/GPU. 'auto' automatically
+            sets the number of workers based on the available CPU cores.
+        devices:
+            Number of devices/GPUs for training. 'auto' automatically selects all
+            available devices. The device type is determined by the ``accelerator``
+            parameter.
+        num_nodes:
+            Number of nodes for distributed training.
+        checkpoint:
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint. The checkpoint must be a path to a checkpoint file, for example
+            "checkpoints/model.ckpt". This will only load the model weights from the
+            previous run. All other training state (e.g. optimizer state, epochs) from
+            the previous run are not loaded.
+
+            This option is equivalent to setting ``model="<path_to_checkpoint>"``.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
+        reuse_class_head:
+            Deprecated. Now the model will reuse the classification head by default only when the num_classes
+            in the data config matches that in the checkpoint. Otherwise, the classification head will be re-initialized.
+        resume_interrupted:
+            Set this to True if you want to resume training from an **interrupted or
+            crashed** training run. This will pick up exactly where the training left
+            off, including the optimizer state and the current step.
+
+            - You must use the same ``out`` directory as the interrupted run.
+            - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
+            - This is intended for continuing the same run without modification.
+        overwrite:
+            Overwrite the output directory if it already exists. Warning, this might
+            overwrite existing files in the directory!
+        accelerator:
+            Hardware accelerator. Can be one of ['cpu', 'gpu', 'mps', 'auto'].
+            'auto' will automatically select the best accelerator available.
+        strategy:
+            Training strategy. For example 'ddp' or 'auto'. 'auto' automatically
+            selects the best strategy available.
+        precision:
+            Training precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
+            for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication. Can be one of ['auto',
+            'highest', 'high', 'medium']. See https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
+            for more information.
+        seed:
+            Random seed for reproducibility.
+        logger_args:
+            Logger arguments. Either None or a dictionary of logger names to either
+            None or a dictionary of logger arguments. None uses the default loggers.
+            To disable a logger, set it to None: ``logger_args={"tensorboard": None}``.
+            To configure a logger, pass the respective arguments:
+            ``logger_args={"mlflow": {"experiment_name": "my_experiment", ...}}``.
+            See https://docs.lightly.ai/train/stable/instance_segmentation.html#logging
+            for more information.
+        model_args:
+            Model training arguments. Either None or a dictionary of model arguments.
+        transform_args:
+            Transform arguments. Either None or a dictionary of transform arguments.
+            The image size and normalization parameters can be set with
+            ``transform_args={"image_size": (height, width), "normalize": {"mean": (r, g, b), "std": (r, g, b)}}``
+        loader_args:
+            Arguments for the PyTorch DataLoader. Should only be used in special cases
+            as default values are automatically set. Prefer to use the `batch_size` and
+            `num_workers` arguments instead. For details, see:
+            https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader
+        save_checkpoint_args:
+            Arguments to configure the saving of checkpoints. The checkpoint frequency
+            can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+    """
+    kwargs = locals()
+    classification_task = kwargs.pop("classification_task")
+    tracker.track_training_started(
+        task_type="image_classification",
+        model=model,
+        method=classification_task,
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
+    task_to_config_cls: dict[str, type[TrainTaskConfig]] = {
+        "multiclass": ImageClassificationMulticlassTrainTaskConfig,
+        "multilabel": ImageClassificationMultilabelTrainTaskConfig,
+    }
+    try:
+        config_cls = task_to_config_cls[classification_task]
+    except KeyError:
+        raise ValueError(
+            f"Invalid classification_task: '{classification_task}'. Must be "
+            f"one of {list(task_to_config_cls.keys())}."
+        )
+    return _train_task(config_cls=config_cls, **kwargs)
 
 
 def train_instance_segmentation(
@@ -718,7 +880,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         task=config.task,
     )
     config.save_checkpoint_args = helpers.get_save_checkpoint_args(
-        train_model_cls=train_model_cls, checkpoint_args=config.save_checkpoint_args
+        train_model_cls=train_model_cls,
+        checkpoint_args=config.save_checkpoint_args,
+        data_args=config.data,
     )
 
     model_init_args = {} if model_init_args is None else model_init_args
@@ -757,9 +921,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             mmap_filepath=val_mmap_filepath,
         )
 
-        logger.info(
-            f"Train images: {len(train_dataset)}, Val images: {len(val_dataset)}"
-        )
+        num_train_images = len(train_dataset)
+        num_val_images = len(val_dataset)
+        logger.info(f"Train images: {num_train_images}, Val images: {num_val_images}")
+        if num_train_images == 0:
+            raise RuntimeError(
+                "Training dataset is empty. Please check your dataset configuration "
+                "and make sure the path to the training data is correct."
+            )
 
         train_model_args_cls = train_model_cls.train_model_args_cls
 
@@ -1110,6 +1279,7 @@ class TrainTaskConfig(PydanticConfig):
     data: TaskDataArgs
     model: str
     task: Literal[
+        "image_classification",
         "instance_segmentation",
         "panoptic_segmentation",
         "semantic_segmentation",
@@ -1148,6 +1318,16 @@ class TrainTaskConfig(PydanticConfig):
             data_attributes = cls.model_fields["data"].annotation.model_fields  # type: ignore
             v = {name: value for name, value in v.items() if name in data_attributes}
         return v
+
+
+class ImageClassificationMulticlassTrainTaskConfig(TrainTaskConfig):
+    data: ImageClassificationMulticlassDataArgs
+    task: Literal["image_classification"] = "image_classification"
+
+
+class ImageClassificationMultilabelTrainTaskConfig(TrainTaskConfig):
+    data: ImageClassificationMultilabelDataArgs
+    task: Literal["image_classification"] = "image_classification"
 
 
 class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):

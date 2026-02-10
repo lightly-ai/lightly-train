@@ -39,6 +39,84 @@ except ImportError:
     pydicom = None  # type: ignore[assignment]
 
 
+def test_train_image_classification__multiclass(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    data = tmp_path / "data"
+    helpers.create_multiclass_image_classification_dataset(
+        tmp_path=data,
+        class_names=["class_0", "class_1"],
+        num_files_per_class=2,
+    )
+
+    lightly_train.train_image_classification(
+        out=out,
+        model="dinov3/vitt16-notpretrained",
+        data={
+            "train": data / "train",
+            "val": data / "val",
+            "classes": {
+                0: "class_0",
+                1: "class_1",
+            },
+        },
+        steps=2,
+        batch_size=2,
+        num_workers=2,
+        devices=1,
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+    )
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()
+
+    # Check that model can be loaded again
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+
+    # Check forward pass
+    results = model.predict(torch.randn(3, 224, 224))
+    assert results["labels"].shape == (1,)
+    assert results["scores"].shape == (1,)
+
+
+def test_train_image_classification__multilabel(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    data = tmp_path / "data"
+    classes = {
+        0: "class_0",
+        1: "class_1",
+        2: "class_2",
+    }
+    helpers.create_multilabel_image_classification_dataset(
+        tmp_path=data,
+        classes=classes,
+        num_files=4,
+    )
+    lightly_train.train_image_classification(
+        out=out,
+        model="dinov3/vitt16-notpretrained",
+        classification_task="multilabel",
+        data={
+            "train": data / "train.csv",
+            "val": data / "val.csv",
+            "classes": classes,
+        },
+        steps=2,
+        batch_size=2,
+        num_workers=2,
+        devices=1,
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+    )
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()
+
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+    # Check forward pass
+    results = model.predict(torch.randn(3, 224, 224))
+    assert results["labels"].shape == (3,)
+    assert results["scores"].shape == (3,)
+
+
 def test_train_object_detection(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
