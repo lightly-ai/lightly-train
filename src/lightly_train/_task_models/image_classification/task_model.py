@@ -107,10 +107,17 @@ class ImageClassification(TaskModel):
         num_input_channels = (
             3 if self.image_normalize is None else len(self.image_normalize["mean"])
         )
+
+        backbone_model_args = {}
+        if model.startswith("dinov2/"):
+            backbone_model_args["drop_path_rate"] = 0.0
+        if backbone_args is not None:
+            backbone_model_args.update(backbone_args)
+
         self.backbone = package_helpers.get_wrapped_model(
             model=parsed_name["backbone_name"],
             num_input_channels=num_input_channels,
-            model_args=backbone_args,
+            model_args=backbone_model_args,
             load_weights=load_weights and backbone_weights is None,
         )
 
