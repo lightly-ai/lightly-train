@@ -19,18 +19,6 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, Module
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
-from torchmetrics import MeanMetric, Metric, MetricCollection
-from torchmetrics.classification import (
-    MulticlassAccuracy,
-    MulticlassF1Score,
-    MulticlassPrecision,
-    MulticlassRecall,
-    MultilabelAccuracy,
-    MultilabelAUROC,
-    MultilabelAveragePrecision,
-    MultilabelF1Score,
-    MultilabelHammingDistance,
-)
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
@@ -135,6 +123,21 @@ class ImageClassificationTrain(TrainModel):
         val_transform_args: ImageClassificationValTransformArgs,
         load_weights: bool,
     ) -> None:
+        # Import here because old torchmetrics versions (0.8.0) don't support the
+        # metrics we use. But we need old torchmetrics support for SuperGradients.
+        from torchmetrics import MeanMetric, Metric, MetricCollection
+        from torchmetrics.classification import (
+            MulticlassAccuracy,
+            MulticlassF1Score,
+            MulticlassPrecision,
+            MulticlassRecall,
+            MultilabelAccuracy,
+            MultilabelAUROC,
+            MultilabelAveragePrecision,
+            MultilabelF1Score,
+            MultilabelHammingDistance,
+        )
+
         super().__init__()
         image_size = no_auto(val_transform_args.image_size)
         normalize = no_auto(val_transform_args.normalize)
