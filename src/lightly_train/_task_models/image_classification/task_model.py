@@ -227,8 +227,7 @@ class ImageClassification(TaskModel):
         if self.classification_task == "multiclass":
             labels = labels.squeeze(0)  # Remove batch dimension
             scores = scores.squeeze(0)  # Remove batch dimension
-        elif self.classification_task == "multilabel":
-            labels = labels[..., 1]  # Keep label column and remove batch indices
+        # Tensors are already in the correct shape for multilabel.
 
         return {
             "labels": labels,
