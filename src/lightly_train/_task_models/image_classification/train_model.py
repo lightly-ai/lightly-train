@@ -126,7 +126,7 @@ class ImageClassificationTrain(TrainModel):
         # Import here because old torchmetrics versions (0.8.0) don't support the
         # metrics we use. But we need old torchmetrics support for SuperGradients.
         from torchmetrics import MeanMetric, Metric, MetricCollection
-        from torchmetrics.classification import (
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
             MulticlassAccuracy,
             MulticlassF1Score,
             MulticlassPrecision,
