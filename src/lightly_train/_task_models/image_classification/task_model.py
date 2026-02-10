@@ -217,8 +217,11 @@ class ImageClassification(TaskModel):
             )
 
         # Remove batch dimension.
-        labels = labels.squeeze(0)
-        scores = scores.squeeze(0)
+        if self.classification_task == "multiclass":
+            labels = labels.squeeze(0)  # Remove batch dimension
+            scores = scores.squeeze(0)  # Remove batch dimension
+        elif self.classification_task == "multilabel":
+            labels = labels[..., 1]  # Keep label column and remove batch indices
 
         return {
             "labels": labels,
@@ -268,10 +271,9 @@ class ImageClassification(TaskModel):
         elif self.classification_task == "multilabel":
             scores = logits.sigmoid()  # (B, num_classes)
             keep = scores > threshold  # (B, num_classes)
-            labels = keep.nonzero(
-                as_tuple=False
-            )  # (num_labels, 2) where columns are (batch_idx, label)
-            scores = scores[labels]  # (num_labels,)
+            # (num_labels, 2) where columns are (batch_idx, label)
+            labels = keep.nonzero(as_tuple=False)
+            scores = scores[keep]  # (num_labels,)
         else:
             raise ValueError(
                 f"Invalid classification_task '{self.classification_task}'"
@@ -359,7 +361,7 @@ class ImageClassification(TaskModel):
         The export uses a dummy input of shape (batch_size, C, H, W) where C is inferred
         from the first model parameter and (H, W) come from `self.image_size`.
         The ONNX graph uses dynamic batch size for both inputs and produces
-        three outputs: labels, masks, and scores.
+        two outputs: labels and scores.
 
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
@@ -654,8 +656,8 @@ def class_head_reuse_or_reinit_hook(
         return
     else:
         logger.info(
-            f"Checkpoint provides {num_classes_state - 1} classes but module expects "
-            f"{num_classes_module - 1}. Reinitializing class head.",
+            f"Checkpoint provides {num_classes_state} classes but module expects "
+            f"{num_classes_module}. Reinitializing class head.",
         )
 
         # Keep the module initialization by overwriting the checkpoint weights with the

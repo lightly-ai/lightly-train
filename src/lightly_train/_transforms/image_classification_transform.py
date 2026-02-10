@@ -24,6 +24,7 @@ from albumentations import (
     VerticalFlip,
 )
 from albumentations.pytorch.transforms import ToTensorV2
+from lightning_utilities.core.imports import RequirementCache
 from torch import Tensor
 from typing_extensions import Literal
 
@@ -139,14 +140,10 @@ class ImageClassificationTransform(TaskTransform):
 
         if transform_args.random_crop is not None:
             transform += [
-                RandomResizedCrop(
-                    size=no_auto(transform_args.image_size),
-                    scale=(
-                        transform_args.random_crop.min_scale,
-                        transform_args.random_crop.max_scale,
-                    ),
-                    # Use inter area based on https://github.com/lightly-ai/lightly-train-old/pull/284
-                    interpolation=cv2.INTER_AREA,
+                _get_RandomResizedCrop(
+                    image_size=no_auto(transform_args.image_size),
+                    min_scale=transform_args.random_crop.min_scale,
+                    max_scale=transform_args.random_crop.max_scale,
                 )
             ]
         else:
@@ -228,3 +225,27 @@ class ImageClassificationTransform(TaskTransform):
         return {
             "image": transformed["image"],
         }
+
+
+ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
+
+
+def _get_RandomResizedCrop(
+    image_size: ImageSizeTuple,
+    min_scale: float,
+    max_scale: float,
+) -> RandomResizedCrop:
+    # A lot of though went into the choice of interpolation method here.
+    # See details in https://github.com/lightly-ai/lightly-train-old/pull/284
+    if ALBUMENTATIONS_VERSION_2XX:
+        return RandomResizedCrop(
+            size=image_size,
+            scale=(min_scale, max_scale),
+            interpolation=cv2.INTER_AREA,
+        )
+    return RandomResizedCrop(
+        height=image_size[0],
+        width=image_size[1],
+        scale=(min_scale, max_scale),
+        interpolation=cv2.INTER_AREA,
+    )

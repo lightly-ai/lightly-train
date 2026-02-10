@@ -112,7 +112,7 @@ def test_train_image_classification__multilabel(tmp_path: Path) -> None:
 
     model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
     # Check forward pass
-    results = model.predict(torch.randn(3, 224, 224))
+    results = model.predict(torch.randn(3, 224, 224), threshold=-1)
     assert results["labels"].shape == (3,)
     assert results["scores"].shape == (3,)
 

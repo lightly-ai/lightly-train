@@ -43,7 +43,7 @@ class ImageClassificationRandomResizeArgs(RandomResizeArgs):
 
 class ImageClassificationTrainTransformArgs(ImageClassificationTransformArgs):
     """
-    Defines default transform arguments for semantic segmentation training with DINOv3.
+    Defines default transform arguments for image classification training.
     """
 
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
@@ -89,7 +89,7 @@ class ImageClassificationTrainTransformArgs(ImageClassificationTransformArgs):
 
 class ImageClassificationValTransformArgs(ImageClassificationTransformArgs):
     """
-    Defines default transform arguments for semantic segmentation validation with DINOv3.
+    Defines default transform arguments for image classification validation.
     """
 
     image_size: ImageSizeTuple | Literal["auto"] = "auto"

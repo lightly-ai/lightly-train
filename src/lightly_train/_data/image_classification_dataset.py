@@ -308,8 +308,8 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
                     raise RuntimeError(
                         f"Image '{image_path}' has multiple labels {class_ids} but the "
                         f"classification task is '{self.classification_task}'. Set "
-                        "data={'classification_task': 'multilabel'} to enable "
-                        "multilabel classification."
+                        "classification_task='multilabel' to enable multilabel "
+                        "classification."
                     )
 
                 # Keep only non-ignore classes.

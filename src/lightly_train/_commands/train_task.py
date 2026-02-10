@@ -85,7 +85,7 @@ def train_image_classification(
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
-    """Train an instance segmentation model.
+    """Train an image classification model.
 
     See the documentation for more information: https://docs.lightly.ai/train/stable/image_classification.html
 
@@ -190,7 +190,7 @@ def train_image_classification(
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
     """
-    kwargs = locals()
+    kwargs = {**locals()}
     classification_task = kwargs.pop("classification_task")
     tracker.track_training_started(
         task_type="image_classification",

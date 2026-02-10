@@ -260,7 +260,7 @@ class ImageClassificationTrain(TrainModel):
                 class_ids=classes, num_classes=len(self.model.classes)
             )
             loss = self.criterion(logits, targets)
-            self.val_metrics.update(logits, targets)
+            self.val_metrics.update(logits, targets.int())
         else:
             raise ValueError(
                 f"Unsupported classification task: {self.model.classification_task}"
@@ -323,8 +323,6 @@ def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:
         torch.tensor([t.numel() for t in class_ids], device=class_ids[0].device),
     )
     col = torch.cat(class_ids)
-    y = torch.zeros(
-        len(class_ids), num_classes, device=class_ids[0].device, dtype=torch.int
-    )
+    y = torch.zeros(len(class_ids), num_classes, device=class_ids[0].device)
     y[row, col] = 1
     return y
