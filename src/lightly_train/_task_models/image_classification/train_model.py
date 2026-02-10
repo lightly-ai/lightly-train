@@ -175,7 +175,7 @@ class ImageClassificationTrain(TrainModel):
         )
         self.val_loss = MeanMetric()
 
-        metrics: dict[str, Metric | MetricCollection] = {}
+        metrics: dict[str, Metric] = {}
         if self.model.classification_task == "multiclass":
             metrics.update(
                 {
@@ -217,7 +217,7 @@ class ImageClassificationTrain(TrainModel):
                     ),
                 }
             )
-        self.val_metrics = MetricCollection(metrics, prefix="val_metric/")
+        self.val_metrics = MetricCollection(metrics, prefix="val_metric/")  # type: ignore[arg-type]
 
     def get_task_model(self) -> ImageClassification:
         return self.model
