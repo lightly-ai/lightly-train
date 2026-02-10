@@ -141,9 +141,6 @@ def train_image_classification(
 
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter instead.
-        reuse_class_head:
-            Deprecated. Now the model will reuse the classification head by default only when the num_classes
-            in the data config matches that in the checkpoint. Otherwise, the classification head will be re-initialized.
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
             crashed** training run. This will pick up exactly where the training left
@@ -176,7 +173,7 @@ def train_image_classification(
             To disable a logger, set it to None: ``logger_args={"tensorboard": None}``.
             To configure a logger, pass the respective arguments:
             ``logger_args={"mlflow": {"experiment_name": "my_experiment", ...}}``.
-            See https://docs.lightly.ai/train/stable/instance_segmentation.html#logging
+            See https://docs.lightly.ai/train/stable/image_classification.html#logging
             for more information.
         model_args:
             Model training arguments. Either None or a dictionary of model arguments.
