@@ -299,7 +299,7 @@ class ImageClassificationTrain(TrainModel):
         optimizer = AdamW(
             params=params,
             lr=lr,
-            weight_decay=self.model_args.weight_decay,
+            weight_decay=no_auto(self.model_args.weight_decay),
         )
         scheduler = CosineWarmupScheduler(
             optimizer=optimizer,
