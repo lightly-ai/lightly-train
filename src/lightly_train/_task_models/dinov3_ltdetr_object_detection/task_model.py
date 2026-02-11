@@ -174,6 +174,36 @@ class _HybridEncoderViTTConfig(_HybridEncoderConfig):
     act: str = "silu"
 
 
+class _HybridEncoderViTBConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [768, 768, 768]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 768
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 3072
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1.0
+    act: str = "silu"
+
+
+class _HybridEncoderViTLConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [1024, 1024, 1024]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 1024
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 4096
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1.0
+    act: str = "silu"
+
+
 class _RTDETRTransformerv2Config(PydanticConfig):
     feat_channels: list[int] = [256, 256, 256]
     feat_strides: list[int] = [8, 16, 32]
@@ -228,6 +258,22 @@ class _RTDETRTransformerv2ViTTConfig(_RTDETRTransformerv2Config):
     dim_feedforward: int = 512
 
 
+class _RTDETRTransformerv2ViTBConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [768, 768, 768]
+    hidden_dim: int = 768
+    num_layers: int = 4
+    num_points: list[int] = [3, 6, 3]
+    dim_feedforward: int = 6144
+
+
+class _RTDETRTransformerv2ViTLConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [1024, 1024, 1024]
+    hidden_dim: int = 1024
+    num_layers: int = 4
+    num_points: list[int] = [3, 6, 3]
+    dim_feedforward: int = 8192
+
+
 class _RTDETRBackboneWrapperViTSConfig(PydanticConfig):
     interaction_indexes: list[int] = [5, 8, 11]
     finetune: bool = True
@@ -247,6 +293,20 @@ class _RTDETRBackboneWrapperViTTConfig(PydanticConfig):
     finetune: bool = True
     conv_inplane: int = 16
     hidden_dim: int = 192
+
+
+class _RTDETRBackboneWrapperViTBConfig(PydanticConfig):
+    interaction_indexes: list[int] = [5, 8, 11]
+    finetune: bool = True
+    conv_inplane: int = 64
+    hidden_dim: int = 768
+
+
+class _RTDETRBackboneWrapperViTLConfig(PydanticConfig):
+    interaction_indexes: list[int] = [11, 17, 23]
+    finetune: bool = True
+    conv_inplane: int = 64
+    hidden_dim: int = 1024
 
 
 class _RTDETRPostProcessorConfig(PydanticConfig):
@@ -352,6 +412,36 @@ class _DINOv3LTDETRObjectDetectionViTTConfig(_DINOv3LTDETRObjectDetectionConfig)
     )
 
 
+class _DINOv3LTDETRObjectDetectionViTBConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTBConfig = Field(
+        default_factory=_HybridEncoderViTBConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTBConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTBConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+    backbone_wrapper: _RTDETRBackboneWrapperViTBConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTBConfig
+    )
+
+
+class _DINOv3LTDETRObjectDetectionViTLConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTLConfig = Field(
+        default_factory=_HybridEncoderViTLConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTLConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTLConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+    backbone_wrapper: _RTDETRBackboneWrapperViTLConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTLConfig
+    )
+
+
 class DINOv3LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
 
@@ -411,6 +501,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             "vitt16": (_DINOv3LTDETRObjectDetectionViTTConfig, DINOv3STAs),
             "vitt16plus": (_DINOv3LTDETRObjectDetectionViTTPlusConfig, DINOv3STAs),
             "vits16": (_DINOv3LTDETRObjectDetectionViTSConfig, DINOv3STAs),
+            "vitb16": (_DINOv3LTDETRObjectDetectionViTBConfig, DINOv3STAs),
+            "vitl16": (_DINOv3LTDETRObjectDetectionViTLConfig, DINOv3STAs),
             "convnext-tiny": (
                 _DINOv3LTDETRObjectDetectionTinyConfig,
                 DINOv3ConvNextWrapper,

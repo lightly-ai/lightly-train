@@ -13,11 +13,13 @@ from typing import Any
 
 import torch
 from PIL.Image import Image as PILImage
+from pydantic import Field
 from torch import Tensor
 from torch.nn import Module
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self
 
+from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
@@ -38,6 +40,252 @@ from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
+
+
+class _BackboneWrapperConfig(PydanticConfig):
+    keep_indices: list[int]
+
+
+class _BackboneWrapperViTSConfig(_BackboneWrapperConfig):
+    keep_indices: list[int] = [5, 8, 11]
+
+
+class _BackboneWrapperViTBConfig(_BackboneWrapperConfig):
+    keep_indices: list[int] = [5, 8, 11]
+
+
+class _BackboneWrapperViTLConfig(_BackboneWrapperConfig):
+    keep_indices: list[int] = [11, 17, 23]
+
+
+class _BackboneWrapperViTGConfig(_BackboneWrapperConfig):
+    keep_indices: list[int] = [19, 29, 39]
+
+
+class _HybridEncoderConfig(PydanticConfig):
+    in_channels: list[int]
+    feat_strides: list[int]
+    hidden_dim: int
+    use_encoder_idx: list[int]
+    num_encoder_layers: int
+    nhead: int
+    dim_feedforward: int
+    dropout: float
+    enc_act: str
+    expansion: float
+    depth_mult: float
+    act: str
+    upsample: bool
+
+
+class _HybridEncoderViTSConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [384, 384, 384]
+    feat_strides: list[int] = [14, 14, 14]
+    hidden_dim: int = 384
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 1536
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1
+    act: str = "silu"
+    upsample: bool = False
+
+
+class _HybridEncoderViTBConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [768, 768, 768]
+    feat_strides: list[int] = [14, 14, 14]
+    hidden_dim: int = 768
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 3072
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1
+    act: str = "silu"
+    upsample: bool = False
+
+
+class _HybridEncoderViTLConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [1024, 1024, 1024]
+    feat_strides: list[int] = [14, 14, 14]
+    hidden_dim: int = 1024
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 4096
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1
+    act: str = "silu"
+    upsample: bool = False
+
+
+class _HybridEncoderViTGConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [1536, 1536, 1536]
+    feat_strides: list[int] = [14, 14, 14]
+    hidden_dim: int = 1536
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 6144
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1
+    act: str = "silu"
+    upsample: bool = False
+
+
+class _RTDETRTransformerv2Config(PydanticConfig):
+    feat_channels: list[int]
+    feat_strides: list[int]
+    hidden_dim: int
+    num_levels: int
+    num_layers: int
+    num_queries: int
+    num_denoising: int
+    label_noise_ratio: float
+    box_noise_scale: float
+    eval_idx: int
+    num_points: list[int]
+    query_select_method: str
+
+
+class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [384, 384, 384]
+    feat_strides: list[int] = [14, 14, 14]
+    hidden_dim: int = 256
+    num_levels: int = 3
+    num_layers: int = 6
+    num_queries: int = 300
+    num_denoising: int = 100
+    label_noise_ratio: float = 0.5
+    box_noise_scale: float = 1.0
+    eval_idx: int = -1
+    num_points: list[int] = [4, 4, 4]
+    query_select_method: str = "default"
+
+
+class _RTDETRTransformerv2ViTBConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [768, 768, 768]
+    feat_strides: list[int] = [14, 14, 14]
+    hidden_dim: int = 256
+    num_levels: int = 3
+    num_layers: int = 6
+    num_queries: int = 300
+    num_denoising: int = 100
+    label_noise_ratio: float = 0.5
+    box_noise_scale: float = 1.0
+    eval_idx: int = -1
+    num_points: list[int] = [4, 4, 4]
+    query_select_method: str = "default"
+
+
+class _RTDETRTransformerv2ViTLConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [1024, 1024, 1024]
+    feat_strides: list[int] = [14, 14, 14]
+    hidden_dim: int = 256
+    num_levels: int = 3
+    num_layers: int = 6
+    num_queries: int = 300
+    num_denoising: int = 100
+    label_noise_ratio: float = 0.5
+    box_noise_scale: float = 1.0
+    eval_idx: int = -1
+    num_points: list[int] = [4, 4, 4]
+    query_select_method: str = "default"
+
+
+class _RTDETRTransformerv2ViTGConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [1536, 1536, 1536]
+    feat_strides: list[int] = [14, 14, 14]
+    hidden_dim: int = 256
+    num_levels: int = 3
+    num_layers: int = 6
+    num_queries: int = 300
+    num_denoising: int = 100
+    label_noise_ratio: float = 0.5
+    box_noise_scale: float = 1.0
+    eval_idx: int = -1
+    num_points: list[int] = [4, 4, 4]
+    query_select_method: str = "default"
+
+
+class _RTDETRPostProcessorConfig(PydanticConfig):
+    num_top_queries: int = 300
+
+
+class _DINOv2LTDETRObjectDetectionConfig(PydanticConfig):
+    backbone_wrapper: _BackboneWrapperConfig
+    hybrid_encoder: _HybridEncoderConfig
+    rtdetr_transformer: _RTDETRTransformerv2Config
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig
+
+
+class _DINOv2LTDETRObjectDetectionViTSConfig(_DINOv2LTDETRObjectDetectionConfig):
+    backbone_wrapper: _BackboneWrapperViTSConfig = Field(
+        default_factory=_BackboneWrapperViTSConfig
+    )
+    hybrid_encoder: _HybridEncoderViTSConfig = Field(
+        default_factory=_HybridEncoderViTSConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTSConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTSConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+
+
+class _DINOv2LTDETRObjectDetectionViTBConfig(_DINOv2LTDETRObjectDetectionConfig):
+    backbone_wrapper: _BackboneWrapperViTBConfig = Field(
+        default_factory=_BackboneWrapperViTBConfig
+    )
+    hybrid_encoder: _HybridEncoderViTBConfig = Field(
+        default_factory=_HybridEncoderViTBConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTBConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTBConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+
+
+class _DINOv2LTDETRObjectDetectionViTLConfig(_DINOv2LTDETRObjectDetectionConfig):
+    backbone_wrapper: _BackboneWrapperViTLConfig = Field(
+        default_factory=_BackboneWrapperViTLConfig
+    )
+    hybrid_encoder: _HybridEncoderViTLConfig = Field(
+        default_factory=_HybridEncoderViTLConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTLConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTLConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+
+
+class _DINOv2LTDETRObjectDetectionViTGConfig(_DINOv2LTDETRObjectDetectionConfig):
+    backbone_wrapper: _BackboneWrapperViTGConfig = Field(
+        default_factory=_BackboneWrapperViTGConfig
+    )
+    hybrid_encoder: _HybridEncoderViTGConfig = Field(
+        default_factory=_HybridEncoderViTGConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2ViTGConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTGConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
 
 
 class DINOv2LTDETRObjectDetection(TaskModel):
@@ -89,9 +337,20 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         if load_weights and backbone_weights is not None:
             self.load_backbone_weights(dinov2, backbone_weights)
 
+        # Get the configuration based on the model name.
+        config_mapping = {
+            "vits14": _DINOv2LTDETRObjectDetectionViTSConfig,
+            "vitb14": _DINOv2LTDETRObjectDetectionViTBConfig,
+            "vitl14": _DINOv2LTDETRObjectDetectionViTLConfig,
+            "vitg14": _DINOv2LTDETRObjectDetectionViTGConfig,
+        }
+        config_name = parsed_name["backbone_name"]
+        config_cls = config_mapping[config_name]
+        config = config_cls()
+
         self.backbone: DINOv2ViTWrapper = DINOv2ViTWrapper(
             model=dinov2,
-            keep_indices=[5, 8, 11],
+            **config.backbone_wrapper.model_dump(),
         )
         # TODO(Lionel, 07/25): Improve how mask tokens are handled for fine-tuning.
         # Should we drop them from the model? We disable grads here for DDP to work
@@ -99,42 +358,20 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self.backbone.backbone.mask_token.requires_grad = False
 
         self.encoder: HybridEncoder = HybridEncoder(  # type: ignore[no-untyped-call]
-            in_channels=[384, 384, 384],
-            feat_strides=[14, 14, 14],
-            hidden_dim=384,
-            use_encoder_idx=[2],
-            num_encoder_layers=1,
-            nhead=8,
-            dim_feedforward=2048,
-            dropout=0.0,
-            enc_act="gelu",
-            expansion=1.0,
-            depth_mult=1,
-            act="silu",
-            upsample=False,
+            **config.hybrid_encoder.model_dump()
         )
 
+        decoder_config = config.rtdetr_transformer.model_dump()
+        decoder_config.update({"num_classes": len(self.classes)})
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            num_classes=len(self.classes),
-            feat_channels=[384, 384, 384],
-            feat_strides=[14, 14, 14],
-            hidden_dim=256,
-            num_levels=3,
-            num_layers=6,
-            num_queries=300,
-            num_denoising=100,
-            label_noise_ratio=0.5,
-            box_noise_scale=1.0,
-            eval_idx=-1,
-            num_points=[4, 4, 4],
-            query_select_method="default",
-            # TODO Lionel (09/25): Remove when anchors are not in checkpoints anymore.
+            **decoder_config,
             eval_spatial_size=self.image_size,  # From global config, otherwise anchors are not generated.
         )
 
+        postprocessor_config = config.rtdetr_postprocessor.model_dump()
+        postprocessor_config.update({"num_classes": len(self.classes)})
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
-            num_classes=len(self.classes),
-            num_top_queries=300,
+            **postprocessor_config
         )
 
     @classmethod
@@ -499,48 +736,38 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
             model_name=parsed_name["backbone_name"],
             model_args=backbone_args,
         )
+
+        # Get the configuration based on the model name.
+        config_mapping = {
+            "vits14": _DINOv2LTDETRObjectDetectionViTSConfig,
+            "vitb14": _DINOv2LTDETRObjectDetectionViTBConfig,
+            "vitl14": _DINOv2LTDETRObjectDetectionViTLConfig,
+            "vitg14": _DINOv2LTDETRObjectDetectionViTGConfig,
+        }
+        config_name = parsed_name["backbone_name"]
+        config_cls = config_mapping[config_name]
+        config = config_cls()
+
         self.backbone: DINOv2ViTWrapper = DINOv2ViTWrapper(
             model=dinov2,
-            keep_indices=[5, 8, 11],
+            **config.backbone_wrapper.model_dump(),
         )
 
         self.encoder: HybridEncoder = HybridEncoder(  # type: ignore[no-untyped-call]
-            in_channels=[384, 384, 384],
-            feat_strides=[14, 14, 14],
-            hidden_dim=384,
-            use_encoder_idx=[2],
-            num_encoder_layers=1,
-            nhead=8,
-            dim_feedforward=2048,
-            dropout=0.0,
-            enc_act="gelu",
-            expansion=1.0,
-            depth_mult=1,
-            act="silu",
-            upsample=False,
+            **config.hybrid_encoder.model_dump()
         )
 
+        decoder_config = config.rtdetr_transformer.model_dump()
+        decoder_config.update({"cross_attn_method": "discrete"})
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            feat_channels=[384, 384, 384],
-            feat_strides=[14, 14, 14],
-            hidden_dim=256,
-            num_levels=3,
-            cross_attn_method="discrete",
-            num_layers=6,
-            num_queries=300,
-            num_denoising=100,
-            label_noise_ratio=0.5,
-            box_noise_scale=1.0,
-            eval_idx=-1,
-            num_points=[4, 4, 4],
-            query_select_method="default",
-            # TODO Lionel (09/25): Remove when anchors are not in checkpoints anymore.
+            **decoder_config,
             eval_spatial_size=(
                 644,
                 644,
             ),  # From global config, otherwise anchors are not generated.
         )
 
+        postprocessor_config = config.rtdetr_postprocessor.model_dump()
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
-            num_top_queries=300,
+            **postprocessor_config
         )
