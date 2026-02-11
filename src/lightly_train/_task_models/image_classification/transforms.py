@@ -97,7 +97,7 @@ class ImageClassificationValTransformArgs(ImageClassificationTransformArgs):
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_crop: ImageClassificationRandomResizeArgs | None = None
-    resize_scale: float | None = 1.14
+    resize_scale: float | None = 1.143
     random_flip: RandomFlipArgs | None = None
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None

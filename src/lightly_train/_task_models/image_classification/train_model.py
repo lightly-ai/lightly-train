@@ -82,7 +82,7 @@ class ImageClassificationTrainArgs(TrainModelArgs):
 
     # Optim
     lr: float = 3e-4
-    weight_decay: float = 1e-4
+    weight_decay: float | Literal["auto"] = "auto"
     lr_warmup_steps: int | Literal["auto"] = "auto"
 
     # Metrics
@@ -99,6 +99,11 @@ class ImageClassificationTrainArgs(TrainModelArgs):
         model_name: str,
         model_init_args: dict[str, Any],
     ) -> None:
+        if self.weight_decay == "auto":
+            if self.backbone_freeze:
+                self.weight_decay = 0.0
+            else:
+                self.weight_decay = 1e-4
         if self.lr_warmup_steps == "auto":
             if self.backbone_freeze:
                 self.lr_warmup_steps = 0
