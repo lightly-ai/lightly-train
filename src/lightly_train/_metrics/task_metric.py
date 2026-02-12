@@ -8,9 +8,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from torch.nn import Module
+from torchmetrics import Metric
 
 from lightly_train._configs.config import PydanticConfig
 
@@ -131,15 +130,6 @@ class TaskMetric(Module):
     def __init__(self) -> None:
         super().__init__()
 
-    def items(self) -> dict[str, Any]:
-        """Get all metric instances for adding to log_dict.
-
-        Returns:
-            Dictionary of metric name -> metric instance.
-            These are the actual metric objects that will be updated during training.
-        """
-        raise NotImplementedError
-
     def get_display_names(self) -> dict[str, str]:
         """Get display names for metrics (for logging).
 
@@ -155,23 +145,10 @@ class TaskMetric(Module):
         Returns:
             Dictionary mapping metric names to computed metric values.
         """
-        # Default implementation - just compute all metrics
-        result = {}
-        for name, metric in self.items().items():
-            from torchmetrics import Metric
-
-            if isinstance(metric, Metric):
-                value = metric.compute()
-                if hasattr(value, "item"):
-                    result[name] = float(value.item())
-                else:
-                    result[name] = float(value)
-        return result
+        raise NotImplementedError
 
     def reset(self) -> None:
         """Reset all metrics."""
-        for metric in self.items().values():
-            from torchmetrics import Metric
-
-            if isinstance(metric, Metric):
-                metric.reset()
+        for module in self.modules():
+            if isinstance(module, Metric):
+                module.reset()

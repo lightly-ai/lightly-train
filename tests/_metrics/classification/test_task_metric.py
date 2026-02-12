@@ -27,17 +27,14 @@ class TestMulticlassClassificationTaskMetricArgs:
             classwise_metric_args=None,
         )
 
-        # Verify metrics can be updated with dummy data
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([0, 1])
-        classification_task_metric.metrics.update(preds, target)
+        classification_task_metric.update(preds, target)
 
-        # Verify metrics can be computed
-        result = classification_task_metric.metrics.compute()
+        result = classification_task_metric.compute()
         assert isinstance(result, dict)
         assert len(result) > 0
 
-        # Verify expected metric names are present
         expected_metrics = {
             "val_metric/top1_acc_micro",
             "val_metric/f1_macro",
@@ -51,77 +48,118 @@ class TestMulticlassClassificationTaskMetricArgs:
         metric_args = MulticlassClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
             prefix="val_metric/",
+            class_names=["cat__type_a", "dog__breed__b", "bird"],
+            log_classwise=True,
+            classwise_metric_args=None,
+        )
+
+        assert classification_task_metric.metrics_classwise is not None
+
+        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2], [0.1, 0.1, 0.8]])
+        target = torch.tensor([0, 1, 2])
+        classification_task_metric.update(preds, target)
+
+        result = classification_task_metric.compute()
+        assert isinstance(result, dict)
+        assert len(result) > 0
+
+        regular_metrics = {k for k in result.keys() if "classwise" not in k}
+        result_classwise = {k: v for k, v in result.items() if "classwise" in k}
+        assert isinstance(result_classwise, dict)
+        assert len(result_classwise) > 0
+
+        assert len(regular_metrics) > 0
+        expected_regular_metrics = {
+            "val_metric/top1_acc_micro",
+            "val_metric/f1_macro",
+            "val_metric/precision_macro",
+            "val_metric/recall_macro",
+        }
+        assert expected_regular_metrics.issubset(set(regular_metrics))
+
+        for class_name in ["cat__type_a", "dog__breed__b", "bird"]:
+            expected_classwise_metrics = {
+                f"val_metric_classwise/top1_acc_micro_{class_name}",
+                f"val_metric_classwise/f1_macro_{class_name}",
+                f"val_metric_classwise/precision_macro_{class_name}",
+                f"val_metric_classwise/recall_macro_{class_name}",
+            }
+            assert expected_classwise_metrics.issubset(set(result_classwise.keys()))
+
+    def test_get_display_names(self) -> None:
+        """Test that get_display_names returns correct display names."""
+        metric_args = MulticlassClassificationTaskMetricArgs()
+        classification_task_metric = metric_args.get_metrics(
+            prefix="val_metric/",
+            class_names=["cat", "dog", "bird"],
+            log_classwise=False,
+            classwise_metric_args=None,
+        )
+
+        display_names = classification_task_metric.get_display_names()
+
+        assert isinstance(display_names, dict)
+        assert len(display_names) > 0
+
+        expected_mappings = {
+            "val_metric/top1_acc_micro": "Val Top-1 Acc (Micro)",
+            "val_metric/f1_macro": "Val F1 (Macro)",
+            "val_metric/precision_macro": "Val Precision (Macro)",
+            "val_metric/recall_macro": "Val Recall (Macro)",
+        }
+        for metric_name, expected_display in expected_mappings.items():
+            assert metric_name in display_names
+            assert display_names[metric_name] == expected_display
+
+    def test_get_display_names__classwise(self) -> None:
+        """Test that get_display_names works with classwise metrics."""
+        metric_args = MulticlassClassificationTaskMetricArgs()
+        classification_task_metric = metric_args.get_metrics(
+            prefix="val_metric/",
+            class_names=["cat__type_a", "dog__breed__b", "bird"],
+            log_classwise=True,
+            classwise_metric_args=None,
+        )
+
+        display_names = classification_task_metric.get_display_names()
+
+        assert "val_metric/top1_acc_micro" in display_names
+        assert "val_metric_classwise/top1_acc_micro" in display_names
+        assert "val_metric_classwise/f1_macro" in display_names
+        assert "val_metric_classwise/precision_macro" in display_names
+        assert "val_metric_classwise/recall_macro" in display_names
+
+        assert (
+            display_names["val_metric_classwise/top1_acc_micro"]
+            == "Val Top-1 Acc (Micro)"
+        )
+        assert display_names["val_metric_classwise/f1_macro"] == "Val F1 (Macro)"
+
+    def test_reset(self) -> None:
+        """Test that reset() clears all metrics."""
+        metric_args = MulticlassClassificationTaskMetricArgs()
+        classification_task_metric = metric_args.get_metrics(
+            prefix="val_metric/",
             class_names=["cat", "dog", "bird"],
             log_classwise=True,
             classwise_metric_args=None,
         )
 
-        # Verify classwise metrics exist
-        assert classification_task_metric.metrics_classwise is not None
+        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
+        target = torch.tensor([0, 1])
+        classification_task_metric.update(preds, target)
 
-        # Verify metrics can be updated with dummy data
-        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2], [0.1, 0.1, 0.8]])
-        target = torch.tensor([0, 1, 2])
-        classification_task_metric.metrics.update(preds, target)
-        classification_task_metric.metrics_classwise.update(preds, target)
+        result_before = classification_task_metric.compute()
+        assert len(result_before) > 0
 
-        # Verify regular metrics can be computed
-        result = classification_task_metric.metrics.compute()
-        assert isinstance(result, dict)
-        assert len(result) > 0
+        classification_task_metric.reset()
 
-        # Verify classwise metrics can be computed
-        result_classwise = classification_task_metric.metrics_classwise.compute()
-        assert isinstance(result_classwise, dict)
-        assert len(result_classwise) > 0
+        preds2 = torch.tensor([[0.1, 0.9, 0.0], [0.0, 0.1, 0.9]])
+        target2 = torch.tensor([1, 2])
+        classification_task_metric.update(preds2, target2)
+        result_after = classification_task_metric.compute()
 
-        # Verify expected classwise metric names are present for each class
-        for class_name in ["cat", "dog", "bird"]:
-            expected_classwise_metrics = {
-                f"val_metric_classwise/top1_acc_micro_{class_name}",
-                f"val_metric_classwise/f1_macro_{class_name}",
-                f"val_metric_classwise/precision_macro_{class_name}",
-                f"val_metric_classwise/recall_macro_{class_name}",
-            }
-            assert expected_classwise_metrics.issubset(set(result_classwise.keys()))
-
-    def test_get_metrics__classwise_with_double_underscores_in_class_names(
-        self,
-    ) -> None:
-        """Test that classwise metrics handle class names with double underscores."""
-        metric_args = MulticlassClassificationTaskMetricArgs()
-        # Use class names that contain double underscores
-        class_names = ["cat__type_a", "dog__breed__b", "bird"]
-        classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
-            class_names=class_names,
-            log_classwise=True,
-            classwise_metric_args=None,
-        )
-
-        # Verify classwise metrics exist
-        assert classification_task_metric.metrics_classwise is not None
-
-        # Verify metrics can be updated with dummy data
-        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2], [0.1, 0.1, 0.8]])
-        target = torch.tensor([0, 1, 2])
-        classification_task_metric.metrics.update(preds, target)
-        classification_task_metric.metrics_classwise.update(preds, target)
-
-        # Verify classwise metrics can be computed
-        result_classwise = classification_task_metric.metrics_classwise.compute()
-        assert isinstance(result_classwise, dict)
-        assert len(result_classwise) > 0
-
-        # Verify that double underscores in class names are preserved
-        for class_name in class_names:
-            expected_classwise_metrics = {
-                f"val_metric_classwise/top1_acc_micro_{class_name}",
-                f"val_metric_classwise/f1_macro_{class_name}",
-                f"val_metric_classwise/precision_macro_{class_name}",
-                f"val_metric_classwise/recall_macro_{class_name}",
-            }
-            assert expected_classwise_metrics.issubset(set(result_classwise.keys()))
+        assert result_after != result_before
 
 
 class TestMultilabelClassificationTaskMetricArgs:
@@ -135,17 +173,14 @@ class TestMultilabelClassificationTaskMetricArgs:
             classwise_metric_args=None,
         )
 
-        # Verify metrics can be updated with dummy data
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([[1, 0, 0], [0, 1, 1]])
-        classification_task_metric.metrics.update(preds, target)
+        classification_task_metric.update(preds, target)
 
-        # Verify metrics can be computed
-        result = classification_task_metric.metrics.compute()
+        result = classification_task_metric.compute()
         assert isinstance(result, dict)
         assert len(result) > 0
 
-        # Verify expected metric names are present
         expected_metrics = {
             "val_metric/accuracy_micro",
             "val_metric/f1_macro",
@@ -160,74 +195,117 @@ class TestMultilabelClassificationTaskMetricArgs:
         metric_args = MultilabelClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
             prefix="val_metric/",
+            class_names=["cat__type_a", "dog__breed__b", "bird"],
+            log_classwise=True,
+            classwise_metric_args=None,
+        )
+
+        assert classification_task_metric.metrics_classwise is not None
+
+        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2], [0.1, 0.1, 0.8]])
+        target = torch.tensor([[1, 0, 0], [0, 1, 1], [1, 0, 1]])
+        classification_task_metric.update(preds, target)
+
+        result = classification_task_metric.compute()
+        assert isinstance(result, dict)
+        assert len(result) > 0
+
+        regular_metrics = {k for k in result.keys() if "classwise" not in k}
+        result_classwise = {k: v for k, v in result.items() if "classwise" in k}
+        assert isinstance(result_classwise, dict)
+        assert len(result_classwise) > 0
+
+        assert len(regular_metrics) > 0
+        expected_regular_metrics = {
+            "val_metric/accuracy_micro",
+            "val_metric/f1_macro",
+            "val_metric/auroc_macro",
+            "val_metric/avg_precision_macro",
+            "val_metric/hamming_distance",
+        }
+        assert expected_regular_metrics.issubset(set(regular_metrics))
+
+        for class_name in ["cat__type_a", "dog__breed__b", "bird"]:
+            expected_classwise_metrics = {
+                f"val_metric_classwise/accuracy_micro_{class_name}",
+                f"val_metric_classwise/f1_macro_{class_name}",
+                f"val_metric_classwise/auroc_macro_{class_name}",
+                f"val_metric_classwise/avg_precision_macro_{class_name}",
+            }
+            assert expected_classwise_metrics.issubset(set(result_classwise.keys()))
+
+    def test_get_display_names(self) -> None:
+        """Test that get_display_names returns correct display names."""
+        metric_args = MultilabelClassificationTaskMetricArgs()
+        classification_task_metric = metric_args.get_metrics(
+            prefix="val_metric/",
+            class_names=["cat", "dog", "bird"],
+            log_classwise=False,
+            classwise_metric_args=None,
+        )
+
+        display_names = classification_task_metric.get_display_names()
+
+        assert isinstance(display_names, dict)
+        assert len(display_names) > 0
+
+        expected_mappings = {
+            "val_metric/accuracy_micro": "Val Accuracy (Micro)",
+            "val_metric/f1_macro": "Val F1 (Macro)",
+            "val_metric/auroc_macro": "Val AUROC (Macro)",
+            "val_metric/avg_precision_macro": "Val Avg Precision (Macro)",
+            "val_metric/hamming_distance": "Val Hamming Distance",
+        }
+        for metric_name, expected_display in expected_mappings.items():
+            assert metric_name in display_names
+            assert display_names[metric_name] == expected_display
+
+    def test_get_display_names__classwise(self) -> None:
+        """Test that get_display_names works with classwise metrics."""
+        metric_args = MultilabelClassificationTaskMetricArgs()
+        classification_task_metric = metric_args.get_metrics(
+            prefix="val_metric/",
+            class_names=["cat__type_a", "dog__breed__b", "bird"],
+            log_classwise=True,
+            classwise_metric_args=None,
+        )
+
+        display_names = classification_task_metric.get_display_names()
+
+        assert "val_metric/accuracy_micro" in display_names
+        assert "val_metric_classwise/accuracy_micro" in display_names
+        assert "val_metric_classwise/f1_macro" in display_names
+        assert "val_metric_classwise/auroc_macro" in display_names
+        assert "val_metric_classwise/avg_precision_macro" in display_names
+
+        assert (
+            display_names["val_metric_classwise/accuracy_micro"]
+            == "Val Accuracy (Micro)"
+        )
+        assert display_names["val_metric_classwise/f1_macro"] == "Val F1 (Macro)"
+
+    def test_reset(self) -> None:
+        """Test that reset() clears all metrics."""
+        metric_args = MultilabelClassificationTaskMetricArgs()
+        classification_task_metric = metric_args.get_metrics(
+            prefix="val_metric/",
             class_names=["cat", "dog", "bird"],
             log_classwise=True,
             classwise_metric_args=None,
         )
 
-        # Verify classwise metrics exist
-        assert classification_task_metric.metrics_classwise is not None
+        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
+        target = torch.tensor([[1, 0, 0], [0, 1, 1]])
+        classification_task_metric.update(preds, target)
 
-        # Verify metrics can be updated with dummy data
-        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2], [0.1, 0.1, 0.8]])
-        target = torch.tensor([[1, 0, 0], [0, 1, 1], [1, 0, 1]])
-        classification_task_metric.metrics.update(preds, target)
-        classification_task_metric.metrics_classwise.update(preds, target)
+        result_before = classification_task_metric.compute()
+        assert len(result_before) > 0
 
-        # Verify regular metrics can be computed
-        result = classification_task_metric.metrics.compute()
-        assert isinstance(result, dict)
-        assert len(result) > 0
+        classification_task_metric.reset()
 
-        # Verify classwise metrics can be computed
-        result_classwise = classification_task_metric.metrics_classwise.compute()
-        assert isinstance(result_classwise, dict)
-        assert len(result_classwise) > 0
+        preds2 = torch.tensor([[0.1, 0.9, 0.0], [0.0, 0.1, 0.9]])
+        target2 = torch.tensor([[0, 1, 0], [1, 0, 1]])
+        classification_task_metric.update(preds2, target2)
+        result_after = classification_task_metric.compute()
 
-        # Verify expected classwise metric names are present for each class
-        for class_name in ["cat", "dog", "bird"]:
-            expected_classwise_metrics = {
-                f"val_metric_classwise/accuracy_micro_{class_name}",
-                f"val_metric_classwise/f1_macro_{class_name}",
-                f"val_metric_classwise/auroc_macro_{class_name}",
-                f"val_metric_classwise/avg_precision_macro_{class_name}",
-            }
-            assert expected_classwise_metrics.issubset(set(result_classwise.keys()))
-
-    def test_get_metrics__classwise_with_double_underscores_in_class_names(
-        self,
-    ) -> None:
-        """Test that classwise metrics handle class names with double underscores."""
-        metric_args = MultilabelClassificationTaskMetricArgs()
-        # Use class names that contain double underscores
-        class_names = ["cat__type_a", "dog__breed__b", "bird"]
-        classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
-            class_names=class_names,
-            log_classwise=True,
-            classwise_metric_args=None,
-        )
-
-        # Verify classwise metrics exist
-        assert classification_task_metric.metrics_classwise is not None
-
-        # Verify metrics can be updated with dummy data
-        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2], [0.1, 0.1, 0.8]])
-        target = torch.tensor([[1, 0, 0], [0, 1, 1], [1, 0, 1]])
-        classification_task_metric.metrics.update(preds, target)
-        classification_task_metric.metrics_classwise.update(preds, target)
-
-        # Verify classwise metrics can be computed
-        result_classwise = classification_task_metric.metrics_classwise.compute()
-        assert isinstance(result_classwise, dict)
-        assert len(result_classwise) > 0
-
-        # Verify that double underscores in class names are preserved
-        for class_name in class_names:
-            expected_classwise_metrics = {
-                f"val_metric_classwise/accuracy_micro_{class_name}",
-                f"val_metric_classwise/f1_macro_{class_name}",
-                f"val_metric_classwise/auroc_macro_{class_name}",
-                f"val_metric_classwise/avg_precision_macro_{class_name}",
-            }
-            assert expected_classwise_metrics.issubset(set(result_classwise.keys()))
+        assert result_after != result_before

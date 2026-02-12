@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import Field
+from torch import Tensor
 from torchmetrics import ClasswiseWrapper, Metric, MetricCollection
 
 from lightly_train._metrics.classification.multiclass_metric_args import (
@@ -270,11 +271,26 @@ class ClassificationTaskMetric(TaskMetric):
         # Use custom MetricCollection subclass that handles key renaming
         return _ClasswiseMetricCollection(classwise_metrics, prefix=prefix)  # type: ignore[arg-type]
 
-    def items(self) -> dict[str, Any]:
-        """Get all metric instances"""
-        result = dict(self.metrics.items())
+    def update(self, preds: Tensor, target: Tensor) -> None:
+        """Update all metrics with inputs.
+
+        Args:
+            preds: Predictions tensor
+            target: Target tensor
+        """
+        self.metrics.update(preds, target)
         if self.metrics_classwise is not None:
-            result.update(dict(self.metrics_classwise.items()))
+            self.metrics_classwise.update(preds, target)
+
+    def compute(self) -> dict[str, Any]:
+        """Compute all metrics and return combined results.
+
+        Returns:
+            Combined dictionary of all metric values from both regular and classwise metrics
+        """
+        result = self.metrics.compute()
+        if self.metrics_classwise is not None:
+            result.update(self.metrics_classwise.compute())
         return result
 
     def get_display_names(self) -> dict[str, str]:
@@ -300,7 +316,11 @@ class ClassificationTaskMetric(TaskMetric):
         """Format a metric name into a human-readable display name."""
         # Remove prefix to get base metric name
         # Handle both regular and classwise prefixes
-        classwise_prefix = f"{self.prefix}classwise/"
+        # Python 3.8 compatible: use string slicing instead of removeprefix
+        prefix_without_slash = (
+            self.prefix[:-1] if self.prefix.endswith("/") else self.prefix
+        )
+        classwise_prefix = f"{prefix_without_slash}_classwise/"
         if metric_name.startswith(classwise_prefix):
             base_name = metric_name[len(classwise_prefix) :]
         elif metric_name.startswith(self.prefix):
@@ -309,10 +329,6 @@ class ClassificationTaskMetric(TaskMetric):
             base_name = metric_name
 
         # Extract split name from prefix (e.g., "val" from "val_metric/")
-        # Python 3.8 compatible: use string slicing instead of removeprefix
-        prefix_without_slash = (
-            self.prefix[:-1] if self.prefix.endswith("/") else self.prefix
-        )
         split = prefix_without_slash.split("_")[0].capitalize()
 
         # Handle multiclass top-k accuracy (e.g., "top1_acc_micro" -> "Top-1 Acc (Micro)")
