@@ -146,6 +146,27 @@ ClassificationTaskMetricArgs = (
 )
 
 
+class _ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
+    """Renames classwise metric keys to handle class names with underscores.
+
+    Replaces unique separator with underscore, avoiding conflicts when class names
+    themselves contain underscores (e.g., "cat__type_a").
+    """
+
+    _SEPARATOR = "<SEP>"
+
+    def compute(self) -> dict[str, Any]:  # type: ignore[override]
+        """Compute metrics and rename keys by replacing separator with underscore."""
+        result = super().compute()
+        # ClasswiseWrapper joins metric_name with prefix as: metric_name + "_" + prefix + class_name
+        # So with prefix="<SEP>" we get: metric_name_<SEP>class_name
+        # Replace "_<SEP>" with "_" to get the desired format: metric_name_class_name
+        return {
+            key.replace(f"_{self._SEPARATOR}", "_"): value
+            for key, value in result.items()
+        }
+
+
 class ClassificationTaskMetric(TaskMetric):
     """Container for all metrics for classification tasks.
 
@@ -190,9 +211,12 @@ class ClassificationTaskMetric(TaskMetric):
             if classwise_metric_args is None:
                 classwise_metric_args = metric_args.model_copy()
 
+            # Remove trailing slash from prefix for Python 3.8 compatibility
+            # (avoiding str.removesuffix which is Python 3.9+)
+            prefix_without_slash = prefix[:-1] if prefix.endswith("/") else prefix
             self.metrics_classwise = self._build_classwise_metric_collection(
                 metric_args=classwise_metric_args,
-                prefix=f"{prefix}_classwise/",
+                prefix=f"{prefix_without_slash}_classwise/",
                 class_names=class_names,
             )
 
@@ -236,13 +260,15 @@ class ClassificationTaskMetric(TaskMetric):
 
         classwise_metrics: dict[str, Metric] = {}
         for key, base_metric in base_metrics.items():
+            # Use unique separator - _ClasswiseMetricCollection will replace it with "_"
             classwise_metrics[key] = ClasswiseWrapper(  # type: ignore[call-arg]
                 base_metric,
-                prefix="_",
+                prefix=_ClasswiseMetricCollection._SEPARATOR,
                 labels=class_names,
             )
 
-        return MetricCollection(classwise_metrics, prefix=prefix)  # type: ignore[arg-type]
+        # Use custom MetricCollection subclass that handles key renaming
+        return _ClasswiseMetricCollection(classwise_metrics, prefix=prefix)  # type: ignore[arg-type]
 
     def items(self) -> dict[str, Any]:
         """Get all metric instances"""
