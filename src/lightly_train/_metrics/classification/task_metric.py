@@ -8,14 +8,28 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
-from torchmetrics import ClasswiseWrapper, MeanMetric, Metric, MetricCollection
+from pydantic import Field
+from torchmetrics import ClasswiseWrapper, Metric, MetricCollection
 
-from lightly_train._metrics.classification.task_metric_args import (
-    ClassificationTaskMetricArgs,
+from lightly_train._metrics.classification.multiclass_metric_args import (
+    MulticlassAccuracyArgs,
+    MulticlassF1Args,
+    MulticlassPrecisionArgs,
+    MulticlassRecallArgs,
 )
-from lightly_train._metrics.task_metric import TaskMetric
+from lightly_train._metrics.classification.multilabel_metric_args import (
+    MultilabelAccuracyArgs,
+    MultilabelAUROCArgs,
+    MultilabelAveragePrecisionArgs,
+    MultilabelF1Args,
+    MultilabelHammingDistanceArgs,
+    MultilabelPrecisionArgs,
+    MultilabelRecallArgs,
+)
+from lightly_train._metrics.metric_args import MetricArgs
+from lightly_train._metrics.task_metric import TaskMetric, TaskMetricArgs
 
 # Explicit mapping of base metric names to display name suffixes
 BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
@@ -48,6 +62,90 @@ BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
 }
 
 
+class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
+    """Metrics configuration for multiclass classification tasks."""
+
+    accuracy: MulticlassAccuracyArgs | None = Field(
+        default_factory=MulticlassAccuracyArgs
+    )
+    f1: MulticlassF1Args | None = Field(default_factory=MulticlassF1Args)
+    precision: MulticlassPrecisionArgs | None = Field(
+        default_factory=MulticlassPrecisionArgs
+    )
+    recall: MulticlassRecallArgs | None = Field(default_factory=MulticlassRecallArgs)
+
+    def get_metrics(  # type: ignore[override]
+        self,
+        *,
+        prefix: str,
+        class_names: list[str],
+        log_classwise: bool,
+        classwise_metric_args: MulticlassClassificationTaskMetricArgs | None,
+    ) -> ClassificationTaskMetric:
+        """Create ClassificationTaskMetric instance for multiclass classification.
+
+        Args:
+            prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
+            class_names: Class names for all metrics
+            log_classwise: Whether to log classwise metrics
+            classwise_metric_args: Optional separate args for classwise metrics
+        """
+        return ClassificationTaskMetric(
+            metric_args=self,
+            prefix=prefix,
+            class_names=class_names,
+            log_classwise=log_classwise,
+            classwise_metric_args=classwise_metric_args,
+        )
+
+
+class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
+    """Metrics configuration for multilabel classification tasks."""
+
+    accuracy: MultilabelAccuracyArgs | None = Field(
+        default_factory=MultilabelAccuracyArgs
+    )
+    f1: MultilabelF1Args | None = Field(default_factory=MultilabelF1Args)
+    precision: MultilabelPrecisionArgs | None = Field(default=None)
+    recall: MultilabelRecallArgs | None = Field(default=None)
+    auroc: MultilabelAUROCArgs | None = Field(default_factory=MultilabelAUROCArgs)
+    average_precision: MultilabelAveragePrecisionArgs | None = Field(
+        default_factory=MultilabelAveragePrecisionArgs
+    )
+    hamming_distance: MultilabelHammingDistanceArgs | None = Field(
+        default_factory=MultilabelHammingDistanceArgs
+    )
+
+    def get_metrics(  # type: ignore[override]
+        self,
+        *,
+        prefix: str,
+        class_names: list[str],
+        log_classwise: bool,
+        classwise_metric_args: MultilabelClassificationTaskMetricArgs | None,
+    ) -> ClassificationTaskMetric:
+        """Create ClassificationTaskMetric instance for multilabel classification.
+
+        Args:
+            prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
+            class_names: Class names for all metrics
+            log_classwise: Whether to log classwise metrics
+            classwise_metric_args: Optional separate args for classwise metrics
+        """
+        return ClassificationTaskMetric(
+            metric_args=self,
+            prefix=prefix,
+            class_names=class_names,
+            log_classwise=log_classwise,
+            classwise_metric_args=classwise_metric_args,
+        )
+
+
+ClassificationTaskMetricArgs = (
+    MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs
+)
+
+
 class ClassificationTaskMetric(TaskMetric):
     """Container for all metrics for classification tasks.
 
@@ -60,35 +158,28 @@ class ClassificationTaskMetric(TaskMetric):
         self,
         *,
         metric_args: ClassificationTaskMetricArgs,
-        num_classes: int,
-        classification_task: Literal["multiclass", "multilabel"],
         prefix: str,
-        class_names: list[str] | None = None,
-        log_classwise: bool = False,
-        classwise_metric_args: ClassificationTaskMetricArgs | None = None,
+        class_names: list[str],
+        log_classwise: bool,
+        classwise_metric_args: ClassificationTaskMetricArgs | None,
     ) -> None:
         """Initialize classification metrics container.
 
         Args:
             metric_args: Metrics configuration
-            num_classes: Number of classes
-            classification_task: Type of classification task
             prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
-            class_names: Optional class names for classwise metrics
+            class_names: Class names for all metrics
             log_classwise: Whether to log classwise metrics
             classwise_metric_args: Optional separate args for classwise metrics
         """
-        # CRITICAL: Call parent __init__ to properly initialize nn.Module
         super().__init__()
 
         self.metric_args = metric_args
-        self.num_classes = num_classes
-        self.classification_task = classification_task
+        self.num_classes = len(class_names)
         self.prefix = prefix
         self.class_names = class_names
         self.log_classwise = log_classwise
 
-        self.loss = MeanMetric()
         self.metrics = self._build_metric_collection(
             metric_args=metric_args,
             prefix=prefix,
@@ -98,9 +189,6 @@ class ClassificationTaskMetric(TaskMetric):
         if log_classwise:
             if classwise_metric_args is None:
                 classwise_metric_args = metric_args.model_copy()
-
-            if class_names is None:
-                raise ValueError("class_names is required when log_classwise=True")
 
             self.metrics_classwise = self._build_classwise_metric_collection(
                 metric_args=classwise_metric_args,
@@ -117,8 +205,10 @@ class ClassificationTaskMetric(TaskMetric):
         """Build a MetricCollection from args."""
         all_metrics: dict[str, Metric] = {}
 
-        for field_name in metric_args.model_fields:
+        for field_name in metric_args.__class__.model_fields:
             individual_metric_args = getattr(metric_args, field_name)
+            if not isinstance(individual_metric_args, MetricArgs):
+                continue
             if individual_metric_args is not None:
                 if classwise and not individual_metric_args.supports_classwise():
                     continue
@@ -155,14 +245,14 @@ class ClassificationTaskMetric(TaskMetric):
         return MetricCollection(classwise_metrics, prefix=prefix)  # type: ignore[arg-type]
 
     def items(self) -> dict[str, Any]:
-        """Get all metric instances for adding to log_dict."""
+        """Get all metric instances"""
         result = dict(self.metrics.items())
         if self.metrics_classwise is not None:
             result.update(dict(self.metrics_classwise.items()))
         return result
 
     def get_display_names(self) -> dict[str, str]:
-        """Get display names for metrics (for logging)."""
+        """Get display names for metrics"""
         display_names: dict[str, str] = {}
 
         # Standard metrics

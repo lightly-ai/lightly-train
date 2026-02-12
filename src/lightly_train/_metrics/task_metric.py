@@ -12,6 +12,8 @@ from typing import Any
 
 from torch.nn import Module
 
+from lightly_train._configs.config import PydanticConfig
+
 """Base classes for task-specific metrics.
 
 ## Structure Overview
@@ -31,7 +33,7 @@ The metrics system has three layers:
    - Has .get_metrics() method that creates a TaskMetric instance
 
 3. **TaskMetric** (nn.Module): Runtime manager for metrics
-   - Example: ClassificationTaskMetric(metric_args, num_classes=10, prefix="val_metric/")
+   - Example: ClassificationTaskMetric(metric_args, class_names=[...], prefix="val_metric/")
    - Stores actual torchmetrics instances (MetricCollection, MeanMetric)
    - Provides .items() for logging, .get_display_names() for human-readable names
    - Inherits from nn.Module for automatic device handling
@@ -97,6 +99,17 @@ That's it! The new metric is now integrated.
 """
 
 
+class TaskMetricArgs(PydanticConfig):
+    """Base class for task-specific metrics collection configurations."""
+
+    def get_metrics(self) -> TaskMetric:
+        """Create TaskMetric instance with all configured metrics.
+
+        Subclasses must implement this with their specific runtime arguments.
+        """
+        raise NotImplementedError
+
+
 class TaskMetric(Module):
     """Base class for task-specific metrics container.
 
@@ -137,12 +150,10 @@ class TaskMetric(Module):
         raise NotImplementedError
 
     def compute(self) -> dict[str, float]:
-        """Compute all metrics and return float values for logging.
-
-        Returns float values that can be directly logged with fabric.log().
+        """Compute all metrics and return values for logging.
 
         Returns:
-            Dictionary mapping metric names to computed float values.
+            Dictionary mapping metric names to computed metric values.
         """
         # Default implementation - just compute all metrics
         result = {}
@@ -158,10 +169,7 @@ class TaskMetric(Module):
         return result
 
     def reset(self) -> None:
-        """Reset all metrics.
-
-        This is called by reset_metrics() helper.
-        """
+        """Reset all metrics."""
         for metric in self.items().values():
             from torchmetrics import Metric
 
