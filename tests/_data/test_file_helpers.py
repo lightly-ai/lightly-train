@@ -448,6 +448,18 @@ def test_open_yolo_oriented_object_detection_label_numpy(tmp_path: Path) -> None
     np.testing.assert_array_equal(class_labels, np.array([2, 1]))
 
 
+def test_open_yolo_oriented_object_detection_label_numpy__empty(
+    tmp_path: Path,
+) -> None:
+    with open(tmp_path / "label.txt", "w") as f:
+        f.write("")
+    bboxes, class_labels = file_helpers.open_yolo_oriented_object_detection_label_numpy(
+        label_path=tmp_path / "label.txt"
+    )
+    assert bboxes.shape == (0, 8)
+    assert class_labels.shape == (0,)
+
+
 def test_open_yolo_object_detection_label_numpy(tmp_path: Path) -> None:
     with open(tmp_path / "label.txt", "w") as f:
         f.write("2 0.1 0.1 0.2 0.2\n1 0.3 0.3 0.4 0.4\n")
