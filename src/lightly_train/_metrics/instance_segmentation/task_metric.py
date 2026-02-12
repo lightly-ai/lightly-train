@@ -1,0 +1,312 @@
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+from __future__ import annotations
+
+from typing import Any
+
+import torch
+from pydantic import Field
+from torchmetrics import Metric
+
+from lightly_train._metrics.instance_segmentation.mean_average_precision_args import (
+    InstanceSegmentationMeanAveragePrecisionArgs,
+)
+from lightly_train._metrics.metric_args import MetricArgs
+from lightly_train._metrics.task_metric import TaskMetric, TaskMetricArgs
+
+# Explicit mapping of base metric names to display name suffixes
+BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
+    "map": "mAP@0.5:0.95",
+    "map_50": "mAP@0.5",
+    "map_75": "mAP@0.75",
+    "map_small": "mAP (small)",
+    "map_medium": "mAP (medium)",
+    "map_large": "mAP (large)",
+}
+
+
+class InstanceSegmentationTaskMetricArgs(TaskMetricArgs):
+    """Metrics configuration for instance segmentation tasks."""
+
+    mean_average_precision: InstanceSegmentationMeanAveragePrecisionArgs | None = Field(
+        default_factory=InstanceSegmentationMeanAveragePrecisionArgs
+    )
+
+    def get_metrics(  # type: ignore[override]
+        self,
+        *,
+        prefix: str,
+        class_names: list[str],
+        log_classwise: bool,
+    ) -> InstanceSegmentationTaskMetric:
+        """Create InstanceSegmentationTaskMetric instance for instance segmentation.
+
+        Args:
+            prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
+            class_names: Class names for all metrics
+            log_classwise: Whether to log classwise metrics
+        """
+        return InstanceSegmentationTaskMetric(
+            metric_args=self,
+            prefix=prefix,
+            class_names=class_names,
+            log_classwise=log_classwise,
+        )
+
+
+class InstanceSegmentationTaskMetric(TaskMetric):
+    """Container for all metrics for instance segmentation tasks.
+
+    Inherits from TaskMetric which inherits from nn.Module.
+    All metrics stored as attributes are automatically detected as child modules
+    and handled by Lightning Fabric for device transfer.
+    """
+
+    def __init__(
+        self,
+        *,
+        metric_args: InstanceSegmentationTaskMetricArgs,
+        prefix: str,
+        class_names: list[str],
+        log_classwise: bool,
+    ) -> None:
+        """Initialize instance segmentation metrics container.
+
+        Args:
+            metric_args: Metrics configuration
+            prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
+            class_names: Class names for all metrics
+            log_classwise: Whether to log classwise metrics
+        """
+        super().__init__()
+
+        self.metric_args = metric_args
+        self.num_classes = len(class_names)
+        self.prefix = prefix
+        self.class_names = class_names
+        self.log_classwise = log_classwise
+
+        # Build regular metrics
+        metrics_dict = self._build_metrics(metric_args=metric_args, classwise=False)
+
+        # Store metrics as ModuleDict for proper device handling
+        self.metrics = torch.nn.ModuleDict(metrics_dict)  # type: ignore[arg-type]
+
+        # Build classwise metrics
+        self.metrics_classwise: torch.nn.ModuleDict | None = None  # type: ignore[assignment]
+        if log_classwise:
+            metrics_classwise_dict = self._build_metrics(
+                metric_args=metric_args, classwise=True
+            )
+            self.metrics_classwise = torch.nn.ModuleDict(metrics_classwise_dict)  # type: ignore[arg-type]
+
+    def _build_metrics(
+        self,
+        metric_args: InstanceSegmentationTaskMetricArgs,
+        classwise: bool,
+    ) -> dict[str, Metric]:
+        """Build metrics from args."""
+        all_metrics: dict[str, Metric] = {}
+
+        for field_name in metric_args.__class__.model_fields:
+            individual_metric_args = getattr(metric_args, field_name)
+            if not isinstance(individual_metric_args, MetricArgs):
+                continue
+            if individual_metric_args is not None:
+                if classwise and not individual_metric_args.supports_classwise():
+                    continue
+
+                metrics = individual_metric_args.get_metrics(
+                    classwise=classwise,
+                    num_classes=self.num_classes,
+                )
+                all_metrics.update(metrics)
+
+        return all_metrics
+
+    def update(
+        self,
+        preds: list[dict[str, Any]],
+        target: list[dict[str, Any]],
+    ) -> None:
+        """Update all metrics with inputs.
+
+        Args:
+            preds: List of prediction dictionaries with keys "masks", "scores", "labels"
+            target: List of target dictionaries with keys "masks", "labels"
+        """
+        for metric in self.metrics.values():
+            metric.update(preds, target)
+        if self.metrics_classwise is not None:
+            for metric in self.metrics_classwise.values():
+                metric.update(preds, target)
+
+    def reset(self) -> None:
+        """Reset all metrics."""
+        for metric in self.metrics.values():
+            metric.reset()
+        if self.metrics_classwise is not None:
+            for metric in self.metrics_classwise.values():
+                metric.reset()
+
+    def compute(self) -> dict[str, Any]:
+        """Compute all metrics and return combined results.
+
+        Returns:
+            Combined dictionary of all metric values from both regular and classwise metrics
+        """
+        result: dict[str, Any] = {}
+
+        # Compute regular metrics
+        for key, metric in self.metrics.items():
+            metric_result = metric.compute()
+            if isinstance(metric_result, dict):
+                # MeanAveragePrecision returns a dict with multiple keys
+                for sub_key, value in metric_result.items():
+                    # Skip non-scalar metrics
+                    if sub_key in ["map_per_class", "mar_100_per_class", "classes"]:
+                        continue
+                    result[f"{self.prefix}{sub_key}"] = value
+            else:
+                result[f"{self.prefix}{key}"] = metric_result
+
+        # Compute classwise metrics
+        if self.metrics_classwise is not None:
+            prefix_without_slash = (
+                self.prefix[:-1] if self.prefix.endswith("/") else self.prefix
+            )
+            classwise_prefix = f"{prefix_without_slash}_classwise/"
+
+            for key, metric in self.metrics_classwise.items():
+                metric_result = metric.compute()
+                if isinstance(metric_result, dict):
+                    # MeanAveragePrecision returns a dict with per-class tensors
+                    # Extract the classes tensor to map per-class values to class names
+                    classes_tensor = metric_result.get("classes", None)
+
+                    for sub_key, value in metric_result.items():
+                        if sub_key.endswith("_per_class"):
+                            # Expand per-class metrics into individual keys
+                            # "map_per_class" -> "map_cat", "map_dog", etc.
+                            base_key = sub_key[: -len("_per_class")]
+                            # Check if value is a tensor and has the right dimensions
+                            if (
+                                isinstance(value, torch.Tensor)
+                                and classes_tensor is not None
+                            ):
+                                # Handle scalar tensors (single class case)
+                                if value.ndim == 0:
+                                    # Single class - check if classes_tensor is also scalar
+                                    if classes_tensor.ndim == 0:
+                                        class_idx = int(classes_tensor.item())
+                                        if class_idx < len(self.class_names):
+                                            result[
+                                                f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
+                                            ] = value
+                                    elif len(classes_tensor) > 0:
+                                        class_idx = int(classes_tensor[0].item())
+                                        if class_idx < len(self.class_names):
+                                            result[
+                                                f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
+                                            ] = value
+                                # Handle 1-d tensors (multiple classes)
+                                elif value.ndim == 1:
+                                    # classes_tensor might be scalar if only one class
+                                    if classes_tensor.ndim == 0:
+                                        class_idx = int(classes_tensor.item())
+                                        if (
+                                            class_idx < len(self.class_names)
+                                            and len(value) == 1
+                                        ):
+                                            result[
+                                                f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
+                                            ] = value[0]
+                                    elif len(value) == len(classes_tensor):
+                                        for i, class_idx_tensor in enumerate(
+                                            classes_tensor
+                                        ):
+                                            class_idx = int(class_idx_tensor.item())
+                                            if class_idx < len(self.class_names):
+                                                result[
+                                                    f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
+                                                ] = value[i]
+                        elif sub_key not in ["classes"]:
+                            # Regular scalar metrics (map, map_50, etc.)
+                            result[f"{classwise_prefix}{sub_key}"] = value
+                else:
+                    result[f"{classwise_prefix}{key}"] = metric_result
+
+        return result
+
+    def get_display_names(self) -> dict[str, str]:
+        """Get display names for metrics"""
+        display_names: dict[str, str] = {}
+
+        # For regular metrics, get all possible keys from the metric
+        # MeanAveragePrecision returns: map, map_50, map_75, map_small, map_medium, map_large
+        for key in ["map", "map_50", "map_75", "map_small", "map_medium", "map_large"]:
+            metric_name = f"{self.prefix}{key}"
+            display_names[metric_name] = self._format_display_name(metric_name)
+
+        # Classwise metrics
+        if self.metrics_classwise is not None:
+            prefix_without_slash = (
+                self.prefix[:-1] if self.prefix.endswith("/") else self.prefix
+            )
+            classwise_prefix = f"{prefix_without_slash}_classwise/"
+
+            # Base metrics (non-classwise)
+            for key in [
+                "map",
+                "map_50",
+                "map_75",
+                "map_small",
+                "map_medium",
+                "map_large",
+            ]:
+                metric_name = f"{classwise_prefix}{key}"
+                display_names[metric_name] = self._format_display_name(metric_name)
+
+            # Per-class metrics
+            for class_name in self.class_names:
+                for key in ["map"]:
+                    metric_name = f"{classwise_prefix}{key}_{class_name}"
+                    display_names[metric_name] = self._format_display_name(metric_name)
+
+        return display_names
+
+    def _format_display_name(self, metric_name: str) -> str:
+        """Format a metric name into a human-readable display name."""
+        # Remove prefix to get base metric name
+        prefix_without_slash = (
+            self.prefix[:-1] if self.prefix.endswith("/") else self.prefix
+        )
+        classwise_prefix = f"{prefix_without_slash}_classwise/"
+        if metric_name.startswith(classwise_prefix):
+            base_name = metric_name[len(classwise_prefix) :]
+        elif metric_name.startswith(self.prefix):
+            base_name = metric_name[len(self.prefix) :]
+        else:
+            base_name = metric_name
+
+        # Extract split name from prefix (e.g., "val" from "val_metric/")
+        split = prefix_without_slash.split("_")[0].capitalize()
+
+        # Look up in explicit mapping
+        if base_name in BASE_METRIC_DISPLAY_NAMES:
+            return f"{split} {BASE_METRIC_DISPLAY_NAMES[base_name]}"
+
+        # For classwise metrics that end with class name, strip it
+        # e.g., "map_cat" -> look up "map"
+        for base_key in BASE_METRIC_DISPLAY_NAMES:
+            if base_name.startswith(f"{base_key}_"):
+                return f"{split} {BASE_METRIC_DISPLAY_NAMES[base_key]}"
+
+        # Fallback: capitalize and format with spaces
+        return f"{split} {base_name.replace('_', ' ').title()}"
