@@ -33,7 +33,6 @@ from lightly_train.types import (
     NDArrayClasses,
     NDArrayImage,
     NDArrayMask,
-    NDArrayOBBoxes,
     NDArrayPolygon,
     PathLike,
 )
@@ -388,25 +387,6 @@ def _open_mask_numpy__with_pil(
     mask_np = np.array(mask)
 
     return mask_np
-
-
-def xyxyxyxy_to_xywhr(boxes: NDArray4Corners) -> NDArrayOBBoxes:
-    """
-    Converts polygons (N, 8) to rotated boxes (N, 5): [cx, cy, w, h, angle_rad]
-    """
-    pts = boxes.view(-1, 4, 2)
-
-    cnt = pts.mean(dim=1)  # (N, 2)
-
-    edge1 = pts[:, 0] - pts[:, 1]
-    edge2 = pts[:, 1] - pts[:, 2]
-
-    w = torch.norm(edge1, dim=1)
-    h = torch.norm(edge2, dim=1)
-
-    angle = torch.atan2(edge1[:, 1], edge1[:, 0])
-
-    return torch.stack([cnt[:, 0], cnt[:, 1], w, h, angle], dim=1)
 
 
 def open_yolo_oriented_object_detection_label_numpy(
