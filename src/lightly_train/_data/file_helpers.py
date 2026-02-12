@@ -412,7 +412,7 @@ def xyxyxyxy_to_xywhr(boxes: NDArray4Corners) -> NDArrayOBBoxes:
 def open_yolo_oriented_object_detection_label_numpy(
     label_path: Path,
 ) -> tuple[NDArrayOBBoxes, NDArrayClasses]:
-    """Open a YOLO label file and return the bounding boxes and classes as numpy arrays.
+    """Open a YOLO label file and return the oriented bounding boxes and classes as numpy arrays.
 
     Returns:
         (bboxes, classes) tuple. All values are in normalized coordinates
