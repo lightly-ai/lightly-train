@@ -25,8 +25,10 @@ class DINOv2ViTWrapper(Module):
         self.backbone = model
 
     def forward(self, x: Tensor) -> Tuple[Tensor, ...]:
-        # TODO: Lionel(09/25) Infer minimum n from keep_indices.
-        feats = self.backbone.get_intermediate_layers(x, n=12, reshape=True)
+
+        feats = self.backbone.get_intermediate_layers(
+            x, n=self.keep_indices, reshape=True
+        )
         feats_: list[Tensor] = [feats[i] for i in self.keep_indices]  # type: ignore[misc]
         assert all(isinstance(f, Tensor) for f in feats_)
         return tuple(feats_)
