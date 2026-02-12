@@ -953,6 +953,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             total_steps=no_auto(config.steps),
             model_name=config.model,
             model_init_args=model_init_args,
+            data_args=config.data,
         )
 
         # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.

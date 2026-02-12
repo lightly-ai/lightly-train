@@ -25,6 +25,7 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
+from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scheduler import (
@@ -99,7 +100,11 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     metric_log_debug: bool = False
 
     def resolve_auto(
-        self, total_steps: int, model_name: str, model_init_args: dict[str, Any]
+        self,
+        total_steps: int,
+        model_name: str,
+        model_init_args: dict[str, Any],
+        data_args: TaskDataArgs,
     ) -> None:
         if self.drop_path_rate == "auto":
             backbone_args = model_init_args.get("backbone_args", {})

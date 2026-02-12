@@ -658,13 +658,17 @@ def get_train_model_args(
     total_steps: int,
     model_name: str,
     model_init_args: dict[str, Any],
+    data_args: TaskDataArgs,
 ) -> TrainModelArgs:
     if isinstance(model_args, TrainModelArgs):
         return model_args
     model_args = {} if model_args is None else model_args
     args = validate.pydantic_model_validate(model_args_cls, model_args)
     args.resolve_auto(
-        total_steps=total_steps, model_name=model_name, model_init_args=model_init_args
+        total_steps=total_steps,
+        model_name=model_name,
+        model_init_args=model_init_args,
+        data_args=data_args,
     )
     return args
 
