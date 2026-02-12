@@ -384,6 +384,8 @@ def _create_metric(
         if metric_name == "accuracy":
             topk_list = metric_config.get("topk", [1])
             for k in topk_list:
+                if k > num_classes:
+                    continue
                 for average in average_list:
                     key = f"top{k}_acc_{average}"
                     metrics[key] = MulticlassAccuracy(
