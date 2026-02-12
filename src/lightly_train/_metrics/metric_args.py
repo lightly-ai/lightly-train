@@ -1,9 +1,12 @@
-# Copyright (c) 2025. Lightly AG and its affiliates.
-# All Rights Reserved
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 
 from __future__ import annotations
-
-from typing import Any
 
 from torchmetrics import Metric
 
@@ -14,7 +17,7 @@ class MetricArgs(PydanticConfig):
     """Base class for individual metric arguments."""
 
     def get_metrics(
-        self, *, classwise: bool = False, **extra_args: Any
+        self, *, classwise: bool = False, num_classes: int
     ) -> dict[str, Metric]:
         """Create metric instances.
 
@@ -22,7 +25,7 @@ class MetricArgs(PydanticConfig):
             classwise: If True, return metrics with average='none' for classwise
                       computation. The ClasswiseWrapper will be applied by the
                       TaskMetric class.
-            **extra_args: Runtime arguments (e.g., num_classes, classification_task)
+            num_classes: Number of classes for the classification task.
 
         Returns:
             Dictionary mapping metric names to metric instances.

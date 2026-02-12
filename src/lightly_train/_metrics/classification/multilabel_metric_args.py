@@ -1,5 +1,10 @@
-# Copyright (c) 2025. Lightly AG and its affiliates.
-# All Rights Reserved
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 
 from __future__ import annotations
 
@@ -17,21 +22,22 @@ from torchmetrics.classification import (
     MultilabelRecall,
 )
 
-from lightly_train._metrics.base.metric_args import MetricArgs
+from lightly_train._metrics.metric_args import MetricArgs
 
 
 class MultilabelAccuracyArgs(MetricArgs):
     """Accuracy metric for multilabel classification."""
 
     threshold: float = 0.5
-    average: list[Literal["micro", "macro", "weighted"]] = Field(
-        default_factory=lambda: ["micro"]
+    average: set[Literal["micro", "macro", "weighted"]] = Field(
+        default_factory=lambda: {"micro"},  # type: ignore[arg-type]
+        strict=False,
     )
 
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -54,14 +60,15 @@ class MultilabelF1Args(MetricArgs):
     """F1 score for multilabel classification."""
 
     threshold: float = 0.5
-    average: list[Literal["micro", "macro", "weighted"]] = Field(
-        default_factory=lambda: ["macro"]
+    average: set[Literal["micro", "macro", "weighted"]] = Field(
+        default_factory=lambda: {"macro"},  # type: ignore[arg-type]
+        strict=False,
     )
 
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -84,14 +91,15 @@ class MultilabelPrecisionArgs(MetricArgs):
     """Precision metric for multilabel classification."""
 
     threshold: float = 0.5
-    average: list[Literal["micro", "macro", "weighted"]] = Field(
-        default_factory=lambda: ["macro"]
+    average: set[Literal["micro", "macro", "weighted"]] = Field(
+        default_factory=lambda: {"macro"},  # type: ignore[arg-type]
+        strict=False,
     )
 
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -114,14 +122,15 @@ class MultilabelRecallArgs(MetricArgs):
     """Recall metric for multilabel classification."""
 
     threshold: float = 0.5
-    average: list[Literal["micro", "macro", "weighted"]] = Field(
-        default_factory=lambda: ["macro"]
+    average: set[Literal["micro", "macro", "weighted"]] = Field(
+        default_factory=lambda: {"macro"},  # type: ignore[arg-type]
+        strict=False,
     )
 
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -143,14 +152,15 @@ class MultilabelRecallArgs(MetricArgs):
 class MultilabelAUROCArgs(MetricArgs):
     """AUROC metric for multilabel classification."""
 
-    average: list[Literal["micro", "macro", "weighted"]] = Field(
-        default_factory=lambda: ["macro"]
+    average: set[Literal["micro", "macro", "weighted"]] = Field(
+        default_factory=lambda: {"macro"},  # type: ignore[arg-type]
+        strict=False,
     )
 
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -171,14 +181,15 @@ class MultilabelAUROCArgs(MetricArgs):
 class MultilabelAveragePrecisionArgs(MetricArgs):
     """Average Precision metric for multilabel classification."""
 
-    average: list[Literal["micro", "macro", "weighted"]] = Field(
-        default_factory=lambda: ["macro"]
+    average: set[Literal["micro", "macro", "weighted"]] = Field(
+        default_factory=lambda: {"macro"},  # type: ignore[arg-type]
+        strict=False,
     )
 
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -204,7 +215,7 @@ class MultilabelHammingDistanceArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         # Hamming distance doesn't support classwise or averaging

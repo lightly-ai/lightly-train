@@ -1,5 +1,10 @@
-# Copyright (c) 2025. Lightly AG and its affiliates.
-# All Rights Reserved
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 
 from __future__ import annotations
 
@@ -14,21 +19,22 @@ from torchmetrics.classification import (
     MulticlassRecall,
 )
 
-from lightly_train._metrics.base.metric_args import MetricArgs
+from lightly_train._metrics.metric_args import MetricArgs
 
 
 class MulticlassAccuracyArgs(MetricArgs):
     """Accuracy metric for multiclass classification."""
 
-    topk: list[int] = Field(default_factory=lambda: [1])
-    average: list[Literal["micro", "macro", "weighted"]] = Field(
-        default_factory=lambda: ["micro"]
+    topk: list[int] = Field(default_factory=lambda: [1], strict=False)
+    average: set[Literal["micro", "macro", "weighted"]] = Field(
+        default_factory=lambda: {"micro"},  # type: ignore[arg-type]
+        strict=False,
     )
 
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -57,14 +63,15 @@ class MulticlassAccuracyArgs(MetricArgs):
 class MulticlassF1Args(MetricArgs):
     """F1 score for multiclass classification."""
 
-    average: list[Literal["micro", "macro", "weighted"]] = Field(
-        default_factory=lambda: ["macro"]
+    average: set[Literal["micro", "macro", "weighted"]] = Field(
+        default_factory=lambda: {"macro"},  # type: ignore[arg-type]
+        strict=False,
     )
 
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -85,14 +92,15 @@ class MulticlassF1Args(MetricArgs):
 class MulticlassPrecisionArgs(MetricArgs):
     """Precision metric for multiclass classification."""
 
-    average: list[Literal["micro", "macro", "weighted"]] = Field(
-        default_factory=lambda: ["macro"]
+    average: set[Literal["micro", "macro", "weighted"]] = Field(
+        default_factory=lambda: {"macro"},  # type: ignore[arg-type]
+        strict=False,
     )
 
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -113,14 +121,15 @@ class MulticlassPrecisionArgs(MetricArgs):
 class MulticlassRecallArgs(MetricArgs):
     """Recall metric for multiclass classification."""
 
-    average: list[Literal["micro", "macro", "weighted"]] = Field(
-        default_factory=lambda: ["macro"]
+    average: set[Literal["micro", "macro", "weighted"]] = Field(
+        default_factory=lambda: {"macro"},  # type: ignore[arg-type]
+        strict=False,
     )
 
     def get_metrics(
         self,
         *,
-        classwise: bool,
+        classwise: bool = False,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}

@@ -1,25 +1,28 @@
-# Copyright (c) 2025. Lightly AG and its affiliates.
-# All Rights Reserved
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from lightly_train._configs.config import PydanticConfig
 
 if TYPE_CHECKING:
-    from lightly_train._metrics.base.task_metric import TaskMetric
+    from lightly_train._metrics.task_metric import TaskMetric
 
 
 class TaskMetricArgs(PydanticConfig):
     """Base class for task-specific metrics collection configurations."""
 
-    def get_metrics(self, **extra_args: Any) -> TaskMetric:
+    def get_metrics(self) -> TaskMetric:
         """Create TaskMetric instance with all configured metrics.
 
-        Args:
-            **extra_args: Runtime arguments passed to TaskMetric constructor
-                         (e.g., num_classes, prefix, class_names, etc.)
+        Subclasses must implement this with their specific runtime arguments.
 
         Returns:
             TaskMetric instance for the task.

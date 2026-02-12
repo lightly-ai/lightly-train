@@ -1,7 +1,16 @@
-# Copyright (c) 2025. Lightly AG and its affiliates.
-# All Rights Reserved
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 
 from __future__ import annotations
+
+from typing import Any
+
+from torch.nn import Module
 
 """Base classes for task-specific metrics.
 
@@ -15,8 +24,8 @@ The metrics system has three layers:
    - Has .get_metrics() method that creates torchmetrics instances
 
 2. **TaskMetricArgs** (Pydantic): Configuration for all metrics in a task
-   - Example: ClassificationTaskMetricArgs(
-        multiclass_accuracy=..., multiclass_f1=..., multiclass_precision=...
+   - Example: MulticlassClassificationTaskMetricArgs(
+        accuracy=..., f1=..., precision=...
     )
    - Groups related MetricArgs for a task
    - Has .get_metrics() method that creates a TaskMetric instance
@@ -42,7 +51,6 @@ class MulticlassNewMetricArgs(MetricArgs):
         *,
         classwise: bool,
         num_classes: int,
-        **extra_args: Any,
     ) -> dict[str, Metric]:
         metrics = {}
         key = "new_metric"
@@ -62,9 +70,9 @@ class MulticlassNewMetricArgs(MetricArgs):
 
 ```python
 # In classification/task_metric_args.py
-class ClassificationTaskMetricArgs(TaskMetricArgs):
-    multiclass_accuracy: MulticlassAccuracyArgs | None = None
-    multiclass_new_metric: MulticlassNewMetricArgs | None = None  # Add here
+class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
+    accuracy: MulticlassAccuracyArgs | None = None
+    new_metric: MulticlassNewMetricArgs | None = None  # Add here
     # ... other metrics
 ```
 
@@ -72,9 +80,9 @@ class ClassificationTaskMetricArgs(TaskMetricArgs):
 
 ```python
 # In config or code
-metrics_args = ClassificationTaskMetricArgs(
-    multiclass_accuracy=MulticlassAccuracyArgs(topk=[1, 5]),
-    multiclass_new_metric=MulticlassNewMetricArgs(param1=20),
+metrics_args = MulticlassClassificationTaskMetricArgs(
+    accuracy=MulticlassAccuracyArgs(topk=[1, 5]),
+    new_metric=MulticlassNewMetricArgs(param1=20),
 )
 
 # At runtime
@@ -88,21 +96,12 @@ val_metrics.metrics.update(logits, targets)  # Use like any metric
 That's it! The new metric is now integrated.
 """
 
-from typing import Any
-
-from torch.nn import Module
-
 
 class TaskMetric(Module):
     """Base class for task-specific metrics container.
 
     This is a CONTAINER, not a metric itself. It organizes and provides access
     to the actual torchmetrics instances.
-
-    CRITICAL: Inherits from nn.Module (NOT Metric) because:
-    - We never call .update() or .compute() on TaskMetric directly
-    - We only need device handling (nn.Module provides this)
-    - The child metrics (MetricCollection, MeanMetric) are proper Metrics
 
     Device Handling:
     - All metrics stored as attributes are automatically detected as child modules
@@ -114,14 +113,9 @@ class TaskMetric(Module):
     - Provide access via .items() for logging
     - Provide display names via .get_display_names()
     - Handle task-specific formatting in .compute() if needed
-
-    NOT Responsible for:
-    - Calling .update() - train model does this directly on child metrics
-    - Calling .reset() - train model does this directly on child metrics
     """
 
     def __init__(self) -> None:
-        # CRITICAL: Must call super().__init__() to properly initialize nn.Module
         super().__init__()
 
     def items(self) -> dict[str, Any]:
@@ -142,14 +136,13 @@ class TaskMetric(Module):
         """
         raise NotImplementedError
 
-    def compute(self) -> dict[str, Any]:
-        """Compute all metrics and apply task-specific formatting.
+    def compute(self) -> dict[str, float]:
+        """Compute all metrics and return float values for logging.
 
-        This is called by compute_metrics() helper if special formatting is needed.
-        Most tasks can just use the default torchmetrics compute behavior.
+        Returns float values that can be directly logged with fabric.log().
 
         Returns:
-            Dictionary mapping metric names to computed scalar values.
+            Dictionary mapping metric names to computed float values.
         """
         # Default implementation - just compute all metrics
         result = {}
@@ -159,9 +152,9 @@ class TaskMetric(Module):
             if isinstance(metric, Metric):
                 value = metric.compute()
                 if hasattr(value, "item"):
-                    result[name] = value.item()
+                    result[name] = float(value.item())
                 else:
-                    result[name] = value
+                    result[name] = float(value)
         return result
 
     def reset(self) -> None:
