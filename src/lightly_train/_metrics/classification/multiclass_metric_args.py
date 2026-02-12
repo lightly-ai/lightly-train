@@ -25,7 +25,7 @@ from lightly_train._metrics.metric_args import MetricArgs
 class MulticlassAccuracyArgs(MetricArgs):
     """Accuracy metric for multiclass classification."""
 
-    topk: list[int] = Field(default_factory=lambda: [1], strict=False)
+    topk: list[int] = Field(default_factory=lambda: [1, 5], strict=False)
     average: set[Literal["micro", "macro", "weighted"]] = Field(
         default_factory=lambda: {"micro"},  # type: ignore[arg-type]
         strict=False,
