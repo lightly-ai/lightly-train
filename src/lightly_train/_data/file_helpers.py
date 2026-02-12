@@ -28,10 +28,12 @@ from torchvision.transforms.v2 import functional as F
 from lightly_train.types import (
     ImageDtypes,
     ImageFilename,
+    NDArray4Corners,
     NDArrayBBoxes,
     NDArrayClasses,
     NDArrayImage,
     NDArrayMask,
+    NDArrayOBBoxes,
     NDArrayPolygon,
     PathLike,
 )
@@ -386,6 +388,61 @@ def _open_mask_numpy__with_pil(
     mask_np = np.array(mask)
 
     return mask_np
+
+
+def xyxyxyxy_to_xywhr(boxes: NDArray4Corners) -> NDArrayOBBoxes:
+    """
+    Converts polygons (N, 8) to rotated boxes (N, 5): [cx, cy, w, h, angle_rad]
+    """
+    pts = boxes.view(-1, 4, 2)
+
+    cnt = pts.mean(dim=1)  # (N, 2)
+
+    edge1 = pts[:, 0] - pts[:, 1]
+    edge2 = pts[:, 1] - pts[:, 2]
+
+    w = torch.norm(edge1, dim=1)
+    h = torch.norm(edge2, dim=1)
+
+    angle = torch.atan2(edge1[:, 1], edge1[:, 0])
+
+    return torch.stack([cnt[:, 0], cnt[:, 1], w, h, angle], dim=1)
+
+
+def open_yolo_oriented_object_detection_label_numpy(
+    label_path: Path,
+) -> tuple[NDArrayOBBoxes, NDArrayClasses]:
+    """Open a YOLO label file and return the bounding boxes and classes as numpy arrays.
+
+    Returns:
+        (bboxes, classes) tuple. All values are in normalized coordinates
+        between [0, 1]. Bboxes are formatted as (x_center, y_center, width, height, angle).
+    """
+    oriented_bboxes = []
+    classes = []
+    for line in _iter_yolo_label_lines(label_path=label_path):
+        parts = [float(x) for x in line.split()]
+        class_id = parts[0]
+        x1 = parts[1]
+        y1 = parts[2]
+        x2 = parts[3]
+        y2 = parts[4]
+        x3 = parts[5]
+        y3 = parts[6]
+        x4 = parts[7]
+        y4 = parts[8]
+        bbox_4_corners = np.array([x1, y1, x2, y2, x3, y3, x4, y4], dtype=np.float64)
+        obbox = xyxyxyxy_to_xywhr(bbox_4_corners)
+        oriented_bboxes.append(obbox)
+        classes.append(int(class_id))
+
+    oriented_bboxes_np = (
+        np.array(oriented_bboxes)
+        if oriented_bboxes
+        else np.zeros((0, 5), dtype=np.float64)
+    )
+    classes_np = np.array(classes, dtype=np.int64)
+    return oriented_bboxes_np, classes_np
 
 
 def open_yolo_object_detection_label_numpy(
