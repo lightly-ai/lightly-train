@@ -29,6 +29,5 @@ class DINOv2ViTWrapper(Module):
         feats = self.backbone.get_intermediate_layers(
             x, n=self.keep_indices, reshape=True
         )
-        feats_: list[Tensor] = [feats[i] for i in self.keep_indices]  # type: ignore[misc]
-        assert all(isinstance(f, Tensor) for f in feats_)
-        return tuple(feats_)
+        assert all(isinstance(f, Tensor) for f in feats)
+        return tuple(feats)
