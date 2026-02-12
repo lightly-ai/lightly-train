@@ -132,7 +132,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
                 if classwise and not individual_metric_args.supports_classwise():
                     continue
 
-                metrics = individual_metric_args.get_metrics(
+                metrics = individual_metric_args.get_metrics(  # type: ignore[call-arg]
                     classwise=classwise,
                     num_classes=num_classes,
                     ignore_index=ignore_index,
@@ -153,18 +153,18 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             target: Target tensor of shape (B, H, W) with class indices
         """
         for metric in self.metrics.values():
-            metric.update(preds, target)
+            metric.update(preds, target)  # type: ignore[operator]
         if self.metrics_classwise is not None:
             for metric in self.metrics_classwise.values():
-                metric.update(preds, target)
+                metric.update(preds, target)  # type: ignore[operator]
 
     def reset(self) -> None:
         """Reset all metrics."""
         for metric in self.metrics.values():
-            metric.reset()
+            metric.reset()  # type: ignore[operator]
         if self.metrics_classwise is not None:
             for metric in self.metrics_classwise.values():
-                metric.reset()
+                metric.reset()  # type: ignore[operator]
 
     def compute(self) -> dict[str, Any]:
         """Compute all metrics and return combined results.
@@ -176,7 +176,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
 
         # Compute regular metrics
         for key, metric in self.metrics.items():
-            metric_result = metric.compute()
+            metric_result = metric.compute()  # type: ignore[operator]
             result[f"{self.prefix}{key}"] = metric_result
 
         # Compute classwise metrics
@@ -187,11 +187,11 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             classwise_prefix = f"{prefix_without_slash}_classwise/"
 
             for key, metric in self.metrics_classwise.items():
-                metric_result = metric.compute()
+                metric_result = metric.compute()  # type: ignore[operator]
                 # metric_result is a tensor of shape (num_classes,) with per-class IoU
-                if isinstance(metric_result, Tensor) and metric_result.ndim == 1:
-                    for class_idx in range(len(metric_result)):
-                        result[f"{classwise_prefix}{key}_{class_idx}"] = metric_result[
+                if isinstance(metric_result, Tensor) and metric_result.ndim == 1:  # type: ignore[operator]
+                    for class_idx in range(len(metric_result)):  # type: ignore[operator]
+                        result[f"{classwise_prefix}{key}_{class_idx}"] = metric_result[  # type: ignore[operator]
                             class_idx
                         ]
                 else:
@@ -217,9 +217,9 @@ class SemanticSegmentationTaskMetric(TaskMetric):
 
             # Per-class metrics
             for key in self.metrics_classwise.keys():
-                for class_idx in range(self.num_classes):
-                    metric_name = f"{classwise_prefix}{key}_{class_idx}"
-                    display_names[metric_name] = self._format_display_name(metric_name)
+                for class_idx in range(self.num_classes):  # type: ignore[operator]
+                    metric_name = f"{classwise_prefix}{key}_{class_idx}"  # type: ignore[operator]
+                    display_names[metric_name] = self._format_display_name(metric_name)  # type: ignore[operator]
 
         return display_names
 

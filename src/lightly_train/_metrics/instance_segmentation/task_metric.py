@@ -142,18 +142,18 @@ class InstanceSegmentationTaskMetric(TaskMetric):
             target: List of target dictionaries with keys "masks", "labels"
         """
         for metric in self.metrics.values():
-            metric.update(preds, target)
+            metric.update(preds, target)  # type: ignore[operator]
         if self.metrics_classwise is not None:
             for metric in self.metrics_classwise.values():
-                metric.update(preds, target)
+                metric.update(preds, target)  # type: ignore[operator]
 
     def reset(self) -> None:
         """Reset all metrics."""
         for metric in self.metrics.values():
-            metric.reset()
+            metric.reset()  # type: ignore[operator]
         if self.metrics_classwise is not None:
             for metric in self.metrics_classwise.values():
-                metric.reset()
+                metric.reset()  # type: ignore[operator]
 
     def compute(self) -> dict[str, Any]:
         """Compute all metrics and return combined results.
@@ -165,7 +165,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
 
         # Compute regular metrics
         for key, metric in self.metrics.items():
-            metric_result = metric.compute()
+            metric_result = metric.compute()  # type: ignore[operator]
             if isinstance(metric_result, dict):
                 # MeanAveragePrecision returns a dict with multiple keys
                 for sub_key, value in metric_result.items():
@@ -184,7 +184,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
             classwise_prefix = f"{prefix_without_slash}_classwise/"
 
             for key, metric in self.metrics_classwise.items():
-                metric_result = metric.compute()
+                metric_result = metric.compute()  # type: ignore[operator]
                 if isinstance(metric_result, dict):
                     # MeanAveragePrecision returns a dict with per-class tensors
                     # Extract the classes tensor to map per-class values to class names
@@ -196,30 +196,30 @@ class InstanceSegmentationTaskMetric(TaskMetric):
                             # "map_per_class" -> "map_cat", "map_dog", etc.
                             base_key = sub_key[: -len("_per_class")]
                             # Check if value is a tensor and has the right dimensions
-                            if (
+                            if (  # type: ignore[operator]
                                 isinstance(value, torch.Tensor)
                                 and classes_tensor is not None
                             ):
                                 # Handle scalar tensors (single class case)
-                                if value.ndim == 0:
+                                if value.ndim == 0:  # type: ignore[operator]
                                     # Single class - check if classes_tensor is also scalar
-                                    if classes_tensor.ndim == 0:
-                                        class_idx = int(classes_tensor.item())
+                                    if classes_tensor.ndim == 0:  # type: ignore[operator]
+                                        class_idx = int(classes_tensor.item())  # type: ignore[operator]
                                         if class_idx < len(self.class_names):
                                             result[
                                                 f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
                                             ] = value
-                                    elif len(classes_tensor) > 0:
-                                        class_idx = int(classes_tensor[0].item())
+                                    elif len(classes_tensor) > 0:  # type: ignore[operator]
+                                        class_idx = int(classes_tensor[0].item())  # type: ignore[operator]
                                         if class_idx < len(self.class_names):
                                             result[
                                                 f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
                                             ] = value
                                 # Handle 1-d tensors (multiple classes)
-                                elif value.ndim == 1:
+                                elif value.ndim == 1:  # type: ignore[operator]
                                     # classes_tensor might be scalar if only one class
-                                    if classes_tensor.ndim == 0:
-                                        class_idx = int(classes_tensor.item())
+                                    if classes_tensor.ndim == 0:  # type: ignore[operator]
+                                        class_idx = int(classes_tensor.item())  # type: ignore[operator]
                                         if (
                                             class_idx < len(self.class_names)
                                             and len(value) == 1
@@ -227,11 +227,11 @@ class InstanceSegmentationTaskMetric(TaskMetric):
                                             result[
                                                 f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
                                             ] = value[0]
-                                    elif len(value) == len(classes_tensor):
-                                        for i, class_idx_tensor in enumerate(
+                                    elif len(value) == len(classes_tensor):  # type: ignore[operator]
+                                        for i, class_idx_tensor in enumerate(  # type: ignore[operator]
                                             classes_tensor
                                         ):
-                                            class_idx = int(class_idx_tensor.item())
+                                            class_idx = int(class_idx_tensor.item())  # type: ignore[operator]
                                             if class_idx < len(self.class_names):
                                                 result[
                                                     f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"

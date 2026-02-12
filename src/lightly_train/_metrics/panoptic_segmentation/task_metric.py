@@ -113,7 +113,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
             if not isinstance(individual_metric_args, MetricArgs):
                 continue
             if individual_metric_args is not None:
-                metrics = individual_metric_args.get_metrics(
+                metrics = individual_metric_args.get_metrics(  # type: ignore[call-arg]
                     classwise=False,
                     things=things,
                     stuffs=stuffs,
@@ -134,12 +134,12 @@ class PanopticSegmentationTaskMetric(TaskMetric):
             target: Target tensor of shape (B, H, W, 2) where last dim is (class_id, instance_id)
         """
         for metric in self.metrics.values():
-            metric.update(preds, target)
+            metric.update(preds, target)  # type: ignore[operator]
 
     def reset(self) -> None:
         """Reset all metrics."""
         for metric in self.metrics.values():
-            metric.reset()
+            metric.reset()  # type: ignore[operator]
 
     def compute(self) -> dict[str, Any]:
         """Compute all metrics and return combined results.
@@ -151,17 +151,17 @@ class PanopticSegmentationTaskMetric(TaskMetric):
 
         # Compute metrics
         for key, metric in self.metrics.items():
-            metric_result = metric.compute()
+            metric_result = metric.compute()  # type: ignore[operator]
             # PanopticQuality with return_sq_and_rq=True returns a tensor of shape (3,)
             # where the values are [PQ, SQ, RQ]
-            if (
+            if (  # type: ignore[operator]
                 isinstance(metric_result, Tensor)
-                and metric_result.ndim == 1
-                and len(metric_result) == 3
+                and metric_result.ndim == 1  # type: ignore[operator]
+                and len(metric_result) == 3  # type: ignore[operator]
             ):
-                result[f"{self.prefix}pq"] = metric_result[0]
-                result[f"{self.prefix}sq"] = metric_result[1]
-                result[f"{self.prefix}rq"] = metric_result[2]
+                result[f"{self.prefix}pq"] = metric_result[0]  # type: ignore[operator]
+                result[f"{self.prefix}sq"] = metric_result[1]  # type: ignore[operator]
+                result[f"{self.prefix}rq"] = metric_result[2]  # type: ignore[operator]
             else:
                 result[f"{self.prefix}{key}"] = metric_result
 
