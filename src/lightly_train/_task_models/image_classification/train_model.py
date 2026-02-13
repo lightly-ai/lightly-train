@@ -342,11 +342,11 @@ class ImageClassificationTrain(TrainModel):
             self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if self.model_args.gradient_clip_val > 0:
+        if no_auto(self.model_args.gradient_clip_val) > 0:
             fabric.clip_gradients(
                 module=self,
                 optimizer=optimizer,
-                max_norm=self.model_args.gradient_clip_val,
+                max_norm=no_auto(self.model_args.gradient_clip_val),
             )
 
 
