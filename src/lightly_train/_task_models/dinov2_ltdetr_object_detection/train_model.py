@@ -17,7 +17,10 @@ from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
-from torch.optim.lr_scheduler import LinearLR, LRScheduler
+from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
+    LinearLR,
+    LRScheduler,
+)
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 from lightly_train._configs.validate import no_auto
@@ -155,6 +158,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             normalize_dict = None
         else:
             normalize_dict = normalize.model_dump()
+
         self.model = DINOv2LTDETRObjectDetection(
             model_name=model_name,
             image_size=no_auto(val_transform_args.image_size),
@@ -254,6 +258,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             targets=targets,
         )
         # Additional kwargs are anyway ignore in RTDETRCriterionv2.
+        # The loss expects gt boxes in cxcywh format normalized in [0,1].
         loss_dict = self.criterion(
             outputs=outputs,
             targets=targets,
@@ -280,9 +285,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
     def on_train_batch_end(self) -> None:
         if self.ema_model is not None:
             self.ema_model.update(self.model)
-
-    # def get_ema_model(self) -> Module | None:
-    #     return self.ema_model.model if self.ema_model is not None else None
 
     def validation_step(
         self,
@@ -311,6 +313,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 targets=targets,
             )
             # TODO (Lionel, 10/25): Pass epoch, step, global_step.
+            # The loss expects gt boxes in cxcywh format normalized in [0,1].
             loss_dict = self.criterion(
                 outputs=outputs,
                 targets=targets,
