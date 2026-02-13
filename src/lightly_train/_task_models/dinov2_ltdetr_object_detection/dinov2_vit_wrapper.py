@@ -199,41 +199,53 @@ class DINOv2STAs(Module):
             # With the assert in the __init__ this branch is never used.
             all_layers = self.dinov2(x)
 
-        sem_feats = []
-        num_scales = len(all_layers) - 2
-        for i, sem_feat in enumerate(all_layers):
-            feat, _ = sem_feat  # type: ignore[misc]
-            sem_feat = (
-                feat.transpose(1, 2).view(bs, -1, H_c, W_c).contiguous()
-            )  # [B, D, H, W]
-            resize_H, resize_W = (
-                int(H_c * 2 ** (num_scales - i)),
-                int(W_c * 2 ** (num_scales - i)),
-            )
-            sem_feat = F.interpolate(
-                sem_feat,
-                size=[resize_H, resize_W],
-                mode="bilinear",
-                align_corners=False,
-            )
-            sem_feats.append(sem_feat)
-
-        # Normalize sem feats type to tensors.
-        # If feat is a Tensor it is the spatial tokens
-        # If feat is a Tuple, the first entry contains the spatial tokens.
-        # With the default args from get_intermediate_layers it is a Tensor.
-        sem_feats_t: list[torch.Tensor] = [
-            feat if isinstance(feat, torch.Tensor) else feat[0] for feat in sem_feats
-        ]
-
         # fusion
         fused_feats = []
         if self.use_sta:
+            # Get detail features first to determine target sizes
             detail_feats = self.sta(x)
-            for sem_feat, detail_feat in zip(sem_feats_t, detail_feats):
+            
+            # Resize semantic features to match detail features
+            sem_feats = []
+            for i, sem_feat in enumerate(all_layers):
+                feat, _ = sem_feat  # type: ignore[misc]
+                sem_feat = (
+                    feat.transpose(1, 2).view(bs, -1, H_c, W_c).contiguous()
+                )  # [B, D, H, W]
+                # Resize to match detail_feat spatial dimensions
+                target_size = detail_feats[i].shape[-2:]
+                sem_feat = F.interpolate(
+                    sem_feat,
+                    size=target_size,
+                    mode="bilinear",
+                    align_corners=False,
+                )
+                sem_feats.append(sem_feat)
+            
+            # Fuse semantic and detail features
+            for sem_feat, detail_feat in zip(sem_feats, detail_feats):
                 fused_feats.append(torch.cat([sem_feat, detail_feat], dim=1))
         else:
-            fused_feats = sem_feats_t
+            # No STA: use original resizing formula
+            sem_feats = []
+            num_scales = len(all_layers) - 2
+            for i, sem_feat in enumerate(all_layers):
+                feat, _ = sem_feat  # type: ignore[misc]
+                sem_feat = (
+                    feat.transpose(1, 2).view(bs, -1, H_c, W_c).contiguous()
+                )  # [B, D, H, W]
+                resize_H, resize_W = (
+                    int(H_c * 2 ** (num_scales - i)),
+                    int(W_c * 2 ** (num_scales - i)),
+                )
+                sem_feat = F.interpolate(
+                    sem_feat,
+                    size=[resize_H, resize_W],
+                    mode="bilinear",
+                    align_corners=False,
+                )
+                sem_feats.append(sem_feat)
+            fused_feats = sem_feats
 
         c2 = self.norms[0](self.convs[0](fused_feats[0]))
         c3 = self.norms[1](self.convs[1](fused_feats[1]))

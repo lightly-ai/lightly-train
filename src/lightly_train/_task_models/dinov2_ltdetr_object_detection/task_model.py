@@ -769,12 +769,10 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
 
         decoder_config = config.rtdetr_transformer.model_dump()
         decoder_config.update({"cross_attn_method": "discrete"})
+        decoder_config.update({"num_classes": len(self.classes)})
         self.decoder: RTDETRTransformerv2 = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
             **decoder_config,
-            eval_spatial_size=(
-                644,
-                644,
-            ),  # From global config, otherwise anchors are not generated.
+            eval_spatial_size=self.image_size,  # From global config, otherwise anchors are not generated.
         )
 
         postprocessor_config = config.rtdetr_postprocessor.model_dump()
