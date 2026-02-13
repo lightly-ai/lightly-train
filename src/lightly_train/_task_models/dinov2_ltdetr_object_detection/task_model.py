@@ -42,51 +42,6 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-class _BackboneWrapperConfig(PydanticConfig):
-    interaction_indexes: list[int]
-    finetune: bool
-    patch_size: int
-    use_sta: bool
-    conv_inplane: int
-    hidden_dim: int | None
-
-
-class _BackboneWrapperViTSConfig(_BackboneWrapperConfig):
-    interaction_indexes: list[int] = [5, 8, 11]
-    finetune: bool = True
-    patch_size: int = 14
-    use_sta: bool = True
-    conv_inplane: int = 16
-    hidden_dim: int | None = 384
-
-
-class _BackboneWrapperViTBConfig(_BackboneWrapperConfig):
-    interaction_indexes: list[int] = [5, 8, 11]
-    finetune: bool = True
-    patch_size: int = 14
-    use_sta: bool = True
-    conv_inplane: int = 16
-    hidden_dim: int | None = 768
-
-
-class _BackboneWrapperViTLConfig(_BackboneWrapperConfig):
-    interaction_indexes: list[int] = [11, 17, 23]
-    finetune: bool = True
-    patch_size: int = 14
-    use_sta: bool = True
-    conv_inplane: int = 16
-    hidden_dim: int | None = 1024
-
-
-class _BackboneWrapperViTGConfig(_BackboneWrapperConfig):
-    interaction_indexes: list[int] = [19, 29, 39]
-    finetune: bool = True
-    patch_size: int = 14
-    use_sta: bool = True
-    conv_inplane: int = 16
-    hidden_dim: int | None = 1536
-
-
 class _HybridEncoderConfig(PydanticConfig):
     in_channels: list[int]
     feat_strides: list[int]
@@ -100,28 +55,27 @@ class _HybridEncoderConfig(PydanticConfig):
     expansion: float
     depth_mult: float
     act: str
-    upsample: bool
+    upsample: bool = True
 
 
 class _HybridEncoderViTSConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [384, 384, 384]
-    feat_strides: list[int] = [14, 14, 14]
-    hidden_dim: int = 384
+    in_channels: list[int] = [224, 224, 224]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 224
     use_encoder_idx: list[int] = [2]
     num_encoder_layers: int = 1
     nhead: int = 8
-    dim_feedforward: int = 1536
+    dim_feedforward: int = 896
     dropout: float = 0.0
     enc_act: str = "gelu"
     expansion: float = 1.0
-    depth_mult: float = 1
+    depth_mult: float = 1.0
     act: str = "silu"
-    upsample: bool = False
 
 
 class _HybridEncoderViTBConfig(_HybridEncoderConfig):
     in_channels: list[int] = [768, 768, 768]
-    feat_strides: list[int] = [14, 14, 14]
+    feat_strides: list[int] = [8, 16, 32]
     hidden_dim: int = 768
     use_encoder_idx: list[int] = [2]
     num_encoder_layers: int = 1
@@ -130,14 +84,13 @@ class _HybridEncoderViTBConfig(_HybridEncoderConfig):
     dropout: float = 0.0
     enc_act: str = "gelu"
     expansion: float = 1.0
-    depth_mult: float = 1
+    depth_mult: float = 1.0
     act: str = "silu"
-    upsample: bool = False
 
 
 class _HybridEncoderViTLConfig(_HybridEncoderConfig):
     in_channels: list[int] = [1024, 1024, 1024]
-    feat_strides: list[int] = [14, 14, 14]
+    feat_strides: list[int] = [8, 16, 32]
     hidden_dim: int = 1024
     use_encoder_idx: list[int] = [2]
     num_encoder_layers: int = 1
@@ -146,14 +99,13 @@ class _HybridEncoderViTLConfig(_HybridEncoderConfig):
     dropout: float = 0.0
     enc_act: str = "gelu"
     expansion: float = 1.0
-    depth_mult: float = 1
+    depth_mult: float = 1.0
     act: str = "silu"
-    upsample: bool = False
 
 
 class _HybridEncoderViTGConfig(_HybridEncoderConfig):
     in_channels: list[int] = [1536, 1536, 1536]
-    feat_strides: list[int] = [14, 14, 14]
+    feat_strides: list[int] = [8, 16, 32]
     hidden_dim: int = 1536
     use_encoder_idx: list[int] = [2]
     num_encoder_layers: int = 1
@@ -162,9 +114,8 @@ class _HybridEncoderViTGConfig(_HybridEncoderConfig):
     dropout: float = 0.0
     enc_act: str = "gelu"
     expansion: float = 1.0
-    depth_mult: float = 1
+    depth_mult: float = 1.0
     act: str = "silu"
-    upsample: bool = False
 
 
 class _RTDETRTransformerv2Config(PydanticConfig):
@@ -183,63 +134,95 @@ class _RTDETRTransformerv2Config(PydanticConfig):
 
 
 class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [384, 384, 384]
-    feat_strides: list[int] = [14, 14, 14]
-    hidden_dim: int = 256
+    feat_channels: list[int] = [224, 224, 224]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 224
     num_levels: int = 3
-    num_layers: int = 6
+    num_layers: int = 4
     num_queries: int = 300
     num_denoising: int = 100
     label_noise_ratio: float = 0.5
     box_noise_scale: float = 1.0
     eval_idx: int = -1
-    num_points: list[int] = [4, 4, 4]
+    num_points: list[int] = [3, 6, 3]
     query_select_method: str = "default"
+    dim_feedforward: int = 1792
 
 
 class _RTDETRTransformerv2ViTBConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [768, 768, 768]
-    feat_strides: list[int] = [14, 14, 14]
-    hidden_dim: int = 256
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 768
     num_levels: int = 3
-    num_layers: int = 6
+    num_layers: int = 4
     num_queries: int = 300
     num_denoising: int = 100
     label_noise_ratio: float = 0.5
     box_noise_scale: float = 1.0
     eval_idx: int = -1
-    num_points: list[int] = [4, 4, 4]
+    num_points: list[int] = [3, 6, 3]
     query_select_method: str = "default"
+    dim_feedforward: int = 6144
 
 
 class _RTDETRTransformerv2ViTLConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [1024, 1024, 1024]
-    feat_strides: list[int] = [14, 14, 14]
-    hidden_dim: int = 256
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 1024
     num_levels: int = 3
-    num_layers: int = 6
+    num_layers: int = 4
     num_queries: int = 300
     num_denoising: int = 100
     label_noise_ratio: float = 0.5
     box_noise_scale: float = 1.0
     eval_idx: int = -1
-    num_points: list[int] = [4, 4, 4]
+    num_points: list[int] = [3, 6, 3]
     query_select_method: str = "default"
+    dim_feedforward: int = 8192
 
 
 class _RTDETRTransformerv2ViTGConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [1536, 1536, 1536]
-    feat_strides: list[int] = [14, 14, 14]
-    hidden_dim: int = 256
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 1536
     num_levels: int = 3
-    num_layers: int = 6
+    num_layers: int = 4
     num_queries: int = 300
     num_denoising: int = 100
     label_noise_ratio: float = 0.5
     box_noise_scale: float = 1.0
     eval_idx: int = -1
-    num_points: list[int] = [4, 4, 4]
+    num_points: list[int] = [3, 6, 3]
     query_select_method: str = "default"
+    dim_feedforward: int = 12288
+
+
+class _BackboneWrapperViTSConfig(PydanticConfig):
+    interaction_indexes: list[int] = [5, 8, 11]
+    finetune: bool = True
+    conv_inplane: int = 32
+    hidden_dim: int = 224
+
+
+class _BackboneWrapperViTBConfig(PydanticConfig):
+    interaction_indexes: list[int] = [5, 8, 11]
+    finetune: bool = True
+    conv_inplane: int = 64
+    hidden_dim: int = 768
+
+
+class _BackboneWrapperViTLConfig(PydanticConfig):
+    interaction_indexes: list[int] = [11, 17, 23]
+    finetune: bool = True
+    conv_inplane: int = 64
+    hidden_dim: int = 1024
+
+
+class _BackboneWrapperViTGConfig(PydanticConfig):
+    interaction_indexes: list[int] = [19, 29, 39]
+    finetune: bool = True
+    conv_inplane: int = 64
+    hidden_dim: int = 1536
 
 
 class _RTDETRPostProcessorConfig(PydanticConfig):
@@ -247,16 +230,12 @@ class _RTDETRPostProcessorConfig(PydanticConfig):
 
 
 class _DINOv2LTDETRObjectDetectionConfig(PydanticConfig):
-    backbone_wrapper: _BackboneWrapperConfig
     hybrid_encoder: _HybridEncoderConfig
     rtdetr_transformer: _RTDETRTransformerv2Config
     rtdetr_postprocessor: _RTDETRPostProcessorConfig
 
 
 class _DINOv2LTDETRObjectDetectionViTSConfig(_DINOv2LTDETRObjectDetectionConfig):
-    backbone_wrapper: _BackboneWrapperViTSConfig = Field(
-        default_factory=_BackboneWrapperViTSConfig
-    )
     hybrid_encoder: _HybridEncoderViTSConfig = Field(
         default_factory=_HybridEncoderViTSConfig
     )
@@ -266,12 +245,12 @@ class _DINOv2LTDETRObjectDetectionViTSConfig(_DINOv2LTDETRObjectDetectionConfig)
     rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
         default_factory=_RTDETRPostProcessorConfig
     )
+    backbone_wrapper: _BackboneWrapperViTSConfig = Field(
+        default_factory=_BackboneWrapperViTSConfig
+    )
 
 
 class _DINOv2LTDETRObjectDetectionViTBConfig(_DINOv2LTDETRObjectDetectionConfig):
-    backbone_wrapper: _BackboneWrapperViTBConfig = Field(
-        default_factory=_BackboneWrapperViTBConfig
-    )
     hybrid_encoder: _HybridEncoderViTBConfig = Field(
         default_factory=_HybridEncoderViTBConfig
     )
@@ -281,12 +260,12 @@ class _DINOv2LTDETRObjectDetectionViTBConfig(_DINOv2LTDETRObjectDetectionConfig)
     rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
         default_factory=_RTDETRPostProcessorConfig
     )
+    backbone_wrapper: _BackboneWrapperViTBConfig = Field(
+        default_factory=_BackboneWrapperViTBConfig
+    )
 
 
 class _DINOv2LTDETRObjectDetectionViTLConfig(_DINOv2LTDETRObjectDetectionConfig):
-    backbone_wrapper: _BackboneWrapperViTLConfig = Field(
-        default_factory=_BackboneWrapperViTLConfig
-    )
     hybrid_encoder: _HybridEncoderViTLConfig = Field(
         default_factory=_HybridEncoderViTLConfig
     )
@@ -296,12 +275,12 @@ class _DINOv2LTDETRObjectDetectionViTLConfig(_DINOv2LTDETRObjectDetectionConfig)
     rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
         default_factory=_RTDETRPostProcessorConfig
     )
+    backbone_wrapper: _BackboneWrapperViTLConfig = Field(
+        default_factory=_BackboneWrapperViTLConfig
+    )
 
 
 class _DINOv2LTDETRObjectDetectionViTGConfig(_DINOv2LTDETRObjectDetectionConfig):
-    backbone_wrapper: _BackboneWrapperViTGConfig = Field(
-        default_factory=_BackboneWrapperViTGConfig
-    )
     hybrid_encoder: _HybridEncoderViTGConfig = Field(
         default_factory=_HybridEncoderViTGConfig
     )
@@ -310,6 +289,9 @@ class _DINOv2LTDETRObjectDetectionViTGConfig(_DINOv2LTDETRObjectDetectionConfig)
     )
     rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
         default_factory=_RTDETRPostProcessorConfig
+    )
+    backbone_wrapper: _BackboneWrapperViTGConfig = Field(
+        default_factory=_BackboneWrapperViTGConfig
     )
 
 
@@ -369,21 +351,19 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             "vitl14": _DINOv2LTDETRObjectDetectionViTLConfig,
             "vitg14": _DINOv2LTDETRObjectDetectionViTGConfig,
         }
-        config_name = parsed_name["backbone_name"]
-        for key in config_mapping:
-            if config_name.startswith(key):
-                config_cls = config_mapping[key]
-                break
+        config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
+        config_name = config_name.replace("-noreg", "")
+        config_cls = config_mapping[config_name]
         config = config_cls()
+
+        # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
+        dinov2.mask_token.requires_grad = False  # type: ignore
 
         self.backbone: DINOv2STAs = DINOv2STAs(
             model=dinov2,
+            patch_size=dinov2.patch_size,
             **config.backbone_wrapper.model_dump(),
         )
-        # TODO(Lionel, 07/25): Improve how mask tokens are handled for fine-tuning.
-        # Should we drop them from the model? We disable grads here for DDP to work
-        # without find_unused_parameters=True.
-        self.backbone.dinov2.mask_token.requires_grad = False
 
         self.encoder: HybridEncoder = HybridEncoder(  # type: ignore[no-untyped-call]
             **config.hybrid_encoder.model_dump()
@@ -401,6 +381,13 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
             **postprocessor_config
         )
+
+    @classmethod
+    def list_model_names(cls) -> list[str]:
+        return [
+            f"{name}-{cls.model_suffix}"
+            for name in DINOV2_VIT_PACKAGE.list_model_names()
+        ]
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
@@ -446,12 +433,27 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             "backbone_name": backbone_name,
         }
 
-    @classmethod
-    def list_model_names(cls) -> list[str]:
-        return [
-            f"{name}-{cls.model_suffix}"
-            for name in DINOV2_VIT_PACKAGE.list_model_names()
-        ]
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> Any:
+        """Load the state dict from a training checkpoint.
+
+        Loads the EMA weights if available, otherwise falls back to the model weights.
+        """
+        has_ema_weights = any(k.startswith("ema_model.model.") for k in state_dict)
+        has_model_weights = any(k.startswith("model.") for k in state_dict)
+        new_state_dict = {}
+        if has_ema_weights:
+            for name, param in state_dict.items():
+                if name.startswith("ema_model.model."):
+                    name = name[len("ema_model.model.") :]
+                    new_state_dict[name] = param
+        elif has_model_weights:
+            for name, param in state_dict.items():
+                if name.startswith("model."):
+                    name = name[len("model.") :]
+                    new_state_dict[name] = param
+        return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
     def load_backbone_weights(self, backbone: Module, path: PathLike) -> None:
         """
@@ -481,27 +483,13 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         else:
             logger.info("Backbone weights loaded successfully.")
 
-    def load_train_state_dict(
-        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
-    ) -> Any:
-        """Load the state dict from a training checkpoint.
-
-        Loads the EMA weights if available, otherwise falls back to the model weights.
-        """
-        has_ema_weights = any(k.startswith("ema_model.model.") for k in state_dict)
-        has_model_weights = any(k.startswith("model.") for k in state_dict)
-        new_state_dict = {}
-        if has_ema_weights:
-            for name, param in state_dict.items():
-                if name.startswith("ema_model.model."):
-                    name = name[len("ema_model.model.") :]
-                    new_state_dict[name] = param
-        elif has_model_weights:
-            for name, param in state_dict.items():
-                if name.startswith("model."):
-                    name = name[len("model.") :]
-                    new_state_dict[name] = param
-        return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
+    def deploy(self) -> Self:
+        self.eval()
+        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
+        for m in self.modules():
+            if hasattr(m, "convert_to_deploy"):
+                m.convert_to_deploy()  # type: ignore[operator]
+        return self
 
     @torch.no_grad()
     def predict(
@@ -679,20 +667,6 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             "scores": scores,
         }
 
-    def deploy(self) -> Self:
-        self.eval()
-        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
-        for m in self.modules():
-            if hasattr(m, "convert_to_deploy"):
-                m.convert_to_deploy()  # type: ignore[operator]
-        return self
-
-    def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
-        x = self.backbone(x)
-        x = self.encoder(x)
-        x = self.decoder(feats=x, targets=targets)
-        return x
-
     def forward(
         self, x: Tensor, orig_target_size: Tensor | None = None
     ) -> tuple[Tensor, Tensor, Tensor]:
@@ -721,6 +695,12 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         labels, boxes, scores = result
         labels = self.internal_class_to_class[labels]
         return (labels, boxes, scores)
+
+    def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
+        x = self.backbone(x)
+        x = self.encoder(x)
+        x = self.decoder(feats=x, targets=targets)
+        return x
 
 
 class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
@@ -778,6 +758,8 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
 
         self.backbone: DINOv2STAs = DINOv2STAs(
             model=dinov2,
+            patch_size=14,
+            use_sta=True,
             **config.backbone_wrapper.model_dump(),
         )
 

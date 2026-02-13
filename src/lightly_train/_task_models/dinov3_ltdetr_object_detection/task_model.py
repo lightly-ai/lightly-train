@@ -52,7 +52,6 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 
-# TODO: Lionel(09/25) Make names more descriptive for ViT support.
 class _HybridEncoderConfig(PydanticConfig):
     in_channels: list[int]
     feat_strides: list[int]
@@ -129,18 +128,18 @@ class _HybridEncoderTinyConfig(_HybridEncoderConfig):
     act: str = "silu"
 
 
-class _HybridEncoderViTSConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [224, 224, 224]
+class _HybridEncoderViTTConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [192, 192, 192]
     feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 224
+    hidden_dim: int = 192
     use_encoder_idx: list[int] = [2]
     num_encoder_layers: int = 1
     nhead: int = 8
-    dim_feedforward: int = 896
+    dim_feedforward: int = 512
     dropout: float = 0.0
     enc_act: str = "gelu"
-    expansion: float = 1.0
-    depth_mult: float = 1.0
+    expansion: float = 0.34
+    depth_mult: float = 0.67
     act: str = "silu"
 
 
@@ -159,18 +158,18 @@ class _HybridEncoderViTTPlusConfig(_HybridEncoderConfig):
     act: str = "silu"
 
 
-class _HybridEncoderViTTConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [192, 192, 192]
+class _HybridEncoderViTSConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [224, 224, 224]
     feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 192
+    hidden_dim: int = 224
     use_encoder_idx: list[int] = [2]
     num_encoder_layers: int = 1
     nhead: int = 8
-    dim_feedforward: int = 512
+    dim_feedforward: int = 896
     dropout: float = 0.0
     enc_act: str = "gelu"
-    expansion: float = 0.34
-    depth_mult: float = 0.67
+    expansion: float = 1.0
+    depth_mult: float = 1.0
     act: str = "silu"
 
 
@@ -234,12 +233,12 @@ class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [384, 384, 384]
 
 
-class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [224, 224, 224]
-    hidden_dim: int = 224
+class _RTDETRTransformerv2ViTTConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [192, 192, 192]
+    hidden_dim: int = 192
     num_layers: int = 4
     num_points: list[int] = [3, 6, 3]
-    dim_feedforward: int = 1792
+    dim_feedforward: int = 512
 
 
 class _RTDETRTransformerv2ViTTPlusConfig(_RTDETRTransformerv2Config):
@@ -250,12 +249,12 @@ class _RTDETRTransformerv2ViTTPlusConfig(_RTDETRTransformerv2Config):
     dim_feedforward: int = 512
 
 
-class _RTDETRTransformerv2ViTTConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [192, 192, 192]
-    hidden_dim: int = 192
+class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [224, 224, 224]
+    hidden_dim: int = 224
     num_layers: int = 4
     num_points: list[int] = [3, 6, 3]
-    dim_feedforward: int = 512
+    dim_feedforward: int = 1792
 
 
 class _RTDETRTransformerv2ViTBConfig(_RTDETRTransformerv2Config):
@@ -274,11 +273,11 @@ class _RTDETRTransformerv2ViTLConfig(_RTDETRTransformerv2Config):
     dim_feedforward: int = 8192
 
 
-class _RTDETRBackboneWrapperViTSConfig(PydanticConfig):
-    interaction_indexes: list[int] = [5, 8, 11]
+class _RTDETRBackboneWrapperViTTConfig(PydanticConfig):
+    interaction_indexes: list[int] = [3, 7, 11]
     finetune: bool = True
-    conv_inplane: int = 32
-    hidden_dim: int = 224
+    conv_inplane: int = 16
+    hidden_dim: int = 192
 
 
 class _RTDETRBackboneWrapperViTTPlusConfig(PydanticConfig):
@@ -288,11 +287,11 @@ class _RTDETRBackboneWrapperViTTPlusConfig(PydanticConfig):
     hidden_dim: int = 256
 
 
-class _RTDETRBackboneWrapperViTTConfig(PydanticConfig):
-    interaction_indexes: list[int] = [3, 7, 11]
+class _RTDETRBackboneWrapperViTSConfig(PydanticConfig):
+    interaction_indexes: list[int] = [5, 8, 11]
     finetune: bool = True
-    conv_inplane: int = 16
-    hidden_dim: int = 192
+    conv_inplane: int = 32
+    hidden_dim: int = 224
 
 
 class _RTDETRBackboneWrapperViTBConfig(PydanticConfig):
@@ -521,14 +520,21 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             ),
         }
         config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
+        config_name = config_name.replace("-noreg", "")
         config_cls, wrapper_cls = config_mapping[config_name]
         config = config_cls()
 
         if hasattr(config, "backbone_wrapper"):
+            # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
+            dinov3.mask_token.requires_grad = False  # type: ignore
+
             # ViT models.
             self.backbone = wrapper_cls(
-                model=dinov3, **config.backbone_wrapper.model_dump()
+                model=dinov3,
+                patch_size=dinov3.patch_size,
+                **config.backbone_wrapper.model_dump(),
             )
+
         else:
             # ConvNext models.
             self.backbone = wrapper_cls(model=dinov3)
@@ -552,12 +558,51 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        # TODO: Lionel(09/25) Add support for ViT models as well.
         return [
-            f"{name}-{cls.model_suffix}"
-            for name in DINOV3_PACKAGE.list_model_names()
-            if "convnext" in name
+            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
         ]
+
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        try:
+            cls.parse_model_name(model_name=model)
+        except ValueError:
+            return False
+        else:
+            return True
+
+    @classmethod
+    def parse_model_name(cls, model_name: str) -> dict[str, str]:
+        def raise_invalid_name() -> None:
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available "
+                f"models are: {cls.list_model_names()}."
+            )
+
+        if not model_name.endswith(f"-{cls.model_suffix}"):
+            raise_invalid_name()
+
+        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
+
+        try:
+            package_name, backbone_name = package_helpers.parse_model_name(
+                backbone_name
+            )
+        except ValueError:
+            raise_invalid_name()
+
+        if package_name != DINOV3_PACKAGE.name:
+            raise_invalid_name()
+
+        try:
+            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
+        except ValueError:
+            raise_invalid_name()
+
+        return {
+            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "backbone_name": backbone_name,
+        }
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
@@ -792,48 +837,6 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         labels, boxes, scores = result
         labels = self.internal_class_to_class[labels]
         return (labels, boxes, scores)
-
-    @classmethod
-    def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        def raise_invalid_name() -> None:
-            raise ValueError(
-                f"Model name '{model_name}' is not supported. Available "
-                f"models are: {cls.list_model_names()}."
-            )
-
-        if not model_name.endswith(f"-{cls.model_suffix}"):
-            raise_invalid_name()
-
-        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
-
-        try:
-            package_name, backbone_name = package_helpers.parse_model_name(
-                backbone_name
-            )
-        except ValueError:
-            raise_invalid_name()
-
-        if package_name != DINOV3_PACKAGE.name:
-            raise_invalid_name()
-
-        try:
-            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
-        except ValueError:
-            raise_invalid_name()
-
-        return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
-            "backbone_name": backbone_name,
-        }
-
-    @classmethod
-    def is_supported_model(cls, model: str) -> bool:
-        try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
-            return True
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
         x = self.backbone(x)
