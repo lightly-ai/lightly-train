@@ -17,7 +17,7 @@ from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
-from torch.optim.lr_scheduler import LRScheduler, MultiStepLR
+from torch.optim.lr_scheduler import LinearLR, LRScheduler
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 from lightly_train._configs.validate import no_auto
@@ -117,10 +117,9 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     detector_weight_decay: float = 0.0
 
     # Scheduler configuration
-    scheduler_milestones: list[int] = Field(default_factory=lambda: [1000])
-    scheduler_gamma: float = 0.1
-    lr_warmup_steps: int | None = Field(
-        default=None,  # TODO (Thomas, 10/25): Change to flat-cosine with warmup.
+    scheduler_start_factor: float = 0.01
+    lr_warmup_steps: int = Field(
+        default=2000,
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
@@ -296,7 +295,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             batch["classes"],
             batch["original_size"],
         )
-        boxes = _yolo_to_xyxy(boxes)
         targets = [
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
@@ -327,7 +325,8 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
-        # De-normalize boxes target boxes.
+        # Convert to xyxy format and de-normalize the boxes.
+        boxes = _yolo_to_xyxy(boxes)
         boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
         for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
             target["boxes"] = sample_denormalized_boxes
@@ -448,12 +447,12 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             betas=self.model_args.optimizer_betas,
             weight_decay=self.model_args.weight_decay,
         )
-        scheduler = MultiStepLR(
+        # TODO (Thomas, 11/25): Change to flat-cosine with warmup.
+        scheduler = LinearLR(
             optimizer=optim,
-            milestones=self.model_args.scheduler_milestones,
-            gamma=self.model_args.scheduler_gamma,
+            total_iters=self.model_args.lr_warmup_steps,
+            start_factor=self.model_args.scheduler_start_factor,
         )
-        # TODO (Lionel, 10/25): Use the warmup scheduler.
         return optim, scheduler
 
     def get_task_model(self) -> TaskModel:
