@@ -78,7 +78,7 @@ class ImageClassificationTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     backbone_args: dict[str, Any] = Field(default_factory=dict)
 
-    gradient_clip_val: float = 3.0
+    gradient_clip_val: float | Literal["auto"] = "auto"
 
     # Optim
     lr: float = 3e-4
@@ -111,6 +111,11 @@ class ImageClassificationTrainArgs(TrainModelArgs):
                 self.lr_warmup_steps = 0
             else:
                 self.lr_warmup_steps = min(500, total_steps)
+        if self.gradient_clip_val == "auto":
+            if self.backbone_freeze:
+                self.gradient_clip_val = 0.0
+            else:
+                self.gradient_clip_val = 3.0
         if self.metrics == "auto":
             assert isinstance(data_args, ImageClassificationDataArgs)
             if data_args.classification_task == "multiclass":
