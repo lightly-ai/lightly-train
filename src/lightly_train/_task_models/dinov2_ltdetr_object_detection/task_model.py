@@ -345,7 +345,10 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             "vitg14": _DINOv2LTDETRObjectDetectionViTGConfig,
         }
         config_name = parsed_name["backbone_name"]
-        config_cls = config_mapping[config_name]
+        for key in config_mapping:
+            if config_name.startswith(key):
+                config_cls = config_mapping[key]
+                break
         config = config_cls()
 
         self.backbone: DINOv2ViTWrapper = DINOv2ViTWrapper(
