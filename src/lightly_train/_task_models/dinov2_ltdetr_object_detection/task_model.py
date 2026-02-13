@@ -24,7 +24,7 @@ from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models.dinov2_ltdetr_object_detection.dinov2_vit_wrapper import (
-    DINOv2ViTWrapper,
+    DINOv2STAs,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
@@ -43,23 +43,48 @@ logger = logging.getLogger(__name__)
 
 
 class _BackboneWrapperConfig(PydanticConfig):
-    keep_indices: list[int]
+    interaction_indexes: list[int]
+    finetune: bool
+    patch_size: int
+    use_sta: bool
+    conv_inplane: int
+    hidden_dim: int | None
 
 
 class _BackboneWrapperViTSConfig(_BackboneWrapperConfig):
-    keep_indices: list[int] = [5, 8, 11]
+    interaction_indexes: list[int] = [5, 8, 11]
+    finetune: bool = True
+    patch_size: int = 14
+    use_sta: bool = True
+    conv_inplane: int = 16
+    hidden_dim: int | None = 384
 
 
 class _BackboneWrapperViTBConfig(_BackboneWrapperConfig):
-    keep_indices: list[int] = [5, 8, 11]
+    interaction_indexes: list[int] = [5, 8, 11]
+    finetune: bool = True
+    patch_size: int = 14
+    use_sta: bool = True
+    conv_inplane: int = 16
+    hidden_dim: int | None = 768
 
 
 class _BackboneWrapperViTLConfig(_BackboneWrapperConfig):
-    keep_indices: list[int] = [11, 17, 23]
+    interaction_indexes: list[int] = [11, 17, 23]
+    finetune: bool = True
+    patch_size: int = 14
+    use_sta: bool = True
+    conv_inplane: int = 16
+    hidden_dim: int | None = 1024
 
 
 class _BackboneWrapperViTGConfig(_BackboneWrapperConfig):
-    keep_indices: list[int] = [19, 29, 39]
+    interaction_indexes: list[int] = [19, 29, 39]
+    finetune: bool = True
+    patch_size: int = 14
+    use_sta: bool = True
+    conv_inplane: int = 16
+    hidden_dim: int | None = 1536
 
 
 class _HybridEncoderConfig(PydanticConfig):
@@ -351,14 +376,14 @@ class DINOv2LTDETRObjectDetection(TaskModel):
                 break
         config = config_cls()
 
-        self.backbone: DINOv2ViTWrapper = DINOv2ViTWrapper(
+        self.backbone: DINOv2STAs = DINOv2STAs(
             model=dinov2,
             **config.backbone_wrapper.model_dump(),
         )
         # TODO(Lionel, 07/25): Improve how mask tokens are handled for fine-tuning.
         # Should we drop them from the model? We disable grads here for DDP to work
         # without find_unused_parameters=True.
-        self.backbone.backbone.mask_token.requires_grad = False
+        self.backbone.dinov2.mask_token.requires_grad = False
 
         self.encoder: HybridEncoder = HybridEncoder(  # type: ignore[no-untyped-call]
             **config.hybrid_encoder.model_dump()
@@ -751,7 +776,7 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         config_cls = config_mapping[config_name]
         config = config_cls()
 
-        self.backbone: DINOv2ViTWrapper = DINOv2ViTWrapper(
+        self.backbone: DINOv2STAs = DINOv2STAs(
             model=dinov2,
             **config.backbone_wrapper.model_dump(),
         )
