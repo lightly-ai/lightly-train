@@ -207,7 +207,7 @@ class DINOv3STAs(Module):
         if self.use_sta:
             # Get detail features first to determine target sizes
             detail_feats = self.sta(x)
-            
+
             # Resize semantic features to match detail features
             sem_feats = []
             for i, sem_feat in enumerate(all_layers):
@@ -224,7 +224,7 @@ class DINOv3STAs(Module):
                     align_corners=False,
                 )
                 sem_feats.append(sem_feat)
-            
+
             # Fuse semantic and detail features
             for sem_feat, detail_feat in zip(sem_feats, detail_feats):
                 fused_feats.append(torch.cat([sem_feat, detail_feat], dim=1))
@@ -260,8 +260,14 @@ class DINOv3STAs(Module):
             (h // self.feat_strides[1], w // self.feat_strides[1]),
             (h // self.feat_strides[2], w // self.feat_strides[2]),
         ]
-        c2 = F.interpolate(c2, size=target_sizes[0], mode="bilinear", align_corners=False)
-        c3 = F.interpolate(c3, size=target_sizes[1], mode="bilinear", align_corners=False)
-        c4 = F.interpolate(c4, size=target_sizes[2], mode="bilinear", align_corners=False)
+        c2 = F.interpolate(
+            c2, size=target_sizes[0], mode="bilinear", align_corners=False
+        )
+        c3 = F.interpolate(
+            c3, size=target_sizes[1], mode="bilinear", align_corners=False
+        )
+        c4 = F.interpolate(
+            c4, size=target_sizes[2], mode="bilinear", align_corners=False
+        )
 
         return c2, c3, c4
