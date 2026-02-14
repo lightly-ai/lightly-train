@@ -362,6 +362,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self.backbone: DINOv2STAs = DINOv2STAs(
             model=dinov2,
             patch_size=dinov2.patch_size,
+            feat_strides=config.hybrid_encoder.feat_strides,
             **config.backbone_wrapper.model_dump(),
         )
 
@@ -760,6 +761,7 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
             model=dinov2,
             patch_size=14,
             use_sta=True,
+            feat_strides=config.hybrid_encoder.feat_strides,
             **config.backbone_wrapper.model_dump(),
         )
 

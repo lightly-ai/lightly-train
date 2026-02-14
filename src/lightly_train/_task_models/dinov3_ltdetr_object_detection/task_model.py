@@ -532,6 +532,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             self.backbone = wrapper_cls(
                 model=dinov3,
                 patch_size=dinov3.patch_size,
+                feat_strides=config.hybrid_encoder.feat_strides,
                 **config.backbone_wrapper.model_dump(),
             )
 

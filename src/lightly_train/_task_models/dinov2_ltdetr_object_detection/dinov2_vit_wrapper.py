@@ -126,6 +126,7 @@ class DINOv2STAs(Module):
         use_sta: bool = True,
         conv_inplane: int = 16,
         hidden_dim: int | None = None,
+        feat_strides: list[int] | None = None,
     ):
         super(DINOv2STAs, self).__init__()
 
@@ -135,6 +136,7 @@ class DINOv2STAs(Module):
         assert len(interaction_indexes) == 3
         self.interaction_indexes = interaction_indexes
         self.patch_size = patch_size
+        self.feat_strides = feat_strides or [8, 16, 32]
 
         if not finetune:
             self.dinov2.eval()
@@ -189,7 +191,7 @@ class DINOv2STAs(Module):
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         # Code for matching with oss
         H_c, W_c = x.shape[2] // self.patch_size, x.shape[3] // self.patch_size
-        bs, _, _, _ = x.shape
+        bs, _, h, w = x.shape
 
         if len(self.interaction_indexes) > 0:
             all_layers = self.dinov2.get_intermediate_layers(
@@ -250,5 +252,15 @@ class DINOv2STAs(Module):
         c2 = self.norms[0](self.convs[0](fused_feats[0]))
         c3 = self.norms[1](self.convs[1](fused_feats[1]))
         c4 = self.norms[2](self.convs[2](fused_feats[2]))
+
+        # Resize to exact stride-based sizes to ensure consistency
+        target_sizes = [
+            (h // self.feat_strides[0], w // self.feat_strides[0]),
+            (h // self.feat_strides[1], w // self.feat_strides[1]),
+            (h // self.feat_strides[2], w // self.feat_strides[2]),
+        ]
+        c2 = F.interpolate(c2, size=target_sizes[0], mode="bilinear", align_corners=False)
+        c3 = F.interpolate(c3, size=target_sizes[1], mode="bilinear", align_corners=False)
+        c4 = F.interpolate(c4, size=target_sizes[2], mode="bilinear", align_corners=False)
 
         return c2, c3, c4
