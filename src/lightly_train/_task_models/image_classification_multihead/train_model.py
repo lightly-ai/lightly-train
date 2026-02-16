@@ -12,7 +12,7 @@ from typing import Any, ClassVar, Literal
 
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from torch import Tensor
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, Module
 from torch.optim.lr_scheduler import LRScheduler
@@ -38,7 +38,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
-from lightly_train.types import ImageClassificationBatch
+from lightly_train.types import ImageClassificationBatch, PathLike
 
 
 def _format_head_name(lr: float) -> str:
@@ -84,6 +84,10 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
     save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
         ImageClassificationMultiheadSaveCheckpointArgs
     )
+
+    # Backbone args
+    backbone_weights: PathLike | None = None
+    backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     gradient_clip_val: float = 0.0
 
@@ -188,8 +192,8 @@ class ImageClassificationMultiheadTrain(TrainModel):
             head_names=head_names,
             image_size=image_size,
             image_normalize=normalize.model_dump(),
-            backbone_weights=None,
-            backbone_args=None,
+            backbone_weights=model_args.backbone_weights,
+            backbone_args=model_args.backbone_args,
             load_weights=load_weights,
         )
 
