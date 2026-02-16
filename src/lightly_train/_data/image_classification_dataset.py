@@ -10,13 +10,17 @@ from __future__ import annotations
 import csv
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Literal
+from typing import ClassVar, Literal
 
 import torch
 from pydantic import Field
 from torch import Tensor
 
 from lightly_train._data import file_helpers, label_helpers
+from lightly_train._data.task_batch_collation import (
+    BaseCollateFunction,
+    ImageClassificationCollateFunction,
+)
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._transforms.task_transform import TaskTransform
@@ -26,6 +30,9 @@ from lightly_train.types import ImageClassificationDatasetItem, PathLike
 class ImageClassificationDataset(TaskDataset):
     # Narrow the type of dataset_args.
     dataset_args: ImageClassificationDatasetArgs  # type: ignore[assignment]
+    batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
+        ImageClassificationCollateFunction
+    )
 
     def __init__(
         self,
@@ -103,6 +110,8 @@ class ImageClassificationDataArgs(TaskDataArgs):
     csv_label_column: str = "label"
     csv_label_type: Literal["name", "id"] = "name"
 
+    classification_task: Literal["multiclass", "multilabel"]
+
     def train_imgs_path(self) -> Path:
         return Path(self.train)
 
@@ -115,6 +124,7 @@ class ImageClassificationDataArgs(TaskDataArgs):
         return ImageClassificationDatasetArgs(
             dir_or_file=Path(self.train),
             classes=self.classes,
+            classification_task=self.classification_task,
             csv_image_column=self.csv_image_column,
             csv_label_column=self.csv_label_column,
             csv_label_type=self.csv_label_type,
@@ -128,6 +138,7 @@ class ImageClassificationDataArgs(TaskDataArgs):
         return ImageClassificationDatasetArgs(
             dir_or_file=Path(self.val),
             classes=self.classes,
+            classification_task=self.classification_task,
             csv_image_column=self.csv_image_column,
             csv_label_column=self.csv_label_column,
             csv_label_type=self.csv_label_type,
@@ -145,11 +156,24 @@ class ImageClassificationDataArgs(TaskDataArgs):
             if class_id not in ignore_classes
         }
 
+    @property
+    def num_included_classes(self) -> int:
+        return len(self.included_classes)
+
+
+class ImageClassificationMulticlassDataArgs(ImageClassificationDataArgs):
+    classification_task: Literal["multiclass"] = "multiclass"
+
+
+class ImageClassificationMultilabelDataArgs(ImageClassificationDataArgs):
+    classification_task: Literal["multilabel"] = "multilabel"
+
 
 class ImageClassificationDatasetArgs(TaskDatasetArgs):
     dir_or_file: Path
     classes: dict[int, str]
     ignore_classes: set[int] | None
+    classification_task: Literal["multiclass", "multilabel"]
 
     # CSV columns.
     csv_image_column: str = "image_path"
@@ -194,6 +218,8 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
                 }
 
     def _list_image_info_from_csv(self) -> Iterable[dict[str, str]]:
+        is_multilabel = self.classification_task == "multilabel"
+
         # Map directory/class name to class id.
         name_to_id = {name: class_id for class_id, name in self.classes.items()}
 
@@ -277,6 +303,14 @@ class ImageClassificationDatasetArgs(TaskDatasetArgs):
                     }
                     if not class_ids:
                         continue
+
+                if not is_multilabel and len(class_ids) > 1:
+                    raise RuntimeError(
+                        f"Image '{image_path}' has multiple labels {class_ids} but the "
+                        f"classification task is '{self.classification_task}'. Set "
+                        "classification_task='multilabel' to enable multilabel "
+                        "classification."
+                    )
 
                 # Keep only non-ignore classes.
                 class_ids_str = self.label_delimiter.join(map(str, class_ids))

@@ -18,8 +18,9 @@ from lightly.transforms.utils import IMAGENET_NORMALIZE
 from torchvision.transforms import functional as F
 
 from lightly_train._data.image_classification_dataset import (
-    ImageClassificationDataArgs,
     ImageClassificationDataset,
+    ImageClassificationMulticlassDataArgs,
+    ImageClassificationMultilabelDataArgs,
 )
 from lightly_train._transforms.task_transform import TaskTransform, TaskTransformArgs
 
@@ -49,7 +50,7 @@ class TestImageClassificationDataset:
         # Create the dummy dataset.
         num_files_per_class = 2
         classes = {0: "class_0", 1: "class_1"}
-        helpers.create_image_classification_dataset(
+        helpers.create_multiclass_image_classification_dataset(
             tmp_path=tmp_path,
             class_names=list(classes.values()),
             num_files_per_class=num_files_per_class,
@@ -57,7 +58,7 @@ class TestImageClassificationDataset:
             width=128,
         )
 
-        args = ImageClassificationDataArgs(
+        args = ImageClassificationMulticlassDataArgs(
             train=tmp_path / "train",
             val=tmp_path / "val",
             classes=classes,
@@ -100,7 +101,7 @@ class TestImageClassificationDataset:
         # Create the dummy dataset.
         num_files_per_class = 2
         classes = {3: "class_3", 7: "class_7"}
-        helpers.create_image_classification_dataset(
+        helpers.create_multiclass_image_classification_dataset(
             tmp_path=tmp_path,
             class_names=list(classes.values()),
             num_files_per_class=num_files_per_class,
@@ -108,7 +109,7 @@ class TestImageClassificationDataset:
             width=128,
         )
 
-        args = ImageClassificationDataArgs(
+        args = ImageClassificationMulticlassDataArgs(
             train=tmp_path / "train",
             val=tmp_path / "val",
             classes=classes,
@@ -182,7 +183,7 @@ class TestImageClassificationDataset:
             label_delimiter=label_delimiter,
         )
 
-        args = ImageClassificationDataArgs(
+        args = ImageClassificationMultilabelDataArgs(
             train=tmp_path / "train.csv",
             val=tmp_path / "val.csv",
             classes=classes,
@@ -239,7 +240,7 @@ class TestImageClassificationDataset:
         # Create the dummy dataset.
         num_files_per_class = 2
         classes = {3: "class_3", 7: "class_7", 11: "class_11"}
-        helpers.create_image_classification_dataset(
+        helpers.create_multiclass_image_classification_dataset(
             tmp_path=tmp_path,
             class_names=list(classes.values()),
             num_files_per_class=num_files_per_class,
@@ -266,7 +267,7 @@ class TestImageClassificationDataset:
             writer.writerow({"image_path": str(img7), "class_id": "7"})
             writer.writerow({"image_path": str(img11), "class_id": "11"})
 
-        args = ImageClassificationDataArgs(
+        args = ImageClassificationMulticlassDataArgs(
             train=csv_path,
             val=csv_path,  # Using the same CSV for the sake of the test.
             classes=classes,

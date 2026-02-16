@@ -622,7 +622,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             if unexpected:
                 logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
         else:
-            logger.info("Backbone weights loaded successfully.")
+            logger.info(f"Backbone weights loaded from '{path}'")
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""
