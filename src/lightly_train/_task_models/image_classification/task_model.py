@@ -155,7 +155,14 @@ class ImageClassification(TaskModel):
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
-        # This class works with any model.
+        try:
+            package_name, _ = package_helpers.parse_model_name(model=model)
+        except ValueError:
+            return False
+        try:
+            package_helpers.get_package(package_name)
+        except ValueError:
+            return False
         return True
 
     @classmethod
