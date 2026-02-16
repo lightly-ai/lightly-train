@@ -27,17 +27,8 @@ from lightly_train._transforms.transform import (
 from lightly_train.types import ImageSizeTuple
 
 
-class ImageClassificationColorJitterArgs(ColorJitterArgs):
-    prob: float = 0.5
-    strength: float = 1.0
-    brightness: float = 32.0 / 255.0
-    contrast: float = 0.5
-    saturation: float = 0.5
-    hue: float = 18.0 / 360.0
-
-
 class ImageClassificationRandomResizeArgs(RandomResizeArgs):
-    min_scale: float = 0.2
+    min_scale: float = 0.08
     max_scale: float = 1.0
 
 
@@ -57,7 +48,7 @@ class ImageClassificationMultiheadTrainTransformArgs(ImageClassificationTransfor
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
-    color_jitter: ImageClassificationColorJitterArgs | None = None
+    color_jitter: ColorJitterArgs | None = None
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)

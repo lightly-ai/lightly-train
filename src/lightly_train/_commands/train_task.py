@@ -214,6 +214,130 @@ def train_image_classification(
     return _train_task(config_cls=config_cls, **kwargs)
 
 
+def train_image_classification_multihead(
+    *,
+    out: PathLike,
+    data: dict[str, Any] | str,
+    model: str,
+    classification_task: Literal["multiclass", "multilabel"] = "multiclass",
+    steps: int | Literal["auto"] = "auto",
+    batch_size: int | Literal["auto"] = "auto",
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    resume_interrupted: bool = False,
+    checkpoint: PathLike | None = None,
+    reuse_class_head: bool = False,
+    overwrite: bool = False,
+    accelerator: str = "auto",
+    strategy: str = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    seed: int | None = 0,
+    logger_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
+) -> None:
+    """Train an image classification model with multiple classification heads.
+
+    This function trains multiple classification heads simultaneously with different
+    learning rates, allowing you to experiment with different hyperparameters in a
+    single training run. Each head is trained independently on the same features.
+
+    The training process can be monitored with TensorBoard:
+
+    .. code-block:: bash
+
+        tensorboard --logdir out
+
+    After training, the last model checkpoint is saved in the out directory to:
+    ``out/checkpoints/last.ckpt`` and also exported to ``out/exported_models/exported_last.pt``.
+
+    Args:
+        out:
+            The output directory where the model checkpoints and logs are saved.
+        data:
+            The dataset configuration or path to a YAML file with the configuration.
+        model:
+            The model to train. For example, "dinov3/vitt16", or a path to a local model
+            checkpoint.
+        classification_task:
+            The type of image classification task. Can be either "multiclass" or
+            "multilabel".
+        steps:
+            The number of training steps.
+        batch_size:
+            Global batch size. The batch size per device/GPU is inferred from this value
+            and the number of devices and nodes.
+        num_workers:
+            Number of workers for the dataloader per device/GPU. 'auto' automatically
+            sets the number of workers based on the available CPU cores.
+        devices:
+            Number of devices/GPUs for training. 'auto' automatically selects all
+            available devices. The device type is determined by the ``accelerator``
+            parameter.
+        num_nodes:
+            Number of nodes for distributed training.
+        checkpoint:
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint.
+        resume_interrupted:
+            Set this to True if you want to resume training from an interrupted or
+            crashed training run.
+        reuse_class_head:
+            Set this to True if you want to keep the class head from the provided
+            checkpoint.
+        overwrite:
+            Overwrite the output directory if it already exists.
+        accelerator:
+            Hardware accelerator. Can be one of ['cpu', 'gpu', 'mps', 'auto'].
+        strategy:
+            Training strategy. For example 'ddp' or 'auto'.
+        precision:
+            Training precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
+            for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication.
+        seed:
+            Random seed for reproducibility.
+        logger_args:
+            Logger arguments.
+        model_args:
+            Model training arguments. Use ``model_args={"lr": [0.001, 0.01, 0.1]}``
+            to train with multiple learning rates.
+        transform_args:
+            Transform arguments.
+        loader_args:
+            Arguments for the PyTorch DataLoader.
+        save_checkpoint_args:
+            Arguments to configure the saving of checkpoints.
+    """
+    kwargs = {**locals()}
+    classification_task = kwargs.pop("classification_task")
+    tracker.track_training_started(
+        task_type="image_classification_multihead",
+        model=model,
+        method=classification_task,
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
+    task_to_config_cls: dict[str, type[TrainTaskConfig]] = {
+        "multiclass": ImageClassificationMultiheadMulticlassTrainTaskConfig,
+        "multilabel": ImageClassificationMultiheadMultilabelTrainTaskConfig,
+    }
+    try:
+        config_cls = task_to_config_cls[classification_task]
+    except KeyError:
+        raise ValueError(
+            f"Invalid classification_task: '{classification_task}'. Must be "
+            f"one of {list(task_to_config_cls.keys())}."
+        )
+    return _train_task(config_cls=config_cls, **kwargs)
+
+
 def train_instance_segmentation(
     *,
     out: PathLike,
@@ -986,14 +1110,17 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
         fabric.loggers.extend(logger_instances)
 
-        train_model = train_model_cls(
-            model_name=config.model,
-            model_args=config.model_args,
-            data_args=config.data,
-            train_transform_args=train_transform_args,
-            val_transform_args=val_transform_args,
-            load_weights=(checkpoint is None) and (checkpoint_path is None),
-        )
+        # Prepare init kwargs for train model.
+        train_model_init_kwargs = {
+            "model_name": config.model,
+            "model_args": config.model_args,
+            "data_args": config.data,
+            "train_transform_args": train_transform_args,
+            "val_transform_args": val_transform_args,
+            "load_weights": (checkpoint is None) and (checkpoint_path is None),
+        }
+
+        train_model = train_model_cls(**train_model_init_kwargs)
 
         # Set train mode to make sure that all parameters are in the correct state before
         # the optimizer is initialized.
@@ -1278,6 +1405,7 @@ class TrainTaskConfig(PydanticConfig):
     model: str
     task: Literal[
         "image_classification",
+        "image_classification_multihead",
         "instance_segmentation",
         "panoptic_segmentation",
         "semantic_segmentation",
@@ -1346,3 +1474,13 @@ class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
 class SemanticSegmentationTrainTaskConfig(TrainTaskConfig):
     data: MaskSemanticSegmentationDataArgs
     task: Literal["semantic_segmentation"] = "semantic_segmentation"
+
+
+class ImageClassificationMultiheadMulticlassTrainTaskConfig(TrainTaskConfig):
+    data: ImageClassificationMulticlassDataArgs
+    task: Literal["image_classification_multihead"] = "image_classification_multihead"
+
+
+class ImageClassificationMultiheadMultilabelTrainTaskConfig(TrainTaskConfig):
+    data: ImageClassificationMultilabelDataArgs
+    task: Literal["image_classification_multihead"] = "image_classification_multihead"
