@@ -755,3 +755,76 @@ def test_train_semantic_segmentation__resume_interrupted(
 
     assert f"Resuming training from model checkpoint '{last_ckpt_path}'" in caplog.text
     assert "Resuming training from step 1/1..." in caplog.text
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win") or is_self_hosted_docker_runner,
+    reason=(
+        "Fails on Windows since switching to Jaccard index "
+        "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
+    ),
+)
+def test_train_semantic_segmentation_multihead__integration__runs_with_multiple_heads(
+    tmp_path: Path,
+) -> None:
+    """Integration test for multihead semantic segmentation with multiple learning rates."""
+    out = tmp_path / "out"
+    train_images = tmp_path / "train_images"
+    train_masks = tmp_path / "train_masks"
+    val_images = tmp_path / "val_images"
+    val_masks = tmp_path / "val_masks"
+
+    # Create dataset using helpers
+    helpers.create_images(train_images)
+    helpers.create_semantic_segmentation_masks(train_masks)
+    helpers.create_images(val_images)
+    helpers.create_semantic_segmentation_masks(val_masks)
+
+    # Train with multiple learning rates
+    lightly_train.train_semantic_segmentation_multihead(
+        out=out,
+        data={
+            "train": {
+                "images": train_images,
+                "masks": train_masks,
+            },
+            "val": {
+                "images": val_images,
+                "masks": val_masks,
+            },
+            "classes": {
+                0: "background",
+                1: "car",
+            },
+        },
+        model="dinov2/vits14",  # Use smallest standard model for fast testing
+        model_args={
+            "lr": [0.001, 0.01],  # Test with two learning rates
+        },
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+        devices=1,
+        batch_size=2,
+        num_workers=2,
+        steps=2,  # Minimal steps for fast test
+    )
+
+    # Verify outputs existence
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()
+    assert (out / "checkpoints" / "last.ckpt").exists()
+    assert (out / "exported_models" / "exported_last.pt").exists()
+
+    # Load model and verify it works
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+    assert model is not None
+
+    # Test forward pass - should return dict with predictions per head
+    dummy_input = torch.randn(3, 224, 224)
+    predictions = model.predict(dummy_input)
+    assert isinstance(predictions, dict)
+    assert len(predictions) == 2  # Should have 2 heads for 2 learning rates
+    for head_name, prediction in predictions.items():
+        assert prediction.shape == (224, 224)  # Each prediction should be (H, W)
+        assert prediction.min() >= 0
+        assert prediction.max() <= 1  # Should be class indices 0 or 1
