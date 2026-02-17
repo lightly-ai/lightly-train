@@ -255,19 +255,19 @@ class DINOv3STAs(Module):
         c4 = self.norms[2](self.convs[2](fused_feats[2]))
 
         # Resize to exact stride-based sizes to ensure consistency
-        target_sizes = [
-            (h // self.feat_strides[0], w // self.feat_strides[0]),
-            (h // self.feat_strides[1], w // self.feat_strides[1]),
-            (h // self.feat_strides[2], w // self.feat_strides[2]),
-        ]
-        c2 = F.interpolate(
-            c2, size=target_sizes[0], mode="bilinear", align_corners=False
-        )
-        c3 = F.interpolate(
-            c3, size=target_sizes[1], mode="bilinear", align_corners=False
-        )
-        c4 = F.interpolate(
-            c4, size=target_sizes[2], mode="bilinear", align_corners=False
-        )
+        # target_sizes = [
+        #     (h // self.feat_strides[0], w // self.feat_strides[0]),
+        #     (h // self.feat_strides[1], w // self.feat_strides[1]),
+        #     (h // self.feat_strides[2], w // self.feat_strides[2]),
+        # ]
+        # c2 = F.interpolate(
+        #     c2, size=target_sizes[0], mode="bilinear", align_corners=False
+        # )
+        # c3 = F.interpolate(
+        #     c3, size=target_sizes[1], mode="bilinear", align_corners=False
+        # )
+        # c4 = F.interpolate(
+        #     c4, size=target_sizes[2], mode="bilinear", align_corners=False
+        # )
 
         return c2, c3, c4

@@ -60,7 +60,7 @@ class _HybridEncoderConfig(PydanticConfig):
 
 class _HybridEncoderViTSConfig(_HybridEncoderConfig):
     in_channels: list[int] = [224, 224, 224]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 224
     use_encoder_idx: list[int] = [2]
     num_encoder_layers: int = 1
@@ -75,7 +75,7 @@ class _HybridEncoderViTSConfig(_HybridEncoderConfig):
 
 class _HybridEncoderViTBConfig(_HybridEncoderConfig):
     in_channels: list[int] = [768, 768, 768]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 768
     use_encoder_idx: list[int] = [2]
     num_encoder_layers: int = 1
@@ -90,7 +90,7 @@ class _HybridEncoderViTBConfig(_HybridEncoderConfig):
 
 class _HybridEncoderViTLConfig(_HybridEncoderConfig):
     in_channels: list[int] = [1024, 1024, 1024]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 1024
     use_encoder_idx: list[int] = [2]
     num_encoder_layers: int = 1
@@ -105,7 +105,7 @@ class _HybridEncoderViTLConfig(_HybridEncoderConfig):
 
 class _HybridEncoderViTGConfig(_HybridEncoderConfig):
     in_channels: list[int] = [1536, 1536, 1536]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 1536
     use_encoder_idx: list[int] = [2]
     num_encoder_layers: int = 1
@@ -135,7 +135,7 @@ class _RTDETRTransformerv2Config(PydanticConfig):
 
 class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [224, 224, 224]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 224
     num_levels: int = 3
     num_layers: int = 4
@@ -151,7 +151,7 @@ class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
 
 class _RTDETRTransformerv2ViTBConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [768, 768, 768]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 768
     num_levels: int = 3
     num_layers: int = 4
@@ -167,7 +167,7 @@ class _RTDETRTransformerv2ViTBConfig(_RTDETRTransformerv2Config):
 
 class _RTDETRTransformerv2ViTLConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [1024, 1024, 1024]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 1024
     num_levels: int = 3
     num_layers: int = 4
@@ -183,7 +183,7 @@ class _RTDETRTransformerv2ViTLConfig(_RTDETRTransformerv2Config):
 
 class _RTDETRTransformerv2ViTGConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [1536, 1536, 1536]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 1536
     num_levels: int = 3
     num_layers: int = 4
@@ -200,21 +200,21 @@ class _RTDETRTransformerv2ViTGConfig(_RTDETRTransformerv2Config):
 class _BackboneWrapperViTSConfig(PydanticConfig):
     interaction_indexes: list[int] = [5, 8, 11]
     finetune: bool = True
-    conv_inplane: int = 32
+    conv_inplane: int = 28
     hidden_dim: int = 224
 
 
 class _BackboneWrapperViTBConfig(PydanticConfig):
     interaction_indexes: list[int] = [5, 8, 11]
     finetune: bool = True
-    conv_inplane: int = 64
+    conv_inplane: int = 56
     hidden_dim: int = 768
 
 
 class _BackboneWrapperViTLConfig(PydanticConfig):
     interaction_indexes: list[int] = [11, 17, 23]
     finetune: bool = True
-    conv_inplane: int = 64
+    conv_inplane: int = 56
     hidden_dim: int = 1024
 
 
@@ -363,6 +363,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             model=dinov2,
             patch_size=dinov2.patch_size,
             feat_strides=config.hybrid_encoder.feat_strides,
+            use_sta=False,
             **config.backbone_wrapper.model_dump(),
         )
 
