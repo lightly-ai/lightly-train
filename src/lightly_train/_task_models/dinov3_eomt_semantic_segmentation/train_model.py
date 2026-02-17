@@ -26,6 +26,7 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
+from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
@@ -114,6 +115,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
         total_steps: int,
         model_name: str,
         model_init_args: dict[str, Any],
+        data_args: TaskDataArgs,
     ) -> None:
         # Set the patch size.
         if self.patch_size == "auto":

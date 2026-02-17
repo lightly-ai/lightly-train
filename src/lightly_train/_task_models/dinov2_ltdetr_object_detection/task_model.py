@@ -482,7 +482,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             if unexpected:
                 logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
         else:
-            logger.info("Backbone weights loaded successfully.")
+            logger.info(f"Backbone weights loaded from '{path}'")
 
     def deploy(self) -> Self:
         self.eval()

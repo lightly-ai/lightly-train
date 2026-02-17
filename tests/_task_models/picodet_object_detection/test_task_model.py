@@ -90,16 +90,17 @@ def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
 def _create_train_model(
     train_model_args: PicoDetObjectDetectionTrainArgs,
 ) -> PicoDetObjectDetectionTrain:
-    train_model_args.resolve_auto(
-        total_steps=1000,
-        model_name="picodet/s-416",
-        model_init_args={},
-    )
     data_args = YOLOObjectDetectionDataArgs(
         path=Path("/tmp/data"),
         train=Path("train") / "images",
         val=Path("val") / "images",
         names={0: "class_0", 1: "class_1"},
+    )
+    train_model_args.resolve_auto(
+        total_steps=1000,
+        model_name="picodet/s-416",
+        model_init_args={},
+        data_args=data_args,
     )
     train_transform_args = PicoDetObjectDetectionTrainTransformArgs()
     train_transform_args.resolve_auto(model_init_args={"image_size": (416, 416)})
