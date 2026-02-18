@@ -30,6 +30,7 @@ from lightly_train._data._serialize.memory_mapped_sequence import (
     MemoryMappedSequence,
     Primitive,
 )
+from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
@@ -58,6 +59,9 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model im
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
+)
+from lightly_train._task_models.image_classification.train_model import (
+    ImageClassificationTrain,
 )
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
@@ -90,6 +94,7 @@ logger = logging.getLogger(__name__)
 
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
+    ImageClassificationTrain,
     DINOv3EoMTInstanceSegmentationTrain,
     DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
@@ -653,13 +658,17 @@ def get_train_model_args(
     total_steps: int,
     model_name: str,
     model_init_args: dict[str, Any],
+    data_args: TaskDataArgs,
 ) -> TrainModelArgs:
     if isinstance(model_args, TrainModelArgs):
         return model_args
     model_args = {} if model_args is None else model_args
     args = validate.pydantic_model_validate(model_args_cls, model_args)
     args.resolve_auto(
-        total_steps=total_steps, model_name=model_name, model_init_args=model_init_args
+        total_steps=total_steps,
+        model_name=model_name,
+        model_init_args=model_init_args,
+        data_args=data_args,
     )
     return args
 
@@ -817,16 +826,18 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
 def get_save_checkpoint_args(
     train_model_cls: type[TrainModel],
     checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None,
+    data_args: TaskDataArgs,
 ) -> TaskSaveCheckpointArgs:
     if isinstance(checkpoint_args, TaskSaveCheckpointArgs):
-        return checkpoint_args
+        checkpoint_args = checkpoint_args.model_dump()
     checkpoint_args_cls = train_model_cls.train_model_args_cls.save_checkpoint_args_cls
     # Merge with possible overrides from checkpoint_args.
     default_checkpoint_args = checkpoint_args_cls().model_dump()  # type: ignore[call-arg]
     default_checkpoint_args.update(checkpoint_args or {})
     args = validate.pydantic_model_validate(
-        TaskSaveCheckpointArgs, default_checkpoint_args
+        checkpoint_args_cls, default_checkpoint_args
     )
+    args.resolve_auto(data_args=data_args)
     return args
 
 

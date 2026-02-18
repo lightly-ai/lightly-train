@@ -659,7 +659,7 @@ def create_coco_panoptic_segmentation_dataset(
     )
 
 
-def create_image_classification_dataset(
+def create_multiclass_image_classification_dataset(
     tmp_path: Path,
     class_names: list[str],
     num_files_per_class: int = 2,

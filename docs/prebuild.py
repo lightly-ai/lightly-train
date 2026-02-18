@@ -15,6 +15,9 @@ from lightly_train._methods import method_helpers
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
     DINOv2LinearSemanticSegmentationTrain,
 )
+from lightly_train._task_models.image_classification.train_model import (
+    ImageClassificationTrain,
+)
 
 THIS_DIR = Path(__file__).parent.resolve()
 DOCS_DIR = THIS_DIR / "source"
@@ -95,6 +98,7 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
         if train_model_cls in {
+            ImageClassificationTrain,
             DINOv2LinearSemanticSegmentationTrain,
         }:
             continue

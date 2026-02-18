@@ -48,16 +48,17 @@ def test_load_train_state_dict__no_ema_weights() -> None:
 def _create_train_model(
     train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
 ) -> DINOv3LTDETRObjectDetectionTrain:
-    train_model_args.resolve_auto(
-        total_steps=1000,
-        model_name="dinov3/vitt16-notpretrained-ltdetr",
-        model_init_args={},
-    )
     data_args = YOLOObjectDetectionDataArgs(
         path=Path("/tmp/data"),
         train=Path("train") / "images",
         val=Path("val") / "images",
         names={0: "class_0", 1: "class_1"},
+    )
+    train_model_args.resolve_auto(
+        total_steps=1000,
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        model_init_args={},
+        data_args=data_args,
     )
     train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
     train_transform_args.resolve_auto(model_init_args={})
