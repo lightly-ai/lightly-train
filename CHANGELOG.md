@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add support for fine-tuning DINOv2 models for instance segmentation with the
+  `train_instance_segmentation` command. See the
+  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#model)
+  for more information.
+
 ### Changed
 
 ### Deprecated

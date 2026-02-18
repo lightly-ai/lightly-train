@@ -27,17 +27,17 @@ from lightly_train._data.yolo_instance_segmentation_dataset import (
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
-from lightly_train._task_models.dinov3_eomt_instance_segmentation.scheduler import (
+from lightly_train._task_models.dinov2_eomt_instance_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
-from lightly_train._task_models.dinov3_eomt_instance_segmentation.task_model import (
-    DINOv3EoMTInstanceSegmentation,
+from lightly_train._task_models.dinov2_eomt_instance_segmentation.task_model import (
+    DINOv2EoMTInstanceSegmentation,
 )
-from lightly_train._task_models.dinov3_eomt_instance_segmentation.transforms import (
-    DINOv3EoMTInstanceSegmentationTrainTransform,
-    DINOv3EoMTInstanceSegmentationTrainTransformArgs,
-    DINOv3EoMTInstanceSegmentationValTransform,
-    DINOv3EoMTInstanceSegmentationValTransformArgs,
+from lightly_train._task_models.dinov2_eomt_instance_segmentation.transforms import (
+    DINOv2EoMTInstanceSegmentationTrainTransform,
+    DINOv2EoMTInstanceSegmentationTrainTransformArgs,
+    DINOv2EoMTInstanceSegmentationValTransform,
+    DINOv2EoMTInstanceSegmentationValTransformArgs,
 )
 from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.train_model import (
@@ -48,19 +48,19 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import InstanceSegmentationBatch, PathLike
 
 
-class DINOv3EoMTInstanceSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
+class DINOv2EoMTInstanceSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
     watch_metric: str = "val_metric/map"
     mode: Literal["min", "max"] = "max"
 
 
-class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
+class DINOv2EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from COCO dataset:
     # 118287 images / batch size 16 * 12 epochs ~= 90k steps.
     default_steps: ClassVar[int] = 90_000
 
     save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        DINOv3EoMTInstanceSegmentationTaskSaveCheckpointArgs
+        DINOv2EoMTInstanceSegmentationTaskSaveCheckpointArgs
     )
 
     # Model args
@@ -88,7 +88,7 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     gradient_clip_val: float = 0.01
 
     # Optim
-    lr: float = 2e-4
+    lr: float = 1e-4
     llrd: float = 0.8  # Layer-wise lr decay
     # Layer-wise lr decay for joint blocks (1.0 = no decay)
     # This is equivalent to llrd_l2_enabled=False in the original EoMT
@@ -120,9 +120,7 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
                 assert isinstance(num_joint_blocks, int)  # for mypy
                 self.num_joint_blocks = num_joint_blocks
             else:
-                match = re.match(
-                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b)).*", model_name
-                )
+                match = re.match(r"dinov2/(?P<model_size>vit(s|l|b|g)).*", model_name)
                 if match is None:
                     raise ValueError(
                         f"Unknown model name '{model_name}', "
@@ -131,15 +129,10 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
                     )
                 model_size = match.group("model_size")
                 self.num_joint_blocks = {
-                    "vitt": 3,
                     "vits": 3,
                     "vitb": 3,
                     "vitl": 4,
                     "vitg": 5,
-                    "vith": 5,
-                    # TODO: Verify the number of blocks. EoMT has an experiment with a
-                    # model of comparable size.
-                    "vit7b": 5,
                 }[model_size]
 
         if (
@@ -164,21 +157,21 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
         assert len(self.attn_mask_annealing_steps_end) == self.num_joint_blocks
 
 
-class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
+class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
     task = "instance_segmentation"
-    train_model_args_cls = DINOv3EoMTInstanceSegmentationTrainArgs
-    task_model_cls = DINOv3EoMTInstanceSegmentation
-    train_transform_cls = DINOv3EoMTInstanceSegmentationTrainTransform
-    val_transform_cls = DINOv3EoMTInstanceSegmentationValTransform
+    train_model_args_cls = DINOv2EoMTInstanceSegmentationTrainArgs
+    task_model_cls = DINOv2EoMTInstanceSegmentation
+    train_transform_cls = DINOv2EoMTInstanceSegmentationTrainTransform
+    val_transform_cls = DINOv2EoMTInstanceSegmentationValTransform
 
     def __init__(
         self,
         *,
         model_name: str,
-        model_args: DINOv3EoMTInstanceSegmentationTrainArgs,
+        model_args: DINOv2EoMTInstanceSegmentationTrainArgs,
         data_args: YOLOInstanceSegmentationDataArgs,
-        train_transform_args: DINOv3EoMTInstanceSegmentationTrainTransformArgs,
-        val_transform_args: DINOv3EoMTInstanceSegmentationValTransformArgs,
+        train_transform_args: DINOv2EoMTInstanceSegmentationTrainTransformArgs,
+        val_transform_args: DINOv2EoMTInstanceSegmentationValTransformArgs,
         load_weights: bool,
     ) -> None:
         super().__init__()
@@ -190,7 +183,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
 
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependency.
-        from lightly_train._task_models.dinov3_eomt_instance_segmentation.mask_loss import (
+        from lightly_train._task_models.dinov2_eomt_instance_segmentation.mask_loss import (
             MaskClassificationLoss,
         )
 
@@ -204,7 +197,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         )
         normalize = no_auto(val_transform_args.normalize)
 
-        self.model = DINOv3EoMTInstanceSegmentation(
+        self.model = DINOv2EoMTInstanceSegmentation(
             model_name=model_name,
             classes=data_args.included_classes,
             image_size=image_size,
@@ -238,7 +231,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             self, hooks.criterion_empty_weight_reinit_hook
         )
 
-    def get_task_model(self) -> DINOv3EoMTInstanceSegmentation:
+    def get_task_model(self) -> DINOv2EoMTInstanceSegmentation:
         return self.model
 
     def training_step(
