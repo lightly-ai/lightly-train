@@ -68,23 +68,8 @@ class _HybridEncoderConfig(PydanticConfig):
     upsample: bool = True
 
 
-class _HybridEncoderLargeConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [384, 768, 1536]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 384
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 2048
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 1.0
-    depth_mult: float = 1
-    act: str = "silu"
-
-
-class _HybridEncoderBaseConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [256, 512, 1024]
+class _HybridEncoderTinyConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [192, 384, 768]
     feat_strides: list[int] = [8, 16, 32]
     hidden_dim: int = 384
     use_encoder_idx: list[int] = [2]
@@ -113,8 +98,23 @@ class _HybridEncoderSmallConfig(_HybridEncoderConfig):
     act: str = "silu"
 
 
-class _HybridEncoderTinyConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [192, 384, 768]
+class _HybridEncoderBaseConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [256, 512, 1024]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 384
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 2048
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1
+    act: str = "silu"
+
+
+class _HybridEncoderLargeConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [384, 768, 1536]
     feat_strides: list[int] = [8, 16, 32]
     hidden_dim: int = 384
     use_encoder_idx: list[int] = [2]
@@ -366,18 +366,18 @@ class _DINOv3LTDETRObjectDetectionTinyConfig(_DINOv3LTDETRObjectDetectionConfig)
     )
 
 
-class _DINOv3LTDETRObjectDetectionViTSConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderViTSConfig = Field(
-        default_factory=_HybridEncoderViTSConfig
+class _DINOv3LTDETRObjectDetectionViTTConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTTConfig = Field(
+        default_factory=_HybridEncoderViTTConfig
     )
-    rtdetr_transformer: _RTDETRTransformerv2ViTSConfig = Field(
-        default_factory=_RTDETRTransformerv2ViTSConfig
+    rtdetr_transformer: _RTDETRTransformerv2ViTTConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTTConfig
     )
     rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
         default_factory=_RTDETRPostProcessorConfig
     )
-    backbone_wrapper: _RTDETRBackboneWrapperViTSConfig = Field(
-        default_factory=_RTDETRBackboneWrapperViTSConfig
+    backbone_wrapper: _RTDETRBackboneWrapperViTTConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTTConfig
     )
 
 
@@ -396,18 +396,18 @@ class _DINOv3LTDETRObjectDetectionViTTPlusConfig(_DINOv3LTDETRObjectDetectionCon
     )
 
 
-class _DINOv3LTDETRObjectDetectionViTTConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderViTTConfig = Field(
-        default_factory=_HybridEncoderViTTConfig
+class _DINOv3LTDETRObjectDetectionViTSConfig(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderViTSConfig = Field(
+        default_factory=_HybridEncoderViTSConfig
     )
-    rtdetr_transformer: _RTDETRTransformerv2ViTTConfig = Field(
-        default_factory=_RTDETRTransformerv2ViTTConfig
+    rtdetr_transformer: _RTDETRTransformerv2ViTSConfig = Field(
+        default_factory=_RTDETRTransformerv2ViTSConfig
     )
     rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
         default_factory=_RTDETRPostProcessorConfig
     )
-    backbone_wrapper: _RTDETRBackboneWrapperViTTConfig = Field(
-        default_factory=_RTDETRBackboneWrapperViTTConfig
+    backbone_wrapper: _RTDETRBackboneWrapperViTSConfig = Field(
+        default_factory=_RTDETRBackboneWrapperViTSConfig
     )
 
 
