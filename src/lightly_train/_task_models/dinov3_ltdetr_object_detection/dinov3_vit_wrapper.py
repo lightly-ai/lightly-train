@@ -123,21 +123,18 @@ class DINOv3STAs(Module):
         model: DinoVisionTransformer,
         interaction_indexes: list[int] = [5, 8, 11],
         finetune: bool = True,
-        patch_size: int = 16,
         use_sta: bool = True,
         conv_inplane: int = 16,
         hidden_dim: int | None = None,
-        feat_strides: list[int] | None = None,
     ):
-        super(DINOv3STAs, self).__init__()
+        super().__init__()
 
         self.dinov3 = model
         embed_dim = self.dinov3.embed_dim
 
         assert len(interaction_indexes) == 3
         self.interaction_indexes = interaction_indexes
-        self.patch_size = patch_size
-        self.feat_strides = feat_strides or [8, 16, 32]
+        self.patch_size = model.patch_size
 
         if not finetune:
             self.dinov3.eval()
@@ -192,7 +189,7 @@ class DINOv3STAs(Module):
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         # Code for matching with oss
         H_c, W_c = x.shape[2] // self.patch_size, x.shape[3] // self.patch_size
-        bs, _, h, w = x.shape
+        bs, _, _, _ = x.shape
 
         if len(self.interaction_indexes) > 0:
             all_layers = self.dinov3.get_intermediate_layers(
@@ -202,72 +199,44 @@ class DINOv3STAs(Module):
             # With the assert in the __init__ this branch is never used.
             all_layers = self.dinov3(x)
 
+        sem_feats = []
+        num_scales = len(all_layers) - 2
+        for i, sem_feat in enumerate(all_layers):
+            feat, _ = sem_feat
+            sem_feat = (
+                feat.transpose(1, 2).view(bs, -1, H_c, W_c).contiguous()
+            )  # [B, D, H, W]
+            resize_H, resize_W = (
+                int(H_c * 2 ** (num_scales - i)),
+                int(W_c * 2 ** (num_scales - i)),
+            )
+            sem_feat = F.interpolate(
+                sem_feat,
+                size=[resize_H, resize_W],
+                mode="bilinear",
+                align_corners=False,
+            )
+            sem_feats.append(sem_feat)
+
+        # Normalize sem feats type to tensors.
+        # If feat is a Tensor it is the spatial tokens
+        # If feat is a Tuple, the first entry contains the spatial tokens.
+        # With the default args from get_intermediate_layers it is a Tensor.
+        sem_feats_t: list[torch.Tensor] = [
+            feat if isinstance(feat, torch.Tensor) else feat[0] for feat in sem_feats
+        ]
+
         # fusion
         fused_feats = []
         if self.use_sta:
-            # Get detail features first to determine target sizes
             detail_feats = self.sta(x)
-
-            # Resize semantic features to match detail features
-            sem_feats = []
-            for i, sem_feat in enumerate(all_layers):
-                feat, _ = sem_feat
-                sem_feat = (
-                    feat.transpose(1, 2).view(bs, -1, H_c, W_c).contiguous()
-                )  # [B, D, H, W]
-                # Resize to match detail_feat spatial dimensions
-                target_size = detail_feats[i].shape[-2:]
-                sem_feat = F.interpolate(
-                    sem_feat,
-                    size=target_size,
-                    mode="bilinear",
-                    align_corners=False,
-                )
-                sem_feats.append(sem_feat)
-
-            # Fuse semantic and detail features
-            for sem_feat, detail_feat in zip(sem_feats, detail_feats):
+            for sem_feat, detail_feat in zip(sem_feats_t, detail_feats):
                 fused_feats.append(torch.cat([sem_feat, detail_feat], dim=1))
         else:
-            # No STA: use original resizing formula
-            sem_feats = []
-            num_scales = len(all_layers) - 2
-            for i, sem_feat in enumerate(all_layers):
-                feat, _ = sem_feat
-                sem_feat = (
-                    feat.transpose(1, 2).view(bs, -1, H_c, W_c).contiguous()
-                )  # [B, D, H, W]
-                resize_H, resize_W = (
-                    int(H_c * 2 ** (num_scales - i)),
-                    int(W_c * 2 ** (num_scales - i)),
-                )
-                sem_feat = F.interpolate(
-                    sem_feat,
-                    size=[resize_H, resize_W],
-                    mode="bilinear",
-                    align_corners=False,
-                )
-                sem_feats.append(sem_feat)
-            fused_feats = sem_feats
+            fused_feats = sem_feats_t
 
         c2 = self.norms[0](self.convs[0](fused_feats[0]))
         c3 = self.norms[1](self.convs[1](fused_feats[1]))
         c4 = self.norms[2](self.convs[2](fused_feats[2]))
-
-        # Resize to exact stride-based sizes to ensure consistency
-        # target_sizes = [
-        #     (h // self.feat_strides[0], w // self.feat_strides[0]),
-        #     (h // self.feat_strides[1], w // self.feat_strides[1]),
-        #     (h // self.feat_strides[2], w // self.feat_strides[2]),
-        # ]
-        # c2 = F.interpolate(
-        #     c2, size=target_sizes[0], mode="bilinear", align_corners=False
-        # )
-        # c3 = F.interpolate(
-        #     c3, size=target_sizes[1], mode="bilinear", align_corners=False
-        # )
-        # c4 = F.interpolate(
-        #     c4, size=target_sizes[2], mode="bilinear", align_corners=False
-        # )
 
         return c2, c3, c4
