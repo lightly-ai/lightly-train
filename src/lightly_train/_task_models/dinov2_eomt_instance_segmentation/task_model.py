@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torch.nn import GELU, Embedding, Linear, Sequential
+from torch.nn import GELU, Embedding, Identity, Linear, Sequential
 from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
@@ -390,6 +390,8 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
             # This mirrors forward of DINOv2 Block.
             blocks = block if isinstance(block, BlockChunk) else [block]
             for block in blocks:
+                if isinstance(block, Identity):
+                    continue
                 if self.training and block.sample_drop_ratio > 0:  # type: ignore[operator]
                     x = x + block.drop_path1(  # type: ignore[operator]
                         block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
