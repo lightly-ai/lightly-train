@@ -334,7 +334,7 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
             if not self.backbone.chunked_blocks:
                 block = self.backbone.blocks[i]
             else:
-                chunk_size: int = self.backbone.chunk_size  # type: ignore
+                chunk_size = self.backbone.n_blocks // len(self.backbone.blocks)
                 block = self.backbone.blocks[i // chunk_size][i % chunk_size]  # type: ignore
 
             attn_mask = None
