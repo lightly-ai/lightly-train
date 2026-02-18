@@ -314,7 +314,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 block = self.backbone.blocks[i]
             else:
                 chunk_size = self.backbone.n_blocks // len(self.backbone.blocks)
-                block = self.backbone.blocks[i // chunk_size][i % chunk_size]  # type: ignore
+                chunk = i // chunk_size
+                block = self.backbone.blocks[chunk][i]  # type: ignore
 
             attn_mask = None
 
