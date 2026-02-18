@@ -58,6 +58,21 @@ class _HybridEncoderConfig(PydanticConfig):
     upsample: bool = True
 
 
+class _HybridEncoderViTTestConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [224, 224, 224]
+    feat_strides: list[int] = [7, 14, 28]
+    hidden_dim: int = 224
+    use_encoder_idx: list[int] = [1]
+    num_encoder_layers: int = 1
+    nhead: int = 1
+    dim_feedforward: int = 224
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1.0
+    act: str = "silu"
+
+
 class _HybridEncoderViTSConfig(_HybridEncoderConfig):
     in_channels: list[int] = [224, 224, 224]
     feat_strides: list[int] = [7, 14, 28]
@@ -346,6 +361,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
 
         # Get the configuration based on the model name.
         config_mapping = {
+            "_vittest14": _DINOv2LTDETRObjectDetectionViTSConfig,
             "vits14": _DINOv2LTDETRObjectDetectionViTSConfig,
             "vitb14": _DINOv2LTDETRObjectDetectionViTBConfig,
             "vitl14": _DINOv2LTDETRObjectDetectionViTLConfig,
