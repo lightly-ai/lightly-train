@@ -248,7 +248,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
     ) -> TaskStepResult:
         samples, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
-        boxes = _yolo_to_xyxy(boxes)
         targets: list[dict[str, Tensor]] = [
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
