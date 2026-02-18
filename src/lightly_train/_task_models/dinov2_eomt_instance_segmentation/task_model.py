@@ -27,6 +27,7 @@ from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Attention
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    BlockChunk,
     DinoVisionTransformer,
 )
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
@@ -387,14 +388,16 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
                     )
 
             # This mirrors forward of DINOv2 Block.
-            if self.training and block.sample_drop_ratio > 0:  # type: ignore[operator]
-                x = x + block.drop_path1(  # type: ignore[operator]
-                    block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
-                )
-                x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x))))  # type: ignore[operator]
-            else:
-                x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
-                x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore[operator]
+            blocks = block if isinstance(block, BlockChunk) else [block]
+            for block in blocks:
+                if self.training and block.sample_drop_ratio > 0:  # type: ignore[operator]
+                    x = x + block.drop_path1(  # type: ignore[operator]
+                        block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
+                    )
+                    x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x))))  # type: ignore[operator]
+                else:
+                    x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
+                    x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore[operator]
 
         mask_logits, class_logits = self._predict(
             self.backbone.norm(x), grid_size=grid_size
