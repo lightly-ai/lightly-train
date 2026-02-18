@@ -248,7 +248,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         )
 
         # Loss
-        num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
+        num_blocks = self.model.backbone.n_blocks  # type: ignore[arg-type]
         losses = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
@@ -351,7 +351,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         )
 
         # Losses.
-        num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
+        num_blocks = self.model.backbone.n_blocks  # type: ignore[arg-type]
         losses = {}
         for block_idx, resized_mask_logits, class_logits in zip(
             # Add +1 to num_blocks for final output.
@@ -463,7 +463,8 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         backbone_params = set(self.model.backbone.parameters())
         backbone_param_groups = []
         other_param_groups = []
-        backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
+        backbone_blocks = self.model.backbone.n_blocks
+        chunked_blocks = self.model.backbone.chunked_blocks
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         block_i = backbone_blocks
         lr = self.model_args.lr * math.sqrt(
@@ -480,6 +481,9 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
                 for i, key in enumerate(name_list):
                     if key == "blocks":
                         block_i = int(name_list[i + 1])
+                        if chunked_blocks:
+                            # For chunked blocks the block index is after the chunk index.
+                            block_i = int(name_list[i + 2])
                         is_block = True
                         is_joint_block = block_i >= (backbone_blocks - num_joint_blocks)
                         is_backbone_norm = "backbone.norm" in name
