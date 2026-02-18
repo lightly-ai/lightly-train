@@ -9,6 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- LTDETR support for DINOv3 ViT-B/L and DINOv2 ViT-L/B/G models. Pretrained weights are
+  not yet available for these models.
+
 ### Changed
 
 ### Deprecated
