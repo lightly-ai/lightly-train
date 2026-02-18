@@ -149,7 +149,14 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs | None = None
     bbox_params: BboxParams = BboxParams(
-        format="yolo", label_fields=["class_labels", "indices"]
+        format="yolo",
+        label_fields=["class_labels", "indices"],
+        **(
+            dict(filter_invalid_bboxes=True)
+            if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
+            else {}
+        ),
+        **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
     )
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
