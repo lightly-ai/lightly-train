@@ -201,7 +201,7 @@ class DINOv2STAs(Module):
         sem_feats = []
         num_scales = len(all_layers) - 2
         for i, sem_feat in enumerate(all_layers):
-            feat, _ = sem_feat
+            feat, _ = sem_feat  # type: ignore[misc]
             sem_feat = (
                 feat.transpose(1, 2).view(bs, -1, H_c, W_c).contiguous()
             )  # [B, D, H, W]
