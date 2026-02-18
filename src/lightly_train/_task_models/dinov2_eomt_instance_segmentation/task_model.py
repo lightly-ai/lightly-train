@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torch.nn import GELU, Embedding, Identity, Linear, Sequential
+from torch.nn import GELU, Embedding, Linear, Sequential
 from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
@@ -27,7 +27,6 @@ from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Attention
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    BlockChunk,
     DinoVisionTransformer,
 )
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
@@ -137,10 +136,10 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
         if load_weights and backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
-        if len(self.backbone.blocks) < num_joint_blocks:
+        if self.backbone.n_blocks < num_joint_blocks:
             raise ValueError(
                 f"num_joint_blocks ({num_joint_blocks}) cannot be larger than the "
-                f"number of blocks in the backbone ({len(self.backbone.blocks)})."
+                f"number of blocks in the backbone ({self.backbone.n_blocks})."
             )
 
         ### EoMT Specific parameters.
@@ -331,10 +330,16 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
         x = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
         mask_logits_per_layer, class_logits_per_layer = [], []
 
-        for i, block in enumerate(self.backbone.blocks):
+        for i in range(self.backbone.n_blocks):
+            if not self.backbone.chunked_blocks:
+                block = self.backbone.blocks[i]
+            else:
+                chunk_size: int = self.backbone.chunk_size  # type: ignore
+                block = self.backbone.blocks[i // chunk_size][i % chunk_size]  # type: ignore
+
             attn_mask = None
 
-            if i == len(self.backbone.blocks) - self.num_joint_blocks:
+            if i == self.backbone.n_blocks - self.num_joint_blocks:
                 # Prepend query tokens.
                 x = torch.cat(
                     (self.queries.weight[None, :, :].expand(x.shape[0], -1, -1), x),
@@ -343,7 +348,7 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
 
             if (
                 return_logits_per_layer
-                and i >= len(self.backbone.blocks) - self.num_joint_blocks
+                and i >= self.backbone.n_blocks - self.num_joint_blocks
             ):
                 mask_logits, class_logits = self._predict(
                     self.backbone.norm(x), grid_size=grid_size
@@ -383,23 +388,19 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
                     attn_mask = self._disable_attn_mask(
                         attn_mask=attn_mask,
                         prob=self.attn_mask_probs[
-                            i - len(self.backbone.blocks) + self.num_joint_blocks
+                            i - self.backbone.n_blocks + self.num_joint_blocks
                         ],
                     )
 
             # This mirrors forward of DINOv2 Block.
-            blocks = block if isinstance(block, BlockChunk) else [block]
-            for block in blocks:
-                if isinstance(block, Identity):
-                    continue
-                if self.training and block.sample_drop_ratio > 0:  # type: ignore[operator]
-                    x = x + block.drop_path1(  # type: ignore[operator]
-                        block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
-                    )
-                    x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x))))  # type: ignore[operator]
-                else:
-                    x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
-                    x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore[operator]
+            if self.training and block.sample_drop_ratio > 0:  # type: ignore[operator]
+                x = x + block.drop_path1(  # type: ignore[operator]
+                    block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
+                )
+                x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x))))  # type: ignore[operator]
+            else:
+                x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
+                x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore[operator]
 
         mask_logits, class_logits = self._predict(
             self.backbone.norm(x), grid_size=grid_size
