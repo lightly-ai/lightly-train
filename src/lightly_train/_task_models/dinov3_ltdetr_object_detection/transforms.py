@@ -27,6 +27,7 @@ from lightly_train._transforms.transform import (
     RandomRotationArgs,
     RandomZoomOutArgs,
     ResizeArgs,
+    ScaleJitterArgs,
     StopPolicyArgs,
 )
 from lightly_train.types import ImageSizeTuple
@@ -67,6 +68,31 @@ class DINOv3LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
     vertical_prob: float = 0.0
 
 
+class DINOv3LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
+    sizes: Sequence[tuple[int, int]] | None = [
+        (480, 480),
+        (512, 512),
+        (544, 544),
+        (576, 576),
+        (608, 608),
+        (640, 640),
+        (640, 640),
+        (640, 640),
+        (672, 672),
+        (704, 704),
+        (736, 736),
+        (768, 768),
+        (800, 800),
+    ]
+    min_scale: float | None = None
+    max_scale: float | None = None
+    num_scales: int | None = None
+    prob: float = 1.0
+    divisible_by: int | None = None
+    step_seeding: bool = True
+    seed_offset: int = 0
+
+
 class DINOv3LTDETRObjectDetectionResizeArgs(ResizeArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
@@ -93,6 +119,9 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
     resize: ResizeArgs | None = None
+    scale_jitter: ScaleJitterArgs | None = Field(
+        default_factory=DINOv3LTDETRObjectDetectionScaleJitterArgs
+    )
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
@@ -158,6 +187,7 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     resize: ResizeArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionResizeArgs
     )
+    scale_jitter: ScaleJitterArgs | None = None
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
             format="yolo",

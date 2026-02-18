@@ -50,6 +50,7 @@ from lightly_train._transforms.transform import (
     RandomRotationArgs,
     RandomZoomOutArgs,
     ResizeArgs,
+    ScaleJitterArgs,
     StopPolicyArgs,
 )
 from lightly_train.types import ImageSizeTuple, NDArrayImage
@@ -78,6 +79,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     random_rotate: RandomRotationArgs | None
     image_size: ImageSizeTuple | Literal["auto"]
     stop_policy: StopPolicyArgs | None
+    scale_jitter: ScaleJitterArgs | None
     resize: ResizeArgs | None
     bbox_params: BboxParams | None
     normalize: NormalizeArgs | Literal["auto"] | None

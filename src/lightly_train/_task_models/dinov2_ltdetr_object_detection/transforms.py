@@ -26,6 +26,7 @@ from lightly_train._transforms.transform import (
     RandomRotationArgs,
     RandomZoomOutArgs,
     ResizeArgs,
+    ScaleJitterArgs,
     StopPolicyArgs,
 )
 from lightly_train.types import ImageSizeTuple
@@ -66,6 +67,32 @@ class DINOv2LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
     vertical_prob: float = 0.0
 
 
+class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
+    # Sizes must be multiples of patch size * 2
+    sizes: Sequence[tuple[int, int]] | None = [
+        (476, 476),
+        (504, 504),
+        (532, 532),
+        (560, 560),
+        (588, 588),
+        (616, 616),
+        (644, 644),
+        (672, 672),
+        (700, 700),
+        (728, 728),
+        (756, 756),
+        (784, 784),
+        (812, 812),
+    ]
+    min_scale: float | None = None
+    max_scale: float | None = None
+    num_scales: int | None = None
+    prob: float = 1.0
+    divisible_by: int | None = None
+    step_seeding: bool = True
+    seed_offset: int = 0
+
+
 class DINOv2LTDETRObjectDetectionResizeArgs(ResizeArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
@@ -92,6 +119,9 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
     resize: ResizeArgs | None = None
+    scale_jitter: ScaleJitterArgs | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionScaleJitterArgs
+    )
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
@@ -157,6 +187,7 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     resize: ResizeArgs | None = Field(
         default_factory=DINOv2LTDETRObjectDetectionResizeArgs
     )
+    scale_jitter: ScaleJitterArgs | None = None
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
             format="yolo",
