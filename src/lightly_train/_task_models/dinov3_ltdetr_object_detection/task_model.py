@@ -217,11 +217,7 @@ class _RTDETRTransformerv2Config(PydanticConfig):
     num_points: list[int] = [4, 4, 4]
 
 
-class _RTDETRTransformerv2LargeConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [384, 384, 384]
-
-
-class _RTDETRTransformerv2BaseConfig(_RTDETRTransformerv2Config):
+class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [384, 384, 384]
 
 
@@ -229,7 +225,11 @@ class _RTDETRTransformerv2SmallConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [384, 384, 384]
 
 
-class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
+class _RTDETRTransformerv2BaseConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [384, 384, 384]
+
+
+class _RTDETRTransformerv2LargeConfig(_RTDETRTransformerv2Config):
     feat_channels: list[int] = [384, 384, 384]
 
 
