@@ -11,6 +11,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - LTDETR support for DINOv3 ViT-B/L and DINOv2 ViT-L/B/G models. Pretrained weights are
   not yet available for these models.
+- Add support for fine-tuning DINOv2 models for instance segmentation with the
+  `train_instance_segmentation` command. See the
+  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#model)
+  for more information.
 
 ### Changed
 
@@ -19,6 +23,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 ### Fixed
+
+- Filter invalid bounding boxes in instance segmentation
 
 ### Security
 
