@@ -8,7 +8,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+import os
+from typing import Any
 
 import torch
 from torch import Tensor
@@ -18,9 +19,6 @@ from lightly_train import _torch_helpers
 from lightly_train._models import package_helpers
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +189,6 @@ class ImageClassificationMultihead(TaskModel):
         Args:
             path: Path to a .pt file, e.g., exported_last.pt.
         """
-        import os
 
         # Check if the file exists.
         if not os.path.exists(path):
