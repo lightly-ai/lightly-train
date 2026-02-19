@@ -99,7 +99,7 @@ class SemanticSegmentationMultiheadTrainArgs(TrainModelArgs):
     ) -> None:
         if self.metrics == "auto":
             self.metrics = {
-                "jaccard_index": {},
+                "miou": {},
             }
 
 
@@ -133,9 +133,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         self.lrs = model_args.lr if isinstance(model_args.lr, list) else [model_args.lr]
 
         # Generate head names from learning rates.
-        head_names = [
-            SemanticSegmentationMultihead._format_head_name(lr) for lr in self.lrs
-        ]
+        head_names = [_format_head_name(lr) for lr in self.lrs]
 
         self.model = SemanticSegmentationMultihead(
             model=model_name,
@@ -156,7 +154,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         # Create per-head training and validation loss metrics.
         val_loss_metrics: dict[str, MeanMetric] = {}
         for lr in self.lrs:
-            head_name = SemanticSegmentationMultihead._format_head_name(lr)
+            head_name = _format_head_name(lr)
             val_loss_metrics[head_name] = MeanMetric()
         self.val_loss_metrics = ModuleDict(val_loss_metrics)
 
@@ -176,7 +174,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         train_metrics: dict[str, MetricCollection] = {}
         val_metrics: dict[str, MetricCollection] = {}
         for lr in self.lrs:
-            head_name = SemanticSegmentationMultihead._format_head_name(lr)
+            head_name = _format_head_name(lr)
             # Clone metrics for this head.
             head_train_metrics = {}
             head_val_metrics = {}
@@ -234,7 +232,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
             # Create per-head classwise metrics.
             for lr in self.lrs:
-                head_name = SemanticSegmentationMultihead._format_head_name(lr)
+                head_name = _format_head_name(lr)
                 head_train_classwise_metrics = {}
                 head_val_classwise_metrics = {}
                 for key, metric in classwise_base_metrics.items():
@@ -271,7 +269,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         params: list[dict[str, Any]] = []
 
         for lr in self.lrs:
-            head_name = SemanticSegmentationMultihead._format_head_name(lr)
+            head_name = _format_head_name(lr)
             head_module = self.model.class_heads[head_name]
 
             # Get parameters for this head, separated by weight decay.
@@ -461,7 +459,7 @@ def _create_metric(
     """Create metrics from configuration.
 
     Args:
-        metric_name: Name of the metric (e.g., "jaccard_index").
+        metric_name: Name of the metric (e.g., "miou").
         metric_config: Configuration dictionary for the metric.
         num_classes: Number of classes.
         ignore_index: Index to ignore during metric calculation.
@@ -477,7 +475,7 @@ def _create_metric(
 
     metrics: dict[str, Metric] = {}
 
-    if metric_name == "jaccard_index":
+    if metric_name == "miou":
         key = "miou"
         metrics[key] = MulticlassJaccardIndex(
             num_classes=num_classes,
@@ -489,3 +487,18 @@ def _create_metric(
         raise ValueError(f"Unsupported metric: {metric_name}")
 
     return metrics
+
+
+def _format_head_name(lr: float) -> str:
+    """Format learning rate into a head name.
+
+    Args:
+        lr: Learning rate value.
+
+    Returns:
+        Formatted head name, e.g., "lr0_001" for lr=0.001.
+    """
+    # Convert to string and replace dot with underscore.
+    lr_str = f"{lr:.10f}".rstrip("0").rstrip(".")
+    lr_str = lr_str.replace(".", "_")
+    return f"lr{lr_str}"
