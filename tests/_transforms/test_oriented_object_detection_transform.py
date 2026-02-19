@@ -197,7 +197,7 @@ class TestObjectDetectionTransform:
         img: NDArray[np.uint8] = np.random.randint(
             0, 256, (128, 128, num_channels), dtype=np.uint8
         )
-        bboxes: NDArrayOBBoxes = np.array([[10, 10, 50, 50]], dtype=np.float64)
+        bboxes: NDArrayOBBoxes = np.array([[10, 10, 50, 50, 45]], dtype=np.float64)
         class_labels = np.array([1], dtype=np.int64)
 
         tr_input: OrientedObjectDetectionTransformInput = {
