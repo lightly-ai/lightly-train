@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from typing import Any, ClassVar, Literal
 
+import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
 from pydantic import Field, model_validator
@@ -39,22 +40,6 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train.types import ImageClassificationBatch, PathLike
-
-
-def _format_head_name(lr: float) -> str:
-    """Format learning rate for head name by removing trailing zeros.
-
-    Args:
-        lr: Learning rate value to format.
-
-    Returns:
-        Formatted head name like "head_lr0_001" for lr=0.001.
-    """
-    # Format the learning rate without trailing zeros and decimal point.
-    lr_str = f"{lr:.10f}".rstrip("0").rstrip(".")
-    # Replace dots with underscores to make it a valid module name.
-    lr_str = lr_str.replace(".", "_")
-    return f"head_lr{lr_str}"
 
 
 class ImageClassificationMultiheadSaveCheckpointArgs(TaskSaveCheckpointArgs):
@@ -313,7 +298,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
         # Create parameter groups for each head with independent learning rates.
         params: list[dict[str, Any]] = []
 
-        for idx, lr in enumerate(self.lrs):
+        for lr in self.lrs:
             head_name = _format_head_name(lr)
             head_module = self.model.class_heads[head_name]
 
@@ -335,7 +320,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
             if params_wd:
                 params.append(
                     {
-                        "name": f"{head_name}_params",
+                        "name": f"params_{head_name}",
                         "params": params_wd,
                         "lr": lr_scaled,
                     }
@@ -343,7 +328,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
             if params_no_wd:
                 params.append(
                     {
-                        "name": f"{head_name}_no_weight_decay",
+                        "name": f"params_no_weight_decay_{head_name}",
                         "params": params_no_wd,
                         "lr": lr_scaled,
                         "weight_decay": 0.0,
@@ -371,8 +356,6 @@ class ImageClassificationMultiheadTrain(TrainModel):
         batch: ImageClassificationBatch,
         step: int,
     ) -> TaskStepResult:
-        import torch
-
         images = batch["image"]
         classes = batch["classes"]
         logits_dict = self.model.forward_train(images)
@@ -395,7 +378,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
         for head_name, logits in logits_dict.items():
             loss = self.criterion(logits, targets)
             losses.append(loss)
-            log_dict[f"train_loss_{head_name}"] = loss.detach()
+            log_dict[f"train_loss_head/{head_name}"] = loss.detach()
 
         # Sum losses for backprop.
         loss_sum = torch.stack(losses).sum()
@@ -408,8 +391,6 @@ class ImageClassificationMultiheadTrain(TrainModel):
     def validation_step(
         self, fabric: Fabric, batch: ImageClassificationBatch
     ) -> TaskStepResult:
-        import torch
-
         images = batch["image"]
         classes = batch["classes"]
         logits_dict = self.model.forward_train(images)
@@ -432,19 +413,12 @@ class ImageClassificationMultiheadTrain(TrainModel):
         for head_name, logits in logits_dict.items():
             loss = self.criterion(logits, targets)
             losses.append(loss)
-
-            # Update per-head loss tracker.
-            self.val_loss_per_head[head_name].update(loss, weight=len(images))
-
-            # Update per-head metrics.
-            if self.classification_task == "multiclass":
-                self.val_metrics_per_head[head_name].update(logits, targets)
-            else:  # multilabel
-                self.val_metrics_per_head[head_name].update(logits, targets)
+            self.val_loss_per_head[head_name].update(loss, weight=len(images))  # type: ignore[operator]
+            self.val_metrics_per_head[head_name].update(logits, targets)  # type: ignore[operator]
 
             # Update per-head classwise metrics if enabled.
             if self.val_metrics_classwise_per_head is not None:
-                self.val_metrics_classwise_per_head[head_name].update(logits, targets)
+                self.val_metrics_classwise_per_head[head_name].update(logits, targets)  # type: ignore[operator]
 
         # Update overall loss tracker (mean of all heads).
         loss_mean = torch.stack(losses).mean()
@@ -458,19 +432,19 @@ class ImageClassificationMultiheadTrain(TrainModel):
 
         # Per-head losses.
         for head_name in logits_dict.keys():
-            log_dict[f"val_loss_{head_name}"] = self.val_loss_per_head[
+            log_dict[f"val_loss_head/{head_name}"] = self.val_loss_per_head[  # type: ignore[operator]
                 head_name
             ].compute()
 
         # Per-head metrics.
         for head_name in logits_dict.keys():
-            log_dict.update(dict(self.val_metrics_per_head[head_name].items()))
+            log_dict.update(dict(self.val_metrics_per_head[head_name].items()))  # type: ignore[operator]
 
         # Classwise metrics if enabled.
         if self.val_metrics_classwise_per_head is not None:
             for head_name in logits_dict.keys():
                 log_dict.update(
-                    dict(self.val_metrics_classwise_per_head[head_name].items())
+                    dict(self.val_metrics_classwise_per_head[head_name].items())  # type: ignore[operator]
                 )
 
         # Use sum of losses for consistency with training_step.
@@ -647,7 +621,6 @@ def _filter_classwise_metrics(
 
 
 def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:
-    import torch
 
     row = torch.repeat_interleave(
         torch.arange(len(class_ids), device=class_ids[0].device),
@@ -657,3 +630,19 @@ def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:
     y = torch.zeros(len(class_ids), num_classes, device=class_ids[0].device)
     y[row, col] = 1
     return y
+
+
+def _format_head_name(lr: float) -> str:
+    """Format learning rate for head name by removing trailing zeros.
+
+    Args:
+        lr: Learning rate value to format.
+
+    Returns:
+        Formatted head name like "lr0_001" for lr=0.001.
+    """
+    # Format the learning rate without trailing zeros and decimal point.
+    lr_str = f"{lr:.10f}".rstrip("0").rstrip(".")
+    # Replace dots with underscores to make it a valid module name.
+    lr_str = lr_str.replace(".", "_")
+    return f"lr{lr_str}"
