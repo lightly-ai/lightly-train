@@ -190,21 +190,6 @@ class SemanticSegmentationMultihead(TaskModel):
             "backbone_name": backbone_name,
         }
 
-    @staticmethod
-    def _format_head_name(lr: float) -> str:
-        """Format learning rate into a head name.
-
-        Args:
-            lr: Learning rate value.
-
-        Returns:
-            Formatted head name, e.g., "lr0_001" for lr=0.001.
-        """
-        # Convert to string and replace dot with underscore.
-        lr_str = f"{lr:.10f}".rstrip("0").rstrip(".")
-        lr_str = lr_str.replace(".", "_")
-        return f"lr{lr_str}"
-
     def forward_train(self, x: Tensor) -> dict[str, Tensor]:
         """Forward pass for training. Returns dict mapping head names to logits.
 
