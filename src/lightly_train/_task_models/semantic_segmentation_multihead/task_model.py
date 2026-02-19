@@ -198,12 +198,12 @@ class SemanticSegmentationMultihead(TaskModel):
             lr: Learning rate value.
 
         Returns:
-            Formatted head name, e.g., "head_lr0_001" for lr=0.001.
+            Formatted head name, e.g., "lr0_001" for lr=0.001.
         """
         # Convert to string and replace dot with underscore.
         lr_str = f"{lr:.10f}".rstrip("0").rstrip(".")
         lr_str = lr_str.replace(".", "_")
-        return f"head_lr{lr_str}"
+        return f"lr{lr_str}"
 
     def forward_train(self, x: Tensor) -> dict[str, Tensor]:
         """Forward pass for training. Returns dict mapping head names to logits.

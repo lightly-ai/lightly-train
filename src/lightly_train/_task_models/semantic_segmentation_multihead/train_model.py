@@ -81,7 +81,7 @@ class SemanticSegmentationMultiheadTrainArgs(TrainModelArgs):
     # Metrics
     metrics: dict[str, dict[str, Any]] | Literal["auto"] = "auto"
     metrics_classwise: dict[str, dict[str, Any]] | None = None
-    metric_log_classwise: bool = False
+    metric_log_classwise: bool = True
 
     @model_validator(mode="after")
     def _convert_lr_to_list(self) -> SemanticSegmentationMultiheadTrainArgs:
@@ -188,11 +188,13 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             # correct type annotations for MetricCollection.
             train_metrics[head_name] = MetricCollection(
                 head_train_metrics,  # type: ignore[arg-type]
-                prefix=f"train_metric_head/{head_name}_",
+                prefix="train_metric_head/",
+                postfix=f"_{head_name}",
             )
             val_metrics[head_name] = MetricCollection(
                 head_val_metrics,  # type: ignore[arg-type]
-                prefix=f"val_metric_head/{head_name}_",
+                prefix="val_metric_head/",
+                postfix=f"_{head_name}",
             )
         self.train_metrics = ModuleDict(train_metrics)
         self.val_metrics = ModuleDict(val_metrics)
@@ -200,6 +202,8 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         # Create classwise metrics if enabled.
         train_metrics_classwise: dict[str, MetricCollection] = {}
         val_metrics_classwise: dict[str, MetricCollection] = {}
+        self.train_metrics_classwise: ModuleDict | None
+        self.val_metrics_classwise: ModuleDict | None
         if model_args.metric_log_classwise:
             # If metrics_classwise is None, use metrics from main metrics config.
             if model_args.metrics_classwise is None:
@@ -241,11 +245,13 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
                 # correct type annotations for MetricCollection.
                 train_metrics_classwise[head_name] = MetricCollection(
                     head_train_classwise_metrics,  # type: ignore[arg-type]
-                    prefix=f"train_metric_classwise_head/{head_name}_",
+                    prefix="train_metric_head_classwise/",
+                    postfix=f"_{head_name}",
                 )
                 val_metrics_classwise[head_name] = MetricCollection(
                     head_val_classwise_metrics,  # type: ignore[arg-type]
-                    prefix=f"val_metric_classwise_head/{head_name}_",
+                    prefix="val_metric_head_classwise/",
+                    postfix=f"_{head_name}",
                 )
             self.train_metrics_classwise = ModuleDict(train_metrics_classwise)
             self.val_metrics_classwise = ModuleDict(val_metrics_classwise)
@@ -343,11 +349,11 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             log_dict[f"train_loss_head/{head_name}"] = loss.detach()
 
             # Update per-head metrics.
-            self.train_metrics[head_name].update(logits, masks)
+            self.train_metrics[head_name].update(logits, masks)  # type: ignore[operator]
 
             # Update per-head classwise metrics if enabled.
             if self.train_metrics_classwise is not None:
-                self.train_metrics_classwise[head_name].update(logits, masks)
+                self.train_metrics_classwise[head_name].update(logits, masks)  # type: ignore[operator]
 
         # Sum losses for backprop.
         loss_sum = torch.stack(losses).sum()
@@ -357,12 +363,12 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
         # Add per-head metrics to log dict.
         for head_name in logits_dict.keys():
-            log_dict.update(dict(self.train_metrics[head_name].items()))
+            log_dict.update(dict(self.train_metrics[head_name].items()))  # type: ignore[operator]
 
         # Add classwise metrics if enabled.
         if self.train_metrics_classwise is not None:
             for head_name in logits_dict.keys():
-                log_dict.update(dict(self.train_metrics_classwise[head_name].items()))
+                log_dict.update(dict(self.train_metrics_classwise[head_name].items()))  # type: ignore[operator]
 
         return TaskStepResult(loss=loss_sum, log_dict=log_dict)
 
@@ -403,17 +409,17 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
                 image_mask = image_mask.unsqueeze(0)  # Add batch dimension.
                 loss = self.loss_fn(image_logits, image_mask)
                 head_loss += loss
-                self.val_metrics[head_name].update(image_logits, image_mask)
+                self.val_metrics[head_name].update(image_logits, image_mask)  # type: ignore[operator]
                 if self.val_metrics_classwise is not None:
-                    self.val_metrics_classwise[head_name].update(
+                    self.val_metrics_classwise[head_name].update(  # type: ignore[operator]
                         image_logits, image_mask
                     )
             head_loss /= len(images)
             losses.append(head_loss)
 
             # Update per-head loss tracker.
-            self.val_loss_metrics[head_name].update(head_loss, weight=len(images))
-            log_dict[f"val_loss_{head_name}"] = head_loss.detach()
+            self.val_loss_metrics[head_name].update(head_loss, weight=len(images))  # type: ignore[operator]
+            log_dict[f"val_loss_head/{head_name}"] = head_loss.detach()
 
         # Mean loss across all heads.
         loss_mean = torch.stack(losses).mean()
@@ -421,12 +427,12 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
         # Add per-head metrics to log dict.
         for head_name in crop_logits_dict.keys():
-            log_dict.update(dict(self.val_metrics[head_name].items()))
+            log_dict.update(dict(self.val_metrics[head_name].items()))  # type: ignore[operator]
 
         # Add classwise metrics if enabled.
         if self.val_metrics_classwise is not None:
             for head_name in crop_logits_dict.keys():
-                log_dict.update(dict(self.val_metrics_classwise[head_name].items()))
+                log_dict.update(dict(self.val_metrics_classwise[head_name].items()))  # type: ignore[operator]
 
         # Use sum of losses for consistency with training_step.
         loss_sum = torch.stack(losses).sum()
