@@ -34,7 +34,6 @@ from lightly_train._transforms.task_transform import (
 )
 from lightly_train._transforms.torchvision_dispatcher import (
     TorchVisionHorizontalFlip,
-    TorchVisionRandomIoUCrop,
     TorchVisionResize,
     TorchVisionRotate,
     TorchVisionRotate90,
@@ -117,18 +116,10 @@ class OrientedObjectDetectionTransform(TaskTransform):
             ]
 
         if transform_args.random_iou_crop is not None:
-            self.individual_transforms += [
-                TorchVisionRandomIoUCrop(
-                    min_scale=transform_args.random_iou_crop.min_scale,
-                    max_scale=transform_args.random_iou_crop.max_scale,
-                    min_aspect_ratio=transform_args.random_iou_crop.min_aspect_ratio,
-                    max_aspect_ratio=transform_args.random_iou_crop.max_aspect_ratio,
-                    sampler_options=transform_args.random_iou_crop.sampler_options,
-                    crop_trials=transform_args.random_iou_crop.crop_trials,
-                    iou_trials=transform_args.random_iou_crop.iou_trials,
-                    p=transform_args.random_iou_crop.prob,
-                )
-            ]
+            raise NotImplementedError(
+                "RandomIoUCrop is not implemented yet for OrientedObjectDetectionTransform."
+                "torchvision does not support it for now."
+            )
 
         if transform_args.random_flip is not None:
             if transform_args.random_flip.horizontal_prob > 0.0:
@@ -207,12 +198,14 @@ class OrientedObjectDetectionTransform(TaskTransform):
 
         transformed = self.transform(
             image=input["image"],
-            bboxes=input["bboxes"],
+            oriented_bboxes=input[
+                "bboxes"
+            ],  # using oriented_bboxes key because albumentations preprocessing breaks oriented_boxes when using the bboxes key.
             class_labels=input["class_labels"],
         )
 
         return {
             "image": transformed["image"],
-            "bboxes": transformed["bboxes"],
+            "bboxes": transformed["oriented_bboxes"],
             "class_labels": transformed["class_labels"],
         }
