@@ -123,19 +123,18 @@ class DINOv3STAs(Module):
         model: DinoVisionTransformer,
         interaction_indexes: list[int] = [5, 8, 11],
         finetune: bool = True,
-        patch_size: int = 16,
         use_sta: bool = True,
         conv_inplane: int = 16,
         hidden_dim: int | None = None,
     ):
-        super(DINOv3STAs, self).__init__()
+        super().__init__()
 
         self.dinov3 = model
         embed_dim = self.dinov3.embed_dim
 
         assert len(interaction_indexes) == 3
         self.interaction_indexes = interaction_indexes
-        self.patch_size = patch_size
+        self.patch_size = model.patch_size
 
         if not finetune:
             self.dinov3.eval()
