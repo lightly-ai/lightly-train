@@ -196,6 +196,13 @@ class OrientedObjectDetectionTransform(TaskTransform):
             )
             self.past_stop = True
 
+        assert "bboxes" in input, (
+            "Input must contain bboxes for oriented object detection transform."
+        )
+        assert "class_labels" in input, (
+            "Input must contain class_labels for oriented object detection transform."
+        )
+
         transformed = self.transform(
             image=input["image"],
             oriented_bboxes=input[
