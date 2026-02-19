@@ -14,7 +14,7 @@ from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
 from pydantic import Field, model_validator
 from torch import Tensor
-from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, Module
+from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, Module, ModuleDict
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
@@ -211,10 +211,11 @@ class ImageClassificationMultiheadTrain(TrainModel):
 
         # Validation loss tracking: overall and per-head.
         self.val_loss = MeanMetric()
-        self.val_loss_per_head: dict[str, MeanMetric] = {}
+        val_loss_per_head: dict[str, Metric] = {}
         for lr in self.lrs:
             head_name = _format_head_name(lr)
-            self.val_loss_per_head[head_name] = MeanMetric()
+            val_loss_per_head[head_name] = MeanMetric()
+        self.val_loss_per_head = ModuleDict(val_loss_per_head)
 
         # Create metrics from configuration.
         from torchmetrics import Metric
@@ -231,7 +232,8 @@ class ImageClassificationMultiheadTrain(TrainModel):
             )
 
         # Create per-head metric collections with suffix _head_lr{value}.
-        self.val_metrics_per_head: dict[str, MetricCollection] = {}
+
+        val_metrics_per_head: dict[str, MetricCollection] = {}
         for lr in self.lrs:
             head_name = _format_head_name(lr)
             # Add suffix to each metric key.
@@ -241,14 +243,15 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 head_metrics[suffixed_key] = metric.clone()
             # Type ignore because old torchmetrics versions (0.8) don't have the
             # correct type annotations for MetricCollection.
-            self.val_metrics_per_head[head_name] = MetricCollection(
+            val_metrics_per_head[head_name] = MetricCollection(
                 head_metrics,  # type: ignore[arg-type]
                 prefix="val_metric_head/",
             )
+        self.val_metrics_per_head = ModuleDict(val_metrics_per_head)
 
         # Create classwise metrics if enabled.
         self.val_metrics_classwise: MetricCollection | None
-        self.val_metrics_classwise_per_head: dict[str, MetricCollection] | None
+        self.val_metrics_classwise_per_head: ModuleDict | None
         if model_args.metric_log_classwise:
             classwise_metrics: dict[str, Metric] = {}
             # If metrics_classwise is None, use filtered metrics from main metrics.
@@ -280,7 +283,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
                     )
 
             # Create per-head classwise metrics.
-            self.val_metrics_classwise_per_head = {}
+            val_metrics_classwise_per_head = {}
             for lr in self.lrs:
                 head_name = _format_head_name(lr)
                 head_classwise_metrics: dict[str, Metric] = {}
@@ -289,10 +292,13 @@ class ImageClassificationMultiheadTrain(TrainModel):
                     head_classwise_metrics[suffixed_key] = metric.clone()
                 # Type ignore because old torchmetrics versions (0.8) don't have the
                 # correct type annotations for MetricCollection.
-                self.val_metrics_classwise_per_head[head_name] = MetricCollection(
+                val_metrics_classwise_per_head[head_name] = MetricCollection(
                     head_classwise_metrics,  # type: ignore[arg-type]
-                    prefix="val_metric_classwise_head/",
+                    prefix="val_metric_head_classwise/",
                 )
+            self.val_metrics_classwise_per_head = ModuleDict(
+                val_metrics_classwise_per_head
+            )
         else:
             self.val_metrics_classwise_per_head = None
 
