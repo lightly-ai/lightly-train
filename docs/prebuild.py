@@ -18,7 +18,9 @@ from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model 
 from lightly_train._task_models.image_classification.train_model import (
     ImageClassificationTrain,
 )
-from lightly_train._task_models.image_classification_multihead.train_model import ImageClassificationMultiheadTrain
+from lightly_train._task_models.image_classification_multihead.train_model import (
+    ImageClassificationMultiheadTrain,
+)
 
 THIS_DIR = Path(__file__).parent.resolve()
 DOCS_DIR = THIS_DIR / "source"
