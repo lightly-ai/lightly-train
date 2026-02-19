@@ -77,7 +77,7 @@ def convert_torchvision_to_numpy_output(
     return image_hwc, bboxes
 
 
-class TorchVisionDispatcher(DualTransform):
+class TorchVisionTransformDispatcher(DualTransform):
     def __init__(self, transform: v2.Transform, p: float = 1.0) -> None:
         super().__init__(p=p)
         self.transform = transform
@@ -91,7 +91,7 @@ class TorchVisionDispatcher(DualTransform):
         return {"image": out_image, "bboxes": out_bboxes, "classes": class_labels}
 
 
-class TorchVisionRotate90(TorchVisionDispatcher):
+class TorchVisionRotate90(TorchVisionTransformDispatcher):
     def __init__(self, p: float = 1.0) -> None:
         transform = v2.RandomChoice(
             [
@@ -119,7 +119,7 @@ CV2_TO_TV_INTERPOLATION: Mapping[CV2_INTERPOLATION_MODE, InterpolationMode] = {
 }
 
 
-class TorchVisionRotate(TorchVisionDispatcher):
+class TorchVisionRotate(TorchVisionTransformDispatcher):
     def __init__(
         self,
         degrees: float | tuple[float, float],
@@ -135,17 +135,17 @@ class TorchVisionRotate(TorchVisionDispatcher):
         )
 
 
-class TorchVisionHorizontalFlip(TorchVisionDispatcher):
+class TorchVisionHorizontalFlip(TorchVisionTransformDispatcher):
     def __init__(self, p: float) -> None:
         super().__init__(v2.RandomHorizontalFlip(p=1))
 
 
-class TorchVisionVerticalFlip(TorchVisionDispatcher):
+class TorchVisionVerticalFlip(TorchVisionTransformDispatcher):
     def __init__(self, p: float) -> None:
         super().__init__(v2.RandomVerticalFlip(p=1))
 
 
-class TorchVisionResize(TorchVisionDispatcher):
+class TorchVisionResize(TorchVisionTransformDispatcher):
     def __init__(
         self,
         height: int,
@@ -160,7 +160,7 @@ class TorchVisionResize(TorchVisionDispatcher):
         )
 
 
-class TorchVisionRandomIoUCrop(TorchVisionDispatcher):
+class TorchVisionRandomIoUCrop(TorchVisionTransformDispatcher):
     def __init__(
         self,
         min_scale,

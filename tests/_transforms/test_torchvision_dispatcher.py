@@ -49,9 +49,11 @@ def test_vision_dispatcher_call_returns_same(
 ):
     mock_transform = MockTransform()
 
-    from lightly_train._transforms.torchvision_dispatcher import TorchVisionDispatcher
+    from lightly_train._transforms.torchvision_dispatcher import (
+        TorchVisionTransformDispatcher,
+    )
 
-    dispatcher = TorchVisionDispatcher(transform=mock_transform)
+    dispatcher = TorchVisionTransformDispatcher(transform=mock_transform)
 
     output = dispatcher(image=dummy_np_image, bboxes=dummy_np_obb)
     assert isinstance(output, dict)
@@ -64,9 +66,11 @@ def test_vision_dispatcher_call_returns_same(
 def test_vision_dispatcher_correctly_modifies(
     dummy_np_obb: np.ndarray, dummy_np_image: np.ndarray
 ):
-    from lightly_train._transforms.torchvision_dispatcher import TorchVisionDispatcher
+    from lightly_train._transforms.torchvision_dispatcher import (
+        TorchVisionTransformDispatcher,
+    )
 
-    dispatcher = TorchVisionDispatcher(transform=v2.Resize(size=(50, 50)))
+    dispatcher = TorchVisionTransformDispatcher(transform=v2.Resize(size=(50, 50)))
 
     output = dispatcher(image=dummy_np_image, bboxes=dummy_np_obb)
     breakpoint()
