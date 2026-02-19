@@ -39,6 +39,9 @@ from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._loggers.wandb import WandbLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import task_model_helpers
+from lightly_train._task_models.dinov2_eomt_instance_segmentation.train_model import (
+    DINOv2EoMTInstanceSegmentationTrain,
+)
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
@@ -102,6 +105,7 @@ logger = logging.getLogger(__name__)
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     ImageClassificationTrain,
     ImageClassificationMultiheadTrain,
+    DINOv2EoMTInstanceSegmentationTrain,
     DINOv3EoMTInstanceSegmentationTrain,
     DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,

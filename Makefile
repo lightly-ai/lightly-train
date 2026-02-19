@@ -140,13 +140,18 @@ add-header:
 
 	# Apply the Apache 2.0 license header to DEIMv2 derived files
 	licenseheaders -t dev_tools/deimv2_licenseheader.tmpl \
-		-f src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
+		-f src/lightly_train/_task_models/dinov2_ltdetr_object_detection/dinov2_vit_wrapper.py \
+		src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
+		-E py
 
 	# Apply the MIT license header to the EoMT derived files
 	licenseheaders -t dev_tools/eomt_licenseheader.tmpl \
 		-f src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/mask_loss.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/scale_block.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/scheduler.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/scheduler.py \

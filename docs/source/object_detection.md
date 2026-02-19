@@ -30,7 +30,6 @@ using TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 |  LightlyTrain  |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |  640×640   |
 |  LightlyTrain  |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |  640×640   |
 |  LightlyTrain  |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |  640×640   |
-|  LightlyTrain  |  dinov2/vits14-noreg-ltdetr-coco  |          55.7           |     16.9     |    55.3    |  644×644   |
 |  LightlyTrain  | dinov3/convnext-tiny-ltdetr-coco  |          54.4           |     13.3     |    61.1    |  640×640   |
 |  LightlyTrain  | dinov3/convnext-small-ltdetr-coco |          56.9           |     17.7     |    82.7    |  640×640   |
 |  LightlyTrain  | dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |  640×640   |
@@ -412,6 +411,50 @@ lightly_train.train_object_detection(
     }
 )
 ```
+
+(object-detection-model)=
+
+## Model
+
+The `model` argument defines the model used for object detection training. The following
+models are available:
+
+### PicoDet Models
+
+- `picodet-s-coco` (pretrained on COCO)
+- `picodet-l-coco` (pretrained on COCO)
+
+### LTDETR DINOv3 Models
+
+- `dinov3/vitt16-ltdetr-coco` (pretrained on COCO)
+- `dinov3/vitt16plus-ltdetr-coco` (pretrained on COCO)
+- `dinov3/vits16-ltdetr-coco` (pretrained on COCO)
+- `dinov3/convnext-tiny-ltdetr-coco` (pretrained on COCO)
+- `dinov3/convnext-small-ltdetr-coco` (pretrained on COCO)
+- `dinov3/convnext-base-ltdetr-coco` (pretrained on COCO)
+- `dinov3/convnext-large-ltdetr-coco` (pretrained on COCO)
+- `dinov3/vitt16-ltdetr`
+- `dinov3/vitt16plus-ltdetr`
+- `dinov3/vits16-ltdetr`
+- `dinov3/vitb16-ltdetr`
+- `dinov3/vitl16-ltdetr`
+- `dinov3/convnext-tiny-ltdetr`
+- `dinov3/convnext-small-ltdetr`
+- `dinov3/convnext-base-ltdetr`
+- `dinov3/convnext-large-ltdetr`
+
+All models are
+[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+
+### LTDETR DINOv2 Models
+
+- `dinov2/vits14-ltdetr`
+- `dinov2/vitb14-ltdetr`
+- `dinov2/vitl14-ltdetr`
+- `dinov2/vitg14-ltdetr`
+
+All models are
+[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
 
 ## Training Settings
 

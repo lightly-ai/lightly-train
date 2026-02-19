@@ -11,7 +11,7 @@ import copy
 import logging
 import math
 import os
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 from PIL.Image import Image as PILImage
@@ -22,7 +22,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
-from lightly_train._export import onnx_helpers, tensorrt_helpers
+from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Attention
@@ -36,10 +36,13 @@ from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
+if TYPE_CHECKING:
+    import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
+
 logger = logging.getLogger(__name__)
 
 
-class DINOv2EoMTSemanticSegmentation(TaskModel):
+class DINOv2EoMTInstanceSegmentation(TaskModel):
     model_suffix = "eomt"
 
     def __init__(
@@ -47,7 +50,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         *,
         model_name: str,
         classes: dict[int, str],
-        class_ignore_index: int | None,
         image_size: tuple[int, int],
         image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
@@ -64,10 +66,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 A dict mapping the class ID to the class name. The dict must only
                 contain the classes that the model should predict. It must NOT contain
                 classes that are in the dataset but should be ignored by the model.
-            class_ignore_index:
-                The class ID assigned to pixels that do not belong to any of the
-                classes in `classes`. If None, the model will not ignore any classes and
-                always assign a class to each pixel.
             image_size:
                 The size of the input images.
             image_normalize:
@@ -94,7 +92,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
-        self.class_ignore_index = class_ignore_index
         self.image_size = image_size
         self.image_normalize = image_normalize
 
@@ -102,8 +99,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # This list maps the internal class id to the class id in `classes`.
         # An additional class is added to represent "unknown/ignored classes" if needed.
         internal_class_to_class = list(self.classes.keys())
-        if self.class_ignore_index is not None:
-            internal_class_to_class.append(self.class_ignore_index)
 
         # Efficient lookup for converting internal class IDs to class IDs.
         # Registered as buffer to be automatically moved to the correct device.
@@ -203,7 +198,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
                 f"models are: {cls.list_model_names()}. See the documentation for "
-                "more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html"
+                "more information: https://docs.lightly.ai/train/stable/instance_segmentation.html"
             )
 
         if not model_name.endswith(f"-{cls.model_suffix}"):
@@ -234,20 +229,25 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         }
 
     @torch.no_grad()
-    def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
+    def predict(
+        self, image: PathLike | PILImage | Tensor, threshold: float = 0.8
+    ) -> dict[str, Tensor]:
         """Returns the predicted mask for the given image.
 
         Args:
             image:
                 The input image as a path, URL, PIL image, or tensor. Tensors must have
                 shape (C, H, W).
+            threshold:
+                The confidence threshold for the predicted masks. Only masks with a
+                confidence score above this threshold are returned.
 
         Returns:
-            The predicted mask as a tensor of shape (H, W). The values represent the
-            class IDs as defined in the `classes` argument of your dataset. These
-            classes are also stored in the `classes` attribute of the model.
-            The model will always predict the pixels as one of the known classes even when
-            your dataset contains ignored classes defined by the `ignore_classes` argument.
+            A {"labels": Tensor, "masks": Tensor, "scores": Tensor} dict. Labels is a
+            tensor of shape (Q,) containing the predicted class for each query. Masks is
+            a tensor of shape (Q, H, W) containing the predicted mask for each query.
+            Scores is a tensor of shape (Q,) containing the confidence score for each
+            query.
         """
         self._track_inference()
         if self.training:
@@ -266,34 +266,55 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
         )
 
-        # Crop size is the short side of the training image size. We resize the image
-        # such that the short side of the image matches the crop size.
-        crop_size = min(self.image_size)
-        # (C, H, W) -> (C, H', W')
-        x = transforms_functional.resize(x, size=[crop_size])
+        x, (crop_h, crop_w) = self.resize_and_pad(x)
         x = x.unsqueeze(0)  # (1, C, H', W')
 
-        logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
-        # Restrict logits to known classes only.
-        logits = logits[:, :-1]  # (1, K, H', W')
-        logits = F.interpolate(
-            logits, size=(image_h, image_w), mode="bilinear"
-        )  # (1, K|K+1, H, W)
+        # (1, Q, H', W'), (1, Q, K+1), Q = num_queries, K = len(self.classes)
+        mask_logits, class_logits = self._forward_logits(x)
 
-        masks = logits.argmax(dim=1)  # (1, H, W)
+        # Interpolate to original image size.
+        mask_logits = mask_logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
+        # (1, Q, H, W)
+        mask_logits = F.interpolate(
+            mask_logits, size=(image_h, image_w), mode="bilinear"
+        )
+
+        # (1, Q), (1, Q, H, W), (1, Q)
+        labels, masks, scores = self.get_labels_masks_scores(
+            mask_logits=mask_logits, class_logits=class_logits
+        )
+
         # Map internal class IDs to class IDs.
-        masks = self.internal_class_to_class[masks]  # (1, H, W)
-        return masks[0]
+        labels = self.internal_class_to_class[labels]  # (1, Q)
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        # Remove batch dimension.
+        labels = labels.squeeze(0)
+        masks = masks.squeeze(0)
+        scores = scores.squeeze(0)
+
+        # Apply threshold.
+        keep = scores >= threshold
+        labels = labels[keep]
+        masks = masks[keep]
+        scores = scores[keep]
+
+        return {
+            "labels": labels,
+            "masks": masks,
+            "scores": scores,
+        }
+
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
-        logits = self._forward_logits(x)  # (B, K+1, H, W), K = len(self.classes)
-        # Restrict logits to known classes only.
-        logits = logits[:, :-1]  # (1, K, H, W)
-        masks = logits.argmax(dim=1)  # (B, H, W)
+        # (1, Q, H, W), (1, Q, K+1), Q = num_queries, K = len(self.classes)
+        mask_logits, class_logits = self._forward_logits(x)
+        labels, masks, scores = self.get_labels_masks_scores(
+            mask_logits=mask_logits, class_logits=class_logits
+        )
+
         # Map internal class IDs to class IDs.
-        masks = self.internal_class_to_class[masks]
-        return masks, logits
+        labels = self.internal_class_to_class[labels]
+        return labels, masks, scores
 
     # TODO(Guarin, 07/25): Refactor to take attn_mask_probs as input.
     def forward_train(
@@ -393,141 +414,32 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             class_logits_per_layer,
         )
 
-    # TODO(Guarin, 08/25): Move tile/until as functions to a separate utility module.
-    def tile(
-        self, images: list[Tensor] | Tensor
-    ) -> tuple[list[Tensor], list[tuple[int, int, int, bool]]]:
-        crops, origins = [], []
-
-        for i, image in enumerate(images):
-            h, w = image.shape[-2:]
-            long_side_size = max(h, w)
-            short_side_size = min(h, w)
-
-            # Is the image tall or wide?
-            is_tall = h > w
-
-            # By construction the short side size is equal to the crop size.
-            crop_size = short_side_size
-            num_crops = math.ceil(long_side_size / crop_size)
-            overlap = num_crops * crop_size - long_side_size
-            overlap_per_crop = (overlap / (num_crops - 1)) if overlap > 0 else 0
-
-            for j in range(num_crops):
-                start = int(j * (crop_size - overlap_per_crop))
-                end = start + crop_size
-
-                # Image is tall.
-                if is_tall:
-                    crop = image[:, start:end, :]
-
-                # Image is wide.
-                else:
-                    crop = image[:, :, start:end]
-
-                # Store the crop.
-                crops.append(crop)
-
-                # Store the position of the crop.
-                origins.append((i, start, end, is_tall))
-
-        return crops, origins
-
-    def untile(
-        self,
-        crop_logits: Tensor,
-        origins: list[tuple[int, int, int, bool]],
-        image_sizes: list[tuple[int, int]],
-    ) -> list[Tensor]:
-        logit_sums, logit_counts = [], []
-
-        # Initialize the tensors containing the final predictions.
-        for size in image_sizes:
-            logit_sums.append(
-                crop_logits.new_zeros(
-                    (crop_logits.shape[1], *size),
-                )
-            )
-            logit_counts.append(
-                torch.zeros_like(
-                    logit_sums[-1],
-                    dtype=torch.int32,
-                )
-            )
-
-        for crop_index, (image_index, start, end, is_tall) in enumerate(origins):
-            # Image is tall.
-            if is_tall:
-                logit_sums[image_index][:, start:end, :] += crop_logits[crop_index]
-                logit_counts[image_index][:, start:end, :] += 1
-            # Image is wide.
-            else:
-                logit_sums[image_index][:, :, start:end] += crop_logits[crop_index]
-                logit_counts[image_index][:, :, start:end] += 1
-
-        # Average the logits in the regions of overlap.
-        return [
-            logit_sum / logit_count
-            for logit_sum, logit_count in zip(logit_sums, logit_counts)
-        ]
-
-    def to_per_pixel_logits_semantic(
-        self, mask_logits: Tensor, class_logits: Tensor
-    ) -> Tensor:
-        return torch.einsum(
-            "bqhw, bqc -> bchw",
-            mask_logits.sigmoid(),
-            # NOTE(Guarin, 07/25): This is different from the original EoMT code as we
-            # keep the logits of the last class whereas EoMT discards them. We discard
-            # them later in the `validation_step` function and keep them here for
-            # `predict` to work correctly.
-            class_logits.softmax(dim=-1),
-        )
-
-    def _forward_logits(self, x: Tensor) -> Tensor:
+    def _forward_logits(self, x: Tensor) -> tuple[Tensor, Tensor]:
         """Forward pass that returns the logits of the last layer. Intended for
         inference."""
         # x is a batch of images with shape (B, C, H, W).
-        _, _, H, W = x.shape
-        # The current implementation of tile and untile leads to large amounts of memory being consumed when
-        # running the model as ONNX. Therefore we add a fallback for the case when these methods are not necessary.
-        use_onnx_fallback = torch.onnx.is_in_onnx_export() and H == W
-
-        # Tiling.
-        if use_onnx_fallback:
-            crops = x
-        else:
-            image_sizes = [img.shape[-2:] for img in x]
-            crops_list, origins = self.tile(images=x)
-            crops = torch.stack(crops_list)
-        crop_h, crop_w = crops.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Forward pass.
         # Only the logits of the last layer are returned.
         mask_logits_per_layer, class_logits_per_layer = self.forward_train(
-            crops, return_logits_per_layer=False
+            x, return_logits_per_layer=False
         )
         mask_logits = mask_logits_per_layer[-1]
         class_logits = class_logits_per_layer[-1]
 
-        # Interpolate and untile.
-        mask_logits = F.interpolate(mask_logits, (crop_h, crop_w), mode="bilinear")
-        crop_logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
-        if use_onnx_fallback:
-            logits = crop_logits
-        else:
-            logits_list = self.untile(
-                crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
-            )
-            logits = torch.stack(logits_list)  # (B, C, H, W)
-        return logits
+        # Interpolate.
+        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+        return mask_logits, class_logits
 
     def _predict(self, x: Tensor, grid_size: tuple[int, int]) -> tuple[Tensor, Tensor]:
+        # TODO(Guarin, 08/25): Investigate if having different norms for queries and
+        # patch tokens is beneficial.
         q = x[:, : self.num_queries, :]
 
         class_logits = self.class_head(q)
 
-        # num queries + 1 class token + num register tokens
+        # num queries + 1 class token + register tokens
         x = x[:, self.num_queries + 1 + self.backbone.num_register_tokens :, :]
         x = x.transpose(1, 2).reshape(x.shape[0], -1, *grid_size)
 
@@ -537,8 +449,72 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
         return mask_logits, class_logits
 
+    @torch.no_grad()
+    def get_labels_masks_scores(
+        self, mask_logits: Tensor, class_logits: Tensor
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        # Get score and label for each query.
+        # NOTE(Guarin, 01/26): Calculate softmax always in fp32 for numerical
+        # stability. Otherwise converting a fp32 model to fp16 results in NaNs.
+        scores = class_logits.softmax(dim=-1, dtype=torch.float32)[..., :-1].type_as(
+            class_logits
+        )  # (1, Q, K)
+        scores, labels = torch.max(scores, dim=-1)  # (1, Q), (1, Q)
+
+        # Multiply scores with mask scores.
+        masks = mask_logits > 0  # (1, Q, H, W)
+
+        #### WARNING
+        # Be careful when modifying anything here. These operations
+        # must be kept in FP32 to avoid numerical issues in FP16 models. Test on
+        # TensorRT FP16 when making any changes. You have to force TensorRT to use FP32.
+        # See export_tensorrt in this file for details.
+        mask_logits_fp32 = mask_logits.float()
+        masks_fp32 = masks.float()
+
+        # (1, Q)
+        score_per_query = (
+            mask_logits_fp32.sigmoid().flatten(2) * masks_fp32.flatten(2)
+        ).sum(2)
+        mask_pixels_per_query = masks_fp32.flatten(2).sum(2)
+        mask_scores = score_per_query / mask_pixels_per_query
+        mask_scores = torch.where(
+            mask_pixels_per_query > 0, mask_scores, torch.zeros_like(mask_scores)
+        )
+
+        scores = scores * mask_scores  # (1, Q)
+        scores = scores.type_as(mask_logits)
+        #####
+
+        # (1, Q), (1, Q, H, W), (1, Q)
+        return labels, masks, scores
+
+    def resize_and_pad(self, image: Tensor) -> tuple[Tensor, tuple[int, int]]:
+        """Resize and pad image to self.image_size while keeping aspect ratio constant.
+
+        Args:
+            image:
+                A tensor of shape (..., H, W).
+
+        Returns:
+            An (image, (crop_h, crop_w)) tuple where image is a tensor of shape
+            (..., H', W') with H'==self.image_size[0] and W'==self.image_size[1], and
+            (crop_h, crop_w) are the height and width of the resized (non-padded) image.
+        """
+        image_h, image_w = image.shape[-2:]
+        resize_factor = min(self.image_size[0] / image_h, self.image_size[1] / image_w)
+        crop_h = round(image_h * resize_factor)
+        crop_w = round(image_w * resize_factor)
+        pad_h = max(0, self.image_size[0] - crop_h)
+        pad_w = max(0, self.image_size[1] - crop_w)
+        # (..., crop_h, crop_w)
+        image = transforms_functional.resize(image, size=[crop_h, crop_w])
+        # (..., H', W')
+        image = transforms_functional.pad(image, padding=[0, 0, pad_w, pad_h])
+        return image, (crop_h, crop_w)
+
     # TODO(Guarin, 07/25): No need for attention mask handling in this module. Move it
-    # to DINOv2SemanticSegmentationTrain.
+    # to DINOv2InstanceSegmentationTrain.
     @torch.compiler.disable  # type: ignore[misc, untyped-decorator]
     def _disable_attn_mask(self, attn_mask: Tensor, prob: Tensor) -> Tensor:
         # prob is a scalar tensor.
@@ -642,7 +618,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         The export uses a dummy input of shape (batch_size, C, H, W) where C is inferred
         from the first model parameter and (H, W) come from `self.image_size`.
         The ONNX graph uses dynamic batch size for both inputs and produces
-        two outputs: masks and logits.
+        three outputs: labels, masks, and scores.
 
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
@@ -673,7 +649,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         Returns:
             None. Writes the ONNX model to `out`.
         """
-        # TODO(Guarin, 12/25): Move warnings module out of commands subpackage and
+        # TODO(Guarin, 01/26): Move warnings module out of commands subpackage and
         # move import to the top of the file.
         from lightly_train._commands import _warnings
 
@@ -711,12 +687,8 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             dtype=dtype,
         )
 
-        # Precalculate interpolated positional encoding for ONNX export.
-        with onnx_helpers.precalculate_for_onnx_export():
-            self(dummy_input)
-
         input_names = ["images"]
-        output_names = ["masks", "logits"]
+        output_names = ["labels", "masks", "scores"]
 
         torch.onnx.export(
             self,
@@ -737,10 +709,6 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             onnxslim.slim(
                 model=str(out),
                 output_model=out,
-                # We skip constant folding as this currently increases the model size by
-                # quite a lot. If we refactor the untile method we might be able to add
-                # constant folding.
-                skip_optimizations=["constant_folding"],
             )
 
         if verify:
@@ -851,6 +819,44 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
+
+        def update_network_fn(net: trt.INetworkDefinition) -> None:
+            import tensorrt as trt
+
+            wanted = ("ReduceSum", "Div", "Mul", "Sigmoid")
+
+            io_tensors = {
+                *(net.get_input(i) for i in range(net.num_inputs)),
+                *(net.get_output(i) for i in range(net.num_outputs)),
+            }
+
+            # find first Sigmoid layer index
+            start_idx: int | None = None
+            for i in range(net.num_layers):
+                layer = net.get_layer(i)
+                if "Sigmoid" in layer.name:
+                    start_idx = i
+                    break
+            if start_idx is None:
+                logger.warning("No Sigmoid layer found; nothing to update.")
+                return
+
+            for i in range(start_idx, net.num_layers):
+                layer = net.get_layer(i)
+                if any(k in layer.name for k in wanted):
+                    layer.precision = trt.DataType.FLOAT
+
+                    for j in range(layer.num_outputs):
+                        out = layer.get_output(j)
+                        if out is None:
+                            continue
+
+                        # Only set dtype for network I/O tensors to avoid TRT warnings.
+                        if out in io_tensors:
+                            out.dtype = trt.DataType.FLOAT
+
+                    logger.debug(f"Forcing FP32 for layer: {layer.name}")
+
         model_dtype = next(self.parameters()).dtype
 
         tensorrt_helpers.export_tensorrt(
@@ -866,4 +872,5 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             # contains NaN.
             fp32_attention_scores=True,
             verbose=verbose,
+            update_network_fn=update_network_fn,
         )
