@@ -56,7 +56,9 @@ def _get_random_rotate_90_args() -> RandomRotate90Args:
 
 
 def _get_random_rotate_args() -> RandomRotationArgs:
-    return RandomRotationArgs(prob=0.4, degrees=30.0, interpolation=cv2.INTER_LINEAR)
+    return RandomRotationArgs(
+        prob=0.4, degrees=30.0, interpolation=cv2.INTER_LINEAR
+    )  # for OBB , since we use tv transforms, the default cv2.INTER_AREA is not supported.
 
 
 def _get_photometric_distort_args() -> RandomPhotometricDistortArgs:
@@ -77,17 +79,8 @@ def _get_random_zoom_out_args() -> RandomZoomOutArgs:
     )
 
 
-def _get_random_iou_crop_args() -> RandomIoUCropArgs:
-    return RandomIoUCropArgs(
-        min_scale=0.3,
-        max_scale=1.0,
-        min_aspect_ratio=0.5,
-        max_aspect_ratio=2.0,
-        sampler_options=None,
-        crop_trials=40,
-        iou_trials=1000,
-        prob=1.0,
-    )
+def _get_random_iou_crop_args() -> RandomIoUCropArgs | None:
+    return None
 
 
 def _get_bbox_params() -> BboxParams:
