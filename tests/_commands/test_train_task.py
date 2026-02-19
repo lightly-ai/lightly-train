@@ -117,7 +117,7 @@ def test_train_image_classification__multilabel(tmp_path: Path) -> None:
     assert results["scores"].shape == (3,)
 
 
-def test_train_image_classification_multihead__integration__runs_with_multiple_heads(
+def test_train_image_classification_multihead(
     tmp_path: Path,
 ) -> None:
     """Integration test for multihead training with multiple learning rates."""

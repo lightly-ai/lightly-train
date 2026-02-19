@@ -18,6 +18,9 @@ from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model 
 from lightly_train._task_models.image_classification.train_model import (
     ImageClassificationTrain,
 )
+from lightly_train._task_models.image_classification_multihead.train_model import (
+    ImageClassificationMultiheadTrain,
+)
 from lightly_train._task_models.semantic_segmentation_multihead.train_model import (
     SemanticSegmentationMultiheadTrain,
 )
@@ -103,6 +106,7 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
         if train_model_cls in {
             ImageClassificationTrain,
             SemanticSegmentationMultiheadTrain,
+            ImageClassificationMultiheadTrain,
             DINOv2LinearSemanticSegmentationTrain,
         }:
             continue
