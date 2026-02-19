@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class ImageClassificationMultihead(TaskModel):
-    model_suffix = "classification_multihead"
+    model_suffix = "classification-multihead"
 
     def __init__(
         self,
