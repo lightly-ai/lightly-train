@@ -147,6 +147,9 @@ add-header:
 		-f src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/mask_loss.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/scale_block.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/scheduler.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/scheduler.py \
