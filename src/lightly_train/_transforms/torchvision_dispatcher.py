@@ -91,6 +91,39 @@ class TorchVisionTransformDispatcher(DualTransform):
         return {"image": out_image, "bboxes": out_bboxes, "classes": class_labels}
 
 
+CV2_INTERPOLATION_MODE = int
+
+CV2_TO_TV_INTERPOLATION: Mapping[CV2_INTERPOLATION_MODE, InterpolationMode] = {
+    cv2.INTER_NEAREST: InterpolationMode.NEAREST,
+    cv2.INTER_LINEAR: InterpolationMode.BILINEAR,
+    cv2.INTER_CUBIC: InterpolationMode.BICUBIC,
+    cv2.INTER_AREA: InterpolationMode.BOX,
+    cv2.INTER_LANCZOS4: InterpolationMode.LANCZOS,
+}
+
+
+def _get_interpolation_mode(
+    cv2_interpolation: CV2_INTERPOLATION_MODE,
+) -> InterpolationMode:
+    return CV2_TO_TV_INTERPOLATION[cv2_interpolation]
+
+
+TORCHVISION_ROTATE_SUPPORTED_INTERPOLATION_MODES = {
+    InterpolationMode.NEAREST,
+    InterpolationMode.BILINEAR,
+}
+
+
+def _check_supported_interpolation_mode_for_rotate(
+    interpolation: InterpolationMode,
+) -> None:
+    if interpolation not in TORCHVISION_ROTATE_SUPPORTED_INTERPOLATION_MODES:
+        raise ValueError(
+            f"Unsupported interpolation mode {interpolation} for rotation. "
+            f"Supported modes are: {TORCHVISION_ROTATE_SUPPORTED_INTERPOLATION_MODES}"
+        )
+
+
 class TorchVisionRotate90(TorchVisionTransformDispatcher):
     def __init__(self, p: float = 1.0) -> None:
         transform = v2.RandomChoice(
@@ -108,17 +141,6 @@ class TorchVisionRotate90(TorchVisionTransformDispatcher):
         )
 
 
-CV2_INTERPOLATION_MODE = int
-
-CV2_TO_TV_INTERPOLATION: Mapping[CV2_INTERPOLATION_MODE, InterpolationMode] = {
-    cv2.INTER_NEAREST: InterpolationMode.NEAREST,
-    cv2.INTER_LINEAR: InterpolationMode.BILINEAR,
-    cv2.INTER_CUBIC: InterpolationMode.BICUBIC,
-    cv2.INTER_AREA: InterpolationMode.BOX,
-    cv2.INTER_LANCZOS4: InterpolationMode.LANCZOS,
-}
-
-
 class TorchVisionRotate(TorchVisionTransformDispatcher):
     def __init__(
         self,
@@ -126,10 +148,12 @@ class TorchVisionRotate(TorchVisionTransformDispatcher):
         interpolation: CV2_INTERPOLATION_MODE,
         p: float = 1.0,
     ) -> None:
+        tv_interpolation = _get_interpolation_mode(interpolation)
+        _check_supported_interpolation_mode_for_rotate(tv_interpolation)
+
         super().__init__(
             transform=v2.RandomRotation(
-                degrees=degrees,
-                interpolation=CV2_TO_TV_INTERPOLATION[interpolation],
+                degrees=degrees, interpolation=tv_interpolation
             ),
             p=p,
         )
