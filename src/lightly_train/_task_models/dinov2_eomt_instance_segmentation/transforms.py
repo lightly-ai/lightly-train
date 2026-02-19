@@ -34,7 +34,7 @@ ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
-class DINOv3EoMTInstanceSegmentationColorJitterArgs(ColorJitterArgs):
+class DINOv2EoMTInstanceSegmentationColorJitterArgs(ColorJitterArgs):
     # Differences between EoMT and this transform:
     # - EoMT always applies brightness before contrast/saturation/hue.
     # - EoMT applies all transforms indedenently with probability 0.5. We apply either
@@ -47,7 +47,7 @@ class DINOv3EoMTInstanceSegmentationColorJitterArgs(ColorJitterArgs):
     hue: float = 18.0 / 360.0
 
 
-class DINOv3EoMTInstanceSegmentationScaleJitterArgs(ScaleJitterArgs):
+class DINOv2EoMTInstanceSegmentationScaleJitterArgs(ScaleJitterArgs):
     sizes: Sequence[tuple[int, int]] | None = None
     min_scale: float | None = 0.1
     max_scale: float | None = 2.0
@@ -59,12 +59,12 @@ class DINOv3EoMTInstanceSegmentationScaleJitterArgs(ScaleJitterArgs):
     seed_offset: int = 0
 
 
-class DINOv3EoMTInstanceSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
+class DINOv2EoMTInstanceSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
     max_size: int | list[int] | Literal["auto"] = "auto"
     prob: float = 1.0
 
 
-class DINOv3EoMTInstanceSegmentationRandomCropArgs(RandomCropArgs):
+class DINOv2EoMTInstanceSegmentationRandomCropArgs(RandomCropArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
     pad_if_needed: bool = True
@@ -73,11 +73,11 @@ class DINOv3EoMTInstanceSegmentationRandomCropArgs(RandomCropArgs):
     prob: float = 1.0
 
 
-class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
+class DINOv2EoMTInstanceSegmentationTrainTransformArgs(
     InstanceSegmentationTransformArgs
 ):
     """
-    Defines default transform arguments for instance segmentation training with DINOv3.
+    Defines default transform arguments for instance segmentation training with DINOv2.
     """
 
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
@@ -87,13 +87,13 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
-    color_jitter: DINOv3EoMTInstanceSegmentationColorJitterArgs | None = None
+    color_jitter: DINOv2EoMTInstanceSegmentationColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
-        default_factory=DINOv3EoMTInstanceSegmentationScaleJitterArgs
+        default_factory=DINOv2EoMTInstanceSegmentationScaleJitterArgs
     )
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs = Field(
-        default_factory=DINOv3EoMTInstanceSegmentationRandomCropArgs
+        default_factory=DINOv2EoMTInstanceSegmentationRandomCropArgs
     )
     bbox_params: BboxParams = BboxParams(
         format="yolo",
@@ -132,9 +132,9 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransformArgs):
+class DINOv2EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransformArgs):
     """
-    Defines default transform arguments for instance segmentation validation with DINOv3.
+    Defines default transform arguments for instance segmentation validation with DINOv2.
     """
 
     image_size: ImageSizeTuple | Literal["auto"] | None = None
@@ -186,9 +186,9 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3EoMTInstanceSegmentationTrainTransform(InstanceSegmentationTransform):
-    transform_args_cls = DINOv3EoMTInstanceSegmentationTrainTransformArgs
+class DINOv2EoMTInstanceSegmentationTrainTransform(InstanceSegmentationTransform):
+    transform_args_cls = DINOv2EoMTInstanceSegmentationTrainTransformArgs
 
 
-class DINOv3EoMTInstanceSegmentationValTransform(InstanceSegmentationTransform):
-    transform_args_cls = DINOv3EoMTInstanceSegmentationValTransformArgs
+class DINOv2EoMTInstanceSegmentationValTransform(InstanceSegmentationTransform):
+    transform_args_cls = DINOv2EoMTInstanceSegmentationValTransformArgs
