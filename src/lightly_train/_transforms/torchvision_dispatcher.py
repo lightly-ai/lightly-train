@@ -1,7 +1,9 @@
 from typing import Mapping
 
 import cv2
+import numpy as np
 from albumentations import DualTransform
+from numpy.typing import NDArray
 from torchvision.transforms import InterpolationMode, v2
 from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
 
@@ -82,13 +84,23 @@ class TorchVisionTransformDispatcher(DualTransform):
         super().__init__(p=p)
         self.transform = transform
 
-    def __call__(self, image, bboxes=None, class_labels=None, **kwargs) -> dict:
-        tv_image, tv_bboxes = convert_numpy_to_torchvision_input(image, bboxes)
+    def __call__(
+        self,
+        image: NDArrayImage,
+        oriented_bboxes: NDArrayOBBoxes | None = None,
+        class_labels: NDArray[np.float64] | None = None,
+        **kwargs,
+    ) -> dict:
+        tv_image, tv_bboxes = convert_numpy_to_torchvision_input(image, oriented_bboxes)
         tv_image_out, tv_bboxes_out = self.transform(tv_image, tv_bboxes)
         out_image, out_bboxes = convert_torchvision_to_numpy_output(
             tv_image_out, tv_bboxes_out
         )
-        return {"image": out_image, "bboxes": out_bboxes, "classes": class_labels}
+        return {
+            "image": out_image,
+            "oriented_bboxes": out_bboxes,
+            "class_labels": class_labels,
+        }
 
 
 CV2_INTERPOLATION_MODE = int
