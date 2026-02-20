@@ -721,7 +721,7 @@ def log_step(
     # GPU utilization
     gpu_util = timer.get_phase_gpu_util(split)
     if gpu_util > 0:
-        profiling_parts.append(f"GPU Util {gpu_util:.1f}%")
+        profiling_parts.append(f"GPU Util {gpu_util:3.1f}%")
 
     # GPU max memory
     gpu_max_mem = timer.get_phase_gpu_max_mem(split)
@@ -731,17 +731,17 @@ def log_step(
     # Step time (average time per full step)
     step_time = timer.get_avg_step_time(step_name)
     if step_time > 0:
-        profiling_parts.append(f"Step Time {step_time:.2f}s")
+        profiling_parts.append(f"Step Time {step_time:4.2f}s")
 
     # Data time (average dataload time)
     data_time = timer.get_avg_step_time(dataload_step_name)
     if data_time > 0:
-        profiling_parts.append(f"Data Time {data_time:.2f}s")
+        profiling_parts.append(f"Data Time {data_time:4.2f}s")
 
     # Throughput (images per second)
     throughput = timer.get_throughput(step_name, global_batch_size)
     if throughput > 0:
-        profiling_parts.append(f"{throughput:.0f} img/s")
+        profiling_parts.append(f"{throughput:4.0f} img/s")
 
     if profiling_parts:
         parts.append(f"Profiling [ {' | '.join(profiling_parts)} ]")
