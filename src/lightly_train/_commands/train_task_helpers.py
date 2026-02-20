@@ -39,6 +39,9 @@ from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._loggers.wandb import WandbLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import task_model_helpers
+from lightly_train._task_models.dinov2_eomt_instance_segmentation.train_model import (
+    DINOv2EoMTInstanceSegmentationTrain,
+)
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
@@ -63,8 +66,14 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model impor
 from lightly_train._task_models.image_classification.train_model import (
     ImageClassificationTrain,
 )
+from lightly_train._task_models.image_classification_multihead.train_model import (
+    ImageClassificationMultiheadTrain,
+)
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
+)
+from lightly_train._task_models.semantic_segmentation_multihead.train_model import (
+    SemanticSegmentationMultiheadTrain,
 )
 from lightly_train._task_models.train_model import (
     TrainModel,
@@ -95,11 +104,14 @@ logger = logging.getLogger(__name__)
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     ImageClassificationTrain,
+    ImageClassificationMultiheadTrain,
+    DINOv2EoMTInstanceSegmentationTrain,
     DINOv3EoMTInstanceSegmentationTrain,
     DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
+    SemanticSegmentationMultiheadTrain,
     DINOv2LTDETRObjectDetectionTrain,
     DINOv3LTDETRObjectDetectionTrain,
     PicoDetObjectDetectionTrain,
@@ -332,7 +344,11 @@ def get_transform_args(
     ignore_index: int | None,
     model_init_args: dict[str, Any],
 ) -> tuple[TaskTransformArgs, TaskTransformArgs]:
-    if train_model_cls.task != "semantic_segmentation" and ignore_index is not None:
+    if (
+        train_model_cls.task
+        not in ("semantic_segmentation", "semantic_segmentation_multihead")
+        and ignore_index is not None
+    ):
         raise ValueError(
             "`ignore_index` is only supported for semantic segmentation tasks."
         )

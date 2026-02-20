@@ -36,10 +36,12 @@ from lightly_train._commands.predict_task import predict_semantic_segmentation
 from lightly_train._commands.train import pretrain, train
 from lightly_train._commands.train_task import (
     train_image_classification,
+    train_image_classification_multihead,
     train_instance_segmentation,
     train_object_detection,
     train_panoptic_segmentation,
     train_semantic_segmentation,
+    train_semantic_segmentation_multihead,
 )
 from lightly_train._embedding.embedding_format import EmbeddingFormat
 from lightly_train._methods.method_helpers import list_methods
@@ -63,10 +65,12 @@ __all__ = [
     "predict_semantic_segmentation",
     "pretrain",
     "train_image_classification",
+    "train_image_classification_multihead",
     "train_instance_segmentation",
     "train_panoptic_segmentation",
     "train_object_detection",
     "train_semantic_segmentation",
+    "train_semantic_segmentation_multihead",
     "train",
 ]
 
