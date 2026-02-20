@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from contextlib import contextmanager
 from typing import Mapping, Sequence
 
@@ -37,7 +39,7 @@ def numpy_obb_to_tv_tensor_obb(
     Args:
         oriented_bboxes: A numpy array of shape (n_boxes, 5) containing the oriented bounding boxes in (x_center, y_center, width, height, angle) format.
     Returns:
-        A torchvision tv_tensor BoundingBoxes object containing the bounding boxes in XYWHR format.
+        A torchvision tv_tensor BoundingBoxes object containing the bounding boxes in CXCYWHR format.
 
     """
     return BoundingBoxes(
