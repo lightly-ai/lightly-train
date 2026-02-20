@@ -133,9 +133,7 @@ class ObjectDetectionDatasetItem(TypedDict):
 class OrientedObjectDetectionDatasetItem(TypedDict):
     image_path: ImageFilename
     image: Tensor
-    bboxes: (
-        Tensor  # Of shape (n_boxes, 5) with (x_center, y_center, w, h, Θ) coordinates.
-    )
+    bboxes: Tensor  # Of shape (n_boxes, 5) with (x_center, y_center, w, h, angle) coordinates.
     classes: Tensor  # Of shape (n_boxes,) with class labels.
     original_size: tuple[int, int]  # (width, height) of the original image.
 
