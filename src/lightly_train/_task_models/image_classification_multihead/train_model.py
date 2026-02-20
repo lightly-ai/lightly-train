@@ -402,7 +402,6 @@ class ImageClassificationMultiheadTrain(TrainModel):
             targets = _class_ids_to_multihot(
                 class_ids=classes, num_classes=self.num_classes
             )
-            targets = targets.int()
         else:
             raise ValueError(
                 f"Unsupported classification task: {self.classification_task}"
@@ -410,15 +409,18 @@ class ImageClassificationMultiheadTrain(TrainModel):
 
         # Process each head: compute loss and update metrics.
         losses: list[Tensor] = []
+        targets_int = targets.int()
         for head_name, logits in logits_dict.items():
             loss = self.criterion(logits, targets)
             losses.append(loss)
             self.val_loss_per_head[head_name].update(loss, weight=len(images))  # type: ignore[operator]
-            self.val_metrics_per_head[head_name].update(logits, targets)  # type: ignore[operator]
+            self.val_metrics_per_head[head_name].update(logits, targets_int)  # type: ignore[operator]
 
             # Update per-head classwise metrics if enabled.
             if self.val_metrics_classwise_per_head is not None:
-                self.val_metrics_classwise_per_head[head_name].update(logits, targets)  # type: ignore[operator]
+                self.val_metrics_classwise_per_head[head_name].update(
+                    logits, targets_int
+                )  # type: ignore[operator]
 
         # Update overall loss tracker (mean of all heads).
         loss_mean = torch.stack(losses).mean()
