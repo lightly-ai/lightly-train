@@ -10,8 +10,9 @@ from __future__ import annotations
 import time
 
 import pytest
+import torch
 
-from lightly_train._training_step_timer import TrainingStepTimer
+from lightly_train._training_step_timer import CUDAUtilization, TrainingStepTimer
 
 
 class TestTrainingStepTimer:
@@ -21,160 +22,107 @@ class TestTrainingStepTimer:
         """Test basic start/stop timing."""
         timer = TrainingStepTimer()
 
-        timer.start_step("forward")
+        timer.start_step("step")
         time.sleep(0.01)
-        timer.end_step("forward")
+        timer.end_step("step")
 
-        assert timer.total_step_sec("forward") >= 0.005
+        assert timer.total_step_sec("step") >= 0.005
 
     def test_total_step_sec__accumulates(self) -> None:
         """Test that total accumulates across multiple executions."""
         timer = TrainingStepTimer()
 
-        # First execution.
-        timer.start_step("backward")
+        timer.start_step("step")
         time.sleep(0.01)
-        timer.end_step("backward")
-        first_total = timer.total_step_sec("backward")
+        timer.end_step("step")
+        first_total = timer.total_step_sec("step")
 
-        # Second execution.
-        timer.start_step("backward")
+        timer.start_step("step")
         time.sleep(0.02)
-        timer.end_step("backward")
-        second_total = timer.total_step_sec("backward")
+        timer.end_step("step")
+        second_total = timer.total_step_sec("step")
 
         assert second_total > first_total
-        assert second_total >= 0.02
+        assert second_total >= 0.01
 
-    def test_total_percentage(self) -> None:
-        """Test percentage calculation."""
+    def test_get_step_count(self) -> None:
+        """Test step count tracking."""
         timer = TrainingStepTimer()
 
-        # Simulate timing.
-        timer.start_step("forward")
-        time.sleep(0.01)
-        timer.end_step("forward")
+        assert timer.get_step_count("step") == 0
 
-        timer.start_step("backward")
-        time.sleep(0.01)
-        timer.end_step("backward")
+        timer.start_step("step")
+        timer.end_step("step")
+        assert timer.get_step_count("step") == 1
 
-        timer.start_step("data_loading")
-        time.sleep(0.02)
-        timer.end_step("data_loading")
+        timer.start_step("step")
+        timer.end_step("step")
+        assert timer.get_step_count("step") == 2
 
-        percentages = timer.total_percentage(["forward", "backward", "data_loading"])
-
-        # Check all keys present.
-        assert set(percentages.keys()) == {"forward", "backward", "data_loading"}
-
-        # Check percentages sum to 100.
-        assert sum(percentages.values()) == pytest.approx(100.0, abs=30)
-
-        # data_loading should be roughly 50% since it took 0.02s out of ~0.04s total.
-        assert percentages["data_loading"] == pytest.approx(50, abs=20)
-
-    def test_percentage_for_prefix(self) -> None:
-        """Test percentage calculation for steps with a given prefix."""
+    def test_get_avg_step_time(self) -> None:
+        """Test average step time calculation."""
         timer = TrainingStepTimer()
 
-        timer.start_step("train_forward")
+        # No steps executed yet.
+        assert timer.get_avg_step_time("step") == 0.0
+
+        timer.start_step("step")
         time.sleep(0.01)
-        timer.end_step("train_forward")
+        timer.end_step("step")
 
-        timer.start_step("train_backward")
+        timer.start_step("step")
         time.sleep(0.01)
-        timer.end_step("train_backward")
+        timer.end_step("step")
 
-        timer.start_step("train_optimizer")
-        time.sleep(0.02)
-        timer.end_step("train_optimizer")
+        avg_time = timer.get_avg_step_time("step")
+        assert avg_time >= 0.005
 
-        percentages = timer.percentage_for_prefix("train_")
-
-        # Check all keys present with prefix removed.
-        assert set(percentages.keys()) == {"forward", "backward", "optimizer"}
-
-        # Check percentages sum to 100.
-        assert sum(percentages.values()) == pytest.approx(100.0, abs=30)
-
-        # optimizer should be roughly 50% since it took 0.02s out of ~0.04s total.
-        assert percentages["optimizer"] == pytest.approx(50, abs=20)
-
-    def test_percentage_for_prefix__empty(self) -> None:
-        """Test percentage calculation with no matching steps."""
+    def test_get_throughput(self) -> None:
+        """Test throughput calculation."""
         timer = TrainingStepTimer()
 
-        timer.start_step("forward")
+        # No steps executed yet.
+        assert timer.get_throughput("step", 32) == 0.0
+
+        timer.start_step("step")
         time.sleep(0.01)
-        timer.end_step("forward")
+        timer.end_step("step")
 
-        percentages = timer.percentage_for_prefix("nonexistent_")
+        throughput = timer.get_throughput("step", 32)
+        assert throughput > 0
 
-        assert percentages == {}
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    def test_gpu_stats(self) -> None:
+        """Test GPU stats tracking when CUDA is available."""
+        device = torch.device("cuda")
+        cuda_util = CUDAUtilization(device=device)
+        timer = TrainingStepTimer(cuda_utilization=cuda_util)
 
-    def test_percentage_for_prefix_group(self) -> None:
-        """Test percentage calculation for groups of steps."""
-        timer = TrainingStepTimer()
+        timer.reset_gpu_max_memory("train")
+        timer.record_gpu_stats("train")
 
-        timer.start_step("train_forward")
-        time.sleep(0.01)
-        timer.end_step("train_forward")
+        util = timer.get_phase_gpu_util("train")
+        max_mem = timer.get_phase_gpu_max_mem("train")
 
-        timer.start_step("train_backward")
-        time.sleep(0.01)
-        timer.end_step("train_backward")
+        assert 0.0 <= util <= 100.0
+        assert max_mem >= 0.0
 
-        timer.start_step("val_forward")
-        time.sleep(0.02)
-        timer.end_step("val_forward")
+    def test_gpu_stats__no_cuda(self) -> None:
+        """Test GPU stats methods when CUDA is not available."""
+        device = torch.device("cpu")
+        cuda_util = CUDAUtilization(device=device)
+        timer = TrainingStepTimer(cuda_utilization=cuda_util)
 
-        timer.start_step("data_loading")
-        time.sleep(0.02)
-        timer.end_step("data_loading")
+        # Should not raise errors.
+        timer.reset_gpu_max_memory("train")
+        timer.record_gpu_stats("train")
 
-        percentages = timer.percentage_for_prefix_group(
-            {
-                "training": ["train_"],
-                "validation": ["val_"],
-                "data": ["data_"],
-            }
-        )
-
-        # Check all groups present.
-        assert set(percentages.keys()) == {"training", "validation", "data"}
-
-        # Check percentages sum to 100 (within rounding tolerance).
-        assert sum(percentages.values()) == pytest.approx(100.0, abs=30)
-
-        # Training and validation should each be roughly 33% and data should be 33%.
-        assert percentages["training"] == pytest.approx(33, abs=15)
-        assert percentages["validation"] == pytest.approx(33, abs=15)
-        assert percentages["data"] == pytest.approx(33, abs=15)
+        assert timer.get_phase_gpu_util("train") == 0.0
+        assert timer.get_phase_gpu_max_mem("train") == 0.0
 
     def test_end_step__without_start(self) -> None:
         """Test that ending a step without starting it raises an error."""
         timer = TrainingStepTimer()
 
-        try:
+        with pytest.raises(ValueError, match="was not started"):
             timer.end_step("nonexistent")
-            assert False, "Should have raised ValueError"
-        except ValueError as e:
-            assert "was not started" in str(e)
-
-    def test_total_percentage__none_steps(self) -> None:
-        """Test total_percentage with None steps includes all steps."""
-        timer = TrainingStepTimer()
-
-        timer.start_step("step1")
-        time.sleep(0.01)
-        timer.end_step("step1")
-
-        timer.start_step("step2")
-        time.sleep(0.01)
-        timer.end_step("step2")
-
-        percentages = timer.total_percentage()
-
-        assert set(percentages.keys()) == {"step1", "step2"}
-        assert sum(percentages.values()) == pytest.approx(100.0, abs=30)

@@ -25,6 +25,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - Filter invalid bounding boxes in instance segmentation
+- Fix incorrect logging of training times.
 
 ### Security
 
