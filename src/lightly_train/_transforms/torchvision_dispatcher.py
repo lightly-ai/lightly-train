@@ -15,7 +15,7 @@ def numpy_image_to_tv_tensor_image(image_hwc: NDArrayImage) -> Image:
     Convert a numpy image array to a torchvision tv_tensor Image.
 
     Args:
-        image: A numpy array of shape (H, W, C) containing the image data.
+        image_hwc: A numpy array of shape (H, W, C) containing the image data.
     Returns:
         A torchvision tv_tensor Image containing the image data.
     """
