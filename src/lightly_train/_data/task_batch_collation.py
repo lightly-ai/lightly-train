@@ -146,7 +146,7 @@ class ObjectDetectionCollateFunction(BaseCollateFunction):
     ):
         super().__init__(split, transform_args)
         assert isinstance(transform_args, ObjectDetectionTransformArgs)
-        self.scale_jitter: Compose | None
+        self.scale_jitter: Compose | None = None
         if transform_args.scale_jitter is not None:
             scale_range = _get_scale_range_from_transform_args(transform_args)
             self.scale_jitter = Compose(
