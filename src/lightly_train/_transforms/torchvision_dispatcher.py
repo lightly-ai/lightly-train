@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 from torchvision.transforms import InterpolationMode, v2
 from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
 
-from lightly_train.types import NDArrayImage, NDArrayOBBoxes
+from lightly_train.types import NDArrayBBoxes, NDArrayImage, NDArrayOBBoxes
 
 
 def numpy_image_to_tv_tensor_image(image_hwc: NDArrayImage) -> Image:
@@ -57,13 +57,25 @@ def image_hwc_height_width(image: NDArrayImage) -> tuple[int, int]:
 
 
 def convert_numpy_to_torchvision_input(
-    image: NDArrayImage,
-    bboxes: NDArrayOBBoxes | None,
+    image_hwc: NDArrayImage,
+    oriented_bboxes: NDArrayOBBoxes | None,
 ) -> tuple[Image, BoundingBoxes | None]:
-    tv_image = numpy_image_to_tv_tensor_image(image)
+    """
+    Convert a numpy image and oriented bounding boxes to torchvision tv_tensor Image and BoundingBoxes.
+
+    Args:
+        image_hwc: A numpy array of shape (H, W, C) containing the image data.
+        oriented_bboxes: A numpy array of shape (n_boxes, 5) containing the oriented bounding boxes in (x_center, y_center, width, height, angle) format, or None if there are no bounding boxes.
+    Returns:
+        A tuple containing the tv_tensors for Image and the BoundingBoxes if non-null.
+    """
+    tv_image = numpy_image_to_tv_tensor_image(image_hwc)
     tv_bboxes = (
-        numpy_obb_to_tv_tensor_obb(bboxes, canvas_size=image_hwc_height_width(image))
-        if bboxes is not None
+        numpy_obb_to_tv_tensor_obb(
+            oriented_bboxes=oriented_bboxes,
+            canvas_size=image_hwc_height_width(image_hwc),
+        )
+        if oriented_bboxes is not None
         else None
     )
     return tv_image, tv_bboxes
@@ -87,10 +99,17 @@ class TorchVisionTransformDispatcher(DualTransform):
     def __call__(
         self,
         image: NDArrayImage,
+        bboxes: NDArrayBBoxes | None = None,
         oriented_bboxes: NDArrayOBBoxes | None = None,
         class_labels: NDArray[np.float64] | None = None,
         **kwargs,
     ) -> dict:
+        if bboxes is not None:
+            raise NotImplementedError(
+                "Support for Axis-aligned bounding boxes is exclusive to albumentations transforms."
+                "Please use an albumentations transform if you want to use axis-aligned bounding boxes."
+            )
+
         tv_image, tv_bboxes = convert_numpy_to_torchvision_input(image, oriented_bboxes)
         tv_image_out, tv_bboxes_out = self.transform(tv_image, tv_bboxes)
         out_image, out_bboxes = convert_torchvision_to_numpy_output(
