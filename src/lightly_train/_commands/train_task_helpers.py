@@ -705,8 +705,9 @@ def log_step(
     }
     name_to_display_name = {**name_to_display_name, **TASK_TO_METRICS.get(task, {})}
 
+    width = len(str(max_steps))
     parts = [
-        f"{split_cap} Step {step + 1}/{max_steps}",
+        f"{split_cap} Step {step + 1:>{width}}/{max_steps:>{width}}",
     ]
     for name, value in log_dict.items():
         if name in name_to_display_name:
@@ -725,7 +726,7 @@ def log_step(
     # GPU max memory
     gpu_max_mem = timer.get_phase_gpu_max_mem(split)
     if gpu_max_mem > 0:
-        profiling_parts.append(f"GPU Max Mem {gpu_max_mem:.1f} GB")
+        profiling_parts.append(f"GPU Max Mem {gpu_max_mem:7.1f} MB")
 
     # Step time (average time per full step)
     step_time = timer.get_avg_step_time(step_name)
@@ -743,7 +744,7 @@ def log_step(
         profiling_parts.append(f"{throughput:.0f} img/s")
 
     if profiling_parts:
-        parts.append(f"Profiling[{' | '.join(profiling_parts)}]")
+        parts.append(f"Profiling [ {' | '.join(profiling_parts)} ]")
 
     line = " | ".join(parts)
     logger.info(line)
@@ -802,27 +803,27 @@ def log_training_summary(
 
     # Format and log the summary
     logger.info("Profiling")
-    logger.info(f"\tTotal Time        : {total_time_min:.1f} min")
+    logger.info(f"  Total Time        : {total_time_min:5.1f} min")
     logger.info(
-        f"\tTrain Time        : {train_time_min:.1f} min ({train_time_perc:.1f}%) ({train_step_time:.2f} s/step)"
+        f"  Train Time        : {train_time_min:5.1f} min ({train_time_perc:3.1f}%) ({train_step_time:4.2f} s/step)"
     )
     logger.info(
-        f"\tVal Time          : {val_time_min:.1f} min ({val_time_perc:.1f}%) ({val_step_time:.2f} s/step)"
+        f"  Val Time          : {val_time_min:5.1f} min ({val_time_perc:3.1f}%) ({val_step_time:4.2f} s/step)"
     )
 
     if train_throughput > 0:
-        logger.info(f"\tTrain Throughput  : {train_throughput:.0f} img/s")
+        logger.info(f"  Train Throughput  : {train_throughput:4.0f} img/s")
     if train_gpu_util > 0:
-        logger.info(f"\tTrain GPU Util    : {train_gpu_util:.1f}%")
+        logger.info(f"  Train GPU Util    : {train_gpu_util:3.1f}%")
     if train_gpu_max_mem > 0:
-        logger.info(f"\tTrain GPU Max Mem : {train_gpu_max_mem:.1f} GB")
+        logger.info(f"  Train GPU Max Mem : {train_gpu_max_mem:7.1f} MB")
 
     if val_throughput > 0:
-        logger.info(f"\tVal Throughput    : {val_throughput:.0f} img/s")
+        logger.info(f"  Val Throughput    : {val_throughput:4.0f} img/s")
     if val_gpu_util > 0:
-        logger.info(f"\tVal GPU Util      : {val_gpu_util:.1f}%")
+        logger.info(f"  Val GPU Util      : {val_gpu_util:3.1f}%")
     if val_gpu_max_mem > 0:
-        logger.info(f"\tVal GPU Max Mem   : {val_gpu_max_mem:.1f} GB")
+        logger.info(f"  Val GPU Max Mem   : {val_gpu_max_mem:7.1f} MB")
 
 
 def add_timer_logs(
@@ -853,7 +854,7 @@ def add_timer_logs(
     # GPU max memory
     gpu_max_mem = timer.get_phase_gpu_max_mem(split)
     if gpu_max_mem > 0:
-        log_dict[f"profiling/{split}_gpu_max_mem_gb"] = gpu_max_mem
+        log_dict[f"profiling/{split}_gpu_max_mem_mb"] = gpu_max_mem
 
     # Step time
     step_time = timer.get_avg_step_time(step_name)

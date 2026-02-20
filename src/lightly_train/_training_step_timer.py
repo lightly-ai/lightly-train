@@ -91,9 +91,9 @@ class TrainingStepTimer:
 
             # Get GPU max memory
             max_mem_bytes = torch.cuda.max_memory_allocated()
-            max_mem_gb = max_mem_bytes / (1024**3)
+            max_mem_mb = max_mem_bytes / (1024**2)
             self._phase_gpu_max_mem[phase] = max(
-                self._phase_gpu_max_mem.get(phase, 0.0), max_mem_gb
+                self._phase_gpu_max_mem.get(phase, 0.0), max_mem_mb
             )
 
     def get_phase_gpu_util(self, phase: str) -> float:
@@ -111,13 +111,13 @@ class TrainingStepTimer:
         return sum(utils) / len(utils)
 
     def get_phase_gpu_max_mem(self, phase: str) -> float:
-        """Get max GPU memory for a phase in GB.
+        """Get max GPU memory for a phase in MB.
 
         Args:
             phase: The phase name (e.g., "train", "val").
 
         Returns:
-            Max GPU memory in GB, or 0.0 if not available.
+            Max GPU memory in MB, or 0.0 if not available.
         """
         return self._phase_gpu_max_mem.get(phase, 0.0)
 
