@@ -219,3 +219,21 @@ class TorchVisionRandomIoUCrop(TorchVisionTransformDispatcher):
             ),
             p=p,
         )
+
+
+class TorchVisionScaleJitter(TorchVisionTransformDispatcher):
+    def __init__(
+        self,
+        target_size: tuple[int, int],
+        scale_range: tuple[float, float] | None,
+        p: float,
+    ) -> None:
+        scale_range = scale_range if scale_range is not None else (0.1, 2.0)
+
+        super().__init__(
+            v2.ScaleJitter(
+                target_size=target_size,
+                scale_range=scale_range,
+            ),
+            p=p,
+        )

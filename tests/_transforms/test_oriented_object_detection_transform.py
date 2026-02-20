@@ -17,7 +17,9 @@ import torch
 from albumentations import BboxParams
 from numpy.typing import NDArray
 
-from lightly_train._data.task_batch_collation import ObjectDetectionCollateFunction
+from lightly_train._data.task_batch_collation import (
+    OrientedObjectDetectionCollateFunction,
+)
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.oriented_object_detection_transform import (
     OrientedObjectDetectionTransform,
@@ -99,14 +101,14 @@ def _get_stop_policy_args() -> StopPolicyArgs:
     )
 
 
-def _get_scale_jitter_args() -> ScaleJitterArgs:
+def _get_scale_jitter_args() -> ScaleJitterArgs | None:
     return ScaleJitterArgs(
         sizes=None,
-        min_scale=0.76,
-        max_scale=1.27,
-        num_scales=13,
-        prob=1.0,
-        divisible_by=14,
+        min_scale=0.8,
+        max_scale=1.2,
+        num_scales=5,
+        divisible_by=1,
+        prob=0.5,
         step_seeding=True,
         seed_offset=0,
     )
@@ -224,7 +226,7 @@ class TestObjectDetectionTransform:
             normalize=_get_normalize_args(),
         )
         transform_args.resolve_auto(model_init_args={})
-        collate_fn = ObjectDetectionCollateFunction(
+        collate_fn = OrientedObjectDetectionCollateFunction(
             split="train", transform_args=transform_args
         )
 
@@ -246,3 +248,4 @@ class TestObjectDetectionTransform:
 
         out = collate_fn(batch)
         assert isinstance(out, dict)
+        assert out["bboxes"][0].shape[-1] == 5

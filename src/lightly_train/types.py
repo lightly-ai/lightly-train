@@ -148,6 +148,14 @@ class ObjectDetectionBatch(TypedDict):
     original_size: list[tuple[int, int]]  # One (width, height) per image.
 
 
+class OrientedObjectDetectionBatch(TypedDict):
+    image_path: list[ImageFilename]  # length==batch_size
+    image: Tensor  # Tensor with shape (batch_size, 3, H, W).
+    bboxes: list[Tensor]  # One tensor per image, each of shape (n_boxes, 5).
+    classes: list[Tensor]  # One tensor per image, each of shape (n_boxes,).
+    original_size: list[tuple[int, int]]  # One (width, height) per image.
+
+
 class InstanceSegmentationDatasetItem(TaskDatasetItem):
     image_path: ImageFilename
     image: Tensor
