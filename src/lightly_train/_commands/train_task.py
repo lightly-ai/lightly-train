@@ -1312,13 +1312,21 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             -float("inf") if config.save_checkpoint_args.mode == "max" else float("inf")
         )
         timer.reset_gpu_max_memory("train")
+
+        log_every_num_steps = no_auto(config.logger_args.log_every_num_steps)
+        val_log_every_num_steps = no_auto(config.logger_args.val_every_num_steps)
+        # Always log the first few steps and then log at a regular interval.
+        log_steps = {
+            step for step in [0, 1, 2, 5, 10, 50, 100] if step < log_every_num_steps
+        }
+        val_log_steps = {
+            step for step in [0, 1, 2, 5, 10, 50, 100] if step < val_log_every_num_steps
+        }
+
         for step in range(start_step, config.steps):
             state["step"] = step
             is_last_step = step + 1 == config.steps
-            is_log_step = (
-                step == 0
-                or (step + 1) % no_auto(config.logger_args.log_every_num_steps) == 0
-            )
+            is_log_step = step in log_steps or (step + 1) % log_every_num_steps == 0
             is_val_step = (step + 1) % no_auto(
                 config.logger_args.val_every_num_steps
             ) == 0
@@ -1408,10 +1416,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 val_dataloader_iter = iter(val_dataloader)
                 for val_step in range(len(val_dataloader)):
                     is_last_val_step = val_step + 1 == len(val_dataloader)
-                    is_val_log_step = val_step == 0 or (
-                        (val_step + 1)
-                        % no_auto(config.logger_args.val_log_every_num_steps)
-                        == 0
+                    is_val_log_step = (
+                        val_step in val_log_steps
+                        or (val_step + 1) % val_log_every_num_steps == 0
                     )
 
                     timer.start_step("val_step")
