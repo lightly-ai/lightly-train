@@ -10,12 +10,10 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
-from typing import TYPE_CHECKING, Deque, Optional
+from typing import Deque, Optional
 
 import torch
-
-if TYPE_CHECKING:
-    from lightning_fabric import Fabric
+from lightning_fabric import Fabric
 
 
 class TrainingStepTimer:
