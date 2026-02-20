@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 import pytest
 import torch
@@ -33,7 +35,7 @@ def example_seeded_random_choice_resizes() -> SeededRandomChoice:
     return transform
 
 
-def test_numpy_image_to_tv_tensor_image_sucess(dummy_np_image: np.ndarray) -> None:
+def test_numpy_image_to_tv_tensor_image_success(dummy_np_image: np.ndarray) -> None:
     from lightly_train._transforms.torchvision_dispatcher import (
         numpy_image_to_tv_tensor_image,
     )
