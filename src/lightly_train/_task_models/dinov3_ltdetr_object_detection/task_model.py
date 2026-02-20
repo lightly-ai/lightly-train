@@ -603,6 +603,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             "backbone_name": backbone_name,
         }
 
+    def freeze_backbone(self) -> None:
+        """Freeze the backbone weights."""
+        self.backbone.eval()  # Set to eval mode to freeze batch norm layers, if any.
+        self.backbone.requires_grad_(False)
+
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
