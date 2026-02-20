@@ -57,13 +57,13 @@ def test_numpy_obb_to_tv_tensor_obb_success(dummy_np_obb: np.ndarray) -> None:
 
 
 class MockTransform(v2.Transform):
-    def __call__(self, *args):
+    def __call__(self, *args) -> tuple:
         return tuple(args)
 
 
 def test_vision_dispatcher_call_returns_same(
     dummy_np_obb: np.ndarray, dummy_np_image: np.ndarray
-):
+) -> None:
     mock_transform = MockTransform()
 
     from lightly_train._transforms.torchvision_dispatcher import (
@@ -82,7 +82,7 @@ def test_vision_dispatcher_call_returns_same(
 
 def test_vision_dispatcher_correctly_modifies(
     dummy_np_obb: np.ndarray, dummy_np_image: np.ndarray
-):
+) -> None:
     from lightly_train._transforms.torchvision_dispatcher import (
         TorchVisionTransformDispatcher,
     )
@@ -103,7 +103,7 @@ def test_seeded_random_choice_same_seed(
     dummy_np_obb: np.ndarray,
     dummy_np_image: np.ndarray,
     example_seeded_random_choice_resizes: SeededRandomChoice,
-):
+) -> None:
     dispatcher = TorchVisionTransformDispatcher(
         transform=example_seeded_random_choice_resizes
     )
@@ -123,7 +123,7 @@ def test_seeded_random_choice_different_seed(
     dummy_np_obb: np.ndarray,
     dummy_np_image: np.ndarray,
     example_seeded_random_choice_resizes: SeededRandomChoice,
-):
+) -> None:
     from lightly_train._transforms.torchvision_dispatcher import (
         TorchVisionTransformDispatcher,
     )
