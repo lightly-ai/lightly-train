@@ -22,7 +22,9 @@ from lightly_train._transforms.oriented_object_detection_transform import (
 )
 from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.task_transform import TaskTransformArgs
-from lightly_train._transforms.torchvision_dispatcher import TorchVisionScaleJitter
+from lightly_train._transforms.torchvision_dispatcher import (
+    TorchVisioneScaleJitter,
+)
 from lightly_train.types import (
     ImageClassificationBatch,
     ImageClassificationDatasetItem,
@@ -242,16 +244,19 @@ class OrientedObjectDetectionCollateFunction(BaseCollateFunction):
     ):
         super().__init__(split, transform_args)
         assert isinstance(transform_args, OrientedObjectDetectionTransformArgs)
-        self.scale_jitter: Compose | None
+        self.scale_jitter: TorchVisioneScaleJitter | None
         if transform_args.scale_jitter is not None:
             scale_range = _get_scale_range_from_transform_args(transform_args)
 
-            self.scale_jitter = Compose(
-                TorchVisionScaleJitter(
-                    target_size=no_auto(transform_args.image_size),
-                    scale_range=scale_range,
-                    p=transform_args.scale_jitter.prob,
-                )
+            self.scale_jitter = TorchVisioneScaleJitter(
+                sizes=transform_args.scale_jitter.sizes,
+                target_size=no_auto(transform_args.image_size)
+                if transform_args.scale_jitter.sizes is None
+                else None,
+                num_scales=transform_args.scale_jitter.num_scales,
+                divisible_by=transform_args.scale_jitter.divisible_by,
+                scale_range=scale_range,
+                p=transform_args.scale_jitter.prob,
             )
 
     def __call__(
@@ -272,15 +277,16 @@ class OrientedObjectDetectionCollateFunction(BaseCollateFunction):
             images = []
             bboxes = []
             classes = []
-            for item in batch_np:
-                out = self.scale_jitter(
-                    image=item["image"],
-                    oriented_bboxes=item["bboxes"],
-                    class_labels=item["classes"],
-                )
-                images.append(out["image"])
-                bboxes.append(out["oriented_bboxes"])
-                classes.append(out["class_labels"])
+            with self.scale_jitter.same_seed():
+                for item in batch_np:
+                    out = self.scale_jitter(
+                        image=item["image"],
+                        oriented_bboxes=item["bboxes"],
+                        class_labels=item["classes"],
+                    )
+                    images.append(out["image"])
+                    bboxes.append(out["oriented_bboxes"])
+                    classes.append(out["class_labels"])
 
             images = [
                 torch.from_numpy(img).permute(2, 0, 1).to(torch.float32)

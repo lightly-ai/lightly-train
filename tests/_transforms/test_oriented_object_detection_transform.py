@@ -101,7 +101,7 @@ def _get_stop_policy_args() -> StopPolicyArgs:
     )
 
 
-def _get_scale_jitter_args() -> ScaleJitterArgs | None:
+def _get_scale_jitter_args() -> ScaleJitterArgs:
     return ScaleJitterArgs(
         sizes=None,
         min_scale=0.8,

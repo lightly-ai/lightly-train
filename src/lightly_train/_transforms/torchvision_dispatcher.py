@@ -1,12 +1,15 @@
-from typing import Mapping
+from contextlib import contextmanager
+from typing import Mapping, Sequence
 
 import cv2
 import numpy as np
+import torch
 from albumentations import DualTransform
 from numpy.typing import NDArray
 from torchvision.transforms import InterpolationMode, v2
 from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
 
+from lightly_train._transforms.scale_jitter import generate_discrete_sizes
 from lightly_train.types import NDArrayBBoxes, NDArrayImage, NDArrayOBBoxes
 
 
@@ -240,19 +243,63 @@ class TorchVisionRandomIoUCrop(TorchVisionTransformDispatcher):
         )
 
 
-class TorchVisionScaleJitter(TorchVisionTransformDispatcher):
+class SeededRandomChoice(v2.Transform):
+    def __init__(self, transforms: Sequence[v2.Transform], seed: int):
+        super().__init__()
+        self.transforms = transforms
+        self.generator = torch.Generator().manual_seed(seed)
+        self._current_idx = self._generate_idx()
+
+    def _generate_idx(self) -> int:
+        return int(
+            torch.randint(
+                0, len(self.transforms), (1,), generator=self.generator
+            ).item()
+        )
+
+    def step(self) -> None:
+        self._current_idx = self._generate_idx()
+
+    def forward(self, *inputs):
+        return self.transforms[self._current_idx](*inputs)
+
+
+class TorchVisioneScaleJitter(TorchVisionTransformDispatcher):
+    transform: SeededRandomChoice
+
     def __init__(
         self,
-        target_size: tuple[int, int],
-        scale_range: tuple[float, float] | None,
-        p: float,
+        *,
+        sizes: Sequence[tuple[int, int]] | None = None,
+        target_size: tuple[int, int] | None = None,
+        scale_range: tuple[float, float] | None = None,
+        num_scales: int | None = None,
+        divisible_by: int | None = None,
+        p: float = 1.0,
+        seed: int = 42,
     ) -> None:
-        scale_range = scale_range if scale_range is not None else (0.1, 2.0)
 
-        super().__init__(
-            v2.ScaleJitter(
+        self.heights, self.widths = zip(
+            *generate_discrete_sizes(
+                sizes=sizes,
                 target_size=target_size,
                 scale_range=scale_range,
-            ),
+                num_scales=num_scales,
+                divisible_by=divisible_by,
+            )
+        )
+
+        transforms = [
+            v2.Resize(size=(int(h), int(w)), antialias=True)
+            for h, w in zip(self.heights, self.widths)
+        ]
+
+        super().__init__(
+            transform=SeededRandomChoice(transforms, seed=seed),
             p=p,
         )
+
+    @contextmanager
+    def same_seed(self):
+        self.transform.step()
+        yield
