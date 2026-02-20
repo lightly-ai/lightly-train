@@ -209,8 +209,9 @@ class CUDAUtilization:
             return
         self._run.set()
         self._stop.set()
-        if self._thr is not None:
-            self._thr.join(timeout=2.0)
+
+    def __del__(self):
+        self.stop()
 
     def drain(self) -> list[float]:
         if not self._enabled:
