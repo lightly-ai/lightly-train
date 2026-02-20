@@ -272,6 +272,27 @@ plt.imshow(image_with_boxes.permute(1, 2, 0))
 plt.show()
 ```
 
+### Frozen Backbone for Lower VRAM
+
+To reduce VRAM usage during training, you can freeze the backbone and only train the
+detection head. This is useful for larger backbone models:
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    out="out/my_experiment",
+    model="dinov3/vitt16-ltdetr-coco",
+    model_args={
+        "backbone_freeze": True,  # Freeze backbone weights
+    },
+    data={...},
+)
+```
+
+Based on the DINOv3 paper, frozen backbones can still achieve good accuracy while being
+more memory-efficient.
+
 ```{figure} /_static/images/object_detection/street.jpg
 ```
 
