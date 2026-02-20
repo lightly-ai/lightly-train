@@ -66,6 +66,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model impor
 from lightly_train._task_models.image_classification.train_model import (
     ImageClassificationTrain,
 )
+from lightly_train._task_models.image_classification_multihead.train_model import (
+    ImageClassificationMultiheadTrain,
+)
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
 )
@@ -98,6 +101,7 @@ logger = logging.getLogger(__name__)
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     ImageClassificationTrain,
+    ImageClassificationMultiheadTrain,
     DINOv2EoMTInstanceSegmentationTrain,
     DINOv3EoMTInstanceSegmentationTrain,
     DINOv3EoMTPanopticSegmentationTrain,

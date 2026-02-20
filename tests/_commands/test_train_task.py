@@ -117,6 +117,52 @@ def test_train_image_classification__multilabel(tmp_path: Path) -> None:
     assert results["scores"].shape == (3,)
 
 
+def test_train_image_classification_multihead(
+    tmp_path: Path,
+) -> None:
+    """Integration test for multihead training with multiple learning rates."""
+    out = tmp_path / "out"
+    data = tmp_path / "data"
+    helpers.create_multiclass_image_classification_dataset(
+        tmp_path=data,
+        class_names=["class_0", "class_1"],
+        num_files_per_class=2,
+    )
+
+    # Train with multiple learning rates.
+    lightly_train.train_image_classification_multihead(
+        out=out,
+        model="dinov3/vitt16-notpretrained",
+        data={
+            "train": data / "train",
+            "val": data / "val",
+            "classes": {
+                0: "class_0",
+                1: "class_1",
+            },
+        },
+        model_args={
+            "lr": [0.001, 0.01, 0.1],
+        },
+        steps=10,
+        batch_size=2,
+        num_workers=2,
+        devices=1,
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+    )
+
+    # Verify outputs.
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()
+    assert (out / "checkpoints" / "last.ckpt").exists()
+    assert (out / "exported_models" / "exported_last.pt").exists()
+
+    # Check that model can be loaded (but don't test predict yet).
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+    assert model is not None
+
+
 def test_train_object_detection(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
