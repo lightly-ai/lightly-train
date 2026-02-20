@@ -711,7 +711,7 @@ def log_step(
     ]
     for name, value in log_dict.items():
         if name in name_to_display_name:
-            parts.append(f"{name_to_display_name[name]}: {value:.4f}")
+            parts.append(f"{name_to_display_name[name]}: {value:4.4f}")
 
     # Add profiling information.
     profiling_parts = []
