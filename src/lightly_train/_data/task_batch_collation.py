@@ -23,7 +23,7 @@ from lightly_train._transforms.oriented_object_detection_transform import (
 from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.task_transform import TaskTransformArgs
 from lightly_train._transforms.torchvision_dispatcher import (
-    TorchVisioneScaleJitter,
+    TorchVisionScaleJitter,
 )
 from lightly_train.types import (
     ImageClassificationBatch,
@@ -244,11 +244,11 @@ class OrientedObjectDetectionCollateFunction(BaseCollateFunction):
     ):
         super().__init__(split, transform_args)
         assert isinstance(transform_args, OrientedObjectDetectionTransformArgs)
-        self.scale_jitter: TorchVisioneScaleJitter | None
+        self.scale_jitter: TorchVisionScaleJitter | None
         if transform_args.scale_jitter is not None:
             scale_range = _get_scale_range_from_transform_args(transform_args)
 
-            self.scale_jitter = TorchVisioneScaleJitter(
+            self.scale_jitter = TorchVisionScaleJitter(
                 sizes=transform_args.scale_jitter.sizes,
                 target_size=no_auto(transform_args.image_size)
                 if transform_args.scale_jitter.sizes is None

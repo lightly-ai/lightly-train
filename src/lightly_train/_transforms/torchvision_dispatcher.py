@@ -264,7 +264,7 @@ class SeededRandomChoice(v2.Transform):
         return self.transforms[self._current_idx](*inputs)
 
 
-class TorchVisioneScaleJitter(TorchVisionTransformDispatcher):
+class TorchVisionScaleJitter(TorchVisionTransformDispatcher):
     transform: SeededRandomChoice
 
     def __init__(
