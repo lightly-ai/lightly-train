@@ -1314,7 +1314,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         timer.reset_gpu_max_memory("train")
 
         log_every_num_steps = no_auto(config.logger_args.log_every_num_steps)
-        val_log_every_num_steps = no_auto(config.logger_args.val_every_num_steps)
+        val_log_every_num_steps = no_auto(config.logger_args.val_log_every_num_steps)
         # Always log the first few steps and then log at a regular interval.
         log_steps = {
             step for step in [1, 2, 5, 10, 50, 100] if step < log_every_num_steps
@@ -1361,6 +1361,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
             if is_log_step or is_last_step:
                 train_log_dict = helpers.compute_metrics(train_result.log_dict)
+                timer_agg = timer.get_aggregated_metrics(fabric)
 
                 helpers.log_step(
                     split="train",
@@ -1368,11 +1369,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     max_steps=config.steps,
                     log_dict=train_log_dict,
                     task=config.task,
-                    timer=timer,
+                    timer_agg=timer_agg,
                     global_batch_size=config.batch_size,
                 )
                 helpers.add_timer_logs(
-                    timer=timer,
+                    timer_agg=timer_agg,
                     log_dict=train_log_dict,
                     split="train",
                     global_batch_size=config.batch_size,
@@ -1439,17 +1440,19 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         # Metric computation.
                         val_log_dict = helpers.compute_metrics(val_result.log_dict)
 
+                        timer_agg = timer.get_aggregated_metrics(fabric)
+
                         helpers.log_step(
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
                             log_dict=val_log_dict,
                             task=config.task,
-                            timer=timer,
+                            timer_agg=timer_agg,
                             global_batch_size=config.batch_size,
                         )
                         helpers.add_timer_logs(
-                            timer=timer,
+                            timer_agg=timer_agg,
                             log_dict=val_log_dict,
                             split="val",
                             global_batch_size=config.batch_size,
@@ -1495,8 +1498,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             best_metric = watch_metric
 
                         # Log training summary after validation.
+                        timer_agg = timer.get_aggregated_metrics(fabric)
                         helpers.log_training_summary(
-                            timer=timer,
+                            timer_agg=timer_agg,
                             fabric=fabric,
                             global_batch_size=config.batch_size,
                         )
@@ -1504,13 +1508,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     elif is_val_log_step:
                         # Show that we are making progress. Metrics are only calculated
                         # at the end of the validation loop.
+                        timer_agg = timer.get_aggregated_metrics(fabric)
                         helpers.log_step(
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
                             log_dict={},
                             task=config.task,
-                            timer=timer,
+                            timer_agg=timer_agg,
                             global_batch_size=config.batch_size,
                         )
                 train_model.set_train_mode()

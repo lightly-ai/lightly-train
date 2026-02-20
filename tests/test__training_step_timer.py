@@ -11,6 +11,7 @@ import time
 
 import pytest
 import torch
+from lightning_fabric import Fabric
 
 from lightly_train._training_step_timer import CUDAUtilization, TrainingStepTimer
 
@@ -18,82 +19,37 @@ from lightly_train._training_step_timer import CUDAUtilization, TrainingStepTime
 class TestTrainingStepTimer:
     """Tests for TrainingStepTimer class."""
 
-    def test_total_step_sec__basic(self) -> None:
-        """Test basic start/stop timing."""
-        timer = TrainingStepTimer()
-
-        timer.start_step("step")
-        time.sleep(0.01)
-        timer.end_step("step")
-
-        assert timer.total_step_sec("step") >= 0.005
-
-    def test_total_step_sec__accumulates(self) -> None:
+    def test_start_end_step(self) -> None:
         """Test that total accumulates across multiple executions."""
+        fabric = Fabric(accelerator="cpu", devices=1, num_nodes=1)
+        fabric.launch()
         timer = TrainingStepTimer()
 
         timer.start_step("step")
         time.sleep(0.01)
         timer.end_step("step")
-        first_total = timer.total_step_sec("step")
+        first_total = timer.get_aggregated_metrics(fabric)["step_total_times"]["step"]
 
         timer.start_step("step")
         time.sleep(0.02)
         timer.end_step("step")
-        second_total = timer.total_step_sec("step")
+        second_total = timer.get_aggregated_metrics(fabric)["step_total_times"]["step"]
 
         assert second_total > first_total
         assert second_total >= 0.01
 
-    def test_get_step_count(self) -> None:
-        """Test step count tracking."""
+    def test_end_step__without_start(self) -> None:
+        """Test that ending a step without starting it raises an error."""
         timer = TrainingStepTimer()
 
-        assert timer.get_step_count("step") == 0
-
-        timer.start_step("step")
-        timer.end_step("step")
-        assert timer.get_step_count("step") == 1
-
-        timer.start_step("step")
-        timer.end_step("step")
-        assert timer.get_step_count("step") == 2
-
-    def test_get_avg_step_time(self) -> None:
-        """Test average step time calculation."""
-        timer = TrainingStepTimer()
-
-        # No steps executed yet.
-        assert timer.get_avg_step_time("step") == 0.0
-
-        timer.start_step("step")
-        time.sleep(0.01)
-        timer.end_step("step")
-
-        timer.start_step("step")
-        time.sleep(0.01)
-        timer.end_step("step")
-
-        avg_time = timer.get_avg_step_time("step")
-        assert avg_time >= 0.005
-
-    def test_get_throughput(self) -> None:
-        """Test throughput calculation."""
-        timer = TrainingStepTimer()
-
-        # No steps executed yet.
-        assert timer.get_throughput("step", 32) == 0.0
-
-        timer.start_step("step")
-        time.sleep(0.01)
-        timer.end_step("step")
-
-        throughput = timer.get_throughput("step", 32)
-        assert throughput > 0
+        with pytest.raises(ValueError, match="was not started"):
+            timer.end_step("nonexistent")
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
-    def test_gpu_stats(self) -> None:
+    def test_gpu_stats__cuda(self) -> None:
         """Test GPU stats tracking when CUDA is available."""
+        fabric = Fabric(accelerator="cuda", devices=1, num_nodes=1)
+        fabric.launch()
         device = torch.device("cuda")
         cuda_util = CUDAUtilization(device=device)
         timer = TrainingStepTimer(cuda_utilization=cuda_util)
@@ -101,14 +57,17 @@ class TestTrainingStepTimer:
         timer.reset_gpu_max_memory("train")
         timer.record_gpu_stats("train")
 
-        util = timer.get_phase_gpu_util("train")
-        max_mem = timer.get_phase_gpu_max_mem("train")
+        agg = timer.get_aggregated_metrics(fabric)
+        util = agg["phase_gpu_utils"]["train"]
+        max_mem = agg["phase_gpu_max_mem"]["train"]
 
         assert 0.0 <= util <= 100.0
         assert max_mem >= 0.0
 
-    def test_gpu_stats__no_cuda(self) -> None:
+    def test_gpu_stats__cpu(self) -> None:
         """Test GPU stats methods when CUDA is not available."""
+        fabric = Fabric(accelerator="cpu", devices=1, num_nodes=1)
+        fabric.launch()
         device = torch.device("cpu")
         cuda_util = CUDAUtilization(device=device)
         timer = TrainingStepTimer(cuda_utilization=cuda_util)
@@ -117,12 +76,71 @@ class TestTrainingStepTimer:
         timer.reset_gpu_max_memory("train")
         timer.record_gpu_stats("train")
 
-        assert timer.get_phase_gpu_util("train") == 0.0
-        assert timer.get_phase_gpu_max_mem("train") == 0.0
+        agg = timer.get_aggregated_metrics(fabric)
+        assert not agg["phase_gpu_utils"]  # Should be empty
+        assert not agg["phase_gpu_max_mem"]  # Should be empty
 
-    def test_end_step__without_start(self) -> None:
-        """Test that ending a step without starting it raises an error."""
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    def test_get_aggregated_metrics__cuda(self) -> None:
+        fabric = Fabric(accelerator="cuda", devices=1, num_nodes=1)
+        fabric.launch()
         timer = TrainingStepTimer()
 
-        with pytest.raises(ValueError, match="was not started"):
-            timer.end_step("nonexistent")
+        # Add some timing data
+        timer.start_step("train_step")
+        time.sleep(0.01)
+        timer.end_step("train_step")
+
+        timer.start_step("val_step")
+        time.sleep(0.01)
+        timer.end_step("val_step")
+
+        # Get aggregated metrics
+        agg = timer.get_aggregated_metrics(fabric)
+
+        # Check that all expected keys are present
+        assert "step_total_times" in agg
+        assert "step_counts" in agg
+        assert "phase_gpu_utils" in agg
+        assert "phase_gpu_max_mem" in agg
+
+        # Check that counts are correct
+        assert agg["step_counts"]["train_step"] == 1
+        assert agg["step_counts"]["val_step"] == 1
+
+        # Check that times are reasonable
+        assert agg["step_total_times"]["train_step"] >= 0.005
+        assert agg["step_total_times"]["val_step"] >= 0.005
+        assert agg["phase_gpu_utils"]["train"] >= 0.0
+        assert agg["phase_gpu_max_mem"]["train"] >= 0.0
+
+    def test_get_aggregated_metrics__cpu(self) -> None:
+        fabric = Fabric(accelerator="cpu", devices=1, num_nodes=1)
+        fabric.launch()
+        timer = TrainingStepTimer()
+
+        # Add some timing data
+        timer.start_step("train_step")
+        time.sleep(0.01)
+        timer.end_step("train_step")
+
+        timer.start_step("val_step")
+        time.sleep(0.01)
+        timer.end_step("val_step")
+
+        # Get aggregated metrics
+        agg = timer.get_aggregated_metrics(fabric)
+
+        # Check that all expected keys are present
+        assert "step_total_times" in agg
+        assert "step_counts" in agg
+        assert "phase_gpu_utils" in agg
+        assert "phase_gpu_max_mem" in agg
+
+        # Check that counts are correct
+        assert agg["step_counts"]["train_step"] == 1
+        assert agg["step_counts"]["val_step"] == 1
+
+        # Check that times are reasonable
+        assert agg["step_total_times"]["train_step"] >= 0.005
+        assert agg["step_total_times"]["val_step"] >= 0.005

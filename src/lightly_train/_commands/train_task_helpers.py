@@ -84,7 +84,7 @@ from lightly_train._train_task_state import (
     CheckpointDict,
     TrainTaskState,
 )
-from lightly_train._training_step_timer import TrainingStepTimer
+from lightly_train._training_step_timer import TimerAggregateMetrics
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -695,7 +695,7 @@ def log_step(
     max_steps: int,
     log_dict: dict[str, Any],
     task: str,
-    timer: TrainingStepTimer,
+    timer_agg: TimerAggregateMetrics,
     global_batch_size: int,
 ) -> None:
     split_cap = split.capitalize()
@@ -719,29 +719,30 @@ def log_step(
     dataload_step_name = f"{split}_dataload"
 
     # GPU utilization
-    gpu_util = timer.get_phase_gpu_util(split)
-    if gpu_util > 0:
+    gpu_util = timer_agg["phase_gpu_utils"].get(split, -1.0)
+    if gpu_util >= 0:
         profiling_parts.append(f"GPU Util {gpu_util:3.1f}%")
 
     # GPU max memory
-    gpu_max_mem = timer.get_phase_gpu_max_mem(split)
-    if gpu_max_mem > 0:
+    gpu_max_mem = timer_agg["phase_gpu_max_mem"].get(split, -1.0)
+    if gpu_max_mem >= 0:
         profiling_parts.append(f"GPU Max Mem {gpu_max_mem:7.1f} MB")
 
     # Step time (average time per full step)
-    step_time = timer.get_avg_step_time(step_name)
-    if step_time > 0:
-        profiling_parts.append(f"Step Time {step_time:4.2f}s")
+    step_count = timer_agg["step_counts"].get(step_name, 0)
+    step_time_total = timer_agg["step_total_times"].get(step_name, 0.0)
+    step_time = step_time_total / step_count if step_count > 0 else 0.0
+    profiling_parts.append(f"Step Time {step_time:4.2f}s")
 
     # Data time (average dataload time)
-    data_time = timer.get_avg_step_time(dataload_step_name)
-    if data_time > 0:
-        profiling_parts.append(f"Data Time {data_time:4.2f}s")
+    dataload_count = timer_agg["step_counts"].get(dataload_step_name, 0)
+    dataload_time_total = timer_agg["step_total_times"].get(dataload_step_name, 0.0)
+    data_time = dataload_time_total / dataload_count if dataload_count > 0 else 0.0
+    profiling_parts.append(f"Data Time {data_time:4.2f}s")
 
     # Throughput (images per second)
-    throughput = timer.get_throughput(step_name, global_batch_size)
-    if throughput > 0:
-        profiling_parts.append(f"{throughput:4.0f} img/s")
+    throughput = global_batch_size / step_time if step_time > 0 else 0.0
+    profiling_parts.append(f"{throughput:4.0f} img/s")
 
     if profiling_parts:
         parts.append(f"Profiling [ {' | '.join(profiling_parts)} ]")
@@ -751,28 +752,26 @@ def log_step(
 
 
 def log_training_summary(
-    timer: TrainingStepTimer,
+    timer_agg: TimerAggregateMetrics,
     fabric: Fabric,
     global_batch_size: int,
 ) -> None:
     """Log comprehensive training profiling summary.
 
-    Aggregates metrics across all ranks and logs a formatted summary showing:
+    Logs a formatted summary showing:
     - Total time, train time, val time
     - Throughput for train and val
     - GPU utilization and max memory for train and val
 
     Args:
-        timer: The timer instance with collected metrics.
+        timer_agg: The aggregated metrics dict from timer.get_aggregated_metrics().
         fabric: The Fabric instance for distributed communication.
         global_batch_size: The global batch size across all GPUs.
     """
-    # Aggregate metrics across all ranks
-    timer.aggregate_across_ranks(fabric)
 
     # Calculate total time
-    train_time_sec = timer.total_step_sec("train_step")
-    val_time_sec = timer.total_step_sec("val_step")
+    train_time_sec = timer_agg["step_total_times"].get("train_step", 0.0)
+    val_time_sec = timer_agg["step_total_times"].get("val_step", 0.0)
     total_time_sec = train_time_sec + val_time_sec
 
     # Only log on rank 0
@@ -789,17 +788,22 @@ def log_training_summary(
     )
     val_time_perc = (val_time_sec / total_time_sec * 100) if total_time_sec > 0 else 0.0
 
-    train_step_time = timer.get_avg_step_time("train_step")
-    val_step_time = timer.get_avg_step_time("val_step")
+    # Use aggregated step counts for averages
+    train_count = timer_agg["step_counts"].get("train_step", 0)
+    val_count = timer_agg["step_counts"].get("val_step", 0)
+    train_step_time = train_time_sec / train_count if train_count > 0 else 0.0
+    val_step_time = val_time_sec / val_count if val_count > 0 else 0.0
 
-    train_throughput = timer.get_throughput("train_step", global_batch_size)
-    val_throughput = timer.get_throughput("val_step", global_batch_size)
+    train_throughput = (
+        (global_batch_size / train_step_time) if train_step_time > 0 else 0.0
+    )
+    val_throughput = (global_batch_size / val_step_time) if val_step_time > 0 else 0.0
 
-    train_gpu_util = timer.get_phase_gpu_util("train")
-    val_gpu_util = timer.get_phase_gpu_util("val")
+    train_gpu_util = timer_agg["phase_gpu_utils"].get("train", -1.0)
+    val_gpu_util = timer_agg["phase_gpu_utils"].get("val", -1.0)
 
-    train_gpu_max_mem = timer.get_phase_gpu_max_mem("train")
-    val_gpu_max_mem = timer.get_phase_gpu_max_mem("val")
+    train_gpu_max_mem = timer_agg["phase_gpu_max_mem"].get("train", -1.0)
+    val_gpu_max_mem = timer_agg["phase_gpu_max_mem"].get("val", -1.0)
 
     # Format and log the summary
     logger.info("Profiling")
@@ -810,24 +814,20 @@ def log_training_summary(
     logger.info(
         f"  Val Time          : {val_time_min:5.1f} min ({val_time_perc:3.1f}%) ({val_step_time:4.2f} s/step)"
     )
-
-    if train_throughput > 0:
-        logger.info(f"  Train Throughput  : {train_throughput:4.0f} img/s")
-    if train_gpu_util > 0:
+    logger.info(f"  Train Throughput  : {train_throughput:4.0f} img/s")
+    if train_gpu_util >= 0:
         logger.info(f"  Train GPU Util    : {train_gpu_util:3.1f}%")
-    if train_gpu_max_mem > 0:
+    if train_gpu_max_mem >= 0:
         logger.info(f"  Train GPU Max Mem : {train_gpu_max_mem:7.1f} MB")
-
-    if val_throughput > 0:
-        logger.info(f"  Val Throughput    : {val_throughput:4.0f} img/s")
-    if val_gpu_util > 0:
+    logger.info(f"  Val Throughput    : {val_throughput:4.0f} img/s")
+    if val_gpu_util >= 0:
         logger.info(f"  Val GPU Util      : {val_gpu_util:3.1f}%")
-    if val_gpu_max_mem > 0:
+    if val_gpu_max_mem >= 0:
         logger.info(f"  Val GPU Max Mem   : {val_gpu_max_mem:7.1f} MB")
 
 
 def add_timer_logs(
-    timer: TrainingStepTimer,
+    timer_agg: TimerAggregateMetrics,
     log_dict: dict[str, Any],
     split: Literal["train", "val"],
     global_batch_size: int,
@@ -838,7 +838,7 @@ def add_timer_logs(
     for logging to tensorboard, wandb, etc.
 
     Args:
-        timer: The timer instance to get metrics from.
+        timer_agg: The aggregated metrics dict from timer.get_aggregated_metrics().
         log_dict: The dictionary to add metrics to.
         split: The split ("train" or "val") to get metrics for.
         global_batch_size: The global batch size across all GPUs.
@@ -847,29 +847,30 @@ def add_timer_logs(
     dataload_step_name = f"{split}_dataload"
 
     # GPU utilization
-    gpu_util = timer.get_phase_gpu_util(split)
-    if gpu_util > 0:
+    gpu_util = timer_agg["phase_gpu_utils"].get(split, -1.0)
+    if gpu_util >= 0:
         log_dict[f"profiling/{split}_gpu_util_perc"] = gpu_util
 
     # GPU max memory
-    gpu_max_mem = timer.get_phase_gpu_max_mem(split)
-    if gpu_max_mem > 0:
+    gpu_max_mem = timer_agg["phase_gpu_max_mem"].get(split, -1.0)
+    if gpu_max_mem >= 0:
         log_dict[f"profiling/{split}_gpu_max_mem_mb"] = gpu_max_mem
 
     # Step time
-    step_time = timer.get_avg_step_time(step_name)
-    if step_time > 0:
-        log_dict[f"profiling/{split}_step_time_sec"] = step_time
+    step_count = timer_agg["step_counts"].get(step_name, 0)
+    step_time_total = timer_agg["step_total_times"].get(step_name, 0.0)
+    step_time = step_time_total / step_count if step_count > 0 else 0.0
+    log_dict[f"profiling/{split}_step_time_sec"] = step_time
 
     # Data time
-    data_time = timer.get_avg_step_time(dataload_step_name)
-    if data_time > 0:
-        log_dict[f"profiling/{split}_data_time_sec"] = data_time
+    dataload_count = timer_agg["step_counts"].get(dataload_step_name, 0)
+    dataload_time_total = timer_agg["step_total_times"].get(dataload_step_name, 0.0)
+    data_time = dataload_time_total / dataload_count if dataload_count > 0 else 0.0
+    log_dict[f"profiling/{split}_data_time_sec"] = data_time
 
     # Throughput
-    throughput = timer.get_throughput(step_name, global_batch_size)
-    if throughput > 0:
-        log_dict[f"profiling/{split}_throughput_img_per_sec"] = throughput
+    throughput = global_batch_size / step_time if step_time > 0 else 0.0
+    log_dict[f"profiling/{split}_throughput_img_per_sec"] = throughput
 
 
 def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:

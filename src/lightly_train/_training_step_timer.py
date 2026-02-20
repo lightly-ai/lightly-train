@@ -10,10 +10,18 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
-from typing import Deque, Optional
+from typing import Deque, Optional, TypedDict
 
 import torch
 from lightning_fabric import Fabric
+from torch import Tensor
+
+
+class TimerAggregateMetrics(TypedDict):
+    step_total_times: dict[str, float]
+    step_counts: dict[str, int]
+    phase_gpu_utils: dict[str, float]
+    phase_gpu_max_mem: dict[str, float]
 
 
 class TrainingStepTimer:
@@ -41,28 +49,6 @@ class TrainingStepTimer:
         self._step_counts[step] = self._step_counts.get(step, 0) + 1
         del self._step_start_times[step]
 
-    def total_step_sec(self, step: str) -> float:
-        """Get total seconds spent in step."""
-        return self._step_total_times.get(step, 0.0)
-
-    def get_step_count(self, step: str) -> int:
-        """Get number of times a step was executed."""
-        return self._step_counts.get(step, 0)
-
-    def get_avg_step_time(self, step: str) -> float:
-        """Get average time per step execution.
-
-        Args:
-            step: The step name.
-
-        Returns:
-            Average time in seconds, or 0.0 if step was never executed.
-        """
-        count = self.get_step_count(step)
-        if count == 0:
-            return 0.0
-        return self.total_step_sec(step) / count
-
     def reset_gpu_max_memory(self, phase: str) -> None:
         """Reset GPU max memory tracking for a phase.
 
@@ -81,10 +67,10 @@ class TrainingStepTimer:
         """
         if self._cuda_utilization is not None and self._cuda_utilization._enabled:
             # Get GPU utilization average
-            util_avg, _ = self._cuda_utilization.drain_avg()
+            util_avg, count = self._cuda_utilization.drain_avg()
             if phase not in self._phase_gpu_utils:
                 self._phase_gpu_utils[phase] = []
-            if util_avg > 0:
+            if count > 0:
                 self._phase_gpu_utils[phase].append(util_avg)
 
             # Get GPU max memory
@@ -101,79 +87,71 @@ class TrainingStepTimer:
             phase: The phase name (e.g., "train", "val").
 
         Returns:
-            Average GPU utilization percentage, or 0.0 if not available.
+            Average GPU utilization percentage, or -1 if not available.
         """
         utils = self._phase_gpu_utils.get(phase, [])
         if not utils:
-            return 0.0
+            return -1.0
         return sum(utils) / len(utils)
 
-    def get_phase_gpu_max_mem(self, phase: str) -> float:
-        """Get max GPU memory for a phase in MB.
-
-        Args:
-            phase: The phase name (e.g., "train", "val").
+    def get_aggregated_metrics(self, fabric: Fabric) -> TimerAggregateMetrics:
+        """Aggregate timing and GPU statistics across all ranks, returning a summary dict.
 
         Returns:
-            Max GPU memory in MB, or 0.0 if not available.
+            Dictionary with aggregated metrics
         """
-        return self._phase_gpu_max_mem.get(phase, 0.0)
+        # Prepare dicts of tensors for reduction
+        max_dict = {
+            "step_total_times": {
+                step: torch.tensor(val, device=fabric.device)
+                for step, val in self._step_total_times.items()
+            },
+            "step_counts": {
+                step: torch.tensor(val, device=fabric.device)
+                for step, val in self._step_counts.items()
+            },
+            "phase_gpu_max_mem": {
+                phase: torch.tensor(val, device=fabric.device)
+                for phase, val in self._phase_gpu_max_mem.items()
+            },
+        }
+        mean_dict = {
+            "phase_gpu_utils": {
+                phase: torch.tensor(
+                    self.get_phase_gpu_util(phase), device=fabric.device
+                )
+                for phase in self._phase_gpu_utils.keys()
+            },
+        }
 
-    def get_throughput(self, step: str, global_batch_size: int) -> float:
-        """Calculate throughput in images per second.
+        # Reduce dicts
+        max_result: dict[str, dict[str, Tensor]] = fabric.all_reduce(  # type: ignore[assignment]
+            max_dict, reduce_op="max"
+        )
+        mean_result: dict[str, dict[str, Tensor]] = fabric.all_reduce(  # type: ignore[assignment]
+            mean_dict, reduce_op="mean"
+        )
 
-        Args:
-            step: The step name to calculate throughput for.
-            global_batch_size: The global batch size across all GPUs.
+        # Convert tensors to Python scalars
+        agg_step_total_times = {
+            k: v.item() for k, v in max_result["step_total_times"].items()
+        }
+        agg_step_counts = {
+            k: int(v.item()) for k, v in max_result["step_counts"].items()
+        }
+        agg_phase_gpu_max_mem = {
+            k: v.item() for k, v in max_result["phase_gpu_max_mem"].items()
+        }
+        agg_phase_gpu_utils = {
+            k: v.item() for k, v in mean_result["phase_gpu_utils"].items()
+        }
 
-        Returns:
-            Throughput in images/second, or 0.0 if step was never executed.
-        """
-        avg_time = self.get_avg_step_time(step)
-        if avg_time == 0.0:
-            return 0.0
-        return global_batch_size / avg_time
-
-    def aggregate_across_ranks(self, fabric: Fabric) -> None:
-        """Aggregate timing and GPU statistics across all ranks.
-
-        Uses appropriate aggregation strategies:
-        - Times: max (slowest GPU determines overall speed)
-        - GPU utilization: mean across all GPUs
-        - GPU max memory: max across all GPUs
-
-        Args:
-            fabric: The Fabric instance for distributed communication.
-        """
-        # Aggregate step times (use max - slowest GPU determines speed)
-        for step in list(self._step_total_times.keys()):
-            time_tensor = torch.tensor(
-                self._step_total_times[step], device=fabric.device
-            )
-            max_time = fabric.all_reduce(time_tensor, reduce_op="max")
-            self._step_total_times[step] = max_time.item()  # type: ignore[union-attr]
-
-        # Step counts should be the same across all ranks, but take max to be safe
-        for step in list(self._step_counts.keys()):
-            count_tensor = torch.tensor(self._step_counts[step], device=fabric.device)
-            max_count = fabric.all_reduce(count_tensor, reduce_op="max")
-            self._step_counts[step] = int(max_count.item())  # type: ignore[union-attr]
-
-        # Aggregate GPU utilization (use mean across GPUs)
-        for phase in list(self._phase_gpu_utils.keys()):
-            util = self.get_phase_gpu_util(phase)
-            util_tensor = torch.tensor(util, device=fabric.device)
-            mean_util = fabric.all_reduce(util_tensor, reduce_op="mean")
-            # Replace with aggregated value
-            self._phase_gpu_utils[phase] = [mean_util.item()]  # type: ignore[union-attr]
-
-        # Aggregate GPU max memory (use max across GPUs)
-        for phase in list(self._phase_gpu_max_mem.keys()):
-            mem_tensor = torch.tensor(
-                self._phase_gpu_max_mem[phase], device=fabric.device
-            )
-            max_mem = fabric.all_reduce(mem_tensor, reduce_op="max")
-            self._phase_gpu_max_mem[phase] = max_mem.item()  # type: ignore[union-attr]
+        return {
+            "step_total_times": agg_step_total_times,
+            "step_counts": agg_step_counts,
+            "phase_gpu_utils": agg_phase_gpu_utils,
+            "phase_gpu_max_mem": agg_phase_gpu_max_mem,
+        }
 
 
 class CUDAUtilization:
@@ -208,7 +186,7 @@ class CUDAUtilization:
         self._run.set()
         self._stop.set()
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.stop()
 
     def drain(self) -> list[float]:
