@@ -41,6 +41,7 @@ from lightly_train._commands.train_task import (
     train_object_detection,
     train_panoptic_segmentation,
     train_semantic_segmentation,
+    train_semantic_segmentation_multihead,
 )
 from lightly_train._embedding.embedding_format import EmbeddingFormat
 from lightly_train._methods.method_helpers import list_methods
@@ -69,6 +70,7 @@ __all__ = [
     "train_panoptic_segmentation",
     "train_object_detection",
     "train_semantic_segmentation",
+    "train_semantic_segmentation_multihead",
     "train",
 ]
 

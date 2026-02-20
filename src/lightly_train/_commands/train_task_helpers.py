@@ -72,6 +72,9 @@ from lightly_train._task_models.image_classification_multihead.train_model impor
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
 )
+from lightly_train._task_models.semantic_segmentation_multihead.train_model import (
+    SemanticSegmentationMultiheadTrain,
+)
 from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
@@ -108,6 +111,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
+    SemanticSegmentationMultiheadTrain,
     DINOv2LTDETRObjectDetectionTrain,
     DINOv3LTDETRObjectDetectionTrain,
     PicoDetObjectDetectionTrain,
@@ -340,7 +344,11 @@ def get_transform_args(
     ignore_index: int | None,
     model_init_args: dict[str, Any],
 ) -> tuple[TaskTransformArgs, TaskTransformArgs]:
-    if train_model_cls.task != "semantic_segmentation" and ignore_index is not None:
+    if (
+        train_model_cls.task
+        not in ("semantic_segmentation", "semantic_segmentation_multihead")
+        and ignore_index is not None
+    ):
         raise ValueError(
             "`ignore_index` is only supported for semantic segmentation tasks."
         )
