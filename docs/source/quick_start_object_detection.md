@@ -272,6 +272,9 @@ plt.imshow(image_with_boxes.permute(1, 2, 0))
 plt.show()
 ```
 
+```{figure} /_static/images/object_detection/street.jpg
+```
+
 ## Next Steps
 
 - [Object Detection Documentation](object-detection): If you want to learn more about

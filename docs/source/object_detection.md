@@ -143,6 +143,8 @@ if __name__ == "__main__":
     )
 ```
 
+(object-detection-use-model-weights)=
+
 ### Load the Trained Model from Checkpoint and Predict
 
 After the training completes, you can load the best model checkpoints for inference like
