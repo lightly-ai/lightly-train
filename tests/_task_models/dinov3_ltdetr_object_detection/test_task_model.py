@@ -65,6 +65,9 @@ def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
     assert _is_module_frozen(task_model_backbone) == should_freeze, (
         f"Backbone should be frozen: {should_freeze}, but got frozen={_is_module_frozen(task_model_backbone)}"
     )
+    assert not task_model_backbone.training == should_freeze, (
+        "Backbone should be in eval mode after set_train_mode()"
+    )
 
 
 def _create_train_model(
