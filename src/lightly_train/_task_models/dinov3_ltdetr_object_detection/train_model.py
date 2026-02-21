@@ -77,6 +77,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
+    backbone_freeze: bool = False
 
     use_ema_model: bool = True
     ema_momentum: float = 0.9999
@@ -242,6 +243,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     def set_train_mode(self) -> None:
         super().set_train_mode()
         self.criterion.train()  # TODO (Lionel, 10/25): Check if this is necessary.
+        if self.model_args.backbone_freeze:
+            self.model.freeze_backbone()
 
     def training_step(
         self, fabric: Fabric, batch: ObjectDetectionBatch, step: int

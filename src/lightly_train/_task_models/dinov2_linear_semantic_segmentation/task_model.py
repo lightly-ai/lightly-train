@@ -395,5 +395,4 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()
-        for param in self.backbone.parameters():
-            param.requires_grad = False
+        self.backbone.requires_grad_(False)
