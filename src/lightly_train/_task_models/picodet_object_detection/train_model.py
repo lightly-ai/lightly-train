@@ -195,7 +195,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         self.map_metric.warn_on_many_detections = False
 
     def set_train_mode(self) -> None:
-        super().__init__()
+        super().set_train_mode()
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
 
