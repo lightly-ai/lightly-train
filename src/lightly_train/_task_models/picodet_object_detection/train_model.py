@@ -102,6 +102,7 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     lr: float = 0.1
     momentum: float = 0.9
     weight_decay: float = 4e-5
+    backbone_freeze: bool = False
 
     lr_warmup_steps: int = 300
     warmup_ratio: float = 0.1
@@ -192,6 +193,11 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         self.map_metric = MeanAveragePrecision()
         self.map_metric.warn_on_many_detections = False
+
+    def set_train_mode(self) -> None:
+        super().__init__()
+        if self.model_args.backbone_freeze:
+            self.model.freeze_backbone()
 
     def get_task_model(self) -> PicoDetObjectDetection:
         """Return the task model for inference/export.

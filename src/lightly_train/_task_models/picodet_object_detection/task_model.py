@@ -173,6 +173,10 @@ class PicoDetObjectDetection(TaskModel):
         """Check if a model name is supported."""
         return model in _MODEL_CONFIGS
 
+    def freeze_backbone(self):
+        self.backbone.eval()
+        self.backbone.requires_grad_(False)
+
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
