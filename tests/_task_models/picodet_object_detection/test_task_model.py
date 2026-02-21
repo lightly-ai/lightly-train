@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 import torch
 from lightning_utilities.core.imports import RequirementCache
+from torch import nn
 
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
@@ -85,6 +86,27 @@ def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
     op_types = {node.op_type for node in onnx_model.graph.node}
     assert "NonMaxSuppression" not in op_types
     assert "If" not in op_types
+
+
+def _is_module_frozen(m: nn.Module) -> bool:
+    return all(not param.requires_grad for param in m.parameters())
+
+
+@pytest.mark.parametrize("should_freeze", [True, False])
+def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
+    model_args = PicoDetObjectDetectionTrainArgs(backbone_freeze=should_freeze)
+    train_model = _create_train_model(model_args)
+    task_model_backbone = train_model.model.backbone
+    assert isinstance(task_model_backbone, nn.Module), "Backbone should be a nn.Module"
+
+    train_model.set_train_mode()
+
+    assert _is_module_frozen(task_model_backbone) == should_freeze, (
+        f"Backbone should be frozen: {should_freeze}, but got frozen={_is_module_frozen(task_model_backbone)}"
+    )
+    assert not task_model_backbone.training == should_freeze, (
+        "Backbone should be in eval mode after set_train_mode()"
+    )
 
 
 def _create_train_model(
