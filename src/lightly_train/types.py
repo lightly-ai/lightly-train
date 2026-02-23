@@ -15,6 +15,8 @@ import torch
 from numpy.typing import NDArray
 from pydantic import BeforeValidator, Field
 from torch import Tensor
+from torchvision.tv_tensors import BoundingBoxes
+from torchvision.tv_tensors import Image as TvImage
 from typing_extensions import Annotated, NotRequired
 
 # Underlying model type of the packages. Most of the time this is a torch.nn.Module
@@ -132,8 +134,8 @@ class ObjectDetectionDatasetItem(TypedDict):
 
 class OrientedObjectDetectionDatasetItem(TypedDict):
     image_path: ImageFilename
-    image: Tensor
-    bboxes: Tensor  # Of shape (n_boxes, 5) with (x_center, y_center, w, h, angle) coordinates.
+    image: TvImage
+    bboxes: BoundingBoxes  # Of shape (n_boxes, 5) with (x_center, y_center, w, h, angle) coordinates.
     classes: Tensor  # Of shape (n_boxes,) with class labels.
     original_size: tuple[int, int]  # (width, height) of the original image.
 

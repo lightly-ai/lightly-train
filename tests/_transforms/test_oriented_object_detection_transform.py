@@ -233,15 +233,23 @@ class TestObjectDetectionTransform:
 
         sample1: OrientedObjectDetectionDatasetItem = {
             "image_path": "img1.png",
-            "image": torch.randn(3, 128, 128),
-            "bboxes": torch.tensor([[10.0, 10.0, 50.0, 50.0, 45]]),
+            "image": Image(torch.randn(3, 128, 128)),
+            "bboxes": BoundingBoxes(
+                torch.tensor([[10.0, 10.0, 50.0, 50.0, 45]]),
+                format=BoundingBoxFormat.CXCYWHR,
+                canvas_size=(128, 128),
+            ),
             "classes": torch.tensor([1]),
             "original_size": (128, 128),
         }
         sample2: OrientedObjectDetectionDatasetItem = {
             "image_path": "img2.png",
-            "image": torch.randn(3, 64, 64),
-            "bboxes": torch.tensor([[20.0, 20.0, 40.0, 40.0, 45]]),
+            "image": Image(torch.randn(3, 64, 64)),
+            "bboxes": BoundingBoxes(
+                torch.tensor([[20.0, 20.0, 40.0, 40.0, 45]]),
+                format=BoundingBoxFormat.CXCYWHR,
+                canvas_size=(64, 64),
+            ),
             "classes": torch.tensor([2]),
             "original_size": (64, 64),
         }

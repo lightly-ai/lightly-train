@@ -264,36 +264,14 @@ class OrientedObjectDetectionCollateFunction(BaseCollateFunction):
         self, batch: list[OrientedObjectDetectionDatasetItem]
     ) -> OrientedObjectDetectionBatch:
         if self.scale_jitter is not None:
-            from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
-
-            tv_images: list[Image] = []
-            tv_bboxes: list[BoundingBoxes] = []
-
-            for item in batch:
-                h, w = item["image"].shape[-2:]
-                tv_images.append(Image(item["image"]))
-                tv_bboxes.append(
-                    BoundingBoxes(  # type: ignore[call-arg]
-                        item["bboxes"],
-                        format=BoundingBoxFormat.CXCYWHR,
-                        canvas_size=(h, w),
-                    )
-                )
-
-            transformed_images, transformed_bboxes = self.scale_jitter(
-                tv_images, tv_bboxes
-            )
-
-            images = list(transformed_images)
-            bboxes = list(transformed_bboxes)
-            classes = [item["classes"] for item in batch]
+            batch = self.scale_jitter(batch)
 
             out_ = OrientedObjectDetectionBatch(
                 {
                     "image_path": [item["image_path"] for item in batch],
-                    "image": torch.stack(images),
-                    "bboxes": bboxes,
-                    "classes": classes,
+                    "image": torch.stack([item["image"] for item in batch]),
+                    "bboxes": [item["bboxes"] for item in batch],
+                    "classes": [item["classes"] for item in batch],
                     "original_size": [item["original_size"] for item in batch],
                 }
             )
