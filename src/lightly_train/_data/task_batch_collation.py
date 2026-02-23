@@ -266,17 +266,6 @@ class OrientedObjectDetectionCollateFunction(BaseCollateFunction):
         if self.scale_jitter is not None:
             batch = self.scale_jitter(batch)
 
-            out_ = OrientedObjectDetectionBatch(
-                {
-                    "image_path": [item["image_path"] for item in batch],
-                    "image": torch.stack([item["image"] for item in batch]),
-                    "bboxes": [item["bboxes"] for item in batch],
-                    "classes": [item["classes"] for item in batch],
-                    "original_size": [item["original_size"] for item in batch],
-                }
-            )
-            return out_
-
         out_ = OrientedObjectDetectionBatch(
             {
                 "image_path": [item["image_path"] for item in batch],
