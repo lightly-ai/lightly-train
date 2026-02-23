@@ -1307,10 +1307,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         for name, module in train_model.named_modules():
             logger.debug(f"train={module.training} {name}")
 
-        logger.warning("=" * 30)
-        logger.warning(LICENSE_INFO)
-        logger.warning("=" * 30)
-
         start_step = state["step"] + 1
         if start_step > 0:
             logger.info(f"Resuming training from step {start_step}/{config.steps}...")
