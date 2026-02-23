@@ -191,5 +191,5 @@ class OrientedObjectDetectionTransform(TaskTransform):
         return {
             "image": transformed_image,
             "bboxes": transformed_bboxes,
-            "class_labels": torch.from_numpy(class_labels),
+            "class_labels": class_labels,
         }
