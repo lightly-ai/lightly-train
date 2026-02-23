@@ -15,9 +15,6 @@ from lightly_train._methods import method_helpers
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
     DINOv2LinearSemanticSegmentationTrain,
 )
-from lightly_train._task_models.image_classification.train_model import (
-    ImageClassificationTrain,
-)
 from lightly_train._task_models.image_classification_multihead.train_model import (
     ImageClassificationMultiheadTrain,
 )
