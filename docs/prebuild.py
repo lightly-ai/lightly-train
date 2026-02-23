@@ -104,7 +104,6 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
         if train_model_cls in {
-            ImageClassificationTrain,
             SemanticSegmentationMultiheadTrain,
             ImageClassificationMultiheadTrain,
             DINOv2LinearSemanticSegmentationTrain,
