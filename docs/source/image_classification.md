@@ -139,8 +139,8 @@ out/my_experiment
 ├── checkpoints
 │   └── last.ckpt                                       # Last checkpoint
 ├── exported_models
-|   └── exported_last.pt                                # Last model exported (unless disabled)
-|   └── exported_best.pt                                # Best model exported (unless disabled)
+│   └── exported_last.pt                                # Last model exported (unless disabled)
+│   └── exported_best.pt                                # Best model exported (unless disabled)
 ├── events.out.tfevents.1721899772.host.1839736.0       # TensorBoard logs
 └── train.log                                           # Training logs
 ```
