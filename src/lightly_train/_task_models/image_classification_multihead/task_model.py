@@ -34,7 +34,6 @@ class ImageClassificationMultihead(TaskModel):
         head_names: list[str],
         image_size: tuple[int, int],
         image_normalize: dict[str, tuple[float, ...]] | None,
-        backbone_freeze: bool = True,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -61,9 +60,6 @@ class ImageClassificationMultihead(TaskModel):
                 Example: {"mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]}.
                 This is used to normalize the input images before passing them to the
                 model. If None, no normalization is applied.
-            backbone_freeze:
-                If True, the backbone weights are frozen and only the classification
-                heads are trained.
             backbone_weights:
                 Optional path to a checkpoint file containing the backbone weights. If
                 provided, the weights are loaded into the model passed via `model`.
@@ -80,7 +76,6 @@ class ImageClassificationMultihead(TaskModel):
         self.head_names = head_names
         self.image_size = image_size
         self.image_normalize = image_normalize
-        self.backbone_freeze = backbone_freeze
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
