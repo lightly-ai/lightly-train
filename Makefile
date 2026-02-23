@@ -211,7 +211,23 @@ endif
 
 # RFDETR and ONNXRuntime is not compatible with Python<3.9. Therefore we exclude it from the
 # default extras.
-EXTRAS_PY38 := [dev,dicom,mlflow,notebook,onnx,super-gradients,tensorboard,timm,ultralytics,wandb]
+#
+# Notebook is excluded from the Python 3.8 extras because its dependency pywinpty is not
+# compatible with uv 0.10.0 on Python 3.8. It fails with:
+#   × Failed to download and build `pywinpty==2.0.14`
+#   ├─▶ Failed to parse:
+#   │   `D:\a\_temp\setup-uv-cache\sdists-v9\pypi\pywinpty\2.0.14\pQ3SKTY_3WgM9I6D1MxET\src\pyproject.toml`
+#   ╰─▶ TOML parse error at line 1, column 1
+#         |
+#       1 | [project]
+#         | ^^^^^^^^^
+#       `pyproject.toml` is using the `[project]` table, but the required
+#       `project.version` field is neither set nor present in the
+#       `project.dynamic` list
+# 
+# This problem is fixed in pywinpty>2.0.14 but these versions are not compatible with
+# Python 3.8.
+EXTRAS_PY38 := [dev,dicom,mlflow,onnx,super-gradients,tensorboard,timm,ultralytics,wandb]
 
 # SuperGradients is not compatible with Python>=3.10. It is also not easy to install
 # on MacOS. Therefore we exclude it from the default extras.
