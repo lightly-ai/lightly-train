@@ -94,6 +94,12 @@ Train EoMT segmentation models with DINOv3 backbones.<br>
 Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 ```
 
+```{grid-item-card} Image Classification
+:link: image_classification.html
+<img src="_static/images/tasks/image_classification.jpg" height="64"><br>
+Train image classification models with any backbone.<br>
+```
+
 ```{grid-item-card} Distillation
 :link: pretrain_distill/methods/distillation.html
 <img src="_static/images/tasks/distillation.png" height="64"><br>
@@ -171,10 +177,11 @@ LightlyTrain supports the following model and workflow combinations.
 
 ### Fine-tuning
 
-| Model  |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |
-| ------ | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: |
-| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |                                                                          |                                                                          |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            |
+| Model  |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
+| ------ | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
+| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) |                                                                          |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| Any    |                                                                     |                                                                          |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
 
 ### Distillation & Pretraining
 
@@ -238,6 +245,7 @@ object_detection
 instance_segmentation
 panoptic_segmentation
 semantic_segmentation
+image_classification
 pretrain_distill/index
 predict_autolabel
 embed
