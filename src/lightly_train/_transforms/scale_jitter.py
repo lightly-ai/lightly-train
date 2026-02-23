@@ -124,6 +124,17 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
 
 
 class TorchVisionScaleJitter(v2.Transform):
+    """
+    Resize an image to a random size from a list of sizes or a list of scales.
+
+    Args:
+        sizes: A list of (height, width) tuples to choose from. If provided, target_size, scale_range and num_scales must be None.
+        target_size: The target size to scale from when generating sizes from scale_range. If provided, sizes must be None.
+        scale_range: A tuple of (min_scale, max_scale) to generate sizes from when target_size is provided. If provided, sizes must be None.
+        num_scales: The number of scales to generate between min_scale and max_scale when target_size is provided. If provided, sizes must be None.
+        divisible_by: If provided, the generated sizes will be rounded to the nearest multiple of this value.
+    """
+
     def __init__(
         self,
         *,
@@ -147,5 +158,5 @@ class TorchVisionScaleJitter(v2.Transform):
 
         self._transform = v2.RandomChoice(transforms)
 
-    def forward(self, *inputs):
-        return self._transform(*inputs)
+    def transform(self, inpt: Any, params: dict[str, Any]) -> Any:
+        return self._transform(*inpt)
