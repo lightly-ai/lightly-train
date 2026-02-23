@@ -256,44 +256,35 @@ class OrientedObjectDetectionCollateFunction(BaseCollateFunction):
                 num_scales=transform_args.scale_jitter.num_scales,
                 divisible_by=transform_args.scale_jitter.divisible_by,
                 scale_range=scale_range,
-                p=transform_args.scale_jitter.prob,
             )
+        else:
+            self.scale_jitter = None
 
     def __call__(
         self, batch: list[OrientedObjectDetectionDatasetItem]
     ) -> OrientedObjectDetectionBatch:
         if self.scale_jitter is not None:
-            batch_np = [
-                {
-                    "image_path": item["image_path"],
-                    "image": item["image"].permute(1, 2, 0).numpy(),
-                    "bboxes": item["bboxes"].numpy(),
-                    "classes": item["classes"].numpy(),
-                    "original_size": item["original_size"],
-                }
-                for item in batch
-            ]
+            from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
 
             images = []
             bboxes = []
             classes = []
-            with self.scale_jitter.same_seed():
-                for item in batch_np:
-                    out = self.scale_jitter(
-                        image=item["image"],
-                        oriented_bboxes=item["bboxes"],
-                        class_labels=item["classes"],
-                    )
-                    images.append(out["image"])
-                    bboxes.append(out["oriented_bboxes"])
-                    classes.append(out["class_labels"])
 
-            images = [
-                torch.from_numpy(img).permute(2, 0, 1).to(torch.float32)
-                for img in images
-            ]
-            bboxes = [torch.from_numpy(bbox).to(torch.float32) for bbox in bboxes]
-            classes = [torch.from_numpy(cls).to(torch.int64) for cls in classes]
+            with self.scale_jitter.same_seed():
+                for item in batch:
+                    h, w = item["image"].shape[-2:]
+                    tv_image = Image(item["image"])
+                    tv_bboxes = BoundingBoxes(  # type: ignore[call-arg]
+                        item["bboxes"],
+                        format=BoundingBoxFormat.CXCYWHR,
+                        canvas_size=(h, w),
+                    )
+                    transformed_image, transformed_bboxes = self.scale_jitter(
+                        tv_image, tv_bboxes
+                    )
+                    images.append(transformed_image)
+                    bboxes.append(transformed_bboxes)
+                    classes.append(item["classes"])
 
             out_ = OrientedObjectDetectionBatch(
                 {
