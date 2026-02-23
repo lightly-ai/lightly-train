@@ -160,6 +160,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             num_classes=num_classes,
             classes=data_args.included_classes,
             image_normalize=image_normalize,
+            backbone_freeze=model_args.backbone_freeze,
             load_weights=load_weights,
         )
 

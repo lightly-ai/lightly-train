@@ -144,6 +144,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             ),
             image_size=image_size,
             image_normalize=normalize.model_dump(),
+            backbone_freeze=model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             backbone_args=model_args.backbone_args,
             load_weights=load_weights,
@@ -438,7 +439,8 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         self.train()
-        self.model.freeze_backbone()
+        if self.model_args.backbone_freeze:
+            self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         if self.model_args.gradient_clip_val > 0:

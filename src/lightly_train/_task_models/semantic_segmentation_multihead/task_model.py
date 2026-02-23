@@ -42,6 +42,7 @@ class SemanticSegmentationMultihead(TaskModel):
         class_ignore_index: int | None = None,
         image_size: tuple[int, int] = (518, 518),
         image_normalize: dict[str, tuple[float, ...]] | None = None,
+        backbone_freeze: bool = True,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -51,25 +52,27 @@ class SemanticSegmentationMultihead(TaskModel):
         Args:
             model:
                 A string specifying the model name. It must be in the
-                format "{package_name}/{backbone_name}". For example, "dinov2/vits14-linear".
+                format "{package_name}/{backbone_name}". For example, "dinov3/vitt16" or
+                "dinov3/vitt16-semantic-segmentation-multihead".
             classes:
                 A dict mapping the class ID to the class name.
             head_names:
-                List of head names. One segmentation head is created for each name.
-                Head names should follow the format `head_lr{value}` where value is the
-                learning rate formatted without trailing zeros and dots replaced with
-                underscores (e.g., "head_lr0_001" for lr=0.001).
+                A list of names for the classification heads. Each head will have
+                its own set of linear layers.
             class_ignore_index:
-                The class index to ignore during training. If provided, an additional
-                class output is created for this ignored class.
+                The index to ignore during training. This is useful for
+                background classes or classes that should not be optimized.
             image_size:
-                The size of the input images as (height, width). Default (518, 518).
+                The size of the input images.
             image_normalize:
                 A dict containing the mean and standard deviation for normalizing
                 the input images. The dict must contain the keys "mean" and "std".
                 Example: {"mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]}.
                 This is used to normalize the input images before passing them to the
                 model. If None, no normalization is applied.
+            backbone_freeze:
+                If True, the backbone weights are frozen and only the segmentation
+                heads are trained.
             backbone_weights:
                 Optional path to a checkpoint file containing the backbone weights. If
                 provided, the weights are loaded into the model passed via `model`.
@@ -87,6 +90,7 @@ class SemanticSegmentationMultihead(TaskModel):
         self.class_ignore_index = class_ignore_index
         self.image_size = image_size
         self.image_normalize = image_normalize
+        self.backbone_freeze = backbone_freeze
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
