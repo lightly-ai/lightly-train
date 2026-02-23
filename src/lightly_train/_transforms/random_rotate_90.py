@@ -13,6 +13,13 @@ from torchvision.transforms import v2
 
 
 class RandomRotate90(v2.Transform):
+    """
+    Rotate an image by 90, 180, or 270 degrees with a given probability.
+
+    Args:
+        p: The probability with which the image will be rotated.
+    """
+
     def __init__(self, p: float = 0.5) -> None:
         super().__init__()
         self._transform = v2.RandomApply(
@@ -29,5 +36,5 @@ class RandomRotate90(v2.Transform):
             p=p,
         )
 
-    def forward(self, *inputs: Any) -> Any:
-        return self._transform(*inputs)
+    def transform(self, inpt: Any, params: dict[str, Any]) -> Any:
+        return self._transform(inpt)
