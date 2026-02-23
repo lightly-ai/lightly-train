@@ -51,7 +51,7 @@ During training, both the
 
 model weights are exported to `out/my_experiment/exported_models/`, unless disabled in
 `save_checkpoint_args`. You can use these weights to continue fine-tuning on another
-task by loading the weights via the `checkpoint` parameter:
+task by loading the weights via the `model` parameter:
 
 ```python
 import lightly_train
