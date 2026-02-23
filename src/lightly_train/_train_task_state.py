@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from torch.nn import Module
 from torch.optim.lr_scheduler import LRScheduler
@@ -27,6 +27,7 @@ class TrainTaskState(TypedDict):
     # Used to reconstruct the model after training.
     model_class_path: str
     model_init_args: dict[str, Any]
+    license_info: NotRequired[str]
 
 
 class CheckpointDict(TypedDict):
@@ -35,3 +36,4 @@ class CheckpointDict(TypedDict):
     # Used to reconstruct the model after training.
     model_class_path: str
     model_init_args: dict[str, Any]
+    license_info: NotRequired[str]

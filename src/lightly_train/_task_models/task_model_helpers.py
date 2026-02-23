@@ -199,6 +199,8 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     ),
 }
 
+_SHOW_LICENSE_INFO = True
+
 
 def load_model(
     model: PathLike,
@@ -227,6 +229,20 @@ def load_model(
     ckpt_path = download_checkpoint(checkpoint=model)
     ckpt = torch.load(ckpt_path, weights_only=False, map_location=device)
     model_instance = init_model_from_checkpoint(checkpoint=ckpt, device=device)
+
+    LICENSE_INFO = ckpt.get("license_info")
+    global _SHOW_LICENSE_INFO
+    if LICENSE_INFO is not None and _SHOW_LICENSE_INFO:
+        if logger.hasHandlers():
+            logger.warning("=" * 30)
+            logger.warning(LICENSE_INFO)
+            logger.warning("=" * 30)
+        else:
+            print("=" * 30)
+            print(LICENSE_INFO)
+            print("=" * 30)
+        _SHOW_LICENSE_INFO = False
+
     return model_instance
 
 

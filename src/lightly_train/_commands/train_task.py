@@ -1261,6 +1261,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 hyperparams["overwrite"] = True
             logger_instance.log_hyperparams(hyperparams)
 
+        LICENSE_INFO = (
+            "LightlyTrain License Notice\n"
+            "\n"
+            "Model training and inference in commercial settings require a valid Commercial License.\n"
+            "If you are using LightlyTrain for open-source (AGPL-3.0) or under a Free Community License,\n"
+            "please ensure your usage complies with the respective terms.\n"
+            "See https://docs.lightly.ai/train/stable/index.html#license for more details.\n"
+            "Contact us at https://www.lightly.ai/contact to discuss the best licensing option for your use case."
+        )
+
         state = TrainTaskState(
             train_model=train_model,
             optimizer=optimizer,
@@ -1283,6 +1293,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 checkpoint=checkpoint,
             )
 
+        # Add license info after loading as it might be missing from the checkpoint.
+        state["license_info"] = LICENSE_INFO
+
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
         infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
@@ -1293,6 +1306,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             logger.debug(f"grad={param.requires_grad} {name}")
         for name, module in train_model.named_modules():
             logger.debug(f"train={module.training} {name}")
+
+        logger.warning("=" * 30)
+        logger.warning(LICENSE_INFO)
+        logger.warning("=" * 30)
 
         start_step = state["step"] + 1
         if start_step > 0:
@@ -1384,6 +1401,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     "model_class_path": state["model_class_path"],
                     "model_init_args": state["model_init_args"],
                     "train_model": train_model.get_export_state_dict(),
+                    "license_info": state.get("license_info", ""),
                 }
 
                 helpers.export_model(
@@ -1463,6 +1481,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                     "model_class_path": state["model_class_path"],
                                     "model_init_args": state["model_init_args"],
                                     "train_model": train_model.get_export_state_dict(),
+                                    "license_info": state.get("license_info", ""),
                                 }
 
                                 helpers.export_model(
