@@ -14,16 +14,16 @@ import torch
 from albumentations import Compose
 
 from lightly_train._configs.validate import no_auto
-from lightly_train._transforms.color_jitter import (
-    TorchVisionScaleJitter,
-)
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.oriented_object_detection_transform import (
     OrientedObjectDetectionTransformArgs,
 )
-from lightly_train._transforms.scale_jitter import ScaleJitter
+from lightly_train._transforms.scale_jitter import (
+    ScaleJitter,
+    TorchVisionScaleJitter,
+)
 from lightly_train._transforms.task_transform import TaskTransformArgs
 from lightly_train.types import (
     ImageClassificationBatch,

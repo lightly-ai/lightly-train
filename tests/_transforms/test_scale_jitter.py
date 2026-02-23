@@ -13,8 +13,7 @@ import torch
 from albumentations import BboxParams, Compose
 from torchvision import tv_tensors
 
-from lightly_train._transforms.color_jitter import TorchVisionScaleJitter
-from lightly_train._transforms.scale_jitter import ScaleJitter
+from lightly_train._transforms.scale_jitter import ScaleJitter, TorchVisionScaleJitter
 
 
 class TestRandomScaleJitter:
