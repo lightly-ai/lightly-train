@@ -14,6 +14,9 @@ import torch
 from albumentations import Compose
 
 from lightly_train._configs.validate import no_auto
+from lightly_train._transforms.color_jitter import (
+    TorchVisionScaleJitter,
+)
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
 )
@@ -22,9 +25,6 @@ from lightly_train._transforms.oriented_object_detection_transform import (
 )
 from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.task_transform import TaskTransformArgs
-from lightly_train._transforms.torchvision_dispatcher import (
-    TorchVisionScaleJitter,
-)
 from lightly_train.types import (
     ImageClassificationBatch,
     ImageClassificationDatasetItem,
@@ -266,25 +266,27 @@ class OrientedObjectDetectionCollateFunction(BaseCollateFunction):
         if self.scale_jitter is not None:
             from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
 
-            images = []
-            bboxes = []
-            classes = []
+            tv_images: list[Image] = []
+            tv_bboxes: list[BoundingBoxes] = []
 
-            with self.scale_jitter.same_seed():
-                for item in batch:
-                    h, w = item["image"].shape[-2:]
-                    tv_image = Image(item["image"])
-                    tv_bboxes = BoundingBoxes(  # type: ignore[call-arg]
+            for item in batch:
+                h, w = item["image"].shape[-2:]
+                tv_images.append(Image(item["image"]))
+                tv_bboxes.append(
+                    BoundingBoxes(  # type: ignore[call-arg]
                         item["bboxes"],
                         format=BoundingBoxFormat.CXCYWHR,
                         canvas_size=(h, w),
                     )
-                    transformed_image, transformed_bboxes = self.scale_jitter(
-                        tv_image, tv_bboxes
-                    )
-                    images.append(transformed_image)
-                    bboxes.append(transformed_bboxes)
-                    classes.append(item["classes"])
+                )
+
+            transformed_images, transformed_bboxes = self.scale_jitter(
+                tv_images, tv_bboxes
+            )
+
+            images = list(transformed_images)
+            bboxes = list(transformed_bboxes)
+            classes = [item["classes"] for item in batch]
 
             out_ = OrientedObjectDetectionBatch(
                 {

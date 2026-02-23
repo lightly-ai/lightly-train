@@ -12,6 +12,7 @@ from typing import Any, Sequence
 import numpy as np
 from albumentations import Resize
 from albumentations.core.transforms_interface import DualTransform
+from torchvision.transforms import v2
 
 from lightly_train.types import NDArrayBBoxes, NDArrayImage, NDArrayMask
 
@@ -120,3 +121,31 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
 
     def apply_to_mask(self, mask: NDArrayMask, idx: int, **params: Any) -> NDArrayMask:
         return self.transforms[idx].apply_to_mask(mask, **params)  # type: ignore[no-any-return]
+
+
+class TorchVisionScaleJitter(v2.Transform):
+    def __init__(
+        self,
+        *,
+        sizes: Sequence[tuple[int, int]] | None = None,
+        target_size: tuple[int, int] | None = None,
+        scale_range: tuple[float, float] | None = None,
+        num_scales: int | None = None,
+        divisible_by: int | None = None,
+    ) -> None:
+        super().__init__()
+
+        sizes_list = generate_discrete_sizes(
+            sizes=sizes,
+            target_size=target_size,
+            scale_range=scale_range,
+            num_scales=num_scales,
+            divisible_by=divisible_by,
+        )
+
+        transforms = [v2.Resize(size=(h, w), antialias=True) for h, w in sizes_list]
+
+        self._transform = v2.RandomChoice(transforms)
+
+    def forward(self, *inputs):
+        return self._transform(*inputs)
