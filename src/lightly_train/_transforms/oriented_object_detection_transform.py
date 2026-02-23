@@ -7,8 +7,6 @@
 #
 from __future__ import annotations
 
-from typing import Any, Sequence
-
 import numpy as np
 import torch
 from numpy.typing import NDArray
@@ -18,9 +16,11 @@ from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
 from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
+from lightly_train._transforms.channel_drop import ChannelDropTV
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
 )
+from lightly_train._transforms.random_rotate_90 import RandomRotate90
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformInput,
@@ -43,81 +43,6 @@ class OrientedObjectDetectionTransformOutput(TaskTransformOutput):
 
 class OrientedObjectDetectionTransformArgs(ObjectDetectionTransformArgs):
     pass
-
-
-class ChannelDropTV(v2.Transform):
-    def __init__(
-        self,
-        num_channels_keep: int,
-        weight_drop: Sequence[float],
-    ) -> None:
-        super().__init__()
-        self.num_channels_keep = num_channels_keep
-        self.weight_drop = list(weight_drop)
-
-        if num_channels_keep < 1:
-            raise ValueError(
-                f"num_channels_keep must be at least 1, got {num_channels_keep}."
-            )
-        if any(w < 0 for w in self.weight_drop):
-            raise ValueError(
-                f"All weights in weight_drop must be non-negative, got {self.weight_drop}."
-            )
-        if sum(w == 0 for w in self.weight_drop) > self.num_channels_keep:
-            raise ValueError(
-                "At most num_channels_keep channels can have zero weight "
-                f"to guarantee they can be kept, got {self.num_channels_keep} and "
-                f"{self.weight_drop}."
-            )
-
-        weight_array = torch.tensor(self.weight_drop, dtype=torch.float32)
-        self._prob_drop = weight_array / weight_array.sum()
-
-    def make_params(self, flat_inputs: list) -> dict[str, Any]:
-        num_channels = flat_inputs[0].shape[0]
-        if self.num_channels_keep == num_channels:
-            return {"channels_to_keep": torch.arange(num_channels)}
-
-        channels_to_drop = torch.multinomial(
-            self._prob_drop,
-            num_samples=num_channels - self.num_channels_keep,
-            replacement=False,
-        )
-        all_channels = torch.arange(num_channels)
-        mask = torch.isin(all_channels, channels_to_drop)
-        channels_to_keep = torch.sort(all_channels[~mask])[0]
-        return {"channels_to_keep": channels_to_keep}
-
-    def transform(self, inpt: Any, params: dict[str, Any]) -> Any:
-        if isinstance(inpt, Image):
-            if inpt.ndim < 3:
-                return inpt
-            channels_to_keep = params["channels_to_keep"]
-            if inpt.shape[0] != len(self.weight_drop):
-                return inpt
-            return Image(torch.index_select(inpt, 0, channels_to_keep))
-        return inpt
-
-
-class RandomRotate90OBB(v2.Transform):
-    def __init__(self, p: float = 0.5) -> None:
-        super().__init__()
-        self._transform = v2.RandomApply(
-            [
-                v2.RandomChoice(
-                    [
-                        v2.RandomRotation(degrees=[90, 90]),
-                        v2.RandomRotation(degrees=[180, 180]),
-                        v2.RandomRotation(degrees=[270, 270]),
-                        v2.Identity(),
-                    ]
-                )
-            ],
-            p=p,
-        )
-
-    def forward(self, *inputs: Any) -> Any:
-        return self._transform(*inputs)
 
 
 class OrientedObjectDetectionTransform(TaskTransform):
@@ -196,7 +121,7 @@ class OrientedObjectDetectionTransform(TaskTransform):
 
         if transform_args.random_rotate_90 is not None:
             transforms_list.append(
-                RandomRotate90OBB(p=transform_args.random_rotate_90.prob)
+                RandomRotate90(p=transform_args.random_rotate_90.prob)
             )
 
         if transform_args.random_rotate is not None:
