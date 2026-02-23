@@ -461,6 +461,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self.model_name = parsed_name["model_name"]
         self.image_size = image_size
         self.classes = classes
+        self.backbone_freeze = True
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -554,6 +555,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
             **postprocessor_config
         )
+
+        if self.backbone_freeze:
+            self.freeze_backbone()
 
     @classmethod
     def list_model_names(cls) -> list[str]:

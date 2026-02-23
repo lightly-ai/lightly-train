@@ -74,6 +74,7 @@ class PicoDetObjectDetection(TaskModel):
         iou_threshold: float = 0.6,
         max_detections: int = 100,
         load_weights: bool = True,
+        backbone_freeze: bool = False,
     ) -> None:
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
 
@@ -83,6 +84,7 @@ class PicoDetObjectDetection(TaskModel):
         self.num_classes = num_classes
         self.reg_max = reg_max
         self.classes = classes
+        self.backbone_freeze = backbone_freeze
 
         if classes is not None and len(classes) != num_classes:
             raise ValueError(
@@ -131,6 +133,9 @@ class PicoDetObjectDetection(TaskModel):
             out_indices=(2, 9, 12),  # C3, C4, C5
         )
         backbone_out_channels = self.backbone.out_channels
+
+        if self.backbone_freeze:
+            self.freeze_backbone()
 
         self.neck = CSPPAN(
             in_channels=backbone_out_channels,
