@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 import torch
 from albumentations import BboxParams
-from numpy.typing import NDArray
+from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
 
 from lightly_train._data.task_batch_collation import (
     OrientedObjectDetectionCollateFunction,
@@ -39,7 +39,7 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     StopPolicyArgs,
 )
-from lightly_train.types import NDArrayOBBoxes, OrientedObjectDetectionDatasetItem
+from lightly_train.types import OrientedObjectDetectionDatasetItem
 
 
 def _get_channel_drop_args() -> ChannelDropArgs:
@@ -189,10 +189,12 @@ class TestObjectDetectionTransform:
         # Create a synthetic image and bounding boxes.
         num_channels = transform_args.num_channels
         assert num_channels != "auto"
-        img: NDArray[np.uint8] = np.random.randint(
-            0, 256, (128, 128, num_channels), dtype=np.uint8
+        img = Image(torch.randint(0, 256, (num_channels, 128, 128), dtype=torch.uint8))
+        bboxes = BoundingBoxes(
+            torch.tensor([[10, 10, 50, 50, 45]], dtype=torch.float64),
+            format=BoundingBoxFormat.CXCYWHR,
+            canvas_size=(128, 128),
         )
-        bboxes: NDArrayOBBoxes = np.array([[10, 10, 50, 50, 45]], dtype=np.float64)
         class_labels = np.array([1], dtype=np.int64)
 
         tr_input: OrientedObjectDetectionTransformInput = {
