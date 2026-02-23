@@ -73,7 +73,7 @@ class ChannelDropTV(v2.Transform):
         weight_array = torch.tensor(self.weight_drop, dtype=torch.float32)
         self._prob_drop = weight_array / weight_array.sum()
 
-    def _get_params(self, flat_inputs: list) -> dict[str, Any]:
+    def make_params(self, flat_inputs: list) -> dict[str, Any]:
         num_channels = flat_inputs[0].shape[0]
         if self.num_channels_keep == num_channels:
             return {"channels_to_keep": torch.arange(num_channels)}
@@ -102,83 +102,22 @@ class ChannelDropTV(v2.Transform):
 class RandomRotate90OBB(v2.Transform):
     def __init__(self, p: float = 0.5) -> None:
         super().__init__()
-        self.p = p
-
-    def _get_params(self, flat_inputs: list) -> dict[str, Any]:
-        if torch.rand(1).item() < self.p:
-            k = int(torch.randint(1, 4, (1,)).item())
-        else:
-            k = 0
-        return {"k": k}
-
-    def _transform_image(self, img: Tensor, k: int) -> Tensor:
-        if k == 0:
-            return img
-        return torch.rot90(img, k=k, dims=(-2, -1))
-
-    def _transform_bboxes(
-        self, bboxes: BoundingBoxes, k: int, h: int, w: int
-    ) -> BoundingBoxes:
-        if k == 0:
-            return bboxes
-
-        cx, cy, bw, bh, angle = (
-            bboxes[:, 0],
-            bboxes[:, 1],
-            bboxes[:, 2],
-            bboxes[:, 3],
-            bboxes[:, 4],
-        )
-        angle_rad = angle * (3.141592653589793 / 180.0)
-
-        if k == 1:
-            new_cx = cy
-            new_cy = w - cx
-            new_bw = bh
-            new_bh = bw
-            new_angle_rad = angle_rad + (3.141592653589793 / 2.0)
-        elif k == 2:
-            new_cx = w - cx
-            new_cy = h - cy
-            new_bw = bw
-            new_bh = bh
-            new_angle_rad = angle_rad + 3.141592653589793
-        else:
-            new_cx = h - cy
-            new_cy = cx
-            new_bw = bh
-            new_bh = bw
-            new_angle_rad = angle_rad - (3.141592653589793 / 2.0)
-
-        new_angle = (new_angle_rad * 180.0 / 3.141592653589793) % 360.0
-
-        new_bboxes = torch.stack([new_cx, new_cy, new_bw, new_bh, new_angle], dim=1)
-        new_h, new_w = (w, h) if k in (1, 3) else (h, w)
-        return BoundingBoxes(  # type: ignore[call-arg]
-            new_bboxes,
-            format=BoundingBoxFormat.CXCYWHR,
-            canvas_size=(new_h, new_w),
+        self._transform = v2.RandomApply(
+            [
+                v2.RandomChoice(
+                    [
+                        v2.RandomRotation(degrees=[90, 90]),
+                        v2.RandomRotation(degrees=[180, 180]),
+                        v2.RandomRotation(degrees=[270, 270]),
+                        v2.Identity(),
+                    ]
+                )
+            ],
+            p=p,
         )
 
-    def forward(self, *inputs: Tensor) -> Any:
-        params = self._get_params(list(inputs))
-        k = params["k"]
-
-        if k == 0 or len(inputs) == 0:
-            return inputs if len(inputs) > 1 else (inputs[0] if inputs else inputs)
-
-        outputs = []
-        h, w = inputs[0].shape[-2:]
-
-        for inpt in inputs:
-            if isinstance(inpt, Image):
-                outputs.append(Image(self._transform_image(inpt, k)))
-            elif isinstance(inpt, BoundingBoxes):
-                outputs.append(self._transform_bboxes(inpt, k, h, w))
-            else:
-                outputs.append(inpt)
-
-        return tuple(outputs) if len(outputs) > 1 else outputs[0]
+    def forward(self, *inputs: Any) -> Any:
+        return self._transform(*inputs)
 
 
 class OrientedObjectDetectionTransform(TaskTransform):
