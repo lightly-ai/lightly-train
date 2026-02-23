@@ -11,7 +11,6 @@ from __future__ import annotations
 import itertools
 
 import cv2
-import numpy as np
 import pytest
 import torch
 from albumentations import BboxParams
@@ -195,7 +194,7 @@ class TestObjectDetectionTransform:
             format=BoundingBoxFormat.CXCYWHR,
             canvas_size=(128, 128),
         )
-        class_labels = np.array([1], dtype=np.int64)
+        class_labels = torch.tensor([1], dtype=torch.int64)
 
         tr_input: OrientedObjectDetectionTransformInput = {
             "image": img,
