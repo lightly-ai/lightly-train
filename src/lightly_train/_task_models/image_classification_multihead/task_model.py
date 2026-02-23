@@ -49,8 +49,10 @@ class ImageClassificationMultihead(TaskModel):
             classes:
                 A dict mapping the class ID to the class name.
             head_names:
-                A list of names for the classification heads. Each head will have
-                its own set of linear layers.
+                List of head names. One classification head is created for each name.
+                Head names should follow the format `head_lr{value}` where value is the
+                learning rate formatted without trailing zeros and dots replaced with
+                underscores (e.g., "head_lr0_001" for lr=0.001).
             image_size:
                 The size of the input images.
             image_normalize:
