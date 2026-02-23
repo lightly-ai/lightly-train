@@ -7,12 +7,10 @@
 #
 from __future__ import annotations
 
-import numpy as np
 import torch
-from numpy.typing import NDArray
 from torch import Tensor
 from torchvision.transforms import v2
-from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
+from torchvision.tv_tensors import BoundingBoxes, Image
 from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
@@ -26,13 +24,12 @@ from lightly_train._transforms.task_transform import (
     TaskTransformInput,
     TaskTransformOutput,
 )
-from lightly_train.types import NDArrayImage, NDArrayOBBoxes
 
 
 class OrientedObjectDetectionTransformInput(TaskTransformInput):
-    image: NDArrayImage
-    bboxes: NotRequired[NDArrayOBBoxes]
-    class_labels: NotRequired[NDArray[np.int64]]
+    image: Image  # CHW
+    bboxes: BoundingBoxes  # N x 5, where each bbox is (cx, cy, w, h, angle)
+    class_labels: Tensor  # N
 
 
 class OrientedObjectDetectionTransformOutput(TaskTransformOutput):
@@ -67,7 +64,9 @@ class OrientedObjectDetectionTransform(TaskTransform):
             )
         self.global_step = 0
         self.stop_ops = (
-            transform_args.stop_policy.ops if transform_args.stop_policy else set()
+            transform_args.stop_policy.ops
+            if transform_args.stop_policy
+            else set[type[v2.Transform]]()
         )
         self.past_stop = False
 
@@ -159,17 +158,22 @@ class OrientedObjectDetectionTransform(TaskTransform):
                 )
             )
 
+        self.transform_list = transforms_list
         self.transform = v2.Compose(transforms_list)
 
     def __call__(
         self, input: OrientedObjectDetectionTransformInput
     ) -> OrientedObjectDetectionTransformOutput:
+        transform = self.transform
+
         if (
             self.stop_step is not None
             and self.global_step >= self.stop_step
             and not self.past_stop
         ):
-            raise NotImplementedError("Stop policy is not implemented yet.")
+            transform = v2.Compose(
+                [t for t in self.transform_list if type(t) not in self.stop_ops]
+            )
 
         assert "bboxes" in input, (
             "Input must contain bboxes for oriented object detection transform."
@@ -178,20 +182,11 @@ class OrientedObjectDetectionTransform(TaskTransform):
             "Input must contain class_labels for oriented object detection transform."
         )
 
-        image_hwc = input["image"]
-        bboxes_np = input["bboxes"]
+        image = input["image"]
+        bboxes = input["bboxes"]
         class_labels = input["class_labels"]
 
-        h, w = image_hwc.shape[:2]
-        image_chw = np.transpose(image_hwc, (2, 0, 1))
-        tv_image = Image(torch.from_numpy(image_chw))
-        tv_bboxes = BoundingBoxes(  # type: ignore[call-arg]
-            torch.from_numpy(bboxes_np),
-            format=BoundingBoxFormat.CXCYWHR,
-            canvas_size=(h, w),
-        )
-
-        transformed_image, transformed_bboxes = self.transform(tv_image, tv_bboxes)
+        transformed_image, transformed_bboxes = transform(image, bboxes)
 
         return {
             "image": transformed_image,
