@@ -22,6 +22,7 @@ import pydantic
 from albumentations import BasicTransform
 from lightly.transforms.utils import IMAGENET_NORMALIZE
 from pydantic import ConfigDict, Field, field_validator
+from torchvision.transforms import v2
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
@@ -190,7 +191,7 @@ class ScaleJitterArgs(PydanticConfig):
 
 class StopPolicyArgs(PydanticConfig):
     stop_step: int
-    ops: Set[type[BasicTransform]]
+    ops: Set[type[BasicTransform | v2.Transform]]
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
