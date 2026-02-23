@@ -7,12 +7,13 @@
 #
 from __future__ import annotations
 
-from typing import Any, NotRequired, TypedDict
+from typing import Any, TypedDict
 
 from torch.nn import Module
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
+from typing_extensions import NotRequired
 
 from lightly_train.types import TaskBatch
 
