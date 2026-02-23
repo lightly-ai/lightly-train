@@ -7,10 +7,10 @@
 #
 from __future__ import annotations
 
-import threading
 import time
 from collections import deque
-from typing import Deque, Optional, TypedDict
+from threading import Event, Lock, Thread
+from typing import Deque, TypedDict
 
 import torch
 from lightning_fabric import Fabric
@@ -27,7 +27,7 @@ class TimerAggregateMetrics(TypedDict):
 class TrainingStepTimer:
     """Timer for tracking time spent in different training steps."""
 
-    def __init__(self, cuda_utilization: Optional[CUDAUtilization] = None) -> None:
+    def __init__(self, cuda_utilization: CUDAUtilization | None = None) -> None:
         self._step_start_times: dict[str, float] = {}
         self._step_total_times: dict[str, float] = {}
         self._step_counts: dict[str, int] = {}
@@ -161,17 +161,17 @@ class CUDAUtilization:
         self._interval_s = float(interval_s)
 
         self._buf: Deque[float] = deque()
-        self._lock = threading.Lock()
+        self._lock = Lock()
 
-        self._run = threading.Event()
-        self._stop = threading.Event()
-        self._thr: Optional[threading.Thread] = None
+        self._run = Event()
+        self._stop = Event()
+        self._thr: Thread | None = None
 
     def start(self) -> None:
         if not self._enabled:
             return
         if self._thr is None:
-            self._thr = threading.Thread(target=self._loop, daemon=True)
+            self._thr = Thread(target=self._loop, daemon=True)
             self._thr.start()
         self._run.set()
 
