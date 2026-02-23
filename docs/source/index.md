@@ -96,7 +96,7 @@ Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 
 ```{grid-item-card} Image Classification
 :link: image_classification.html
-<img src="_static/images/tasks/image_classification.png" height="64"><br>
+<img src="_static/images/tasks/image_classification.jpg" height="64"><br>
 Train image classification models with any backbone.<br>
 ```
 
