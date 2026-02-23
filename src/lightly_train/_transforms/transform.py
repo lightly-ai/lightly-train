@@ -191,7 +191,7 @@ class ScaleJitterArgs(PydanticConfig):
 
 class StopPolicyArgs(PydanticConfig):
     stop_step: int
-    ops: Set[type[BasicTransform | v2.Transform]]
+    ops: Set[type[BasicTransform] | type[v2.Transform]]
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
