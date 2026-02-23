@@ -374,7 +374,6 @@ The `model` argument defines the backbone model used for image classification. A
 LightlyTrain models are supported as backbones. For example:
 
 - `dinov3/vitt16`
-- `dinov3/vitt16`
 - `dinov2/vitb14`
 - `timm/resnet18`
 - `torchvision/resnet50`
