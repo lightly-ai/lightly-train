@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from torch import nn
 
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
@@ -43,6 +44,29 @@ def test_load_train_state_dict__no_ema_weights() -> None:
     # copying the non-EMA weights to the EMA model.
     state_dict = {k: v for k, v in state_dict.items() if not k.startswith("ema_model.")}
     task_model.load_train_state_dict(state_dict)
+
+
+def _is_module_frozen(m: nn.Module) -> bool:
+    return all(not param.requires_grad for param in m.parameters())
+
+
+@pytest.mark.parametrize("should_freeze", [True, False])
+def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
+    model_args = DINOv2LTDETRObjectDetectionTrainArgs(
+        use_ema_model=True, backbone_freeze=should_freeze
+    )
+    train_model = _create_train_model(model_args)
+    task_model_backbone = train_model.model.backbone
+    assert isinstance(task_model_backbone, nn.Module), "Backbone should be a nn.Module"
+
+    train_model.set_train_mode()
+
+    assert _is_module_frozen(task_model_backbone) == should_freeze, (
+        f"Backbone should be frozen: {should_freeze}, but got frozen={_is_module_frozen(task_model_backbone)}"
+    )
+    assert not task_model_backbone.training == should_freeze, (
+        "Backbone should be in eval mode after set_train_mode()"
+    )
 
 
 def _create_train_model(

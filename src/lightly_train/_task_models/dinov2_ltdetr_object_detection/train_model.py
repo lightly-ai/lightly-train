@@ -77,6 +77,7 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
+    backbone_freeze: bool = False
 
     use_ema_model: bool = True
     ema_momentum: float = 0.9999
@@ -164,6 +165,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             image_size=no_auto(val_transform_args.image_size),
             classes=data_args.included_classes,
             image_normalize=normalize_dict,
+            backbone_freeze=model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
             load_weights=load_weights,
@@ -243,6 +245,8 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
     def set_train_mode(self) -> None:
         super().set_train_mode()
         self.criterion.train()  # TODO (Lionel, 10/25): Check if this is necessary.
+        if self.model_args.backbone_freeze:
+            self.model.freeze_backbone()
 
     def training_step(
         self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
