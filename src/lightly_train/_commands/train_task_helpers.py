@@ -658,6 +658,38 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
     return default_steps if steps == "auto" else steps
 
 
+def get_gradient_accumulation_steps(
+    gradient_accumulation_steps: int | Literal["auto"],
+    global_batch_size: int,
+    default_batch_size: int,
+) -> int:
+    """Returns the number of gradient accumulation steps.
+
+    When 'auto', activates gradient accumulation when global_batch_size is
+    smaller than default_batch_size. The number of steps is set to
+    max(1, default_batch_size // global_batch_size) to keep the effective
+    batch size as close as possible to the model's default batch size.
+
+    Args:
+        gradient_accumulation_steps: Number of steps or 'auto'.
+        global_batch_size: The global batch size across all devices.
+        default_batch_size: The model's default batch size.
+
+    Returns:
+        The number of gradient accumulation steps.
+
+    Raises:
+        ValueError: If gradient_accumulation_steps < 1.
+    """
+    if gradient_accumulation_steps == "auto":
+        return max(1, default_batch_size // global_batch_size)
+    if gradient_accumulation_steps < 1:
+        raise ValueError(
+            f"gradient_accumulation_steps must be >= 1, got {gradient_accumulation_steps}."
+        )
+    return gradient_accumulation_steps
+
+
 def get_train_model_cls(model_name: str, task: str) -> type[TrainModel]:
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
         if (
@@ -755,6 +787,7 @@ def log_training_summary(
     timer_agg: TimerAggregateMetrics,
     fabric: Fabric,
     global_batch_size: int,
+    gradient_accumulation_steps: int = 1,
 ) -> None:
     """Log comprehensive training profiling summary.
 
@@ -767,6 +800,8 @@ def log_training_summary(
         timer_agg: The aggregated metrics dict from timer.get_aggregated_metrics().
         fabric: The Fabric instance for distributed communication.
         global_batch_size: The global batch size across all GPUs.
+        gradient_accumulation_steps: Number of gradient accumulation steps. Used to
+            compute the effective global batch size for train throughput.
     """
 
     # Calculate total time
@@ -794,8 +829,9 @@ def log_training_summary(
     train_step_time = train_time_sec / train_count if train_count > 0 else 0.0
     val_step_time = val_time_sec / val_count if val_count > 0 else 0.0
 
+    effective_global_batch_size = global_batch_size * gradient_accumulation_steps
     train_throughput = (
-        (global_batch_size / train_step_time) if train_step_time > 0 else 0.0
+        (effective_global_batch_size / train_step_time) if train_step_time > 0 else 0.0
     )
     val_throughput = (global_batch_size / val_step_time) if val_step_time > 0 else 0.0
 
