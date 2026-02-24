@@ -320,6 +320,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         classes: dict[int, str],
         image_size: tuple[int, int],
         image_normalize: dict[str, Any] | None = None,
+        backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -332,6 +333,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self.model_name = parsed_name["model_name"]
         self.image_size = image_size
         self.classes = classes
+        self.backbone_freeze = backbone_freeze
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -399,6 +401,9 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             **postprocessor_config
         )
 
+        if self.backbone_freeze:
+            self.freeze_backbone()
+
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [
@@ -449,6 +454,10 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             "model_name": f"{DINOV2_VIT_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
         }
+
+    def freeze_backbone(self) -> None:
+        self.backbone.eval()
+        self.backbone.requires_grad_(False)
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
@@ -729,6 +738,7 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         classes: dict[int, str],
         image_size: tuple[int, int],
         image_normalize: dict[str, Any] | None = None,
+        backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
     ) -> None:
@@ -740,6 +750,7 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         self.model_name = parsed_name["model_name"]
         self.image_size = image_size
         self.classes = classes
+        self.backbone_freeze = backbone_freeze
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
