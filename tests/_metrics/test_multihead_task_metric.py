@@ -30,27 +30,6 @@ def _create_head_metric(prefix: str = "val_metric/") -> SemanticSegmentationTask
     )
 
 
-def test_rename_key_for_head__val_metric() -> None:
-    assert (
-        _rename_key_for_head("val_metric/miou", "lr0_001")
-        == "val_metric_head/miou_lr0_001"
-    )
-
-
-def test_rename_key_for_head__val_metric_classwise() -> None:
-    assert (
-        _rename_key_for_head("val_metric_classwise/iou_0", "lr0_001")
-        == "val_metric_head_classwise/iou_0_lr0_001"
-    )
-
-
-def test_rename_key_for_head__train_metric() -> None:
-    assert (
-        _rename_key_for_head("train_metric/f1_macro", "lr0_001")
-        == "train_metric_head/f1_macro_lr0_001"
-    )
-
-
 class TestMultiheadTaskMetric:
     def test_compute__selects_best_head(self) -> None:
         """Best head should be promoted to top-level prefix."""
@@ -96,7 +75,9 @@ class TestMultiheadTaskMetric:
 
         # Best head tracking
         assert result.best_head_name == "lr0_01"
-        assert result.best_head_metrics == {"val_metric/miou": result.metrics["val_metric/miou"]}
+        assert result.best_head_metrics == {
+            "val_metric/miou": result.metrics["val_metric/miou"]
+        }
 
     def test_compute__min_mode(self) -> None:
         """With mode='min', the head with lowest value should win."""
@@ -129,7 +110,9 @@ class TestMultiheadTaskMetric:
             == result.metrics["val_metric_head/miou_lr0_01"]
         )
         assert result.best_head_name == "lr0_01"
-        assert result.best_head_metrics == {"val_metric/miou": result.metrics["val_metric/miou"]}
+        assert result.best_head_metrics == {
+            "val_metric/miou": result.metrics["val_metric/miou"]
+        }
 
     def test_reset(self) -> None:
         """Reset should clear all head metrics."""
@@ -183,3 +166,24 @@ class TestMultiheadTaskMetric:
         sorted_names = sorted(head_names)
         # Should be in increasing LR order
         assert sorted_names == ["lr0_0001", "lr0_001", "lr0_01", "lr0_03", "lr0_1"]
+
+
+def test__rename_key_for_head__val_metric() -> None:
+    assert (
+        _rename_key_for_head("val_metric/miou", "lr0_001")
+        == "val_metric_head/miou_lr0_001"
+    )
+
+
+def test__rename_key_for_head__val_metric_classwise() -> None:
+    assert (
+        _rename_key_for_head("val_metric_classwise/iou_0", "lr0_001")
+        == "val_metric_head_classwise/iou_0_lr0_001"
+    )
+
+
+def test__rename_key_for_head__train_metric() -> None:
+    assert (
+        _rename_key_for_head("train_metric/f1_macro", "lr0_001")
+        == "train_metric_head/f1_macro_lr0_001"
+    )

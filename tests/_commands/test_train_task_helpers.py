@@ -128,7 +128,10 @@ def test_reset_metrics__task_metric() -> None:
     result_after = task_metric.compute()  # type: ignore[union-attr]
 
     # miou should differ since the metric was reset and new data was fed.
-    assert result_after.metrics["val_metric/miou"] != result_before.metrics["val_metric/miou"]
+    assert (
+        result_after.metrics["val_metric/miou"]
+        != result_before.metrics["val_metric/miou"]
+    )
 
 
 def test_reset_metrics__task_metric_and_torchmetrics_metric() -> None:
