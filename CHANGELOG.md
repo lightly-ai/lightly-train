@@ -9,9 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Add support for frozen backbone training in LTDETR object detection models. Set
-  `model_args={"backbone_freeze": True}` in `train_object_detection` to freeze the
+- Add support for frozen backbone training in LTDETR and Picodet object detection models. 
+  Set `model_args={"backbone_freeze": True}` in `train_object_detection` to freeze the
   backbone and reduce VRAM usage.
+- [Classification support](https://docs.lightly.ai/train/stable/image_classification.html)
 - LTDETR support for DINOv3 ViT-B/L and DINOv2 ViT-L/B/G models. Pretrained weights are
   not yet available for these models.
 - Add support for fine-tuning DINOv2 models for instance segmentation with the
@@ -28,6 +29,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - Filter invalid bounding boxes in instance segmentation
+- Fix incorrect logging of training times.
 
 ### Security
 

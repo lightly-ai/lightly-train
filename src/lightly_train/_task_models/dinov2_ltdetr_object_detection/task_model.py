@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-import os
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -489,10 +489,9 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             backbone: backbone to load the statedict in.
             path: path to a .pt file, e.g., exported_last.pt.
         """
-        # Check if the file exists.
-        if not os.path.exists(path):
-            logger.error(f"Checkpoint file not found: {path}")
-            return
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
 
         # Load the checkpoint.
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
