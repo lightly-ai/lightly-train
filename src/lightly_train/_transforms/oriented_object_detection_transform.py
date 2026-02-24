@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 import torch
+import torchvision.tv_tensors as tv_tensors
 from torch import Tensor
 from torchvision.transforms import v2
-from torchvision.tv_tensors import BoundingBoxes, Image
 from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
@@ -27,8 +27,8 @@ from lightly_train._transforms.task_transform import (
 
 
 class OrientedObjectDetectionTransformInput(TaskTransformInput):
-    image: Image  # CHW
-    bboxes: BoundingBoxes  # N x 5, where each bbox is (cx, cy, w, h, angle)
+    image: tv_tensors.Image  # CHW
+    bboxes: tv_tensors.BoundingBoxes  # N x 5, where each bbox is (cx, cy, w, h, angle)
     class_labels: Tensor  # N
 
 

@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from albumentations import ImageOnlyTransform
 from torchvision.transforms import v2
-from torchvision.tv_tensors import Image
+import torchvision.tv_tensors as tv_tensors
 
 from lightly_train.types import NDArrayImage
 
@@ -148,7 +148,7 @@ class ChannelDropTV(v2.Transform):
         return {"channels_to_keep": channels_to_keep}
 
     def transform(self, inpt: Any, params: dict[str, Any]) -> Any:
-        if isinstance(inpt, Image):
+        if isinstance(inpt, tv_tensors.Image):
             if inpt.ndim < 3:
                 return inpt
             channels_to_keep = params["channels_to_keep"]
@@ -156,5 +156,5 @@ class ChannelDropTV(v2.Transform):
                 return inpt
             if inpt.shape[0] != len(self.weight_drop):
                 return inpt
-            return Image(torch.index_select(inpt, 0, channels_to_keep))
+            return tv_tensors.Image(torch.index_select(inpt, 0, channels_to_keep))
         return inpt

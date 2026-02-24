@@ -14,7 +14,7 @@ import cv2
 import pytest
 import torch
 from albumentations import BboxParams
-from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
+import torchvision.tv_tensors as tv_tensors
 
 from lightly_train._data.task_batch_collation import (
     OrientedObjectDetectionCollateFunction,
@@ -188,10 +188,12 @@ class TestObjectDetectionTransform:
         # Create a synthetic image and bounding boxes.
         num_channels = transform_args.num_channels
         assert num_channels != "auto"
-        img = Image(torch.randint(0, 256, (num_channels, 128, 128), dtype=torch.uint8))
-        bboxes = BoundingBoxes(
+        img = tv_tensors.Image(
+            torch.randint(0, 256, (num_channels, 128, 128), dtype=torch.uint8)
+        )
+        bboxes = tv_tensors.BoundingBoxes(
             torch.tensor([[10, 10, 50, 50, 45]], dtype=torch.float64),
-            format=BoundingBoxFormat.CXCYWHR,
+            format=tv_tensors.BoundingBoxFormat.CXCYWHR,
             canvas_size=(128, 128),
         )
         class_labels = torch.tensor([1], dtype=torch.int64)
@@ -233,10 +235,10 @@ class TestObjectDetectionTransform:
 
         sample1: OrientedObjectDetectionDatasetItem = {
             "image_path": "img1.png",
-            "image": Image(torch.randn(3, 128, 128)),
-            "bboxes": BoundingBoxes(
+            "image": tv_tensors.Image(torch.randn(3, 128, 128)),
+            "bboxes": tv_tensors.BoundingBoxes(
                 torch.tensor([[10.0, 10.0, 50.0, 50.0, 45]]),
-                format=BoundingBoxFormat.CXCYWHR,
+                format=tv_tensors.BoundingBoxFormat.CXCYWHR,
                 canvas_size=(128, 128),
             ),
             "classes": torch.tensor([1]),
@@ -244,10 +246,10 @@ class TestObjectDetectionTransform:
         }
         sample2: OrientedObjectDetectionDatasetItem = {
             "image_path": "img2.png",
-            "image": Image(torch.randn(3, 64, 64)),
-            "bboxes": BoundingBoxes(
+            "image": tv_tensors.Image(torch.randn(3, 64, 64)),
+            "bboxes": tv_tensors.BoundingBoxes(
                 torch.tensor([[20.0, 20.0, 40.0, 40.0, 45]]),
-                format=BoundingBoxFormat.CXCYWHR,
+                format=tv_tensors.BoundingBoxFormat.CXCYWHR,
                 canvas_size=(64, 64),
             ),
             "classes": torch.tensor([2]),
