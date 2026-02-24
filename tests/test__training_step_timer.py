@@ -24,6 +24,7 @@ class TestTrainingStepTimer:
         fabric = Fabric(accelerator="cpu", devices=1, num_nodes=1)
         fabric.launch()
         timer = TrainingStepTimer()
+        timer.start()
 
         timer.start_step("step")
         time.sleep(0.01)
@@ -41,6 +42,7 @@ class TestTrainingStepTimer:
     def test_end_step__without_start(self) -> None:
         """Test that ending a step without starting it raises an error."""
         timer = TrainingStepTimer()
+        timer.start()
 
         with pytest.raises(ValueError, match="was not started"):
             timer.end_step("nonexistent")
@@ -52,8 +54,10 @@ class TestTrainingStepTimer:
         fabric.launch()
         cuda_util = CUDAUtilization(device=fabric.device)
         timer = TrainingStepTimer(cuda_utilization=cuda_util)
+        timer.start()
 
         timer.reset_gpu_max_memory("step")
+        time.sleep(0.1)
         timer.record_gpu_stats("step")
 
         agg = timer.get_aggregated_metrics(fabric)
@@ -69,6 +73,7 @@ class TestTrainingStepTimer:
         fabric.launch()
         cuda_util = CUDAUtilization(device=fabric.device)
         timer = TrainingStepTimer(cuda_utilization=cuda_util)
+        timer.start()
 
         # Should not raise errors.
         timer.reset_gpu_max_memory("step")
@@ -84,15 +89,18 @@ class TestTrainingStepTimer:
         fabric.launch()
         cuda_util = CUDAUtilization(device=fabric.device)
         timer = TrainingStepTimer(cuda_utilization=cuda_util)
+        timer.start()
 
         # Add some timing data
         timer.start_step("train_step")
-        time.sleep(0.01)
+        time.sleep(0.1)
         timer.end_step("train_step")
+        timer.record_gpu_stats("train_step")
 
         timer.start_step("val_step")
-        time.sleep(0.01)
+        time.sleep(0.1)
         timer.end_step("val_step")
+        timer.record_gpu_stats("val_step")
 
         # Get aggregated metrics
         agg = timer.get_aggregated_metrics(fabric)
@@ -118,15 +126,18 @@ class TestTrainingStepTimer:
         fabric.launch()
         cuda_util = CUDAUtilization(device=fabric.device)
         timer = TrainingStepTimer(cuda_utilization=cuda_util)
+        timer.start()
 
         # Add some timing data
         timer.start_step("train_step")
-        time.sleep(0.01)
+        time.sleep(0.1)
         timer.end_step("train_step")
+        timer.record_gpu_stats("train_step")
 
         timer.start_step("val_step")
-        time.sleep(0.01)
+        time.sleep(0.1)
         timer.end_step("val_step")
+        timer.record_gpu_stats("val_step")
 
         # Get aggregated metrics
         agg = timer.get_aggregated_metrics(fabric)

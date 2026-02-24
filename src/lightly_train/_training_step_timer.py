@@ -35,6 +35,21 @@ class TrainingStepTimer:
         self._phase_gpu_utils: dict[str, list[float]] = {}
         self._phase_gpu_max_mem: dict[str, float] = {}
 
+    def start(self) -> None:
+        """Start the timer."""
+        if self._cuda_utilization is not None:
+            self._cuda_utilization.start()
+
+    def pause(self) -> None:
+        """Pause the timer."""
+        if self._cuda_utilization is not None:
+            self._cuda_utilization.pause()
+
+    def stop(self) -> None:
+        """Stop the timer."""
+        if self._cuda_utilization is not None:
+            self._cuda_utilization.stop()
+
     def start_step(self, step: str) -> None:
         """Start timing a step."""
         self._step_start_times[step] = time.perf_counter()
