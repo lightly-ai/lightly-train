@@ -1361,7 +1361,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         cuda_utilization = CUDAUtilization(device=fabric.device)
         timer = TrainingStepTimer(cuda_utilization=cuda_utilization)
-        cuda_utilization.start()
 
         for name, param in train_model.named_parameters():
             logger.debug(f"grad={param.requires_grad} {name}")
@@ -1388,6 +1387,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             -float("inf") if config.save_checkpoint_args.mode == "max" else float("inf")
         )
         timer.reset_gpu_max_memory("train")
+        timer.start()
 
         log_every_num_steps = no_auto(config.logger_args.log_every_num_steps)
         val_log_every_num_steps = no_auto(config.logger_args.val_log_every_num_steps)
@@ -1606,6 +1606,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         )
                 train_model.set_train_mode()
                 fabric.barrier()
+        timer.stop()
         logger.info(
             f"Best result: {config.save_checkpoint_args.watch_metric}={best_metric:.4f}"
         )
