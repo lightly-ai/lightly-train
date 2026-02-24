@@ -55,7 +55,7 @@ class SemanticSegmentationMultihead(TaskModel):
             classes:
                 A dict mapping the class ID to the class name.
             head_names:
-                 List of head names. One segmentation head is created for each name.
+                List of head names. One segmentation head is created for each name.
                 Head names should follow the format `head_lr{value}` where value is the
                 learning rate formatted without trailing zeros and dots replaced with
                 underscores (e.g., "head_lr0_001" for lr=0.001).
@@ -63,7 +63,7 @@ class SemanticSegmentationMultihead(TaskModel):
                 The class index to ignore during training. If provided, an additional
                 class output is created for this ignored class.
             image_size:
-                The size of the input images.
+                The size of the input images as (height, width). Default (518, 518).
             image_normalize:
                 A dict containing the mean and standard deviation for normalizing
                 the input images. The dict must contain the keys "mean" and "std".
