@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -238,12 +239,10 @@ class SemanticSegmentationMultihead(TaskModel):
         Args:
             path: Path to a .pt file, e.g., exported_last.pt.
         """
-        import os
 
-        # Check if the file exists.
-        if not os.path.exists(path):
-            logger.error(f"Checkpoint file not found: {path}")
-            return
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
 
         # Load the checkpoint.
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
