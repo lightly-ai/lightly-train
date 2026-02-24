@@ -49,6 +49,7 @@ class ModelCheckpoint(_ModelCheckpoint):
         models: CheckpointLightlyTrainModels,
         normalize_args: NormalizeArgs,
         dirpath: str,
+        license_info: str,
         filename: None | str = None,
         monitor: None | str = None,
         verbose: bool = False,
@@ -83,6 +84,7 @@ class ModelCheckpoint(_ModelCheckpoint):
         )
         self._models = models
         self._normalize_args = normalize_args
+        self._license_info = license_info
 
     def on_save_checkpoint(
         self, trainer: Trainer, pl_module: LightningModule, checkpoint: dict[str, Any]
@@ -91,6 +93,7 @@ class ModelCheckpoint(_ModelCheckpoint):
         checkpoint[CHECKPOINT_LIGHTLY_TRAIN_KEY] = CheckpointLightlyTrain.from_now(
             models=self._models,
             normalize_args=self._normalize_args,
+            license_info=self._license_info,
         ).to_dict()
 
     def on_load_checkpoint(

@@ -72,6 +72,7 @@ def test_get_callbacks__default(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
         loggers=[],
+        license_info="",
     )
     assert len(callbacks) == 5
     early_stopping = next(c for c in callbacks if isinstance(c, EarlyStopping))
@@ -95,6 +96,7 @@ def test_get_callbacks__mlflow(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
         loggers=loggers,
+        license_info="",
     )
     assert len(callbacks) == 6
     early_stopping = next(c for c in callbacks if isinstance(c, EarlyStopping))
@@ -119,6 +121,7 @@ def test_get_callbacks__enable_devicestatsmonitor(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
         loggers=[],
+        license_info="",
     )
     assert len(callbacks) == 6
     assert any(isinstance(c, DeviceStatsMonitor) for c in callbacks)
@@ -138,6 +141,7 @@ def test_get_callbacks__disable(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
         loggers=[],
+        license_info="",
     )
     assert len(callbacks) == 3
     assert any(isinstance(c, ModelCheckpoint) for c in callbacks)
@@ -157,6 +161,7 @@ def test_get_callbacks__user_config(tmp_path: Path) -> None:
         embedding_model=embedding_model,
         normalize_args=NormalizeArgs(),
         loggers=[],
+        license_info="",
     )
     model_checkpoint = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert str(model_checkpoint.dirpath) == str(tmp_path / "checkpoints")

@@ -62,6 +62,7 @@ def get_callbacks(
     wrapped_model: ModelWrapper,
     embedding_model: EmbeddingModel,
     loggers: list[AnyLoggerType],
+    license_info: str,
 ) -> list[Callback]:
     callbacks: list[Callback] = []
     callbacks.append(DataWaitTQDMProgressBar())
@@ -96,6 +97,7 @@ def get_callbacks(
                     embedding_model=embedding_model,
                 ),
                 normalize_args=normalize_args,
+                license_info=license_info,
                 **callback_args.model_checkpoint.model_dump(),
             )
         )
