@@ -1289,7 +1289,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         cuda_utilization = CUDAUtilization(device=fabric.device)
         timer = TrainingStepTimer(cuda_utilization=cuda_utilization)
-        cuda_utilization.start()
 
         for name, param in train_model.named_parameters():
             logger.debug(f"grad={param.requires_grad} {name}")
