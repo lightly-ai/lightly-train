@@ -108,9 +108,11 @@ class ChannelDropTV(v2.Transform):
         self,
         num_channels_keep: int,
         weight_drop: Sequence[float],
+        num_channels: int = 3,
     ) -> None:
         super().__init__()
         self.num_channels_keep = num_channels_keep
+        self.num_channels = num_channels
         self.weight_drop = list(weight_drop)
 
         if num_channels_keep < 1:
@@ -131,21 +133,16 @@ class ChannelDropTV(v2.Transform):
         weight_array = torch.tensor(self.weight_drop, dtype=torch.float32)
         self._prob_drop = weight_array / weight_array.sum()
 
-    def make_params(self, flat_inputs: list) -> dict[str, Any]:
-        image = next((inpt for inpt in flat_inputs if isinstance(inpt, Image)), None)
-        if image is None:
-            return {"channels_to_keep": None}
-
-        num_channels = image.shape[0]
-        if self.num_channels_keep == num_channels:
-            return {"channels_to_keep": torch.arange(num_channels)}
+    def make_params(self, flat_inputs: list[Any]) -> dict[str, torch.Tensor]:
+        if self.num_channels_keep == self.num_channels:
+            return {"channels_to_keep": torch.arange(self.num_channels)}
 
         channels_to_drop = torch.multinomial(
             self._prob_drop,
-            num_samples=num_channels - self.num_channels_keep,
+            num_samples=self.num_channels - self.num_channels_keep,
             replacement=False,
         )
-        all_channels = torch.arange(num_channels)
+        all_channels = torch.arange(self.num_channels)
         mask = torch.isin(all_channels, channels_to_drop)
         channels_to_keep = torch.sort(all_channels[~mask])[0]
         return {"channels_to_keep": channels_to_keep}
