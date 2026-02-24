@@ -195,7 +195,7 @@ def train_image_classification(
             gradient accumulation when batch_size is smaller than the model's default
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
-            Set to 1 to disable gradient accumulation.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     kwargs = {**locals()}
     classification_task = kwargs.pop("classification_task")
@@ -326,7 +326,7 @@ def train_image_classification_multihead(
             gradient accumulation when batch_size is smaller than the model's default
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
-            Set to 1 to disable gradient accumulation.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     kwargs = {**locals()}
     classification_task = kwargs.pop("classification_task")
@@ -485,7 +485,7 @@ def train_instance_segmentation(
             gradient accumulation when batch_size is smaller than the model's default
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
-            Set to 1 to disable gradient accumulation.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     tracker.track_training_started(
         task_type="instance_segmentation",
@@ -631,7 +631,7 @@ def train_object_detection(
             gradient accumulation when batch_size is smaller than the model's default
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
-            Set to 1 to disable gradient accumulation.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     tracker.track_training_started(
         task_type="object_detection",
@@ -778,7 +778,7 @@ def train_panoptic_segmentation(
             gradient accumulation when batch_size is smaller than the model's default
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
-            Set to 1 to disable gradient accumulation.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     tracker.track_training_started(
         task_type="panoptic_segmentation",
@@ -924,7 +924,7 @@ def train_semantic_segmentation(
             gradient accumulation when batch_size is smaller than the model's default
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
-            Set to 1 to disable gradient accumulation.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     tracker.track_training_started(
         task_type="semantic_segmentation",
@@ -1034,7 +1034,7 @@ def train_semantic_segmentation_multihead(
             gradient accumulation when batch_size is smaller than the model's default
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
-            Set to 1 to disable gradient accumulation.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     tracker.track_training_started(
         task_type="semantic_segmentation_multihead",
@@ -1228,11 +1228,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         config.gradient_accumulation_steps = helpers.get_gradient_accumulation_steps(
             gradient_accumulation_steps=config.gradient_accumulation_steps,
-            global_batch_size=config.batch_size,  # type: ignore[arg-type]
+            global_batch_size=config.batch_size,
             default_batch_size=train_model_args_cls.default_batch_size,
         )
         effective_global_batch_size = (
-            config.batch_size * config.gradient_accumulation_steps  # type: ignore[operator]
+            config.batch_size * config.gradient_accumulation_steps
         )
 
         config.model_args = helpers.get_train_model_args(
@@ -1413,8 +1413,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             timer.start_step("train_step")
 
             # Training data loading, forward passes, and gradient accumulation.
-            for acc_step in range(config.gradient_accumulation_steps):  # type: ignore[arg-type]
-                is_accumulating = acc_step < config.gradient_accumulation_steps - 1  # type: ignore[operator]
+            for acc_step in range(config.gradient_accumulation_steps):
+                is_accumulating = acc_step < config.gradient_accumulation_steps - 1
 
                 timer.start_step("train_dataload")
                 batch = next(infinite_train_dataloader)
@@ -1425,7 +1425,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         fabric=fabric, batch=batch, step=step
                     )
                     fabric.backward(
-                        train_result.loss / config.gradient_accumulation_steps  # type: ignore[operator]
+                        train_result.loss / config.gradient_accumulation_steps
                     )
 
             # Optimizer step and scheduler step.
@@ -1585,8 +1585,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         helpers.log_training_summary(
                             timer_agg=timer_agg,
                             fabric=fabric,
-                            global_batch_size=config.batch_size,  # type: ignore[arg-type]
-                            gradient_accumulation_steps=config.gradient_accumulation_steps,  # type: ignore[arg-type]
+                            global_batch_size=config.batch_size,
+                            gradient_accumulation_steps=config.gradient_accumulation_steps,
                         )
 
                     elif is_val_log_step:
