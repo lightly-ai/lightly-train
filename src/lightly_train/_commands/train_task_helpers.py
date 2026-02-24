@@ -787,7 +787,7 @@ def log_training_summary(
     timer_agg: TimerAggregateMetrics,
     fabric: Fabric,
     global_batch_size: int,
-    gradient_accumulation_steps: int = 1,
+    gradient_accumulation_steps: int,
 ) -> None:
     """Log comprehensive training profiling summary.
 
