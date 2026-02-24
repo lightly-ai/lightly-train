@@ -50,16 +50,15 @@ class TestTrainingStepTimer:
         """Test GPU stats tracking when CUDA is available."""
         fabric = Fabric(accelerator="cuda", devices=1, num_nodes=1)
         fabric.launch()
-        device = torch.device("cuda")
-        cuda_util = CUDAUtilization(device=device)
+        cuda_util = CUDAUtilization(device=fabric.device)
         timer = TrainingStepTimer(cuda_utilization=cuda_util)
 
-        timer.reset_gpu_max_memory("train")
-        timer.record_gpu_stats("train")
+        timer.reset_gpu_max_memory("step")
+        timer.record_gpu_stats("step")
 
         agg = timer.get_aggregated_metrics(fabric)
-        util = agg["phase_gpu_utils"]["train"]
-        max_mem = agg["phase_gpu_max_mem"]["train"]
+        util = agg["phase_gpu_utils"]["step"]
+        max_mem = agg["phase_gpu_max_mem"]["step"]
 
         assert 0.0 <= util <= 100.0
         assert max_mem >= 0.0
@@ -68,13 +67,12 @@ class TestTrainingStepTimer:
         """Test GPU stats methods when CUDA is not available."""
         fabric = Fabric(accelerator="cpu", devices=1, num_nodes=1)
         fabric.launch()
-        device = torch.device("cpu")
-        cuda_util = CUDAUtilization(device=device)
+        cuda_util = CUDAUtilization(device=fabric.device)
         timer = TrainingStepTimer(cuda_utilization=cuda_util)
 
         # Should not raise errors.
-        timer.reset_gpu_max_memory("train")
-        timer.record_gpu_stats("train")
+        timer.reset_gpu_max_memory("step")
+        timer.record_gpu_stats("step")
 
         agg = timer.get_aggregated_metrics(fabric)
         assert not agg["phase_gpu_utils"]  # Should be empty
@@ -84,7 +82,8 @@ class TestTrainingStepTimer:
     def test_get_aggregated_metrics__cuda(self) -> None:
         fabric = Fabric(accelerator="cuda", devices=1, num_nodes=1)
         fabric.launch()
-        timer = TrainingStepTimer()
+        cuda_util = CUDAUtilization(device=fabric.device)
+        timer = TrainingStepTimer(cuda_utilization=cuda_util)
 
         # Add some timing data
         timer.start_step("train_step")
@@ -111,13 +110,14 @@ class TestTrainingStepTimer:
         # Check that times are reasonable
         assert agg["step_total_times"]["train_step"] >= 0.005
         assert agg["step_total_times"]["val_step"] >= 0.005
-        assert agg["phase_gpu_utils"]["train"] >= 0.0
-        assert agg["phase_gpu_max_mem"]["train"] >= 0.0
+        assert agg["phase_gpu_utils"]["train_step"] >= 0.0
+        assert agg["phase_gpu_max_mem"]["train_step"] >= 0.0
 
     def test_get_aggregated_metrics__cpu(self) -> None:
         fabric = Fabric(accelerator="cpu", devices=1, num_nodes=1)
         fabric.launch()
-        timer = TrainingStepTimer()
+        cuda_util = CUDAUtilization(device=fabric.device)
+        timer = TrainingStepTimer(cuda_utilization=cuda_util)
 
         # Add some timing data
         timer.start_step("train_step")
