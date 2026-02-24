@@ -31,15 +31,17 @@ class TestPanopticSegmentationTaskMetricArgs:
         segmentation_task_metric.update(preds, target)
 
         result = segmentation_task_metric.compute()
-        assert isinstance(result, dict)
-        assert len(result) > 0
+        assert isinstance(result.metrics, dict)
+        assert len(result.metrics) > 0
 
         expected_metrics = {
             "val_metric/pq",
             "val_metric/sq",
             "val_metric/rq",
         }
-        assert expected_metrics.issubset(set(result.keys()))
+        assert expected_metrics.issubset(set(result.metrics.keys()))
+        assert result.best_metric_key == "val_metric/pq"
+        assert isinstance(result.best_metric_value, float)
 
     def test_get_display_names(self) -> None:
         """Test that get_display_names returns correct display names."""
@@ -80,9 +82,9 @@ class TestPanopticSegmentationTaskMetricArgs:
         segmentation_task_metric.update(preds, target)
 
         result_before = segmentation_task_metric.compute()
-        assert len(result_before) > 0
+        assert len(result_before.metrics) > 0
         # Store scalar values instead of tensors for comparison
-        pq_before = result_before["val_metric/pq"].item()
+        pq_before = result_before.metrics["val_metric/pq"]
 
         segmentation_task_metric.reset()
 
@@ -92,7 +94,7 @@ class TestPanopticSegmentationTaskMetricArgs:
         target2 = torch.randint(0, 3, (1, 100, 100, 2), dtype=torch.int32)
         segmentation_task_metric.update(preds2, target2)
         result_after = segmentation_task_metric.compute()
-        pq_after = result_after["val_metric/pq"].item()
+        pq_after = result_after.metrics["val_metric/pq"]
 
         # PQ values should be different (though both might be 0 with random data)
         # Just verify we got results from both computations

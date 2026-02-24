@@ -8,8 +8,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import torch
 from pydantic import Field
 from torch import Tensor
@@ -19,7 +17,11 @@ from lightly_train._metrics.metric_args import MetricArgs
 from lightly_train._metrics.semantic_segmentation.jaccard_index_args import (
     JaccardIndexArgs,
 )
-from lightly_train._metrics.task_metric import TaskMetric, TaskMetricArgs
+from lightly_train._metrics.task_metric import (
+    MetricComputeResult,
+    TaskMetric,
+    TaskMetricArgs,
+)
 
 # Explicit mapping of base metric names to display name suffixes
 BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
@@ -55,6 +57,7 @@ class SemanticSegmentationTaskMetricArgs(TaskMetricArgs):
             num_classes=num_classes,
             ignore_index=ignore_index,
             log_classwise=log_classwise,
+            best_metric_key=f"{prefix}miou",
         )
 
 
@@ -74,6 +77,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         num_classes: int,
         ignore_index: int | None,
         log_classwise: bool,
+        best_metric_key: str,
     ) -> None:
         """Initialize semantic segmentation metrics container.
 
@@ -83,6 +87,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             num_classes: Number of classes
             ignore_index: Class index to ignore in computation
             log_classwise: Whether to log classwise metrics
+            best_metric_key: Key of the metric used for model selection
         """
         super().__init__()
 
@@ -91,6 +96,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         self.prefix = prefix
         self.ignore_index = ignore_index
         self.log_classwise = log_classwise
+        self._best_metric_key = best_metric_key
 
         # Build regular metrics
         metrics_dict = self._build_metrics(
@@ -166,18 +172,18 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             for metric in self.metrics_classwise.values():
                 metric.reset()  # type: ignore[operator]
 
-    def compute(self) -> dict[str, Any]:
+    def compute(self) -> MetricComputeResult:
         """Compute all metrics and return combined results.
 
         Returns:
-            Combined dictionary of all metric values from both regular and classwise metrics
+            MetricComputeResult with metrics dict, best_metric_key, and best_metric_value
         """
-        result: dict[str, Any] = {}
+        result: dict[str, float] = {}
 
         # Compute regular metrics
         for key, metric in self.metrics.items():
             metric_result = metric.compute()  # type: ignore[operator]
-            result[f"{self.prefix}{key}"] = metric_result
+            result[f"{self.prefix}{key}"] = float(metric_result)
 
         # Compute classwise metrics
         if self.metrics_classwise is not None:
@@ -191,13 +197,20 @@ class SemanticSegmentationTaskMetric(TaskMetric):
                 # metric_result is a tensor of shape (num_classes,) with per-class IoU
                 if isinstance(metric_result, Tensor) and metric_result.ndim == 1:  # type: ignore[operator]
                     for class_idx in range(len(metric_result)):  # type: ignore[operator]
-                        result[f"{classwise_prefix}{key}_{class_idx}"] = metric_result[  # type: ignore[operator]
-                            class_idx
-                        ]
+                        result[f"{classwise_prefix}{key}_{class_idx}"] = float(
+                            metric_result[class_idx]  # type: ignore[operator]
+                        )
                 else:
-                    result[f"{classwise_prefix}{key}"] = metric_result
+                    result[f"{classwise_prefix}{key}"] = float(metric_result)
 
-        return result
+        best_metric_value = float(result.get(self._best_metric_key, 0.0))
+        return MetricComputeResult(
+            metrics=result,
+            best_metric_key=self._best_metric_key,
+            best_metric_value=best_metric_value,
+            best_head_name="",
+            best_head_metrics=result,
+        )
 
     def get_display_names(self) -> dict[str, str]:
         """Get display names for metrics"""

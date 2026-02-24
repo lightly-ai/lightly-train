@@ -8,8 +8,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import torch
 from pydantic import Field
 from torch import Tensor
@@ -19,7 +17,11 @@ from lightly_train._metrics.metric_args import MetricArgs
 from lightly_train._metrics.panoptic_segmentation.panoptic_quality_args import (
     PanopticQualityArgs,
 )
-from lightly_train._metrics.task_metric import TaskMetric, TaskMetricArgs
+from lightly_train._metrics.task_metric import (
+    MetricComputeResult,
+    TaskMetric,
+    TaskMetricArgs,
+)
 
 # Explicit mapping of base metric names to display name suffixes
 BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
@@ -55,6 +57,7 @@ class PanopticSegmentationTaskMetricArgs(TaskMetricArgs):
             prefix=prefix,
             things=things,
             stuffs=stuffs,
+            best_metric_key=f"{prefix}pq",
         )
 
 
@@ -73,6 +76,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         prefix: str,
         things: list[int],
         stuffs: list[int],
+        best_metric_key: str,
     ) -> None:
         """Initialize panoptic segmentation metrics container.
 
@@ -81,6 +85,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
             prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
             things: List of thing class IDs
             stuffs: List of stuff class IDs
+            best_metric_key: Key of the metric used for model selection
         """
         super().__init__()
 
@@ -88,6 +93,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         self.prefix = prefix
         self.things = things
         self.stuffs = stuffs
+        self._best_metric_key = best_metric_key
 
         # Build metrics
         metrics_dict = self._build_metrics(
@@ -141,13 +147,13 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         for metric in self.metrics.values():
             metric.reset()  # type: ignore[operator]
 
-    def compute(self) -> dict[str, Any]:
+    def compute(self) -> MetricComputeResult:
         """Compute all metrics and return combined results.
 
         Returns:
-            Dictionary of all metric values with PQ, SQ, and RQ expanded
+            MetricComputeResult with metrics dict, best_metric_key, and best_metric_value
         """
-        result: dict[str, Any] = {}
+        result: dict[str, float] = {}
 
         # Compute metrics
         for key, metric in self.metrics.items():
@@ -159,13 +165,20 @@ class PanopticSegmentationTaskMetric(TaskMetric):
                 and metric_result.ndim == 1  # type: ignore[operator]
                 and len(metric_result) == 3  # type: ignore[operator]
             ):
-                result[f"{self.prefix}pq"] = metric_result[0]  # type: ignore[operator]
-                result[f"{self.prefix}sq"] = metric_result[1]  # type: ignore[operator]
-                result[f"{self.prefix}rq"] = metric_result[2]  # type: ignore[operator]
+                result[f"{self.prefix}pq"] = float(metric_result[0])  # type: ignore[operator]
+                result[f"{self.prefix}sq"] = float(metric_result[1])  # type: ignore[operator]
+                result[f"{self.prefix}rq"] = float(metric_result[2])  # type: ignore[operator]
             else:
-                result[f"{self.prefix}{key}"] = metric_result
+                result[f"{self.prefix}{key}"] = float(metric_result)
 
-        return result
+        best_metric_value = float(result.get(self._best_metric_key, 0.0))
+        return MetricComputeResult(
+            metrics=result,
+            best_metric_key=self._best_metric_key,
+            best_metric_value=best_metric_value,
+            best_head_name="",
+            best_head_metrics=result,
+        )
 
     def get_display_names(self) -> dict[str, str]:
         """Get display names for metrics"""

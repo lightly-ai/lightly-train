@@ -30,7 +30,11 @@ from lightly_train._metrics.classification.multilabel_metric_args import (
     MultilabelRecallArgs,
 )
 from lightly_train._metrics.metric_args import MetricArgs
-from lightly_train._metrics.task_metric import TaskMetric, TaskMetricArgs
+from lightly_train._metrics.task_metric import (
+    MetricComputeResult,
+    TaskMetric,
+    TaskMetricArgs,
+)
 
 # Explicit mapping of base metric names to display name suffixes
 BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
@@ -97,6 +101,7 @@ class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
             class_names=class_names,
             log_classwise=log_classwise,
             classwise_metric_args=classwise_metric_args,
+            best_metric_key=f"{prefix}top1_acc_micro",
         )
 
 
@@ -139,33 +144,13 @@ class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
             class_names=class_names,
             log_classwise=log_classwise,
             classwise_metric_args=classwise_metric_args,
+            best_metric_key=f"{prefix}f1_macro",
         )
 
 
 ClassificationTaskMetricArgs = (
     MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs
 )
-
-
-class _ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
-    """Renames classwise metric keys to handle class names with underscores.
-
-    Replaces unique separator with underscore, avoiding conflicts when class names
-    themselves contain underscores (e.g., "cat__type_a").
-    """
-
-    _SEPARATOR = "<SEP>"
-
-    def compute(self) -> dict[str, Any]:  # type: ignore[override]
-        """Compute metrics and rename keys by replacing separator with underscore."""
-        result = super().compute()
-        # ClasswiseWrapper joins metric_name with prefix as: metric_name + "_" + prefix + class_name
-        # So with prefix="<SEP>" we get: metric_name_<SEP>class_name
-        # Replace "_<SEP>" with "_" to get the desired format: metric_name_class_name
-        return {
-            key.replace(f"_{self._SEPARATOR}", "_"): value
-            for key, value in result.items()
-        }
 
 
 class ClassificationTaskMetric(TaskMetric):
@@ -184,6 +169,7 @@ class ClassificationTaskMetric(TaskMetric):
         class_names: list[str],
         log_classwise: bool,
         classwise_metric_args: ClassificationTaskMetricArgs | None,
+        best_metric_key: str,
     ) -> None:
         """Initialize classification metrics container.
 
@@ -193,6 +179,7 @@ class ClassificationTaskMetric(TaskMetric):
             class_names: Class names for all metrics
             log_classwise: Whether to log classwise metrics
             classwise_metric_args: Optional separate args for classwise metrics
+            best_metric_key: Key of the metric used for model selection
         """
         super().__init__()
 
@@ -201,6 +188,7 @@ class ClassificationTaskMetric(TaskMetric):
         self.prefix = prefix
         self.class_names = class_names
         self.log_classwise = log_classwise
+        self._best_metric_key = best_metric_key
 
         self.metrics = self._build_metric_collection(
             metric_args=metric_args,
@@ -282,16 +270,24 @@ class ClassificationTaskMetric(TaskMetric):
         if self.metrics_classwise is not None:
             self.metrics_classwise.update(preds, target)
 
-    def compute(self) -> dict[str, Any]:
+    def compute(self) -> MetricComputeResult:
         """Compute all metrics and return combined results.
 
         Returns:
-            Combined dictionary of all metric values from both regular and classwise metrics
+            MetricComputeResult with metrics dict, best_metric_key, and best_metric_value
         """
         result = self.metrics.compute()
         if self.metrics_classwise is not None:
             result.update(self.metrics_classwise.compute())
-        return result
+        metrics = {k: float(v) for k, v in result.items()}
+        best_metric_value = float(metrics.get(self._best_metric_key, 0.0))
+        return MetricComputeResult(
+            metrics=metrics,
+            best_metric_key=self._best_metric_key,
+            best_metric_value=best_metric_value,
+            best_head_name="",
+            best_head_metrics=metrics,
+        )
 
     def get_display_names(self) -> dict[str, str]:
         """Get display names for metrics"""
@@ -346,3 +342,24 @@ class ClassificationTaskMetric(TaskMetric):
 
         # Fallback: capitalize and format with spaces
         return f"{split} {base_name.replace('_', ' ').title()}"
+
+
+class _ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
+    """Renames classwise metric keys to handle class names with underscores.
+
+    Replaces unique separator with underscore, avoiding conflicts when class names
+    themselves contain underscores (e.g., "cat__type_a").
+    """
+
+    _SEPARATOR = "<SEP>"
+
+    def compute(self) -> dict[str, Any]:  # type: ignore[override]
+        """Compute metrics and rename keys by replacing separator with underscore."""
+        result = super().compute()
+        # ClasswiseWrapper joins metric_name with prefix as: metric_name + "_" + prefix + class_name
+        # So with prefix="<SEP>" we get: metric_name_<SEP>class_name
+        # Replace "_<SEP>" with "_" to get the desired format: metric_name_class_name
+        return {
+            key.replace(f"_{self._SEPARATOR}", "_"): value
+            for key, value in result.items()
+        }

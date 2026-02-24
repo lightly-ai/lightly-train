@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from torch.nn import Module
 from torchmetrics import Metric
 
@@ -98,6 +100,32 @@ That's it! The new metric is now integrated.
 """
 
 
+@dataclass
+class MetricComputeResult:
+    """Result of computing all metrics.
+
+    Attributes:
+        metrics: Dictionary mapping metric names to computed float values.
+            For multihead metrics, contains per-head keys (e.g.,
+            "val_metric_head/miou_lr0_001") and best-head top-level keys
+            (e.g., "val_metric/miou").
+        best_metric_key: The key of the metric used for model selection
+            (e.g., "val_metric/miou"). Used by the training loop for
+            checkpointing.
+        best_metric_value: The value of the best_metric_key metric.
+        best_head_name: Name of the best head (e.g., "lr0_01"). Empty string
+            for single-head metrics.
+        best_head_metrics: Metrics of the best head with top-level keys
+            (no head suffix). For single-head metrics, same as metrics.
+    """
+
+    metrics: dict[str, float]
+    best_metric_key: str
+    best_metric_value: float
+    best_head_name: str
+    best_head_metrics: dict[str, float]
+
+
 class TaskMetricArgs(PydanticConfig):
     """Base class for task-specific metrics collection configurations."""
 
@@ -139,11 +167,11 @@ class TaskMetric(Module):
         """
         raise NotImplementedError
 
-    def compute(self) -> dict[str, float]:
+    def compute(self) -> MetricComputeResult:
         """Compute all metrics and return values for logging.
 
         Returns:
-            Dictionary mapping metric names to computed metric values.
+            MetricComputeResult containing metrics dict, best_metric_key, and best_metric_value.
         """
         raise NotImplementedError
 

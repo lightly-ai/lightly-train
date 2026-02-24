@@ -18,7 +18,11 @@ from lightly_train._metrics.instance_segmentation.mean_average_precision_args im
     InstanceSegmentationMeanAveragePrecisionArgs,
 )
 from lightly_train._metrics.metric_args import MetricArgs
-from lightly_train._metrics.task_metric import TaskMetric, TaskMetricArgs
+from lightly_train._metrics.task_metric import (
+    MetricComputeResult,
+    TaskMetric,
+    TaskMetricArgs,
+)
 
 # Explicit mapping of base metric names to display name suffixes
 BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
@@ -57,6 +61,7 @@ class InstanceSegmentationTaskMetricArgs(TaskMetricArgs):
             prefix=prefix,
             class_names=class_names,
             log_classwise=log_classwise,
+            best_metric_key=f"{prefix}map",
         )
 
 
@@ -75,6 +80,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         prefix: str,
         class_names: list[str],
         log_classwise: bool,
+        best_metric_key: str,
     ) -> None:
         """Initialize instance segmentation metrics container.
 
@@ -83,6 +89,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
             prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
             class_names: Class names for all metrics
             log_classwise: Whether to log classwise metrics
+            best_metric_key: Key of the metric used for model selection
         """
         super().__init__()
 
@@ -91,6 +98,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         self.prefix = prefix
         self.class_names = class_names
         self.log_classwise = log_classwise
+        self._best_metric_key = best_metric_key
 
         # Build regular metrics
         metrics_dict = self._build_metrics(metric_args=metric_args, classwise=False)
@@ -155,13 +163,13 @@ class InstanceSegmentationTaskMetric(TaskMetric):
             for metric in self.metrics_classwise.values():
                 metric.reset()  # type: ignore[operator]
 
-    def compute(self) -> dict[str, Any]:
+    def compute(self) -> MetricComputeResult:
         """Compute all metrics and return combined results.
 
         Returns:
-            Combined dictionary of all metric values from both regular and classwise metrics
+            MetricComputeResult with metrics dict, best_metric_key, and best_metric_value
         """
-        result: dict[str, Any] = {}
+        result: dict[str, float] = {}
 
         # Compute regular metrics
         for key, metric in self.metrics.items():
@@ -172,9 +180,9 @@ class InstanceSegmentationTaskMetric(TaskMetric):
                     # Skip non-scalar metrics
                     if sub_key in ["map_per_class", "mar_100_per_class", "classes"]:
                         continue
-                    result[f"{self.prefix}{sub_key}"] = value
+                    result[f"{self.prefix}{sub_key}"] = float(value)
             else:
-                result[f"{self.prefix}{key}"] = metric_result
+                result[f"{self.prefix}{key}"] = float(metric_result)
 
         # Compute classwise metrics
         if self.metrics_classwise is not None:
@@ -208,13 +216,13 @@ class InstanceSegmentationTaskMetric(TaskMetric):
                                         if class_idx < len(self.class_names):
                                             result[
                                                 f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
-                                            ] = value
+                                            ] = float(value)
                                     elif len(classes_tensor) > 0:  # type: ignore[operator]
                                         class_idx = int(classes_tensor[0].item())  # type: ignore[operator]
                                         if class_idx < len(self.class_names):
                                             result[
                                                 f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
-                                            ] = value
+                                            ] = float(value)
                                 # Handle 1-d tensors (multiple classes)
                                 elif value.ndim == 1:  # type: ignore[operator]
                                     # classes_tensor might be scalar if only one class
@@ -226,7 +234,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
                                         ):
                                             result[
                                                 f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
-                                            ] = value[0]
+                                            ] = float(value[0])
                                     elif len(value) == len(classes_tensor):  # type: ignore[operator]
                                         for i, class_idx_tensor in enumerate(  # type: ignore[operator]
                                             classes_tensor
@@ -235,14 +243,21 @@ class InstanceSegmentationTaskMetric(TaskMetric):
                                             if class_idx < len(self.class_names):
                                                 result[
                                                     f"{classwise_prefix}{base_key}_{self.class_names[class_idx]}"
-                                                ] = value[i]
+                                                ] = float(value[i])
                         elif sub_key not in ["classes"]:
                             # Regular scalar metrics (map, map_50, etc.)
-                            result[f"{classwise_prefix}{sub_key}"] = value
+                            result[f"{classwise_prefix}{sub_key}"] = float(value)
                 else:
-                    result[f"{classwise_prefix}{key}"] = metric_result
+                    result[f"{classwise_prefix}{key}"] = float(metric_result)
 
-        return result
+        best_metric_value = float(result.get(self._best_metric_key, 0.0))
+        return MetricComputeResult(
+            metrics=result,
+            best_metric_key=self._best_metric_key,
+            best_metric_value=best_metric_value,
+            best_head_name="",
+            best_head_metrics=result,
+        )
 
     def get_display_names(self) -> dict[str, str]:
         """Get display names for metrics"""

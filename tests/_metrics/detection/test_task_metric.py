@@ -43,8 +43,8 @@ class TestObjectDetectionTaskMetricArgs:
         detection_task_metric.update(preds, targets)
 
         result = detection_task_metric.compute()
-        assert isinstance(result, dict)
-        assert len(result) > 0
+        assert isinstance(result.metrics, dict)
+        assert len(result.metrics) > 0
 
         expected_metrics = {
             "val_metric/map",
@@ -54,7 +54,9 @@ class TestObjectDetectionTaskMetricArgs:
             "val_metric/map_medium",
             "val_metric/map_large",
         }
-        assert expected_metrics.issubset(set(result.keys()))
+        assert expected_metrics.issubset(set(result.metrics.keys()))
+        assert result.best_metric_key == "val_metric/map"
+        assert isinstance(result.best_metric_value, float)
 
     def test_get_metrics__classwise(self) -> None:
         """Test that classwise metrics are created correctly."""
@@ -89,11 +91,11 @@ class TestObjectDetectionTaskMetricArgs:
         detection_task_metric.update(preds, targets)
 
         result = detection_task_metric.compute()
-        assert isinstance(result, dict)
-        assert len(result) > 0
+        assert isinstance(result.metrics, dict)
+        assert len(result.metrics) > 0
 
-        regular_metrics = {k for k in result.keys() if "classwise" not in k}
-        result_classwise = {k: v for k, v in result.items() if "classwise" in k}
+        regular_metrics = {k for k in result.metrics.keys() if "classwise" not in k}
+        result_classwise = {k: v for k, v in result.metrics.items() if "classwise" in k}
         assert isinstance(result_classwise, dict)
         assert len(result_classwise) > 0
 
@@ -192,7 +194,7 @@ class TestObjectDetectionTaskMetricArgs:
         detection_task_metric.update(preds, targets)
 
         result_before = detection_task_metric.compute()
-        assert len(result_before) > 0
+        assert len(result_before.metrics) > 0
 
         detection_task_metric.reset()
 
@@ -214,4 +216,4 @@ class TestObjectDetectionTaskMetricArgs:
         result_after = detection_task_metric.compute()
 
         # Results should be different (perfect vs. imperfect detection)
-        assert result_after != result_before
+        assert result_after.metrics != result_before.metrics
