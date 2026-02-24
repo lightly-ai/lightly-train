@@ -23,6 +23,13 @@ from torch.optim.sgd import SGD
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._metrics.classification.task_metric import (
+    ClassificationTaskMetricArgs,
+    MulticlassClassificationTaskMetricArgs,
+    MultilabelClassificationTaskMetricArgs,
+)
+from lightly_train._metrics.multihead_task_metric import MultiheadTaskMetric
+from lightly_train._metrics.task_metric import TaskMetric
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.image_classification_multihead.task_model import (
@@ -55,7 +62,7 @@ class ImageClassificationMultiheadSaveCheckpointArgs(TaskSaveCheckpointArgs):
             if data_args.classification_task == "multiclass":
                 self.watch_metric = "val_metric/top1_acc_micro"
             elif data_args.classification_task == "multilabel":
-                self.watch_metric = "val_metric/f1_micro"
+                self.watch_metric = "val_metric/f1_macro"
             else:
                 raise ValueError(
                     f"Unsupported classification task: {data_args.classification_task}"
@@ -92,8 +99,11 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
     lr_warmup_steps: int = 0
 
     # Metrics
-    metrics: dict[str, dict[str, Any]] | Literal["auto"] = "auto"
-    metrics_classwise: dict[str, dict[str, Any]] | None = None
+    metric_args: (
+        MulticlassClassificationTaskMetricArgs
+        | MultilabelClassificationTaskMetricArgs
+        | Literal["auto"]
+    ) = "auto"
     metric_log_classwise: bool = False
 
     # Loss
@@ -113,23 +123,12 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
     ) -> None:
-        if self.metrics == "auto":
+        if self.metric_args == "auto":
             assert isinstance(data_args, ImageClassificationDataArgs)
             if data_args.classification_task == "multiclass":
-                self.metrics = {
-                    "accuracy": {"topk": [1, 5], "average": ["micro"]},
-                    "f1": {"average": ["micro"]},
-                    "precision": {"average": ["micro"]},
-                    "recall": {"average": ["micro"]},
-                }
+                self.metric_args = MulticlassClassificationTaskMetricArgs()
             elif data_args.classification_task == "multilabel":
-                self.metrics = {
-                    "hamming_distance": {"threshold": 0.5, "average": ["micro"]},
-                    "accuracy": {"threshold": 0.5, "average": ["micro"]},
-                    "f1": {"threshold": 0.5, "average": ["micro"]},
-                    "auroc": {"thresholds": None, "average": ["micro"]},
-                    "average_precision": {"thresholds": None, "average": ["micro"]},
-                }
+                self.metric_args = MultilabelClassificationTaskMetricArgs()
             else:
                 raise ValueError(
                     f"Unsupported classification task: {data_args.classification_task}"
@@ -155,7 +154,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
     ) -> None:
         # Import here because old torchmetrics versions (0.8.0) don't support the
         # metrics we use. But we need old torchmetrics support for SuperGradients.
-        from torchmetrics import ClasswiseWrapper, MeanMetric, MetricCollection
+        from torchmetrics import MeanMetric
 
         super().__init__()
         image_size = no_auto(val_transform_args.image_size)
@@ -196,96 +195,30 @@ class ImageClassificationMultiheadTrain(TrainModel):
 
         # Validation loss tracking: overall and per-head.
         self.val_loss = MeanMetric()
-        val_loss_per_head: dict[str, Metric] = {}
+        val_loss_per_head: dict[str, MeanMetric] = {}
         for lr in self.lrs:
             head_name = _format_head_name(lr)
             val_loss_per_head[head_name] = MeanMetric()
         self.val_loss_per_head = ModuleDict(val_loss_per_head)
 
-        # Create metrics from configuration.
-        from torchmetrics import Metric
-
-        base_metrics: dict[str, Metric] = {}
-        for metric_name, metric_config in no_auto(model_args.metrics).items():
-            base_metrics.update(
-                _create_metric(
-                    metric_name=metric_name,
-                    metric_config=metric_config,
-                    num_classes=data_args.num_included_classes,
-                    classification_task=self.classification_task,
-                )
-            )
-
-        # Create per-head metric collections with suffix _head_lr{value}.
-
-        val_metrics_per_head: dict[str, MetricCollection] = {}
+        # Create per-head task metrics using MultiheadTaskMetric.
+        resolved_metric_args: ClassificationTaskMetricArgs = no_auto(  # type: ignore[assignment]
+            model_args.metric_args
+        )
+        class_names = list(data_args.included_classes.values())
+        head_metrics: dict[str, TaskMetric] = {}
         for lr in self.lrs:
             head_name = _format_head_name(lr)
-            # Add suffix to each metric key.
-            head_metrics: dict[str, Metric] = {}
-            for key, metric in base_metrics.items():
-                suffixed_key = f"{key}_{head_name}"
-                head_metrics[suffixed_key] = metric.clone()
-            # Type ignore because old torchmetrics versions (0.8) don't have the
-            # correct type annotations for MetricCollection.
-            val_metrics_per_head[head_name] = MetricCollection(
-                head_metrics,  # type: ignore[arg-type]
-                prefix="val_metric_head/",
+            head_metrics[head_name] = resolved_metric_args.get_metrics(
+                prefix="val_metric/",
+                class_names=class_names,
+                log_classwise=model_args.metric_log_classwise,
+                classwise_metric_args=None,
             )
-        self.val_metrics_per_head = ModuleDict(val_metrics_per_head)
-
-        # Create classwise metrics if enabled.
-        self.val_metrics_classwise: MetricCollection | None
-        self.val_metrics_classwise_per_head: ModuleDict | None
-        if model_args.metric_log_classwise:
-            classwise_metrics: dict[str, Metric] = {}
-            # If metrics_classwise is None, use filtered metrics from main metrics.
-            if model_args.metrics_classwise is None:
-                metrics_classwise_config = _filter_classwise_metrics(
-                    no_auto(model_args.metrics),
-                    classification_task=self.classification_task,
-                )
-            else:
-                metrics_classwise_config = model_args.metrics_classwise
-
-            class_labels = list(data_args.included_classes.values())
-            for metric_name, metric_config in metrics_classwise_config.items():
-                base_metrics_classwise = _create_metric(
-                    metric_name=metric_name,
-                    metric_config=metric_config,
-                    num_classes=data_args.num_included_classes,
-                    classification_task=self.classification_task,
-                    classwise=True,
-                )
-                for key, base_metric in base_metrics_classwise.items():
-                    # Type ignore because old torchmetrics versions (0.8) don't support
-                    # the `prefix` argument. We only use the old versions for
-                    # SuperGradients support.
-                    classwise_metrics[key] = ClasswiseWrapper(  # type: ignore[call-arg]
-                        base_metric,
-                        prefix="_",
-                        labels=class_labels,
-                    )
-
-            # Create per-head classwise metrics.
-            val_metrics_classwise_per_head = {}
-            for lr in self.lrs:
-                head_name = _format_head_name(lr)
-                head_classwise_metrics: dict[str, Metric] = {}
-                for key, metric in classwise_metrics.items():
-                    suffixed_key = f"{key}_{head_name}"
-                    head_classwise_metrics[suffixed_key] = metric.clone()
-                # Type ignore because old torchmetrics versions (0.8) don't have the
-                # correct type annotations for MetricCollection.
-                val_metrics_classwise_per_head[head_name] = MetricCollection(
-                    head_classwise_metrics,  # type: ignore[arg-type]
-                    prefix="val_metric_head_classwise/",
-                )
-            self.val_metrics_classwise_per_head = ModuleDict(
-                val_metrics_classwise_per_head
-            )
-        else:
-            self.val_metrics_classwise_per_head = None
+        self.val_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
+            head_metrics=head_metrics,  # type: ignore[arg-type]
+            best_metric_mode="max",
+        )
 
     def get_task_model(self) -> ImageClassificationMultihead:
         return self.model
@@ -414,22 +347,14 @@ class ImageClassificationMultiheadTrain(TrainModel):
             loss = self.criterion(logits, targets)
             losses.append(loss)
             self.val_loss_per_head[head_name].update(loss, weight=len(images))  # type: ignore[operator]
-            self.val_metrics_per_head[head_name].update(logits, targets_int)  # type: ignore[operator]
-
-            # Update per-head classwise metrics if enabled.
-            if self.val_metrics_classwise_per_head is not None:
-                self.val_metrics_classwise_per_head[head_name].update(
-                    logits, targets_int
-                )  # type: ignore[operator]
+            self.val_metrics.head_metrics[head_name].update(logits, targets_int)  # type: ignore[operator]
 
         # Update overall loss tracker (mean of all heads).
         loss_mean = torch.stack(losses).mean()
         self.val_loss.update(loss_mean, weight=len(images))
 
-        # Build comprehensive log_dict.
+        # Build log_dict.
         log_dict: dict[str, Any] = {}
-
-        # Mean loss across all heads.
         log_dict["val_loss"] = loss_mean.detach()
 
         # Per-head losses.
@@ -438,16 +363,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 head_name
             ].compute()
 
-        # Per-head metrics.
-        for head_name in logits_dict.keys():
-            log_dict.update(dict(self.val_metrics_per_head[head_name].items()))  # type: ignore[operator]
-
-        # Classwise metrics if enabled.
-        if self.val_metrics_classwise_per_head is not None:
-            for head_name in logits_dict.keys():
-                log_dict.update(
-                    dict(self.val_metrics_classwise_per_head[head_name].items())  # type: ignore[operator]
-                )
+        log_dict["val_metrics"] = self.val_metrics
 
         # Use sum of losses for consistency with training_step.
         loss_sum = torch.stack(losses).sum()
@@ -464,162 +380,6 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 optimizer=optimizer,
                 max_norm=self.model_args.gradient_clip_val,
             )
-
-
-def _create_metric(
-    metric_name: str,
-    metric_config: dict[str, Any],
-    num_classes: int,
-    classification_task: Literal["multiclass", "multilabel"],
-    classwise: bool = False,
-) -> dict[str, Any]:
-    """Create metrics from configuration.
-
-    Args:
-        metric_name: Name of the metric (e.g. "accuracy", "f1").
-        metric_config: Configuration dictionary for the metric.
-        num_classes: Number of classes.
-        classification_task: Classification task type.
-        classwise: Whether to create classwise metrics.
-
-    Returns:
-        Dictionary mapping metric names to metric instances.
-    """
-    from torchmetrics import Metric
-    from torchmetrics.classification import (  # type: ignore[attr-defined]
-        MulticlassAccuracy,
-        MulticlassF1Score,
-        MulticlassPrecision,
-        MulticlassRecall,
-        MultilabelAccuracy,
-        MultilabelAUROC,
-        MultilabelAveragePrecision,
-        MultilabelF1Score,
-        MultilabelHammingDistance,
-    )
-
-    metrics: dict[str, Metric] = {}
-    average_list = metric_config.get("average", ["micro"])
-
-    if classification_task == "multiclass":
-        if metric_name == "accuracy":
-            topk_list = metric_config.get("topk", [1])
-            for k in topk_list:
-                if k > num_classes:
-                    continue
-                for average in average_list:
-                    key = f"top{k}_acc_{average}"
-                    metrics[key] = MulticlassAccuracy(
-                        num_classes=num_classes,
-                        top_k=k,
-                        average="none" if classwise else average,
-                    )
-        elif metric_name == "f1":
-            for average in average_list:
-                key = f"f1_{average}"
-                metrics[key] = MulticlassF1Score(
-                    num_classes=num_classes,
-                    average="none" if classwise else average,
-                )
-        elif metric_name == "precision":
-            for average in average_list:
-                key = f"precision_{average}"
-                metrics[key] = MulticlassPrecision(
-                    num_classes=num_classes,
-                    average="none" if classwise else average,
-                )
-        elif metric_name == "recall":
-            for average in average_list:
-                key = f"recall_{average}"
-                metrics[key] = MulticlassRecall(
-                    num_classes=num_classes,
-                    average="none" if classwise else average,
-                )
-        else:
-            raise ValueError(
-                f"Unsupported metric '{metric_name}' for {classification_task}"
-            )
-    elif classification_task == "multilabel":
-        if metric_name == "hamming_distance":
-            threshold = metric_config.get("threshold", 0.5)
-            for average in average_list:
-                key = f"hamming_distance_{average}"
-                metrics[key] = MultilabelHammingDistance(
-                    num_labels=num_classes,
-                    threshold=threshold,
-                    average="none" if classwise else average,
-                )
-        elif metric_name == "accuracy":
-            threshold = metric_config.get("threshold", 0.5)
-            for average in average_list:
-                key = f"accuracy_{average}"
-                metrics[key] = MultilabelAccuracy(
-                    num_labels=num_classes,
-                    threshold=threshold,
-                    average="none" if classwise else average,
-                )
-        elif metric_name == "f1":
-            threshold = metric_config.get("threshold", 0.5)
-            for average in average_list:
-                key = f"f1_{average}"
-                metrics[key] = MultilabelF1Score(
-                    num_labels=num_classes,
-                    threshold=threshold,
-                    average="none" if classwise else average,
-                )
-        elif metric_name == "auroc":
-            thresholds = metric_config.get("thresholds", None)
-            for average in average_list:
-                key = f"auroc_{average}"
-                metrics[key] = MultilabelAUROC(
-                    num_labels=num_classes,
-                    thresholds=thresholds,
-                    average="none" if classwise else average,
-                )
-        elif metric_name == "average_precision":
-            thresholds = metric_config.get("thresholds", None)
-            for average in average_list:
-                key = f"average_precision_{average}"
-                metrics[key] = MultilabelAveragePrecision(
-                    num_labels=num_classes,
-                    thresholds=thresholds,
-                    average="none" if classwise else average,
-                )
-        else:
-            raise ValueError(
-                f"Unsupported metric '{metric_name}' for {classification_task}"
-            )
-    else:
-        raise ValueError(f"Unsupported classification task: {classification_task}")
-
-    return metrics
-
-
-def _filter_classwise_metrics(
-    metrics: dict[str, dict[str, Any]],
-    classification_task: Literal["multiclass", "multilabel"],
-) -> dict[str, dict[str, Any]]:
-    """Filter metrics that make sense for classwise computation.
-
-    Args:
-        metrics: Metrics configuration dictionary.
-        classification_task: Classification task type.
-
-    Returns:
-        Filtered metrics configuration dictionary.
-    """
-    if classification_task == "multiclass":
-        # Exclude topk accuracy for classwise.
-        return {
-            k: {key: val for key, val in v.items() if key != "topk"}
-            for k, v in metrics.items()
-            if k != "accuracy"  # Exclude accuracy entirely for multiclass.
-        }
-    elif classification_task == "multilabel":
-        # For multilabel, all metrics make sense classwise.
-        return metrics.copy()
-    else:
-        raise ValueError(f"Unsupported classification task: {classification_task}")
 
 
 def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:

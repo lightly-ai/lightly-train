@@ -877,8 +877,14 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
     # Lazy import because torchmetrics is optional dependency.
     from torchmetrics import Metric
 
+    from lightly_train._metrics.task_metric import TaskMetric
+
     metrics = {}
     for name, value in log_dict.items():
+        if isinstance(value, TaskMetric):
+            result = value.compute()
+            metrics.update(result.metrics)
+            continue
         if isinstance(value, Metric):
             value = value.compute()
         if "/pq" in name:
@@ -938,8 +944,12 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
     # Lazy import because torchmetrics is optional dependency.
     from torchmetrics import Metric
 
+    from lightly_train._metrics.task_metric import TaskMetric
+
     for value in log_dict.values():
-        if isinstance(value, Metric):
+        if isinstance(value, TaskMetric):
+            value.reset()
+        elif isinstance(value, Metric):
             value.reset()
 
 
