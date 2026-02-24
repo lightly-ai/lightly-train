@@ -1420,7 +1420,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 batch = next(infinite_train_dataloader)
                 timer.end_step("train_dataload")
 
-                with fabric.no_backward_sync(train_model, enabled=is_accumulating):
+                # Type ignore is needed because `train_model` is not recognized as an
+                # instance of `_FabricModule`
+                with fabric.no_backward_sync(train_model, enabled=is_accumulating):  # type: ignore[arg-type]
                     train_result = train_model.training_step(
                         fabric=fabric, batch=batch, step=step
                     )
