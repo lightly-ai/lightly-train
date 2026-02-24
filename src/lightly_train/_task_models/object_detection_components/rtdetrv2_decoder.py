@@ -636,7 +636,7 @@ class RTDETRTransformerv2(nn.Module):
         # prepare input for decoder
         if self.training or self.eval_spatial_size is None:
             anchors, valid_mask = self._generate_anchors(
-                spatial_shapes, device=memory.device
+                spatial_shapes, device=memory.device, dtype=memory.dtype
             )
         else:
             anchors = self.anchors

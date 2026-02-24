@@ -19,8 +19,8 @@ from albumentations import (
     HorizontalFlip,
     RandomResizedCrop,
     RandomRotate90,
-    Resize,
     Rotate,
+    SmallestMaxSize,
     VerticalFlip,
 )
 from albumentations.pytorch.transforms import ToTensorV2
@@ -157,10 +157,18 @@ class ImageClassificationTransform(TaskTransform):
             if resize_scale is not None:
                 resize_height = int(height * resize_scale)
                 resize_width = int(width * resize_scale)
+            max_size: int | None
+            max_size_hw: tuple[int, int] | None
+            if resize_height == resize_width:
+                max_size = resize_height
+                max_size_hw = None
+            else:
+                max_size = None
+                max_size_hw = (resize_height, resize_width)
             transform += [
-                Resize(
-                    height=resize_height,
-                    width=resize_width,
+                SmallestMaxSize(
+                    max_size=max_size,
+                    max_size_hw=max_size_hw,
                     interpolation=cv2.INTER_AREA,
                 )
             ]

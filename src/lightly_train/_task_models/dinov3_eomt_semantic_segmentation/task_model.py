@@ -10,7 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
-import os
+from pathlib import Path
 from typing import Any, Literal
 
 import torch
@@ -604,10 +604,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         Args:
             path: path to a .pt file, e.g., exported_last.pt.
         """
-        # Check if the file exists.
-        if not os.path.exists(path):
-            logger.error(f"Checkpoint file not found: {path}")
-            return
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
 
         # Load the checkpoint.
         state_dict = torch.load(path, map_location="cpu", weights_only=False)

@@ -13,39 +13,36 @@ from typing import Any, ClassVar, Literal
 import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
-from pydantic import Field
+from pydantic import Field, model_validator
 from torch import Tensor
-from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, Module
-from torch.optim.adamw import AdamW
+from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, Module, ModuleDict
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
+from torch.optim.sgd import SGD
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
-from lightly_train._task_models.image_classification.task_model import (
-    ImageClassification,
+from lightly_train._task_models.image_classification_multihead.task_model import (
+    ImageClassificationMultihead,
 )
-from lightly_train._task_models.image_classification.transforms import (
-    ImageClassificationTrainTransform,
-    ImageClassificationTrainTransformArgs,
-    ImageClassificationValTransform,
-    ImageClassificationValTransformArgs,
+from lightly_train._task_models.image_classification_multihead.transforms import (
+    ImageClassificationMultiheadTrainTransform,
+    ImageClassificationMultiheadTrainTransformArgs,
+    ImageClassificationMultiheadValTransform,
+    ImageClassificationMultiheadValTransformArgs,
 )
 from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
     TrainModelArgs,
 )
-from lightly_train.types import (
-    ImageClassificationBatch,
-    PathLike,
-)
+from lightly_train.types import ImageClassificationBatch, PathLike
 
 
-class ClassificationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
+class ImageClassificationMultiheadSaveCheckpointArgs(TaskSaveCheckpointArgs):
     watch_metric: str = "auto"
     mode: Literal["min", "max"] = "max"
 
@@ -65,34 +62,49 @@ class ClassificationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
                 )
 
 
-class ImageClassificationTrainArgs(TrainModelArgs):
-    default_batch_size: ClassVar[int] = 16
+class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
+    default_batch_size: ClassVar[int] = 128
     default_steps: ClassVar[int] = 100_000
 
     save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        ClassificationTaskSaveCheckpointArgs
+        ImageClassificationMultiheadSaveCheckpointArgs
     )
 
     # Backbone args
-    backbone_freeze: bool = False
     backbone_weights: PathLike | None = None
     backbone_args: dict[str, Any] = Field(default_factory=dict)
 
-    gradient_clip_val: float | Literal["auto"] = "auto"
+    gradient_clip_val: float = 0.0
 
     # Optim
-    lr: float = 3e-4
-    weight_decay: float | Literal["auto"] = "auto"
-    lr_warmup_steps: int | Literal["auto"] = "auto"
+    lr: list[float] | float = [
+        0.00001,
+        0.00003,
+        0.0001,
+        0.0003,
+        0.001,
+        0.003,
+        0.01,
+        0.03,
+        0.1,
+    ]
+    weight_decay: float = 0.0
+    lr_warmup_steps: int = 0
 
     # Metrics
     metrics: dict[str, dict[str, Any]] | Literal["auto"] = "auto"
     metrics_classwise: dict[str, dict[str, Any]] | None = None
     metric_log_classwise: bool = False
-    metric_log_debug: bool = False
 
     # Loss
     label_smoothing: float = 0.0
+
+    @model_validator(mode="after")
+    def _convert_lr_to_list(self) -> ImageClassificationMultiheadTrainArgs:
+        """Convert float lr to single-element list."""
+        if isinstance(self.lr, float):
+            self.lr = [self.lr]
+        return self
 
     def resolve_auto(
         self,
@@ -101,21 +113,6 @@ class ImageClassificationTrainArgs(TrainModelArgs):
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
     ) -> None:
-        if self.weight_decay == "auto":
-            if self.backbone_freeze:
-                self.weight_decay = 0.0
-            else:
-                self.weight_decay = 1e-4
-        if self.lr_warmup_steps == "auto":
-            if self.backbone_freeze:
-                self.lr_warmup_steps = 0
-            else:
-                self.lr_warmup_steps = min(500, total_steps)
-        if self.gradient_clip_val == "auto":
-            if self.backbone_freeze:
-                self.gradient_clip_val = 0.0
-            else:
-                self.gradient_clip_val = 3.0
         if self.metrics == "auto":
             assert isinstance(data_args, ImageClassificationDataArgs)
             if data_args.classification_task == "multiclass":
@@ -139,21 +136,21 @@ class ImageClassificationTrainArgs(TrainModelArgs):
                 )
 
 
-class ImageClassificationTrain(TrainModel):
-    task = "image_classification"
-    train_model_args_cls = ImageClassificationTrainArgs
-    task_model_cls = ImageClassification
-    train_transform_cls = ImageClassificationTrainTransform
-    val_transform_cls = ImageClassificationValTransform
+class ImageClassificationMultiheadTrain(TrainModel):
+    task = "image_classification_multihead"
+    train_model_args_cls = ImageClassificationMultiheadTrainArgs
+    task_model_cls = ImageClassificationMultihead
+    train_transform_cls = ImageClassificationMultiheadTrainTransform
+    val_transform_cls = ImageClassificationMultiheadValTransform
 
     def __init__(
         self,
         *,
         model_name: str,
-        model_args: ImageClassificationTrainArgs,
+        model_args: ImageClassificationMultiheadTrainArgs,
         data_args: ImageClassificationDataArgs,
-        train_transform_args: ImageClassificationTrainTransformArgs,
-        val_transform_args: ImageClassificationValTransformArgs,
+        train_transform_args: ImageClassificationMultiheadTrainTransformArgs,
+        val_transform_args: ImageClassificationMultiheadValTransformArgs,
         load_weights: bool,
     ) -> None:
         # Import here because old torchmetrics versions (0.8.0) don't support the
@@ -165,72 +162,102 @@ class ImageClassificationTrain(TrainModel):
         normalize = no_auto(val_transform_args.normalize)
 
         self.model_args = model_args
-        self.model = ImageClassification(
+        self.classification_task = data_args.classification_task
+        self.num_classes = data_args.num_included_classes
+
+        # Convert lr to list and store for optimizer creation.
+        self.lrs = model_args.lr if isinstance(model_args.lr, list) else [model_args.lr]
+
+        # Generate head names from learning rates.
+        head_names = [_format_head_name(lr) for lr in self.lrs]
+
+        self.model = ImageClassificationMultihead(
             model=model_name,
             classes=data_args.included_classes,
-            classification_task=data_args.classification_task,
-            # TODO(Guarin, 02/26): Check drop path rate for DINO models.
+            head_names=head_names,
             image_size=image_size,
             image_normalize=normalize.model_dump(),
-            backbone_freeze=self.model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             backbone_args=model_args.backbone_args,
             load_weights=load_weights,
         )
 
         self.criterion: Module
-        if self.model.classification_task == "multiclass":
+        if self.classification_task == "multiclass":
             self.criterion = CrossEntropyLoss(
                 label_smoothing=model_args.label_smoothing
             )
-        elif self.model.classification_task == "multilabel":
+        elif self.classification_task == "multilabel":
             self.criterion = BCEWithLogitsLoss()
         else:
             raise ValueError(
-                f"Unsupported classification task: {self.model.classification_task}"
+                f"Unsupported classification task: {self.classification_task}"
             )
 
-        # Metrics
+        # Validation loss tracking: overall and per-head.
         self.val_loss = MeanMetric()
+        val_loss_per_head: dict[str, Metric] = {}
+        for lr in self.lrs:
+            head_name = _format_head_name(lr)
+            val_loss_per_head[head_name] = MeanMetric()
+        self.val_loss_per_head = ModuleDict(val_loss_per_head)
 
-        # Create metrics from configuration
+        # Create metrics from configuration.
         from torchmetrics import Metric
 
-        metrics: dict[str, Metric] = {}
+        base_metrics: dict[str, Metric] = {}
         for metric_name, metric_config in no_auto(model_args.metrics).items():
-            metrics.update(
+            base_metrics.update(
                 _create_metric(
                     metric_name=metric_name,
                     metric_config=metric_config,
                     num_classes=data_args.num_included_classes,
-                    classification_task=self.model.classification_task,
+                    classification_task=self.classification_task,
                 )
             )
-        self.val_metrics = MetricCollection(metrics, prefix="val_metric/")  # type: ignore
 
-        # Create classwise metrics if enabled
+        # Create per-head metric collections with suffix _head_lr{value}.
+
+        val_metrics_per_head: dict[str, MetricCollection] = {}
+        for lr in self.lrs:
+            head_name = _format_head_name(lr)
+            # Add suffix to each metric key.
+            head_metrics: dict[str, Metric] = {}
+            for key, metric in base_metrics.items():
+                suffixed_key = f"{key}_{head_name}"
+                head_metrics[suffixed_key] = metric.clone()
+            # Type ignore because old torchmetrics versions (0.8) don't have the
+            # correct type annotations for MetricCollection.
+            val_metrics_per_head[head_name] = MetricCollection(
+                head_metrics,  # type: ignore[arg-type]
+                prefix="val_metric_head/",
+            )
+        self.val_metrics_per_head = ModuleDict(val_metrics_per_head)
+
+        # Create classwise metrics if enabled.
         self.val_metrics_classwise: MetricCollection | None
+        self.val_metrics_classwise_per_head: ModuleDict | None
         if model_args.metric_log_classwise:
             classwise_metrics: dict[str, Metric] = {}
-            # If metrics_classwise is None, use filtered metrics from main metrics
+            # If metrics_classwise is None, use filtered metrics from main metrics.
             if model_args.metrics_classwise is None:
                 metrics_classwise_config = _filter_classwise_metrics(
                     no_auto(model_args.metrics),
-                    classification_task=self.model.classification_task,
+                    classification_task=self.classification_task,
                 )
             else:
                 metrics_classwise_config = model_args.metrics_classwise
 
             class_labels = list(data_args.included_classes.values())
             for metric_name, metric_config in metrics_classwise_config.items():
-                base_metrics = _create_metric(
+                base_metrics_classwise = _create_metric(
                     metric_name=metric_name,
                     metric_config=metric_config,
                     num_classes=data_args.num_included_classes,
-                    classification_task=self.model.classification_task,
+                    classification_task=self.classification_task,
                     classwise=True,
                 )
-                for key, base_metric in base_metrics.items():
+                for key, base_metric in base_metrics_classwise.items():
                     # Type ignore because old torchmetrics versions (0.8) don't support
                     # the `prefix` argument. We only use the old versions for
                     # SuperGradients support.
@@ -239,114 +266,203 @@ class ImageClassificationTrain(TrainModel):
                         prefix="_",
                         labels=class_labels,
                     )
-            self.val_metrics_classwise = MetricCollection(
-                classwise_metrics,  # type: ignore
-                prefix="val_metric_classwise/",
+
+            # Create per-head classwise metrics.
+            val_metrics_classwise_per_head = {}
+            for lr in self.lrs:
+                head_name = _format_head_name(lr)
+                head_classwise_metrics: dict[str, Metric] = {}
+                for key, metric in classwise_metrics.items():
+                    suffixed_key = f"{key}_{head_name}"
+                    head_classwise_metrics[suffixed_key] = metric.clone()
+                # Type ignore because old torchmetrics versions (0.8) don't have the
+                # correct type annotations for MetricCollection.
+                val_metrics_classwise_per_head[head_name] = MetricCollection(
+                    head_classwise_metrics,  # type: ignore[arg-type]
+                    prefix="val_metric_head_classwise/",
+                )
+            self.val_metrics_classwise_per_head = ModuleDict(
+                val_metrics_classwise_per_head
             )
         else:
-            self.val_metrics_classwise = None
+            self.val_metrics_classwise_per_head = None
 
-    def get_task_model(self) -> ImageClassification:
+    def get_task_model(self) -> ImageClassificationMultihead:
         return self.model
-
-    def training_step(
-        self, fabric: Fabric, batch: ImageClassificationBatch, step: int
-    ) -> TaskStepResult:
-        images = batch["image"]
-        classes = batch["classes"]
-        logits = self.model.forward_train(images)
-        if self.model.classification_task == "multiclass":
-            targets = torch.concatenate(classes)
-            loss = self.criterion(logits, targets)
-        elif self.model.classification_task == "multilabel":
-            targets = _class_ids_to_multihot(
-                class_ids=classes, num_classes=len(self.model.classes)
-            )
-            loss = self.criterion(logits, targets)
-        else:
-            raise ValueError(
-                f"Unsupported classification task: {self.model.classification_task}"
-            )
-        log_dict = {
-            "train_loss": loss.detach(),
-        }
-        return TaskStepResult(loss=loss, log_dict=log_dict)
-
-    def validation_step(
-        self, fabric: Fabric, batch: ImageClassificationBatch
-    ) -> TaskStepResult:
-        images = batch["image"]
-        classes = batch["classes"]
-        logits = self.model.forward_train(images)
-        if self.model.classification_task == "multiclass":
-            targets = torch.concatenate(classes)
-            loss = self.criterion(logits, targets)
-            self.val_metrics.update(logits, targets)
-            if self.val_metrics_classwise is not None:
-                self.val_metrics_classwise.update(logits, targets)
-        elif self.model.classification_task == "multilabel":
-            targets = _class_ids_to_multihot(
-                class_ids=classes, num_classes=len(self.model.classes)
-            )
-            loss = self.criterion(logits, targets)
-            self.val_metrics.update(logits, targets.int())
-            if self.val_metrics_classwise is not None:
-                self.val_metrics_classwise.update(logits, targets.int())
-        else:
-            raise ValueError(
-                f"Unsupported classification task: {self.model.classification_task}"
-            )
-        self.val_loss.update(loss, weight=len(images))
-        log_dict = {
-            "val_loss": loss.detach(),
-            **dict(self.val_metrics.items()),
-        }
-        if self.val_metrics_classwise is not None:
-            log_dict.update(dict(self.val_metrics_classwise.items()))
-        return TaskStepResult(loss=loss, log_dict=log_dict)
 
     def get_optimizer(
         self,
         total_steps: int,
         global_batch_size: int,
     ) -> tuple[Optimizer, LRScheduler]:
-        params_wd, params_no_wd = optimizer_helpers.get_weight_decay_parameters([self])
-        params_wd = [p for p in params_wd if p.requires_grad]
-        params_no_wd = [p for p in params_no_wd if p.requires_grad]
-        params: list[dict[str, Any]] = [
-            {"name": "params", "params": params_wd},
-            {
-                "name": "no_weight_decay",
-                "params": params_no_wd,
-                "weight_decay": 0.0,
-            },
-        ]
-        lr = self.model_args.lr * math.sqrt(
-            global_batch_size / self.model_args.default_batch_size
-        )
-        optimizer = AdamW(
+        # Create parameter groups for each head with independent learning rates.
+        params: list[dict[str, Any]] = []
+
+        for lr in self.lrs:
+            head_name = _format_head_name(lr)
+            head_module = self.model.class_heads[head_name]
+
+            # Get parameters for this head, separated by weight decay.
+            params_wd, params_no_wd = optimizer_helpers.get_weight_decay_parameters(
+                [head_module]
+            )
+
+            # Filter out parameters with requires_grad=False (shouldn't be any for heads).
+            params_wd = [p for p in params_wd if p.requires_grad]
+            params_no_wd = [p for p in params_no_wd if p.requires_grad]
+
+            # Scale learning rate for this head.
+            lr_scaled = lr * math.sqrt(
+                global_batch_size / self.model_args.default_batch_size
+            )
+
+            # Create parameter groups for this head.
+            if params_wd:
+                params.append(
+                    {
+                        "name": f"params_{head_name}",
+                        "params": params_wd,
+                        "lr": lr_scaled,
+                    }
+                )
+            if params_no_wd:
+                params.append(
+                    {
+                        "name": f"params_no_weight_decay_{head_name}",
+                        "params": params_no_wd,
+                        "lr": lr_scaled,
+                        "weight_decay": 0.0,
+                    }
+                )
+
+        # Create optimizer with all parameter groups.
+        optimizer = SGD(
             params=params,
-            lr=lr,
-            weight_decay=no_auto(self.model_args.weight_decay),
+            weight_decay=self.model_args.weight_decay,
         )
+
+        # Create learning rate scheduler.
         scheduler = CosineWarmupScheduler(
             optimizer=optimizer,
-            warmup_epochs=no_auto(self.model_args.lr_warmup_steps),
+            warmup_epochs=self.model_args.lr_warmup_steps,
             max_epochs=total_steps,
         )
+
         return optimizer, scheduler
+
+    def training_step(
+        self,
+        fabric: Fabric,
+        batch: ImageClassificationBatch,
+        step: int,
+    ) -> TaskStepResult:
+        images = batch["image"]
+        classes = batch["classes"]
+        logits_dict = self.model.forward_train(images)
+
+        # Prepare targets based on classification task.
+        if self.classification_task == "multiclass":
+            targets = torch.concatenate(classes)
+        elif self.classification_task == "multilabel":
+            targets = _class_ids_to_multihot(
+                class_ids=classes, num_classes=self.num_classes
+            )
+        else:
+            raise ValueError(
+                f"Unsupported classification task: {self.classification_task}"
+            )
+
+        # Compute loss for each head.
+        losses: list[Tensor] = []
+        log_dict: dict[str, Any] = {}
+        for head_name, logits in logits_dict.items():
+            loss = self.criterion(logits, targets)
+            losses.append(loss)
+            log_dict[f"train_loss_head/{head_name}"] = loss.detach()
+
+        # Sum losses for backprop.
+        loss_sum = torch.stack(losses).sum()
+        # Mean loss for logging.
+        loss_mean = torch.stack(losses).mean()
+        log_dict["train_loss"] = loss_mean.detach()
+
+        return TaskStepResult(loss=loss_sum, log_dict=log_dict)
+
+    def validation_step(
+        self, fabric: Fabric, batch: ImageClassificationBatch
+    ) -> TaskStepResult:
+        images = batch["image"]
+        classes = batch["classes"]
+        logits_dict = self.model.forward_train(images)
+
+        # Prepare targets based on classification task.
+        if self.classification_task == "multiclass":
+            targets = torch.concatenate(classes)
+        elif self.classification_task == "multilabel":
+            targets = _class_ids_to_multihot(
+                class_ids=classes, num_classes=self.num_classes
+            )
+        else:
+            raise ValueError(
+                f"Unsupported classification task: {self.classification_task}"
+            )
+
+        # Process each head: compute loss and update metrics.
+        losses: list[Tensor] = []
+        targets_int = targets.int()
+        for head_name, logits in logits_dict.items():
+            loss = self.criterion(logits, targets)
+            losses.append(loss)
+            self.val_loss_per_head[head_name].update(loss, weight=len(images))  # type: ignore[operator]
+            self.val_metrics_per_head[head_name].update(logits, targets_int)  # type: ignore[operator]
+
+            # Update per-head classwise metrics if enabled.
+            if self.val_metrics_classwise_per_head is not None:
+                self.val_metrics_classwise_per_head[head_name].update(
+                    logits, targets_int
+                )  # type: ignore[operator]
+
+        # Update overall loss tracker (mean of all heads).
+        loss_mean = torch.stack(losses).mean()
+        self.val_loss.update(loss_mean, weight=len(images))
+
+        # Build comprehensive log_dict.
+        log_dict: dict[str, Any] = {}
+
+        # Mean loss across all heads.
+        log_dict["val_loss"] = loss_mean.detach()
+
+        # Per-head losses.
+        for head_name in logits_dict.keys():
+            log_dict[f"val_loss_head/{head_name}"] = self.val_loss_per_head[  # type: ignore[operator]
+                head_name
+            ].compute()
+
+        # Per-head metrics.
+        for head_name in logits_dict.keys():
+            log_dict.update(dict(self.val_metrics_per_head[head_name].items()))  # type: ignore[operator]
+
+        # Classwise metrics if enabled.
+        if self.val_metrics_classwise_per_head is not None:
+            for head_name in logits_dict.keys():
+                log_dict.update(
+                    dict(self.val_metrics_classwise_per_head[head_name].items())  # type: ignore[operator]
+                )
+
+        # Use sum of losses for consistency with training_step.
+        loss_sum = torch.stack(losses).sum()
+        return TaskStepResult(loss=loss_sum, log_dict=log_dict)
 
     def set_train_mode(self) -> None:
         self.train()
-        if self.model_args.backbone_freeze:
-            self.model.freeze_backbone()
+        self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if no_auto(self.model_args.gradient_clip_val) > 0:
+        if self.model_args.gradient_clip_val > 0:
             fabric.clip_gradients(
                 module=self,
                 optimizer=optimizer,
-                max_norm=no_auto(self.model_args.gradient_clip_val),
+                max_norm=self.model_args.gradient_clip_val,
             )
 
 
@@ -493,20 +609,21 @@ def _filter_classwise_metrics(
         Filtered metrics configuration dictionary.
     """
     if classification_task == "multiclass":
-        # Exclude topk accuracy for classwise
+        # Exclude topk accuracy for classwise.
         return {
             k: {key: val for key, val in v.items() if key != "topk"}
             for k, v in metrics.items()
-            if k != "accuracy"  # Exclude accuracy entirely for multiclass
+            if k != "accuracy"  # Exclude accuracy entirely for multiclass.
         }
     elif classification_task == "multilabel":
-        # For multilabel, all metrics make sense classwise
+        # For multilabel, all metrics make sense classwise.
         return metrics.copy()
     else:
         raise ValueError(f"Unsupported classification task: {classification_task}")
 
 
 def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:
+
     row = torch.repeat_interleave(
         torch.arange(len(class_ids), device=class_ids[0].device),
         torch.tensor([t.numel() for t in class_ids], device=class_ids[0].device),
@@ -515,3 +632,19 @@ def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:
     y = torch.zeros(len(class_ids), num_classes, device=class_ids[0].device)
     y[row, col] = 1
     return y
+
+
+def _format_head_name(lr: float) -> str:
+    """Format learning rate for head name by removing trailing zeros.
+
+    Args:
+        lr: Learning rate value to format.
+
+    Returns:
+        Formatted head name like "lr0_001" for lr=0.001.
+    """
+    # Format the learning rate without trailing zeros and decimal point.
+    lr_str = f"{lr:.10f}".rstrip("0").rstrip(".")
+    # Replace dots with underscores to make it a valid module name.
+    lr_str = lr_str.replace(".", "_")
+    return f"lr{lr_str}"

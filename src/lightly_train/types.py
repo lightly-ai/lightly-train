@@ -27,6 +27,12 @@ ImageDtypes = Union[np.uint8, np.float32]
 NDArrayImage = NDArray[ImageDtypes]  # (H, W) or (H, W, C)
 NDArrayMask = NDArray[Union[np.uint8, np.uint16, np.int_]]  # (H, W) or (H, W, C)
 NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
+NDArrayOBBoxes = NDArray[
+    np.float64
+]  # (n_boxes, 5) with (x_center, y_center, w, h, angle) coordinates.
+NDArray4Corners = NDArray[
+    np.float64
+]  # (n_boxes, 8) with x1, y1, x2, y2, x3, y3, x4, y4 coordinates.
 NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
 # Array with x0, y0, x1, y1, x2, y2, ... coordinates of the polygon points. Coordinates
 # are in [0, 1].

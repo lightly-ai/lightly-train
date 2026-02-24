@@ -32,6 +32,7 @@ dependencies = [
     "omegaconf>=2.3",
     "psutil>=5.0",
     "pyarrow>=15.0.0",
+    "nvidia-ml-py>=12", # For GPU monitoring
     "pytorch_lightning>=2.1",
     "tensorboard>=2.10.0",
     "torch>=2.1.0",    

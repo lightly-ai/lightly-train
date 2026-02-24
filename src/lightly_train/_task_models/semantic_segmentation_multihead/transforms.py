@@ -9,13 +9,11 @@ from __future__ import annotations
 
 from typing import Any, Literal, Sequence
 
-from albumentations import BboxParams
-from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
-from lightly_train._transforms.instance_segmentation_transform import (
-    InstanceSegmentationTransform,
-    InstanceSegmentationTransformArgs,
+from lightly_train._transforms.semantic_segmentation_transform import (
+    SemanticSegmentationTransform,
+    SemanticSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -30,26 +28,10 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import ImageSizeTuple
 
-ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1.4.5")
-ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
-
-class DINOv3EoMTInstanceSegmentationColorJitterArgs(ColorJitterArgs):
-    # Differences between EoMT and this transform:
-    # - EoMT always applies brightness before contrast/saturation/hue.
-    # - EoMT applies all transforms indedenently with probability 0.5. We apply either
-    #   all or none with probability 0.5.
-    prob: float = 0.5
-    strength: float = 1.0
-    brightness: float = 32.0 / 255.0
-    contrast: float = 0.5
-    saturation: float = 0.5
-    hue: float = 18.0 / 360.0
-
-
-class DINOv3EoMTInstanceSegmentationScaleJitterArgs(ScaleJitterArgs):
+class SemanticSegmentationMultiheadScaleJitterArgs(ScaleJitterArgs):
     sizes: Sequence[tuple[int, int]] | None = None
-    min_scale: float | None = 0.1
+    min_scale: float | None = 0.5
     max_scale: float | None = 2.0
     num_scales: int | None = 20
     prob: float = 1.0
@@ -59,12 +41,12 @@ class DINOv3EoMTInstanceSegmentationScaleJitterArgs(ScaleJitterArgs):
     seed_offset: int = 0
 
 
-class DINOv3EoMTInstanceSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
-    max_size: int | list[int] | Literal["auto"] = "auto"
+class SemanticSegmentationMultiheadSmallestMaxSizeArgs(SmallestMaxSizeArgs):
+    max_size: list[int] = [518]
     prob: float = 1.0
 
 
-class DINOv3EoMTInstanceSegmentationRandomCropArgs(RandomCropArgs):
+class SemanticSegmentationMultiheadRandomCropArgs(RandomCropArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
     pad_if_needed: bool = True
@@ -73,11 +55,11 @@ class DINOv3EoMTInstanceSegmentationRandomCropArgs(RandomCropArgs):
     prob: float = 1.0
 
 
-class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
-    InstanceSegmentationTransformArgs
+class SemanticSegmentationMultiheadTrainTransformArgs(
+    SemanticSegmentationTransformArgs
 ):
     """
-    Defines default transform arguments for instance segmentation training with DINOv3.
+    Defines default transform arguments for semantic segmentation multihead training.
     """
 
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
@@ -87,29 +69,20 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
-    color_jitter: DINOv3EoMTInstanceSegmentationColorJitterArgs | None = None
+    color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
-        default_factory=DINOv3EoMTInstanceSegmentationScaleJitterArgs
+        default_factory=SemanticSegmentationMultiheadScaleJitterArgs
     )
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs = Field(
-        default_factory=DINOv3EoMTInstanceSegmentationRandomCropArgs
+        default_factory=SemanticSegmentationMultiheadRandomCropArgs
     )
-    bbox_params: BboxParams = BboxParams(
-        format="yolo",
-        label_fields=["class_labels", "indices"],
-        **(
-            dict(filter_invalid_bboxes=True)
-            if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
-            else {}
-        ),
-        **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
-    )
+    ignore_index: int = 255
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            self.image_size = tuple(model_init_args.get("image_size", (640, 640)))
+            self.image_size = tuple(model_init_args.get("image_size", (518, 518)))
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
@@ -132,12 +105,12 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransformArgs):
+class SemanticSegmentationMultiheadValTransformArgs(SemanticSegmentationTransformArgs):
     """
-    Defines default transform arguments for instance segmentation validation with DINOv3.
+    Defines default transform arguments for semantic segmentation multihead validation.
     """
 
-    image_size: ImageSizeTuple | Literal["auto"] | None = None
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
@@ -146,29 +119,21 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
     random_rotate: RandomRotationArgs | None = None
     color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
-    smallest_max_size: SmallestMaxSizeArgs | None = None
-    random_crop: RandomCropArgs | None = None
-    bbox_params: BboxParams = BboxParams(
-        format="yolo",
-        label_fields=["class_labels", "indices"],
-        **(
-            dict(filter_invalid_bboxes=True)
-            if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
-            else {}
-        ),
-        **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+    smallest_max_size: SmallestMaxSizeArgs = Field(
+        default_factory=SemanticSegmentationMultiheadSmallestMaxSizeArgs
     )
+    random_crop: RandomCropArgs | None = None
+    ignore_index: int = 255
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
         if self.image_size == "auto":
-            self.image_size = None
+            self.image_size = tuple(model_init_args.get("image_size", (518, 518)))
 
+        height, width = self.image_size
         for field_name in self.__class__.model_fields:
             field = getattr(self, field_name)
             if hasattr(field, "resolve_auto"):
-                assert isinstance(self.image_size, tuple)
-                height, width = self.image_size
                 field.resolve_auto(height=height, width=width)
 
         if self.normalize == "auto":
@@ -186,9 +151,9 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3EoMTInstanceSegmentationTrainTransform(InstanceSegmentationTransform):
-    transform_args_cls = DINOv3EoMTInstanceSegmentationTrainTransformArgs
+class SemanticSegmentationMultiheadTrainTransform(SemanticSegmentationTransform):
+    transform_args_cls = SemanticSegmentationMultiheadTrainTransformArgs
 
 
-class DINOv3EoMTInstanceSegmentationValTransform(InstanceSegmentationTransform):
-    transform_args_cls = DINOv3EoMTInstanceSegmentationValTransformArgs
+class SemanticSegmentationMultiheadValTransform(SemanticSegmentationTransform):
+    transform_args_cls = SemanticSegmentationMultiheadValTransformArgs

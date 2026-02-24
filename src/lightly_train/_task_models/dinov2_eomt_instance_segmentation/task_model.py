@@ -24,14 +24,12 @@ from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
-from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
-from lightly_train._models.dinov3.dinov3_src.layers.attention import (
-    SelfAttention,
-)
-from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
+from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Attention
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
-from lightly_train._task_models.dinov3_eomt_instance_segmentation.scale_block import (
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
 )
 from lightly_train._task_models.eomt import hooks
@@ -44,7 +42,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class DINOv3EoMTInstanceSegmentation(TaskModel):
+class DINOv2EoMTInstanceSegmentation(TaskModel):
     model_suffix = "eomt"
 
     def __init__(
@@ -83,10 +81,10 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                 The number of blocks that process the query tokens and image tokens
                 jointly.
             backbone_weights:
-                The path to the DINOv3 backbone weights. The weights must be exported
+                The path to the DINOv2 backbone weights. The weights must be exported
                 using LightlyTrain.
             backbone_args:
-                Additional arguments to pass to the DINOv3 backbone.
+                Additional arguments to pass to the DINOv2 backbone.
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
@@ -111,23 +109,20 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             persistent=False,  # No need to save it in the state dict.
         )
 
-        # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
-        # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {
+        # Disable drop path by default.
+        backbone_model_args = {
+            "drop_path_rate": 0.0,
             "in_chans": len(self.image_normalize["mean"]),
         }
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
 
         # Get the backbone.
-        backbone = DINOV3_PACKAGE.get_model(
+        self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=backbone_model_args,
             load_weights=load_weights,
         )
-        assert isinstance(backbone, DinoVisionTransformer)
-        self.backbone = backbone
-
         embed_dim = self.backbone.embed_dim
         self.patch_size = self.backbone.patch_size
 
@@ -141,10 +136,10 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         if load_weights and backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
-        if len(self.backbone.blocks) < num_joint_blocks:
+        if self.backbone.n_blocks < num_joint_blocks:
             raise ValueError(
                 f"num_joint_blocks ({num_joint_blocks}) cannot be larger than the "
-                f"number of blocks in the backbone ({len(self.backbone.blocks)})."
+                f"number of blocks in the backbone ({self.backbone.n_blocks})."
             )
 
         ### EoMT Specific parameters.
@@ -184,7 +179,8 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [
-            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
+            f"{name}-{cls.model_suffix}"
+            for name in DINOV2_VIT_PACKAGE.list_model_names()
         ]
 
     @classmethod
@@ -217,16 +213,18 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         except ValueError:
             raise_invalid_name()
 
-        if package_name != DINOV3_PACKAGE.name:
+        if package_name != DINOV2_VIT_PACKAGE.name:
             raise_invalid_name()
 
         try:
-            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
+            backbone_name = DINOV2_VIT_PACKAGE.parse_model_name(
+                model_name=backbone_name
+            )
         except ValueError:
             raise_invalid_name()
 
         return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "model_name": f"{DINOV2_VIT_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
         }
 
@@ -324,24 +322,25 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
     ) -> tuple[list[Tensor], list[Tensor]]:
         _, _, H, W = x.shape
         patch_size = self.backbone.patch_size
-        num_backbone_blocks = len(self.backbone.blocks)  # type: ignore[arg-type]
 
         # Match the logic of the PatchEmbded forward
-        # (src/lightly_train/_models/dinov3/dinov3_src/layers/patch_embed.py).
-        # TODO(Thomas, 09/25): Update the patch embedding logic to not drop extra pixels.
-        assert patch_size is not None
-        grid_size = (H // patch_size, W // patch_size)
+        # (src/lightly_train/_models/dinov2_vit/dinov2_vit_src/layers/patch_embed.py).
+        grid_size = (math.ceil(H / patch_size), math.ceil(W / patch_size))
 
-        x, image_size = self.backbone.prepare_tokens_with_masks(x)
+        x = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
         mask_logits_per_layer, class_logits_per_layer = [], []
-        for i, block in enumerate(self.backbone.blocks):  # type: ignore[arg-type]
+
+        for i in range(self.backbone.n_blocks):
+            if not self.backbone.chunked_blocks:
+                block = self.backbone.blocks[i]
+            else:
+                chunk_size = self.backbone.n_blocks // len(self.backbone.blocks)
+                chunk = i // chunk_size
+                block = self.backbone.blocks[chunk][i]  # type: ignore
+
             attn_mask = None
 
-            rope_sincos: tuple[Tensor, Tensor] | None = None
-            if self.backbone.rope_embed is not None:
-                rope_sincos = self.backbone.rope_embed(H=image_size[0], W=image_size[1])  # type: ignore
-
-            if i == num_backbone_blocks - self.num_joint_blocks:
+            if i == self.backbone.n_blocks - self.num_joint_blocks:
                 # Prepend query tokens.
                 x = torch.cat(
                     (self.queries.weight[None, :, :].expand(x.shape[0], -1, -1), x),
@@ -350,7 +349,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
             if (
                 return_logits_per_layer
-                and i >= num_backbone_blocks - self.num_joint_blocks
+                and i >= self.backbone.n_blocks - self.num_joint_blocks
             ):
                 mask_logits, class_logits = self._predict(
                     self.backbone.norm(x), grid_size=grid_size
@@ -385,22 +384,24 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                     attn_mask[
                         :,
                         : self.num_queries,
-                        # + 1 class token + register tokens
-                        self.num_queries + 1 + self.backbone.n_storage_tokens :,
+                        self.num_queries + 1 + self.backbone.num_register_tokens :,
                     ] = interpolated > 0
                     attn_mask = self._disable_attn_mask(
                         attn_mask=attn_mask,
                         prob=self.attn_mask_probs[
-                            i - num_backbone_blocks + self.num_joint_blocks
+                            i - self.backbone.n_blocks + self.num_joint_blocks
                         ],
                     )
 
-            # TODO(Guarin, 08/25): Double check if sample_drop_ratio > 0 sometimes.
-            # This is usually not the case in EoMT but should be verified.
-            x = x + block.ls1(  # type: ignore[operator]
-                self._attn(block.attn, block.norm1(x), rope=rope_sincos, mask=attn_mask)  # type: ignore
-            )
-            x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore[operator]
+            # This mirrors forward of DINOv2 Block.
+            if self.training and block.sample_drop_ratio > 0:  # type: ignore[operator]
+                x = x + block.drop_path1(  # type: ignore[operator]
+                    block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
+                )
+                x = x + block.drop_path1(block.ls2(block.mlp(block.norm2(x))))  # type: ignore[operator]
+            else:
+                x = x + block.ls1(self._attn(block.attn, block.norm1(x), attn_mask))  # type: ignore
+                x = x + block.ls2(block.mlp(block.norm2(x)))  # type: ignore[operator]
 
         mask_logits, class_logits = self._predict(
             self.backbone.norm(x), grid_size=grid_size
@@ -439,7 +440,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         class_logits = self.class_head(q)
 
         # num queries + 1 class token + register tokens
-        x = x[:, self.num_queries + 1 + self.backbone.n_storage_tokens :, :]
+        x = x[:, self.num_queries + 1 + self.backbone.num_register_tokens :, :]
         x = x.transpose(1, 2).reshape(x.shape[0], -1, *grid_size)
 
         mask_logits = torch.einsum(
@@ -513,7 +514,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         return image, (crop_h, crop_w)
 
     # TODO(Guarin, 07/25): No need for attention mask handling in this module. Move it
-    # to DINOv3InstanceSegmentationTrain.
+    # to DINOv2InstanceSegmentationTrain.
     @torch.compiler.disable  # type: ignore[misc, untyped-decorator]
     def _disable_attn_mask(self, attn_mask: Tensor, prob: Tensor) -> Tensor:
         # prob is a scalar tensor.
@@ -527,34 +528,37 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             attn_mask[
                 :,
                 : self.num_queries,
-                self.num_queries + 1 + self.backbone.n_storage_tokens :,
+                self.num_queries + 1 + self.backbone.num_register_tokens :,
             ][random_queries] = True
 
         return attn_mask
 
     # TODO(Guarin, 07/25): Add support for attention masks directly to Attention class?
-    def _attn(
-        self,
-        module: SelfAttention,
-        x: Tensor,
-        rope: Tensor | tuple[Tensor, Tensor] | None,
-        mask: Tensor | None,
-    ) -> Tensor:
-        # This mirrors DINOv3 Attention forward but with mask support.
-        qkv = module.qkv(x)
-        B, N, _ = qkv.shape
-        C = module.qkv.in_features
+    def _attn(self, module: Attention, x: Tensor, mask: Tensor | None) -> Tensor:
+        # This mirrors DINOv2 Attention forward but with mask support.
+        B, N, _ = x.shape
 
-        qkv = qkv.reshape(B, N, 3, module.num_heads, C // module.num_heads)
-        q, k, v = torch.unbind(qkv, 2)
-        q, k, v = [t.transpose(1, 2) for t in [q, k, v]]
-        if rope is not None:
-            q, k = module.apply_rope(q, k, rope)
+        qkv = (
+            module.qkv(x)
+            .reshape(B, N, 3, module.num_heads, module.head_dim)
+            .permute(2, 0, 3, 1, 4)
+        )
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
         if mask is not None:
-            mask = mask[:, None, ...].expand(-1, module.num_heads, -1, -1)
-        x = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask)
+            mask = mask[:, None, ...]
+
+        x = F.scaled_dot_product_attention(
+            query=q,
+            key=k,
+            value=v,
+            attn_mask=mask,
+            dropout_p=module.attn_drop.p,
+        )  # B x num_heads x N x (dim // num_heads)
+
         x = x.transpose(1, 2)
-        x = x.reshape([B, N, C])
+        x = x.reshape(B, N, module.dim)
+
         x = module.proj(x)
         x = module.proj_drop(x)
         return x

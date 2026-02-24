@@ -301,7 +301,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         # Loss
-        num_blocks = len(self.model.backbone.blocks)
+        num_blocks = self.model.backbone.n_blocks
         losses = {}
         for block_idx, block_mask_logits, block_class_logits in zip(
             # Add +1 to num_blocks for final output.
@@ -408,7 +408,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
             crops, return_logits_per_layer=True
         )
-        num_blocks = len(self.model.backbone.blocks)
+        num_blocks = self.model.backbone.n_blocks
         losses = {}
         for i, (block_idx, mask_logits, class_logits) in enumerate(
             zip(
@@ -527,7 +527,8 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         backbone_params = set(self.model.backbone.parameters())
         backbone_param_groups = []
         other_param_groups = []
-        backbone_blocks = len(self.model.backbone.blocks)
+        backbone_blocks = self.model.backbone.n_blocks
+        chunked_blocks = self.model.backbone.chunked_blocks
         block_i = backbone_blocks
         lr = self.model_args.lr * math.sqrt(
             global_batch_size / self.model_args.default_batch_size
@@ -541,6 +542,9 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 for i, key in enumerate(name_list):
                     if key == "blocks":
                         block_i = int(name_list[i + 1])
+                        if chunked_blocks:
+                            # For chunked blocks the block index is after the chunk index.
+                            block_i = int(name_list[i + 2])
                         is_block = True
                 if is_block or block_i == 0:
                     param_lr *= self.model_args.llrd ** (backbone_blocks - 1 - block_i)

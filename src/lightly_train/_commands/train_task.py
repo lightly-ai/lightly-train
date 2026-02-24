@@ -53,7 +53,7 @@ from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
 from lightly_train._train_task_state import (
     TrainTaskState,
 )
-from lightly_train._training_step_timer import TrainingStepTimer
+from lightly_train._training_step_timer import CUDAUtilization, TrainingStepTimer
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -203,6 +203,130 @@ def train_image_classification(
     task_to_config_cls: dict[str, type[TrainTaskConfig]] = {
         "multiclass": ImageClassificationMulticlassTrainTaskConfig,
         "multilabel": ImageClassificationMultilabelTrainTaskConfig,
+    }
+    try:
+        config_cls = task_to_config_cls[classification_task]
+    except KeyError:
+        raise ValueError(
+            f"Invalid classification_task: '{classification_task}'. Must be "
+            f"one of {list(task_to_config_cls.keys())}."
+        )
+    return _train_task(config_cls=config_cls, **kwargs)
+
+
+def train_image_classification_multihead(
+    *,
+    out: PathLike,
+    data: dict[str, Any] | str,
+    model: str,
+    classification_task: Literal["multiclass", "multilabel"] = "multiclass",
+    steps: int | Literal["auto"] = "auto",
+    batch_size: int | Literal["auto"] = "auto",
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    resume_interrupted: bool = False,
+    checkpoint: PathLike | None = None,
+    reuse_class_head: bool = False,
+    overwrite: bool = False,
+    accelerator: str = "auto",
+    strategy: str = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    seed: int | None = 0,
+    logger_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
+) -> None:
+    """Train an image classification model with multiple classification heads.
+
+    This function trains multiple classification heads simultaneously with different
+    learning rates, allowing you to experiment with different hyperparameters in a
+    single training run. Each head is trained independently on the same features.
+
+    The training process can be monitored with TensorBoard:
+
+    .. code-block:: bash
+
+        tensorboard --logdir out
+
+    After training, the last model checkpoint is saved in the out directory to:
+    ``out/checkpoints/last.ckpt`` and also exported to ``out/exported_models/exported_last.pt``.
+
+    Args:
+        out:
+            The output directory where the model checkpoints and logs are saved.
+        data:
+            The dataset configuration or path to a YAML file with the configuration.
+        model:
+            The model to train. For example, "dinov3/vitt16", or a path to a local model
+            checkpoint.
+        classification_task:
+            The type of image classification task. Can be either "multiclass" or
+            "multilabel".
+        steps:
+            The number of training steps.
+        batch_size:
+            Global batch size. The batch size per device/GPU is inferred from this value
+            and the number of devices and nodes.
+        num_workers:
+            Number of workers for the dataloader per device/GPU. 'auto' automatically
+            sets the number of workers based on the available CPU cores.
+        devices:
+            Number of devices/GPUs for training. 'auto' automatically selects all
+            available devices. The device type is determined by the ``accelerator``
+            parameter.
+        num_nodes:
+            Number of nodes for distributed training.
+        checkpoint:
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint.
+        resume_interrupted:
+            Set this to True if you want to resume training from an interrupted or
+            crashed training run.
+        reuse_class_head:
+            Set this to True if you want to keep the class head from the provided
+            checkpoint.
+        overwrite:
+            Overwrite the output directory if it already exists.
+        accelerator:
+            Hardware accelerator. Can be one of ['cpu', 'gpu', 'mps', 'auto'].
+        strategy:
+            Training strategy. For example 'ddp' or 'auto'.
+        precision:
+            Training precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
+            for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication.
+        seed:
+            Random seed for reproducibility.
+        logger_args:
+            Logger arguments.
+        model_args:
+            Model training arguments. Use ``model_args={"lr": [0.001, 0.01, 0.1]}``
+            to train with multiple learning rates.
+        transform_args:
+            Transform arguments.
+        loader_args:
+            Arguments for the PyTorch DataLoader.
+        save_checkpoint_args:
+            Arguments to configure the saving of checkpoints.
+    """
+    kwargs = {**locals()}
+    classification_task = kwargs.pop("classification_task")
+    tracker.track_training_started(
+        task_type="image_classification_multihead",
+        model=model,
+        method=classification_task,
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
+    task_to_config_cls: dict[str, type[TrainTaskConfig]] = {
+        "multiclass": ImageClassificationMultiheadMulticlassTrainTaskConfig,
+        "multilabel": ImageClassificationMultiheadMultilabelTrainTaskConfig,
     }
     try:
         config_cls = task_to_config_cls[classification_task]
@@ -771,6 +895,111 @@ def train_semantic_segmentation(
     return _train_task(config_cls=SemanticSegmentationTrainTaskConfig, **locals())
 
 
+def train_semantic_segmentation_multihead(
+    *,
+    out: PathLike,
+    data: dict[str, Any] | str,
+    model: str,
+    steps: int | Literal["auto"] = "auto",
+    batch_size: int | Literal["auto"] = "auto",
+    num_workers: int | Literal["auto"] = "auto",
+    devices: int | str | list[int] = "auto",
+    num_nodes: int = 1,
+    resume_interrupted: bool = False,
+    checkpoint: PathLike | None = None,
+    overwrite: bool = False,
+    accelerator: str = "auto",
+    strategy: str = "auto",
+    precision: _PRECISION_INPUT = "bf16-mixed",
+    float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
+    seed: int | None = 0,
+    logger_args: dict[str, Any] | None = None,
+    model_args: dict[str, Any] | None = None,
+    transform_args: dict[str, Any] | None = None,
+    loader_args: dict[str, Any] | None = None,
+    save_checkpoint_args: dict[str, Any] | None = None,
+) -> None:
+    """Train a multi-head semantic segmentation model.
+
+    This function trains multiple semantic segmentation heads simultaneously with
+    different learning rates, allowing you to experiment with different hyperparameters
+    in a single training run. Each head is trained independently on the same features.
+
+    The training process can be monitored with TensorBoard:
+
+    .. code-block:: bash
+
+        tensorboard --logdir out
+
+    After training, the last model checkpoint is saved in the out directory to:
+    ``out/checkpoints/last.ckpt`` and also exported to ``out/exported_models/exported_last.pt``.
+
+    Args:
+        out:
+            The output directory where the model checkpoints and logs are saved.
+        data:
+            The dataset configuration or path to a YAML file with the configuration.
+        model:
+            The model to train. For example, "dinov2/vits14", or a path to a local
+            model checkpoint.
+        steps:
+            The number of training steps.
+        batch_size:
+            Global batch size. The batch size per device/GPU is inferred from this value
+            and the number of devices and nodes.
+        num_workers:
+            Number of workers for the dataloader per device/GPU. 'auto' automatically
+            sets the number of workers based on the available CPU cores.
+        devices:
+            Number of devices/GPUs for training. 'auto' automatically selects all
+            available devices. The device type is determined by the ``accelerator``
+            parameter.
+        num_nodes:
+            Number of nodes for distributed training.
+        checkpoint:
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint.
+        resume_interrupted:
+            Set this to True if you want to resume training from an interrupted or
+            crashed training run.
+        overwrite:
+            Overwrite the output directory if it already exists.
+        accelerator:
+            Hardware accelerator. Can be one of ['cpu', 'gpu', 'mps', 'auto'].
+        strategy:
+            Training strategy. For example 'ddp' or 'auto'.
+        precision:
+            Training precision. Select '16-mixed' for mixed 16-bit precision, '32-true'
+            for full 32-bit precision, or 'bf16-mixed' for mixed bfloat16 precision.
+        float32_matmul_precision:
+            Precision for float32 matrix multiplication.
+        seed:
+            Random seed for reproducibility.
+        logger_args:
+            Logger arguments.
+        model_args:
+            Model training arguments. Use ``model_args={"lr": [0.001, 0.01, 0.1]}``
+            to train with multiple learning rates.
+        transform_args:
+            Transform arguments.
+        loader_args:
+            Arguments for the PyTorch DataLoader.
+        save_checkpoint_args:
+            Arguments to configure the saving of checkpoints.
+    """
+    tracker.track_training_started(
+        task_type="semantic_segmentation_multihead",
+        model=model,
+        method="linear",
+        batch_size=batch_size,
+        devices=devices,
+        steps=steps,
+    )
+    return _train_task(
+        config_cls=SemanticSegmentationMultiheadTrainTaskConfig, **locals()
+    )
+
+
 def _train_task(
     *,
     config_cls: type[TrainTaskConfig],
@@ -986,14 +1215,17 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
         fabric.loggers.extend(logger_instances)
 
-        train_model = train_model_cls(
-            model_name=config.model,
-            model_args=config.model_args,
-            data_args=config.data,
-            train_transform_args=train_transform_args,
-            val_transform_args=val_transform_args,
-            load_weights=(checkpoint is None) and (checkpoint_path is None),
-        )
+        # Prepare init kwargs for train model.
+        train_model_init_kwargs = {
+            "model_name": config.model,
+            "model_args": config.model_args,
+            "data_args": config.data,
+            "train_transform_args": train_transform_args,
+            "val_transform_args": val_transform_args,
+            "load_weights": (checkpoint is None) and (checkpoint_path is None),
+        }
+
+        train_model = train_model_cls(**train_model_init_kwargs)
 
         # Set train mode to make sure that all parameters are in the correct state before
         # the optimizer is initialized.
@@ -1029,6 +1261,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 hyperparams["overwrite"] = True
             logger_instance.log_hyperparams(hyperparams)
 
+        LICENSE_INFO = (
+            "LightlyTrain License Notice\n"
+            "\n"
+            "Model training and inference in commercial settings require a valid Commercial License.\n"
+            "If you are using LightlyTrain for open-source (AGPL-3.0) or under a Free Community License,\n"
+            "please ensure your usage complies with the respective terms.\n"
+            "See https://docs.lightly.ai/train/stable/index.html#license for more details.\n"
+            "Contact us at https://www.lightly.ai/contact to discuss the best licensing option for your use case."
+        )
+
         state = TrainTaskState(
             train_model=train_model,
             optimizer=optimizer,
@@ -1051,11 +1293,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 checkpoint=checkpoint,
             )
 
+        # Add license info after loading as it might be missing from the checkpoint.
+        state["license_info"] = LICENSE_INFO
+
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
         infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
-        timer = TrainingStepTimer()
+        cuda_utilization = CUDAUtilization(device=fabric.device)
+        timer = TrainingStepTimer(cuda_utilization=cuda_utilization)
+        cuda_utilization.start()
 
         for name, param in train_model.named_parameters():
             logger.debug(f"grad={param.requires_grad} {name}")
@@ -1077,13 +1324,22 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         best_metric = (
             -float("inf") if config.save_checkpoint_args.mode == "max" else float("inf")
         )
+        timer.reset_gpu_max_memory("train")
+
+        log_every_num_steps = no_auto(config.logger_args.log_every_num_steps)
+        val_log_every_num_steps = no_auto(config.logger_args.val_log_every_num_steps)
+        # Always log the first few steps and then log at a regular interval.
+        log_steps = {
+            step for step in [1, 2, 5, 10, 50, 100] if step < log_every_num_steps
+        }
+        val_log_steps = {
+            step for step in [1, 2, 5, 10, 50, 100] if step < val_log_every_num_steps
+        }
+
         for step in range(start_step, config.steps):
             state["step"] = step
             is_last_step = step + 1 == config.steps
-            is_log_step = (
-                step == 0
-                or (step + 1) % no_auto(config.logger_args.log_every_num_steps) == 0
-            )
+            is_log_step = step + 1 in log_steps or (step + 1) % log_every_num_steps == 0
             is_val_step = (step + 1) % no_auto(
                 config.logger_args.val_every_num_steps
             ) == 0
@@ -1091,34 +1347,34 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 config.save_checkpoint_args.save_every_num_steps
             ) == 0
 
+            timer.start_step("train_step")
+
             # Training data loading.
             timer.start_step("train_dataload")
             batch = next(infinite_train_dataloader)
             timer.end_step("train_dataload")
 
             # Training forward pass.
-            timer.start_step("train_forward")
             train_result = train_model.training_step(
                 fabric=fabric, batch=batch, step=step
             )
-            timer.end_step("train_forward")
 
             # Training backward pass, optimizer step, and scheduler step.
-            timer.start_step("train_backward")
             fabric.backward(train_result.loss)
             train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
-            timer.end_step("train_backward")
 
             # Call the on_train_batch_end hook.
             train_model.on_train_batch_end()
 
+            timer.end_step("train_step")
+            timer.record_gpu_stats("train")
+
             if is_log_step or is_last_step:
-                timer.start_step("train_metrics")
                 train_log_dict = helpers.compute_metrics(train_result.log_dict)
-                timer.end_step("train_metrics")
+                timer_agg = timer.get_aggregated_metrics(fabric)
 
                 helpers.log_step(
                     split="train",
@@ -1126,9 +1382,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     max_steps=config.steps,
                     log_dict=train_log_dict,
                     task=config.task,
-                    timer=timer,
+                    timer_agg=timer_agg,
+                    global_batch_size=config.batch_size,
                 )
-                helpers.add_timer_logs(timer=timer, log_dict=train_log_dict)
+                helpers.add_timer_logs(
+                    timer_agg=timer_agg,
+                    log_dict=train_log_dict,
+                    split="train",
+                    global_batch_size=config.batch_size,
+                )
 
                 for group in optimizer.param_groups:
                     if group.get("log", True):
@@ -1143,7 +1405,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 is_save_ckpt_step or is_last_step
             ):
                 # Checkpoint saving and export.
-                timer.start_step("checkpoint_saving")
                 helpers.save_checkpoint(
                     fabric=fabric, out_dir=out_dir, state=state, best_or_last="last"
                 )
@@ -1152,43 +1413,48 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     "model_class_path": state["model_class_path"],
                     "model_init_args": state["model_init_args"],
                     "train_model": train_model.get_export_state_dict(),
+                    "license_info": state.get("license_info", ""),
                 }
 
                 helpers.export_model(
                     out_dir=out_dir, model_dict=model_dict, best_or_last="last"
                 )
-                timer.end_step("checkpoint_saving")
 
             if is_val_step or is_last_step:
                 fabric.barrier()
                 logger.info("Validating...")
                 train_model.eval()
+
+                # Reset GPU memory tracking before val phase.
+                timer.reset_gpu_max_memory("val")
+
                 val_dataloader_iter = iter(val_dataloader)
                 for val_step in range(len(val_dataloader)):
                     is_last_val_step = val_step + 1 == len(val_dataloader)
-                    is_val_log_step = val_step == 0 or (
-                        (val_step + 1)
-                        % no_auto(config.logger_args.val_log_every_num_steps)
-                        == 0
+                    is_val_log_step = (
+                        val_step + 1 in val_log_steps
+                        or (val_step + 1) % val_log_every_num_steps == 0
                     )
 
+                    timer.start_step("val_step")
                     timer.start_step("val_dataload")
                     val_batch = next(val_dataloader_iter)
                     timer.end_step("val_dataload")
 
                     # Validation forward pass.
-                    timer.start_step("val_forward")
                     with torch.no_grad():
                         val_result = train_model.validation_step(
                             fabric=fabric, batch=val_batch
                         )
-                    timer.end_step("val_forward")
+
+                    timer.end_step("val_step")
+                    timer.record_gpu_stats("val")
 
                     if is_last_val_step:
                         # Metric computation.
-                        timer.start_step("val_metrics")
                         val_log_dict = helpers.compute_metrics(val_result.log_dict)
-                        timer.end_step("val_metrics")
+
+                        timer_agg = timer.get_aggregated_metrics(fabric)
 
                         helpers.log_step(
                             split="val",
@@ -1196,9 +1462,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             max_steps=len(val_dataloader),
                             log_dict=val_log_dict,
                             task=config.task,
-                            timer=timer,
+                            timer_agg=timer_agg,
+                            global_batch_size=config.batch_size,
                         )
-                        helpers.add_timer_logs(timer=timer, log_dict=val_log_dict)
+                        helpers.add_timer_logs(
+                            timer_agg=timer_agg,
+                            log_dict=val_log_dict,
+                            split="val",
+                            global_batch_size=config.batch_size,
+                        )
                         fabric.log_dict(val_log_dict, step=step)
                         helpers.reset_metrics(val_result.log_dict)
 
@@ -1219,7 +1491,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                     f"The best validation metric {config.save_checkpoint_args.watch_metric}={watch_metric:.4f} was reached."
                                 )
                                 # Best checkpoint saving and export.
-                                timer.start_step("checkpoint_saving")
                                 helpers.save_checkpoint(
                                     fabric=fabric,
                                     out_dir=out_dir,
@@ -1231,6 +1502,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                     "model_class_path": state["model_class_path"],
                                     "model_init_args": state["model_init_args"],
                                     "train_model": train_model.get_export_state_dict(),
+                                    "license_info": state.get("license_info", ""),
                                 }
 
                                 helpers.export_model(
@@ -1238,24 +1510,31 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                     model_dict=model_dict,
                                     best_or_last="best",
                                 )
-                                timer.end_step("checkpoint_saving")
                             best_metric = watch_metric
-                        helpers.log_timer_debug(timer=timer)
+
+                        # Log training summary after validation.
+                        timer_agg = timer.get_aggregated_metrics(fabric)
+                        helpers.log_training_summary(
+                            timer_agg=timer_agg,
+                            fabric=fabric,
+                            global_batch_size=config.batch_size,
+                        )
 
                     elif is_val_log_step:
                         # Show that we are making progress. Metrics are only calculated
                         # at the end of the validation loop.
+                        timer_agg = timer.get_aggregated_metrics(fabric)
                         helpers.log_step(
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
                             log_dict={},
                             task=config.task,
-                            timer=timer,
+                            timer_agg=timer_agg,
+                            global_batch_size=config.batch_size,
                         )
                 train_model.set_train_mode()
                 fabric.barrier()
-        helpers.log_timer_debug(timer=timer)
         logger.info(
             f"Best result: {config.save_checkpoint_args.watch_metric}={best_metric:.4f}"
         )
@@ -1278,9 +1557,11 @@ class TrainTaskConfig(PydanticConfig):
     model: str
     task: Literal[
         "image_classification",
+        "image_classification_multihead",
         "instance_segmentation",
         "panoptic_segmentation",
         "semantic_segmentation",
+        "semantic_segmentation_multihead",
         "object_detection",
     ]
     steps: int | Literal["auto"] = "auto"
@@ -1346,3 +1627,18 @@ class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
 class SemanticSegmentationTrainTaskConfig(TrainTaskConfig):
     data: MaskSemanticSegmentationDataArgs
     task: Literal["semantic_segmentation"] = "semantic_segmentation"
+
+
+class SemanticSegmentationMultiheadTrainTaskConfig(TrainTaskConfig):
+    data: MaskSemanticSegmentationDataArgs
+    task: Literal["semantic_segmentation_multihead"] = "semantic_segmentation_multihead"
+
+
+class ImageClassificationMultiheadMulticlassTrainTaskConfig(TrainTaskConfig):
+    data: ImageClassificationMulticlassDataArgs
+    task: Literal["image_classification_multihead"] = "image_classification_multihead"
+
+
+class ImageClassificationMultiheadMultilabelTrainTaskConfig(TrainTaskConfig):
+    data: ImageClassificationMultilabelDataArgs
+    task: Literal["image_classification_multihead"] = "image_classification_multihead"

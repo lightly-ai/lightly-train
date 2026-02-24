@@ -158,7 +158,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         else:
             normalize_dict = normalize.model_dump()
 
-        self.model_state_dict_key_prefix = "model."
         self.model = DINOv3LTDETRObjectDetection(
             model_name=model_name,
             image_size=no_auto(val_transform_args.image_size),

@@ -320,9 +320,19 @@ following models are available:
 - `dinov3/vitb16-eomt-inst-coco` (fine-tuned on COCO)
 - `dinov3/vitl16-eomt-inst-coco` (fine-tuned on COCO)
 
-All models are
+All DINOv3 models are
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
 and fine-tuned by Lightly.
+
+### DINOv2 Models
+
+- `dinov2/vits16-eomt`
+- `dinov2/vitb16-eomt`
+- `dinov2/vitl16-eomt`
+- `dinov2/vitg16-eomt`
+
+All DINOv2 models are
+[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
 
 ## Training Settings
 
@@ -446,6 +456,17 @@ The following are the default image transform arguments. See
 ````
 ````{dropdown} Val
 ```{include} _auto/dinov3eomtinstancesegmentationtrain_val_transform_args.md
+```
+````
+`````
+
+`````{dropdown} EoMT Instance Segmentation DINOv2 Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/dinov2eomtinstancesegmentationtrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} _auto/dinov2eomtinstancesegmentationtrain_val_transform_args.md
 ```
 ````
 `````

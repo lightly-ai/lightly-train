@@ -140,13 +140,18 @@ add-header:
 
 	# Apply the Apache 2.0 license header to DEIMv2 derived files
 	licenseheaders -t dev_tools/deimv2_licenseheader.tmpl \
-		-f src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
+		-f src/lightly_train/_task_models/dinov2_ltdetr_object_detection/dinov2_vit_wrapper.py \
+		src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
+		-E py
 
 	# Apply the MIT license header to the EoMT derived files
 	licenseheaders -t dev_tools/eomt_licenseheader.tmpl \
 		-f src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/mask_loss.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/scale_block.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/scheduler.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/scheduler.py \
@@ -206,7 +211,23 @@ endif
 
 # RFDETR and ONNXRuntime is not compatible with Python<3.9. Therefore we exclude it from the
 # default extras.
-EXTRAS_PY38 := [dev,dicom,mlflow,notebook,onnx,super-gradients,tensorboard,timm,ultralytics,wandb]
+#
+# Notebook is excluded from the Python 3.8 extras because its dependency pywinpty is not
+# compatible with uv 0.10.0 on Python 3.8. It fails with:
+#   × Failed to download and build `pywinpty==2.0.14`
+#   ├─▶ Failed to parse:
+#   │   `D:\a\_temp\setup-uv-cache\sdists-v9\pypi\pywinpty\2.0.14\pQ3SKTY_3WgM9I6D1MxET\src\pyproject.toml`
+#   ╰─▶ TOML parse error at line 1, column 1
+#         |
+#       1 | [project]
+#         | ^^^^^^^^^
+#       `pyproject.toml` is using the `[project]` table, but the required
+#       `project.version` field is neither set nor present in the
+#       `project.dynamic` list
+# 
+# This problem is fixed in pywinpty>2.0.14 but these versions are not compatible with
+# Python 3.8.
+EXTRAS_PY38 := [dev,dicom,mlflow,onnx,super-gradients,tensorboard,timm,ultralytics,wandb]
 
 # SuperGradients is not compatible with Python>=3.10. It is also not easy to install
 # on MacOS. Therefore we exclude it from the default extras.

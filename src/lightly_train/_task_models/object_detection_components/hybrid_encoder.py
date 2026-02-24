@@ -390,7 +390,7 @@ class HybridEncoder(nn.Module):
             inner_outs[0] = feat_heigh
             if self.upsample:
                 upsample_feat = F.interpolate(
-                    feat_heigh, scale_factor=2.0, mode="nearest"
+                    feat_heigh, size=feat_low.shape[-2:], mode="nearest"
                 )
             else:
                 upsample_feat = feat_heigh
