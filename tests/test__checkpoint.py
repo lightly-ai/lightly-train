@@ -33,6 +33,7 @@ class TestCheckpointInfo:
                 embedding_model=embedding_model,
             ),
             normalize_args=NormalizeArgs(),
+            license_info="license_info_value",
         )
 
         # Check that to_dict representation is correct.
@@ -46,6 +47,7 @@ class TestCheckpointInfo:
                 "embedding_model": embedding_model,
             },
             "normalize_args": NormalizeArgs().to_dict(),
+            "license_info": "license_info_value",
         }
 
         # Check that from_dict reconstruction is correct.
