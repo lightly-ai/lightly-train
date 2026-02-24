@@ -170,12 +170,14 @@ class TrainingStepTimer:
 
 
 class CUDAUtilization:
-    def __init__(self, device: torch.device, interval_s: float = 0.2) -> None:
+    def __init__(
+        self, device: torch.device, interval_s: float = 0.2, maxlen: int = 100_000
+    ) -> None:
         self._enabled = device.type == "cuda"
         self._device = device
         self._interval_s = float(interval_s)
 
-        self._buf: Deque[float] = deque()
+        self._buf: Deque[float] = deque(maxlen=maxlen)
         self._lock = Lock()
 
         self._run = Event()
