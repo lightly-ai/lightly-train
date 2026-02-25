@@ -244,7 +244,7 @@ class OrientedObjectDetectionCollateFunction(BaseCollateFunction):
     ):
         super().__init__(split, transform_args)
         assert isinstance(transform_args, OrientedObjectDetectionTransformArgs)
-        self.scale_jitter: TorchVisionScaleJitter | None
+        self.scale_jitter: TorchVisionScaleJitter | None = None
         if transform_args.scale_jitter is not None:
             scale_range = _get_scale_range_from_transform_args(transform_args)
 
@@ -257,8 +257,6 @@ class OrientedObjectDetectionCollateFunction(BaseCollateFunction):
                 divisible_by=transform_args.scale_jitter.divisible_by,
                 scale_range=scale_range,
             )
-        else:
-            self.scale_jitter = None
 
     def __call__(
         self, batch: list[OrientedObjectDetectionDatasetItem]
