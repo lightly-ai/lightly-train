@@ -20,7 +20,12 @@ class LossMetrics(Module):
         self.split = split
         self.metrics = ModuleDict({loss_name: MeanMetric() for loss_name in loss_names})
 
-    def update(self, loss_dict: Mapping[str, float | Tensor], weight: int) -> None:
+    def update(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
+        if loss_dict.keys() != self.metrics.keys():
+            raise ValueError(
+                f"Loss dict keys {loss_dict.keys()} do not match expected loss names "
+                f"{self.metrics.keys()}"
+            )
         for loss_name, loss_value in loss_dict.items():
             self.metrics[loss_name].update(loss_value, weight=weight)  # type: ignore
 

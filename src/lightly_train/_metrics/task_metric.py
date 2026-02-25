@@ -141,21 +141,10 @@ class TaskMetricArgs(PydanticConfig):
 
 
 class TaskMetric(Module):
-    """Base class for task-specific metrics container.
+    """Stores all metrics for a task and provides unified update/compute interface.
 
-    This is a CONTAINER, not a metric itself. It organizes and provides access
-    to the actual torchmetrics instances.
-
-    Device Handling:
-    - All metrics stored as attributes are automatically detected as child modules
-    - Transferred to correct device when .to(device) is called
-    - Handled by Lightning Fabric's setup() method
-
-    Responsibilities:
-    - Store metric instances (MetricCollections, MeanMetric)
-    - Provide access via .items() for logging
-    - Provide display names via .get_display_names()
-    - Handle task-specific formatting in .compute() if needed
+    This is the base class for all task-specific metrics (e.g., ClassificationTaskMetric)
+    and is the object returned from the training and validation steps for logging.
     """
 
     def __init__(self, task_metric_args: TaskMetricArgs) -> None:
@@ -163,11 +152,7 @@ class TaskMetric(Module):
         self.task_metric_args = task_metric_args
 
     def compute(self) -> MetricComputeResult:
-        """Compute all metrics and return values for logging.
-
-        Returns:
-            MetricComputeResult containing metrics dict, best_metric_key, and best_metric_value.
-        """
+        """Compute all metrics and return values for logging."""
         raise NotImplementedError
 
     def reset(self) -> None:

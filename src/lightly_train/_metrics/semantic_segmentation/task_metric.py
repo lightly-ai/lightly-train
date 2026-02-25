@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import ClassVar, Union
+from typing import ClassVar
 
 from pydantic import Field
 from torch import Tensor
@@ -113,18 +113,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         if self.metrics_classwise is not None:
             self.metrics_classwise.update(preds, target)  # type: ignore[operator]
 
-    def update_loss(
-        self,
-        loss_dict: dict[str, Union[float, Tensor]],
-        weight: int,
-    ) -> None:
-        """Accumulate loss values.
-
-        Args:
-            loss_dict: Mapping from loss name (e.g., "loss", "loss_vfl") to value.
-                       Only names present in metric_args.loss_names are tracked.
-            weight: Sample weight for accumulation (typically batch size).
-        """
+    def update_loss(self, loss_dict: dict[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)  # type: ignore[operator]
 
     def compute(self) -> MetricComputeResult:

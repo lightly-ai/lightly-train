@@ -31,7 +31,7 @@ class MetricArgs(PydanticConfig):
 
         Returns False for metrics like topk>1 accuracy that don't make sense classwise.
         """
-        return True
+        raise NotImplementedError
 
 
 def translate_watch_metric(watch_metric: str, split: str) -> str:

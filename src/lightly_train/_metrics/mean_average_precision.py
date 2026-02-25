@@ -68,8 +68,11 @@ class MeanAveragePrecisionArgs(MetricArgs):
 
 
 class MeanAveragePrecision(TorchMetricsMeanAveragePrecision):
-    """Wrapper around torchmetrics MeanAveragePrecision to handle classwise metric
-    naming better"""
+    """Wrapper around torchmetrics MeanAveragePrecision to flatten results from
+    .compute() calls into a single-level dictionary.
+
+    It also handles class names and prefixes for metric keys.
+    """
 
     def __init__(
         self,

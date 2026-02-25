@@ -12,7 +12,15 @@ from torchmetrics import ClasswiseWrapper, Metric, MetricCollection
 
 
 class ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
-    """Helper class to compute classwise metrics for a collection of metrics."""
+    """Helper class to compute classwise metrics for a collection of metrics.
+
+    This class mostly fixes some prefix/suffix issues when using ClasswiseWrapper inside
+    a MetricCollection.
+
+    Only use this for metrics that do not return non-classwise and classwise metrics
+    at the same time. E.g. MeanAveragePrecision returns both overall mAP and classwise AP,
+    so it should not be wrapped in this class.
+    """
 
     _SEPARATOR = "<SEP>"
 
@@ -44,12 +52,6 @@ class ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
         metrics = super().compute()
         result: dict[str, Tensor] = {}
         for name, value in metrics.items():
-            if isinstance(value, dict):
-                # Multiple metrics for each class (e.g. map, map_50, etc.).
-                for metric_name, metric_value in value.items():
-                    new_name = name.replace(f"{self._SEPARATOR}", metric_name)
-                    result[new_name] = metric_value
-            else:
-                new_name = name.replace(f"{self._SEPARATOR}", "")
-                result[new_name] = value
+            new_name = name.replace(f"{self._SEPARATOR}", "")
+            result[new_name] = value
         return result

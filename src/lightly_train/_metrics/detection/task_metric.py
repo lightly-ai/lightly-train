@@ -104,7 +104,7 @@ class ObjectDetectionTaskMetric(TaskMetric):
 
     def update_loss(
         self,
-        loss_dict: Mapping[str, float | Tensor],
+        loss_dict: Mapping[str, Tensor],
         weight: int,
     ) -> None:
         """Accumulate loss values.
