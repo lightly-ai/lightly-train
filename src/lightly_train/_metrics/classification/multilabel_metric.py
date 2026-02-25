@@ -22,10 +22,10 @@ from torchmetrics.classification import (
     MultilabelRecall,
 )
 
-from lightly_train._metrics.metric_args import MetricArgs
+from lightly_train._metrics.classification.metric_args import ClassificationMetricArgs
 
 
-class MultilabelAccuracyArgs(MetricArgs):
+class MultilabelAccuracyArgs(ClassificationMetricArgs):
     """Accuracy metric for multilabel classification."""
 
     threshold: float = 0.5
@@ -40,23 +40,28 @@ class MultilabelAccuracyArgs(MetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        metrics: dict[str, Metric] = {}
-
-        for avg in self.average:
-            key = f"accuracy_{avg}"
-            metrics[key] = MultilabelAccuracy(
+        if classwise:
+            return {
+                "accuracy": MultilabelAccuracy(
+                    num_labels=num_classes,
+                    threshold=self.threshold,
+                    average="none",
+                )
+            }
+        return {
+            f"accuracy_{avg}": MultilabelAccuracy(
                 num_labels=num_classes,
                 threshold=self.threshold,
-                average="none" if classwise else avg,
+                average=avg,
             )
-
-        return metrics
+            for avg in self.average
+        }
 
     def supports_classwise(self) -> bool:
         return True
 
 
-class MultilabelF1Args(MetricArgs):
+class MultilabelF1Args(ClassificationMetricArgs):
     """F1 score for multilabel classification."""
 
     threshold: float = 0.5
@@ -71,23 +76,28 @@ class MultilabelF1Args(MetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        metrics: dict[str, Metric] = {}
-
-        for avg in self.average:
-            key = f"f1_{avg}"
-            metrics[key] = MultilabelF1Score(
+        if classwise:
+            return {
+                "f1": MultilabelF1Score(
+                    num_labels=num_classes,
+                    threshold=self.threshold,
+                    average="none",
+                )
+            }
+        return {
+            f"f1_{avg}": MultilabelF1Score(
                 num_labels=num_classes,
                 threshold=self.threshold,
-                average="none" if classwise else avg,
+                average=avg,
             )
-
-        return metrics
+            for avg in self.average
+        }
 
     def supports_classwise(self) -> bool:
         return True
 
 
-class MultilabelPrecisionArgs(MetricArgs):
+class MultilabelPrecisionArgs(ClassificationMetricArgs):
     """Precision metric for multilabel classification."""
 
     threshold: float = 0.5
@@ -102,23 +112,28 @@ class MultilabelPrecisionArgs(MetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        metrics: dict[str, Metric] = {}
-
-        for avg in self.average:
-            key = f"precision_{avg}"
-            metrics[key] = MultilabelPrecision(
+        if classwise:
+            return {
+                "precision": MultilabelPrecision(
+                    num_labels=num_classes,
+                    threshold=self.threshold,
+                    average="none",
+                )
+            }
+        return {
+            f"precision_{avg}": MultilabelPrecision(
                 num_labels=num_classes,
                 threshold=self.threshold,
-                average="none" if classwise else avg,
+                average=avg,
             )
-
-        return metrics
+            for avg in self.average
+        }
 
     def supports_classwise(self) -> bool:
         return True
 
 
-class MultilabelRecallArgs(MetricArgs):
+class MultilabelRecallArgs(ClassificationMetricArgs):
     """Recall metric for multilabel classification."""
 
     threshold: float = 0.5
@@ -133,23 +148,28 @@ class MultilabelRecallArgs(MetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        metrics: dict[str, Metric] = {}
-
-        for avg in self.average:
-            key = f"recall_{avg}"
-            metrics[key] = MultilabelRecall(
+        if classwise:
+            return {
+                "recall": MultilabelRecall(
+                    num_labels=num_classes,
+                    threshold=self.threshold,
+                    average="none",
+                )
+            }
+        return {
+            f"recall_{avg}": MultilabelRecall(
                 num_labels=num_classes,
                 threshold=self.threshold,
-                average="none" if classwise else avg,
+                average=avg,
             )
-
-        return metrics
+            for avg in self.average
+        }
 
     def supports_classwise(self) -> bool:
         return True
 
 
-class MultilabelAUROCArgs(MetricArgs):
+class MultilabelAUROCArgs(ClassificationMetricArgs):
     """AUROC metric for multilabel classification."""
 
     average: set[Literal["micro", "macro", "weighted"]] = Field(
@@ -163,22 +183,18 @@ class MultilabelAUROCArgs(MetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        metrics: dict[str, Metric] = {}
-
-        for avg in self.average:
-            key = f"auroc_{avg}"
-            metrics[key] = MultilabelAUROC(
-                num_labels=num_classes,
-                average="none" if classwise else avg,
-            )
-
-        return metrics
+        if classwise:
+            return {"auroc": MultilabelAUROC(num_labels=num_classes, average="none")}
+        return {
+            f"auroc_{avg}": MultilabelAUROC(num_labels=num_classes, average=avg)
+            for avg in self.average
+        }
 
     def supports_classwise(self) -> bool:
         return True
 
 
-class MultilabelAveragePrecisionArgs(MetricArgs):
+class MultilabelAveragePrecisionArgs(ClassificationMetricArgs):
     """Average Precision metric for multilabel classification."""
 
     average: set[Literal["micro", "macro", "weighted"]] = Field(
@@ -192,22 +208,24 @@ class MultilabelAveragePrecisionArgs(MetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        metrics: dict[str, Metric] = {}
-
-        for avg in self.average:
-            key = f"avg_precision_{avg}"
-            metrics[key] = MultilabelAveragePrecision(
-                num_labels=num_classes,
-                average="none" if classwise else avg,
+        if classwise:
+            return {
+                "avg_precision": MultilabelAveragePrecision(
+                    num_labels=num_classes, average="none"
+                )
+            }
+        return {
+            f"avg_precision_{avg}": MultilabelAveragePrecision(
+                num_labels=num_classes, average=avg
             )
-
-        return metrics
+            for avg in self.average
+        }
 
     def supports_classwise(self) -> bool:
         return True
 
 
-class MultilabelHammingDistanceArgs(MetricArgs):
+class MultilabelHammingDistanceArgs(ClassificationMetricArgs):
     """Hamming Distance metric for multilabel classification."""
 
     mode: ClassVar[Literal["min", "max"]] = "min"

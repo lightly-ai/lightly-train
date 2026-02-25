@@ -11,11 +11,13 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from pydantic import Field
+from torch import Tensor
+from torchmetrics import MetricCollection
 
-from lightly_train._metrics.instance_segmentation.mean_average_precision_args import (
-    InstanceSegmentationMeanAveragePrecisionArgs,
-)
 from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.mean_average_precision import (
+    MeanAveragePrecisionArgs,
+)
 from lightly_train._metrics.metric_args import (
     translate_watch_metric,
 )
@@ -25,34 +27,19 @@ from lightly_train._metrics.task_metric import (
     TaskMetricArgs,
 )
 
-# Explicit mapping of base metric names to display name suffixes
-BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
-    "map": "mAP@0.5:0.95",
-    "map_50": "mAP@0.5",
-    "map_75": "mAP@0.75",
-    "map_small": "mAP (small)",
-    "map_medium": "mAP (medium)",
-    "map_large": "mAP (large)",
-}
-
 
 class InstanceSegmentationTaskMetricArgs(TaskMetricArgs):
-    loss_names: ClassVar[list[str]] = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]
+    loss_names: ClassVar[list[str]] = ["loss"]
 
     watch_metric: str = "val_metric/map"
 
-    mean_average_precision: InstanceSegmentationMeanAveragePrecisionArgs | None = Field(
-        default_factory=InstanceSegmentationMeanAveragePrecisionArgs
+    map: MeanAveragePrecisionArgs | None = Field(
+        default_factory=MeanAveragePrecisionArgs
     )
 
 
 class InstanceSegmentationTaskMetric(TaskMetric):
-    """Container for all metrics for instance segmentation tasks.
-
-    Inherits from TaskMetric which inherits from nn.Module.
-    All metrics stored as attributes are automatically detected as child modules
-    and handled by Lightning Fabric for device transfer.
-    """
+    """Container for all metrics for instance segmentation tasks."""
 
     def __init__(
         self,
@@ -61,7 +48,6 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         split: str,
         class_names: list[str],
         log_classwise: bool,
-        classwise_metric_args: InstanceSegmentationTaskMetricArgs | None,
     ) -> None:
         """Initialize instance segmentation metrics container.
 
@@ -73,23 +59,24 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         """
         super().__init__(task_metric_args=task_metric_args)
         self.split = split
-        self.prefix = f"{split}_metric/"
-        self.num_classes = len(class_names)
         self.class_names = class_names
         self.log_classwise = log_classwise
         self._best_metric_key = translate_watch_metric(
             task_metric_args.watch_metric, split
         )
 
-        self.metrics = task_metric_args.build_metric_collection(
-            prefix=f"{self.split}_metric/",
-        )
-        self.metrics_classwise = task_metric_args.build_classwise_metric_collection(
-            log_classwise=log_classwise,
-            prefix=f"{self.split}_metric_classwise/",
-            classwise_metrics_args=classwise_metric_args,
-            class_names=class_names,
-        )
+        metrics = {}
+        if task_metric_args.map is not None:
+            metrics.update(
+                task_metric_args.map.get_metrics(
+                    classwise=log_classwise,
+                    prefix=f"{split}_metric",
+                    class_names=class_names,
+                    iou_type="segm",
+                    box_format="xyxy",
+                )
+            )
+        self.metrics = MetricCollection(metrics)  # type: ignore
         self.loss_metrics = LossMetrics(
             split=split, loss_names=task_metric_args.loss_names
         )
@@ -106,18 +93,15 @@ class InstanceSegmentationTaskMetric(TaskMetric):
             target: List of target dictionaries with keys "masks", "labels"
         """
         self.metrics.update(preds, target)
-        if self.metrics_classwise is not None:
-            self.metrics_classwise.update(preds, target)
 
-    def update_loss(self, loss_dict: dict[str, float], weight: int) -> None:
+    def update_loss(self, loss_dict: dict[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)
 
     def compute(self) -> MetricComputeResult:
         """Compute all metrics and return combined results."""
-        result: dict[str, float] = self.loss_metrics.compute()
+        result = self.loss_metrics.compute()
         result.update(self.metrics.compute())
-        if self.metrics_classwise is not None:
-            result.update(self.metrics_classwise.compute())
+        result = {name: float(value) for name, value in result.items()}
         best_val = result.get(self._best_metric_key)
         return MetricComputeResult(
             metrics=result,

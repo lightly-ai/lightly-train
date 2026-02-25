@@ -19,10 +19,10 @@ from torchmetrics.classification import (
     MulticlassRecall,
 )
 
-from lightly_train._metrics.metric_args import MetricArgs
+from lightly_train._metrics.classification.metric_args import ClassificationMetricArgs
 
 
-class MulticlassAccuracyArgs(MetricArgs):
+class MulticlassAccuracyArgs(ClassificationMetricArgs):
     """Accuracy metric for multiclass classification."""
 
     topk: list[int] = Field(default_factory=lambda: [1, 5], strict=False)
@@ -45,13 +45,19 @@ class MulticlassAccuracyArgs(MetricArgs):
             # Topk>1 accuracy doesn't support classwise for multiclass
             if classwise and k > 1:
                 continue
-            for avg in self.average:
-                key = f"top{k}_acc_{avg}"
-                metrics[key] = MulticlassAccuracy(
+            if classwise:
+                metrics[f"top{k}_acc"] = MulticlassAccuracy(
                     num_classes=num_classes,
                     top_k=k,
-                    average="none" if (classwise and k == 1) else avg,
+                    average="none",
                 )
+            else:
+                for avg in self.average:
+                    metrics[f"top{k}_acc_{avg}"] = MulticlassAccuracy(
+                        num_classes=num_classes,
+                        top_k=k,
+                        average=avg,
+                    )
 
         return metrics
 
@@ -60,7 +66,7 @@ class MulticlassAccuracyArgs(MetricArgs):
         return 1 in self.topk
 
 
-class MulticlassF1Args(MetricArgs):
+class MulticlassF1Args(ClassificationMetricArgs):
     """F1 score for multiclass classification."""
 
     average: set[Literal["micro", "macro", "weighted"]] = Field(
@@ -74,22 +80,18 @@ class MulticlassF1Args(MetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        metrics: dict[str, Metric] = {}
-
-        for avg in self.average:
-            key = f"f1_{avg}"
-            metrics[key] = MulticlassF1Score(
-                num_classes=num_classes,
-                average="none" if classwise else avg,
-            )
-
-        return metrics
+        if classwise:
+            return {"f1": MulticlassF1Score(num_classes=num_classes, average="none")}
+        return {
+            f"f1_{avg}": MulticlassF1Score(num_classes=num_classes, average=avg)
+            for avg in self.average
+        }
 
     def supports_classwise(self) -> bool:
         return True
 
 
-class MulticlassPrecisionArgs(MetricArgs):
+class MulticlassPrecisionArgs(ClassificationMetricArgs):
     """Precision metric for multiclass classification."""
 
     average: set[Literal["micro", "macro", "weighted"]] = Field(
@@ -103,22 +105,24 @@ class MulticlassPrecisionArgs(MetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        metrics: dict[str, Metric] = {}
-
-        for avg in self.average:
-            key = f"precision_{avg}"
-            metrics[key] = MulticlassPrecision(
-                num_classes=num_classes,
-                average="none" if classwise else avg,
+        if classwise:
+            return {
+                "precision": MulticlassPrecision(
+                    num_classes=num_classes, average="none"
+                )
+            }
+        return {
+            f"precision_{avg}": MulticlassPrecision(
+                num_classes=num_classes, average=avg
             )
-
-        return metrics
+            for avg in self.average
+        }
 
     def supports_classwise(self) -> bool:
         return True
 
 
-class MulticlassRecallArgs(MetricArgs):
+class MulticlassRecallArgs(ClassificationMetricArgs):
     """Recall metric for multiclass classification."""
 
     average: set[Literal["micro", "macro", "weighted"]] = Field(
@@ -132,16 +136,12 @@ class MulticlassRecallArgs(MetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        metrics: dict[str, Metric] = {}
-
-        for avg in self.average:
-            key = f"recall_{avg}"
-            metrics[key] = MulticlassRecall(
-                num_classes=num_classes,
-                average="none" if classwise else avg,
-            )
-
-        return metrics
+        if classwise:
+            return {"recall": MulticlassRecall(num_classes=num_classes, average="none")}
+        return {
+            f"recall_{avg}": MulticlassRecall(num_classes=num_classes, average=avg)
+            for avg in self.average
+        }
 
     def supports_classwise(self) -> bool:
         return True

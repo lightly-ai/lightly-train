@@ -10,223 +10,63 @@ from __future__ import annotations
 
 import torch
 
-from lightly_train._metrics.multihead_task_metric import (
-    MultiheadTaskMetric,
-    _rename_key_for_head,
-)
+from lightly_train._metrics.multihead_task_metric import MultiheadTaskMetric
 from lightly_train._metrics.semantic_segmentation.task_metric import (
     SemanticSegmentationTaskMetric,
     SemanticSegmentationTaskMetricArgs,
 )
 
-_METRIC_ARGS = SemanticSegmentationTaskMetricArgs()
 
-
-def _create_head_metric(split: str = "val") -> SemanticSegmentationTaskMetric:
-    """Helper to create a SemanticSegmentationTaskMetric for testing."""
-    return _METRIC_ARGS.get_metrics(
+def _make_head_metric(split: str = "val") -> SemanticSegmentationTaskMetric:
+    return SemanticSegmentationTaskMetric(
+        task_metric_args=SemanticSegmentationTaskMetricArgs(),
         split=split,
-        num_classes=3,
-        ignore_index=255,
+        class_names=["cat", "dog", "bird"],
+        ignore_index=None,
         log_classwise=False,
     )
 
 
-def test_rename_key_for_head__val_metric() -> None:
-    assert (
-        _rename_key_for_head("val_metric/miou", "lr0_001")
-        == "val_metric_head/miou_lr0_001"
-    )
-
-
-def test_rename_key_for_head__val_metric_classwise() -> None:
-    assert (
-        _rename_key_for_head("val_metric_classwise/iou_0", "lr0_001")
-        == "val_metric_head_classwise/iou_0_lr0_001"
-    )
-
-
-def test_rename_key_for_head__train_metric() -> None:
-    assert (
-        _rename_key_for_head("train_metric/f1_macro", "lr0_001")
-        == "train_metric_head/f1_macro_lr0_001"
-    )
-
-
-def test_rename_key_for_head__val_loss() -> None:
-    """No-slash key: val_loss -> val_loss_head/lr0_001."""
-    assert _rename_key_for_head("val_loss", "lr0_001") == "val_loss_head/lr0_001"
-
-
-def test_rename_key_for_head__val_loss_subloss() -> None:
-    """Sub-loss key: val_loss/loss_vfl -> val_loss_head/loss_vfl_lr0_001."""
-    assert (
-        _rename_key_for_head("val_loss/loss_vfl", "lr0_001")
-        == "val_loss_head/loss_vfl_lr0_001"
-    )
-
-
 class TestMultiheadTaskMetric:
-    def test_best_metric_mode__explicit(self) -> None:
-        """best_metric_mode should reflect the explicitly passed value."""
+    def test_compute(self) -> None:
+        """Best head is promoted to top-level prefix."""
         head_metrics = {
-            "lr0_001": _create_head_metric(),
+            "lr0_001": _make_head_metric(),
+            "lr0_01": _make_head_metric(),
         }
         wrapper = MultiheadTaskMetric(
             head_metrics=head_metrics,  # type: ignore[arg-type]
             best_metric_mode="max",
         )
-        assert wrapper.best_metric_mode == "max"
-
-    def test_compute__selects_best_head(self) -> None:
-        """Best head should be promoted to top-level prefix."""
-        head_metrics = {
-            "lr0_001": _create_head_metric(),
-            "lr0_01": _create_head_metric(),
-        }
-        wrapper = MultiheadTaskMetric(
-            head_metrics=head_metrics,  # type: ignore[arg-type]
-            best_metric_mode="max",
+        wrapper.head_metrics["lr0_001"].update(  # type: ignore[operator]
+            torch.zeros(2, 10, 10, dtype=torch.long),
+            torch.randint(0, 3, (2, 10, 10)),
         )
-
-        # lr0_001 gets worse predictions, lr0_01 gets perfect predictions
-        preds_bad = torch.zeros(2, 100, 100, dtype=torch.long)  # all class 0
-        targets_varied = torch.randint(0, 3, (2, 100, 100))  # mixed classes
-
-        preds_good = torch.zeros(2, 100, 100, dtype=torch.long)  # all class 0
-        targets_same = torch.zeros(
-            2, 100, 100, dtype=torch.long
-        )  # all class 0 (perfect)
-
-        wrapper.head_metrics["lr0_001"].update(preds_bad, targets_varied)  # type: ignore[operator]
-        wrapper.head_metrics["lr0_01"].update(preds_good, targets_same)  # type: ignore[operator]
-
+        wrapper.head_metrics["lr0_01"].update(  # type: ignore[operator]
+            torch.zeros(2, 10, 10, dtype=torch.long),
+            torch.zeros(2, 10, 10, dtype=torch.long),
+        )
         result = wrapper.compute()
-
-        # Per-head keys must exist
         assert "val_metric_head/miou_lr0_001" in result.metrics
         assert "val_metric_head/miou_lr0_01" in result.metrics
-
-        # Top-level key must exist (best head promoted)
-        assert "val_metric/miou" in result.metrics
-
-        # Best head value promoted correctly
         assert result.best_metric_key == "val_metric/miou"
-        assert result.best_metric_value == result.metrics["val_metric/miou"]
-
-        # Top-level value equals the best head's per-head value
-        assert (
-            result.metrics["val_metric/miou"]
-            == result.metrics["val_metric_head/miou_lr0_01"]
-        )
-
-        # Best head tracking
-        assert result.best_head_name == "lr0_01"
-
-    def test_compute__min_mode(self) -> None:
-        """With mode='min', the head with lowest value should win."""
-        head_metrics = {
-            "lr0_001": _create_head_metric(),
-            "lr0_01": _create_head_metric(),
-        }
-        wrapper = MultiheadTaskMetric(
-            head_metrics=head_metrics,  # type: ignore[arg-type]
-            best_metric_mode="min",
-        )
-        assert wrapper.best_metric_mode == "min"
-
-        # lr0_001: perfect (high miou), lr0_01: bad (low miou)
-        preds_perfect = torch.zeros(2, 100, 100, dtype=torch.long)
-        targets_perfect = torch.zeros(2, 100, 100, dtype=torch.long)
-        preds_bad = torch.zeros(2, 100, 100, dtype=torch.long)
-        targets_bad = torch.randint(0, 3, (2, 100, 100))
-
-        wrapper.head_metrics["lr0_001"].update(preds_perfect, targets_perfect)  # type: ignore[operator]
-        wrapper.head_metrics["lr0_01"].update(preds_bad, targets_bad)  # type: ignore[operator]
-
-        result = wrapper.compute()
-
-        # With min mode, lr0_01 (lowest miou) should be promoted
-        assert result.best_metric_value is not None
-        assert (
-            result.best_metric_value <= result.metrics["val_metric_head/miou_lr0_001"]
-        )
-        assert (
-            result.metrics["val_metric/miou"]
-            == result.metrics["val_metric_head/miou_lr0_01"]
-        )
         assert result.best_head_name == "lr0_01"
 
     def test_reset(self) -> None:
-        """Reset should clear all head metrics."""
-        head_metrics = {
-            "lr0_001": _create_head_metric(),
-        }
+        head_metrics = {"lr0_001": _make_head_metric()}
         wrapper = MultiheadTaskMetric(
             head_metrics=head_metrics,  # type: ignore[arg-type]
             best_metric_mode="max",
         )
-
-        preds = torch.randint(0, 3, (2, 100, 100))
-        targets = torch.randint(0, 3, (2, 100, 100))
-        wrapper.head_metrics["lr0_001"].update(preds, targets)  # type: ignore[operator]
+        torch.manual_seed(0)
+        preds = torch.randint(0, 3, (2, 10, 10))
+        target = torch.randint(0, 3, (2, 10, 10))
+        wrapper.head_metrics["lr0_001"].update(preds, target)  # type: ignore[operator]
         result_before = wrapper.compute()
-
         wrapper.reset()
-
-        torch.manual_seed(999)
-        preds2 = torch.randint(0, 3, (2, 100, 100))
-        targets2 = torch.randint(0, 3, (2, 100, 100))
-        wrapper.head_metrics["lr0_001"].update(preds2, targets2)  # type: ignore[operator]
+        torch.manual_seed(1)
+        preds2 = torch.randint(0, 3, (2, 10, 10))
+        target2 = torch.randint(0, 3, (2, 10, 10))
+        wrapper.head_metrics["lr0_001"].update(preds2, target2)  # type: ignore[operator]
         result_after = wrapper.compute()
-
-        # After reset, metrics should be independent from before
         assert result_after.metrics != result_before.metrics
-
-    def test_get_display_names(self) -> None:
-        """Display names should include per-head and top-level names."""
-        head_metrics = {
-            "lr0_001": _create_head_metric(),
-            "lr0_01": _create_head_metric(),
-        }
-        wrapper = MultiheadTaskMetric(
-            head_metrics=head_metrics,  # type: ignore[arg-type]
-            best_metric_mode="max",
-        )
-
-        display_names = wrapper.get_display_names()
-
-        assert isinstance(display_names, dict)
-        # Per-head display names
-        assert "val_metric_head/miou_lr0_001" in display_names
-        assert "val_metric_head/miou_lr0_01" in display_names
-        # Top-level display names (from best head promotion)
-        assert "val_metric/miou" in display_names
-
-    def test_head_order_alphabetical(self) -> None:
-        """Head names like lr0_001, lr0_01 should sort in LR order alphabetically."""
-        head_names = ["lr0_1", "lr0_001", "lr0_01", "lr0_0001", "lr0_03"]
-        sorted_names = sorted(head_names)
-        # Should be in increasing LR order
-        assert sorted_names == ["lr0_0001", "lr0_001", "lr0_01", "lr0_03", "lr0_1"]
-
-
-def test__rename_key_for_head__val_metric() -> None:
-    assert (
-        _rename_key_for_head("val_metric/miou", "lr0_001")
-        == "val_metric_head/miou_lr0_001"
-    )
-
-
-def test__rename_key_for_head__val_metric_classwise() -> None:
-    assert (
-        _rename_key_for_head("val_metric_classwise/iou_0", "lr0_001")
-        == "val_metric_head_classwise/iou_0_lr0_001"
-    )
-
-
-def test__rename_key_for_head__train_metric() -> None:
-    assert (
-        _rename_key_for_head("train_metric/f1_macro", "lr0_001")
-        == "train_metric_head/f1_macro_lr0_001"
-    )

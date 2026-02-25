@@ -8,19 +8,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import ClassVar
 
 from pydantic import Field
 from torch import Tensor
+from torchmetrics import Metric, MetricCollection
 
-from lightly_train._metrics.classification.multiclass_metric_args import (
+from lightly_train._metrics.classification.metric_args import ClassificationMetricArgs
+from lightly_train._metrics.classification.multiclass_metric import (
     MulticlassAccuracyArgs,
     MulticlassF1Args,
     MulticlassPrecisionArgs,
     MulticlassRecallArgs,
 )
-from lightly_train._metrics.classification.multilabel_metric_args import (
+from lightly_train._metrics.classification.multilabel_metric import (
     MultilabelAccuracyArgs,
     MultilabelAUROCArgs,
     MultilabelAveragePrecisionArgs,
@@ -28,6 +30,9 @@ from lightly_train._metrics.classification.multilabel_metric_args import (
     MultilabelHammingDistanceArgs,
     MultilabelPrecisionArgs,
     MultilabelRecallArgs,
+)
+from lightly_train._metrics.classwise_metric_collection import (
+    ClasswiseMetricCollection,
 )
 from lightly_train._metrics.loss_metrics import LossMetrics
 from lightly_train._metrics.metric_args import (
@@ -52,22 +57,6 @@ class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
         default_factory=MulticlassPrecisionArgs
     )
     recall: MulticlassRecallArgs | None = Field(default_factory=MulticlassRecallArgs)
-
-    def get_task_metric(  # type: ignore[override]
-        self,
-        *,
-        split: str,
-        class_names: list[str],
-        log_classwise: bool,
-        classwise_metric_args: MulticlassClassificationTaskMetricArgs | None,
-    ) -> ClassificationTaskMetric:
-        return ClassificationTaskMetric(
-            task_metric_args=self,
-            split=split,
-            class_names=class_names,
-            log_classwise=log_classwise,
-            classwise_metric_args=classwise_metric_args,
-        )
 
 
 class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
@@ -121,16 +110,15 @@ class ClassificationTaskMetric(TaskMetric):
             task_metric_args.watch_metric, split
         )
 
-        self.metrics = task_metric_args.build_metric_collection(
+        self.metrics = self.build_metric_collection(
             prefix=f"{self.split}_metric/",
             num_classes=len(class_names),
         )
-        self.metrics_classwise = task_metric_args.build_classwise_metric_collection(
+        self.metrics_classwise = self.build_classwise_metric_collection(
             log_classwise=log_classwise,
             prefix=f"{self.split}_metric_classwise/",
             classwise_metrics_args=classwise_metric_args,
             class_names=class_names,
-            num_classes=len(class_names),
         )
         self.loss_metrics = LossMetrics(
             split=split, loss_names=task_metric_args.loss_names
@@ -174,7 +162,7 @@ class ClassificationTaskMetric(TaskMetric):
         result.update(self.metrics.compute())
         if self.metrics_classwise is not None:
             result.update(self.metrics_classwise.compute())
-
+        result = {name: float(value) for name, value in result.items()}
         best_val = result.get(self._best_metric_key)
         return MetricComputeResult(
             metrics=result,
@@ -182,4 +170,49 @@ class ClassificationTaskMetric(TaskMetric):
             best_metric_value=float(best_val) if best_val is not None else None,
             best_head_name=None,
             best_head_metrics=None,
+        )
+
+    def build_metric_collection(
+        self,
+        *,
+        prefix: str,
+        classwise: bool = False,
+        num_classes: int,
+    ) -> MetricCollection:
+        """Build a flat dictionary of metric instances from TaskMetricArgs."""
+        task_metric_args = self.task_metric_args
+
+        all_metrics: dict[str, Metric] = {}
+        for field_name in task_metric_args.__class__.model_fields:
+            metric_args = getattr(task_metric_args, field_name)
+            if not isinstance(metric_args, ClassificationMetricArgs):
+                continue
+            if classwise and not metric_args.supports_classwise():
+                continue
+            all_metrics.update(
+                metric_args.get_metrics(classwise=classwise, num_classes=num_classes)
+            )
+
+        return MetricCollection(all_metrics, prefix=prefix)  # type: ignore[arg-type]
+
+    def build_classwise_metric_collection(
+        self,
+        *,
+        log_classwise: bool,
+        prefix: str,
+        classwise_metrics_args: TaskMetricArgs | None,
+        class_names: Sequence[str],
+    ) -> MetricCollection | None:
+        """Build a classwise MetricCollection if log_classwise is True."""
+        if not log_classwise:
+            return None
+        if classwise_metrics_args is None:
+            classwise_metrics_args = self.task_metric_args.model_copy()
+        metrics = self.build_metric_collection(
+            prefix="", classwise=True, num_classes=len(class_names)
+        )
+        return ClasswiseMetricCollection(
+            metrics=metrics,
+            class_names=class_names,
+            prefix=prefix,
         )

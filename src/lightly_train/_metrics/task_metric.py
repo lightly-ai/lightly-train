@@ -8,18 +8,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
 from torch.nn import Module
-from torchmetrics import Metric, MetricCollection
+from torchmetrics import Metric
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._metrics.classwise_metric_collection import (
-    ClasswiseMetricCollection,
-)
-from lightly_train._metrics.metric_args import MetricArgs
 
 """Base classes for task-specific metrics.
 
@@ -144,53 +138,6 @@ class TaskMetricArgs(PydanticConfig):
 
     # Metric key to watch for best model selection. E.g. "val_metric/f1_macro".
     watch_metric: str
-
-    def iter_metric_args(self, *, classwise: bool) -> dict[str, MetricArgs]:
-        """Iterate over all MetricArgs fields in this TaskMetricArgs.
-
-        Returns:
-            Dictionary mapping field names to MetricArgs instances.
-            Example: {"accuracy": MulticlassAccuracyArgs(...), "f1": MulticlassF1Args(...)}
-        """
-        metric_args_dict = {}
-        for field_name in self.__class__.model_fields:
-            individual_metric_args = getattr(self, field_name)
-            if not isinstance(individual_metric_args, MetricArgs):
-                continue
-            if classwise and not individual_metric_args.supports_classwise():
-                continue
-            metric_args_dict[field_name] = individual_metric_args
-        return metric_args_dict
-
-    def build_metric_collection(
-        self, *, prefix: str, **kwargs: Any
-    ) -> MetricCollection:
-        """Build a flat dictionary of metric instances from TaskMetricArgs."""
-        all_metrics: dict[str, Metric] = {}
-        for metric_arg in self.iter_metric_args(classwise=False).values():
-            all_metrics.update(metric_arg.get_metrics(classwise=False, **kwargs))
-        return MetricCollection(all_metrics, prefix=prefix)  # type: ignore[arg-type]
-
-    def build_classwise_metric_collection(
-        self,
-        *,
-        log_classwise: bool,
-        prefix: str,
-        classwise_metrics_args: TaskMetricArgs | None,
-        class_names: Sequence[str],
-        **kwargs: Any,
-    ) -> MetricCollection | None:
-        """Build a classwise MetricCollection if log_classwise is True."""
-        if not log_classwise:
-            return None
-        if classwise_metrics_args is None:
-            classwise_metrics_args = self.model_copy()
-        metrics = self.build_metric_collection(prefix="", **kwargs)
-        return ClasswiseMetricCollection(
-            metrics=metrics,
-            class_names=class_names,
-            prefix=prefix,
-        )
 
 
 class TaskMetric(Module):

@@ -122,8 +122,8 @@ class MultiheadTaskMetric(TaskMetric):
             metrics=all_metrics,
             best_metric_key=None,
             best_metric_value=None,
-            best_head_name="",
-            best_head_metrics={},
+            best_head_name=None,
+            best_head_metrics=None,
         )
 
 

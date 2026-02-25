@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from typing import ClassVar, Literal
 
-from torchmetrics import Metric
-
 from lightly_train._configs.config import PydanticConfig
 
 
@@ -27,21 +25,6 @@ class MetricArgs(PydanticConfig):
     """
 
     watch_mode: ClassVar[Literal["min", "max"]] = "max"
-
-    def get_metrics(self, *, classwise: bool, num_classes: int) -> dict[str, Metric]:
-        """Create metric instances.
-
-        Args:
-            classwise: If True, return metrics with average='none' for classwise
-                      computation. The ClasswiseWrapper will be applied by the
-                      TaskMetric class.
-            num_classes: Number of classes for the classification task.
-
-        Returns:
-            Dictionary mapping metric names to metric instances.
-            Example: {"top1_acc_micro": MulticlassAccuracy(...), "top5_acc_micro": ...}
-        """
-        raise NotImplementedError
 
     def supports_classwise(self) -> bool:
         """Whether this metric supports classwise computation.

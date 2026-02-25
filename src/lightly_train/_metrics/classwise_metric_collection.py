@@ -6,17 +6,13 @@
 # LICENSE file in the root directory of this source tree.
 #
 from collections.abc import Mapping, Sequence
-from typing import Any
 
+from torch import Tensor
 from torchmetrics import ClasswiseWrapper, Metric, MetricCollection
 
 
 class ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
-    """Renames classwise metric keys to handle class names with underscores.
-
-    Replaces unique separator with underscore, avoiding conflicts when class names
-    themselves contain underscores (e.g., "cat__type_a").
-    """
+    """Helper class to compute classwise metrics for a collection of metrics."""
 
     _SEPARATOR = "<SEP>"
 
@@ -26,10 +22,14 @@ class ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
         class_names: Sequence[str],
         prefix: str | None = None,
         postfix: str | None = None,
+        classwise_prefix: str | None = None,
         compute_groups: bool | Sequence[Sequence[str]] = True,
     ) -> None:
+        wrapper_prefix = self._SEPARATOR
+        if classwise_prefix is not None:
+            wrapper_prefix = f"{classwise_prefix}_{self._SEPARATOR}"
         wrapped_metrics = {
-            name: ClasswiseWrapper(metric, labels=class_names, prefix=self._SEPARATOR)  # type: ignore
+            name: ClasswiseWrapper(metric, labels=class_names, prefix=wrapper_prefix)  # type: ignore
             for name, metric in metrics.items()
         }
         super().__init__(
@@ -39,13 +39,17 @@ class ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
             compute_groups=compute_groups,  # type: ignore
         )
 
-    def compute(self) -> dict[str, Any]:  # type: ignore[override]
-        """Compute metrics and rename keys by replacing separator with underscore."""
-        result = super().compute()
-        # ClasswiseWrapper joins metric_name with prefix as: metric_name + "_" + prefix + class_name
-        # So with prefix="<SEP>" we get: metric_name_<SEP>class_name
-        # Replace "_<SEP>" with "_" to get the desired format: metric_name_class_name
-        return {
-            key.replace(f"_{self._SEPARATOR}", "_"): value
-            for key, value in result.items()
-        }
+    def compute(self) -> dict[str, Tensor]:  # type: ignore[override]
+        """Compute metrics and convert into a flat dictionary"""
+        metrics = super().compute()
+        result: dict[str, Tensor] = {}
+        for name, value in metrics.items():
+            if isinstance(value, dict):
+                # Multiple metrics for each class (e.g. map, map_50, etc.).
+                for metric_name, metric_value in value.items():
+                    new_name = name.replace(f"{self._SEPARATOR}", metric_name)
+                    result[new_name] = metric_value
+            else:
+                new_name = name.replace(f"{self._SEPARATOR}", "")
+                result[new_name] = value
+        return result

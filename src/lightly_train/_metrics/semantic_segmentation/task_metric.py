@@ -13,12 +13,16 @@ from typing import ClassVar, Union
 
 from pydantic import Field
 from torch import Tensor
+from torchmetrics import MetricCollection
 
+from lightly_train._metrics.classwise_metric_collection import (
+    ClasswiseMetricCollection,
+)
 from lightly_train._metrics.loss_metrics import LossMetrics
 from lightly_train._metrics.metric_args import (
     translate_watch_metric,
 )
-from lightly_train._metrics.semantic_segmentation.jaccard_index_args import (
+from lightly_train._metrics.semantic_segmentation.jaccard_index import (
     JaccardIndexArgs,
 )
 from lightly_train._metrics.task_metric import (
@@ -27,19 +31,13 @@ from lightly_train._metrics.task_metric import (
     TaskMetricArgs,
 )
 
-# Explicit mapping of base metric names to display name suffixes
-BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
-    "miou": "mIoU",
-    "iou": "IoU",
-}
-
 
 class SemanticSegmentationTaskMetricArgs(TaskMetricArgs):
     loss_names: ClassVar[list[str]] = ["loss"]
 
     watch_metric: str = "val_metric/miou"
 
-    jaccard_index: JaccardIndexArgs | None = Field(default_factory=JaccardIndexArgs)
+    miou: JaccardIndexArgs | None = Field(default_factory=JaccardIndexArgs)
 
 
 class SemanticSegmentationTaskMetric(TaskMetric):
@@ -55,11 +53,9 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         *,
         task_metric_args: SemanticSegmentationTaskMetricArgs,
         split: str,
-        num_classes: int,
         class_names: Sequence[str],
         ignore_index: int | None,
         log_classwise: bool,
-        classwise_metric_args: SemanticSegmentationTaskMetricArgs | None,
     ) -> None:
         """Initialize semantic segmentation metrics container.
 
@@ -72,26 +68,36 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         """
         super().__init__(task_metric_args=task_metric_args)
         self.split = split
-        self.num_classes = num_classes
         self.ignore_index = ignore_index
         self.log_classwise = log_classwise
         self._best_metric_key = translate_watch_metric(
             task_metric_args.watch_metric, split
         )
 
-        self.metrics = task_metric_args.build_metric_collection(
-            prefix=f"{self.split}_metric/",
-            num_classes=num_classes,
-            ignore_index=ignore_index,
-        )
-        self.metrics_classwise = task_metric_args.build_classwise_metric_collection(
-            log_classwise=log_classwise,
-            prefix=f"{self.split}_metric_classwise/",
-            classwise_metrics_args=classwise_metric_args,
-            class_names=class_names,
-            num_classes=num_classes,
-            ignore_index=ignore_index,
-        )
+        metrics = {}
+        if task_metric_args.miou is not None:
+            metrics.update(
+                task_metric_args.miou.get_metrics(
+                    classwise=False,
+                    num_classes=len(class_names),
+                    ignore_index=ignore_index,
+                )
+            )
+        self.metrics = MetricCollection(metrics, prefix=f"{split}_metric/")  # type: ignore
+
+        self.metrics_classwise: MetricCollection | None = None
+        if log_classwise and task_metric_args.miou is not None:
+            metrics_classwise = task_metric_args.miou.get_metrics(
+                classwise=True,
+                num_classes=len(class_names),
+                ignore_index=ignore_index,
+            )
+            self.metrics_classwise = ClasswiseMetricCollection(
+                metrics_classwise,
+                class_names=class_names,
+                prefix=f"{split}_metric_classwise/",
+                classwise_prefix="iou",
+            )
         self.loss_metrics = LossMetrics(
             split=split, loss_names=task_metric_args.loss_names
         )
@@ -119,7 +125,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
                        Only names present in metric_args.loss_names are tracked.
             weight: Sample weight for accumulation (typically batch size).
         """
-        self.loss_metrics.update_loss(loss_dict=loss_dict, weight=weight)  # type: ignore[operator]
+        self.loss_metrics.update(loss_dict=loss_dict, weight=weight)  # type: ignore[operator]
 
     def compute(self) -> MetricComputeResult:
         """Compute all metrics and return combined results."""
