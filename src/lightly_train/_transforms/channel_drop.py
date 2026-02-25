@@ -113,6 +113,7 @@ class ChannelDropTV(v2.Transform):
         """
         Randomly drops channels from an image. Different from Albumentations
         ChannelDropout as it does not set channels to zero but removes them completely.
+        Implemented using TorchVision v2 API.
 
         Args:
             num_channels_keep:
@@ -120,8 +121,9 @@ class ChannelDropTV(v2.Transform):
             weight_drop:
                 Weight for each channel to be dropped. 0 means never dropped,
                 higher values mean higher probability of being dropped.
-            p:
-                Probability of applying the transform.
+            num_channels:
+                Total number of channels in the input images. This is needed to
+                sample which channels to drop. Default is 3 for RGB images.
         """
         super().__init__()
         self.num_channels_keep = num_channels_keep
