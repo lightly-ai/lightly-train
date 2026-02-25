@@ -58,10 +58,9 @@ class OrientedObjectDetectionTransform(TaskTransform):
             transform_args.stop_policy.stop_step if transform_args.stop_policy else None
         )
 
-        if self.stop_step is not None:
-            raise NotImplementedError(
-                "Stopping certain augmentations after some steps is not implemented yet."
-            )
+        self.stop_step = (
+            transform_args.stop_policy.stop_step if transform_args.stop_policy else None
+        )
         self.global_step = 0
         self.stop_ops = (
             transform_args.stop_policy.ops
