@@ -54,9 +54,6 @@ class OrientedObjectDetectionTransform(TaskTransform):
         super().__init__(transform_args=transform_args)
 
         self.transform_args: OrientedObjectDetectionTransformArgs = transform_args
-        self.stop_step = (
-            transform_args.stop_policy.stop_step if transform_args.stop_policy else None
-        )
 
         self.stop_step = (
             transform_args.stop_policy.stop_step if transform_args.stop_policy else None
