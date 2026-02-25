@@ -11,9 +11,9 @@ from typing import Any, Sequence
 
 import numpy as np
 import torch
+import torchvision.tv_tensors as tv_tensors
 from albumentations import ImageOnlyTransform
 from torchvision.transforms import v2
-import torchvision.tv_tensors as tv_tensors
 
 from lightly_train.types import NDArrayImage
 
@@ -110,6 +110,19 @@ class ChannelDropTV(v2.Transform):
         weight_drop: Sequence[float],
         num_channels: int = 3,
     ) -> None:
+        """
+        Randomly drops channels from an image. Different from Albumentations
+        ChannelDropout as it does not set channels to zero but removes them completely.
+
+        Args:
+            num_channels_keep:
+                Number of channels to keep in the image.
+            weight_drop:
+                Weight for each channel to be dropped. 0 means never dropped,
+                higher values mean higher probability of being dropped.
+            p:
+                Probability of applying the transform.
+        """
         super().__init__()
         self.num_channels_keep = num_channels_keep
         self.num_channels = num_channels
