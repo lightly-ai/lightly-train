@@ -1459,12 +1459,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     task=config.task,
                     timer_agg=timer_agg,
                     global_batch_size=effective_global_batch_size,
+                    gradient_accumulation_steps=config.gradient_accumulation_steps,
                 )
                 helpers.add_timer_logs(
                     timer_agg=timer_agg,
                     log_dict=train_log_dict,
                     split="train",
                     global_batch_size=effective_global_batch_size,
+                    gradient_accumulation_steps=config.gradient_accumulation_steps,
                 )
 
                 for group in optimizer.param_groups:

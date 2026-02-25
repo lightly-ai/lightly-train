@@ -729,6 +729,7 @@ def log_step(
     task: str,
     timer_agg: TimerAggregateMetrics,
     global_batch_size: int,
+    gradient_accumulation_steps: int = 1,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
@@ -766,10 +767,16 @@ def log_step(
     step_time = step_time_total / step_count if step_count > 0 else 0.0
     profiling_parts.append(f"Step Time {step_time:4.2f}s")
 
-    # Data time (average dataload time)
+    # Data time (average dataload time per effective training step).
+    # The timer records one entry per microbatch, so we multiply by
+    # gradient_accumulation_steps to get the per-effective-step total.
     dataload_count = timer_agg["step_counts"].get(dataload_step_name, 0)
     dataload_time_total = timer_agg["step_total_times"].get(dataload_step_name, 0.0)
-    data_time = dataload_time_total / dataload_count if dataload_count > 0 else 0.0
+    data_time = (
+        dataload_time_total / dataload_count * gradient_accumulation_steps
+        if dataload_count > 0
+        else 0.0
+    )
     profiling_parts.append(f"Data Time {data_time:4.2f}s")
 
     # Throughput (images per second)
@@ -867,6 +874,7 @@ def add_timer_logs(
     log_dict: dict[str, Any],
     split: Literal["train", "val"],
     global_batch_size: int,
+    gradient_accumulation_steps: int = 1,
 ) -> None:
     """Add profiling metrics to the log dictionary.
 
@@ -878,6 +886,9 @@ def add_timer_logs(
         log_dict: The dictionary to add metrics to.
         split: The split ("train" or "val") to get metrics for.
         global_batch_size: The global batch size across all GPUs.
+        gradient_accumulation_steps: Number of gradient accumulation steps. The timer
+            records one dataload entry per microbatch, so this factor is used to convert
+            to a per-effective-step data time.
     """
     step_name = f"{split}_step"
     dataload_step_name = f"{split}_dataload"
@@ -898,10 +909,16 @@ def add_timer_logs(
     step_time = step_time_total / step_count if step_count > 0 else 0.0
     log_dict[f"profiling/{split}_step_time_sec"] = step_time
 
-    # Data time
+    # Data time (per effective training step).
+    # The timer records one entry per microbatch, so we multiply by
+    # gradient_accumulation_steps to get the per-effective-step total.
     dataload_count = timer_agg["step_counts"].get(dataload_step_name, 0)
     dataload_time_total = timer_agg["step_total_times"].get(dataload_step_name, 0.0)
-    data_time = dataload_time_total / dataload_count if dataload_count > 0 else 0.0
+    data_time = (
+        dataload_time_total / dataload_count * gradient_accumulation_steps
+        if dataload_count > 0
+        else 0.0
+    )
     log_dict[f"profiling/{split}_data_time_sec"] = data_time
 
     # Throughput
