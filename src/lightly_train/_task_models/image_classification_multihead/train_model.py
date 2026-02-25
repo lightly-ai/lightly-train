@@ -624,7 +624,6 @@ def _filter_classwise_metrics(
 
 
 def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:
-
     row = torch.repeat_interleave(
         torch.arange(len(class_ids), device=class_ids[0].device),
         torch.tensor([t.numel() for t in class_ids], device=class_ids[0].device),

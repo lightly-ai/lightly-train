@@ -658,6 +658,38 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
     return default_steps if steps == "auto" else steps
 
 
+def get_gradient_accumulation_steps(
+    gradient_accumulation_steps: int | Literal["auto"],
+    global_batch_size: int,
+    default_batch_size: int,
+) -> int:
+    """Returns the number of gradient accumulation steps.
+
+    When 'auto', activates gradient accumulation when global_batch_size is
+    smaller than default_batch_size. The number of steps is set to
+    max(1, default_batch_size // global_batch_size) to keep the effective
+    batch size as close as possible to the model's default batch size.
+
+    Args:
+        gradient_accumulation_steps: Number of steps or 'auto'.
+        global_batch_size: The global batch size across all devices.
+        default_batch_size: The model's default batch size.
+
+    Returns:
+        The number of gradient accumulation steps.
+
+    Raises:
+        ValueError: If gradient_accumulation_steps < 1.
+    """
+    if gradient_accumulation_steps == "auto":
+        return max(1, default_batch_size // global_batch_size)
+    if gradient_accumulation_steps < 1:
+        raise ValueError(
+            f"gradient_accumulation_steps must be >= 1, got {gradient_accumulation_steps}."
+        )
+    return gradient_accumulation_steps
+
+
 def get_train_model_cls(model_name: str, task: str) -> type[TrainModel]:
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
         if (
@@ -697,6 +729,7 @@ def log_step(
     task: str,
     timer_agg: TimerAggregateMetrics,
     global_batch_size: int,
+    gradient_accumulation_steps: int = 1,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
@@ -734,10 +767,16 @@ def log_step(
     step_time = step_time_total / step_count if step_count > 0 else 0.0
     profiling_parts.append(f"Step Time {step_time:4.2f}s")
 
-    # Data time (average dataload time)
+    # Data time (average dataload time per effective training step).
+    # The timer records one entry per microbatch, so we multiply by
+    # gradient_accumulation_steps to get the per-effective-step total.
     dataload_count = timer_agg["step_counts"].get(dataload_step_name, 0)
     dataload_time_total = timer_agg["step_total_times"].get(dataload_step_name, 0.0)
-    data_time = dataload_time_total / dataload_count if dataload_count > 0 else 0.0
+    data_time = (
+        dataload_time_total / dataload_count * gradient_accumulation_steps
+        if dataload_count > 0
+        else 0.0
+    )
     profiling_parts.append(f"Data Time {data_time:4.2f}s")
 
     # Throughput (images per second)
@@ -755,6 +794,7 @@ def log_training_summary(
     timer_agg: TimerAggregateMetrics,
     fabric: Fabric,
     global_batch_size: int,
+    gradient_accumulation_steps: int,
 ) -> None:
     """Log comprehensive training profiling summary.
 
@@ -767,6 +807,8 @@ def log_training_summary(
         timer_agg: The aggregated metrics dict from timer.get_aggregated_metrics().
         fabric: The Fabric instance for distributed communication.
         global_batch_size: The global batch size across all GPUs.
+        gradient_accumulation_steps: Number of gradient accumulation steps. Used to
+            compute the effective global batch size for train throughput.
     """
 
     # Calculate total time
@@ -794,8 +836,9 @@ def log_training_summary(
     train_step_time = train_time_sec / train_count if train_count > 0 else 0.0
     val_step_time = val_time_sec / val_count if val_count > 0 else 0.0
 
+    effective_global_batch_size = global_batch_size * gradient_accumulation_steps
     train_throughput = (
-        (global_batch_size / train_step_time) if train_step_time > 0 else 0.0
+        (effective_global_batch_size / train_step_time) if train_step_time > 0 else 0.0
     )
     val_throughput = (global_batch_size / val_step_time) if val_step_time > 0 else 0.0
 
@@ -831,6 +874,7 @@ def add_timer_logs(
     log_dict: dict[str, Any],
     split: Literal["train", "val"],
     global_batch_size: int,
+    gradient_accumulation_steps: int = 1,
 ) -> None:
     """Add profiling metrics to the log dictionary.
 
@@ -842,6 +886,9 @@ def add_timer_logs(
         log_dict: The dictionary to add metrics to.
         split: The split ("train" or "val") to get metrics for.
         global_batch_size: The global batch size across all GPUs.
+        gradient_accumulation_steps: Number of gradient accumulation steps. The timer
+            records one dataload entry per microbatch, so this factor is used to convert
+            to a per-effective-step data time.
     """
     step_name = f"{split}_step"
     dataload_step_name = f"{split}_dataload"
@@ -862,10 +909,16 @@ def add_timer_logs(
     step_time = step_time_total / step_count if step_count > 0 else 0.0
     log_dict[f"profiling/{split}_step_time_sec"] = step_time
 
-    # Data time
+    # Data time (per effective training step).
+    # The timer records one entry per microbatch, so we multiply by
+    # gradient_accumulation_steps to get the per-effective-step total.
     dataload_count = timer_agg["step_counts"].get(dataload_step_name, 0)
     dataload_time_total = timer_agg["step_total_times"].get(dataload_step_name, 0.0)
-    data_time = dataload_time_total / dataload_count if dataload_count > 0 else 0.0
+    data_time = (
+        dataload_time_total / dataload_count * gradient_accumulation_steps
+        if dataload_count > 0
+        else 0.0
+    )
     log_dict[f"profiling/{split}_data_time_sec"] = data_time
 
     # Throughput
@@ -941,6 +994,41 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
     for value in log_dict.values():
         if isinstance(value, Metric):
             value.reset()
+
+
+def accumulate_log_dict(
+    accumulated: dict[str, Any], new: dict[str, Any]
+) -> None:
+    """Accumulate log_dict values from a microbatch into a running accumulator.
+
+    Plain tensors are summed; Metric objects (and any other values) are stored by
+    reference — they accumulate state internally via update() calls inside
+    training_step, so the last reference is sufficient.
+    """
+    for key, value in new.items():
+        if isinstance(value, Tensor):
+            if key in accumulated:
+                accumulated[key] = accumulated[key] + value
+            else:
+                accumulated[key] = value.clone()
+        else:
+            accumulated[key] = value
+
+
+def average_accumulated_log_dict(
+    accumulated: dict[str, Any], num_accumulation_steps: int
+) -> None:
+    """Divide all plain Tensor values in accumulated by num_accumulation_steps in-place.
+
+    Metric objects are left untouched because they already represent the mean over all
+    samples seen via their internal update() calls.
+
+    # TODO (Lionel, 02/26): Consider additional smoothing when batch_size does not
+    # evenly divide the model's default_batch_size.
+    """
+    for key, value in accumulated.items():
+        if isinstance(value, Tensor):
+            accumulated[key] = value / num_accumulation_steps
 
 
 def get_save_checkpoint_args(
