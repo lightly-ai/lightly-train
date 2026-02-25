@@ -979,6 +979,41 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
             value.reset()
 
 
+def accumulate_log_dict(
+    accumulated: dict[str, Any], new: dict[str, Any]
+) -> None:
+    """Accumulate log_dict values from a microbatch into a running accumulator.
+
+    Plain tensors are summed; Metric objects (and any other values) are stored by
+    reference — they accumulate state internally via update() calls inside
+    training_step, so the last reference is sufficient.
+    """
+    for key, value in new.items():
+        if isinstance(value, Tensor):
+            if key in accumulated:
+                accumulated[key] = accumulated[key] + value
+            else:
+                accumulated[key] = value.clone()
+        else:
+            accumulated[key] = value
+
+
+def average_accumulated_log_dict(
+    accumulated: dict[str, Any], num_accumulation_steps: int
+) -> None:
+    """Divide all plain Tensor values in accumulated by num_accumulation_steps in-place.
+
+    Metric objects are left untouched because they already represent the mean over all
+    samples seen via their internal update() calls.
+
+    # TODO (Lionel, 02/26): Consider additional smoothing when batch_size does not
+    # evenly divide the model's default_batch_size.
+    """
+    for key, value in accumulated.items():
+        if isinstance(value, Tensor):
+            accumulated[key] = value / num_accumulation_steps
+
+
 def get_save_checkpoint_args(
     train_model_cls: type[TrainModel],
     checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None,

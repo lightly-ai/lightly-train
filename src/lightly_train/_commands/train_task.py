@@ -1413,6 +1413,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             timer.start_step("train_step")
 
             # Training data loading, forward passes, and gradient accumulation.
+            accumulated_log_dict: dict[str, Any] = {}
             for acc_step in range(config.gradient_accumulation_steps):
                 is_accumulating = acc_step < config.gradient_accumulation_steps - 1
 
@@ -1429,6 +1430,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     fabric.backward(
                         train_result.loss / config.gradient_accumulation_steps
                     )
+                helpers.accumulate_log_dict(accumulated_log_dict, train_result.log_dict)
+            helpers.average_accumulated_log_dict(
+                accumulated_log_dict, config.gradient_accumulation_steps
+            )
 
             # Optimizer step and scheduler step.
             train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
@@ -1443,7 +1448,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             timer.record_gpu_stats("train")
 
             if is_log_step or is_last_step:
-                train_log_dict = helpers.compute_metrics(train_result.log_dict)
+                train_log_dict = helpers.compute_metrics(accumulated_log_dict)
                 timer_agg = timer.get_aggregated_metrics(fabric)
 
                 helpers.log_step(
@@ -1469,7 +1474,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             "weight_decay"
                         ]
                 fabric.log_dict(train_log_dict, step=step)
-                helpers.reset_metrics(train_result.log_dict)
+                helpers.reset_metrics(accumulated_log_dict)
 
             if config.save_checkpoint_args.save_last and (
                 is_save_ckpt_step or is_last_step
@@ -1499,6 +1504,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 timer.reset_gpu_max_memory("val")
 
                 val_dataloader_iter = iter(val_dataloader)
+                accumulated_val_log_dict: dict[str, Any] = {}
                 for val_step in range(len(val_dataloader)):
                     is_last_val_step = val_step + 1 == len(val_dataloader)
                     is_val_log_step = (
@@ -1519,10 +1525,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
                     timer.end_step("val_step")
                     timer.record_gpu_stats("val")
+                    helpers.accumulate_log_dict(
+                        accumulated_val_log_dict, val_result.log_dict
+                    )
 
                     if is_last_val_step:
+                        helpers.average_accumulated_log_dict(
+                            accumulated_val_log_dict, len(val_dataloader)
+                        )
                         # Metric computation.
-                        val_log_dict = helpers.compute_metrics(val_result.log_dict)
+                        val_log_dict = helpers.compute_metrics(accumulated_val_log_dict)
 
                         timer_agg = timer.get_aggregated_metrics(fabric)
 
@@ -1542,7 +1554,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             global_batch_size=config.batch_size,
                         )
                         fabric.log_dict(val_log_dict, step=step)
-                        helpers.reset_metrics(val_result.log_dict)
+                        helpers.reset_metrics(accumulated_val_log_dict)
 
                         watch_metric = val_log_dict.get(
                             config.save_checkpoint_args.watch_metric
