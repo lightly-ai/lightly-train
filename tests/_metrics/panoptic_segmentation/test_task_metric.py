@@ -20,7 +20,7 @@ class TestPanopticSegmentationTaskMetricArgs:
         """Test that PanopticSegmentationTaskMetricArgs can create metrics."""
         metric_args = PanopticSegmentationTaskMetricArgs()
         segmentation_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             things=[0, 1],
             stuffs=[2],
         )
@@ -47,7 +47,7 @@ class TestPanopticSegmentationTaskMetricArgs:
         """Test that get_display_names returns correct display names."""
         metric_args = PanopticSegmentationTaskMetricArgs()
         segmentation_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             things=[0, 1],
             stuffs=[2],
         )
@@ -70,7 +70,7 @@ class TestPanopticSegmentationTaskMetricArgs:
         """Test that reset() clears all metrics."""
         metric_args = PanopticSegmentationTaskMetricArgs()
         segmentation_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             things=[0, 1],
             stuffs=[2],
         )

@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import Field
 from torchmetrics import Metric
@@ -37,7 +37,7 @@ class MultilabelAccuracyArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -68,7 +68,7 @@ class MultilabelF1Args(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -99,7 +99,7 @@ class MultilabelPrecisionArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -130,7 +130,7 @@ class MultilabelRecallArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -160,7 +160,7 @@ class MultilabelAUROCArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -189,7 +189,7 @@ class MultilabelAveragePrecisionArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -210,12 +210,14 @@ class MultilabelAveragePrecisionArgs(MetricArgs):
 class MultilabelHammingDistanceArgs(MetricArgs):
     """Hamming Distance metric for multilabel classification."""
 
+    mode: ClassVar[Literal["min", "max"]] = "min"
+
     threshold: float = 0.5
 
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         # Hamming distance doesn't support classwise or averaging

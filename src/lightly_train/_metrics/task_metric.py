@@ -8,12 +8,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from torch.nn import Module
-from torchmetrics import Metric
+from torchmetrics import Metric, MetricCollection
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._metrics.classwise_metric_collection import (
+    ClasswiseMetricCollection,
+)
+from lightly_train._metrics.metric_args import MetricArgs
 
 """Base classes for task-specific metrics.
 
@@ -105,36 +111,86 @@ class MetricComputeResult:
     """Result of computing all metrics.
 
     Attributes:
-        metrics: Dictionary mapping metric names to computed float values.
+        metrics:
+            Dictionary mapping metric names to computed float values.
             For multihead metrics, contains per-head keys (e.g.,
             "val_metric_head/miou_lr0_001") and best-head top-level keys
             (e.g., "val_metric/miou").
-        best_metric_key: The key of the metric used for model selection
+        best_metric_key:
+            The key of the metric used for model selection
             (e.g., "val_metric/miou"). Used by the training loop for
-            checkpointing.
-        best_metric_value: The value of the best_metric_key metric.
-        best_head_name: Name of the best head (e.g., "lr0_01"). Empty string
-            for single-head metrics.
-        best_head_metrics: Metrics of the best head with top-level keys
-            (no head suffix). For single-head metrics, same as metrics.
+            checkpointing. None if the watch metric is not found in the
+            computed metrics (e.g., a train metric watching a val key).
+        best_metric_value:
+            The value of the best_metric_key metric.
+            None if best_metric_key is None.
+        best_head_name:
+            Name of the best head (e.g., "lr0_01").
+            None for single-head metrics.
+        best_head_metrics:
+            Metrics of the best head with top-level keys
+            (no head suffix). None for single-head metrics.
     """
 
     metrics: dict[str, float]
-    best_metric_key: str
-    best_metric_value: float
-    best_head_name: str
-    best_head_metrics: dict[str, float]
+    best_metric_key: str | None
+    best_metric_value: float | None
+    best_head_name: str | None
+    best_head_metrics: dict[str, float] | None
 
 
 class TaskMetricArgs(PydanticConfig):
     """Base class for task-specific metrics collection configurations."""
 
-    def get_metrics(self) -> TaskMetric:
-        """Create TaskMetric instance with all configured metrics.
+    # Metric key to watch for best model selection. E.g. "val_metric/f1_macro".
+    watch_metric: str
 
-        Subclasses must implement this with their specific runtime arguments.
+    def iter_metric_args(self, *, classwise: bool) -> dict[str, MetricArgs]:
+        """Iterate over all MetricArgs fields in this TaskMetricArgs.
+
+        Returns:
+            Dictionary mapping field names to MetricArgs instances.
+            Example: {"accuracy": MulticlassAccuracyArgs(...), "f1": MulticlassF1Args(...)}
         """
-        raise NotImplementedError
+        metric_args_dict = {}
+        for field_name in self.__class__.model_fields:
+            individual_metric_args = getattr(self, field_name)
+            if not isinstance(individual_metric_args, MetricArgs):
+                continue
+            if classwise and not individual_metric_args.supports_classwise():
+                continue
+            metric_args_dict[field_name] = individual_metric_args
+        return metric_args_dict
+
+    def build_metric_collection(
+        self, *, prefix: str, **kwargs: Any
+    ) -> MetricCollection:
+        """Build a flat dictionary of metric instances from TaskMetricArgs."""
+        all_metrics: dict[str, Metric] = {}
+        for metric_arg in self.iter_metric_args(classwise=False).values():
+            all_metrics.update(metric_arg.get_metrics(classwise=False, **kwargs))
+        return MetricCollection(all_metrics, prefix=prefix)  # type: ignore[arg-type]
+
+    def build_classwise_metric_collection(
+        self,
+        *,
+        log_classwise: bool,
+        prefix: str,
+        classwise_metrics_args: TaskMetricArgs | None,
+        class_names: Sequence[str],
+        **kwargs: Any,
+    ) -> MetricCollection | None:
+        """Build a classwise MetricCollection if log_classwise is True."""
+        if not log_classwise:
+            return None
+        if classwise_metrics_args is None:
+            classwise_metrics_args = self.model_copy()
+        metrics = self.build_metric_collection(prefix="", **kwargs)
+        return ClasswiseMetricCollection(
+            metrics=metrics,
+            class_names=class_names,
+            prefix=prefix,
+        )
 
 
 class TaskMetric(Module):
@@ -155,17 +211,9 @@ class TaskMetric(Module):
     - Handle task-specific formatting in .compute() if needed
     """
 
-    def __init__(self) -> None:
+    def __init__(self, task_metric_args: TaskMetricArgs) -> None:
         super().__init__()
-
-    def get_display_names(self) -> dict[str, str]:
-        """Get display names for metrics (for logging).
-
-        Returns:
-            Dictionary mapping metric names to human-readable display names.
-            Example: {"val_metric/top1_acc_micro": "Val Top-1 Acc (Micro)"}
-        """
-        raise NotImplementedError
+        self.task_metric_args = task_metric_args
 
     def compute(self) -> MetricComputeResult:
         """Compute all metrics and return values for logging.

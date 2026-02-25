@@ -19,18 +19,65 @@ from lightly_train._metrics.semantic_segmentation.task_metric import (
     SemanticSegmentationTaskMetricArgs,
 )
 
+_METRIC_ARGS = SemanticSegmentationTaskMetricArgs()
 
-def _create_head_metric(prefix: str = "val_metric/") -> SemanticSegmentationTaskMetric:
+
+def _create_head_metric(split: str = "val") -> SemanticSegmentationTaskMetric:
     """Helper to create a SemanticSegmentationTaskMetric for testing."""
-    return SemanticSegmentationTaskMetricArgs().get_metrics(
-        prefix=prefix,
+    return _METRIC_ARGS.get_metrics(
+        split=split,
         num_classes=3,
         ignore_index=255,
         log_classwise=False,
     )
 
 
+def test_rename_key_for_head__val_metric() -> None:
+    assert (
+        _rename_key_for_head("val_metric/miou", "lr0_001")
+        == "val_metric_head/miou_lr0_001"
+    )
+
+
+def test_rename_key_for_head__val_metric_classwise() -> None:
+    assert (
+        _rename_key_for_head("val_metric_classwise/iou_0", "lr0_001")
+        == "val_metric_head_classwise/iou_0_lr0_001"
+    )
+
+
+def test_rename_key_for_head__train_metric() -> None:
+    assert (
+        _rename_key_for_head("train_metric/f1_macro", "lr0_001")
+        == "train_metric_head/f1_macro_lr0_001"
+    )
+
+
+def test_rename_key_for_head__val_loss() -> None:
+    """No-slash key: val_loss -> val_loss_head/lr0_001."""
+    assert _rename_key_for_head("val_loss", "lr0_001") == "val_loss_head/lr0_001"
+
+
+def test_rename_key_for_head__val_loss_subloss() -> None:
+    """Sub-loss key: val_loss/loss_vfl -> val_loss_head/loss_vfl_lr0_001."""
+    assert (
+        _rename_key_for_head("val_loss/loss_vfl", "lr0_001")
+        == "val_loss_head/loss_vfl_lr0_001"
+    )
+
+
 class TestMultiheadTaskMetric:
+    def test_best_metric_mode__explicit(self) -> None:
+        """best_metric_mode should reflect the explicitly passed value."""
+        head_metrics = {
+            "lr0_001": _create_head_metric(),
+        }
+        wrapper = MultiheadTaskMetric(
+            head_metrics=head_metrics,  # type: ignore[arg-type]
+            best_metric_mode="max",
+        )
+        assert wrapper.best_metric_mode == "max"
+
     def test_compute__selects_best_head(self) -> None:
         """Best head should be promoted to top-level prefix."""
         head_metrics = {
@@ -75,9 +122,6 @@ class TestMultiheadTaskMetric:
 
         # Best head tracking
         assert result.best_head_name == "lr0_01"
-        assert result.best_head_metrics == {
-            "val_metric/miou": result.metrics["val_metric/miou"]
-        }
 
     def test_compute__min_mode(self) -> None:
         """With mode='min', the head with lowest value should win."""
@@ -89,6 +133,7 @@ class TestMultiheadTaskMetric:
             head_metrics=head_metrics,  # type: ignore[arg-type]
             best_metric_mode="min",
         )
+        assert wrapper.best_metric_mode == "min"
 
         # lr0_001: perfect (high miou), lr0_01: bad (low miou)
         preds_perfect = torch.zeros(2, 100, 100, dtype=torch.long)
@@ -102,6 +147,7 @@ class TestMultiheadTaskMetric:
         result = wrapper.compute()
 
         # With min mode, lr0_01 (lowest miou) should be promoted
+        assert result.best_metric_value is not None
         assert (
             result.best_metric_value <= result.metrics["val_metric_head/miou_lr0_001"]
         )
@@ -110,9 +156,6 @@ class TestMultiheadTaskMetric:
             == result.metrics["val_metric_head/miou_lr0_01"]
         )
         assert result.best_head_name == "lr0_01"
-        assert result.best_head_metrics == {
-            "val_metric/miou": result.metrics["val_metric/miou"]
-        }
 
     def test_reset(self) -> None:
         """Reset should clear all head metrics."""

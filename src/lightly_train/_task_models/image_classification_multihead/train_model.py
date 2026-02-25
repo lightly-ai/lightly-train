@@ -15,7 +15,7 @@ from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
 from pydantic import Field, model_validator
 from torch import Tensor
-from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, Module, ModuleDict
+from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, Module
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
@@ -152,10 +152,6 @@ class ImageClassificationMultiheadTrain(TrainModel):
         val_transform_args: ImageClassificationMultiheadValTransformArgs,
         load_weights: bool,
     ) -> None:
-        # Import here because old torchmetrics versions (0.8.0) don't support the
-        # metrics we use. But we need old torchmetrics support for SuperGradients.
-        from torchmetrics import MeanMetric
-
         super().__init__()
         image_size = no_auto(val_transform_args.image_size)
         normalize = no_auto(val_transform_args.normalize)
@@ -193,15 +189,8 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 f"Unsupported classification task: {self.classification_task}"
             )
 
-        # Validation loss tracking: overall and per-head.
-        self.val_loss = MeanMetric()
-        val_loss_per_head: dict[str, MeanMetric] = {}
-        for lr in self.lrs:
-            head_name = _format_head_name(lr)
-            val_loss_per_head[head_name] = MeanMetric()
-        self.val_loss_per_head = ModuleDict(val_loss_per_head)
-
         # Create per-head task metrics using MultiheadTaskMetric.
+        # Loss tracking is embedded inside each head's TaskMetric via update_loss().
         resolved_metric_args: ClassificationTaskMetricArgs = no_auto(  # type: ignore[assignment]
             model_args.metric_args
         )
@@ -210,14 +199,17 @@ class ImageClassificationMultiheadTrain(TrainModel):
         for lr in self.lrs:
             head_name = _format_head_name(lr)
             head_metrics[head_name] = resolved_metric_args.get_metrics(
-                prefix="val_metric/",
+                split="val",
                 class_names=class_names,
                 log_classwise=model_args.metric_log_classwise,
                 classwise_metric_args=None,
             )
         self.val_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
             head_metrics=head_metrics,  # type: ignore[arg-type]
-            best_metric_mode="max",
+            best_metric_mode=resolved_metric_args.get_best_metric_mode(
+                split="val",
+                num_classes=len(class_names),
+            ),
         )
 
     def get_task_model(self) -> ImageClassificationMultihead:
@@ -346,23 +338,13 @@ class ImageClassificationMultiheadTrain(TrainModel):
         for head_name, logits in logits_dict.items():
             loss = self.criterion(logits, targets)
             losses.append(loss)
-            self.val_loss_per_head[head_name].update(loss, weight=len(images))  # type: ignore[operator]
-            self.val_metrics.head_metrics[head_name].update(logits, targets_int)  # type: ignore[operator]
-
-        # Update overall loss tracker (mean of all heads).
-        loss_mean = torch.stack(losses).mean()
-        self.val_loss.update(loss_mean, weight=len(images))
+            head_val = self.val_metrics.head_metrics[head_name]
+            head_val.update(logits, targets_int)  # type: ignore[operator]
+            # Accumulate loss in the head's TaskMetric (weighted by batch size).
+            head_val.update_loss({"loss": loss}, weight=len(images))  # type: ignore[operator]
 
         # Build log_dict.
         log_dict: dict[str, Any] = {}
-        log_dict["val_loss"] = loss_mean.detach()
-
-        # Per-head losses.
-        for head_name in logits_dict.keys():
-            log_dict[f"val_loss_head/{head_name}"] = self.val_loss_per_head[  # type: ignore[operator]
-                head_name
-            ].compute()
-
         log_dict["val_metrics"] = self.val_metrics
 
         # Use sum of losses for consistency with training_step.

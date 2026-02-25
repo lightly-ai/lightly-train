@@ -15,7 +15,7 @@ from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
 from pydantic import Field, model_validator
 from torch import Tensor
-from torch.nn import CrossEntropyLoss, ModuleDict
+from torch.nn import CrossEntropyLoss
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
@@ -114,8 +114,6 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         load_weights: bool,
     ) -> None:
         super().__init__()
-        # Lazy import because torchmetrics is an optional dependency.
-        from torchmetrics import MeanMetric
 
         image_size = no_auto(val_transform_args.image_size)
         normalize = no_auto(val_transform_args.normalize)
@@ -144,38 +142,42 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
         self.loss_fn = CrossEntropyLoss(ignore_index=data_args.ignore_index)
 
-        # Create per-head validation loss metrics.
-        val_loss_metrics: dict[str, MeanMetric] = {}
-        for lr in self.lrs:
-            head_name = _format_head_name(lr)
-            val_loss_metrics[head_name] = MeanMetric()
-        self.val_loss_metrics = ModuleDict(val_loss_metrics)
-
         # Create per-head metrics using MultiheadTaskMetric.
-        ignore_index = data_args.ignore_index if data_args.ignore_classes else None
+        # Loss tracking is embedded inside each head's TaskMetric via update_loss().
+        # Always pass ignore_index: the dataset maps padded/unknown pixels to
+        # data_args.ignore_index (-100) regardless of whether ignore_classes is set.
+        ignore_index = data_args.ignore_index
         val_head_metrics: dict[str, TaskMetric] = {}
         train_head_metrics: dict[str, TaskMetric] = {}
         for lr in self.lrs:
             head_name = _format_head_name(lr)
             val_head_metrics[head_name] = model_args.metric_args.get_metrics(
-                prefix="val_metric/",
+                split="val",
                 num_classes=data_args.num_included_classes,
                 ignore_index=ignore_index,
                 log_classwise=model_args.metric_log_classwise,
             )
             train_head_metrics[head_name] = model_args.metric_args.get_metrics(
-                prefix="train_metric/",
+                split="train",
                 num_classes=data_args.num_included_classes,
                 ignore_index=ignore_index,
                 log_classwise=False,
             )
         self.val_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
             head_metrics=val_head_metrics,  # type: ignore[arg-type]
-            best_metric_mode="max",
+            best_metric_mode=model_args.metric_args.get_best_metric_mode(
+                split="val",
+                num_classes=data_args.num_included_classes,
+                ignore_index=ignore_index,
+            ),
         )
         self.train_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
             head_metrics=train_head_metrics,  # type: ignore[arg-type]
-            best_metric_mode="max",
+            best_metric_mode=model_args.metric_args.get_best_metric_mode(
+                split="train",
+                num_classes=data_args.num_included_classes,
+                ignore_index=ignore_index,
+            ),
         )
 
     def get_task_model(self) -> SemanticSegmentationMultihead:
@@ -265,8 +267,10 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             losses.append(loss)
             log_dict[f"train_loss_head/{head_name}"] = loss.detach()
 
-            # Update per-head metrics.
-            self.train_metrics.head_metrics[head_name].update(logits, masks)  # type: ignore[operator]
+            # Update per-head quality metrics and loss (scalar, no accumulation).
+            head_train = self.train_metrics.head_metrics[head_name]
+            head_train.update(logits, masks)  # type: ignore[operator]
+            head_train.update_loss({"loss": loss.detach()})  # type: ignore[operator]
 
         # Sum losses for backprop.
         loss_sum = torch.stack(losses).sum()
@@ -320,13 +324,10 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             head_loss /= len(images)
             losses.append(head_loss)
 
-            # Update per-head loss tracker.
-            self.val_loss_metrics[head_name].update(head_loss, weight=len(images))  # type: ignore[operator]
-            log_dict[f"val_loss_head/{head_name}"] = head_loss.detach()
+            # Accumulate loss in the head's TaskMetric (weighted by batch size).
+            head_val = self.val_metrics.head_metrics[head_name]
+            head_val.update_loss({"loss": head_loss}, weight=len(images))  # type: ignore[operator]
 
-        # Mean loss across all heads.
-        loss_mean = torch.stack(losses).mean()
-        log_dict["val_loss"] = loss_mean.detach()
         log_dict["val_metrics"] = self.val_metrics
 
         # Use sum of losses for consistency with training_step.

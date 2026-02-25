@@ -20,7 +20,7 @@ class MeanAveragePrecisionArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         """Create MeanAveragePrecision metric instance.

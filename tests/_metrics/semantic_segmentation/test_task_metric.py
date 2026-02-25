@@ -20,7 +20,7 @@ class TestSemanticSegmentationTaskMetricArgs:
         """Test that SemanticSegmentationTaskMetricArgs can create metrics."""
         metric_args = SemanticSegmentationTaskMetricArgs()
         segmentation_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             num_classes=3,
             ignore_index=255,
             log_classwise=False,
@@ -46,7 +46,7 @@ class TestSemanticSegmentationTaskMetricArgs:
         """Test that classwise metrics are created correctly."""
         metric_args = SemanticSegmentationTaskMetricArgs()
         segmentation_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             num_classes=3,
             ignore_index=255,
             log_classwise=True,
@@ -85,7 +85,7 @@ class TestSemanticSegmentationTaskMetricArgs:
         """Test that get_display_names returns correct display names."""
         metric_args = SemanticSegmentationTaskMetricArgs()
         segmentation_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             num_classes=3,
             ignore_index=255,
             log_classwise=False,
@@ -107,7 +107,7 @@ class TestSemanticSegmentationTaskMetricArgs:
         """Test that get_display_names works with classwise metrics."""
         metric_args = SemanticSegmentationTaskMetricArgs()
         segmentation_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             num_classes=3,
             ignore_index=255,
             log_classwise=True,
@@ -127,7 +127,7 @@ class TestSemanticSegmentationTaskMetricArgs:
         """Test that reset() clears all metrics."""
         metric_args = SemanticSegmentationTaskMetricArgs()
         segmentation_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             num_classes=3,
             ignore_index=255,
             log_classwise=True,
@@ -153,3 +153,83 @@ class TestSemanticSegmentationTaskMetricArgs:
 
         # Results should be different
         assert result_after.metrics != result_before.metrics
+
+    def test_update_loss__and_compute(self) -> None:
+        """update_loss({"loss": x}) should produce "val_loss" in compute result."""
+        metric_args = SemanticSegmentationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            num_classes=3,
+            ignore_index=255,
+            log_classwise=False,
+        )
+
+        # Update quality metric so compute() doesn't error
+        preds = torch.zeros(2, 10, 10, dtype=torch.long)
+        targets = torch.zeros(2, 10, 10, dtype=torch.long)
+        metric.update(preds, targets)
+
+        # Update loss
+        metric.update_loss({"loss": torch.tensor(0.5)})
+
+        result = metric.compute()
+        assert "val_loss" in result.metrics
+        assert abs(result.metrics["val_loss"] - 0.5) < 1e-5
+
+    def test_update_loss__accumulates_with_weight(self) -> None:
+        """update_loss should accumulate weighted values across calls."""
+        metric_args = SemanticSegmentationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            num_classes=3,
+            ignore_index=255,
+            log_classwise=False,
+        )
+
+        # Two batches: 4 samples at loss=1.0, 4 samples at loss=0.5
+        # Expected mean = (4*1.0 + 4*0.5) / 8 = 0.75
+        metric.update_loss({"loss": torch.tensor(1.0)}, weight=4)
+        metric.update_loss({"loss": torch.tensor(0.5)}, weight=4)
+
+        result = metric.compute()
+        assert abs(result.metrics["val_loss"] - 0.75) < 1e-5
+
+    def test_update_loss__reset_clears_loss(self) -> None:
+        """reset() should clear loss metrics."""
+        metric_args = SemanticSegmentationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            num_classes=3,
+            ignore_index=255,
+            log_classwise=False,
+        )
+
+        # Update quality metric and loss
+        preds = torch.zeros(2, 10, 10, dtype=torch.long)
+        targets = torch.zeros(2, 10, 10, dtype=torch.long)
+        metric.update(preds, targets)
+        metric.update_loss({"loss": torch.tensor(1.0)})
+        result_before = metric.compute()
+
+        metric.reset()
+
+        # After reset, update with different loss
+        metric.update(preds, targets)
+        metric.update_loss({"loss": torch.tensor(0.1)})
+        result_after = metric.compute()
+
+        assert abs(result_after.metrics["val_loss"] - 0.1) < 1e-5
+        assert result_before.metrics["val_loss"] != result_after.metrics["val_loss"]
+
+    def test_loss_in_display_names(self) -> None:
+        """Loss metrics should appear in get_display_names."""
+        metric_args = SemanticSegmentationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            num_classes=3,
+            ignore_index=255,
+            log_classwise=False,
+        )
+
+        display_names = metric.get_display_names()
+        assert "val_loss" in display_names

@@ -8,12 +8,16 @@
 
 from __future__ import annotations
 
-import torch
+from collections.abc import Sequence
+from typing import ClassVar
+
 from pydantic import Field
 from torch import Tensor
-from torchmetrics import Metric
 
-from lightly_train._metrics.metric_args import MetricArgs
+from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.metric_args import (
+    translate_watch_metric,
+)
 from lightly_train._metrics.panoptic_segmentation.panoptic_quality_args import (
     PanopticQualityArgs,
 )
@@ -23,42 +27,15 @@ from lightly_train._metrics.task_metric import (
     TaskMetricArgs,
 )
 
-# Explicit mapping of base metric names to display name suffixes
-BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
-    "pq": "PQ",
-    "sq": "SQ",
-    "rq": "RQ",
-}
-
 
 class PanopticSegmentationTaskMetricArgs(TaskMetricArgs):
-    """Metrics configuration for panoptic segmentation tasks."""
+    loss_names: ClassVar[list[str]] = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]
+
+    watch_metric: str = "val_metric/pq"
 
     panoptic_quality: PanopticQualityArgs | None = Field(
         default_factory=PanopticQualityArgs
     )
-
-    def get_metrics(  # type: ignore[override]
-        self,
-        *,
-        prefix: str,
-        things: list[int],
-        stuffs: list[int],
-    ) -> PanopticSegmentationTaskMetric:
-        """Create PanopticSegmentationTaskMetric instance for panoptic segmentation.
-
-        Args:
-            prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
-            things: List of thing class IDs
-            stuffs: List of stuff class IDs
-        """
-        return PanopticSegmentationTaskMetric(
-            metric_args=self,
-            prefix=prefix,
-            things=things,
-            stuffs=stuffs,
-            best_metric_key=f"{prefix}pq",
-        )
 
 
 class PanopticSegmentationTaskMetric(TaskMetric):
@@ -72,61 +49,48 @@ class PanopticSegmentationTaskMetric(TaskMetric):
     def __init__(
         self,
         *,
-        metric_args: PanopticSegmentationTaskMetricArgs,
-        prefix: str,
-        things: list[int],
-        stuffs: list[int],
-        best_metric_key: str,
+        task_metric_args: PanopticSegmentationTaskMetricArgs,
+        split: str,
+        things: Sequence[int],
+        stuffs: Sequence[int],
+        class_names: Sequence[str],
+        log_classwise: bool,
+        classwise_metric_args: PanopticSegmentationTaskMetricArgs | None,
     ) -> None:
         """Initialize panoptic segmentation metrics container.
 
         Args:
             metric_args: Metrics configuration
-            prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
+            split: Split name (e.g., "val", "train")
             things: List of thing class IDs
             stuffs: List of stuff class IDs
-            best_metric_key: Key of the metric used for model selection
+            class_names: List of all class names (things + stuffs)
         """
-        super().__init__()
-
-        self.metric_args = metric_args
-        self.prefix = prefix
+        super().__init__(task_metric_args=task_metric_args)
+        self.split = split
+        self.prefix = f"{split}_metric/"
         self.things = things
         self.stuffs = stuffs
-        self._best_metric_key = best_metric_key
+        self._best_metric_key = translate_watch_metric(
+            task_metric_args.watch_metric, split
+        )
 
-        # Build metrics
-        metrics_dict = self._build_metrics(
-            metric_args=metric_args,
+        self.metrics = task_metric_args.build_metric_collection(
+            prefix=f"{self.split}_metric/",
             things=things,
             stuffs=stuffs,
         )
-
-        # Store metrics as ModuleDict for proper device handling
-        self.metrics = torch.nn.ModuleDict(metrics_dict)  # type: ignore[arg-type]
-
-    def _build_metrics(
-        self,
-        metric_args: PanopticSegmentationTaskMetricArgs,
-        things: list[int],
-        stuffs: list[int],
-    ) -> dict[str, Metric]:
-        """Build metrics from args."""
-        all_metrics: dict[str, Metric] = {}
-
-        for field_name in metric_args.__class__.model_fields:
-            individual_metric_args = getattr(metric_args, field_name)
-            if not isinstance(individual_metric_args, MetricArgs):
-                continue
-            if individual_metric_args is not None:
-                metrics = individual_metric_args.get_metrics(  # type: ignore[call-arg]
-                    classwise=False,
-                    things=things,
-                    stuffs=stuffs,
-                )
-                all_metrics.update(metrics)
-
-        return all_metrics
+        self.metrics_classwise = task_metric_args.build_classwise_metric_collection(
+            log_classwise=log_classwise,
+            prefix=f"{self.split}_metric_classwise/",
+            classwise_metrics_args=classwise_metric_args,
+            class_names=class_names,
+            things=things,
+            stuffs=stuffs,
+        )
+        self.loss_metrics = LossMetrics(
+            split=split, loss_names=task_metric_args.loss_names
+        )
 
     def update(
         self,
@@ -139,21 +103,11 @@ class PanopticSegmentationTaskMetric(TaskMetric):
             preds: Prediction tensor of shape (B, H, W, 2) where last dim is (class_id, instance_id)
             target: Target tensor of shape (B, H, W, 2) where last dim is (class_id, instance_id)
         """
-        for metric in self.metrics.values():
-            metric.update(preds, target)  # type: ignore[operator]
-
-    def reset(self) -> None:
-        """Reset all metrics."""
-        for metric in self.metrics.values():
-            metric.reset()  # type: ignore[operator]
+        self.metrics.update(preds, target)  # type: ignore[operator]
 
     def compute(self) -> MetricComputeResult:
-        """Compute all metrics and return combined results.
-
-        Returns:
-            MetricComputeResult with metrics dict, best_metric_key, and best_metric_value
-        """
-        result: dict[str, float] = {}
+        """Compute all metrics and return combined results."""
+        result = self.loss_metrics.compute()
 
         # Compute metrics
         for key, metric in self.metrics.items():
@@ -171,43 +125,14 @@ class PanopticSegmentationTaskMetric(TaskMetric):
             else:
                 result[f"{self.prefix}{key}"] = float(metric_result)
 
-        best_metric_value = float(result.get(self._best_metric_key, 0.0))
+        if self.metrics_classwise is not None:
+            result.update(self.metrics_classwise.compute())
+
+        best_value = result.get(self._best_metric_key)
         return MetricComputeResult(
             metrics=result,
-            best_metric_key=self._best_metric_key,
-            best_metric_value=best_metric_value,
-            best_head_name="",
-            best_head_metrics=result,
+            best_metric_key=self._best_metric_key if best_value is not None else None,
+            best_metric_value=float(best_value) if best_value is not None else None,
+            best_head_name=None,
+            best_head_metrics=None,
         )
-
-    def get_display_names(self) -> dict[str, str]:
-        """Get display names for metrics"""
-        display_names: dict[str, str] = {}
-
-        # PanopticQuality returns PQ, SQ, RQ
-        for key in ["pq", "sq", "rq"]:
-            metric_name = f"{self.prefix}{key}"
-            display_names[metric_name] = self._format_display_name(metric_name)
-
-        return display_names
-
-    def _format_display_name(self, metric_name: str) -> str:
-        """Format a metric name into a human-readable display name."""
-        # Remove prefix to get base metric name
-        if metric_name.startswith(self.prefix):
-            base_name = metric_name[len(self.prefix) :]
-        else:
-            base_name = metric_name
-
-        # Extract split name from prefix (e.g., "val" from "val_metric/")
-        prefix_without_slash = (
-            self.prefix[:-1] if self.prefix.endswith("/") else self.prefix
-        )
-        split = prefix_without_slash.split("_")[0].capitalize()
-
-        # Look up in explicit mapping
-        if base_name in BASE_METRIC_DISPLAY_NAMES:
-            return f"{split} {BASE_METRIC_DISPLAY_NAMES[base_name]}"
-
-        # Fallback: capitalize and format with spaces
-        return f"{split} {base_name.replace('_', ' ').title()}"

@@ -12,16 +12,17 @@ from torchmetrics import MeanMetric
 
 from lightly_train._commands.train_task_helpers import compute_metrics, reset_metrics
 from lightly_train._metrics.semantic_segmentation.task_metric import (
+    SemanticSegmentationTaskMetric,
     SemanticSegmentationTaskMetricArgs,
 )
 
 
 def _create_task_metric(
-    prefix: str = "val_metric/",
-) -> object:
+    split: str = "val",
+) -> SemanticSegmentationTaskMetric:
     """Create a SemanticSegmentationTaskMetric for testing."""
     return SemanticSegmentationTaskMetricArgs().get_metrics(
-        prefix=prefix,
+        split=split,
         num_classes=3,
         ignore_index=None,
         log_classwise=False,
@@ -34,7 +35,7 @@ def test_compute_metrics__task_metric() -> None:
 
     preds = torch.zeros(2, 10, 10, dtype=torch.long)
     targets = torch.zeros(2, 10, 10, dtype=torch.long)
-    task_metric.update(preds, targets)  # type: ignore[union-attr]
+    task_metric.update(preds, targets)
 
     result = compute_metrics({"val_metrics": task_metric})
 
@@ -51,7 +52,7 @@ def test_compute_metrics__task_metric_with_plain_float() -> None:
 
     preds = torch.zeros(2, 10, 10, dtype=torch.long)
     targets = torch.zeros(2, 10, 10, dtype=torch.long)
-    task_metric.update(preds, targets)  # type: ignore[union-attr]
+    task_metric.update(preds, targets)
 
     result = compute_metrics(
         {
@@ -71,7 +72,7 @@ def test_compute_metrics__task_metric_with_torchmetrics_metric() -> None:
 
     preds = torch.zeros(2, 10, 10, dtype=torch.long)
     targets = torch.zeros(2, 10, 10, dtype=torch.long)
-    task_metric.update(preds, targets)  # type: ignore[union-attr]
+    task_metric.update(preds, targets)
     mean_metric.update(torch.tensor(0.5))
 
     result = compute_metrics(
@@ -88,13 +89,13 @@ def test_compute_metrics__task_metric_with_torchmetrics_metric() -> None:
 
 def test_compute_metrics__multiple_task_metrics() -> None:
     """Multiple TaskMetric entries in log_dict are all unpacked."""
-    val_metric = _create_task_metric(prefix="val_metric/")
-    train_metric = _create_task_metric(prefix="train_metric/")
+    val_metric = _create_task_metric(split="val")
+    train_metric = _create_task_metric(split="train")
 
     preds = torch.zeros(2, 10, 10, dtype=torch.long)
     targets = torch.zeros(2, 10, 10, dtype=torch.long)
-    val_metric.update(preds, targets)  # type: ignore[union-attr]
-    train_metric.update(preds, targets)  # type: ignore[union-attr]
+    val_metric.update(preds, targets)
+    train_metric.update(preds, targets)
 
     result = compute_metrics(
         {
@@ -113,10 +114,10 @@ def test_reset_metrics__task_metric() -> None:
 
     preds = torch.zeros(2, 10, 10, dtype=torch.long)
     targets = torch.zeros(2, 10, 10, dtype=torch.long)
-    task_metric.update(preds, targets)  # type: ignore[union-attr]
+    task_metric.update(preds, targets)
 
     # Compute before reset so we have a reference value.
-    result_before = task_metric.compute()  # type: ignore[union-attr]
+    result_before = task_metric.compute()
     assert "val_metric/miou" in result_before.metrics
 
     reset_metrics({"val_metrics": task_metric})
@@ -124,8 +125,8 @@ def test_reset_metrics__task_metric() -> None:
     # After reset, update with different data to confirm state was cleared.
     preds2 = torch.zeros(2, 10, 10, dtype=torch.long)
     targets2 = torch.ones(2, 10, 10, dtype=torch.long)  # All wrong predictions.
-    task_metric.update(preds2, targets2)  # type: ignore[union-attr]
-    result_after = task_metric.compute()  # type: ignore[union-attr]
+    task_metric.update(preds2, targets2)
+    result_after = task_metric.compute()
 
     # miou should differ since the metric was reset and new data was fed.
     assert (
@@ -141,7 +142,7 @@ def test_reset_metrics__task_metric_and_torchmetrics_metric() -> None:
 
     preds = torch.zeros(2, 10, 10, dtype=torch.long)
     targets = torch.zeros(2, 10, 10, dtype=torch.long)
-    task_metric.update(preds, targets)  # type: ignore[union-attr]
+    task_metric.update(preds, targets)
     mean_metric.update(torch.tensor(1.0))
 
     log_dict = {"val_metrics": task_metric, "val_loss": mean_metric}

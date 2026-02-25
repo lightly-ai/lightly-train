@@ -8,11 +8,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
+from typing import ClassVar
 
 from pydantic import Field
 from torch import Tensor
-from torchmetrics import ClasswiseWrapper, Metric, MetricCollection
 
 from lightly_train._metrics.classification.multiclass_metric_args import (
     MulticlassAccuracyArgs,
@@ -29,47 +29,21 @@ from lightly_train._metrics.classification.multilabel_metric_args import (
     MultilabelPrecisionArgs,
     MultilabelRecallArgs,
 )
-from lightly_train._metrics.metric_args import MetricArgs
+from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.metric_args import (
+    translate_watch_metric,
+)
 from lightly_train._metrics.task_metric import (
     MetricComputeResult,
     TaskMetric,
     TaskMetricArgs,
 )
 
-# Explicit mapping of base metric names to display name suffixes
-BASE_METRIC_DISPLAY_NAMES: dict[str, str] = {
-    # Multiclass/Multilabel F1
-    "f1_micro": "F1 (Micro)",
-    "f1_macro": "F1 (Macro)",
-    "f1_weighted": "F1 (Weighted)",
-    # Multiclass/Multilabel Precision
-    "precision_micro": "Precision (Micro)",
-    "precision_macro": "Precision (Macro)",
-    "precision_weighted": "Precision (Weighted)",
-    # Multiclass/Multilabel Recall
-    "recall_micro": "Recall (Micro)",
-    "recall_macro": "Recall (Macro)",
-    "recall_weighted": "Recall (Weighted)",
-    # Multilabel Accuracy
-    "accuracy_micro": "Accuracy (Micro)",
-    "accuracy_macro": "Accuracy (Macro)",
-    "accuracy_weighted": "Accuracy (Weighted)",
-    # Multilabel AUROC
-    "auroc_micro": "AUROC (Micro)",
-    "auroc_macro": "AUROC (Macro)",
-    "auroc_weighted": "AUROC (Weighted)",
-    # Multilabel Average Precision
-    "avg_precision_micro": "Avg Precision (Micro)",
-    "avg_precision_macro": "Avg Precision (Macro)",
-    "avg_precision_weighted": "Avg Precision (Weighted)",
-    # Multilabel Hamming Distance
-    "hamming_distance": "Hamming Distance",
-}
-
 
 class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
-    """Metrics configuration for multiclass classification tasks."""
+    loss_names: ClassVar[list[str]] = ["loss"]
 
+    watch_metric: str = "val_metric/top1_acc_micro"
     accuracy: MulticlassAccuracyArgs | None = Field(
         default_factory=MulticlassAccuracyArgs
     )
@@ -79,35 +53,27 @@ class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
     )
     recall: MulticlassRecallArgs | None = Field(default_factory=MulticlassRecallArgs)
 
-    def get_metrics(  # type: ignore[override]
+    def get_task_metric(  # type: ignore[override]
         self,
         *,
-        prefix: str,
+        split: str,
         class_names: list[str],
         log_classwise: bool,
         classwise_metric_args: MulticlassClassificationTaskMetricArgs | None,
     ) -> ClassificationTaskMetric:
-        """Create ClassificationTaskMetric instance for multiclass classification.
-
-        Args:
-            prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
-            class_names: Class names for all metrics
-            log_classwise: Whether to log classwise metrics
-            classwise_metric_args: Optional separate args for classwise metrics
-        """
         return ClassificationTaskMetric(
-            metric_args=self,
-            prefix=prefix,
+            task_metric_args=self,
+            split=split,
             class_names=class_names,
             log_classwise=log_classwise,
             classwise_metric_args=classwise_metric_args,
-            best_metric_key=f"{prefix}top1_acc_micro",
         )
 
 
 class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
-    """Metrics configuration for multilabel classification tasks."""
+    loss_names: ClassVar[list[str]] = ["loss"]
 
+    watch_metric: str = "val_metric/f1_macro"
     accuracy: MultilabelAccuracyArgs | None = Field(
         default_factory=MultilabelAccuracyArgs
     )
@@ -122,31 +88,6 @@ class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
         default_factory=MultilabelHammingDistanceArgs
     )
 
-    def get_metrics(  # type: ignore[override]
-        self,
-        *,
-        prefix: str,
-        class_names: list[str],
-        log_classwise: bool,
-        classwise_metric_args: MultilabelClassificationTaskMetricArgs | None,
-    ) -> ClassificationTaskMetric:
-        """Create ClassificationTaskMetric instance for multilabel classification.
-
-        Args:
-            prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
-            class_names: Class names for all metrics
-            log_classwise: Whether to log classwise metrics
-            classwise_metric_args: Optional separate args for classwise metrics
-        """
-        return ClassificationTaskMetric(
-            metric_args=self,
-            prefix=prefix,
-            class_names=class_names,
-            log_classwise=log_classwise,
-            classwise_metric_args=classwise_metric_args,
-            best_metric_key=f"{prefix}f1_macro",
-        )
-
 
 ClassificationTaskMetricArgs = (
     MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs
@@ -154,113 +95,49 @@ ClassificationTaskMetricArgs = (
 
 
 class ClassificationTaskMetric(TaskMetric):
-    """Container for all metrics for classification tasks.
-
-    Inherits from TaskMetric which inherits from nn.Module.
-    All metrics stored as attributes are automatically detected as child modules
-    and handled by Lightning Fabric for device transfer.
-    """
-
     def __init__(
         self,
         *,
-        metric_args: ClassificationTaskMetricArgs,
-        prefix: str,
+        task_metric_args: ClassificationTaskMetricArgs,
+        split: str,
         class_names: list[str],
         log_classwise: bool,
         classwise_metric_args: ClassificationTaskMetricArgs | None,
-        best_metric_key: str,
     ) -> None:
         """Initialize classification metrics container.
 
         Args:
-            metric_args: Metrics configuration
-            prefix: Prefix for metric names (e.g., "val_metric/", "train_metric/")
+            task_metric_args: Metrics configuration
+            split: Split name (e.g., "val", "train")
             class_names: Class names for all metrics
             log_classwise: Whether to log classwise metrics
             classwise_metric_args: Optional separate args for classwise metrics
-            best_metric_key: Key of the metric used for model selection
         """
-        super().__init__()
-
-        self.metric_args = metric_args
-        self.num_classes = len(class_names)
-        self.prefix = prefix
+        super().__init__(task_metric_args=task_metric_args)
+        self.split = split
         self.class_names = class_names
         self.log_classwise = log_classwise
-        self._best_metric_key = best_metric_key
-
-        self.metrics = self._build_metric_collection(
-            metric_args=metric_args,
-            prefix=prefix,
-            classwise=False,
-        )
-        self.metrics_classwise: MetricCollection | None = None
-        if log_classwise:
-            if classwise_metric_args is None:
-                classwise_metric_args = metric_args.model_copy()
-
-            # Remove trailing slash from prefix for Python 3.8 compatibility
-            # (avoiding str.removesuffix which is Python 3.9+)
-            prefix_without_slash = prefix[:-1] if prefix.endswith("/") else prefix
-            self.metrics_classwise = self._build_classwise_metric_collection(
-                metric_args=classwise_metric_args,
-                prefix=f"{prefix_without_slash}_classwise/",
-                class_names=class_names,
-            )
-
-    def _build_metric_collection(
-        self,
-        metric_args: ClassificationTaskMetricArgs,
-        prefix: str,
-        classwise: bool,
-    ) -> MetricCollection:
-        """Build a MetricCollection from args."""
-        all_metrics: dict[str, Metric] = {}
-
-        for field_name in metric_args.__class__.model_fields:
-            individual_metric_args = getattr(metric_args, field_name)
-            if not isinstance(individual_metric_args, MetricArgs):
-                continue
-            if individual_metric_args is not None:
-                if classwise and not individual_metric_args.supports_classwise():
-                    continue
-
-                metrics = individual_metric_args.get_metrics(
-                    classwise=classwise,
-                    num_classes=self.num_classes,
-                )
-                all_metrics.update(metrics)
-
-        return MetricCollection(all_metrics, prefix=prefix)  # type: ignore[arg-type]
-
-    def _build_classwise_metric_collection(
-        self,
-        metric_args: ClassificationTaskMetricArgs,
-        prefix: str,
-        class_names: list[str],
-    ) -> MetricCollection:
-        """Build a classwise MetricCollection."""
-        base_metrics = self._build_metric_collection(
-            metric_args=metric_args,
-            prefix="",
-            classwise=True,
+        self._best_metric_key = translate_watch_metric(
+            task_metric_args.watch_metric, split
         )
 
-        classwise_metrics: dict[str, Metric] = {}
-        for key, base_metric in base_metrics.items():
-            # Use unique separator - _ClasswiseMetricCollection will replace it with "_"
-            classwise_metrics[key] = ClasswiseWrapper(  # type: ignore[call-arg]
-                base_metric,
-                prefix=_ClasswiseMetricCollection._SEPARATOR,
-                labels=class_names,
-            )
-
-        # Use custom MetricCollection subclass that handles key renaming
-        return _ClasswiseMetricCollection(classwise_metrics, prefix=prefix)  # type: ignore[arg-type]
+        self.metrics = task_metric_args.build_metric_collection(
+            prefix=f"{self.split}_metric/",
+            num_classes=len(class_names),
+        )
+        self.metrics_classwise = task_metric_args.build_classwise_metric_collection(
+            log_classwise=log_classwise,
+            prefix=f"{self.split}_metric_classwise/",
+            classwise_metrics_args=classwise_metric_args,
+            class_names=class_names,
+            num_classes=len(class_names),
+        )
+        self.loss_metrics = LossMetrics(
+            split=split, loss_names=task_metric_args.loss_names
+        )
 
     def update(self, preds: Tensor, target: Tensor) -> None:
-        """Update all metrics with inputs.
+        """Update all quality metrics with inputs.
 
         Args:
             preds: Predictions tensor
@@ -270,96 +147,39 @@ class ClassificationTaskMetric(TaskMetric):
         if self.metrics_classwise is not None:
             self.metrics_classwise.update(preds, target)
 
+    def update_loss(
+        self,
+        loss_dict: Mapping[str, float | Tensor],
+        weight: int,
+    ) -> None:
+        """Accumulate loss values.
+
+        For validation: call with weight=batch_size to get weighted average.
+        For training: call each step; loss is overwritten (use compute() after update).
+
+        Args:
+            loss_dict: Mapping from loss name (e.g., "loss", "loss_vfl") to value.
+                       Only names present in metric_args.loss_names are tracked.
+            weight: Sample weight for accumulation (typically batch size).
+        """
+        self.loss_metrics.update(loss_dict, weight=weight)  # type: ignore[operator]
+
     def compute(self) -> MetricComputeResult:
         """Compute all metrics and return combined results.
 
         Returns:
             MetricComputeResult with metrics dict, best_metric_key, and best_metric_value
         """
-        result = self.metrics.compute()
+        result = self.loss_metrics.compute()
+        result.update(self.metrics.compute())
         if self.metrics_classwise is not None:
             result.update(self.metrics_classwise.compute())
-        metrics = {k: float(v) for k, v in result.items()}
-        best_metric_value = float(metrics.get(self._best_metric_key, 0.0))
+
+        best_val = result.get(self._best_metric_key)
         return MetricComputeResult(
-            metrics=metrics,
-            best_metric_key=self._best_metric_key,
-            best_metric_value=best_metric_value,
-            best_head_name="",
-            best_head_metrics=metrics,
+            metrics=result,
+            best_metric_key=self._best_metric_key if best_val is not None else None,
+            best_metric_value=float(best_val) if best_val is not None else None,
+            best_head_name=None,
+            best_head_metrics=None,
         )
-
-    def get_display_names(self) -> dict[str, str]:
-        """Get display names for metrics"""
-        display_names: dict[str, str] = {}
-
-        # Standard metrics
-        for name in self.metrics.keys():
-            name_str = str(name)
-            display_name = self._format_display_name(name_str)
-            display_names[name_str] = display_name
-
-        # Classwise metrics
-        if self.metrics_classwise is not None:
-            for name in self.metrics_classwise.keys():
-                name_str = str(name)
-                display_name = self._format_display_name(name_str)
-                display_names[name_str] = display_name
-
-        return display_names
-
-    def _format_display_name(self, metric_name: str) -> str:
-        """Format a metric name into a human-readable display name."""
-        # Remove prefix to get base metric name
-        # Handle both regular and classwise prefixes
-        # Python 3.8 compatible: use string slicing instead of removeprefix
-        prefix_without_slash = (
-            self.prefix[:-1] if self.prefix.endswith("/") else self.prefix
-        )
-        classwise_prefix = f"{prefix_without_slash}_classwise/"
-        if metric_name.startswith(classwise_prefix):
-            base_name = metric_name[len(classwise_prefix) :]
-        elif metric_name.startswith(self.prefix):
-            base_name = metric_name[len(self.prefix) :]
-        else:
-            base_name = metric_name
-
-        # Extract split name from prefix (e.g., "val" from "val_metric/")
-        split = prefix_without_slash.split("_")[0].capitalize()
-
-        # Handle multiclass top-k accuracy (e.g., "top1_acc_micro" -> "Top-1 Acc (Micro)")
-        if base_name.startswith("top") and "_acc_" in base_name:
-            parts = base_name.split("_")
-            if len(parts) >= 3:
-                # Extract k from "topK"
-                k = parts[0][3:]  # Remove "top" prefix
-                avg = parts[2].capitalize()
-                return f"{split} Top-{k} Acc ({avg})"
-
-        # Look up in explicit mapping
-        if base_name in BASE_METRIC_DISPLAY_NAMES:
-            return f"{split} {BASE_METRIC_DISPLAY_NAMES[base_name]}"
-
-        # Fallback: capitalize and format with spaces
-        return f"{split} {base_name.replace('_', ' ').title()}"
-
-
-class _ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
-    """Renames classwise metric keys to handle class names with underscores.
-
-    Replaces unique separator with underscore, avoiding conflicts when class names
-    themselves contain underscores (e.g., "cat__type_a").
-    """
-
-    _SEPARATOR = "<SEP>"
-
-    def compute(self) -> dict[str, Any]:  # type: ignore[override]
-        """Compute metrics and rename keys by replacing separator with underscore."""
-        result = super().compute()
-        # ClasswiseWrapper joins metric_name with prefix as: metric_name + "_" + prefix + class_name
-        # So with prefix="<SEP>" we get: metric_name_<SEP>class_name
-        # Replace "_<SEP>" with "_" to get the desired format: metric_name_class_name
-        return {
-            key.replace(f"_{self._SEPARATOR}", "_"): value
-            for key, value in result.items()
-        }

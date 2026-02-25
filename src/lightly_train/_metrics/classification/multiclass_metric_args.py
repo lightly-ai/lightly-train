@@ -34,7 +34,7 @@ class MulticlassAccuracyArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -71,7 +71,7 @@ class MulticlassF1Args(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -100,7 +100,7 @@ class MulticlassPrecisionArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}
@@ -129,7 +129,7 @@ class MulticlassRecallArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
         metrics: dict[str, Metric] = {}

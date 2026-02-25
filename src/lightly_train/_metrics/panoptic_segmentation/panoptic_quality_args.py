@@ -20,7 +20,7 @@ class PanopticQualityArgs(MetricArgs):
     def get_metrics(  # type: ignore[override]
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         things: list[int],
         stuffs: list[int],
     ) -> dict[str, Metric]:

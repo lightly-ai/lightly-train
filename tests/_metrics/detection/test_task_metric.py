@@ -20,7 +20,7 @@ class TestObjectDetectionTaskMetricArgs:
         """Test that ObjectDetectionTaskMetricArgs can create metrics."""
         metric_args = ObjectDetectionTaskMetricArgs()
         detection_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat", "dog", "bird"],
             log_classwise=False,
             classwise_metric_args=None,
@@ -62,7 +62,7 @@ class TestObjectDetectionTaskMetricArgs:
         """Test that classwise metrics are created correctly."""
         metric_args = ObjectDetectionTaskMetricArgs()
         detection_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat__type_a", "dog__breed__b", "bird"],
             log_classwise=True,
             classwise_metric_args=None,
@@ -123,7 +123,7 @@ class TestObjectDetectionTaskMetricArgs:
         """Test that get_display_names returns correct display names."""
         metric_args = ObjectDetectionTaskMetricArgs()
         detection_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat", "dog", "bird"],
             log_classwise=False,
             classwise_metric_args=None,
@@ -150,7 +150,7 @@ class TestObjectDetectionTaskMetricArgs:
         """Test that get_display_names works with classwise metrics."""
         metric_args = ObjectDetectionTaskMetricArgs()
         detection_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat__type_a", "dog__breed__b", "bird"],
             log_classwise=True,
             classwise_metric_args=None,
@@ -171,7 +171,7 @@ class TestObjectDetectionTaskMetricArgs:
         """Test that reset() clears all metrics."""
         metric_args = ObjectDetectionTaskMetricArgs()
         detection_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat", "dog", "bird"],
             log_classwise=True,
             classwise_metric_args=None,

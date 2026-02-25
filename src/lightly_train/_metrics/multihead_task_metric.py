@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-import torch
+from torch.nn import ModuleDict
 
 from lightly_train._metrics.task_metric import MetricComputeResult, TaskMetric
 
@@ -28,16 +28,15 @@ class MultiheadTaskMetric(TaskMetric):
     refer to the promoted best-head metric, making it compatible with the training
     loop's checkpointing logic.
 
+    The best_metric_mode must be passed explicitly at construction time.
+
     Usage:
         # Create per-head metrics
         head_metrics = {
-            "lr0_001": seg_task_metric_args.get_metrics(prefix="val_metric/", ...),
-            "lr0_01":  seg_task_metric_args.get_metrics(prefix="val_metric/", ...),
+            "lr0_001": seg_task_metric_args.get_metrics(split="val", ...),
+            "lr0_01":  seg_task_metric_args.get_metrics(split="val", ...),
         }
-        val_metrics = MultiheadTaskMetric(
-            head_metrics=head_metrics,
-            best_metric_mode="max",
-        )
+        val_metrics = MultiheadTaskMetric(head_metrics=head_metrics)
 
         # Update per head during validation
         val_metrics.head_metrics["lr0_001"].update(preds, target)
@@ -66,15 +65,12 @@ class MultiheadTaskMetric(TaskMetric):
                 Head names should sort alphabetically in order of increasing
                 learning rate (e.g., "lr0_001", "lr0_003", "lr0_01").
             best_metric_mode: Whether to maximize ("max") or minimize ("min")
-                the best_metric_value when selecting the best head.
+                the watch metric when selecting the best head.
         """
-        super().__init__()
+        task_metric = next(iter(head_metrics.values()))
+        super().__init__(task_metric_args=task_metric.task_metric_args)
         self.best_metric_mode = best_metric_mode
-        # Store as ModuleDict so nn.Module registers them as submodules
-        # (enables device transfer, state_dict, etc.)
-        self.head_metrics: torch.nn.ModuleDict = torch.nn.ModuleDict(
-            head_metrics  # type: ignore[arg-type]
-        )
+        self.head_metrics: ModuleDict = ModuleDict(head_metrics)  # type: ignore[arg-type]
 
     def compute(self) -> MetricComputeResult:
         """Compute metrics for all heads and promote the best head's metrics.
@@ -98,8 +94,10 @@ class MultiheadTaskMetric(TaskMetric):
                 renamed_key = _rename_key_for_head(key, head_name)
                 all_metrics[renamed_key] = value
 
-            # Check if this head is best
+            # Check if this head is best (skip heads with no best metric value)
             head_best = head_result.best_metric_value
+            if head_best is None:
+                continue
             is_better = (self.best_metric_mode == "max" and head_best > best_value) or (
                 self.best_metric_mode == "min" and head_best < best_value
             )
@@ -119,56 +117,40 @@ class MultiheadTaskMetric(TaskMetric):
                 best_head_metrics=best_head_result.metrics,
             )
 
-        # Fallback: no heads (should not happen in practice)
+        # Fallback: no heads, or all heads have no matching watch metric
         return MetricComputeResult(
             metrics=all_metrics,
-            best_metric_key="",
-            best_metric_value=best_value,
+            best_metric_key=None,
+            best_metric_value=None,
             best_head_name="",
             best_head_metrics={},
         )
-
-    def reset(self) -> None:
-        """Reset all head metrics."""
-        for head_metric in self.head_metrics.values():
-            head_metric.reset()  # type: ignore[operator]
-
-    def get_display_names(self) -> dict[str, str]:
-        """Get display names for all metrics.
-
-        Returns per-head display names (renamed with head suffix) plus
-        the top-level display names from the first head (representing
-        the best-head promoted metrics).
-        """
-        display_names: dict[str, str] = {}
-
-        for head_name, head_metric in self.head_metrics.items():
-            for key, display in head_metric.get_display_names().items():  # type: ignore[operator]
-                renamed_key = _rename_key_for_head(key, head_name)
-                display_names[renamed_key] = display
-
-        # Add top-level display names from any head (all heads share the same metric structure)
-        if self.head_metrics:
-            first_head = next(iter(self.head_metrics.values()))
-            display_names.update(first_head.get_display_names())  # type: ignore[operator]
-
-        return display_names
 
 
 def _rename_key_for_head(key: str, head_name: str) -> str:
     """Rename a metric key to include the head name.
 
-    Transforms "val_metric/miou" -> "val_metric_head/miou_lr0_001".
-    The prefix part before "/" gets "_head" appended (replacing "_metric" with
-    "_metric_head"), and the metric name gets "_{head_name}" appended.
+    For keys without a slash (e.g. "val_loss"), appends "_head/{head_name}":
+        "val_loss" + "lr0_001" -> "val_loss_head/lr0_001"
 
-    Examples:
-        "val_metric/miou" + "lr0_001"       -> "val_metric_head/miou_lr0_001"
+    For keys with a slash, inserts "_head" before any "_classwise" suffix in
+    the prefix part, then appends "_{head_name}" to the metric part:
+        "val_metric/miou" + "lr0_001"            -> "val_metric_head/miou_lr0_001"
         "val_metric_classwise/iou_0" + "lr0_001" -> "val_metric_head_classwise/iou_0_lr0_001"
-        "train_metric/f1_macro" + "lr0_001" -> "train_metric_head/f1_macro_lr0_001"
+        "train_metric/f1_macro" + "lr0_001"      -> "train_metric_head/f1_macro_lr0_001"
+        "val_loss/loss_vfl" + "lr0_001"          -> "val_loss_head/loss_vfl_lr0_001"
     """
+    if "/" not in key:
+        # No slash: "val_loss" -> "val_loss_head/lr0_001"
+        return f"{key}_head/{head_name}"
     slash_idx = key.index("/")
     prefix_part = key[:slash_idx]
     metric_part = key[slash_idx + 1 :]
-    head_prefix = prefix_part.replace("_metric", "_metric_head", 1)
-    return f"{head_prefix}/{metric_part}_{head_name}"
+    # Insert "_head" before "_classwise" if present, otherwise append "_head".
+    # e.g. "val_metric_classwise" -> "val_metric_head_classwise"
+    # e.g. "val_metric" -> "val_metric_head"
+    if "_classwise" in prefix_part:
+        new_prefix = prefix_part.replace("_classwise", "_head_classwise", 1)
+    else:
+        new_prefix = f"{prefix_part}_head"
+    return f"{new_prefix}/{metric_part}_{head_name}"

@@ -21,7 +21,7 @@ class TestMulticlassClassificationTaskMetricArgs:
         """Test that MulticlassClassificationTaskMetricArgs can create metrics."""
         metric_args = MulticlassClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat", "dog", "bird"],
             log_classwise=False,
             classwise_metric_args=None,
@@ -49,7 +49,7 @@ class TestMulticlassClassificationTaskMetricArgs:
         """Test that classwise metrics are created correctly."""
         metric_args = MulticlassClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat__type_a", "dog__breed__b", "bird"],
             log_classwise=True,
             classwise_metric_args=None,
@@ -92,7 +92,7 @@ class TestMulticlassClassificationTaskMetricArgs:
         """Test that get_display_names returns correct display names."""
         metric_args = MulticlassClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat", "dog", "bird"],
             log_classwise=False,
             classwise_metric_args=None,
@@ -117,7 +117,7 @@ class TestMulticlassClassificationTaskMetricArgs:
         """Test that get_display_names works with classwise metrics."""
         metric_args = MulticlassClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat__type_a", "dog__breed__b", "bird"],
             log_classwise=True,
             classwise_metric_args=None,
@@ -141,7 +141,7 @@ class TestMulticlassClassificationTaskMetricArgs:
         """Test that reset() clears all metrics."""
         metric_args = MulticlassClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat", "dog", "bird"],
             log_classwise=True,
             classwise_metric_args=None,
@@ -163,13 +163,93 @@ class TestMulticlassClassificationTaskMetricArgs:
 
         assert result_after.metrics != result_before.metrics
 
+    def test_update_loss__and_compute(self) -> None:
+        """update_loss({"loss": x}) should produce "val_loss" in compute result."""
+        metric_args = MulticlassClassificationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            class_names=["cat", "dog", "bird"],
+            log_classwise=False,
+            classwise_metric_args=None,
+        )
+
+        # Update quality metric so compute() doesn't error
+        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
+        targets = torch.tensor([0, 1])
+        metric.update(preds, targets)
+
+        # Update loss
+        metric.update_loss({"loss": torch.tensor(0.5)})
+
+        result = metric.compute()
+        assert "val_loss" in result.metrics
+        assert abs(result.metrics["val_loss"] - 0.5) < 1e-5
+
+    def test_update_loss__accumulates_with_weight(self) -> None:
+        """update_loss should accumulate weighted values across calls."""
+        metric_args = MulticlassClassificationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            class_names=["cat", "dog", "bird"],
+            log_classwise=False,
+            classwise_metric_args=None,
+        )
+
+        # Two batches: 4 samples at loss=1.0, 4 samples at loss=0.5
+        # Expected mean = (4*1.0 + 4*0.5) / 8 = 0.75
+        metric.update_loss({"loss": torch.tensor(1.0)}, weight=4)
+        metric.update_loss({"loss": torch.tensor(0.5)}, weight=4)
+
+        result = metric.compute()
+        assert abs(result.metrics["val_loss"] - 0.75) < 1e-5
+
+    def test_update_loss__reset_clears_loss(self) -> None:
+        """reset() should clear loss metrics."""
+        metric_args = MulticlassClassificationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            class_names=["cat", "dog", "bird"],
+            log_classwise=False,
+            classwise_metric_args=None,
+        )
+
+        # Update quality metric and loss
+        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
+        targets = torch.tensor([0, 1])
+        metric.update(preds, targets)
+        metric.update_loss({"loss": torch.tensor(1.0)})
+        result_before = metric.compute()
+
+        metric.reset()
+
+        # After reset, update with different loss
+        metric.update(preds, targets)
+        metric.update_loss({"loss": torch.tensor(0.1)})
+        result_after = metric.compute()
+
+        assert abs(result_after.metrics["val_loss"] - 0.1) < 1e-5
+        assert result_before.metrics["val_loss"] != result_after.metrics["val_loss"]
+
+    def test_loss_in_display_names(self) -> None:
+        """Loss metrics should appear in get_display_names."""
+        metric_args = MulticlassClassificationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            class_names=["cat", "dog", "bird"],
+            log_classwise=False,
+            classwise_metric_args=None,
+        )
+
+        display_names = metric.get_display_names()
+        assert "val_loss" in display_names
+
 
 class TestMultilabelClassificationTaskMetricArgs:
     def test_get_metrics(self) -> None:
         """Test that MultilabelClassificationTaskMetricArgs can create metrics."""
         metric_args = MultilabelClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat", "dog", "bird"],
             log_classwise=False,
             classwise_metric_args=None,
@@ -198,7 +278,7 @@ class TestMultilabelClassificationTaskMetricArgs:
         """Test that classwise metrics are created correctly."""
         metric_args = MultilabelClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat__type_a", "dog__breed__b", "bird"],
             log_classwise=True,
             classwise_metric_args=None,
@@ -242,7 +322,7 @@ class TestMultilabelClassificationTaskMetricArgs:
         """Test that get_display_names returns correct display names."""
         metric_args = MultilabelClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat", "dog", "bird"],
             log_classwise=False,
             classwise_metric_args=None,
@@ -268,7 +348,7 @@ class TestMultilabelClassificationTaskMetricArgs:
         """Test that get_display_names works with classwise metrics."""
         metric_args = MultilabelClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat__type_a", "dog__breed__b", "bird"],
             log_classwise=True,
             classwise_metric_args=None,
@@ -292,7 +372,7 @@ class TestMultilabelClassificationTaskMetricArgs:
         """Test that reset() clears all metrics."""
         metric_args = MultilabelClassificationTaskMetricArgs()
         classification_task_metric = metric_args.get_metrics(
-            prefix="val_metric/",
+            split="val",
             class_names=["cat", "dog", "bird"],
             log_classwise=True,
             classwise_metric_args=None,
@@ -313,3 +393,61 @@ class TestMultilabelClassificationTaskMetricArgs:
         result_after = classification_task_metric.compute()
 
         assert result_after.metrics != result_before.metrics
+
+    def test_update_loss__and_compute(self) -> None:
+        """update_loss({"loss": x}) should produce "val_loss" in compute result."""
+        metric_args = MultilabelClassificationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            class_names=["cat", "dog", "bird"],
+            log_classwise=False,
+            classwise_metric_args=None,
+        )
+
+        # Update quality metric so compute() doesn't error
+        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
+        targets = torch.tensor([[1, 0, 0], [0, 1, 1]])
+        metric.update(preds, targets)
+
+        # Update loss
+        metric.update_loss({"loss": torch.tensor(0.5)})
+
+        result = metric.compute()
+        assert "val_loss" in result.metrics
+        assert abs(result.metrics["val_loss"] - 0.5) < 1e-5
+
+    def test_update_loss__accumulates_with_weight(self) -> None:
+        """update_loss should accumulate weighted values across calls."""
+        metric_args = MultilabelClassificationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            class_names=["cat", "dog", "bird"],
+            log_classwise=False,
+            classwise_metric_args=None,
+        )
+
+        # Update quality metric so compute() doesn't error
+        preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
+        targets = torch.tensor([[1, 0, 0], [0, 1, 1]])
+        metric.update(preds, targets)
+
+        # Two batches: 4 samples at loss=1.0, 4 samples at loss=0.5
+        # Expected mean = (4*1.0 + 4*0.5) / 8 = 0.75
+        metric.update_loss({"loss": torch.tensor(1.0)}, weight=4)
+        metric.update_loss({"loss": torch.tensor(0.5)}, weight=4)
+
+        result = metric.compute()
+        assert abs(result.metrics["val_loss"] - 0.75) < 1e-5
+
+    def test_loss_in_display_names(self) -> None:
+        """Loss metrics should appear in get_display_names."""
+        metric_args = MultilabelClassificationTaskMetricArgs()
+        metric = metric_args.get_metrics(
+            split="val",
+            class_names=["cat", "dog", "bird"],
+            log_classwise=False,
+            classwise_metric_args=None,
+        )
+
+        display_names = metric.get_display_names()
+        assert "val_loss" in display_names
