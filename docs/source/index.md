@@ -94,6 +94,12 @@ Train EoMT segmentation models with DINOv3 backbones.<br>
 Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 ```
 
+```{grid-item-card} Image Classification
+:link: image_classification.html
+<img src="_static/images/tasks/image_classification.jpg" height="64"><br>
+Train image classification models with any backbone.<br>
+```
+
 ```{grid-item-card} Distillation
 :link: pretrain_distill/methods/distillation.html
 <img src="_static/images/tasks/distillation.png" height="64"><br>
@@ -171,10 +177,11 @@ LightlyTrain supports the following model and workflow combinations.
 
 ### Fine-tuning
 
-| Model  |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |
-| ------ | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: |
-| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |                                                                          |                                                                          |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            |
+| Model  |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
+| ------ | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
+| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) |                                                                          |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| Any    |                                                                     |                                                                          |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
 
 ### Distillation & Pretraining
 
@@ -208,10 +215,14 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
 
 - **Commercial License**: Ideal for businesses and organizations that need proprietary
   development freedom. Enjoy all the benefits of LightlyTrain while keeping your code
-  and models private.
+  and models private. Includes model training and runtime license.
 
-We're committed to supporting both open-source and commercial users. Please
-[contact us](https://www.lightly.ai/contact) to discuss the best licensing option for
+- **Free Community License**: Available for students, researchers, startups in early
+  stages, or anyone exploring or experimenting with LightlyTrain. Empower the next
+  generation of innovators with full access to the world of pretraining.
+
+We're committed to supporting both open-source and commercial users.
+[Contact us](https://www.lightly.ai/contact) to discuss the best licensing option for
 your project!
 
 ## Contact
@@ -238,6 +249,7 @@ object_detection
 instance_segmentation
 panoptic_segmentation
 semantic_segmentation
+image_classification
 pretrain_distill/index
 predict_autolabel
 embed

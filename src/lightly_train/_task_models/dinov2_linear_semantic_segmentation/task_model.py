@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
-import os
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -364,10 +364,9 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         Args:
             path: path to a .pt file, e.g., exported_last.pt.
         """
-        # Check if the file exists.
-        if not os.path.exists(path):
-            logger.error(f"Checkpoint file not found: {path}")
-            return
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
 
         # Load the checkpoint.
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
@@ -395,5 +394,4 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()
-        for param in self.backbone.parameters():
-            param.requires_grad = False
+        self.backbone.requires_grad_(False)

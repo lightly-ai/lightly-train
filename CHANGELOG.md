@@ -9,13 +9,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- LTDETR support for DINOv3 ViT-B/L and DINOv2 ViT-L/B/G models. Pretrained weights are
-  not yet available for these models.
-- Add support for fine-tuning DINOv2 models for instance segmentation with the
-  `train_instance_segmentation` command. See the
-  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#model)
-  for more information.
-
 ### Changed
 
 ### Deprecated
@@ -24,9 +17,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Filter invalid bounding boxes in instance segmentation
-
 ### Security
+
+## [0.14.2] - 2026-02-24
+
+**New Classification Support:** You can now train image classification models with
+LightlyTrain! See the
+[classification documentation](https://docs.lightly.ai/train/stable/image_classification.html)
+for more information.
+
+### Added
+
+- Add
+  [classification support](https://docs.lightly.ai/train/stable/image_classification.html)
+- Add support for frozen backbone training in LTDETR and Picodet object detection
+  models. Set `model_args={"backbone_freeze": True}` in `train_object_detection` to
+  freeze the backbone and reduce VRAM usage.
+- Add LTDETR support for DINOv3 ViT-B/L and DINOv2 ViT-L/B/G models. Pretrained weights
+  are not yet available for these models.
+- Add support for fine-tuning DINOv2 models for instance segmentation with the
+  `train_instance_segmentation` command. See the
+  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#model)
+  for more information.
+
+### Fixed
+
+- Filter invalid bounding boxes in instance segmentation
+- Fix incorrect logging of training times.
 
 ## [0.14.1] - 2026-02-09
 

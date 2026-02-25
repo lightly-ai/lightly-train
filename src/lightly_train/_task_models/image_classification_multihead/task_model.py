@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-import os
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -190,10 +190,9 @@ class ImageClassificationMultihead(TaskModel):
             path: Path to a .pt file, e.g., exported_last.pt.
         """
 
-        # Check if the file exists.
-        if not os.path.exists(path):
-            logger.error(f"Checkpoint file not found: {path}")
-            return
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
 
         # Load the checkpoint.
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
@@ -223,8 +222,7 @@ class ImageClassificationMultihead(TaskModel):
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()  # type: ignore[attr-defined]
-        for param in self.backbone.parameters():
-            param.requires_grad = False
+        self.backbone.requires_grad_(False)  # type: ignore[attr-defined]
 
 
 def class_heads_reuse_or_reinit_hook(

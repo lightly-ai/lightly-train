@@ -455,6 +455,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         self.train()
+        # backbone is always frozen for multihead training
         self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:

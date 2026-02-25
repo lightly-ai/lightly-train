@@ -318,6 +318,44 @@ if __name__ == "__main__":
 </details>
 
 <details>
+<summary><strong>Image Classification</strong></summary>
+
+Train multiclass or multilabel image classification models with any backbone.
+
+#### Usage
+
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/image_classification.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/image_classification.ipynb)
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    # Train an image classification model with a DINOv3 backbone
+    lightly_train.train_image_classification(
+        out="out/my_experiment",
+        model="dinov3/vitt16",
+        data={
+            "train": "my_data_dir/train/",
+            "val": "my_data_dir/val/",
+            "classes": {
+                0: "cat",
+                1: "car",
+                2: "dog",
+                # ...
+            },
+        },
+    )
+
+    model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+    results = model.predict("image.jpg", topk=1, threshold=0.5)
+    results["labels"]   # Class labels, tensor of shape (topk,)
+    results["scores"]   # Confidence scores, tensor of shape (topk,)
+```
+
+</details>
+
+<details>
 <summary><strong>Distillation (DINOv2/v3)</strong></summary>
 
 Pretrain any model architecture with unlabeled data by distilling the knowledge from
@@ -458,10 +496,11 @@ LightlyTrain supports the following model and workflow combinations.
 
 ### Fine-tuning
 
-| Model  |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |
-| ------ | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: |
-| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |                                                                          |                                                                          |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            |
+| Model  |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
+| ------ | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
+| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) |                                                                          |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| Any    |                                                                     |                                                                          |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
 
 ### Distillation & Pretraining
 
@@ -495,7 +534,7 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
 
 - **Commercial License**: Ideal for businesses and organizations that need proprietary
   development freedom. Enjoy all the benefits of LightlyTrain while keeping your code
-  and models private.
+  and models private. Includes model training and runtime license.
 
 - **Free Community License**: Available for students, researchers, startups in early
   stages, or anyone exploring or experimenting with LightlyTrain. Empower the next

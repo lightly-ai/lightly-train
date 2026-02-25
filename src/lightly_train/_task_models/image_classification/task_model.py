@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 import logging
-import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import torch
@@ -324,10 +324,9 @@ class ImageClassification(TaskModel):
         Args:
             path: path to a .pt file, e.g., exported_last.pt.
         """
-        # Check if the file exists.
-        if not os.path.exists(path):
-            logger.error(f"Checkpoint file not found: {path}")
-            return
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
 
         # Load the checkpoint.
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
@@ -641,8 +640,7 @@ class ImageClassification(TaskModel):
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()  # type: ignore[attr-defined]
-        for param in self.backbone.parameters():
-            param.requires_grad = False
+        self.backbone.requires_grad_(False)  # type: ignore[attr-defined]
 
 
 def class_head_reuse_or_reinit_hook(

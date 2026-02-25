@@ -13,6 +13,7 @@ from torch.nn import Module
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
+from typing_extensions import NotRequired
 
 from lightly_train.types import TaskBatch
 
@@ -27,6 +28,7 @@ class TrainTaskState(TypedDict):
     # Used to reconstruct the model after training.
     model_class_path: str
     model_init_args: dict[str, Any]
+    license_info: NotRequired[str]
 
 
 class CheckpointDict(TypedDict):
@@ -35,3 +37,4 @@ class CheckpointDict(TypedDict):
     # Used to reconstruct the model after training.
     model_class_path: str
     model_init_args: dict[str, Any]
+    license_info: NotRequired[str]
