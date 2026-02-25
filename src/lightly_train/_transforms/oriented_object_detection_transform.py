@@ -174,13 +174,6 @@ class OrientedObjectDetectionTransform(TaskTransform):
                 [t for t in self.transform_list if type(t) not in self.stop_ops]
             )
 
-        assert "bboxes" in input, (
-            "Input must contain bboxes for oriented object detection transform."
-        )
-        assert "class_labels" in input, (
-            "Input must contain class_labels for oriented object detection transform."
-        )
-
         image = input["image"]
         bboxes = input["bboxes"]
         class_labels = input["class_labels"]
