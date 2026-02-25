@@ -12,10 +12,10 @@ from typing import Any, Callable, Dict, Iterable, List, Tuple, TypedDict, Union
 
 import numpy as np
 import torch
+import torchvision.tv_tensors as tv_tensors
 from numpy.typing import NDArray
 from pydantic import BeforeValidator, Field
 from torch import Tensor
-import torchvision.tv_tensors as tv_tensors
 from typing_extensions import Annotated, NotRequired
 
 # Underlying model type of the packages. Most of the time this is a torch.nn.Module

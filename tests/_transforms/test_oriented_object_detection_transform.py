@@ -13,8 +13,8 @@ import itertools
 import cv2
 import pytest
 import torch
-from albumentations import BboxParams
 import torchvision.tv_tensors as tv_tensors
+from albumentations import BboxParams
 
 from lightly_train._data.task_batch_collation import (
     OrientedObjectDetectionCollateFunction,
