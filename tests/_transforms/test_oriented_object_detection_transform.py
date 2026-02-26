@@ -145,7 +145,7 @@ PossibleArgsTuple = (
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 
-class TestObjectDetectionTransform:
+class TestOrientedObjectDetectionTransform:
     @pytest.mark.parametrize(
         "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, random_rotate_90, random_rotate, scale_jitter, resize, normalize",
         possible_tuples,
