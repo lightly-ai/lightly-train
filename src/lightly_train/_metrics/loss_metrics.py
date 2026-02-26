@@ -6,10 +6,11 @@
 # LICENSE file in the root directory of this source tree.
 #
 from collections.abc import Mapping, Sequence
+from functools import partial
 
 from torch import Tensor
 from torch.nn import Module, ModuleDict
-from torchmetrics import MeanMetric
+from torchmetrics import MeanMetric, RunningMean
 
 
 class LossMetrics(Module):
@@ -18,7 +19,12 @@ class LossMetrics(Module):
     def __init__(self, split: str, loss_names: Sequence[str]):
         super().__init__()
         self.split = split
-        self.metrics = ModuleDict({loss_name: MeanMetric() for loss_name in loss_names})
+        # For training we only track the last value of each loss to avoid accumulating
+        # over many batches.
+        #
+        # TODO(02/26, Guarin): Align RunningMean window with gradient accumulation steps?
+        metric_cls = partial(RunningMean, window=1) if split == "train" else MeanMetric
+        self.metrics = ModuleDict({loss_name: metric_cls() for loss_name in loss_names})
 
     def update(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         if loss_dict.keys() != self.metrics.keys():
