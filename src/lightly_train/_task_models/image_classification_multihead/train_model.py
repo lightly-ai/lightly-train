@@ -206,10 +206,6 @@ class ImageClassificationMultiheadTrain(TrainModel):
             )
         self.val_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
             head_metrics=head_metrics,  # type: ignore[arg-type]
-            best_metric_mode=resolved_metric_args.get_best_metric_mode(
-                split="val",
-                num_classes=len(class_names),
-            ),
         )
 
     def get_task_model(self) -> ImageClassificationMultihead:

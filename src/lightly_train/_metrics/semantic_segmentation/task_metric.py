@@ -18,9 +18,6 @@ from lightly_train._metrics.classwise_metric_collection import (
     ClasswiseMetricCollection,
 )
 from lightly_train._metrics.loss_metrics import LossMetrics
-from lightly_train._metrics.metric_args import (
-    translate_watch_metric,
-)
 from lightly_train._metrics.semantic_segmentation.jaccard_index import (
     JaccardIndexArgs,
 )
@@ -28,6 +25,7 @@ from lightly_train._metrics.task_metric import (
     MetricComputeResult,
     TaskMetric,
     TaskMetricArgs,
+    get_watch_metric_mode,
 )
 
 
@@ -68,8 +66,9 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         self.split = split
         self.ignore_index = ignore_index
         self.log_classwise = log_classwise
-        self._best_metric_key = translate_watch_metric(
-            task_metric_args.watch_metric, split
+        self.watch_metric = task_metric_args.watch_metric
+        self.watch_metric_mode = get_watch_metric_mode(
+            task_metric_args, list(loss_names), task_metric_args.watch_metric
         )
 
         metrics = {}
@@ -118,11 +117,12 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         result.update(self.metrics.compute())
         if self.metrics_classwise is not None:
             result.update(self.metrics_classwise.compute())
-        best_val = result.get(self._best_metric_key)
+        best_val = result.get(self.watch_metric)
         return MetricComputeResult(
             metrics=result,
-            best_metric_key=self._best_metric_key if best_val is not None else None,
-            best_metric_value=float(best_val) if best_val is not None else None,
+            watch_metric=self.watch_metric if best_val is not None else None,
+            watch_metric_value=float(best_val) if best_val is not None else None,
+            watch_metric_mode=self.watch_metric_mode if best_val is not None else None,
             best_head_name=None,
             best_head_metrics=None,
         )

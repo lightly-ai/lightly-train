@@ -60,6 +60,9 @@ class MultilabelAccuracyArgs(ClassificationMetricArgs):
     def supports_classwise(self) -> bool:
         return True
 
+    def get_metric_names(self) -> list[str]:
+        return ["accuracy"]
+
 
 class MultilabelF1Args(ClassificationMetricArgs):
     """F1 score for multilabel classification."""
@@ -95,6 +98,9 @@ class MultilabelF1Args(ClassificationMetricArgs):
 
     def supports_classwise(self) -> bool:
         return True
+
+    def get_metric_names(self) -> list[str]:
+        return ["f1"]
 
 
 class MultilabelPrecisionArgs(ClassificationMetricArgs):
@@ -132,6 +138,9 @@ class MultilabelPrecisionArgs(ClassificationMetricArgs):
     def supports_classwise(self) -> bool:
         return True
 
+    def get_metric_names(self) -> list[str]:
+        return ["precision"]
+
 
 class MultilabelRecallArgs(ClassificationMetricArgs):
     """Recall metric for multilabel classification."""
@@ -168,6 +177,9 @@ class MultilabelRecallArgs(ClassificationMetricArgs):
     def supports_classwise(self) -> bool:
         return True
 
+    def get_metric_names(self) -> list[str]:
+        return ["recall"]
+
 
 class MultilabelAUROCArgs(ClassificationMetricArgs):
     """AUROC metric for multilabel classification."""
@@ -192,6 +204,9 @@ class MultilabelAUROCArgs(ClassificationMetricArgs):
 
     def supports_classwise(self) -> bool:
         return True
+
+    def get_metric_names(self) -> list[str]:
+        return ["auroc"]
 
 
 class MultilabelAveragePrecisionArgs(ClassificationMetricArgs):
@@ -224,11 +239,14 @@ class MultilabelAveragePrecisionArgs(ClassificationMetricArgs):
     def supports_classwise(self) -> bool:
         return True
 
+    def get_metric_names(self) -> list[str]:
+        return ["avg_precision"]
+
 
 class MultilabelHammingDistanceArgs(ClassificationMetricArgs):
     """Hamming Distance metric for multilabel classification."""
 
-    mode: ClassVar[Literal["min", "max"]] = "min"
+    watch_mode: ClassVar[Literal["min", "max"]] = "min"
 
     threshold: float = 0.5
 
@@ -252,3 +270,6 @@ class MultilabelHammingDistanceArgs(ClassificationMetricArgs):
 
     def supports_classwise(self) -> bool:
         return False
+
+    def get_metric_names(self) -> list[str]:
+        return ["hamming_distance"]

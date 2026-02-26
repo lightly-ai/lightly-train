@@ -57,6 +57,9 @@ class PanopticQualityArgs(MetricArgs):
     def supports_classwise(self) -> bool:
         return True
 
+    def get_metric_names(self) -> list[str]:
+        return ["pq", "sq", "rq"]
+
 
 class PanopticQuality(TorchMetricsPanopticQuality):
     """Wrapper around torchmetrics PanopticQuality to handle ignored classes."""

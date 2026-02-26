@@ -20,9 +20,9 @@ class JaccardIndexArgs(MetricArgs):
     def get_metrics(
         self,
         *,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
-        ignore_index: int | None = None,
+        ignore_index: int | None,
     ) -> dict[str, Metric]:
         """Create JaccardIndex metric instance for semantic segmentation.
 
@@ -56,5 +56,7 @@ class JaccardIndexArgs(MetricArgs):
         return metrics
 
     def supports_classwise(self) -> bool:
-        """JaccardIndex supports classwise computation."""
         return True
+
+    def get_metric_names(self) -> list[str]:
+        return ["iou", "miou"]

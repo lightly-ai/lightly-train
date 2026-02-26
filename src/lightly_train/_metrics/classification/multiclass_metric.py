@@ -65,6 +65,9 @@ class MulticlassAccuracyArgs(ClassificationMetricArgs):
         # Only top-1 supports classwise
         return 1 in self.topk
 
+    def get_metric_names(self) -> list[str]:
+        return [f"top{k}_acc" for k in self.topk]
+
 
 class MulticlassF1Args(ClassificationMetricArgs):
     """F1 score for multiclass classification."""
@@ -89,6 +92,9 @@ class MulticlassF1Args(ClassificationMetricArgs):
 
     def supports_classwise(self) -> bool:
         return True
+
+    def get_metric_names(self) -> list[str]:
+        return ["f1"]
 
 
 class MulticlassPrecisionArgs(ClassificationMetricArgs):
@@ -121,6 +127,9 @@ class MulticlassPrecisionArgs(ClassificationMetricArgs):
     def supports_classwise(self) -> bool:
         return True
 
+    def get_metric_names(self) -> list[str]:
+        return ["precision"]
+
 
 class MulticlassRecallArgs(ClassificationMetricArgs):
     """Recall metric for multiclass classification."""
@@ -145,3 +154,6 @@ class MulticlassRecallArgs(ClassificationMetricArgs):
 
     def supports_classwise(self) -> bool:
         return True
+
+    def get_metric_names(self) -> list[str]:
+        return ["recall"]

@@ -165,19 +165,9 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             )
         self.val_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
             head_metrics=val_head_metrics,  # type: ignore[arg-type]
-            best_metric_mode=model_args.metric_args.get_best_metric_mode(
-                split="val",
-                num_classes=data_args.num_included_classes,
-                ignore_index=ignore_index,
-            ),
         )
         self.train_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
             head_metrics=train_head_metrics,  # type: ignore[arg-type]
-            best_metric_mode=model_args.metric_args.get_best_metric_mode(
-                split="train",
-                num_classes=data_args.num_included_classes,
-                ignore_index=ignore_index,
-            ),
         )
 
     def get_task_model(self) -> SemanticSegmentationMultihead:

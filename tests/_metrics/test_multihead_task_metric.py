@@ -37,7 +37,6 @@ class TestMultiheadTaskMetric:
         }
         wrapper = MultiheadTaskMetric(
             head_metrics=head_metrics,  # type: ignore[arg-type]
-            best_metric_mode="max",
         )
         wrapper.head_metrics["lr0_001"].update(  # type: ignore[operator]
             torch.zeros(2, 10, 10, dtype=torch.long),
@@ -50,14 +49,13 @@ class TestMultiheadTaskMetric:
         result = wrapper.compute()
         assert "val_metric_head/miou_lr0_001" in result.metrics
         assert "val_metric_head/miou_lr0_01" in result.metrics
-        assert result.best_metric_key == "val_metric/miou"
+        assert result.watch_metric == "val_metric/miou"
         assert result.best_head_name == "lr0_01"
 
     def test_reset(self) -> None:
         head_metrics = {"lr0_001": _make_head_metric()}
         wrapper = MultiheadTaskMetric(
             head_metrics=head_metrics,  # type: ignore[arg-type]
-            best_metric_mode="max",
         )
         torch.manual_seed(0)
         preds = torch.randint(0, 3, (2, 10, 10))

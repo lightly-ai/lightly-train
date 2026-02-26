@@ -66,6 +66,29 @@ class MeanAveragePrecisionArgs(MetricArgs):
         """MeanAveragePrecision supports classwise computation."""
         return True
 
+    def get_metric_names(self) -> list[str]:
+        names = [
+            "map",
+            "map_small",
+            "map_medium",
+            "map_large",
+            "mar_small",
+            "mar_medium",
+            "mar_large",
+        ]
+        thresholds = self.iou_thresholds
+        if thresholds is None or 0.5 in thresholds:
+            names.append("map_50")
+        if thresholds is None or 0.75 in thresholds:
+            names.append("map_75")
+        max_det = (
+            self.max_detection_thresholds
+            if self.max_detection_thresholds is not None
+            else [1, 10, 100]
+        )
+        names.extend(f"mar_{n}" for n in max_det)
+        return names
+
 
 class MeanAveragePrecision(TorchMetricsMeanAveragePrecision):
     """Wrapper around torchmetrics MeanAveragePrecision to flatten results from
@@ -93,9 +116,9 @@ class MeanAveragePrecision(TorchMetricsMeanAveragePrecision):
         super().__init__(
             box_format=box_format,
             iou_type=iou_type,
-            iou_thresholds=iou_thresholds,
-            rec_thresholds=rec_thresholds,
-            max_detection_thresholds=max_detection_thresholds,
+            iou_thresholds=iou_thresholds,  # type: ignore
+            rec_thresholds=rec_thresholds,  # type: ignore
+            max_detection_thresholds=max_detection_thresholds,  # type: ignore
             class_metrics=class_metrics,
             extended_summary=extended_summary,
             average=average,

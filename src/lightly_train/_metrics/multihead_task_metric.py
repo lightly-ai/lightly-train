@@ -22,14 +22,14 @@ class MultiheadTaskMetric(TaskMetric):
     This wrapper holds one TaskMetric instance per head. On compute(), it:
     1. Computes metrics for all heads
     2. Renames per-head keys: "val_metric/miou" -> "val_metric_head/miou_{head_name}"
-    3. Selects the best head based on each head's best_metric_value
+    3. Selects the best head based on each head's watch_metric_value
     4. Promotes the best head's metrics to the top-level prefix (no head suffix)
 
-    The best_metric_key and best_metric_value in the returned MetricComputeResult
+    The watch_metric and watch_metric_value in the returned MetricComputeResult
     refer to the promoted best-head metric, making it compatible with the training
     loop's checkpointing logic.
 
-    The best_metric_mode must be passed explicitly at construction time.
+    The watch_metric_mode is taken from the head's MetricComputeResult in compute().
 
     Usage:
         # Create per-head metrics
@@ -49,15 +49,14 @@ class MultiheadTaskMetric(TaskMetric):
         #   "val_metric_head/miou_lr0_001": 0.72
         #   "val_metric_head/miou_lr0_01":  0.75  (best)
         #   "val_metric/miou": 0.75              (best head promoted)
-        # result.best_metric_key == "val_metric/miou"
-        # result.best_metric_value == 0.75
+        # result.watch_metric == "val_metric/miou"
+        # result.watch_metric_value == 0.75
     """
 
     def __init__(
         self,
         *,
         head_metrics: Mapping[str, TaskMetric],
-        best_metric_mode: Literal["min", "max"],
     ) -> None:
         """Initialize MultiheadTaskMetric.
 
@@ -65,12 +64,9 @@ class MultiheadTaskMetric(TaskMetric):
             head_metrics: Mapping from head name to TaskMetric instance.
                 Head names should sort alphabetically in order of increasing
                 learning rate (e.g., "lr0_001", "lr0_003", "lr0_01").
-            best_metric_mode: Whether to maximize ("max") or minimize ("min")
-                the watch metric when selecting the best head.
         """
         task_metric = next(iter(head_metrics.values()))
         super().__init__(task_metric_args=task_metric.task_metric_args)
-        self.best_metric_mode = best_metric_mode
         self.head_metrics: ModuleDict = ModuleDict(head_metrics)  # type: ignore[arg-type]
 
     def compute(self) -> MetricComputeResult:
@@ -79,11 +75,12 @@ class MultiheadTaskMetric(TaskMetric):
         Returns:
             MetricComputeResult where:
             - metrics contains per-head keys AND best-head top-level keys
-            - best_metric_key is the top-level key of the best metric
-            - best_metric_value is the value of the best metric
+            - watch_metric is the top-level key of the best metric
+            - watch_metric_value is the value of the best metric
         """
         all_metrics: dict[str, float] = {}
-        best_value = -float("inf") if self.best_metric_mode == "max" else float("inf")
+        watch_metric_mode: Literal["min", "max"] | None = None
+        best_value: float | None = None
         best_head_name = ""
         best_head_result: MetricComputeResult | None = None
 
@@ -95,12 +92,16 @@ class MultiheadTaskMetric(TaskMetric):
                 renamed_key = _rename_key_for_head(key, head_name)
                 all_metrics[renamed_key] = value
 
-            # Check if this head is best (skip heads with no best metric value)
-            head_best = head_result.best_metric_value
-            if head_best is None:
+            # Skip heads with no watch metric value or mode
+            head_best = head_result.watch_metric_value
+            if head_best is None or head_result.watch_metric_mode is None:
                 continue
-            is_better = (self.best_metric_mode == "max" and head_best > best_value) or (
-                self.best_metric_mode == "min" and head_best < best_value
+            if watch_metric_mode is None:
+                watch_metric_mode = head_result.watch_metric_mode
+            is_better = (
+                best_value is None
+                or (watch_metric_mode == "max" and head_best > best_value)
+                or (watch_metric_mode == "min" and head_best < best_value)
             )
             if is_better:
                 best_value = head_best
@@ -112,8 +113,9 @@ class MultiheadTaskMetric(TaskMetric):
             all_metrics.update(best_head_result.metrics)
             return MetricComputeResult(
                 metrics=all_metrics,
-                best_metric_key=best_head_result.best_metric_key,
-                best_metric_value=best_value,
+                watch_metric=best_head_result.watch_metric,
+                watch_metric_value=best_value,
+                watch_metric_mode=watch_metric_mode,
                 best_head_name=best_head_name,
                 best_head_metrics=best_head_result.metrics,
             )
@@ -121,8 +123,9 @@ class MultiheadTaskMetric(TaskMetric):
         # Fallback: no heads, or all heads have no matching watch metric
         return MetricComputeResult(
             metrics=all_metrics,
-            best_metric_key=None,
-            best_metric_value=None,
+            watch_metric=None,
+            watch_metric_value=None,
+            watch_metric_mode=None,
             best_head_name=None,
             best_head_metrics=None,
         )
@@ -137,7 +140,7 @@ def _rename_key_for_head(key: str, head_name: str) -> str:
     For keys with a slash, inserts "_head" before any "_classwise" suffix in
     the prefix part, then appends "_{head_name}" to the metric part:
         "val_metric/miou" + "lr0_001"            -> "val_metric_head/miou_lr0_001"
-        "val_metric_classwise/iou_0" + "lr0_001" -> "val_metric_head_classwise/iou_0_lr0_001"
+        "val_metric_classwise/iou_dog" + "lr0_001" -> "val_metric_head_classwise/iou_dog_lr0_001"
         "train_metric/f1_macro" + "lr0_001"      -> "train_metric_head/f1_macro_lr0_001"
         "val_loss/loss_vfl" + "lr0_001"          -> "val_loss_head/loss_vfl_lr0_001"
     """

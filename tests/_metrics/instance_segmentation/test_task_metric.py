@@ -45,7 +45,7 @@ class TestInstanceSegmentationTaskMetric:
         assert result.metrics["val_loss"] == 0.5
         assert result.metrics.keys() == {
             "val_loss",
-            "val_metric/map_50_95",
+            "val_metric/map",
             "val_metric/map_50",
             "val_metric/map_75",
             "val_metric/map_small",
@@ -88,7 +88,7 @@ class TestInstanceSegmentationTaskMetric:
         print(result.metrics.keys())
         assert result.metrics.keys() == {
             "val_loss",
-            "val_metric/map_50_95",
+            "val_metric/map",
             "val_metric/map_50",
             "val_metric/map_75",
             "val_metric/map_small",
