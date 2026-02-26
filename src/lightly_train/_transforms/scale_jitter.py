@@ -12,7 +12,7 @@ from typing import Any, Sequence
 import numpy as np
 from albumentations import Resize
 from albumentations.core.transforms_interface import DualTransform
-from torchvision.transforms import v2
+from torchvision.transforms import InterpolationMode, v2
 
 from lightly_train.types import NDArrayBBoxes, NDArrayImage, NDArrayMask
 
@@ -154,7 +154,12 @@ class TorchVisionScaleJitter(v2.Transform):
             divisible_by=divisible_by,
         )
 
-        transforms = [v2.Resize(size=(h, w), antialias=True) for h, w in sizes_list]
+        transforms = [
+            v2.Resize(
+                size=(h, w), interpolation=InterpolationMode.BICUBIC, antialias=True
+            )
+            for h, w in sizes_list
+        ]
 
         self._transform = v2.RandomChoice(transforms)
 
