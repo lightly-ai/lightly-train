@@ -164,13 +164,21 @@ class ChannelDropTV(v2.Transform):
 
     def transform(self, inpt: Any, params: dict[str, Any]) -> Any:
         if isinstance(inpt, tv_tensors.Image):
-            if inpt.ndim < 3:
-                return inpt
             channels_to_keep = params["channels_to_keep"]
-            if inpt.shape[0] != len(self.weight_drop):
+            num_channels = inpt.shape[0]
+
+            if self.num_channels_keep == num_channels:
+                return inpt
+            elif self.num_channels_keep > num_channels:
+                raise ValueError(
+                    f"num_channels_keep ({self.num_channels_keep}) cannot be greater "
+                    f"than the number of channels in the image ({num_channels})."
+                )
+            if len(self.weight_drop) != num_channels:
                 raise RuntimeError(
                     f"Length of weight_drop ({len(self.weight_drop)}) must match "
                     f"number of image channels ({num_channels})"
                 )
+
             return tv_tensors.Image(torch.index_select(inpt, 0, channels_to_keep))
         return inpt
