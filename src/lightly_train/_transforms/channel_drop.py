@@ -167,9 +167,10 @@ class ChannelDropTV(v2.Transform):
             if inpt.ndim < 3:
                 return inpt
             channels_to_keep = params["channels_to_keep"]
-            if channels_to_keep is None:
-                return inpt
             if inpt.shape[0] != len(self.weight_drop):
-                return inpt
+                raise RuntimeError(
+                    f"Length of weight_drop ({len(self.weight_drop)}) must match "
+                    f"number of image channels ({num_channels})"
+                )
             return tv_tensors.Image(torch.index_select(inpt, 0, channels_to_keep))
         return inpt
