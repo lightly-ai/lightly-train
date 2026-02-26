@@ -28,8 +28,10 @@ from lightly_train._transforms.task_transform import (
 
 class OrientedObjectDetectionTransformInput(TaskTransformInput):
     image: tv_tensors.Image  # CHW
-    bboxes: tv_tensors.BoundingBoxes  # N x 5, where each bbox is (cx, cy, w, h, angle)
-    class_labels: Tensor  # N
+    bboxes: NotRequired[
+        tv_tensors.BoundingBoxes
+    ]  # N x 5, where each bbox is (cx, cy, w, h, angle)
+    class_labels: NotRequired[Tensor]  # N
 
 
 class OrientedObjectDetectionTransformOutput(TaskTransformOutput):
