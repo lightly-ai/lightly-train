@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Literal
 
 from torch.nn import ModuleDict
@@ -55,7 +56,7 @@ class MultiheadTaskMetric(TaskMetric):
     def __init__(
         self,
         *,
-        head_metrics: dict[str, TaskMetric],
+        head_metrics: Mapping[str, TaskMetric],
         best_metric_mode: Literal["min", "max"],
     ) -> None:
         """Initialize MultiheadTaskMetric.

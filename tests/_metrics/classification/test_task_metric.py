@@ -25,6 +25,7 @@ class TestClassificationTaskMetric:
             class_names=["cat", "dog", "bird"],
             log_classwise=False,
             classwise_metric_args=None,
+            loss_names=["loss"],
         )
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([0, 1])
@@ -47,6 +48,7 @@ class TestClassificationTaskMetric:
             class_names=["cat", "dog", "bird"],
             log_classwise=False,
             classwise_metric_args=None,
+            loss_names=["loss"],
         )
         preds = torch.tensor([[0.8, 0.5, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([[1, 1, 0], [0, 1, 1]])
@@ -70,6 +72,7 @@ class TestClassificationTaskMetric:
             class_names=["cat", "dog", "bird"],
             log_classwise=False,
             classwise_metric_args=None,
+            loss_names=["loss"],
         )
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([0, 1])
@@ -89,6 +92,7 @@ class TestClassificationTaskMetric:
             class_names=["cat", "dog"],
             log_classwise=True,
             classwise_metric_args=None,
+            loss_names=["loss"],
         )
         preds = torch.tensor([[0.8, 0.1], [0.1, 0.7]])
         target = torch.tensor([0, 1])

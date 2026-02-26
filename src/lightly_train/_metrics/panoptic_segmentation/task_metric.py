@@ -8,8 +8,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import ClassVar
+from collections.abc import Mapping, Sequence
 
 from pydantic import Field
 from torch import Tensor
@@ -30,8 +29,6 @@ from lightly_train._metrics.task_metric import (
 
 
 class PanopticSegmentationTaskMetricArgs(TaskMetricArgs):
-    loss_names: ClassVar[list[str]] = ["loss"]
-
     watch_metric: str = "val_metric/pq"
 
     pq: PanopticQualityArgs | None = Field(default_factory=PanopticQualityArgs)
@@ -55,6 +52,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         thing_class_names: Sequence[str],
         stuff_class_names: Sequence[str],
         log_classwise: bool,
+        loss_names: Sequence[str],
     ) -> None:
         """Initialize panoptic segmentation metrics container."""
         super().__init__(task_metric_args=task_metric_args)
@@ -88,9 +86,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
                 stuffs=stuffs,
             )
             self.metrics_classwise = MetricCollection(metrics_classwise)  # type: ignore
-        self.loss_metrics = LossMetrics(
-            split=split, loss_names=task_metric_args.loss_names
-        )
+        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
     def update(
         self,
@@ -107,7 +103,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         if self.metrics_classwise is not None:
             self.metrics_classwise.update(preds, target)
 
-    def update_loss(self, loss_dict: dict[str, Tensor], weight: int) -> None:
+    def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)
 
     def compute(self) -> MetricComputeResult:

@@ -8,7 +8,8 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from pydantic import Field
 from torch import Tensor
@@ -29,8 +30,6 @@ from lightly_train._metrics.task_metric import (
 
 
 class InstanceSegmentationTaskMetricArgs(TaskMetricArgs):
-    loss_names: ClassVar[list[str]] = ["loss"]
-
     watch_metric: str = "val_metric/map"
 
     map: MeanAveragePrecisionArgs | None = Field(
@@ -46,8 +45,9 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         *,
         task_metric_args: InstanceSegmentationTaskMetricArgs,
         split: str,
-        class_names: list[str],
+        class_names: Sequence[str],
         log_classwise: bool,
+        loss_names: Sequence[str],
     ) -> None:
         """Initialize instance segmentation metrics container.
 
@@ -77,14 +77,12 @@ class InstanceSegmentationTaskMetric(TaskMetric):
                 )
             )
         self.metrics = MetricCollection(metrics)  # type: ignore
-        self.loss_metrics = LossMetrics(
-            split=split, loss_names=task_metric_args.loss_names
-        )
+        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
     def update(
         self,
-        preds: list[dict[str, Any]],
-        target: list[dict[str, Any]],
+        preds: Sequence[Mapping[str, Any]],
+        target: Sequence[Mapping[str, Any]],
     ) -> None:
         """Update all metrics with inputs.
 
@@ -94,7 +92,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         """
         self.metrics.update(preds, target)
 
-    def update_loss(self, loss_dict: dict[str, Tensor], weight: int) -> None:
+    def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)
 
     def compute(self) -> MetricComputeResult:

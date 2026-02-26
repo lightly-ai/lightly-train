@@ -24,6 +24,7 @@ class TestSemanticSegmentationTaskMetric:
             class_names=["cat", "dog"],
             ignore_index=None,
             log_classwise=False,
+            loss_names=["loss"],
         )
         preds = torch.zeros(2, 10, 10, dtype=torch.long)
         target = torch.zeros(2, 10, 10, dtype=torch.long)
@@ -43,6 +44,7 @@ class TestSemanticSegmentationTaskMetric:
             class_names=["cat", "dog"],
             ignore_index=None,
             log_classwise=True,
+            loss_names=["loss"],
         )
         preds = torch.zeros(2, 10, 10, dtype=torch.long)
         target = torch.zeros(2, 10, 10, dtype=torch.long)

@@ -81,9 +81,9 @@ class MeanAveragePrecision(TorchMetricsMeanAveragePrecision):
         box_format: Literal["xyxy", "xywh", "cxcywh"] = "xyxy",
         iou_type: Literal["bbox", "segm"]
         | tuple[Literal["bbox", "segm"], ...] = "bbox",
-        iou_thresholds: list[float] | None = None,
-        rec_thresholds: list[float] | None = None,
-        max_detection_thresholds: list[int] | None = None,
+        iou_thresholds: Sequence[float] | None = None,
+        rec_thresholds: Sequence[float] | None = None,
+        max_detection_thresholds: Sequence[int] | None = None,
         class_metrics: bool = False,
         extended_summary: bool = False,
         average: Literal["macro", "micro"] = "macro",

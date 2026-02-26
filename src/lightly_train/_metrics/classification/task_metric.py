@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import ClassVar
 
 from pydantic import Field
 from torch import Tensor
@@ -46,8 +45,6 @@ from lightly_train._metrics.task_metric import (
 
 
 class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
-    loss_names: ClassVar[list[str]] = ["loss"]
-
     watch_metric: str = "val_metric/top1_acc_micro"
     accuracy: MulticlassAccuracyArgs | None = Field(
         default_factory=MulticlassAccuracyArgs
@@ -60,8 +57,6 @@ class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
 
 
 class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
-    loss_names: ClassVar[list[str]] = ["loss"]
-
     watch_metric: str = "val_metric/f1_macro"
     accuracy: MultilabelAccuracyArgs | None = Field(
         default_factory=MultilabelAccuracyArgs
@@ -89,9 +84,10 @@ class ClassificationTaskMetric(TaskMetric):
         *,
         task_metric_args: ClassificationTaskMetricArgs,
         split: str,
-        class_names: list[str],
+        class_names: Sequence[str],
         log_classwise: bool,
         classwise_metric_args: ClassificationTaskMetricArgs | None,
+        loss_names: Sequence[str],
     ) -> None:
         """Initialize classification metrics container.
 
@@ -120,9 +116,7 @@ class ClassificationTaskMetric(TaskMetric):
             classwise_metrics_args=classwise_metric_args,
             class_names=class_names,
         )
-        self.loss_metrics = LossMetrics(
-            split=split, loss_names=task_metric_args.loss_names
-        )
+        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
     def update(self, preds: Tensor, target: Tensor) -> None:
         """Update all quality metrics with inputs.

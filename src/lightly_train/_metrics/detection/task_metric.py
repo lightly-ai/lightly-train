@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, ClassVar, Literal
+from collections.abc import Mapping, Sequence
+from typing import Any, Literal
 
 from pydantic import Field
 from torch import Tensor
@@ -30,8 +30,6 @@ from lightly_train._metrics.task_metric import (
 
 
 class ObjectDetectionTaskMetricArgs(TaskMetricArgs):
-    loss_names: ClassVar[list[str]] = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]
-
     watch_metric: str = "val_metric/map"
 
     map: MeanAveragePrecisionArgs | None = Field(
@@ -52,9 +50,10 @@ class ObjectDetectionTaskMetric(TaskMetric):
         *,
         task_metric_args: ObjectDetectionTaskMetricArgs,
         split: str,
-        class_names: list[str],
+        class_names: Sequence[str],
         log_classwise: bool,
         box_format: Literal["xyxy", "xywh", "cxcywh"],
+        loss_names: Sequence[str],
     ) -> None:
         """Initialize object detection metrics container.
 
@@ -85,14 +84,12 @@ class ObjectDetectionTaskMetric(TaskMetric):
                 )
             )
         self.metrics = MetricCollection(metrics)  # type: ignore
-        self.loss_metrics = LossMetrics(
-            split=split, loss_names=task_metric_args.loss_names
-        )
+        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
     def update(
         self,
-        preds: list[dict[str, Any]],
-        target: list[dict[str, Any]],
+        preds: Sequence[Mapping[str, Any]],
+        target: Sequence[Mapping[str, Any]],
     ) -> None:
         """Update all metrics with inputs.
 

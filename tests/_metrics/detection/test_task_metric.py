@@ -24,6 +24,7 @@ class TestObjectDetectionTaskMetric:
             class_names=["cat", "dog"],
             log_classwise=False,
             box_format="xyxy",
+            loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
         )
         metric.update(
             preds=[
@@ -77,6 +78,7 @@ class TestObjectDetectionTaskMetric:
             class_names=["cat", "dog"],
             log_classwise=True,
             box_format="xyxy",
+            loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
         )
         metric.update(
             preds=[

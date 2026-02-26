@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from typing import ClassVar, Literal
 
 from lightly_train._configs.config import PydanticConfig
@@ -60,8 +61,8 @@ def translate_watch_metric(watch_metric: str, split: str) -> str:
 def derive_best_metric_mode(
     watch_metric: str,
     split: str,
-    quality_metric_modes: dict[str, Literal["min", "max"]],
-    loss_names: list[str],
+    quality_metric_modes: Mapping[str, Literal["min", "max"]],
+    loss_names: Sequence[str],
 ) -> Literal["min", "max"]:
     """Derive best_metric_mode from a watch_metric key.
 

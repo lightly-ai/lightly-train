@@ -8,8 +8,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import ClassVar
+from collections.abc import Mapping, Sequence
 
 from pydantic import Field
 from torch import Tensor
@@ -33,8 +32,6 @@ from lightly_train._metrics.task_metric import (
 
 
 class SemanticSegmentationTaskMetricArgs(TaskMetricArgs):
-    loss_names: ClassVar[list[str]] = ["loss"]
-
     watch_metric: str = "val_metric/miou"
 
     miou: JaccardIndexArgs | None = Field(default_factory=JaccardIndexArgs)
@@ -56,6 +53,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         class_names: Sequence[str],
         ignore_index: int | None,
         log_classwise: bool,
+        loss_names: Sequence[str],
     ) -> None:
         """Initialize semantic segmentation metrics container.
 
@@ -98,9 +96,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
                 prefix=f"{split}_metric_classwise/",
                 classwise_prefix="iou",
             )
-        self.loss_metrics = LossMetrics(
-            split=split, loss_names=task_metric_args.loss_names
-        )
+        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
     def update(self, preds: Tensor, target: Tensor) -> None:
         """Update all metrics
@@ -113,7 +109,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         if self.metrics_classwise is not None:
             self.metrics_classwise.update(preds, target)  # type: ignore[operator]
 
-    def update_loss(self, loss_dict: dict[str, Tensor], weight: int) -> None:
+    def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)  # type: ignore[operator]
 
     def compute(self) -> MetricComputeResult:
