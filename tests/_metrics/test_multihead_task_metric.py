@@ -8,9 +8,13 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
-from lightly_train._metrics.multihead_task_metric import MultiheadTaskMetric
+from lightly_train._metrics.multihead_task_metric import (
+    MultiheadTaskMetric,
+    _rename_key_for_head,
+)
 from lightly_train._metrics.semantic_segmentation.task_metric import (
     SemanticSegmentationTaskMetric,
     SemanticSegmentationTaskMetricArgs,
@@ -69,3 +73,24 @@ class TestMultiheadTaskMetric:
         wrapper.head_metrics["lr0_001"].update(preds2, target2)  # type: ignore[operator]
         result_after = wrapper.compute()
         assert result_after.metrics != result_before.metrics
+
+
+@pytest.mark.parametrize(
+    "key,head_name,expected",
+    [
+        # No slash: append "_head/{head_name}"
+        ("val_loss", "lr0_001", "val_loss_head/lr0_001"),
+        # With slash, no _classwise: insert "_head" in prefix, append "_{head_name}" to metric
+        ("val_metric/miou", "lr0_001", "val_metric_head/miou_lr0_001"),
+        ("train_metric/f1_macro", "lr0_001", "train_metric_head/f1_macro_lr0_001"),
+        ("val_loss/loss_vfl", "lr0_001", "val_loss_head/loss_vfl_lr0_001"),
+        # With slash and _classwise: insert "_head" before "_classwise"
+        (
+            "val_metric_classwise/iou_dog",
+            "lr0_001",
+            "val_metric_head_classwise/iou_dog_lr0_001",
+        ),
+    ],
+)
+def test__rename_key_for_head(key: str, head_name: str, expected: str) -> None:
+    assert _rename_key_for_head(key, head_name) == expected
