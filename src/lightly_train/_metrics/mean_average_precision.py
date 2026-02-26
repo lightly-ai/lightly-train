@@ -112,8 +112,6 @@ class MeanAveragePrecision(TorchMetricsMeanAveragePrecision):
             if "class" in name:
                 # Skip classwise metrics
                 continue
-            # Remap name if needed.
-            name = {"map": "map_50_95"}.get(name, name)
             result[f"{self.prefix}/{name}"] = value
 
         if self.class_metrics:
