@@ -8,9 +8,12 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
+import torch
 from albumentations import BboxParams, Compose
+from torchvision import tv_tensors
 
-from lightly_train._transforms.scale_jitter import ScaleJitter
+from lightly_train._transforms.scale_jitter import ScaleJitter, TorchVisionScaleJitter
 
 
 class TestRandomScaleJitter:
@@ -242,3 +245,101 @@ class TestRandomScaleJitter:
         assert not np.array_equal(out1["mask"], out2["mask"])
         assert not np.array_equal(out1["bboxes"], out2["bboxes"])
         assert np.array_equal(out1["class_labels"], out2["class_labels"])
+
+
+@pytest.fixture
+def dummy_tv_image() -> tv_tensors.Image:
+    return tv_tensors.Image(torch.rand(3, 100, 100))
+
+
+@pytest.fixture
+def dummy_tv_obb() -> tv_tensors.BoundingBoxes:
+    return tv_tensors.BoundingBoxes(  # type: ignore[call-arg]
+        torch.tensor([[50.0, 50.0, 20.0, 10.0, 45.0]]),
+        format=tv_tensors.BoundingBoxFormat.CXCYWHR,
+        canvas_size=(100, 100),
+    )
+
+
+@pytest.fixture
+def dummy_tv_image_small() -> tv_tensors.Image:
+    return tv_tensors.Image(torch.rand(3, 50, 50))
+
+
+@pytest.fixture
+def dummy_tv_obb_small() -> tv_tensors.BoundingBoxes:
+    return tv_tensors.BoundingBoxes(  # type: ignore[call-arg]
+        torch.tensor([[25.0, 25.0, 10.0, 5.0, 30.0]]),
+        format=tv_tensors.BoundingBoxFormat.CXCYWHR,
+        canvas_size=(50, 50),
+    )
+
+
+class TestTorchVisionScaleJitter:
+    def test_single_input(
+        self,
+        dummy_tv_obb: tv_tensors.BoundingBoxes,
+        dummy_tv_image: tv_tensors.Image,
+    ) -> None:
+        scale_jitter = TorchVisionScaleJitter(
+            target_size=(100, 100),
+            scale_range=(0.5, 1.5),
+            num_scales=5,
+        )
+
+        output = scale_jitter(dummy_tv_image, dummy_tv_obb)
+
+        assert isinstance(output, tuple)
+        assert len(output) == 2
+        assert isinstance(output[0], tv_tensors.Image)
+        assert isinstance(output[1], tv_tensors.BoundingBoxes)
+
+    def test_multiple_inputs_same_resize(
+        self,
+        dummy_tv_image: tv_tensors.Image,
+        dummy_tv_obb: tv_tensors.BoundingBoxes,
+        dummy_tv_image_small: tv_tensors.Image,
+        dummy_tv_obb_small: tv_tensors.BoundingBoxes,
+    ) -> None:
+        scale_jitter = TorchVisionScaleJitter(
+            target_size=(100, 100),
+            scale_range=(0.5, 1.5),
+            num_scales=5,
+        )
+
+        images = [dummy_tv_image, dummy_tv_image_small]
+        bboxes = [dummy_tv_obb, dummy_tv_obb_small]
+
+        outputs = scale_jitter(images, bboxes)
+
+        assert isinstance(outputs, tuple)
+        transformed_images, transformed_bboxes = outputs
+        assert len(transformed_images) == 2
+        assert len(transformed_bboxes) == 2
+
+        shape1 = transformed_images[0].shape
+        shape2 = transformed_images[1].shape
+        assert shape1 == shape2, (
+            f"Expected same shape for all images, got {shape1} and {shape2}"
+        )
+
+    def test_random_choice_changes_size(
+        self,
+        dummy_tv_obb: tv_tensors.BoundingBoxes,
+        dummy_tv_image: tv_tensors.Image,
+    ) -> None:
+        scale_jitter = TorchVisionScaleJitter(
+            target_size=(100, 100),
+            scale_range=(0.5, 1.5),
+            num_scales=5,
+        )
+
+        shapes = []
+        for _ in range(20):
+            output = scale_jitter(dummy_tv_image, dummy_tv_obb)
+            shapes.append(output[0].shape)
+
+        unique_shapes = set(shapes)
+        assert len(unique_shapes) > 1, (
+            "Expected different sizes across iterations, got same size"
+        )
