@@ -8,10 +8,10 @@
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass
 import hashlib
 import json
 import logging
+from dataclasses import dataclass
 from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Generator, Iterable, Literal, Mapping, cast
@@ -720,9 +720,7 @@ def log_step(
         if loss is not None:
             parts.append(f"{loss_name}: {loss:4.4f}")
         if metrics.watch_metric_value is not None and metrics.watch_metric != loss_name:
-            parts.append(
-                f"{metrics.watch_metric}: {metrics.watch_metric_value:4.4f}"
-            )
+            parts.append(f"{metrics.watch_metric}: {metrics.watch_metric_value:4.4f}")
     else:
         for name, value in log_dict.items():
             if name in name_to_display_name:
@@ -765,6 +763,7 @@ def log_step(
     line = " | ".join(parts)
     logger.info(line)
 
+
 def log_fabric(
     fabric: Fabric,
     log_dict: dict[str, Any],
@@ -805,37 +804,68 @@ def log_training_summary(
 
     if last_val_metrics is not None:
         max_len = max(len(name) for name in last_val_metrics.metrics.keys())
-        best_metrics = best_val_metrics.metrics if best_val_metrics is not None else last_val_metrics
+        best_metrics = (
+            best_val_metrics.metrics
+            if best_val_metrics is not None
+            else last_val_metrics
+        )
         best_step = best_val_metrics.step if best_val_metrics is not None else step
 
         # All metrics
         logger.info("Validation Metrics")
-        logger.info(f"  {'name':<{max_len}} | {'Best':<8} | {'Last':<8}")
-        logger.info(f"  {' ' * max_len} | {'Step='}{best_step} | {'Step='}{step}")
-        logger.info(f"  {'-' * max_len}-|{'-' * 9}|{'-' * 9}")
-
+        col = 8
+        logger.info(f"  | {'Name':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |")
+        logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
+        logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
         for metric_name in last_val_metrics.metrics.keys():
             last_value = last_val_metrics.metrics[metric_name]
             best_value = best_metrics.metrics.get(metric_name, float("nan"))
-            logger.info(f"  {metric_name:<{max_len}} | {best_value:4.4f} | {last_value:4.4f}")
+            logger.info(
+                f"  | {metric_name:<{max_len}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
+            )
+        logger.info("")
+        logger.info(
+            f"  | {'Watch Metric':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |"
+        )
+        logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
+        logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
+        logger.info(
+            f"  | {best_metrics.watch_metric:<{max_len}} | {best_metrics.watch_metric_value:>{col}.4f} | {last_val_metrics.watch_metric_value:>{col}.4f} |"
+        )
         logger.info("")
 
         # Best head metrics
         if last_val_metrics.best_head_metrics is not None:
-            best_head_metrics = best_metrics.best_head_metrics if best_metrics.best_head_metrics is not None else last_val_metrics.best_head_metrics
+            best_head_metrics = (
+                best_metrics.best_head_metrics
+                if best_metrics.best_head_metrics is not None
+                else last_val_metrics.best_head_metrics
+            )
 
             logger.info("Validation Metrics - Best Head")
-            logger.info(f"  {'Metric':<{max_len}} | {'Best':<8} | {'Last':<8}")
-            logger.info(f"  {' ' * max_len} | {'Step='}{best_step} | {'Step='}{step}")
-            logger.info(f"  {'-' * max_len}-|{'-' * 9}|{'-' * 9}")
-            max_len = max(len(name) for name in last_val_metrics.best_head_metrics.keys())
+            col = 8
+            max_len_head = max(
+                len(name) for name in last_val_metrics.best_head_metrics.keys()
+            )
+
+            logger.info(
+                f"  | {'Metric':<{max_len_head}} | {'Best':^{col}} | {'Last':^{col}} |"
+            )
+            logger.info(f"  |:{'-' * max_len_head}-|:{'-' * col}:|:{'-' * col}:|")
+            logger.info(
+                f"  | {'step':<{max_len_head}} | {best_step:>{col}} | {step:>{col}} |"
+            )
+
             for metric_name in last_val_metrics.best_head_metrics.keys():
                 last_value = last_val_metrics.best_head_metrics[metric_name]
                 best_value = best_head_metrics.get(metric_name, float("nan"))
-                logger.info(f"  {metric_name:<{max_len}} | {best_value:4.4f} | {last_value:4.4f}")
-            logger.info("")
-            logger.info(f"  Best Head: {last_val_metrics.best_head_name}")
+                logger.info(
+                    f"  | {metric_name:<{max_len_head}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
+                )
 
+            logger.info("")
+            logger.info(f"Best Head: {last_val_metrics.best_head_name}")
+            logger.info("")
 
     ### Profiling Info
 
@@ -877,23 +907,64 @@ def log_training_summary(
 
     # Format and log the summary
     logger.info("Profiling")
-    logger.info(f"  Total Time        : {total_time_min:5.1f} min")
+
+    name_w = 22
+    time_w = 5  # matches :5.1f for minutes
+
+    v_total = f"{total_time_min:5.1f} min"
+    v_train = f"{train_time_min:5.1f} min ({train_time_perc:3.1f}%) ({train_step_time:4.2f} s/step)"
+    v_val = (
+        f"{val_time_min:5.1f} min ({val_time_perc:3.1f}%) ({val_step_time:4.2f} s/step)"
+    )
+    v_train_tp = f"{train_throughput:4.0f} img/s"
+    v_val_tp = f"{val_throughput:4.0f} img/s"
+
+    v_train_util = f"{train_gpu_util:3.1f}%" if train_gpu_util >= 0 else None
+    v_train_mem = f"{train_gpu_max_mem:7.1f} MB" if train_gpu_max_mem >= 0 else None
+    v_val_util = f"{val_gpu_util:3.1f}%" if val_gpu_util >= 0 else None
+    v_val_mem = f"{val_gpu_max_mem:7.1f} MB" if val_gpu_max_mem >= 0 else None
+
+    val_w = max(
+        len(v_total),
+        len(v_train),
+        len(v_val),
+        len(v_train_tp),
+        len(v_val_tp),
+        *(
+            len(x)
+            for x in [v_train_util, v_train_mem, v_val_util, v_val_mem]
+            if x is not None
+        ),
+    )
+
+    logger.info(f"  | {'Name':<{name_w}} | {'Value':<{val_w}} |")
+    logger.info(f"  |:{'-' * name_w}-|:{'-' * val_w}:|")
+
+    # align the "X.Y min" chunk across Total/Train/Val
+    prefix_w = time_w + 4  # "xxxxx.x min"
+
     logger.info(
-        f"  Train Time        : {train_time_min:5.1f} min ({train_time_perc:3.1f}%) ({train_step_time:4.2f} s/step)"
+        f"  | {'Total Time':<{name_w}} | {v_total:>{prefix_w}}{'':<{val_w - prefix_w}} |"
     )
     logger.info(
-        f"  Val Time          : {val_time_min:5.1f} min ({val_time_perc:3.1f}%) ({val_step_time:4.2f} s/step)"
+        f"  | {'Train Time':<{name_w}} | {v_train[:prefix_w]:>{prefix_w}}{v_train[prefix_w:]:<{val_w - prefix_w}} |"
     )
-    logger.info(f"  Train Throughput  : {train_throughput:4.0f} img/s")
-    if train_gpu_util >= 0:
-        logger.info(f"  Train GPU Util    : {train_gpu_util:3.1f}%")
-    if train_gpu_max_mem >= 0:
-        logger.info(f"  Train GPU Max Mem : {train_gpu_max_mem:7.1f} MB")
-    logger.info(f"  Val Throughput    : {val_throughput:4.0f} img/s")
-    if val_gpu_util >= 0:
-        logger.info(f"  Val GPU Util      : {val_gpu_util:3.1f}%")
-    if val_gpu_max_mem >= 0:
-        logger.info(f"  Val GPU Max Mem   : {val_gpu_max_mem:7.1f} MB")
+    logger.info(
+        f"  | {'Val Time':<{name_w}} | {v_val[:prefix_w]:>{prefix_w}}{v_val[prefix_w:]:<{val_w - prefix_w}} |"
+    )
+
+    logger.info(f"  | {'Train Throughput':<{name_w}} | {v_train_tp:>{val_w}} |")
+    if v_train_util is not None:
+        logger.info(f"  | {'Train GPU Util':<{name_w}} | {v_train_util:>{val_w}} |")
+    if v_train_mem is not None:
+        logger.info(f"  | {'Train GPU Max Mem':<{name_w}} | {v_train_mem:>{val_w}} |")
+
+    logger.info(f"  | {'Val Throughput':<{name_w}} | {v_val_tp:>{val_w}} |")
+    if v_val_util is not None:
+        logger.info(f"  | {'Val GPU Util':<{name_w}} | {v_val_util:>{val_w}} |")
+    if v_val_mem is not None:
+        logger.info(f"  | {'Val GPU Max Mem':<{name_w}} | {v_val_mem:>{val_w}} |")
+    logger.info("")
 
 
 def add_timer_logs(
@@ -1033,6 +1104,7 @@ class BestMetric:
     metrics: MetricComputeResult
     step: int
 
+
 def get_best_metrics(
     best_metrics: BestMetric | None,
     last_metrics: MetricComputeResult | None,
@@ -1048,7 +1120,6 @@ def get_best_metrics(
         )
     if last_metrics is None:
         return best_metrics
-    
 
     best_metric_name = best_metrics.metrics.watch_metric
     last_metric_name = last_metrics.watch_metric
@@ -1060,9 +1131,11 @@ def get_best_metrics(
     assert mode is not None
 
     if best_metric_name != last_metric_name:
-        return best_metrics # Shouldn't happen, but safe to assume we want best metrics
+        return best_metrics  # Shouldn't happen, but safe to assume we want best metrics
 
-    if (mode == "max" and last_metric_value > best_metric_value) or ( mode == "min" and last_metric_value < best_metric_value):
+    if (mode == "max" and last_metric_value > best_metric_value) or (
+        mode == "min" and last_metric_value < best_metric_value
+    ):
         return BestMetric(
             metrics=last_metrics,
             step=step,

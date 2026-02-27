@@ -23,7 +23,11 @@ from torch.optim.optimizer import Optimizer
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
 from lightly_train._data.task_data_args import TaskDataArgs
-from lightly_train._metrics.classification.task_metric import ClassificationTaskMetric, ClassificationTaskMetric, MulticlassClassificationTaskMetricArgs, MultilabelClassificationTaskMetricArgs
+from lightly_train._metrics.classification.task_metric import (
+    ClassificationTaskMetric,
+    MulticlassClassificationTaskMetricArgs,
+    MultilabelClassificationTaskMetricArgs,
+)
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.image_classification.task_model import (
@@ -92,7 +96,9 @@ class ImageClassificationTrainArgs(TrainModelArgs):
     metric_log_classwise: bool = False
     metric_log_debug: bool = False
 
-    metrics: MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs = Field(
+    metrics: (
+        MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs
+    ) = Field(
         default_factory=MulticlassClassificationTaskMetricArgs,
     )
 
@@ -163,7 +169,6 @@ class ImageClassificationTrain(TrainModel):
     ) -> None:
         # Import here because old torchmetrics versions (0.8.0) don't support the
         # metrics we use. But we need old torchmetrics support for SuperGradients.
-        from torchmetrics import ClasswiseWrapper, MeanMetric, MetricCollection
 
         super().__init__()
         image_size = no_auto(val_transform_args.image_size)
@@ -231,7 +236,7 @@ class ImageClassificationTrain(TrainModel):
                 class_ids=classes, num_classes=len(self.model.classes)
             )
             loss = self.criterion(logits, targets)
-            targets = targets.int() # For metrics
+            targets = targets.int()  # For metrics
         else:
             raise ValueError(
                 f"Unsupported classification task: {self.model.classification_task}"
@@ -256,7 +261,7 @@ class ImageClassificationTrain(TrainModel):
                 class_ids=classes, num_classes=len(self.model.classes)
             )
             loss = self.criterion(logits, targets)
-            targets = targets.int() # For metrics
+            targets = targets.int()  # For metrics
         else:
             raise ValueError(
                 f"Unsupported classification task: {self.model.classification_task}"

@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
+from lightly_train._commands.train_task_helpers import BestMetric
 import fsspec
 import torch
 import yaml
@@ -48,7 +49,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
-from lightly_train._metrics.task_metric import MetricComputeResult, TaskMetric
+from lightly_train._metrics.task_metric import MetricComputeResult
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
 from lightly_train._train_task_state import (
@@ -1273,7 +1274,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         # TODO(Guarin, 02/26): Add best metric to state?
-        best_metrics: MetricComputeResult | None = None
+        best_metrics: BestMetrics | None = None
 
         state = TrainTaskState(
             train_model=train_model,
@@ -1405,7 +1406,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         train_log_dict[f"weight_decay/{group['name']}"] = group[
                             "weight_decay"
                         ]
-                helpers.log_fabric(fabric=fabric, log_dict=train_log_dict, metrics=train_metrics, step=step)
+                helpers.log_fabric(
+                    fabric=fabric,
+                    log_dict=train_log_dict,
+                    metrics=train_metrics,
+                    step=step,
+                )
                 helpers.reset_metrics(train_result.log_dict, train_result.metrics)
 
             if config.save_checkpoint_args.save_last and (
@@ -1488,10 +1494,19 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             global_batch_size=config.batch_size,
                         )
-                        helpers.log_fabric(fabric=fabric, log_dict=val_log_dict, metrics=val_metrics, step=step)
+                        helpers.log_fabric(
+                            fabric=fabric,
+                            log_dict=val_log_dict,
+                            metrics=val_metrics,
+                            step=step,
+                        )
                         helpers.reset_metrics(val_result.log_dict, val_result.metrics)
 
-                        if best_metrics is val_metrics and best_metrics is not None and config.save_checkpoint_args.save_best:
+                        if (
+                            config.save_checkpoint_args.save_best
+                            and best_metrics is not None
+                            and best_metrics.step == step
+                        ):
                             helpers.save_checkpoint(
                                 fabric=fabric,
                                 out_dir=out_dir,
@@ -1499,11 +1514,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                 best_or_last="best",
                             )
                             model_dict = {
-                                    "model_class_path": state["model_class_path"],
-                                    "model_init_args": state["model_init_args"],
-                                    "train_model": train_model.get_export_state_dict(),
-                                    "license_info": state.get("license_info", ""),
-                                }
+                                "model_class_path": state["model_class_path"],
+                                "model_init_args": state["model_init_args"],
+                                "train_model": train_model.get_export_state_dict(),
+                                "license_info": state.get("license_info", ""),
+                            }
                             helpers.export_model(
                                 out_dir=out_dir,
                                 model_dict=model_dict,
@@ -1576,9 +1591,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         )
                 train_model.set_train_mode()
                 fabric.barrier()
-        logger.info(
-            f"Best result: {config.save_checkpoint_args.watch_metric}={best_metric:.4f}"
-        )
         logger.info("Training completed.")
 
 
