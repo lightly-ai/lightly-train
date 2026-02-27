@@ -222,8 +222,7 @@ class ImageClassificationMultihead(TaskModel):
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()  # type: ignore[attr-defined]
-        for param in self.backbone.parameters():
-            param.requires_grad = False
+        self.backbone.requires_grad_(False)  # type: ignore[attr-defined]
 
 
 def class_heads_reuse_or_reinit_hook(

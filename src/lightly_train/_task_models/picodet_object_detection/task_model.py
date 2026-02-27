@@ -74,6 +74,7 @@ class PicoDetObjectDetection(TaskModel):
         iou_threshold: float = 0.6,
         max_detections: int = 100,
         load_weights: bool = True,
+        backbone_freeze: bool = False,
     ) -> None:
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
 
@@ -83,6 +84,7 @@ class PicoDetObjectDetection(TaskModel):
         self.num_classes = num_classes
         self.reg_max = reg_max
         self.classes = classes
+        self.backbone_freeze = backbone_freeze
 
         if classes is not None and len(classes) != num_classes:
             raise ValueError(
@@ -132,6 +134,9 @@ class PicoDetObjectDetection(TaskModel):
         )
         backbone_out_channels = self.backbone.out_channels
 
+        if self.backbone_freeze:
+            self.freeze_backbone()
+
         self.neck = CSPPAN(
             in_channels=backbone_out_channels,
             out_channels=neck_out_channels_typed,
@@ -172,6 +177,10 @@ class PicoDetObjectDetection(TaskModel):
     def is_supported_model(cls, model: str) -> bool:
         """Check if a model name is supported."""
         return model in _MODEL_CONFIGS
+
+    def freeze_backbone(self) -> None:
+        self.backbone.eval()
+        self.backbone.requires_grad_(False)
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False

@@ -271,10 +271,8 @@ class SemanticSegmentationMultihead(TaskModel):
         self.load_state_dict(new_state_dict, strict=True)
 
     def freeze_backbone(self) -> None:
-        """Freeze all backbone parameters."""
         self.backbone.eval()  # type: ignore[attr-defined]
-        for param in self.backbone.parameters():
-            param.requires_grad = False
+        self.backbone.requires_grad_(False)  # type: ignore[attr-defined]
 
     def tile(
         self, images: list[Tensor] | Tensor
