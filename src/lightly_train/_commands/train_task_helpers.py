@@ -1144,19 +1144,13 @@ def get_best_metrics(
 
 
 def get_save_checkpoint_args(
-    train_model_cls: type[TrainModel],
     checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None,
     data_args: TaskDataArgs,
 ) -> TaskSaveCheckpointArgs:
     if isinstance(checkpoint_args, TaskSaveCheckpointArgs):
         checkpoint_args = checkpoint_args.model_dump()
-    checkpoint_args_cls = train_model_cls.train_model_args_cls.save_checkpoint_args_cls
-    # Merge with possible overrides from checkpoint_args.
-    default_checkpoint_args = checkpoint_args_cls().model_dump()  # type: ignore[call-arg]
-    default_checkpoint_args.update(checkpoint_args or {})
-    args = validate.pydantic_model_validate(
-        checkpoint_args_cls, default_checkpoint_args
-    )
+    checkpoint_args = {} if checkpoint_args is None else checkpoint_args
+    args = validate.pydantic_model_validate(TaskSaveCheckpointArgs, checkpoint_args)
     args.resolve_auto(data_args=data_args)
     return args
 

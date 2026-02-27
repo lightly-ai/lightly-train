@@ -19,7 +19,6 @@ from torch.optim.optimizer import Optimizer
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._metrics.task_metric import TaskMetric
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._transforms.task_transform import TaskTransform
 
@@ -30,8 +29,6 @@ class TrainModelArgs(PydanticConfig):
     # are ClassVar because they have to be accessed before the class is instantiated.
     default_batch_size: ClassVar[int]
     default_steps: ClassVar[int]
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]]
 
     def resolve_auto(
         self,

@@ -31,7 +31,6 @@ from lightly_train._metrics.instance_segmentation.task_metric import (
     InstanceSegmentationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_instance_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -53,20 +52,11 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import InstanceSegmentationBatch, PathLike
 
 
-class DINOv2EoMTInstanceSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/map"
-    mode: Literal["min", "max"] = "max"
-
-
 class DINOv2EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from COCO dataset:
     # 118287 images / batch size 16 * 12 epochs ~= 90k steps.
     default_steps: ClassVar[int] = 90_000
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        DINOv2EoMTInstanceSegmentationTaskSaveCheckpointArgs
-    )
 
     # Model args
     backbone_weights: PathLike | None = None

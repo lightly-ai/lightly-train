@@ -1092,6 +1092,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
     )
 
+    config.save_checkpoint_args = helpers.get_save_checkpoint_args(
+        checkpoint_args=config.save_checkpoint_args,
+        data_args=config.data,
+    )
+
     checkpoint, checkpoint_path, config.model, model_init_args = (
         helpers.load_checkpoint(
             fabric=fabric,
@@ -1179,12 +1184,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             total_steps=no_auto(config.steps),
             model_name=config.model,
             model_init_args=model_init_args,
-            data_args=config.data,
-        )
-
-        config.save_checkpoint_args = helpers.get_save_checkpoint_args(
-            train_model_cls=train_model_cls,
-            checkpoint_args=config.save_checkpoint_args,
             data_args=config.data,
         )
 
@@ -1326,9 +1325,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         fabric.barrier()
-        best_metric = (
-            -float("inf") if config.save_checkpoint_args.mode == "max" else float("inf")
-        )
+
+        # TODO(Guarin, 02/26): Remove
+        best_metric = -float("inf")
+
         timer.reset_gpu_max_memory("train")
         timer.start()
 
@@ -1526,21 +1526,23 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                 best_or_last="best",
                             )
 
+                        # TODO(Guarin, 02/26): Remove this old way of handling best
+                        # checkpoints.
                         watch_metric = val_log_dict.get(
-                            config.save_checkpoint_args.watch_metric
+                            config.model_args.metrics.watch_metric  # type: ignore
                         )
                         if watch_metric is None:
                             logger.warning(
-                                f"Validation metric '{config.save_checkpoint_args.watch_metric}' not found in val_log_dict. Skipping best model checkpoint update."
+                                "Validation metric not found in val_log_dict. Skipping best model checkpoint update."
                             )
                         elif _is_better_metric(
                             current_metric=watch_metric,
                             best_metric=best_metric,
-                            mode=config.save_checkpoint_args.mode,
+                            mode="max",
                         ):
                             if config.save_checkpoint_args.save_best:
                                 logger.info(
-                                    f"The best validation metric {config.save_checkpoint_args.watch_metric}={watch_metric:.4f} was reached."
+                                    f"The best validation metric {watch_metric:.4f} was reached."
                                 )
                                 # Best checkpoint saving and export.
                                 helpers.save_checkpoint(
