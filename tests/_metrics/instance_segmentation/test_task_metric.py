@@ -22,7 +22,7 @@ class TestInstanceSegmentationTaskMetric:
             task_metric_args=InstanceSegmentationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog"],
-            log_classwise=False,
+            classwise=False,
             loss_names=["loss"],
         )
         metric.update(
@@ -64,7 +64,7 @@ class TestInstanceSegmentationTaskMetric:
             task_metric_args=InstanceSegmentationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog"],
-            log_classwise=True,
+            classwise=True,
             loss_names=["loss"],
         )
         metric.update(

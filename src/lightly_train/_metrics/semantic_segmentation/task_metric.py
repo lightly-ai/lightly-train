@@ -50,7 +50,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         split: str,
         class_names: Sequence[str],
         ignore_index: int | None,
-        log_classwise: bool,
+        classwise: bool,
         loss_names: Sequence[str],
     ) -> None:
         """Initialize semantic segmentation metrics container.
@@ -60,12 +60,12 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             split: Split name (e.g., "val", "train")
             num_classes: Number of classes
             ignore_index: Class index to ignore in computation
-            log_classwise: Whether to log classwise metrics
+            classwise: Whether to log classwise metrics
         """
         super().__init__(task_metric_args=task_metric_args)
         self.split = split
         self.ignore_index = ignore_index
-        self.log_classwise = log_classwise
+        self.classwise = classwise
         self.watch_metric = task_metric_args.watch_metric
         self.watch_metric_mode = get_watch_metric_mode(
             task_metric_args, list(loss_names), task_metric_args.watch_metric
@@ -83,7 +83,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         self.metrics = MetricCollection(metrics, prefix=f"{split}_metric/")  # type: ignore
 
         self.metrics_classwise: MetricCollection | None = None
-        if log_classwise and task_metric_args.miou is not None:
+        if classwise and task_metric_args.miou is not None:
             metrics_classwise = task_metric_args.miou.get_metrics(
                 classwise=True,
                 num_classes=len(class_names),

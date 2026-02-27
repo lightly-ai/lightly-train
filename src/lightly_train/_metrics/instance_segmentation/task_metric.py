@@ -44,7 +44,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         task_metric_args: InstanceSegmentationTaskMetricArgs,
         split: str,
         class_names: Sequence[str],
-        log_classwise: bool,
+        classwise: bool,
         loss_names: Sequence[str],
     ) -> None:
         """Initialize instance segmentation metrics container.
@@ -53,12 +53,12 @@ class InstanceSegmentationTaskMetric(TaskMetric):
             metric_args: Metrics configuration
             split: Split name (e.g., "val", "train")
             class_names: Class names for all metrics
-            log_classwise: Whether to log classwise metrics
+            classwise: Whether to include classwise metrics
         """
         super().__init__(task_metric_args=task_metric_args)
         self.split = split
         self.class_names = class_names
-        self.log_classwise = log_classwise
+        self.classwise = classwise
         self.watch_metric = task_metric_args.watch_metric
         self.watch_metric_mode = get_watch_metric_mode(
             task_metric_args, list(loss_names), task_metric_args.watch_metric
@@ -68,7 +68,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         if task_metric_args.map is not None:
             metrics.update(
                 task_metric_args.map.get_metrics(
-                    classwise=log_classwise,
+                    classwise=classwise,
                     prefix=f"{split}_metric",
                     class_names=class_names,
                     iou_type="segm",

@@ -103,7 +103,6 @@ class DINOv2EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
     # Metrics
-    metric_topk_instances: int = 100
     metric_log_classwise: bool = True
     metric_log_train: bool = False
     metric_log_debug: bool = False
@@ -226,7 +225,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
             task_metric_args=model_args.metrics,
             split="val",
             class_names=list(data_args.included_classes.values()),
-            log_classwise=model_args.metric_log_classwise,
+            classwise=model_args.metric_log_classwise,
             loss_names=["loss"],
         )
 
@@ -234,7 +233,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
             task_metric_args=model_args.metrics,
             split="train",
             class_names=list(data_args.included_classes.values()),
-            log_classwise=model_args.metric_log_classwise,
+            classwise=model_args.metric_log_classwise,
             loss_names=["loss"],
         )
 

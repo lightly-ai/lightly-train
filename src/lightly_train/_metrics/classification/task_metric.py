@@ -83,7 +83,7 @@ class ClassificationTaskMetric(TaskMetric):
         task_metric_args: ClassificationTaskMetricArgs,
         split: str,
         class_names: Sequence[str],
-        log_classwise: bool,
+        classwise: bool,
         classwise_metric_args: ClassificationTaskMetricArgs | None,
         loss_names: Sequence[str],
     ) -> None:
@@ -93,13 +93,13 @@ class ClassificationTaskMetric(TaskMetric):
             task_metric_args: Metrics configuration
             split: Split name (e.g., "val", "train")
             class_names: Class names for all metrics
-            log_classwise: Whether to log classwise metrics
+            classwise: Whether to log classwise metrics
             classwise_metric_args: Optional separate args for classwise metrics
         """
         super().__init__(task_metric_args=task_metric_args)
         self.split = split
         self.class_names = class_names
-        self.log_classwise = log_classwise
+        self.classwise = classwise
         self.watch_metric = task_metric_args.watch_metric
         self.watch_metric_mode = get_watch_metric_mode(
             task_metric_args, list(loss_names), task_metric_args.watch_metric
@@ -110,7 +110,7 @@ class ClassificationTaskMetric(TaskMetric):
             num_classes=len(class_names),
         )
         self.metrics_classwise = self.build_classwise_metric_collection(
-            log_classwise=log_classwise,
+            classwise=classwise,
             prefix=f"{self.split}_metric_classwise/",
             classwise_metrics_args=classwise_metric_args,
             class_names=class_names,
@@ -192,13 +192,13 @@ class ClassificationTaskMetric(TaskMetric):
     def build_classwise_metric_collection(
         self,
         *,
-        log_classwise: bool,
+        classwise: bool,
         prefix: str,
         classwise_metrics_args: TaskMetricArgs | None,
         class_names: Sequence[str],
     ) -> MetricCollection | None:
-        """Build a classwise MetricCollection if log_classwise is True."""
-        if not log_classwise:
+        """Build a classwise MetricCollection if classwise is True."""
+        if not classwise:
             return None
         if classwise_metrics_args is None:
             classwise_metrics_args = self.task_metric_args.model_copy()

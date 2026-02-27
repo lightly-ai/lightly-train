@@ -23,7 +23,7 @@ class TestClassificationTaskMetric:
             task_metric_args=MulticlassClassificationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog", "bird"],
-            log_classwise=False,
+            classwise=False,
             classwise_metric_args=None,
             loss_names=["loss"],
         )
@@ -46,7 +46,7 @@ class TestClassificationTaskMetric:
             task_metric_args=MultilabelClassificationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog", "bird"],
-            log_classwise=False,
+            classwise=False,
             classwise_metric_args=None,
             loss_names=["loss"],
         )
@@ -70,7 +70,7 @@ class TestClassificationTaskMetric:
             task_metric_args=MulticlassClassificationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog", "bird"],
-            log_classwise=False,
+            classwise=False,
             classwise_metric_args=None,
             loss_names=["loss"],
         )
@@ -90,7 +90,7 @@ class TestClassificationTaskMetric:
             task_metric_args=MulticlassClassificationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog"],
-            log_classwise=True,
+            classwise=True,
             classwise_metric_args=None,
             loss_names=["loss"],
         )

@@ -49,7 +49,7 @@ class ObjectDetectionTaskMetric(TaskMetric):
         task_metric_args: ObjectDetectionTaskMetricArgs,
         split: str,
         class_names: Sequence[str],
-        log_classwise: bool,
+        classwise: bool,
         box_format: Literal["xyxy", "xywh", "cxcywh"],
         loss_names: Sequence[str],
     ) -> None:
@@ -59,13 +59,13 @@ class ObjectDetectionTaskMetric(TaskMetric):
             metric_args: Metrics configuration
             split: Split name (e.g., "val", "train")
             class_names: Class names for all metrics
-            log_classwise: Whether to log classwise metrics
+            classwise: Whether to log classwise metrics
         """
         super().__init__(task_metric_args=task_metric_args)
         self.num_classes = len(class_names)
         self.split = split
         self.class_names = class_names
-        self.log_classwise = log_classwise
+        self.classwise = classwise
         self.watch_metric = task_metric_args.watch_metric
         self.watch_metric_mode = get_watch_metric_mode(
             task_metric_args, list(loss_names), task_metric_args.watch_metric
@@ -75,7 +75,7 @@ class ObjectDetectionTaskMetric(TaskMetric):
         if task_metric_args.map is not None:
             metrics.update(
                 task_metric_args.map.get_metrics(
-                    classwise=log_classwise,
+                    classwise=classwise,
                     prefix=f"{split}_metric",
                     class_names=class_names,
                     iou_type="bbox",

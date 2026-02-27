@@ -204,7 +204,7 @@ class ImageClassificationTrain(TrainModel):
             task_metric_args=model_args.metrics,
             split="val",
             class_names=list(data_args.included_classes.values()),
-            log_classwise=model_args.metric_log_classwise,
+            classwise=model_args.metric_log_classwise,
             # TODO(Guarin, 02/26): Add option for separate classwise metric args.
             classwise_metric_args=None,
             loss_names=["loss"],
@@ -213,7 +213,7 @@ class ImageClassificationTrain(TrainModel):
             task_metric_args=model_args.metrics,
             split="train",
             class_names=list(data_args.included_classes.values()),
-            log_classwise=model_args.metric_log_classwise,
+            classwise=model_args.metric_log_classwise,
             # TODO(Guarin, 02/26): Add option for separate classwise metric args.
             classwise_metric_args=None,
             loss_names=["loss"],

@@ -49,7 +49,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         stuffs: Sequence[int],
         thing_class_names: Sequence[str],
         stuff_class_names: Sequence[str],
-        log_classwise: bool,
+        classwise: bool,
         loss_names: Sequence[str],
     ) -> None:
         """Initialize panoptic segmentation metrics container."""
@@ -75,7 +75,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         self.metrics = MetricCollection(metrics)  # type: ignore
 
         self.metrics_classwise: None | MetricCollection = None
-        if log_classwise and task_metric_args.pq is not None:
+        if classwise and task_metric_args.pq is not None:
             metrics_classwise = task_metric_args.pq.get_metrics(
                 prefix=f"{split}_metric",
                 classwise=True,

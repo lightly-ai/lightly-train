@@ -23,7 +23,7 @@ class TestSemanticSegmentationTaskMetric:
             split="val",
             class_names=["cat", "dog"],
             ignore_index=None,
-            log_classwise=False,
+            classwise=False,
             loss_names=["loss"],
         )
         preds = torch.zeros(2, 10, 10, dtype=torch.long)
@@ -43,7 +43,7 @@ class TestSemanticSegmentationTaskMetric:
             split="val",
             class_names=["cat", "dog"],
             ignore_index=255,
-            log_classwise=False,
+            classwise=False,
             loss_names=["loss"],
         )
         preds = torch.zeros(2, 4, 4, dtype=torch.long)
@@ -61,7 +61,7 @@ class TestSemanticSegmentationTaskMetric:
             split="val",
             class_names=["cat", "dog"],
             ignore_index=None,
-            log_classwise=True,
+            classwise=True,
             loss_names=["loss"],
         )
         preds = torch.zeros(2, 10, 10, dtype=torch.long)

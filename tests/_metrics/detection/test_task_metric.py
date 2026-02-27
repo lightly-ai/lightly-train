@@ -22,7 +22,7 @@ class TestObjectDetectionTaskMetric:
             task_metric_args=ObjectDetectionTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog"],
-            log_classwise=False,
+            classwise=False,
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
         )
@@ -76,7 +76,7 @@ class TestObjectDetectionTaskMetric:
             task_metric_args=ObjectDetectionTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog"],
-            log_classwise=True,
+            classwise=True,
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
         )
