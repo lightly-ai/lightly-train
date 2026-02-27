@@ -11,7 +11,6 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from lightly_train._commands.train_task_helpers import BestMetric
 import fsspec
 import torch
 import yaml
@@ -25,6 +24,7 @@ from torch.optim import Optimizer  # type: ignore[attr-defined]
 from lightly_train import _float32_matmul_precision, _logging, _system
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands import train_task_helpers as helpers
+from lightly_train._commands.train_task_helpers import BestMetric
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
@@ -1274,7 +1274,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         # TODO(Guarin, 02/26): Add best metric to state?
-        best_metrics: BestMetrics | None = None
+        best_metrics: BestMetric | None = None
 
         state = TrainTaskState(
             train_model=train_model,
@@ -1568,7 +1568,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         helpers.log_training_summary(
                             timer_agg=timer_agg,
                             fabric=fabric,
-                            train_metrics=train_metrics,
                             last_val_metrics=val_metrics,
                             best_val_metrics=best_metrics,
                             step=step,

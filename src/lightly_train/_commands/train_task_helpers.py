@@ -781,7 +781,6 @@ def log_fabric(
 def log_training_summary(
     timer_agg: TimerAggregateMetrics,
     fabric: Fabric,
-    train_metrics: MetricComputeResult | None,
     last_val_metrics: MetricComputeResult | None,
     best_val_metrics: BestMetric | None,
     step: int,
