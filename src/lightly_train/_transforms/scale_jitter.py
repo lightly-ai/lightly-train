@@ -164,4 +164,4 @@ class TorchVisionScaleJitter(v2.Transform):
         self._transform = v2.RandomChoice(transforms)
 
     def transform(self, inpt: Any, params: dict[str, Any]) -> Any:
-        return self._transform(*inpt)
+        return self._transform(inpt)
