@@ -37,6 +37,24 @@ class TestSemanticSegmentationTaskMetric:
             "val_metric/miou",
         }
 
+    def test_update__ignore_index(self) -> None:
+        metric = SemanticSegmentationTaskMetric(
+            task_metric_args=SemanticSegmentationTaskMetricArgs(),
+            split="val",
+            class_names=["cat", "dog"],
+            ignore_index=255,
+            log_classwise=False,
+            loss_names=["loss"],
+        )
+        preds = torch.zeros(2, 4, 4, dtype=torch.long)
+        target = torch.zeros(2, 4, 4, dtype=torch.long)
+        target[:, 0, 0] = 255  # ignored pixels
+        metric.update(preds, target)
+        metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
+        result = metric.compute()
+        assert result.metrics["val_loss"] == 0.5
+        assert result.metrics.keys() == {"val_loss", "val_metric/miou"}
+
     def test_update__classwise(self) -> None:
         metric = SemanticSegmentationTaskMetric(
             task_metric_args=SemanticSegmentationTaskMetricArgs(),

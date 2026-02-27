@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
+from pydantic import Field
 from torch import Tensor
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
@@ -24,6 +25,10 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
+)
+from lightly_train._metrics.instance_segmentation.task_metric import (
+    InstanceSegmentationTaskMetric,
+    InstanceSegmentationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
@@ -103,6 +108,10 @@ class DINOv2EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     metric_log_train: bool = False
     metric_log_debug: bool = False
 
+    metrics: InstanceSegmentationTaskMetricArgs = Field(
+        default_factory=InstanceSegmentationTaskMetricArgs
+    )
+
     def resolve_auto(
         self,
         total_steps: int,
@@ -174,19 +183,13 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         val_transform_args: DINOv2EoMTInstanceSegmentationValTransformArgs,
         load_weights: bool,
     ) -> None:
-        super().__init__()
-        # Lazy import because torchmetrics is an optional dependency.
-        from torchmetrics import MeanMetric
-
-        # Type ignore because torchmetrics < 1.0 doesn't explicitly export MeanAveragePrecision
-        from torchmetrics.detection import MeanAveragePrecision  # type: ignore
-
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependency.
         from lightly_train._task_models.dinov2_eomt_instance_segmentation.mask_loss import (
             MaskClassificationLoss,
         )
 
+        super().__init__()
         self.model_args = model_args
         num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
@@ -219,13 +222,21 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
             no_object_coefficient=model_args.loss_no_object_coefficient,
         )
 
-        # Metrics
-        self.val_loss = MeanMetric()
+        self.val_metrics = InstanceSegmentationTaskMetric(
+            task_metric_args=model_args.metrics,
+            split="val",
+            class_names=list(data_args.included_classes.values()),
+            log_classwise=model_args.metric_log_classwise,
+            loss_names=["loss"],
+        )
 
-        # Type ignore because old torchmetrics have different formats for iou_type.
-        self.train_map = MeanAveragePrecision(iou_type="segm")  # type: ignore[arg-type]
-        self.train_map.warn_on_many_detections = False
-        self.val_map = self.train_map.clone()
+        self.train_metrics = InstanceSegmentationTaskMetric(
+            task_metric_args=model_args.metrics,
+            split="train",
+            class_names=list(data_args.included_classes.values()),
+            log_classwise=model_args.metric_log_classwise,
+            loss_names=["loss"],
+        )
 
         _torch_helpers.register_load_state_dict_pre_hook(
             self, hooks.criterion_empty_weight_reinit_hook
@@ -241,7 +252,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         images = batch["image"]
         assert isinstance(images, Tensor), "Images must be a single tensor for training"
         binary_masks = batch["binary_masks"]
-        _, _, H, W = images.shape
+        B, _, H, W = images.shape
 
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
             images, return_logits_per_layer=True
@@ -272,7 +283,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         }
 
         # Metrics
-        metrics: dict[str, Any] = {}
+        self.train_metrics.update_loss({"loss": loss.detach()}, weight=B)
         if self.model_args.metric_log_train:
             with torch.no_grad():
                 mask_logits = mask_logits_per_layer[-1]
@@ -282,7 +293,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
                 labels, masks, scores = self.model.get_labels_masks_scores(
                     mask_logits=mask_logits, class_logits=class_logits
                 )
-            self.train_map.update(
+            self.train_metrics.update(
                 preds=[
                     {
                         "labels": labels[i],
@@ -293,7 +304,6 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
                 ],
                 target=binary_masks,  # type: ignore[arg-type]
             )
-            metrics["train_metric/map"] = self.train_map
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -315,7 +325,6 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
             log_dict={
                 "train_loss": loss.detach(),
                 **loss_log_dict,
-                **metrics,
                 **mask_prob_dict,
             },
         )
@@ -372,14 +381,8 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         # Compute the total loss.
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
-        # Store the block-wise losses.
-        log_dict = {
-            f"val_loss/{k}": v
-            for k, v in losses.items()
-            if "block" not in k or self.model_args.metric_log_debug
-        }
-
         # Metrics
+        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
         # Final layer only
         resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
         class_logits_last_layer = class_logits_per_layer[-1]
@@ -412,22 +415,14 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
                 }
             )
 
-        self.val_map.update(
-            preds=predictions,
-            target=binary_masks,
-        )
-
-        metrics: dict[str, Any] = {
-            "val_metric/map": self.val_map,
-        }
+        self.val_metrics.update(preds=predictions, target=binary_masks)
 
         return TaskStepResult(
             loss=loss,
             log_dict={
                 "val_loss": loss.detach(),
-                **log_dict,
-                **metrics,
             },
+            metrics=self.val_metrics,
         )
 
     def mask_annealing(
