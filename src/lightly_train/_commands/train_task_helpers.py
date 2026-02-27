@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import contextlib
+from dataclasses import dataclass
 import hashlib
 import json
 import logging
@@ -37,6 +38,7 @@ from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._loggers.wandb import WandbLogger
+from lightly_train._metrics.task_metric import MetricComputeResult, TaskMetric
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_instance_segmentation.train_model import (
@@ -694,6 +696,7 @@ def log_step(
     step: int,
     max_steps: int,
     log_dict: dict[str, Any],
+    metrics: MetricComputeResult | None,
     task: str,
     timer_agg: TimerAggregateMetrics,
     global_batch_size: int,
@@ -709,9 +712,21 @@ def log_step(
     parts = [
         f"{split_cap} Step {step + 1:>{width}}/{max_steps:>{width}}",
     ]
-    for name, value in log_dict.items():
-        if name in name_to_display_name:
-            parts.append(f"{name_to_display_name[name]}: {value:4.4f}")
+    if metrics is not None:
+        # TODO(Guarin, 02/26): Loss name should be part of MetricComputeResult and not
+        # be redefined here.
+        loss_name = f"{split}_loss"
+        loss = metrics.metrics.get(loss_name)
+        if loss is not None:
+            parts.append(f"{loss_name}: {loss:4.4f}")
+        if metrics.watch_metric_value is not None and metrics.watch_metric != loss_name:
+            parts.append(
+                f"{metrics.watch_metric}: {metrics.watch_metric_value:4.4f}"
+            )
+    else:
+        for name, value in log_dict.items():
+            if name in name_to_display_name:
+                parts.append(f"{name_to_display_name[name]}: {value:4.4f}")
 
     # Add profiling information.
     profiling_parts = []
@@ -750,10 +765,27 @@ def log_step(
     line = " | ".join(parts)
     logger.info(line)
 
+def log_fabric(
+    fabric: Fabric,
+    log_dict: dict[str, Any],
+    metrics: MetricComputeResult | None,
+    step: int,
+) -> None:
+    final_dict = {}
+    if metrics is not None:
+        final_dict.update(metrics.metrics)
+    else:
+        final_dict.update(log_dict)
+    fabric.log_dict(final_dict, step=step)
+
 
 def log_training_summary(
     timer_agg: TimerAggregateMetrics,
     fabric: Fabric,
+    train_metrics: MetricComputeResult | None,
+    last_val_metrics: MetricComputeResult | None,
+    best_val_metrics: BestMetric | None,
+    step: int,
     global_batch_size: int,
 ) -> None:
     """Log comprehensive training profiling summary.
@@ -768,6 +800,44 @@ def log_training_summary(
         fabric: The Fabric instance for distributed communication.
         global_batch_size: The global batch size across all GPUs.
     """
+
+    ### Val Metrics
+
+    if last_val_metrics is not None:
+        max_len = max(len(name) for name in last_val_metrics.metrics.keys())
+        best_metrics = best_val_metrics.metrics if best_val_metrics is not None else last_val_metrics
+        best_step = best_val_metrics.step if best_val_metrics is not None else step
+
+        # All metrics
+        logger.info("Validation Metrics")
+        logger.info(f"  {'name':<{max_len}} | {'Best':<8} | {'Last':<8}")
+        logger.info(f"  {' ' * max_len} | {'Step='}{best_step} | {'Step='}{step}")
+        logger.info(f"  {'-' * max_len}-|{'-' * 9}|{'-' * 9}")
+
+        for metric_name in last_val_metrics.metrics.keys():
+            last_value = last_val_metrics.metrics[metric_name]
+            best_value = best_metrics.metrics.get(metric_name, float("nan"))
+            logger.info(f"  {metric_name:<{max_len}} | {best_value:4.4f} | {last_value:4.4f}")
+        logger.info("")
+
+        # Best head metrics
+        if last_val_metrics.best_head_metrics is not None:
+            best_head_metrics = best_metrics.best_head_metrics if best_metrics.best_head_metrics is not None else last_val_metrics.best_head_metrics
+
+            logger.info("Validation Metrics - Best Head")
+            logger.info(f"  {'Metric':<{max_len}} | {'Best':<8} | {'Last':<8}")
+            logger.info(f"  {' ' * max_len} | {'Step='}{best_step} | {'Step='}{step}")
+            logger.info(f"  {'-' * max_len}-|{'-' * 9}|{'-' * 9}")
+            max_len = max(len(name) for name in last_val_metrics.best_head_metrics.keys())
+            for metric_name in last_val_metrics.best_head_metrics.keys():
+                last_value = last_val_metrics.best_head_metrics[metric_name]
+                best_value = best_head_metrics.get(metric_name, float("nan"))
+                logger.info(f"  {metric_name:<{max_len}} | {best_value:4.4f} | {last_value:4.4f}")
+            logger.info("")
+            logger.info(f"  Best Head: {last_val_metrics.best_head_name}")
+
+
+    ### Profiling Info
 
     # Calculate total time
     train_time_sec = timer_agg["step_total_times"].get("train_step", 0.0)
@@ -873,11 +943,13 @@ def add_timer_logs(
     log_dict[f"profiling/{split}_throughput_img_per_sec"] = throughput
 
 
-def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
+def compute_metrics(
+    log_dict: dict[str, Any], task_metric: TaskMetric | None
+) -> tuple[dict[str, Any], MetricComputeResult | None]:
     # Lazy import because torchmetrics is optional dependency.
     from torchmetrics import Metric
 
-    from lightly_train._metrics.task_metric import TaskMetric
+    metric_result = None if task_metric is None else task_metric.compute()
 
     metrics = {}
     for name, value in log_dict.items():
@@ -937,20 +1009,66 @@ def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
                     metrics[f"{name}{key}"] = val.item()
         else:
             metrics[name] = value
-    return metrics
+    return metrics, metric_result
 
 
-def reset_metrics(log_dict: dict[str, Any]) -> None:
+def reset_metrics(log_dict: dict[str, Any], task_metric: TaskMetric | None) -> None:
     # Lazy import because torchmetrics is optional dependency.
     from torchmetrics import Metric
 
     from lightly_train._metrics.task_metric import TaskMetric
+
+    if task_metric is not None:
+        task_metric.reset()
 
     for value in log_dict.values():
         if isinstance(value, TaskMetric):
             value.reset()
         elif isinstance(value, Metric):
             value.reset()
+
+
+@dataclass
+class BestMetric:
+    metrics: MetricComputeResult
+    step: int
+
+def get_best_metrics(
+    best_metrics: BestMetric | None,
+    last_metrics: MetricComputeResult | None,
+    step: int,
+) -> BestMetric | None:
+    if best_metrics is None and last_metrics is None:
+        return None
+
+    if best_metrics is None:
+        return BestMetric(
+            metrics=last_metrics,
+            step=step,
+        )
+    if last_metrics is None:
+        return best_metrics
+    
+
+    best_metric_name = best_metrics.metrics.watch_metric
+    last_metric_name = last_metrics.watch_metric
+    best_metric_value = best_metrics.metrics.watch_metric_value
+    last_metric_value = last_metrics.watch_metric_value
+    mode = best_metrics.metrics.watch_metric_mode
+    assert best_metric_value is not None
+    assert last_metric_value is not None
+    assert mode is not None
+
+    if best_metric_name != last_metric_name:
+        return best_metrics # Shouldn't happen, but safe to assume we want best metrics
+
+    if (mode == "max" and last_metric_value > best_metric_value) or ( mode == "min" and last_metric_value < best_metric_value):
+        return BestMetric(
+            metrics=last_metrics,
+            step=step,
+        )
+    else:
+        return best_metrics
 
 
 def get_save_checkpoint_args(

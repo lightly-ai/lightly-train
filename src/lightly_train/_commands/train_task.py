@@ -48,6 +48,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
+from lightly_train._metrics.task_metric import MetricComputeResult, TaskMetric
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
 from lightly_train._train_task_state import (
@@ -1271,6 +1272,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             "Contact us at https://www.lightly.ai/contact to discuss the best licensing option for your use case."
         )
 
+        # TODO(Guarin, 02/26): Add best metric to state?
+        best_metrics: MetricComputeResult | None = None
+
         state = TrainTaskState(
             train_model=train_model,
             optimizer=optimizer,
@@ -1373,7 +1377,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             timer.record_gpu_stats("train")
 
             if is_log_step or is_last_step:
-                train_log_dict = helpers.compute_metrics(train_result.log_dict)
+                train_log_dict, train_metrics = helpers.compute_metrics(
+                    train_result.log_dict, task_metric=train_result.metrics
+                )
                 timer_agg = timer.get_aggregated_metrics(fabric)
 
                 helpers.log_step(
@@ -1381,6 +1387,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     step=step,
                     max_steps=config.steps,
                     log_dict=train_log_dict,
+                    metrics=train_metrics,
                     task=config.task,
                     timer_agg=timer_agg,
                     global_batch_size=config.batch_size,
@@ -1398,8 +1405,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         train_log_dict[f"weight_decay/{group['name']}"] = group[
                             "weight_decay"
                         ]
-                fabric.log_dict(train_log_dict, step=step)
-                helpers.reset_metrics(train_result.log_dict)
+                helpers.log_fabric(fabric=fabric, log_dict=train_log_dict, metrics=train_metrics, step=step)
+                helpers.reset_metrics(train_result.log_dict, train_result.metrics)
 
             if config.save_checkpoint_args.save_last and (
                 is_save_ckpt_step or is_last_step
@@ -1424,6 +1431,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 fabric.barrier()
                 logger.info("Validating...")
                 train_model.eval()
+
+                val_metrics: MetricComputeResult | None = None
 
                 # Reset GPU memory tracking before val phase.
                 timer.reset_gpu_max_memory("val")
@@ -1452,7 +1461,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
                     if is_last_val_step:
                         # Metric computation.
-                        val_log_dict = helpers.compute_metrics(val_result.log_dict)
+                        val_log_dict, val_metrics = helpers.compute_metrics(
+                            val_result.log_dict, task_metric=val_result.metrics
+                        )
+                        best_metrics = helpers.get_best_metrics(
+                            best_metrics=best_metrics,
+                            last_metrics=val_metrics,
+                            step=step,
+                        )
 
                         timer_agg = timer.get_aggregated_metrics(fabric)
 
@@ -1461,6 +1477,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             step=val_step,
                             max_steps=len(val_dataloader),
                             log_dict=val_log_dict,
+                            metrics=val_metrics,
                             task=config.task,
                             timer_agg=timer_agg,
                             global_batch_size=config.batch_size,
@@ -1471,8 +1488,27 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             global_batch_size=config.batch_size,
                         )
-                        fabric.log_dict(val_log_dict, step=step)
-                        helpers.reset_metrics(val_result.log_dict)
+                        helpers.log_fabric(fabric=fabric, log_dict=val_log_dict, metrics=val_metrics, step=step)
+                        helpers.reset_metrics(val_result.log_dict, val_result.metrics)
+
+                        if best_metrics is val_metrics and best_metrics is not None and config.save_checkpoint_args.save_best:
+                            helpers.save_checkpoint(
+                                fabric=fabric,
+                                out_dir=out_dir,
+                                state=state,
+                                best_or_last="best",
+                            )
+                            model_dict = {
+                                    "model_class_path": state["model_class_path"],
+                                    "model_init_args": state["model_init_args"],
+                                    "train_model": train_model.get_export_state_dict(),
+                                    "license_info": state.get("license_info", ""),
+                                }
+                            helpers.export_model(
+                                out_dir=out_dir,
+                                model_dict=model_dict,
+                                best_or_last="best",
+                            )
 
                         watch_metric = val_log_dict.get(
                             config.save_checkpoint_args.watch_metric
@@ -1517,6 +1553,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         helpers.log_training_summary(
                             timer_agg=timer_agg,
                             fabric=fabric,
+                            train_metrics=train_metrics,
+                            last_val_metrics=val_metrics,
+                            best_val_metrics=best_metrics,
+                            step=step,
                             global_batch_size=config.batch_size,
                         )
 
@@ -1529,6 +1569,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             step=val_step,
                             max_steps=len(val_dataloader),
                             log_dict={},
+                            metrics=val_metrics,
                             task=config.task,
                             timer_agg=timer_agg,
                             global_batch_size=config.batch_size,

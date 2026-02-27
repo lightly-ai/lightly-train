@@ -23,6 +23,7 @@ from torch.optim.optimizer import Optimizer
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._metrics.classification.task_metric import ClassificationTaskMetric, ClassificationTaskMetric, MulticlassClassificationTaskMetricArgs, MultilabelClassificationTaskMetricArgs
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.image_classification.task_model import (
@@ -86,10 +87,14 @@ class ImageClassificationTrainArgs(TrainModelArgs):
     lr_warmup_steps: int | Literal["auto"] = "auto"
 
     # Metrics
-    metrics: dict[str, dict[str, Any]] | Literal["auto"] = "auto"
+    # metrics: dict[str, dict[str, Any]] | Literal["auto"] = "auto"
     metrics_classwise: dict[str, dict[str, Any]] | None = None
     metric_log_classwise: bool = False
     metric_log_debug: bool = False
+
+    metrics: MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs = Field(
+        default_factory=MulticlassClassificationTaskMetricArgs,
+    )
 
     # Loss
     label_smoothing: float = 0.0
@@ -116,27 +121,27 @@ class ImageClassificationTrainArgs(TrainModelArgs):
                 self.gradient_clip_val = 0.0
             else:
                 self.gradient_clip_val = 3.0
-        if self.metrics == "auto":
-            assert isinstance(data_args, ImageClassificationDataArgs)
-            if data_args.classification_task == "multiclass":
-                self.metrics = {
-                    "accuracy": {"topk": [1, 5], "average": ["micro"]},
-                    "f1": {"average": ["micro"]},
-                    "precision": {"average": ["micro"]},
-                    "recall": {"average": ["micro"]},
-                }
-            elif data_args.classification_task == "multilabel":
-                self.metrics = {
-                    "hamming_distance": {"threshold": 0.5, "average": ["micro"]},
-                    "accuracy": {"threshold": 0.5, "average": ["micro"]},
-                    "f1": {"threshold": 0.5, "average": ["micro"]},
-                    "auroc": {"thresholds": None, "average": ["micro"]},
-                    "average_precision": {"thresholds": None, "average": ["micro"]},
-                }
-            else:
-                raise ValueError(
-                    f"Unsupported classification task: {data_args.classification_task}"
-                )
+        # if self.metrics == "auto":
+        #     assert isinstance(data_args, ImageClassificationDataArgs)
+        #     if data_args.classification_task == "multiclass":
+        #         self.metrics = {
+        #             "accuracy": {"topk": [1, 5], "average": ["micro"]},
+        #             "f1": {"average": ["micro"]},
+        #             "precision": {"average": ["micro"]},
+        #             "recall": {"average": ["micro"]},
+        #         }
+        #     elif data_args.classification_task == "multilabel":
+        #         self.metrics = {
+        #             "hamming_distance": {"threshold": 0.5, "average": ["micro"]},
+        #             "accuracy": {"threshold": 0.5, "average": ["micro"]},
+        #             "f1": {"threshold": 0.5, "average": ["micro"]},
+        #             "auroc": {"thresholds": None, "average": ["micro"]},
+        #             "average_precision": {"thresholds": None, "average": ["micro"]},
+        #         }
+        #     else:
+        #         raise ValueError(
+        #             f"Unsupported classification task: {data_args.classification_task}"
+        #         )
 
 
 class ImageClassificationTrain(TrainModel):
@@ -190,61 +195,24 @@ class ImageClassificationTrain(TrainModel):
                 f"Unsupported classification task: {self.model.classification_task}"
             )
 
-        # Metrics
-        self.val_loss = MeanMetric()
-
-        # Create metrics from configuration
-        from torchmetrics import Metric
-
-        metrics: dict[str, Metric] = {}
-        for metric_name, metric_config in no_auto(model_args.metrics).items():
-            metrics.update(
-                _create_metric(
-                    metric_name=metric_name,
-                    metric_config=metric_config,
-                    num_classes=data_args.num_included_classes,
-                    classification_task=self.model.classification_task,
-                )
-            )
-        self.val_metrics = MetricCollection(metrics, prefix="val_metric/")  # type: ignore
-
-        # Create classwise metrics if enabled
-        self.val_metrics_classwise: MetricCollection | None
-        if model_args.metric_log_classwise:
-            classwise_metrics: dict[str, Metric] = {}
-            # If metrics_classwise is None, use filtered metrics from main metrics
-            if model_args.metrics_classwise is None:
-                metrics_classwise_config = _filter_classwise_metrics(
-                    no_auto(model_args.metrics),
-                    classification_task=self.model.classification_task,
-                )
-            else:
-                metrics_classwise_config = model_args.metrics_classwise
-
-            class_labels = list(data_args.included_classes.values())
-            for metric_name, metric_config in metrics_classwise_config.items():
-                base_metrics = _create_metric(
-                    metric_name=metric_name,
-                    metric_config=metric_config,
-                    num_classes=data_args.num_included_classes,
-                    classification_task=self.model.classification_task,
-                    classwise=True,
-                )
-                for key, base_metric in base_metrics.items():
-                    # Type ignore because old torchmetrics versions (0.8) don't support
-                    # the `prefix` argument. We only use the old versions for
-                    # SuperGradients support.
-                    classwise_metrics[key] = ClasswiseWrapper(  # type: ignore[call-arg]
-                        base_metric,
-                        prefix="_",
-                        labels=class_labels,
-                    )
-            self.val_metrics_classwise = MetricCollection(
-                classwise_metrics,  # type: ignore
-                prefix="val_metric_classwise/",
-            )
-        else:
-            self.val_metrics_classwise = None
+        self.val_metrics = ClassificationTaskMetric(
+            task_metric_args=model_args.metrics,
+            split="val",
+            class_names=list(data_args.included_classes.values()),
+            log_classwise=model_args.metric_log_classwise,
+            # TODO(Guarin, 02/26): Add option for separate classwise metric args.
+            classwise_metric_args=None,
+            loss_names=["loss"],
+        )
+        self.train_metrics = ClassificationTaskMetric(
+            task_metric_args=model_args.metrics,
+            split="train",
+            class_names=list(data_args.included_classes.values()),
+            log_classwise=model_args.metric_log_classwise,
+            # TODO(Guarin, 02/26): Add option for separate classwise metric args.
+            classwise_metric_args=None,
+            loss_names=["loss"],
+        )
 
     def get_task_model(self) -> ImageClassification:
         return self.model
@@ -263,14 +231,16 @@ class ImageClassificationTrain(TrainModel):
                 class_ids=classes, num_classes=len(self.model.classes)
             )
             loss = self.criterion(logits, targets)
+            targets = targets.int() # For metrics
         else:
             raise ValueError(
                 f"Unsupported classification task: {self.model.classification_task}"
             )
-        log_dict = {
-            "train_loss": loss.detach(),
-        }
-        return TaskStepResult(loss=loss, log_dict=log_dict)
+
+        self.train_metrics.update(logits, targets)
+        self.train_metrics.update_loss({"loss": loss}, weight=len(images))
+        log_dict = {"train_loss": loss.detach()}
+        return TaskStepResult(loss=loss, log_dict=log_dict, metrics=self.train_metrics)
 
     def validation_step(
         self, fabric: Fabric, batch: ImageClassificationBatch
@@ -281,29 +251,20 @@ class ImageClassificationTrain(TrainModel):
         if self.model.classification_task == "multiclass":
             targets = torch.concatenate(classes)
             loss = self.criterion(logits, targets)
-            self.val_metrics.update(logits, targets)
-            if self.val_metrics_classwise is not None:
-                self.val_metrics_classwise.update(logits, targets)
         elif self.model.classification_task == "multilabel":
             targets = _class_ids_to_multihot(
                 class_ids=classes, num_classes=len(self.model.classes)
             )
             loss = self.criterion(logits, targets)
-            self.val_metrics.update(logits, targets.int())
-            if self.val_metrics_classwise is not None:
-                self.val_metrics_classwise.update(logits, targets.int())
+            targets = targets.int() # For metrics
         else:
             raise ValueError(
                 f"Unsupported classification task: {self.model.classification_task}"
             )
-        self.val_loss.update(loss, weight=len(images))
-        log_dict = {
-            "val_loss": loss.detach(),
-            **dict(self.val_metrics.items()),
-        }
-        if self.val_metrics_classwise is not None:
-            log_dict.update(dict(self.val_metrics_classwise.items()))
-        return TaskStepResult(loss=loss, log_dict=log_dict)
+        self.val_metrics.update(logits, targets)
+        self.val_metrics.update_loss({"loss": loss}, weight=len(images))
+        log_dict = {"val_loss": loss.detach()}
+        return TaskStepResult(loss=loss, log_dict=log_dict, metrics=self.val_metrics)
 
     def get_optimizer(
         self,
