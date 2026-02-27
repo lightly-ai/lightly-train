@@ -1107,11 +1107,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         model_name=config.model,
         task=config.task,
     )
-    config.save_checkpoint_args = helpers.get_save_checkpoint_args(
-        train_model_cls=train_model_cls,
-        checkpoint_args=config.save_checkpoint_args,
-        data_args=config.data,
-    )
 
     model_init_args = {} if model_init_args is None else model_init_args
 
@@ -1184,6 +1179,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             total_steps=no_auto(config.steps),
             model_name=config.model,
             model_init_args=model_init_args,
+            data_args=config.data,
+        )
+
+        config.save_checkpoint_args = helpers.get_save_checkpoint_args(
+            train_model_cls=train_model_cls,
+            checkpoint_args=config.save_checkpoint_args,
             data_args=config.data,
         )
 
