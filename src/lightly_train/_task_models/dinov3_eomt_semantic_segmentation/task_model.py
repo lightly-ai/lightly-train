@@ -639,6 +639,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         *,
         precision: Literal["auto", "fp32", "fp16"] = "auto",
         batch_size: int = 1,
+        dynamic_batch_size: bool = True,
         height: int | None = None,
         width: int | None = None,
         opset_version: int | None = None,
@@ -710,6 +711,10 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         width = self.image_size[1] if width is None else width
         num_channels = len(self.image_normalize["mean"])
 
+        if dynamic_batch_size:
+            batch_size = 2
+        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+
         dummy_input = torch.randn(
             batch_size,
             num_channels,
@@ -731,7 +736,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             output_names=output_names,
             opset_version=opset_version,
             dynamo=False,
-            dynamic_axes={"images": {0: "N"}},
+            dynamic_axes=dynamic_axes,
             **(format_args or {}),
         )
 

@@ -973,7 +973,6 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
         # Define dynamic axes.
         dynamic_axes = {
-            "images": {0: "batch_size"},
             "masks": {1: "num_segments"},
             "segment_ids": {1: "num_segments"},
             "scores": {1: "num_segments"},
