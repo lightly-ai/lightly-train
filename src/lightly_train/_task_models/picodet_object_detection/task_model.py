@@ -187,8 +187,8 @@ class PicoDetObjectDetection(TaskModel):
             iou_threshold=iou_threshold,
             max_detections=max_detections,
         )
-        self._o2o_peak_score_thresholds = (0.02, 0.04, 0.06, 0.08)
-        self._o2o_peak_kernels = (3, 5, 5, 5)
+        self._o2o_peak_score_thresholds = (0.005, 0.02, 0.04, 0.06)
+        self._o2o_peak_kernels = (3, 3, 5, 5)
         self._o2o_suppress_logit = -1e6
 
     def _apply_o2o_peak_filter(self, cls_score: Tensor, level_idx: int) -> Tensor:
