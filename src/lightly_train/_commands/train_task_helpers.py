@@ -22,7 +22,6 @@ from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
 from pydantic import TypeAdapter
-from torch import Tensor
 from torch.utils.data import DataLoader
 
 from lightly_train._configs import validate
@@ -41,7 +40,6 @@ from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._loggers.wandb import WandbLogger
 from lightly_train._metrics.task_metric import (
     MetricComputeResult,
-    TaskMetric,
     TaskMetricArgs,
 )
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
@@ -722,7 +720,6 @@ def log_step(
     split: Literal["train", "val"],
     step: int,
     max_steps: int,
-    log_dict: dict[str, Any],
     metrics: MetricComputeResult | None,
     task: str,
     timer_agg: TimerAggregateMetrics,
@@ -739,19 +736,16 @@ def log_step(
     parts = [
         f"{split_cap} Step {step + 1:>{width}}/{max_steps:>{width}}",
     ]
+
+    # TODO(Guarin, 02/26): Loss name should be part of MetricComputeResult and not
+    # be redefined here.
     if metrics is not None:
-        # TODO(Guarin, 02/26): Loss name should be part of MetricComputeResult and not
-        # be redefined here.
         loss_name = f"{split}_loss"
         loss = metrics.metrics.get(loss_name)
         if loss is not None:
             parts.append(f"{loss_name}: {loss:4.4f}")
         if metrics.watch_metric_value is not None and metrics.watch_metric != loss_name:
             parts.append(f"{metrics.watch_metric}: {metrics.watch_metric_value:4.4f}")
-    else:
-        for name, value in log_dict.items():
-            if name in name_to_display_name:
-                parts.append(f"{name_to_display_name[name]}: {value:4.4f}")
 
     # Add profiling information.
     profiling_parts = []
@@ -794,106 +788,94 @@ def log_step(
 def log_fabric(
     fabric: Fabric,
     log_dict: dict[str, Any],
-    metrics: MetricComputeResult | None,
+    metrics: MetricComputeResult,
     step: int,
 ) -> None:
     final_dict = {}
-    if metrics is not None:
-        final_dict.update(metrics.metrics)
-    else:
-        final_dict.update(log_dict)
+    final_dict.update(metrics.metrics)
+    final_dict.update(log_dict)
     fabric.log_dict(final_dict, step=step)
 
 
 def log_training_summary(
     timer_agg: TimerAggregateMetrics,
     fabric: Fabric,
-    last_val_metrics: MetricComputeResult | None,
-    best_val_metrics: BestMetric | None,
+    last_val_metrics: MetricComputeResult,
+    best_val_metrics: BestMetric,
     step: int,
     global_batch_size: int,
 ) -> None:
-    """Log comprehensive training profiling summary.
-
-    Logs a formatted summary showing:
-    - Total time, train time, val time
-    - Throughput for train and val
-    - GPU utilization and max memory for train and val
+    """Log validation metrics and profiling information.
 
     Args:
         timer_agg: The aggregated metrics dict from timer.get_aggregated_metrics().
         fabric: The Fabric instance for distributed communication.
+        last_val_metrics: The metrics from the last validation step.
+        best_val_metrics: The best validation metrics seen so far.
+        step: The current training step.
         global_batch_size: The global batch size across all GPUs.
     """
+    max_len = max(len(name) for name in last_val_metrics.metrics.keys())
+    best_metrics = best_val_metrics.metrics
+    best_step = best_val_metrics.step
 
-    ### Val Metrics
-
-    if last_val_metrics is not None:
-        max_len = max(len(name) for name in last_val_metrics.metrics.keys())
-        best_metrics = (
-            best_val_metrics.metrics
-            if best_val_metrics is not None
-            else last_val_metrics
+    # All metrics
+    logger.info("")
+    logger.info("Validation Metrics")
+    col = 8
+    logger.info(f"  | {'Name':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |")
+    logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
+    logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
+    for metric_name in sorted(last_val_metrics.metrics.keys()):
+        last_value = last_val_metrics.metrics[metric_name]
+        best_value = best_metrics.metrics.get(metric_name, float("nan"))
+        logger.info(
+            f"  | {metric_name:<{max_len}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
         )
-        best_step = best_val_metrics.step if best_val_metrics is not None else step
+    logger.info("")
 
-        # All metrics
-        logger.info("")
-        logger.info("Validation Metrics")
+    # Best head metrics
+    if last_val_metrics.best_head_metrics is not None:
+        best_head_metrics = (
+            best_metrics.best_head_metrics
+            if best_metrics.best_head_metrics is not None
+            else last_val_metrics.best_head_metrics
+        )
+
+        logger.info(
+            f"Validation Metrics - Best Head: {last_val_metrics.best_head_name}"
+        )
         col = 8
-        logger.info(f"  | {'Name':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |")
-        logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
-        logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
-        for metric_name in sorted(last_val_metrics.metrics.keys()):
-            last_value = last_val_metrics.metrics[metric_name]
-            best_value = best_metrics.metrics.get(metric_name, float("nan"))
+        max_len_head = max(
+            len(name) for name in last_val_metrics.best_head_metrics.keys()
+        )
+
+        logger.info(
+            f"  | {'Metric':<{max_len_head}} | {'Best':^{col}} | {'Last':^{col}} |"
+        )
+        logger.info(f"  |:{'-' * max_len_head}-|:{'-' * col}:|:{'-' * col}:|")
+        logger.info(
+            f"  | {'step':<{max_len_head}} | {best_step:>{col}} | {step:>{col}} |"
+        )
+
+        for metric_name in sorted(last_val_metrics.best_head_metrics.keys()):
+            last_value = last_val_metrics.best_head_metrics[metric_name]
+            best_value = best_head_metrics.get(metric_name, float("nan"))
             logger.info(
-                f"  | {metric_name:<{max_len}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
+                f"  | {metric_name:<{max_len_head}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
             )
         logger.info("")
 
-        # Best head metrics
-        if last_val_metrics.best_head_metrics is not None:
-            best_head_metrics = (
-                best_metrics.best_head_metrics
-                if best_metrics.best_head_metrics is not None
-                else last_val_metrics.best_head_metrics
-            )
-
-            logger.info(
-                f"Validation Metrics - Best Head: {last_val_metrics.best_head_name}"
-            )
-            col = 8
-            max_len_head = max(
-                len(name) for name in last_val_metrics.best_head_metrics.keys()
-            )
-
-            logger.info(
-                f"  | {'Metric':<{max_len_head}} | {'Best':^{col}} | {'Last':^{col}} |"
-            )
-            logger.info(f"  |:{'-' * max_len_head}-|:{'-' * col}:|:{'-' * col}:|")
-            logger.info(
-                f"  | {'step':<{max_len_head}} | {best_step:>{col}} | {step:>{col}} |"
-            )
-
-            for metric_name in sorted(last_val_metrics.best_head_metrics.keys()):
-                last_value = last_val_metrics.best_head_metrics[metric_name]
-                best_value = best_head_metrics.get(metric_name, float("nan"))
-                logger.info(
-                    f"  | {metric_name:<{max_len_head}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
-                )
-            logger.info("")
-
-        logger.info("Validation Metrics - Watch Metric")
-        logger.info(
-            f"  | {'Watch Metric':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |"
-        )
-        logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
-        logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
-        logger.info(
-            f"  | {best_metrics.watch_metric:<{max_len}} | {best_metrics.watch_metric_value:>{col}.4f} | {last_val_metrics.watch_metric_value:>{col}.4f} |"
-        )
-        logger.info("")
+    logger.info("Validation Metrics - Watch Metric")
+    logger.info(
+        f"  | {'Watch Metric':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |"
+    )
+    logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
+    logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
+    logger.info(
+        f"  | {best_metrics.watch_metric:<{max_len}} | {best_metrics.watch_metric_value:>{col}.4f} | {last_val_metrics.watch_metric_value:>{col}.4f} |"
+    )
+    logger.info("")
 
     ### Profiling Info
 
@@ -1042,91 +1024,6 @@ def add_timer_logs(
     log_dict[f"profiling/{split}_throughput_img_per_sec"] = throughput
 
 
-def compute_metrics(
-    log_dict: dict[str, Any], task_metric: TaskMetric | None
-) -> tuple[dict[str, Any], MetricComputeResult | None]:
-    # Lazy import because torchmetrics is optional dependency.
-    from torchmetrics import Metric
-
-    metric_result = None if task_metric is None else task_metric.compute()
-
-    metrics = {}
-    for name, value in log_dict.items():
-        if isinstance(value, TaskMetric):
-            result = value.compute()
-            metrics.update(result.metrics)
-            continue
-        if isinstance(value, Metric):
-            value = value.compute()
-        if "/pq" in name:
-            # Classwise panoptic quality
-            # (num_things + num_stuffs, 3)
-            value = value[:-1]  # Drop ignore class
-            pq = value[..., 0].mean()
-            sq = value[..., 1].mean()
-            rq = value[..., 2].mean()
-            metrics[name] = pq.item()
-            metrics[name.replace("/pq", "/sq")] = sq.item()
-            metrics[name.replace("/pq", "/rq")] = rq.item()
-        elif isinstance(value, Tensor) and value.numel() > 1:
-            for i, v in enumerate(value):
-                metrics[f"{name}_{i}"] = v.item()
-        elif isinstance(value, dict):
-            if "map" in value:
-                # Special case for detection metrics which return results like this:
-                # {"map": 0.5, "map_50": 0.7, ...}
-                agg_metrics = {
-                    "map",
-                    "map_50",
-                    "map_75",
-                    "map_small",
-                    "map_medium",
-                    "map_large",
-                    "mar_1",
-                    "mar_10",
-                    "mar_100",
-                    "mar_small",
-                    "mar_medium",
-                    "mar_large",
-                }
-                # cls_metrics = {"map_per_class", "mar_100_per_class", "classes"}
-                if name.endswith("/map"):
-                    name = name[:-4]
-                for key, val in value.items():
-                    if key in agg_metrics:
-                        metrics[f"{name}/{key}"] = val.item()
-                    elif "per_class" in key:
-                        # Single scalar means the class-wise metrics are disabled.
-                        if val.ndim > 0:
-                            for i, v in enumerate(val):
-                                new_key = key.replace("per_class", "class")
-                                metrics[f"{name}/{new_key}_{i}"] = v.item()
-            else:
-                # Class-wise metrics that look like this:
-                # {"class 1": 0.5, "class 2": 0.7, ...}
-                for key, val in value.items():
-                    metrics[f"{name}{key}"] = val.item()
-        else:
-            metrics[name] = value
-    return metrics, metric_result
-
-
-def reset_metrics(log_dict: dict[str, Any], task_metric: TaskMetric | None) -> None:
-    # Lazy import because torchmetrics is optional dependency.
-    from torchmetrics import Metric
-
-    from lightly_train._metrics.task_metric import TaskMetric
-
-    if task_metric is not None:
-        task_metric.reset()
-
-    for value in log_dict.values():
-        if isinstance(value, TaskMetric):
-            value.reset()
-        elif isinstance(value, Metric):
-            value.reset()
-
-
 @dataclass
 class BestMetric:
     metrics: MetricComputeResult
@@ -1135,20 +1032,14 @@ class BestMetric:
 
 def get_best_metrics(
     best_metrics: BestMetric | None,
-    last_metrics: MetricComputeResult | None,
+    last_metrics: MetricComputeResult,
     step: int,
-) -> BestMetric | None:
-    if best_metrics is None and last_metrics is None:
-        return None
-
+) -> BestMetric:
     if best_metrics is None:
-        assert last_metrics is not None
         return BestMetric(
             metrics=last_metrics,
             step=step,
         )
-    if last_metrics is None:
-        return best_metrics
 
     best_metric_name = best_metrics.metrics.watch_metric
     last_metric_name = last_metrics.watch_metric

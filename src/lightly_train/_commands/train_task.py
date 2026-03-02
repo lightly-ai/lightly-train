@@ -1431,16 +1431,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             timer.record_gpu_stats("train")
 
             if is_log_step or is_last_step:
-                train_log_dict, train_metrics = helpers.compute_metrics(
-                    train_result.log_dict, task_metric=train_result.metrics
-                )
+                train_log_dict = train_result.log_dict
+                train_metrics = train_result.metrics.compute()
                 timer_agg = timer.get_aggregated_metrics(fabric)
 
                 helpers.log_step(
                     split="train",
                     step=step,
                     max_steps=config.steps,
-                    log_dict=train_log_dict,
                     metrics=train_metrics,
                     task=config.task,
                     timer_agg=timer_agg,
@@ -1465,7 +1463,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     metrics=train_metrics,
                     step=step,
                 )
-                helpers.reset_metrics(train_result.log_dict, train_result.metrics)
+                train_result.metrics.reset()
 
             if config.save_checkpoint_args.save_last and (
                 is_save_ckpt_step or is_last_step
@@ -1519,10 +1517,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     timer.record_gpu_stats("val")
 
                     if is_last_val_step:
-                        # Metric computation.
-                        val_log_dict, val_metrics = helpers.compute_metrics(
-                            val_result.log_dict, task_metric=val_result.metrics
-                        )
+                        val_metrics = val_result.metrics.compute()
                         best_metrics = helpers.get_best_metrics(
                             best_metrics=best_metrics,
                             last_metrics=val_metrics,
@@ -1535,7 +1530,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
-                            log_dict=val_log_dict,
                             metrics=val_metrics,
                             task=config.task,
                             timer_agg=timer_agg,
@@ -1543,21 +1537,20 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         )
                         helpers.add_timer_logs(
                             timer_agg=timer_agg,
-                            log_dict=val_log_dict,
+                            log_dict=val_result.log_dict,
                             split="val",
                             global_batch_size=config.batch_size,
                         )
                         helpers.log_fabric(
                             fabric=fabric,
-                            log_dict=val_log_dict,
+                            log_dict=val_result.log_dict,
                             metrics=val_metrics,
                             step=step,
                         )
-                        helpers.reset_metrics(val_result.log_dict, val_result.metrics)
+                        val_result.metrics.reset()
 
                         if (
                             config.save_checkpoint_args.save_best
-                            and best_metrics is not None
                             and best_metrics.step == step
                         ):
                             helpers.save_checkpoint(
@@ -1597,8 +1590,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
-                            log_dict={},
-                            metrics=val_metrics,
+                            metrics=None,
                             task=config.task,
                             timer_agg=timer_agg,
                             global_batch_size=config.batch_size,

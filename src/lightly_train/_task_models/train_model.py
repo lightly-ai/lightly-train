@@ -118,6 +118,14 @@ class TrainModel(Module):
 
 @dataclass
 class TaskStepResult:
+    # Loss value on which backwards will be called.
     loss: Tensor
-    log_dict: dict[str, Any]
+
+    # Metrics that will be computed and logged. Metrics include:
+    # - Logged loss and individual losses
+    # - Metrics like mAP, accuracy, etc.
     metrics: TaskMetric
+
+    # Dictionary with extra values to log. These values will only be logged to external
+    # loggers like wandb, tensorboard, etc and are currently not shown in the console logs.
+    log_dict: dict[str, float]

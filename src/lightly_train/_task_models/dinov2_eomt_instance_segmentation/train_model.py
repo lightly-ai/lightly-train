@@ -286,7 +286,9 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
             mask_prob_dict = {
-                f"attention_mask_probability/block{block_idx + num_blocks - num_joint_blocks}": value
+                f"attention_mask_probability/block{block_idx + num_blocks - num_joint_blocks}": float(
+                    value
+                )
                 for block_idx, value in enumerate(self.model.attn_mask_probs)
             }
 
@@ -394,9 +396,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
 
         return TaskStepResult(
             loss=loss,
-            log_dict={
-                "val_loss": loss.detach(),
-            },
+            log_dict={},
             metrics=self.val_metrics,
         )
 
