@@ -25,6 +25,7 @@ please refer to the [](pretrain-settings) page.
 | [`seed`](#seed)                                 | `int`<br>`None`               | `0`            | Random seed for reproducibility. Set to `None` to disable seeding.                                                                                                  |
 | [`logger_args`](#logger_args)                   | `dict`                        | `None`         | Logger configuration dict. `None` uses defaults; keys configure or disable individual loggers.                                                                      |
 | [`transform_args`](#transform_args)             | `dict`                        | `None`         | Data transform configuration (e.g. image size, normalization).                                                                                                      |
+| [`metric_args`](#metric_args)                   | `dict`                        | `None`         | Metric configuration dict. `None` uses defaults; keys configure or disable individual metrics.                                                                      |
 | [`save_checkpoint_args`](#save_checkpoint_args) | `dict`                        | `None`         | Checkpoint saving configuration (e.g. save frequency).                                                                                                              |
 
 ```{tip}
@@ -790,6 +791,55 @@ lightly_train.train_object_detection(
         "val": {
             "image_size": (512, 512),  # Resize validation images to (height, width)
         },
+    },
+)
+```
+
+(train-settings-metrics)=
+
+## Metrics
+
+The metrics logged during training depend on the task. LightlyTrain computes
+task-appropriate metrics such as mAP for detection or mIoU for segmentation. Use
+`metric_args` to control which metrics are computed and logged.
+
+### `metric_args`
+
+Dictionary to configure metric computation and logging behavior.
+
+| Key                       | Type   | Description                                                              |
+| ------------------------- | ------ | ------------------------------------------------------------------------ |
+| [`train`](#train)         | `bool` | Enable train metrics. If `False`, only validation metrics are logged.    |
+| [`classwise`](#classwise) | `bool` | Enable classwise metrics. If `False`, only aggregate metrics are logged. |
+
+#### `train`
+
+If set to `True`, metrics are also computed and logged for the train set. By default,
+only metrics for the validation set are logged to reduce overhead.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    metric_args={
+        "train": True,  # Also log metrics on training data.
+    },
+)
+```
+
+#### `classwise`
+
+If set to `True`, per-class metrics (for example AP per class) are logged in addition to
+aggregate metrics. Default is `False` to reduce logging overhead.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    metric_args={
+        "classwise": True,  # Log metrics per class.
     },
 )
 ```
