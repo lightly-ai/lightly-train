@@ -996,9 +996,7 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
             value.reset()
 
 
-def accumulate_log_dict(
-    accumulated: dict[str, Any], new: dict[str, Any]
-) -> None:
+def accumulate_log_dict(accumulated: dict[str, Any], new: dict[str, Any]) -> None:
     """Accumulate log_dict values from a microbatch into a running accumulator.
 
     Plain tensors are summed; Metric objects (and any other values) are stored by
