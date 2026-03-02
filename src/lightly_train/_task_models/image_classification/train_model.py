@@ -29,7 +29,6 @@ from lightly_train._metrics.classification.task_metric import (
     MultilabelClassificationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.image_classification.task_model import (
     ImageClassification,
 )
@@ -50,33 +49,9 @@ from lightly_train.types import (
 )
 
 
-class ClassificationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "auto"
-    mode: Literal["min", "max"] = "max"
-
-    def resolve_auto(
-        self,
-        data_args: TaskDataArgs,
-    ) -> None:
-        assert isinstance(data_args, ImageClassificationDataArgs)
-        if self.watch_metric == "auto":
-            if data_args.classification_task == "multiclass":
-                self.watch_metric = "val_metric/top1_acc_micro"
-            elif data_args.classification_task == "multilabel":
-                self.watch_metric = "val_metric/f1_micro"
-            else:
-                raise ValueError(
-                    f"Unsupported classification task: {data_args.classification_task}"
-                )
-
-
 class ImageClassificationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     default_steps: ClassVar[int] = 100_000
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        ClassificationTaskSaveCheckpointArgs
-    )
 
     # Backbone args
     backbone_freeze: bool = False
@@ -91,15 +66,13 @@ class ImageClassificationTrainArgs(TrainModelArgs):
     lr_warmup_steps: int | Literal["auto"] = "auto"
 
     # Metrics
-    # metrics: dict[str, dict[str, Any]] | Literal["auto"] = "auto"
-    metrics_classwise: dict[str, dict[str, Any]] | None = None
-    metric_log_debug: bool = False
-
-    metrics: (
-        MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs
-    ) = Field(
-        default_factory=MulticlassClassificationTaskMetricArgs,
-    )
+    # TODO(Guarin, 02/26): Refactor to use Pydantic discriminated union for metric args
+    # instead of "auto" string.
+    metric_args: (
+        MulticlassClassificationTaskMetricArgs
+        | MultilabelClassificationTaskMetricArgs
+        | Literal["auto"]
+    ) = "auto"
 
     # Loss
     label_smoothing: float = 0.0
@@ -126,27 +99,17 @@ class ImageClassificationTrainArgs(TrainModelArgs):
                 self.gradient_clip_val = 0.0
             else:
                 self.gradient_clip_val = 3.0
-        # if self.metrics == "auto":
-        #     assert isinstance(data_args, ImageClassificationDataArgs)
-        #     if data_args.classification_task == "multiclass":
-        #         self.metrics = {
-        #             "accuracy": {"topk": [1, 5], "average": ["micro"]},
-        #             "f1": {"average": ["micro"]},
-        #             "precision": {"average": ["micro"]},
-        #             "recall": {"average": ["micro"]},
-        #         }
-        #     elif data_args.classification_task == "multilabel":
-        #         self.metrics = {
-        #             "hamming_distance": {"threshold": 0.5, "average": ["micro"]},
-        #             "accuracy": {"threshold": 0.5, "average": ["micro"]},
-        #             "f1": {"threshold": 0.5, "average": ["micro"]},
-        #             "auroc": {"thresholds": None, "average": ["micro"]},
-        #             "average_precision": {"thresholds": None, "average": ["micro"]},
-        #         }
-        #     else:
-        #         raise ValueError(
-        #             f"Unsupported classification task: {data_args.classification_task}"
-        #         )
+
+        if self.metric_args == "auto":
+            assert isinstance(data_args, ImageClassificationDataArgs)
+            if data_args.classification_task == "multiclass":
+                self.metric_args = MulticlassClassificationTaskMetricArgs()
+            elif data_args.classification_task == "multilabel":
+                self.metric_args = MultilabelClassificationTaskMetricArgs()
+            else:
+                raise ValueError(
+                    f"Unsupported classification task: {data_args.classification_task}"
+                )
 
 
 class ImageClassificationTrain(TrainModel):
@@ -199,14 +162,15 @@ class ImageClassificationTrain(TrainModel):
                 f"Unsupported classification task: {self.model.classification_task}"
             )
 
+        metric_args = no_auto(model_args.metric_args)
         self.val_metrics = ClassificationTaskMetric(
-            task_metric_args=model_args.metrics,
+            task_metric_args=metric_args,  # type: ignore[arg-type]
             split="val",
             class_names=list(data_args.included_classes.values()),
             loss_names=["loss"],
         )
         self.train_metrics = ClassificationTaskMetric(
-            task_metric_args=model_args.metrics,
+            task_metric_args=metric_args,  # type: ignore[arg-type]
             split="train",
             class_names=list(data_args.included_classes.values()),
             loss_names=["loss"],
