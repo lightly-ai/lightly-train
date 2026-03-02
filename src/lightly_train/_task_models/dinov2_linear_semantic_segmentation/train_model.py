@@ -13,7 +13,6 @@ from typing import Any, ClassVar, Literal
 import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
-from pydantic import Field
 from torch import Tensor
 from torch.nn import CrossEntropyLoss
 from torch.optim.adamw import AdamW
@@ -74,11 +73,6 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     lr: float = 0.001
     weight_decay: float = 0.01
 
-    # Metrics
-    metric_args: SemanticSegmentationTaskMetricArgs = Field(
-        default_factory=SemanticSegmentationTaskMetricArgs
-    )
-
     def resolve_auto(
         self,
         total_steps: int,
@@ -98,6 +92,7 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
 class DINOv2LinearSemanticSegmentationTrain(TrainModel):
     task = "semantic_segmentation"
     train_model_args_cls = DINOv2LinearSemanticSegmentationTrainArgs
+    task_metric_args_cls = SemanticSegmentationTaskMetricArgs
     task_model_cls = DINOv2LinearSemanticSegmentation
     train_transform_cls = DINOv2LinearSemanticSegmentationTrainTransform
     val_transform_cls = DINOv2LinearSemanticSegmentationValTransform
@@ -111,6 +106,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         train_transform_args: DINOv2LinearSemanticSegmentationTrainTransformArgs,
         val_transform_args: DINOv2LinearSemanticSegmentationValTransformArgs,
         load_weights: bool,
+        metric_args: SemanticSegmentationTaskMetricArgs,
     ) -> None:
         super().__init__()
         image_size = no_auto(val_transform_args.image_size)
@@ -136,15 +132,16 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
 
         # Metrics
         class_names = list(data_args.included_classes.values())
+        self.metric_args = metric_args
         self.train_metrics = SemanticSegmentationTaskMetric(
-            task_metric_args=model_args.metric_args,
+            task_metric_args=metric_args,
             split="train",
             class_names=class_names,
             ignore_index=data_args.ignore_index,
             loss_names=["loss"],
         )
         self.val_metrics = SemanticSegmentationTaskMetric(
-            task_metric_args=model_args.metric_args,
+            task_metric_args=metric_args,
             split="val",
             class_names=class_names,
             ignore_index=data_args.ignore_index,
@@ -168,7 +165,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         loss = self.criterion(logits, masks)
 
         self.train_metrics.update_loss({"loss": loss.detach()}, weight=images.shape[0])
-        if self.model_args.metric_args.train:
+        if self.metric_args.train:
             self.train_metrics.update(logits.argmax(dim=1), masks)
 
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)

@@ -82,11 +82,6 @@ class SemanticSegmentationMultiheadTrainArgs(TrainModelArgs):
     weight_decay: float = 0.0
     lr_warmup_steps: int = 0
 
-    # Metrics
-    metric_args: SemanticSegmentationTaskMetricArgs = Field(
-        default_factory=SemanticSegmentationTaskMetricArgs
-    )
-
     @model_validator(mode="after")
     def _convert_lr_to_list(self) -> SemanticSegmentationMultiheadTrainArgs:
         """Convert float lr to single-element list."""
@@ -98,6 +93,7 @@ class SemanticSegmentationMultiheadTrainArgs(TrainModelArgs):
 class SemanticSegmentationMultiheadTrain(TrainModel):
     task = "semantic_segmentation_multihead"
     train_model_args_cls = SemanticSegmentationMultiheadTrainArgs
+    task_metric_args_cls = SemanticSegmentationTaskMetricArgs
     task_model_cls = SemanticSegmentationMultihead
     train_transform_cls = SemanticSegmentationMultiheadTrainTransform
     val_transform_cls = SemanticSegmentationMultiheadValTransform
@@ -111,6 +107,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         train_transform_args: SemanticSegmentationMultiheadTrainTransformArgs,
         val_transform_args: SemanticSegmentationMultiheadValTransformArgs,
         load_weights: bool,
+        metric_args: SemanticSegmentationTaskMetricArgs,
     ) -> None:
         super().__init__()
 
@@ -118,6 +115,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         normalize = no_auto(val_transform_args.normalize)
 
         self.model_args = model_args
+        self.metric_args = metric_args
 
         # Convert lr to list and store for optimizer creation.
         self.lrs = model_args.lr if isinstance(model_args.lr, list) else [model_args.lr]
@@ -152,14 +150,14 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         for lr in self.lrs:
             head_name = _format_head_name(lr)
             train_head_metrics[head_name] = SemanticSegmentationTaskMetric(
-                task_metric_args=model_args.metric_args,
+                task_metric_args=metric_args,
                 split="train",
                 class_names=class_names,
                 ignore_index=ignore_index,
                 loss_names=["loss"],
             )
             val_head_metrics[head_name] = SemanticSegmentationTaskMetric(
-                task_metric_args=model_args.metric_args,
+                task_metric_args=metric_args,
                 split="val",
                 class_names=class_names,
                 ignore_index=ignore_index,

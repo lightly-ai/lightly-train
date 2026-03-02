@@ -38,7 +38,11 @@ from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._loggers.wandb import WandbLogger
-from lightly_train._metrics.task_metric import MetricComputeResult, TaskMetric
+from lightly_train._metrics.task_metric import (
+    MetricComputeResult,
+    TaskMetric,
+    TaskMetricArgs,
+)
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_instance_segmentation.train_model import (
@@ -412,6 +416,27 @@ def get_train_transform(
     train_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
     return train_model_cls.train_transform_cls(transform_args=train_transform_args)
+
+
+def get_metric_args(
+    train_model_cls: type[TrainModel],
+    metric_args: dict[str, Any] | TaskMetricArgs | None,
+    data_args: TaskDataArgs,
+) -> TaskMetricArgs | None:
+    if not hasattr(train_model_cls, "task_metric_args_cls"):
+        return None
+    if isinstance(metric_args, TaskMetricArgs):
+        return metric_args
+    metric_args_dict: dict[str, Any] = {} if metric_args is None else dict(metric_args)
+    classification_task = getattr(data_args, "classification_task", None)
+    if classification_task is not None:
+        metric_args_dict.setdefault("classification_task", classification_task)
+    from pydantic import TypeAdapter
+
+    adapter: TypeAdapter[TaskMetricArgs] = TypeAdapter(
+        train_model_cls.task_metric_args_cls  # type: ignore[type-abstract]
+    )
+    return adapter.validate_python(metric_args_dict)
 
 
 def get_val_transform(

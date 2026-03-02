@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
@@ -26,8 +26,6 @@ from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._metrics.classification.task_metric import (
     ClassificationTaskMetric,
     ClassificationTaskMetricArgs,
-    MulticlassClassificationTaskMetricArgs,
-    MultilabelClassificationTaskMetricArgs,
 )
 from lightly_train._metrics.multihead_task_metric import MultiheadTaskMetric
 from lightly_train._optim import optimizer_helpers
@@ -73,16 +71,6 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
     weight_decay: float = 0.0
     lr_warmup_steps: int = 0
 
-    # Metrics
-
-    # TODO(Guarin, 02/26): Refactor to use Pydantic discriminated union for metric args
-    # instead of "auto" string.
-    metric_args: (
-        MulticlassClassificationTaskMetricArgs
-        | MultilabelClassificationTaskMetricArgs
-        | Literal["auto"]
-    ) = "auto"
-
     # Loss
     label_smoothing: float = 0.0
 
@@ -100,21 +88,13 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
     ) -> None:
-        if self.metric_args == "auto":
-            assert isinstance(data_args, ImageClassificationDataArgs)
-            if data_args.classification_task == "multiclass":
-                self.metric_args = MulticlassClassificationTaskMetricArgs()
-            elif data_args.classification_task == "multilabel":
-                self.metric_args = MultilabelClassificationTaskMetricArgs()
-            else:
-                raise ValueError(
-                    f"Unsupported classification task: {data_args.classification_task}"
-                )
+        pass
 
 
 class ImageClassificationMultiheadTrain(TrainModel):
     task = "image_classification_multihead"
     train_model_args_cls = ImageClassificationMultiheadTrainArgs
+    task_metric_args_cls = ClassificationTaskMetricArgs  # type: ignore[assignment]
     task_model_cls = ImageClassificationMultihead
     train_transform_cls = ImageClassificationMultiheadTrainTransform
     val_transform_cls = ImageClassificationMultiheadValTransform
@@ -128,6 +108,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
         train_transform_args: ImageClassificationMultiheadTrainTransformArgs,
         val_transform_args: ImageClassificationMultiheadValTransformArgs,
         load_weights: bool,
+        metric_args: ClassificationTaskMetricArgs,
     ) -> None:
         super().__init__()
         image_size = no_auto(val_transform_args.image_size)
@@ -166,7 +147,6 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 f"Unsupported classification task: {self.classification_task}"
             )
 
-        metric_args: ClassificationTaskMetricArgs = no_auto(model_args.metric_args)  # type: ignore[assignment]
         class_names = list(data_args.included_classes.values())
 
         train_head_metrics: dict[str, ClassificationTaskMetric] = {}

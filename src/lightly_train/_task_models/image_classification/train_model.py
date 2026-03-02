@@ -25,8 +25,7 @@ from lightly_train._data.image_classification_dataset import ImageClassification
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._metrics.classification.task_metric import (
     ClassificationTaskMetric,
-    MulticlassClassificationTaskMetricArgs,
-    MultilabelClassificationTaskMetricArgs,
+    ClassificationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_models.image_classification.task_model import (
@@ -65,15 +64,6 @@ class ImageClassificationTrainArgs(TrainModelArgs):
     weight_decay: float | Literal["auto"] = "auto"
     lr_warmup_steps: int | Literal["auto"] = "auto"
 
-    # Metrics
-    # TODO(Guarin, 02/26): Refactor to use Pydantic discriminated union for metric args
-    # instead of "auto" string.
-    metric_args: (
-        MulticlassClassificationTaskMetricArgs
-        | MultilabelClassificationTaskMetricArgs
-        | Literal["auto"]
-    ) = "auto"
-
     # Loss
     label_smoothing: float = 0.0
 
@@ -100,21 +90,11 @@ class ImageClassificationTrainArgs(TrainModelArgs):
             else:
                 self.gradient_clip_val = 3.0
 
-        if self.metric_args == "auto":
-            assert isinstance(data_args, ImageClassificationDataArgs)
-            if data_args.classification_task == "multiclass":
-                self.metric_args = MulticlassClassificationTaskMetricArgs()
-            elif data_args.classification_task == "multilabel":
-                self.metric_args = MultilabelClassificationTaskMetricArgs()
-            else:
-                raise ValueError(
-                    f"Unsupported classification task: {data_args.classification_task}"
-                )
-
 
 class ImageClassificationTrain(TrainModel):
     task = "image_classification"
     train_model_args_cls = ImageClassificationTrainArgs
+    task_metric_args_cls = ClassificationTaskMetricArgs  # type: ignore[assignment]
     task_model_cls = ImageClassification
     train_transform_cls = ImageClassificationTrainTransform
     val_transform_cls = ImageClassificationValTransform
@@ -128,6 +108,7 @@ class ImageClassificationTrain(TrainModel):
         train_transform_args: ImageClassificationTrainTransformArgs,
         val_transform_args: ImageClassificationValTransformArgs,
         load_weights: bool,
+        metric_args: ClassificationTaskMetricArgs,
     ) -> None:
         # Import here because old torchmetrics versions (0.8.0) don't support the
         # metrics we use. But we need old torchmetrics support for SuperGradients.
@@ -162,15 +143,14 @@ class ImageClassificationTrain(TrainModel):
                 f"Unsupported classification task: {self.model.classification_task}"
             )
 
-        metric_args = no_auto(model_args.metric_args)
         self.val_metrics = ClassificationTaskMetric(
-            task_metric_args=metric_args,  # type: ignore[arg-type]
+            task_metric_args=metric_args,
             split="val",
             class_names=list(data_args.included_classes.values()),
             loss_names=["loss"],
         )
         self.train_metrics = ClassificationTaskMetric(
-            task_metric_args=metric_args,  # type: ignore[arg-type]
+            task_metric_args=metric_args,
             split="train",
             class_names=list(data_args.included_classes.values()),
             loss_names=["loss"],

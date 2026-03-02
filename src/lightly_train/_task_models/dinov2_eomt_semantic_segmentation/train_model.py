@@ -14,7 +14,7 @@ from typing import Any, ClassVar, Literal, TypedDict, Unpack, get_type_hints
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from torch import Tensor
 from torch.nn import ModuleList
 from torch.optim.adamw import AdamW
@@ -116,10 +116,6 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Metrics
     metric_log_debug: bool = False
 
-    metric_args: SemanticSegmentationTaskMetricArgs = Field(
-        default_factory=SemanticSegmentationTaskMetricArgs
-    )
-
     def resolve_auto(
         self,
         total_steps: int,
@@ -187,6 +183,7 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
     task = "semantic_segmentation"
     train_model_args_cls = DINOv2EoMTSemanticSegmentationTrainArgs
+    task_metric_args_cls = SemanticSegmentationTaskMetricArgs
     task_model_cls = DINOv2EoMTSemanticSegmentation
     train_transform_cls = DINOv2EoMTSemanticSegmentationTrainTransform
     val_transform_cls = DINOv2EoMTSemanticSegmentationValTransform
@@ -200,6 +197,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         train_transform_args: DINOv2EoMTSemanticSegmentationTrainTransformArgs,
         val_transform_args: DINOv2EoMTSemanticSegmentationValTransformArgs,
         load_weights: bool,
+        metric_args: SemanticSegmentationTaskMetricArgs,
     ) -> None:
         super().__init__()
 
@@ -244,15 +242,16 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             no_object_coefficient=model_args.loss_no_object_coefficient,
         )
 
+        self.metric_args = metric_args
         self.train_metrics = SemanticSegmentationTaskMetric(
-            task_metric_args=model_args.metric_args,
+            task_metric_args=metric_args,
             split="train",
             class_names=list(data_args.included_classes.values()),
             ignore_index=data_args.ignore_index,
             loss_names=["loss"],
         )
         self.val_metrics = SemanticSegmentationTaskMetric(
-            task_metric_args=model_args.metric_args,
+            task_metric_args=metric_args,
             split="val",
             class_names=list(data_args.included_classes.values()),
             ignore_index=data_args.ignore_index,
@@ -301,7 +300,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
 
         # Update metrics
         self.train_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore
-        if self.model_args.metric_args.train:
+        if self.metric_args.train:
             with torch.no_grad():
                 # Calculate metrics for the last block's predictions.
                 mask_logits = mask_logits_per_layer[-1]

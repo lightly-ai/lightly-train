@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from typing import Annotated, Literal
 
 from pydantic import Field
 from torch import Tensor
@@ -43,6 +44,7 @@ from lightly_train._metrics.task_metric import (
 
 
 class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
+    classification_task: Literal["multiclass"] = "multiclass"
     watch_metric: str = "val_metric/top1_acc_micro"
     classwise: bool = False
     train: bool = False
@@ -57,6 +59,7 @@ class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
 
 
 class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
+    classification_task: Literal["multilabel"] = "multilabel"
     watch_metric: str = "val_metric/f1_macro"
     classwise: bool = False
     train: bool = False
@@ -75,9 +78,10 @@ class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
     )
 
 
-ClassificationTaskMetricArgs = (
-    MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs
-)
+ClassificationTaskMetricArgs = Annotated[
+    MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs,
+    Field(discriminator="classification_task"),
+]
 
 
 class ClassificationTaskMetric(TaskMetric):

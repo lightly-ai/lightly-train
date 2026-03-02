@@ -49,7 +49,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
-from lightly_train._metrics.task_metric import MetricComputeResult
+from lightly_train._metrics.task_metric import MetricComputeResult, TaskMetricArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
 from lightly_train._train_task_state import (
@@ -84,6 +84,7 @@ def train_image_classification(
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
+    metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -239,6 +240,7 @@ def train_image_classification_multihead(
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
+    metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -362,6 +364,7 @@ def train_instance_segmentation(
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
+    metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -501,6 +504,7 @@ def train_object_detection(
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
+    metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -640,6 +644,7 @@ def train_panoptic_segmentation(
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
+    metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -780,6 +785,7 @@ def train_semantic_segmentation(
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
+    metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -918,6 +924,7 @@ def train_semantic_segmentation_multihead(
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
+    metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -1025,6 +1032,7 @@ def _train_task(
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
+    metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
 ) -> None:
@@ -1186,6 +1194,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_init_args=model_init_args,
             data_args=config.data,
         )
+        config.metric_args = helpers.get_metric_args(
+            train_model_cls=train_model_cls,
+            metric_args=config.metric_args,
+            data_args=config.data,
+        )
 
         # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
         train_dataloader = helpers.get_train_dataloader(
@@ -1226,6 +1239,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             "val_transform_args": val_transform_args,
             "load_weights": (checkpoint is None) and (checkpoint_path is None),
         }
+        if config.metric_args is not None:
+            train_model_init_kwargs["metric_args"] = config.metric_args
 
         train_model = train_model_cls(**train_model_init_kwargs)
 
@@ -1325,10 +1340,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         fabric.barrier()
-
-        # TODO(Guarin, 02/26): Remove
-        # best_metric = -float("inf")
-
         timer.reset_gpu_max_memory("train")
         timer.start()
 
@@ -1526,46 +1537,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                                 best_or_last="best",
                             )
 
-                        # TODO(Guarin, 02/26): Remove this old way of handling best
-                        # checkpoints.
-                        # watch_metric = val_log_dict.get(
-                        #     config.model_args.metrics.watch_metric  # type: ignore
-                        # )
-                        # if watch_metric is None:
-                        #     logger.warning(
-                        #         "Validation metric not found in val_log_dict. Skipping best model checkpoint update."
-                        #     )
-                        # elif _is_better_metric(
-                        #     current_metric=watch_metric,
-                        #     best_metric=best_metric,
-                        #     mode="max",
-                        # ):
-                        #     if config.save_checkpoint_args.save_best:
-                        #         logger.info(
-                        #             f"The best validation metric {watch_metric:.4f} was reached."
-                        #         )
-                        #         # Best checkpoint saving and export.
-                        #         helpers.save_checkpoint(
-                        #             fabric=fabric,
-                        #             out_dir=out_dir,
-                        #             state=state,
-                        #             best_or_last="best",
-                        #         )
-                        #
-                        #         model_dict = {
-                        #             "model_class_path": state["model_class_path"],
-                        #             "model_init_args": state["model_init_args"],
-                        #             "train_model": train_model.get_export_state_dict(),
-                        #             "license_info": state.get("license_info", ""),
-                        #         }
-                        #
-                        #         helpers.export_model(
-                        #             out_dir=out_dir,
-                        #             model_dict=model_dict,
-                        #             best_or_last="best",
-                        #         )
-                        #     best_metric = watch_metric
-
                         # Log training summary after validation.
                         timer_agg = timer.get_aggregated_metrics(fabric)
                         helpers.log_training_summary(
@@ -1637,6 +1608,7 @@ class TrainTaskConfig(PydanticConfig):
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
     model_args: dict[str, Any] | TrainModelArgs | None = None
     transform_args: dict[str, Any] | None = None
+    metric_args: dict[str, Any] | TaskMetricArgs | None = None
     loader_args: dict[str, Any] | None = None
     save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
 

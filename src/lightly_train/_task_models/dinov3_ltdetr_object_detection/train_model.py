@@ -119,14 +119,11 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
-    metric_args: ObjectDetectionTaskMetricArgs = Field(
-        default_factory=ObjectDetectionTaskMetricArgs
-    )
-
 
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
     train_model_args_cls = DINOv3LTDETRObjectDetectionTrainArgs
+    task_metric_args_cls = ObjectDetectionTaskMetricArgs
     task_model_cls = DINOv3LTDETRObjectDetection
     train_transform_cls = DINOv3LTDETRObjectDetectionTrainTransform
     val_transform_cls = DINOv3LTDETRObjectDetectionValTransform
@@ -140,6 +137,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         train_transform_args: DINOv3LTDETRObjectDetectionTrainTransformArgs,
         val_transform_args: DINOv3LTDETRObjectDetectionValTransformArgs,
         load_weights: bool,
+        metric_args: ObjectDetectionTaskMetricArgs,
     ) -> None:
         super().__init__()
 
@@ -193,15 +191,16 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         class_names = list(data_args.included_classes.values())
         self.loss_names = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]
+        self.metric_args = metric_args
         self.train_metrics = ObjectDetectionTaskMetric(
-            task_metric_args=model_args.metric_args,
+            task_metric_args=metric_args,
             split="train",
             class_names=class_names,
             box_format="xyxy",
             loss_names=self.loss_names,
         )
         self.val_metrics = ObjectDetectionTaskMetric(
-            task_metric_args=model_args.metric_args,
+            task_metric_args=metric_args,
             split="val",
             class_names=class_names,
             box_format="xyxy",
@@ -290,7 +289,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             },
             weight=samples.shape[0],
         )  # type: ignore[operator]
-        if self.model_args.metric_args.train:
+        if self.metric_args.train:
             orig_target_sizes = batch["original_size"]
             # Convert to xyxy format and de-normalize the boxes.
             boxes = _yolo_to_xyxy(boxes)

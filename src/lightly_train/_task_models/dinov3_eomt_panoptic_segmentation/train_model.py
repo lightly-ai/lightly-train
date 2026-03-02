@@ -14,7 +14,6 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
-from pydantic import Field
 from torch import Tensor
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
@@ -109,9 +108,6 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
 
     # Metrics
     metric_log_debug: bool = False
-    metric_args: PanopticSegmentationTaskMetricArgs = Field(
-        default_factory=PanopticSegmentationTaskMetricArgs
-    )
 
     def resolve_auto(
         self,
@@ -181,6 +177,7 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
 class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
     task = "panoptic_segmentation"
     train_model_args_cls = DINOv3EoMTPanopticSegmentationTrainArgs
+    task_metric_args_cls = PanopticSegmentationTaskMetricArgs
     task_model_cls = DINOv3EoMTPanopticSegmentation
     train_transform_cls = DINOv3EoMTPanopticSegmentationTrainTransform
     val_transform_cls = DINOv3EoMTPanopticSegmentationValTransform
@@ -194,6 +191,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         train_transform_args: DINOv3EoMTPanopticSegmentationTrainTransformArgs,
         val_transform_args: DINOv3EoMTPanopticSegmentationValTransformArgs,
         load_weights: bool,
+        metric_args: PanopticSegmentationTaskMetricArgs,
     ) -> None:
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependency.
@@ -204,6 +202,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         super().__init__()
 
         self.model_args = model_args
+        self.metric_args = metric_args
         num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         image_size_train = no_auto(train_transform_args.image_size)
@@ -252,7 +251,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         internal_stuff_ids.append(self.model.internal_ignore_class_id)
 
         self.train_metrics = PanopticSegmentationTaskMetric(
-            task_metric_args=model_args.metric_args,
+            task_metric_args=metric_args,
             split="train",
             things=internal_thing_ids,
             stuffs=internal_stuff_ids,
@@ -261,7 +260,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             loss_names=["loss"],
         )
         self.val_metrics = PanopticSegmentationTaskMetric(
-            task_metric_args=model_args.metric_args,
+            task_metric_args=metric_args,
             split="val",
             things=internal_thing_ids,
             stuffs=internal_stuff_ids,
@@ -317,7 +316,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
 
         # Metrics
         self.train_metrics.update_loss({"loss": loss.detach()}, weight=B)
-        if self.model_args.metric_args.train:
+        if self.metric_args.train:
             with torch.no_grad():
                 mask_logits = mask_logits_per_layer[-1].detach()
                 class_logits = class_logits_per_layer[-1].detach()

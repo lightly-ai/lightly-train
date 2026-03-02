@@ -18,7 +18,7 @@ from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data.task_data_args import TaskDataArgs
-from lightly_train._metrics.task_metric import TaskMetric
+from lightly_train._metrics.task_metric import TaskMetric, TaskMetricArgs
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._transforms.task_transform import TaskTransform
 
@@ -49,6 +49,7 @@ class TrainModel(Module):
 
     task: ClassVar[str]
     train_model_args_cls: ClassVar[type[TrainModelArgs]]
+    task_metric_args_cls: ClassVar[type[TaskMetricArgs]]
     task_model_cls: ClassVar[type[TaskModel]]
     train_transform_cls: ClassVar[type[TaskTransform]]
     val_transform_cls: ClassVar[type[TaskTransform]]
