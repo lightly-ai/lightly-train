@@ -811,26 +811,18 @@ def log_training_summary(
         best_step = best_val_metrics.step if best_val_metrics is not None else step
 
         # All metrics
+        logger.info("")
         logger.info("Validation Metrics")
         col = 8
         logger.info(f"  | {'Name':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |")
         logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
         logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
-        for metric_name in last_val_metrics.metrics.keys():
+        for metric_name in sorted(last_val_metrics.metrics.keys()):
             last_value = last_val_metrics.metrics[metric_name]
             best_value = best_metrics.metrics.get(metric_name, float("nan"))
             logger.info(
                 f"  | {metric_name:<{max_len}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
             )
-        logger.info("")
-        logger.info(
-            f"  | {'Watch Metric':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |"
-        )
-        logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
-        logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
-        logger.info(
-            f"  | {best_metrics.watch_metric:<{max_len}} | {best_metrics.watch_metric_value:>{col}.4f} | {last_val_metrics.watch_metric_value:>{col}.4f} |"
-        )
         logger.info("")
 
         # Best head metrics
@@ -841,7 +833,9 @@ def log_training_summary(
                 else last_val_metrics.best_head_metrics
             )
 
-            logger.info("Validation Metrics - Best Head")
+            logger.info(
+                f"Validation Metrics - Best Head: {last_val_metrics.best_head_name}"
+            )
             col = 8
             max_len_head = max(
                 len(name) for name in last_val_metrics.best_head_metrics.keys()
@@ -855,16 +849,24 @@ def log_training_summary(
                 f"  | {'step':<{max_len_head}} | {best_step:>{col}} | {step:>{col}} |"
             )
 
-            for metric_name in last_val_metrics.best_head_metrics.keys():
+            for metric_name in sorted(last_val_metrics.best_head_metrics.keys()):
                 last_value = last_val_metrics.best_head_metrics[metric_name]
                 best_value = best_head_metrics.get(metric_name, float("nan"))
                 logger.info(
                     f"  | {metric_name:<{max_len_head}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
                 )
+            logger.info("")
 
-            logger.info("")
-            logger.info(f"Best Head: {last_val_metrics.best_head_name}")
-            logger.info("")
+        logger.info("Validation Metrics - Watch Metric")
+        logger.info(
+            f"  | {'Watch Metric':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |"
+        )
+        logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
+        logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
+        logger.info(
+            f"  | {best_metrics.watch_metric:<{max_len}} | {best_metrics.watch_metric_value:>{col}.4f} | {last_val_metrics.watch_metric_value:>{col}.4f} |"
+        )
+        logger.info("")
 
     ### Profiling Info
 
@@ -1113,6 +1115,7 @@ def get_best_metrics(
         return None
 
     if best_metrics is None:
+        assert last_metrics is not None
         return BestMetric(
             metrics=last_metrics,
             step=step,

@@ -1327,7 +1327,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         fabric.barrier()
 
         # TODO(Guarin, 02/26): Remove
-        best_metric = -float("inf")
+        # best_metric = -float("inf")
 
         timer.reset_gpu_max_memory("train")
         timer.start()
@@ -1528,43 +1528,43 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
                         # TODO(Guarin, 02/26): Remove this old way of handling best
                         # checkpoints.
-                        watch_metric = val_log_dict.get(
-                            config.model_args.metrics.watch_metric  # type: ignore
-                        )
-                        if watch_metric is None:
-                            logger.warning(
-                                "Validation metric not found in val_log_dict. Skipping best model checkpoint update."
-                            )
-                        elif _is_better_metric(
-                            current_metric=watch_metric,
-                            best_metric=best_metric,
-                            mode="max",
-                        ):
-                            if config.save_checkpoint_args.save_best:
-                                logger.info(
-                                    f"The best validation metric {watch_metric:.4f} was reached."
-                                )
-                                # Best checkpoint saving and export.
-                                helpers.save_checkpoint(
-                                    fabric=fabric,
-                                    out_dir=out_dir,
-                                    state=state,
-                                    best_or_last="best",
-                                )
-
-                                model_dict = {
-                                    "model_class_path": state["model_class_path"],
-                                    "model_init_args": state["model_init_args"],
-                                    "train_model": train_model.get_export_state_dict(),
-                                    "license_info": state.get("license_info", ""),
-                                }
-
-                                helpers.export_model(
-                                    out_dir=out_dir,
-                                    model_dict=model_dict,
-                                    best_or_last="best",
-                                )
-                            best_metric = watch_metric
+                        # watch_metric = val_log_dict.get(
+                        #     config.model_args.metrics.watch_metric  # type: ignore
+                        # )
+                        # if watch_metric is None:
+                        #     logger.warning(
+                        #         "Validation metric not found in val_log_dict. Skipping best model checkpoint update."
+                        #     )
+                        # elif _is_better_metric(
+                        #     current_metric=watch_metric,
+                        #     best_metric=best_metric,
+                        #     mode="max",
+                        # ):
+                        #     if config.save_checkpoint_args.save_best:
+                        #         logger.info(
+                        #             f"The best validation metric {watch_metric:.4f} was reached."
+                        #         )
+                        #         # Best checkpoint saving and export.
+                        #         helpers.save_checkpoint(
+                        #             fabric=fabric,
+                        #             out_dir=out_dir,
+                        #             state=state,
+                        #             best_or_last="best",
+                        #         )
+                        #
+                        #         model_dict = {
+                        #             "model_class_path": state["model_class_path"],
+                        #             "model_init_args": state["model_init_args"],
+                        #             "train_model": train_model.get_export_state_dict(),
+                        #             "license_info": state.get("license_info", ""),
+                        #         }
+                        #
+                        #         helpers.export_model(
+                        #             out_dir=out_dir,
+                        #             model_dict=model_dict,
+                        #             best_or_last="best",
+                        #         )
+                        #     best_metric = watch_metric
 
                         # Log training summary after validation.
                         timer_agg = timer.get_aggregated_metrics(fabric)

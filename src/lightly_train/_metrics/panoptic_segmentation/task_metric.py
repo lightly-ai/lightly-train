@@ -51,6 +51,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         stuff_class_names: Sequence[str],
         classwise: bool,
         loss_names: Sequence[str],
+        init_metrics: bool = True,
     ) -> None:
         """Initialize panoptic segmentation metrics container."""
         super().__init__(task_metric_args=task_metric_args)
@@ -63,7 +64,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         )
 
         metrics = {}
-        if task_metric_args.pq is not None:
+        if init_metrics and task_metric_args.pq is not None:
             metrics = task_metric_args.pq.get_metrics(
                 prefix=f"{split}_metric",
                 classwise=False,
@@ -74,8 +75,8 @@ class PanopticSegmentationTaskMetric(TaskMetric):
             )
         self.metrics = MetricCollection(metrics)  # type: ignore
 
-        self.metrics_classwise: None | MetricCollection = None
-        if classwise and task_metric_args.pq is not None:
+        metrics_classwise = {}
+        if init_metrics and classwise and task_metric_args.pq is not None:
             metrics_classwise = task_metric_args.pq.get_metrics(
                 prefix=f"{split}_metric",
                 classwise=True,
@@ -84,7 +85,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
                 things=things,
                 stuffs=stuffs,
             )
-            self.metrics_classwise = MetricCollection(metrics_classwise)  # type: ignore
+        self.metrics_classwise = MetricCollection(metrics_classwise)  # type: ignore
         self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
     def update(
@@ -99,8 +100,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
             target: Target tensor of shape (B, H, W, 2) where last dim is (class_id, instance_id)
         """
         self.metrics.update(preds, target)
-        if self.metrics_classwise is not None:
-            self.metrics_classwise.update(preds, target)
+        self.metrics_classwise.update(preds, target)
 
     def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)
@@ -108,17 +108,16 @@ class PanopticSegmentationTaskMetric(TaskMetric):
     def compute(self) -> MetricComputeResult:
         result = self.loss_metrics.compute()
         result.update(self.metrics.compute())
-        if self.metrics_classwise is not None:
-            result.update(self.metrics_classwise.compute())
+        result.update(self.metrics_classwise.compute())
         result = {name: float(value) for name, value in result.items()}
         best_value = result.get(self.watch_metric)
         return MetricComputeResult(
             metrics=result,
             watch_metric=self.watch_metric if best_value is not None else None,
             watch_metric_value=float(best_value) if best_value is not None else None,
-            watch_metric_mode=self.watch_metric_mode
-            if best_value is not None
-            else None,
+            watch_metric_mode=(
+                self.watch_metric_mode if best_value is not None else None
+            ),
             best_head_name=None,
             best_head_metrics=None,
         )

@@ -52,6 +52,7 @@ class ObjectDetectionTaskMetric(TaskMetric):
         classwise: bool,
         box_format: Literal["xyxy", "xywh", "cxcywh"],
         loss_names: Sequence[str],
+        init_metrics: bool = True,
     ) -> None:
         """Initialize object detection metrics container.
 
@@ -60,6 +61,9 @@ class ObjectDetectionTaskMetric(TaskMetric):
             split: Split name (e.g., "val", "train")
             class_names: Class names for all metrics
             classwise: Whether to log classwise metrics
+            init_metrics:
+                Whether to initialize metrics. Set to False to not build metrics, for
+                example if only losses should be tracked.
         """
         super().__init__(task_metric_args=task_metric_args)
         self.num_classes = len(class_names)
@@ -72,7 +76,7 @@ class ObjectDetectionTaskMetric(TaskMetric):
         )
 
         metrics = {}
-        if task_metric_args.map is not None:
+        if init_metrics and task_metric_args.map is not None:
             metrics.update(
                 task_metric_args.map.get_metrics(
                     classwise=classwise,

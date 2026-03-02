@@ -24,14 +24,13 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._metrics.classification.task_metric import (
+    ClassificationTaskMetric,
     ClassificationTaskMetricArgs,
     MulticlassClassificationTaskMetricArgs,
     MultilabelClassificationTaskMetricArgs,
 )
 from lightly_train._metrics.multihead_task_metric import MultiheadTaskMetric
-from lightly_train._metrics.task_metric import TaskMetric
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.image_classification_multihead.task_model import (
     ImageClassificationMultihead,
 )
@@ -49,33 +48,9 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import ImageClassificationBatch, PathLike
 
 
-class ImageClassificationMultiheadSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "auto"
-    mode: Literal["min", "max"] = "max"
-
-    def resolve_auto(
-        self,
-        data_args: TaskDataArgs,
-    ) -> None:
-        assert isinstance(data_args, ImageClassificationDataArgs)
-        if self.watch_metric == "auto":
-            if data_args.classification_task == "multiclass":
-                self.watch_metric = "val_metric/top1_acc_micro"
-            elif data_args.classification_task == "multilabel":
-                self.watch_metric = "val_metric/f1_macro"
-            else:
-                raise ValueError(
-                    f"Unsupported classification task: {data_args.classification_task}"
-                )
-
-
 class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 128
     default_steps: ClassVar[int] = 100_000
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        ImageClassificationMultiheadSaveCheckpointArgs
-    )
 
     # Backbone args
     backbone_weights: PathLike | None = None
@@ -99,12 +74,16 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
     lr_warmup_steps: int = 0
 
     # Metrics
+    metric_log_train: bool = False
+    metric_log_classwise: bool = False
+
+    # TODO(Guarin, 02/26): Refactor to use Pydantic discriminated union for metric args
+    # instead of "auto" string.
     metric_args: (
         MulticlassClassificationTaskMetricArgs
         | MultilabelClassificationTaskMetricArgs
         | Literal["auto"]
     ) = "auto"
-    metric_log_classwise: bool = False
 
     # Loss
     label_smoothing: float = 0.0
@@ -189,23 +168,38 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 f"Unsupported classification task: {self.classification_task}"
             )
 
-        # Create per-head task metrics using MultiheadTaskMetric.
-        # Loss tracking is embedded inside each head's TaskMetric via update_loss().
-        resolved_metric_args: ClassificationTaskMetricArgs = no_auto(  # type: ignore[assignment]
-            model_args.metric_args
-        )
+        metric_args: ClassificationTaskMetricArgs = no_auto(model_args.metric_args)  # type: ignore[assignment]
         class_names = list(data_args.included_classes.values())
-        head_metrics: dict[str, TaskMetric] = {}
+
+        train_head_metrics: dict[str, ClassificationTaskMetric] = {}
         for lr in self.lrs:
             head_name = _format_head_name(lr)
-            head_metrics[head_name] = resolved_metric_args.get_metrics(
+            train_head_metrics[head_name] = ClassificationTaskMetric(
+                task_metric_args=metric_args,
+                split="train",
+                class_names=class_names,
+                classwise=model_args.metric_log_classwise,
+                classwise_metric_args=None,
+                loss_names=["loss"],
+                init_metrics=model_args.metric_log_train,
+            )
+        self.train_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
+            head_metrics=train_head_metrics,
+        )
+
+        val_head_metrics: dict[str, ClassificationTaskMetric] = {}
+        for lr in self.lrs:
+            head_name = _format_head_name(lr)
+            val_head_metrics[head_name] = ClassificationTaskMetric(
+                task_metric_args=metric_args,
                 split="val",
                 class_names=class_names,
-                log_classwise=model_args.metric_log_classwise,
+                classwise=model_args.metric_log_classwise,
                 classwise_metric_args=None,
+                loss_names=["loss"],
             )
         self.val_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
-            head_metrics=head_metrics,  # type: ignore[arg-type]
+            head_metrics=val_head_metrics,
         )
 
     def get_task_model(self) -> ImageClassificationMultihead:
@@ -293,21 +287,17 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 f"Unsupported classification task: {self.classification_task}"
             )
 
-        # Compute loss for each head.
         losses: list[Tensor] = []
-        log_dict: dict[str, Any] = {}
         for head_name, logits in logits_dict.items():
             loss = self.criterion(logits, targets)
             losses.append(loss)
-            log_dict[f"train_loss_head/{head_name}"] = loss.detach()
 
-        # Sum losses for backprop.
-        loss_sum = torch.stack(losses).sum()
-        # Mean loss for logging.
-        loss_mean = torch.stack(losses).mean()
-        log_dict["train_loss"] = loss_mean.detach()
+            head_metrics = self.train_metrics.head_metrics[head_name]
+            head_metrics.update(logits, targets.int())  # type: ignore
+            head_metrics.update_loss({"loss": loss}, weight=len(images))  # type: ignore
 
-        return TaskStepResult(loss=loss_sum, log_dict=log_dict)
+        loss = torch.stack(losses).sum()
+        return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
 
     def validation_step(
         self, fabric: Fabric, batch: ImageClassificationBatch
@@ -328,24 +318,17 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 f"Unsupported classification task: {self.classification_task}"
             )
 
-        # Process each head: compute loss and update metrics.
         losses: list[Tensor] = []
-        targets_int = targets.int()
         for head_name, logits in logits_dict.items():
             loss = self.criterion(logits, targets)
             losses.append(loss)
-            head_val = self.val_metrics.head_metrics[head_name]
-            head_val.update(logits, targets_int)  # type: ignore[operator]
-            # Accumulate loss in the head's TaskMetric (weighted by batch size).
-            head_val.update_loss({"loss": loss}, weight=len(images))  # type: ignore[operator]
 
-        # Build log_dict.
-        log_dict: dict[str, Any] = {}
-        log_dict["val_metrics"] = self.val_metrics
+            head_metrics = self.val_metrics.head_metrics[head_name]
+            head_metrics.update(logits, targets.int())  # type: ignore
+            head_metrics.update_loss({"loss": loss}, weight=len(images))  # type: ignore
 
-        # Use sum of losses for consistency with training_step.
-        loss_sum = torch.stack(losses).sum()
-        return TaskStepResult(loss=loss_sum, log_dict=log_dict)
+        loss = torch.stack(losses).sum()
+        return TaskStepResult(loss=loss, log_dict={}, metrics=self.val_metrics)
 
     def set_train_mode(self) -> None:
         self.train()
@@ -362,7 +345,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
 
 
 def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:
-
+    """Convert list of class ID tensors to a single multi-hot encoded tensor."""
     row = torch.repeat_interleave(
         torch.arange(len(class_ids), device=class_ids[0].device),
         torch.tensor([t.numel() for t in class_ids], device=class_ids[0].device),

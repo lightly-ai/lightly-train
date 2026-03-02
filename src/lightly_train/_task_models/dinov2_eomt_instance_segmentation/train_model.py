@@ -97,7 +97,7 @@ class DINOv2EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     metric_log_train: bool = False
     metric_log_debug: bool = False
 
-    metrics: InstanceSegmentationTaskMetricArgs = Field(
+    metric_args: InstanceSegmentationTaskMetricArgs = Field(
         default_factory=InstanceSegmentationTaskMetricArgs
     )
 
@@ -212,7 +212,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         )
 
         self.val_metrics = InstanceSegmentationTaskMetric(
-            task_metric_args=model_args.metrics,
+            task_metric_args=model_args.metric_args,
             split="val",
             class_names=list(data_args.included_classes.values()),
             classwise=model_args.metric_log_classwise,
@@ -220,7 +220,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         )
 
         self.train_metrics = InstanceSegmentationTaskMetric(
-            task_metric_args=model_args.metrics,
+            task_metric_args=model_args.metric_args,
             split="train",
             class_names=list(data_args.included_classes.values()),
             classwise=model_args.metric_log_classwise,

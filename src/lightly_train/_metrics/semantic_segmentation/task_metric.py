@@ -52,6 +52,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         ignore_index: int | None,
         classwise: bool,
         loss_names: Sequence[str],
+        init_metrics: bool = True,
     ) -> None:
         """Initialize semantic segmentation metrics container.
 
@@ -61,6 +62,10 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             num_classes: Number of classes
             ignore_index: Class index to ignore in computation
             classwise: Whether to log classwise metrics
+            loss_names: Names of losses
+            init_metrics:
+                Whether to initialize metrics. Set to False to not build metrics, for
+                example if only losses should be tracked.
         """
         super().__init__(task_metric_args=task_metric_args)
         self.split = split
@@ -72,7 +77,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         )
 
         metrics = {}
-        if task_metric_args.miou is not None:
+        if init_metrics and task_metric_args.miou is not None:
             metrics.update(
                 task_metric_args.miou.get_metrics(
                     classwise=False,
@@ -82,19 +87,19 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             )
         self.metrics = MetricCollection(metrics, prefix=f"{split}_metric/")  # type: ignore
 
-        self.metrics_classwise: MetricCollection | None = None
+        metrics_classwise = {}
         if classwise and task_metric_args.miou is not None:
             metrics_classwise = task_metric_args.miou.get_metrics(
                 classwise=True,
                 num_classes=len(class_names),
                 ignore_index=ignore_index,
             )
-            self.metrics_classwise = ClasswiseMetricCollection(
-                metrics_classwise,
-                class_names=class_names,
-                prefix=f"{split}_metric_classwise/",
-                classwise_prefix="iou",
-            )
+        self.metrics_classwise = ClasswiseMetricCollection(
+            metrics_classwise,
+            class_names=class_names,
+            prefix=f"{split}_metric_classwise/",
+            classwise_prefix="iou",
+        )
         self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
     def update(self, preds: Tensor, target: Tensor) -> None:
@@ -105,18 +110,16 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             target: Target tensor of shape (B, H, W) with class indices
         """
         self.metrics.update(preds, target)  # type: ignore[operator]
-        if self.metrics_classwise is not None:
-            self.metrics_classwise.update(preds, target)  # type: ignore[operator]
+        self.metrics_classwise.update(preds, target)  # type: ignore[operator]
 
     def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)  # type: ignore[operator]
 
     def compute(self) -> MetricComputeResult:
-        """Compute all metrics and return combined results."""
         result = self.loss_metrics.compute()  # type: ignore[operator]
         result.update(self.metrics.compute())
-        if self.metrics_classwise is not None:
-            result.update(self.metrics_classwise.compute())
+        result.update(self.metrics_classwise.compute())
+        result = {name: float(value) for name, value in result.items()}
         best_val = result.get(self.watch_metric)
         return MetricComputeResult(
             metrics=result,

@@ -7,7 +7,6 @@
 #
 from collections.abc import Mapping, Sequence
 
-from torch import Tensor
 from torchmetrics import ClasswiseWrapper, Metric, MetricCollection
 
 
@@ -47,11 +46,11 @@ class ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
             compute_groups=compute_groups,  # type: ignore
         )
 
-    def compute(self) -> dict[str, Tensor]:  # type: ignore[override]
+    def compute(self) -> dict[str, float]:  # type: ignore[override]
         """Compute metrics and convert into a flat dictionary"""
         metrics = super().compute()
-        result: dict[str, Tensor] = {}
+        result: dict[str, float] = {}
         for name, value in metrics.items():
             new_name = name.replace(f"{self._SEPARATOR}", "")
-            result[new_name] = value
+            result[new_name] = float(value)
         return result

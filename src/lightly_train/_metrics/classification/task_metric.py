@@ -86,6 +86,7 @@ class ClassificationTaskMetric(TaskMetric):
         classwise: bool,
         classwise_metric_args: ClassificationTaskMetricArgs | None,
         loss_names: Sequence[str],
+        init_metrics: bool = True,
     ) -> None:
         """Initialize classification metrics container.
 
@@ -95,6 +96,10 @@ class ClassificationTaskMetric(TaskMetric):
             class_names: Class names for all metrics
             classwise: Whether to log classwise metrics
             classwise_metric_args: Optional separate args for classwise metrics
+            init_metrics:
+                Whether to initialize metrics. Set to False to not build metrics, for
+                example if only losses should be tracked.
+
         """
         super().__init__(task_metric_args=task_metric_args)
         self.split = split
@@ -107,13 +112,16 @@ class ClassificationTaskMetric(TaskMetric):
 
         self.metrics = self.build_metric_collection(
             prefix=f"{self.split}_metric/",
+            classwise=False,
             num_classes=len(class_names),
+            init_metrics=init_metrics,
         )
         self.metrics_classwise = self.build_classwise_metric_collection(
             classwise=classwise,
             prefix=f"{self.split}_metric_classwise/",
             classwise_metrics_args=classwise_metric_args,
             class_names=class_names,
+            init_metrics=init_metrics,
         )
         self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
@@ -170,22 +178,26 @@ class ClassificationTaskMetric(TaskMetric):
         self,
         *,
         prefix: str,
-        classwise: bool = False,
+        classwise: bool,
         num_classes: int,
+        init_metrics: bool,
     ) -> MetricCollection:
         """Build a flat dictionary of metric instances from TaskMetricArgs."""
         task_metric_args = self.task_metric_args
 
         all_metrics: dict[str, Metric] = {}
-        for field_name in task_metric_args.__class__.model_fields:
-            metric_args = getattr(task_metric_args, field_name)
-            if not isinstance(metric_args, ClassificationMetricArgs):
-                continue
-            if classwise and not metric_args.supports_classwise():
-                continue
-            all_metrics.update(
-                metric_args.get_metrics(classwise=classwise, num_classes=num_classes)
-            )
+        if init_metrics:
+            for field_name in task_metric_args.__class__.model_fields:
+                metric_args = getattr(task_metric_args, field_name)
+                if not isinstance(metric_args, ClassificationMetricArgs):
+                    continue
+                if classwise and not metric_args.supports_classwise():
+                    continue
+                all_metrics.update(
+                    metric_args.get_metrics(
+                        classwise=classwise, num_classes=num_classes
+                    )
+                )
 
         return MetricCollection(all_metrics, prefix=prefix)  # type: ignore[arg-type]
 
@@ -196,6 +208,7 @@ class ClassificationTaskMetric(TaskMetric):
         prefix: str,
         classwise_metrics_args: TaskMetricArgs | None,
         class_names: Sequence[str],
+        init_metrics: bool,
     ) -> MetricCollection | None:
         """Build a classwise MetricCollection if classwise is True."""
         if not classwise:
@@ -203,7 +216,10 @@ class ClassificationTaskMetric(TaskMetric):
         if classwise_metrics_args is None:
             classwise_metrics_args = self.task_metric_args.model_copy()
         metrics = self.build_metric_collection(
-            prefix="", classwise=True, num_classes=len(class_names)
+            prefix="",
+            classwise=True,
+            num_classes=len(class_names),
+            init_metrics=init_metrics,
         )
         return ClasswiseMetricCollection(
             metrics=metrics,

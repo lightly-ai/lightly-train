@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
+from pydantic import Field
 from torch import Tensor
 from torch.nn import ModuleList
 from torch.optim.adamw import AdamW
@@ -26,6 +27,10 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._metrics.semantic_segmentation.task_metric import (
+    SemanticSegmentationTaskMetric,
+    SemanticSegmentationTaskMetricArgs,
+)
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scheduler import (
@@ -47,6 +52,20 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
+
+
+from typing import TypedDict, Unpack, get_type_hints
+from pydantic import BaseModel
+
+class MyConfig(BaseModel):
+    name: str
+    age: int
+
+# Dynamically create a TypedDict from the Pydantic model
+MyConfigDict = TypedDict("MyConfigDict", get_type_hints(MyConfig))  # type: ignore
+
+def fun(**kwargs: Unpack[MyConfigDict]) -> None:
+    pass
 
 
 class DINOv2EoMTSemanticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
@@ -98,6 +117,11 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Metrics
     metric_log_classwise: bool = True
     metric_log_debug: bool = False
+    metric_log_train: bool = False
+
+    metric_args: SemanticSegmentationTaskMetricArgs = Field(
+        default_factory=SemanticSegmentationTaskMetricArgs
+    )
 
     def resolve_auto(
         self,
@@ -181,11 +205,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         load_weights: bool,
     ) -> None:
         super().__init__()
-        # Lazy import because torchmetrics is an optional dependency.
-        from torchmetrics import ClasswiseWrapper, JaccardIndex, MeanMetric
-        from torchmetrics.classification import (  # type: ignore[attr-defined]
-            MulticlassJaccardIndex,
-        )
 
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependency.
@@ -228,55 +247,23 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             no_object_coefficient=model_args.loss_no_object_coefficient,
         )
 
-        # Metrics
-        self.val_loss = MeanMetric()
-
-        # TODO(Guarin, 08/25): Speed up metric calculation by not calculating
-        # mIoU and classwise IoU separately. mIoU can be derived from the classwise IoU.
-        self.train_miou = JaccardIndex(
-            task="multiclass",  # type: ignore[arg-type]
-            num_classes=data_args.num_included_classes,
+        self.train_metrics = SemanticSegmentationTaskMetric(
+            task_metric_args=model_args.metric_args,
+            split="train",
+            class_names=list(data_args.included_classes.values()),
             ignore_index=data_args.ignore_index,
+            classwise=model_args.metric_log_classwise,
+            loss_names=["loss"],
+            init_metrics=model_args.metric_log_train,
         )
-        self.val_miou = self.train_miou.clone()
-
-        # Classwise MeanIoU for each joint block. Based on EoMT implementation.
-        class_labels = list(data_args.included_classes.values())
-        self.train_classwise_iou = ModuleList(
-            [
-                # Type ignore because old torchmetrics versions (0.8) don't support the
-                # `prefix` argument. We only use the old versions for SuperGradients
-                # support.
-                ClasswiseWrapper(  # type: ignore[call-arg]
-                    MulticlassJaccardIndex(
-                        num_classes=data_args.num_included_classes,
-                        validate_args=False,
-                        ignore_index=data_args.ignore_index,
-                        average=None,
-                    ),
-                    prefix="_",
-                    labels=class_labels,
-                )
-                for _ in range(num_joint_blocks + 1)
-            ]
-        )
-        self.val_classwise_iou = ModuleList(
-            [
-                # Type ignore because old torchmetrics versions (0.8) don't support the
-                # `prefix` argument. We only use the old versions for SuperGradients
-                # support.
-                ClasswiseWrapper(  # type: ignore[call-arg]
-                    MulticlassJaccardIndex(
-                        num_classes=data_args.num_included_classes,
-                        validate_args=False,
-                        ignore_index=data_args.ignore_index,
-                        average=None,
-                    ),
-                    prefix="_",
-                    labels=class_labels,
-                )
-                for _ in range(num_joint_blocks + 1)
-            ]
+        self.val_metrics = SemanticSegmentationTaskMetric(
+            task_metric_args=model_args.metric_args,
+            split="val",
+            class_names=list(data_args.included_classes.values()),
+            ignore_index=data_args.ignore_index,
+            classwise=model_args.metric_log_classwise,
+            loss_names=["loss"],
+            init_metrics=True,
         )
 
         _torch_helpers.register_load_state_dict_pre_hook(
@@ -318,39 +305,21 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
             losses.update(block_losses)
         loss = self.criterion.loss_total(losses_all_layers=losses)
-        loss_log_dict = {
-            f"train_loss/{k}": v
-            for k, v in losses.items()
-            if "block" not in k or self.model_args.metric_log_debug
-        }
 
-        # Metrics
-        for block_idx, (mask_logits, class_logits) in enumerate(
-            list(zip(mask_logits_per_layer, class_logits_per_layer))
-        ):
-            mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-            logits = self.model.to_per_pixel_logits_semantic(mask_logits, class_logits)
-            logits = logits[:, :-1]  # Drop ignore class logits.
-            self.update_metrics_semantic(
-                metrics=self.train_classwise_iou,
-                preds=logits,
-                targets=masks,
-                block_idx=block_idx,
-            )
-        for pred, targ in zip(logits, masks):
-            self.train_miou.update(pred[None, ...], targ[None, ...])
-
-        metrics: dict[str, Any] = {
-            "train_metric/miou": self.train_miou,
-        }
-        if self.model_args.metric_log_classwise or self.model_args.metric_log_debug:
-            for block_idx, metric in zip(
-                range(num_blocks - num_joint_blocks, num_blocks + 1),
-                self.train_classwise_iou,
-            ):
-                block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
-                if not block_suffix or self.model_args.metric_log_debug:
-                    metrics[f"train_metric_classwise/miou{block_suffix}"] = metric
+        # Update metrics
+        self.train_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore
+        if self.model_args.metric_log_train:
+            with torch.no_grad():
+                # Calculate metrics for the last block's predictions.
+                mask_logits = mask_logits_per_layer[-1]
+                class_logits = class_logits_per_layer[-1]
+                mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+                logits = self.model.to_per_pixel_logits_semantic(
+                    mask_logits, class_logits
+                )
+                logits = logits[:, :-1]  # Drop ignore class logits.
+                for pred, targ in zip(logits, masks):
+                    self.train_metrics.update(pred[None, ...], targ[None, ...])  # type: ignore
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -369,12 +338,8 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
 
         return TaskStepResult(
             loss=loss,
-            log_dict={
-                "train_loss": loss.detach(),
-                **loss_log_dict,
-                **metrics,
-                **mask_prob_dict,
-            },
+            log_dict=mask_prob_dict,
+            metrics=self.train_metrics,
         )
 
     def validation_step(
@@ -425,62 +390,33 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             )
             crop_logits = crop_logits[:, :-1]  # Drop ignore class logits.
 
-            # Un-tile the predictions.
-            logits = self.model.untile(
-                crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
-            )
-
-            # Update the metrics.
-            self.update_metrics_semantic(
-                metrics=self.val_classwise_iou,
-                preds=logits,
-                targets=masks,
-                block_idx=i,
-            )
-
             # Compute the loss
             block_losses = self.criterion(
                 masks_queries_logits=mask_logits,
                 class_queries_logits=class_logits,
                 targets=binary_masks_crops_dicts,
             )
+
             block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
             losses.update(block_losses)
 
+            # Update metrics based on the last block's predictions.
+            if block_idx == num_blocks:
+                logits = self.model.untile(
+                    crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
+                )
+                for pred, targ in zip(logits, masks):
+                    self.val_metrics.update(pred[None, ...], targ[None, ...])  # type: ignore
+
         # Compute the total loss.
         loss = self.criterion.loss_total(losses_all_layers=losses)
-
-        # Store the block-wise losses.
-        log_dict = {
-            f"val_loss/{k}": v
-            for k, v in losses.items()
-            if "block" not in k or self.model_args.metric_log_debug
-        }
-
-        # Update the targets and predictions of the last block.
-        for pred, targ in zip(logits, masks):
-            self.val_miou.update(pred[None, ...], targ[None, ...])
-
-        metrics: dict[str, Any] = {
-            "val_metric/miou": self.val_miou,
-        }
-        if self.model_args.metric_log_classwise or self.model_args.metric_log_debug:
-            for block_idx, metric in zip(
-                range(num_blocks - num_joint_blocks, num_blocks + 1),
-                self.val_classwise_iou,
-            ):
-                block_suffix = f"_block{block_idx}" if block_idx < num_blocks else ""
-                if not block_suffix or self.model_args.metric_log_debug:
-                    metrics[f"val_metric_classwise/miou{block_suffix}"] = metric
+        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore
 
         return TaskStepResult(
             loss=loss,
-            log_dict={
-                "val_loss": loss.detach(),
-                **log_dict,
-                **metrics,
-            },
+            log_dict={},
+            metrics=self.val_metrics,
         )
 
     def mask_annealing(
