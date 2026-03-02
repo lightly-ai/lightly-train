@@ -26,9 +26,9 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 )
 from lightly_train._metrics.multihead_task_metric import MultiheadTaskMetric
 from lightly_train._metrics.semantic_segmentation.task_metric import (
+    SemanticSegmentationTaskMetric,
     SemanticSegmentationTaskMetricArgs,
 )
-from lightly_train._metrics.task_metric import TaskMetric
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.semantic_segmentation_multihead.task_model import (
@@ -86,7 +86,6 @@ class SemanticSegmentationMultiheadTrainArgs(TrainModelArgs):
     metric_args: SemanticSegmentationTaskMetricArgs = Field(
         default_factory=SemanticSegmentationTaskMetricArgs
     )
-    metric_log_classwise: bool = True
 
     @model_validator(mode="after")
     def _convert_lr_to_list(self) -> SemanticSegmentationMultiheadTrainArgs:
@@ -147,27 +146,30 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         # Always pass ignore_index: the dataset maps padded/unknown pixels to
         # data_args.ignore_index (-100) regardless of whether ignore_classes is set.
         ignore_index = data_args.ignore_index
-        val_head_metrics: dict[str, TaskMetric] = {}
-        train_head_metrics: dict[str, TaskMetric] = {}
+        class_names = list(data_args.included_classes.values())
+        train_head_metrics: dict[str, SemanticSegmentationTaskMetric] = {}
+        val_head_metrics: dict[str, SemanticSegmentationTaskMetric] = {}
         for lr in self.lrs:
             head_name = _format_head_name(lr)
-            val_head_metrics[head_name] = model_args.metric_args.get_metrics(
-                split="val",
-                num_classes=data_args.num_included_classes,
-                ignore_index=ignore_index,
-                log_classwise=model_args.metric_log_classwise,
-            )
-            train_head_metrics[head_name] = model_args.metric_args.get_metrics(
+            train_head_metrics[head_name] = SemanticSegmentationTaskMetric(
+                task_metric_args=model_args.metric_args,
                 split="train",
-                num_classes=data_args.num_included_classes,
+                class_names=class_names,
                 ignore_index=ignore_index,
-                log_classwise=False,
+                loss_names=["loss"],
             )
-        self.val_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
-            head_metrics=val_head_metrics,  # type: ignore[arg-type]
-        )
+            val_head_metrics[head_name] = SemanticSegmentationTaskMetric(
+                task_metric_args=model_args.metric_args,
+                split="val",
+                class_names=class_names,
+                ignore_index=ignore_index,
+                loss_names=["loss"],
+            )
         self.train_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
-            head_metrics=train_head_metrics,  # type: ignore[arg-type]
+            head_metrics=train_head_metrics,
+        )
+        self.val_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
+            head_metrics=val_head_metrics,
         )
 
     def get_task_model(self) -> SemanticSegmentationMultihead:
