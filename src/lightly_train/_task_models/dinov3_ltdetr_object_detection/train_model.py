@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 import torch
 from lightning_fabric import Fabric
@@ -21,15 +21,17 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
     LinearLR,
     LRScheduler,
 )
-from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._distributed import reduce_dict
+from lightly_train._metrics.detection.task_metric import (
+    ObjectDetectionTaskMetric,
+    ObjectDetectionTaskMetricArgs,
+)
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
 )
@@ -59,20 +61,11 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
-class DINOv3LTDETRObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/map"
-    mode: Literal["min", "max"] = "max"
-
-
 class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     default_steps: ClassVar[int] = (
         100_000 // 16 * 72
     )  # TODO (Lionel, 10/25): Adjust default steps.
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        DINOv3LTDETRObjectDetectionTaskSaveCheckpointArgs
-    )
 
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
@@ -126,7 +119,9 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
-    metric_log_classwise: bool = False
+    metric_args: ObjectDetectionTaskMetricArgs = Field(
+        default_factory=ObjectDetectionTaskMetricArgs
+    )
 
 
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
@@ -135,7 +130,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     task_model_cls = DINOv3LTDETRObjectDetection
     train_transform_cls = DINOv3LTDETRObjectDetectionTrainTransform
     val_transform_cls = DINOv3LTDETRObjectDetectionValTransform
-    save_checkpoint_args_cls = DINOv3LTDETRObjectDetectionTaskSaveCheckpointArgs
 
     def __init__(
         self,
@@ -197,11 +191,22 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         self.clip_max_norm = model_args.gradient_clip_val
 
-        # Validation metric.
-        self.map_metric = MeanAveragePrecision(
-            class_metrics=model_args.metric_log_classwise,
+        class_names = list(data_args.included_classes.values())
+        self.loss_names = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]
+        self.train_metrics = ObjectDetectionTaskMetric(
+            task_metric_args=model_args.metric_args,
+            split="train",
+            class_names=class_names,
+            box_format="xyxy",
+            loss_names=self.loss_names,
         )
-        self.map_metric.warn_on_many_detections = False
+        self.val_metrics = ObjectDetectionTaskMetric(
+            task_metric_args=model_args.metric_args,
+            split="val",
+            class_names=class_names,
+            box_format="xyxy",
+            loss_names=self.loss_names,
+        )
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
@@ -275,14 +280,36 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
+        # Metrics
+        self.train_metrics.update_loss(
+            loss_dict={
+                "loss": total_loss.detach(),
+                "loss_vfl": loss_dict["loss_vfl"].detach(),
+                "loss_bbox": loss_dict["loss_bbox"].detach(),
+                "loss_giou": loss_dict["loss_giou"].detach(),
+            },
+            weight=samples.shape[0],
+        )  # type: ignore[operator]
+        if self.model_args.metric_args.train:
+            orig_target_sizes = batch["original_size"]
+            # Convert to xyxy format and de-normalize the boxes.
+            boxes = _yolo_to_xyxy(boxes)
+            boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
+            for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
+                target["boxes"] = sample_denormalized_boxes
+
+            orig_target_sizes_tensor = torch.tensor(
+                orig_target_sizes, device=samples.device
+            )
+            results = self.model.postprocessor(
+                outputs, orig_target_sizes=orig_target_sizes_tensor
+            )
+            self.train_metrics.update(results, targets)  # type: ignore[operator]
+
         return TaskStepResult(
             loss=total_loss,
-            log_dict={
-                "train_loss": total_loss.item(),
-                "train_loss/loss_vfl": loss_dict["loss_vfl"],
-                "train_loss/loss_bbox": loss_dict["loss_bbox"],
-                "train_loss/loss_giou": loss_dict["loss_giou"],
-            },
+            log_dict={},
+            metrics=self.train_metrics,
         )
 
     def on_train_batch_end(self) -> None:
@@ -344,22 +371,22 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             outputs, orig_target_sizes=orig_target_sizes_tensor
         )
 
-        # Update mAP metric
-        self.map_metric.update(results, targets)
-
-        metrics: dict[str, Any] = {
-            "val_metric/map": self.map_metric,
-        }
+        # Metrics
+        self.val_metrics.update_loss(
+            loss_dict={
+                "loss": total_loss.detach(),
+                "loss_vfl": loss_dict["loss_vfl"].detach(),
+                "loss_bbox": loss_dict["loss_bbox"].detach(),
+                "loss_giou": loss_dict["loss_giou"].detach(),
+            },
+            weight=samples.shape[0],
+        )  # type: ignore[operator]
+        self.val_metrics.update(results, targets)  # type: ignore[operator]
 
         return TaskStepResult(
             loss=total_loss,
-            log_dict={
-                "val_loss": total_loss.item(),
-                "val_loss/loss_vfl": loss_dict["loss_vfl"],
-                "val_loss/loss_bbox": loss_dict["loss_bbox"],
-                "val_loss/loss_giou": loss_dict["loss_giou"],
-                **metrics,
-            },
+            log_dict={},
+            metrics=self.val_metrics,
         )
 
     def get_optimizer(

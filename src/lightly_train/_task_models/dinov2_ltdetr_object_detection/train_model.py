@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 import torch
 from lightning_fabric import Fabric
@@ -32,7 +32,6 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
     DINOv2LTDETRObjectDetection,
 )
@@ -62,20 +61,11 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
-class DINOv2LTDETRObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/map"
-    mode: Literal["min", "max"] = "max"
-
-
 class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     default_steps: ClassVar[int] = (
         100_000 // 16 * 72
     )  # TODO (Lionel, 10/25): Adjust default steps.
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        DINOv2LTDETRObjectDetectionTaskSaveCheckpointArgs
-    )
 
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
@@ -130,7 +120,6 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
-    metric_log_classwise: bool = False
     metric_args: ObjectDetectionTaskMetricArgs = Field(
         default_factory=ObjectDetectionTaskMetricArgs
     )
@@ -142,7 +131,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
     task_model_cls = DINOv2LTDETRObjectDetection
     train_transform_cls = DINOv2LTDETRObjectDetectionTrainTransform
     val_transform_cls = DINOv2LTDETRObjectDetectionValTransform
-    save_checkpoint_args_cls = DINOv2LTDETRObjectDetectionTaskSaveCheckpointArgs
 
     def __init__(
         self,
