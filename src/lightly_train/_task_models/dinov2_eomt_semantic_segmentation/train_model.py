@@ -115,7 +115,6 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
 
     # Metrics
     metric_log_debug: bool = False
-    metric_log_train: bool = False
 
     metric_args: SemanticSegmentationTaskMetricArgs = Field(
         default_factory=SemanticSegmentationTaskMetricArgs
@@ -251,7 +250,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             class_names=list(data_args.included_classes.values()),
             ignore_index=data_args.ignore_index,
             loss_names=["loss"],
-            init_metrics=model_args.metric_log_train,
         )
         self.val_metrics = SemanticSegmentationTaskMetric(
             task_metric_args=model_args.metric_args,
@@ -259,7 +257,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             class_names=list(data_args.included_classes.values()),
             ignore_index=data_args.ignore_index,
             loss_names=["loss"],
-            init_metrics=True,
         )
 
         _torch_helpers.register_load_state_dict_pre_hook(
@@ -304,7 +301,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
 
         # Update metrics
         self.train_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore
-        if self.model_args.metric_log_train:
+        if self.model_args.metric_args.train:
             with torch.no_grad():
                 # Calculate metrics for the last block's predictions.
                 mask_logits = mask_logits_per_layer[-1]

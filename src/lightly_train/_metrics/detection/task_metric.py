@@ -30,6 +30,7 @@ from lightly_train._metrics.task_metric import (
 class ObjectDetectionTaskMetricArgs(TaskMetricArgs):
     watch_metric: str = "val_metric/map"
     classwise: bool = False
+    train: bool = False
     map: MeanAveragePrecisionArgs | None = Field(
         default_factory=MeanAveragePrecisionArgs
     )
@@ -51,7 +52,7 @@ class ObjectDetectionTaskMetric(TaskMetric):
         class_names: Sequence[str],
         box_format: Literal["xyxy", "xywh", "cxcywh"],
         loss_names: Sequence[str],
-        init_metrics: bool = True,
+        init_metrics: bool | None = None,
     ) -> None:
         """Initialize object detection metrics container.
 
@@ -62,8 +63,8 @@ class ObjectDetectionTaskMetric(TaskMetric):
             box_format: Box format for predictions
             loss_names: Names of losses to track
             init_metrics:
-                Whether to initialize metrics. Set to False to not build metrics, for
-                example if only losses should be tracked.
+                Whether to initialize metrics. If None, uses task_metric_args.train
+                for the train split and True for other splits.
         """
         super().__init__(task_metric_args=task_metric_args)
         self.num_classes = len(class_names)
@@ -73,6 +74,9 @@ class ObjectDetectionTaskMetric(TaskMetric):
         self.watch_metric_mode = get_watch_metric_mode(
             task_metric_args, list(loss_names), task_metric_args.watch_metric
         )
+
+        if init_metrics is None:
+            init_metrics = task_metric_args.train if split == "train" else True
 
         metrics = {}
         if init_metrics and task_metric_args.map is not None:

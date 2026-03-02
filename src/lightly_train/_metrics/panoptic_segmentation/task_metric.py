@@ -29,6 +29,7 @@ from lightly_train._metrics.task_metric import (
 class PanopticSegmentationTaskMetricArgs(TaskMetricArgs):
     watch_metric: str = "val_metric/pq"
     classwise: bool = False
+    train: bool = False
     pq: PanopticQualityArgs | None = Field(default_factory=PanopticQualityArgs)
 
 
@@ -50,7 +51,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         thing_class_names: Sequence[str],
         stuff_class_names: Sequence[str],
         loss_names: Sequence[str],
-        init_metrics: bool = True,
+        init_metrics: bool | None = None,
     ) -> None:
         """Initialize panoptic segmentation metrics container."""
         super().__init__(task_metric_args=task_metric_args)
@@ -61,6 +62,9 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         self.watch_metric_mode = get_watch_metric_mode(
             task_metric_args, list(loss_names), task_metric_args.watch_metric
         )
+
+        if init_metrics is None:
+            init_metrics = task_metric_args.train if split == "train" else True
 
         metrics = {}
         if init_metrics and task_metric_args.pq is not None:

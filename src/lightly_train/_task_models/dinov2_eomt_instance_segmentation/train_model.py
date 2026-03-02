@@ -93,7 +93,6 @@ class DINOv2EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
     # Metrics
-    metric_log_train: bool = False
     metric_log_debug: bool = False
 
     metric_args: InstanceSegmentationTaskMetricArgs = Field(
@@ -270,7 +269,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
 
         # Metrics
         self.train_metrics.update_loss({"loss": loss.detach()}, weight=B)
-        if self.model_args.metric_log_train:
+        if self.model_args.metric_args.train:
             with torch.no_grad():
                 mask_logits = mask_logits_per_layer[-1]
                 class_logits = class_logits_per_layer[-1]

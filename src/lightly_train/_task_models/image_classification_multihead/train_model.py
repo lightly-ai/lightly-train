@@ -74,7 +74,6 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
     lr_warmup_steps: int = 0
 
     # Metrics
-    metric_log_train: bool = False
 
     # TODO(Guarin, 02/26): Refactor to use Pydantic discriminated union for metric args
     # instead of "auto" string.
@@ -178,7 +177,6 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 split="train",
                 class_names=class_names,
                 loss_names=["loss"],
-                init_metrics=model_args.metric_log_train,
             )
         self.train_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
             head_metrics=train_head_metrics,
