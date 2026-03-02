@@ -1506,7 +1506,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 timer.reset_gpu_max_memory("val")
 
                 val_dataloader_iter = iter(val_dataloader)
-                accumulated_val_log_dict: dict[str, Any] = {}
+                # TODO (Lionel, 02/26): Average metrics during validation instead of
+                # only singular metrics at the end of the epoch.
                 for val_step in range(len(val_dataloader)):
                     is_last_val_step = val_step + 1 == len(val_dataloader)
                     is_val_log_step = (
@@ -1527,16 +1528,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
                     timer.end_step("val_step")
                     timer.record_gpu_stats("val")
-                    helpers.accumulate_log_dict(
-                        accumulated_val_log_dict, val_result.log_dict
-                    )
 
                     if is_last_val_step:
-                        helpers.average_accumulated_log_dict(
-                            accumulated_val_log_dict, len(val_dataloader)
-                        )
                         # Metric computation.
-                        val_log_dict = helpers.compute_metrics(accumulated_val_log_dict)
+                        val_log_dict = helpers.compute_metrics(val_result.log_dict)
 
                         timer_agg = timer.get_aggregated_metrics(fabric)
 
@@ -1556,7 +1551,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             global_batch_size=config.batch_size,
                         )
                         fabric.log_dict(val_log_dict, step=step)
-                        helpers.reset_metrics(accumulated_val_log_dict)
+                        helpers.reset_metrics(val_result.log_dict)
 
                         watch_metric = val_log_dict.get(
                             config.save_checkpoint_args.watch_metric
