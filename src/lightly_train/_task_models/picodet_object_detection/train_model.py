@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 import torch
 import torch.distributed as dist
@@ -25,9 +25,11 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
-from lightly_train._distributed import reduce_dict
+from lightly_train._metrics.detection.task_metric import (
+    ObjectDetectionTaskMetric,
+    ObjectDetectionTaskMetricArgs,
+)
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.object_detection_components.utils import (
     _denormalize_xyxy_boxes,
@@ -67,13 +69,6 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import ObjectDetectionBatch
 
 
-class PicoDetObjectDetectionTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    """Checkpoint saving configuration for PicoDet."""
-
-    watch_metric: str = "val_metric/map"
-    mode: Literal["min", "max"] = "max"
-
-
 class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     """Training arguments for PicoDet-S.
 
@@ -95,9 +90,6 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
 
     default_batch_size: ClassVar[int] = 80
     default_steps: ClassVar[int] = 90_000
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        PicoDetObjectDetectionTaskSaveCheckpointArgs
-    )
 
     lr: float = 0.1
     momentum: float = 0.9
@@ -128,6 +120,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
     task: ClassVar[str] = "object_detection"
     train_model_args_cls = PicoDetObjectDetectionTrainArgs
+    task_metric_args_cls = ObjectDetectionTaskMetricArgs
     task_model_cls = PicoDetObjectDetection
     train_transform_cls = PicoDetObjectDetectionTrainTransform
     val_transform_cls = PicoDetObjectDetectionValTransform
@@ -141,9 +134,11 @@ class PicoDetObjectDetectionTrain(TrainModel):
         train_transform_args: PicoDetObjectDetectionTrainTransformArgs,
         val_transform_args: PicoDetObjectDetectionValTransformArgs,
         load_weights: bool,
+        metric_args: ObjectDetectionTaskMetricArgs,
     ) -> None:
         super().__init__()
         self.model_args = model_args
+        self.metric_args = metric_args
 
         num_classes = len(data_args.included_classes)
         resolved_image_size = no_auto(val_transform_args.image_size)
@@ -192,6 +187,22 @@ class PicoDetObjectDetectionTrain(TrainModel):
             warmups=model_args.ema_warmup_steps,
         )
 
+        class_names = list(data_args.included_classes.values())
+        self.train_metrics = ObjectDetectionTaskMetric(
+            task_metric_args=metric_args,
+            split="train",
+            class_names=class_names,
+            box_format="xyxy",
+            loss_names=["loss", "loss_vfl", "loss_giou", "loss_dfl"],
+        )
+        self.val_metrics = ObjectDetectionTaskMetric(
+            task_metric_args=metric_args,
+            split="val",
+            class_names=class_names,
+            box_format="xyxy",
+            loss_names=["loss", "loss_vfl", "loss_giou", "loss_dfl"],
+        )
+
         self.map_metric = MeanAveragePrecision()
         self.map_metric.warn_on_many_detections = False
 
@@ -238,18 +249,57 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_labels_list=gt_labels_list,
         )
 
-        loss_dict = reduce_dict(
+        self.train_metrics.update_loss(
             {
-                "train_loss": total_loss,
-                "train_loss/loss_vfl": loss_vfl,
-                "train_loss/loss_giou": loss_giou,
-                "train_loss/loss_dfl": loss_dfl,
-            }
+                "loss": total_loss.detach(),
+                "loss_vfl": loss_vfl.detach(),
+                "loss_giou": loss_giou.detach(),
+                "loss_dfl": loss_dfl.detach(),
+            },
+            weight=images.shape[0],
         )
+        if self.metric_args.train:
+            device = images.device
+            postprocessor = self.model.postprocessor
+            assert isinstance(postprocessor, PicoDetPostProcessor)
+            predictions = postprocessor.forward_batch(
+                cls_scores=cls_scores,
+                bbox_preds=bbox_preds,
+                original_sizes=torch.tensor(
+                    [[img_h, img_w]] * batch_size, device=device
+                ),
+                score_threshold=0.001,
+            )
+
+            preds = []
+            targets = []
+
+            for i in range(batch_size):
+                pred_boxes = predictions[i]["bboxes"].detach()
+                pred_scores = predictions[i]["scores"].detach()
+                pred_labels = predictions[i]["labels"].detach()
+                gt_boxes = gt_boxes_xyxy_list[i].to(device).detach()
+                gt_labels_i = gt_labels_list[i].to(device).long().detach()
+
+                preds.append(
+                    {
+                        "boxes": pred_boxes,
+                        "scores": pred_scores,
+                        "labels": pred_labels,
+                    }
+                )
+                targets.append(
+                    {
+                        "boxes": gt_boxes,
+                        "labels": gt_labels_i,
+                    }
+                )
+            self.train_metrics.update(preds, targets)
 
         return TaskStepResult(
             loss=total_loss,
-            log_dict={k: v.item() for k, v in loss_dict.items()},
+            log_dict={},
+            metrics=self.train_metrics,
         )
 
     def on_train_batch_end(self) -> None:
@@ -324,17 +374,21 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 }
             )
 
-        self.map_metric.update(preds, targets)
+        self.val_metrics.update_loss(
+            {
+                "loss": total_loss.detach(),
+                "loss_vfl": loss_vfl.detach(),
+                "loss_giou": loss_giou.detach(),
+                "loss_dfl": loss_dfl.detach(),
+            },
+            weight=images.shape[0],
+        )
+        self.val_metrics.update(preds, targets)
 
         return TaskStepResult(
             loss=total_loss,
-            log_dict={
-                "val_loss": total_loss.item(),
-                "val_loss/loss_vfl": loss_vfl.item(),
-                "val_loss/loss_giou": loss_giou.item(),
-                "val_loss/loss_dfl": loss_dfl.item(),
-                "val_metric/map": self.map_metric,
-            },
+            log_dict={},
+            metrics=self.val_metrics,
         )
 
     def _compute_losses(

@@ -422,15 +422,16 @@ def get_metric_args(
     train_model_cls: type[TrainModel],
     metric_args: dict[str, Any] | TaskMetricArgs | None,
     data_args: TaskDataArgs,
-) -> TaskMetricArgs | None:
-    if not hasattr(train_model_cls, "task_metric_args_cls"):
-        return None
+) -> TaskMetricArgs:
     if isinstance(metric_args, TaskMetricArgs):
         return metric_args
     metric_args_dict: dict[str, Any] = {} if metric_args is None else dict(metric_args)
+
+    # TODO(Guarin, 02/26): This is a bit hacky. We should find a better way to do this.
     classification_task = getattr(data_args, "classification_task", None)
     if classification_task is not None:
         metric_args_dict.setdefault("classification_task", classification_task)
+
     from pydantic import TypeAdapter
 
     adapter: TypeAdapter[TaskMetricArgs] = TypeAdapter(
