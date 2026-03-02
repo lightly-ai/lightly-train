@@ -189,7 +189,14 @@ class ClassificationTaskMetric(TaskMetric):
         num_classes: int,
         init_metrics: bool,
     ) -> MetricCollection:
-        """Build a flat dictionary of metric instances from TaskMetricArgs."""
+        """Build a flat dictionary of metric instances from TaskMetricArgs and then
+        wrap them in a MetricCollection instance.
+
+        Aggregating all metrics into a flat dictionary allows MetricCollection to share
+        internal state across all metrics. E.g. for accuracy, precision, and recall to
+        share the same accumulated counts of true positives, false positives, and false
+        negatives. This makes metric calculation more efficient.
+        """
         task_metric_args = self.task_metric_args
 
         all_metrics: dict[str, Metric] = {}
