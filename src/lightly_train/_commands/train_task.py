@@ -1433,6 +1433,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             if is_log_step or is_last_step:
                 train_log_dict = train_result.log_dict
                 train_metrics = train_result.metrics.compute()
+                train_result.metrics.reset()
                 timer_agg = timer.get_aggregated_metrics(fabric)
 
                 helpers.log_step(
@@ -1463,7 +1464,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     metrics=train_metrics,
                     step=step,
                 )
-                train_result.metrics.reset()
 
             if config.save_checkpoint_args.save_last and (
                 is_save_ckpt_step or is_last_step
@@ -1518,6 +1518,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
                     if is_last_val_step:
                         val_metrics = val_result.metrics.compute()
+                        val_result.metrics.reset()
                         best_metrics = helpers.get_best_metrics(
                             best_metrics=best_metrics,
                             last_metrics=val_metrics,
@@ -1547,7 +1548,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             metrics=val_metrics,
                             step=step,
                         )
-                        val_result.metrics.reset()
 
                         if (
                             config.save_checkpoint_args.save_best
