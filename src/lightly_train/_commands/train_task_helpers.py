@@ -426,12 +426,13 @@ def get_metric_args(
         return metric_args
     metric_args_dict: dict[str, Any] = {} if metric_args is None else dict(metric_args)
 
-    # TODO(Guarin, 02/26): This is a bit hacky. We should find a better way to do this.
+    # TODO(Guarin, 02/26): This is a bit hacky, we should find a better way. We have to
+    # inject the classification_task here for Pydantic to be able to select the correct
+    # metrics class depending on the classification task (e.g. multiclass vs multilabel).
     classification_task = getattr(data_args, "classification_task", None)
     if classification_task is not None:
         metric_args_dict.setdefault("classification_task", classification_task)
-    # Needs type adapter because TaskMetricArgs can be a discriminated union.
-    # For example, for classification we have:
+    # Needs type adapter because TaskMetricArgs can be a union type. For example:
     # task_metric_args_cls = Union[ClassificationTaskMetricArgs, ClassificationMultiheadTaskMetricArgs]
     adapter: TypeAdapter[TaskMetricArgs] = TypeAdapter(
         train_model_cls.task_metric_args_cls  # type: ignore[type-abstract]
