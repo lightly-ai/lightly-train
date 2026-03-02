@@ -31,7 +31,7 @@ from lightly_train._metrics.task_metric import (
 
 class SemanticSegmentationTaskMetricArgs(TaskMetricArgs):
     watch_metric: str = "val_metric/miou"
-    classwise: bool = True
+    classwise: bool = False
     train: bool = False
     miou: JaccardIndexArgs | None = Field(default_factory=JaccardIndexArgs)
 

@@ -29,7 +29,7 @@ from lightly_train._metrics.task_metric import (
 
 class InstanceSegmentationTaskMetricArgs(TaskMetricArgs):
     watch_metric: str = "val_metric/map"
-    classwise: bool = True
+    classwise: bool = False
     train: bool = False
     map: MeanAveragePrecisionArgs | None = Field(
         default_factory=MeanAveragePrecisionArgs
