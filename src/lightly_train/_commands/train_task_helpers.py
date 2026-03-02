@@ -788,7 +788,7 @@ def log_step(
 
 def log_fabric(
     fabric: Fabric,
-    log_dict: dict[str, Any],
+    log_dict: dict[str, float],
     metrics: MetricComputeResult,
     step: int,
 ) -> None:
@@ -980,7 +980,7 @@ def log_training_summary(
 
 def add_timer_logs(
     timer_agg: TimerAggregateMetrics,
-    log_dict: dict[str, Any],
+    log_dict: dict[str, float],
     split: Literal["train", "val"],
     global_batch_size: int,
 ) -> None:
