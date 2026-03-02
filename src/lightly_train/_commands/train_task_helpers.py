@@ -874,7 +874,7 @@ def add_timer_logs(
     log_dict: dict[str, Any],
     split: Literal["train", "val"],
     global_batch_size: int,
-    gradient_accumulation_steps: int = 1,
+    gradient_accumulation_steps: int,
 ) -> None:
     """Add profiling metrics to the log dictionary.
 
