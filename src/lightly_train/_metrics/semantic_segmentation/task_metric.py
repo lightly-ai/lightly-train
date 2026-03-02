@@ -37,12 +37,7 @@ class SemanticSegmentationTaskMetricArgs(TaskMetricArgs):
 
 
 class SemanticSegmentationTaskMetric(TaskMetric):
-    """Container for all metrics for semantic segmentation tasks.
-
-    Inherits from TaskMetric which inherits from nn.Module.
-    All metrics stored as attributes are automatically detected as child modules
-    and handled by Lightning Fabric for device transfer.
-    """
+    """Container for all metrics for semantic segmentation tasks."""
 
     def __init__(
         self,

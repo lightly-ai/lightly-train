@@ -62,7 +62,8 @@ class PanopticQualityArgs(MetricArgs):
 
 
 class PanopticQuality(TorchMetricsPanopticQuality):
-    """Wrapper around torchmetrics PanopticQuality to handle ignored classes."""
+    """Wrapper around torchmetrics PanopticQuality to flatten results in a single-level
+    dictionary."""
 
     def __init__(
         self,

@@ -34,12 +34,7 @@ class PanopticSegmentationTaskMetricArgs(TaskMetricArgs):
 
 
 class PanopticSegmentationTaskMetric(TaskMetric):
-    """Container for all metrics for panoptic segmentation tasks.
-
-    Inherits from TaskMetric which inherits from nn.Module.
-    All metrics stored as attributes are automatically detected as child modules
-    and handled by Lightning Fabric for device transfer.
-    """
+    """Container for all metrics for panoptic segmentation tasks."""
 
     def __init__(
         self,
@@ -53,7 +48,6 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         loss_names: Sequence[str],
         init_metrics: bool | None = None,
     ) -> None:
-        """Initialize panoptic segmentation metrics container."""
         super().__init__(task_metric_args=task_metric_args)
         self.split = split
         self.things = things

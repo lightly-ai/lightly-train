@@ -37,13 +37,6 @@ class ObjectDetectionTaskMetricArgs(TaskMetricArgs):
 
 
 class ObjectDetectionTaskMetric(TaskMetric):
-    """Container for all metrics for object detection tasks.
-
-    Inherits from TaskMetric which inherits from nn.Module.
-    All metrics stored as attributes are automatically detected as child modules
-    and handled by Lightning Fabric for device transfer.
-    """
-
     def __init__(
         self,
         *,
