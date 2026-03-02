@@ -248,18 +248,16 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             log_dict[f"train_loss_head/{head_name}"] = loss.detach()
 
             # Update per-head quality metrics and loss (scalar, no accumulation).
-            head_train = self.train_metrics.head_metrics[head_name]
-            head_train.update(logits, masks)  # type: ignore[operator]
-            head_train.update_loss({"loss": loss.detach()})  # type: ignore[operator]
+            head_metrics = self.train_metrics.head_metrics[head_name]
+            head_metrics.update(logits, masks)  # type: ignore[operator]
+            head_metrics.update_loss({"loss": loss.detach()})  # type: ignore[operator]
 
         # Sum losses for backprop.
         loss_sum = torch.stack(losses).sum()
-        # Mean loss for logging.
-        loss_mean = torch.stack(losses).mean()
-        log_dict["train_loss"] = loss_mean.detach()
-        log_dict["train_metrics"] = self.train_metrics
 
-        return TaskStepResult(loss=loss_sum, log_dict=log_dict)
+        return TaskStepResult(
+            loss=loss_sum, log_dict=log_dict, metrics=self.train_metrics
+        )
 
     def validation_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
@@ -277,8 +275,6 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
         # Process each head separately.
         losses: list[Tensor] = []
-        log_dict: dict[str, Any] = {}
-
         for head_name, crop_logits in crop_logits_dict.items():
             # Handle ignore class.
             if self.model.class_ignore_index is not None:
@@ -290,6 +286,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             )
 
             # Compute loss and update metrics per image.
+            head_metrics = self.val_metrics.head_metrics[head_name]
             head_loss = torch.tensor(
                 0.0, device=crop_logits.device, dtype=crop_logits.dtype
             )
@@ -298,21 +295,16 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
                 image_mask = image_mask.unsqueeze(0)  # Add batch dimension.
                 loss = self.loss_fn(image_logits, image_mask)
                 head_loss += loss
-                self.val_metrics.head_metrics[head_name].update(
-                    image_logits, image_mask
-                )  # type: ignore[operator]
+                head_metrics.update(image_logits, image_mask)  # type: ignore[operator]
             head_loss /= len(images)
             losses.append(head_loss)
 
             # Accumulate loss in the head's TaskMetric (weighted by batch size).
-            head_val = self.val_metrics.head_metrics[head_name]
-            head_val.update_loss({"loss": head_loss}, weight=len(images))  # type: ignore[operator]
-
-        log_dict["val_metrics"] = self.val_metrics
+            head_metrics.update_loss({"loss": head_loss}, weight=len(images))  # type: ignore[operator]
 
         # Use sum of losses for consistency with training_step.
         loss_sum = torch.stack(losses).sum()
-        return TaskStepResult(loss=loss_sum, log_dict=log_dict)
+        return TaskStepResult(loss=loss_sum, log_dict={}, metrics=self.val_metrics)
 
     def set_train_mode(self) -> None:
         self.train()

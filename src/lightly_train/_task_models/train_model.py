@@ -120,4 +120,4 @@ class TrainModel(Module):
 class TaskStepResult:
     loss: Tensor
     log_dict: dict[str, Any]
-    metrics: TaskMetric | None = None
+    metrics: TaskMetric

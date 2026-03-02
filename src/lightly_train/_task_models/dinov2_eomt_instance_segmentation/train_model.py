@@ -259,11 +259,6 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
             losses.update(block_losses)
         loss = self.criterion.loss_total(losses_all_layers=losses)
-        loss_log_dict = {
-            f"train_loss/{k}": v
-            for k, v in losses.items()
-            if "block" not in k or self.model_args.metric_log_debug
-        }
 
         # Metrics
         self.train_metrics.update_loss({"loss": loss.detach()}, weight=B)
@@ -305,11 +300,8 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
 
         return TaskStepResult(
             loss=loss,
-            log_dict={
-                "train_loss": loss.detach(),
-                **loss_log_dict,
-                **mask_prob_dict,
-            },
+            log_dict=mask_prob_dict,
+            metrics=self.train_metrics,
         )
 
     def validation_step(

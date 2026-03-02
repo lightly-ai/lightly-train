@@ -184,6 +184,12 @@ def train_image_classification(
             Transform arguments. Either None or a dictionary of transform arguments.
             The image size and normalization parameters can be set with
             ``transform_args={"image_size": (height, width), "normalize": {"mean": (r, g, b), "std": (r, g, b)}}``
+        metric_args:
+            Metric arguments. Either None or a dictionary of metric arguments.
+            Set ``metric_args={"train": True}`` to also log metrics on training data.
+            Set ``metric_args={"classwise": True}`` to log per-class metrics.
+            Set ``metric_args={"watch_metric": "val_metric/top1_acc_micro"}`` to configure the
+            metric used to select the best checkpoint.
         loader_args:
             Arguments for the PyTorch DataLoader. Should only be used in special cases
             as default values are automatically set. Prefer to use the `batch_size` and
@@ -313,6 +319,12 @@ def train_image_classification_multihead(
             to train with multiple learning rates.
         transform_args:
             Transform arguments.
+        metric_args:
+            Metric arguments. Either None or a dictionary of metric arguments.
+            Set ``metric_args={"train": True}`` to also log metrics on training data.
+            Set ``metric_args={"classwise": True}`` to log per-class metrics.
+            Set ``metric_args={"watch_metric": "val_metric/top1_acc_micro"}`` to configure the
+            metric used to select the best checkpoint.
         loader_args:
             Arguments for the PyTorch DataLoader.
         save_checkpoint_args:
@@ -462,6 +474,12 @@ def train_instance_segmentation(
             Transform arguments. Either None or a dictionary of transform arguments.
             The image size and normalization parameters can be set with
             ``transform_args={"image_size": (height, width), "normalize": {"mean": (r, g, b), "std": (r, g, b)}}``
+        metric_args:
+            Metric arguments. Either None or a dictionary of metric arguments.
+            Set ``metric_args={"train": True}`` to also log metrics on training data.
+            Set ``metric_args={"classwise": True}`` to log per-class metrics.
+            Set ``metric_args={"watch_metric": "val_metric/map"}`` to configure the
+            metric used to select the best checkpoint.
         loader_args:
             Arguments for the PyTorch DataLoader. Should only be used in special cases
             as default values are automatically set. Prefer to use the `batch_size` and
@@ -602,6 +620,12 @@ def train_object_detection(
             Transform arguments. Either None or a dictionary of transform arguments.
             The image size and normalization parameters can be set with
             ``transform_args={"image_size": (height, width), "normalize": {"mean": (r, g, b), "std": (r, g, b)}}``
+        metric_args:
+            Metric arguments. Either None or a dictionary of metric arguments.
+            Set ``metric_args={"train": True}`` to also log metrics on training data.
+            Set ``metric_args={"classwise": True}`` to log per-class metrics.
+            Set ``metric_args={"watch_metric": "val_metric/map"}`` to configure the
+            metric used to select the best checkpoint.
         loader_args:
             Arguments for the PyTorch DataLoader. Should only be used in special cases
             as default values are automatically set. Prefer to use the `batch_size` and
@@ -743,6 +767,12 @@ def train_panoptic_segmentation(
             Transform arguments. Either None or a dictionary of transform arguments.
             The image size and normalization parameters can be set with
             ``transform_args={"image_size": (height, width), "normalize": {"mean": (r, g, b), "std": (r, g, b)}}``
+        metric_args:
+            Metric arguments. Either None or a dictionary of metric arguments.
+            Set ``metric_args={"train": True}`` to also log metrics on training data.
+            Set ``metric_args={"classwise": True}`` to log per-class metrics.
+            Set ``metric_args={"watch_metric": "val_metric/pq"}`` to configure the
+            metric used to select the best checkpoint.
         loader_args:
             Arguments for the PyTorch DataLoader. Should only be used in special cases
             as default values are automatically set. Prefer to use the `batch_size` and
@@ -883,6 +913,12 @@ def train_semantic_segmentation(
             Transform arguments. Either None or a dictionary of transform arguments.
             The image size and normalization parameters can be set with
             ``transform_args={"image_size": (height, width), "normalize": {"mean": (r, g, b), "std": (r, g, b)}}``
+        metric_args:
+            Metric arguments. Either None or a dictionary of metric arguments.
+            Set ``metric_args={"train": True}`` to also log metrics on training data.
+            Set ``metric_args={"classwise": True}`` to log per-class metrics.
+            Set ``metric_args={"watch_metric": "val_metric/miou"}`` to configure the
+            metric used to select the best checkpoint.
         loader_args:
             Arguments for the PyTorch DataLoader. Should only be used in special cases
             as default values are automatically set. Prefer to use the `batch_size` and
@@ -991,6 +1027,12 @@ def train_semantic_segmentation_multihead(
             to train with multiple learning rates.
         transform_args:
             Transform arguments.
+        metric_args:
+            Metric arguments. Either None or a dictionary of metric arguments.
+            Set ``metric_args={"train": True}`` to also log metrics on training data.
+            Set ``metric_args={"classwise": True}`` to log per-class metrics.
+            Set ``metric_args={"watch_metric": "val_metric/miou"}`` to configure the
+            metric used to select the best checkpoint.
         loader_args:
             Arguments for the PyTorch DataLoader.
         save_checkpoint_args:
@@ -1565,16 +1607,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 fabric.barrier()
         timer.stop()
         logger.info("Training completed.")
-
-
-def _is_better_metric(
-    current_metric: float, best_metric: float, mode: Literal["min", "max"]
-) -> bool:
-    if mode == "min":
-        return current_metric < best_metric
-    elif mode == "max":
-        return current_metric > best_metric
-    raise ValueError(f"Unknown mode: {mode}")
 
 
 class TrainTaskConfig(PydanticConfig):
