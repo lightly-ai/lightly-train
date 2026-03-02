@@ -94,6 +94,9 @@ class ImageClassificationTrainArgs(TrainModelArgs):
 class ImageClassificationTrain(TrainModel):
     task = "image_classification"
     train_model_args_cls = ImageClassificationTrainArgs
+    # Needs type ignore because ClassificationTaskMetricArgs is not a pure type but
+    # a union of MulticlassClassificationTaskMetricArgs and MultilabelClassificationTaskMetricArgs
+    # This is properly handled in get_metric_args in train_task_helpers.py
     task_metric_args_cls = ClassificationTaskMetricArgs  # type: ignore[assignment]
     task_model_cls = ImageClassification
     train_transform_cls = ImageClassificationTrainTransform

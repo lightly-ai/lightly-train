@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
@@ -30,7 +30,6 @@ from lightly_train._metrics.semantic_segmentation.task_metric import (
     SemanticSegmentationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.semantic_segmentation_multihead.task_model import (
     SemanticSegmentationMultihead,
 )
@@ -48,18 +47,9 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
-class SemanticSegmentationMultiheadSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/miou"
-    mode: Literal["min", "max"] = "max"
-
-
 class SemanticSegmentationMultiheadTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     default_steps: ClassVar[int] = 80_000
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        SemanticSegmentationMultiheadSaveCheckpointArgs
-    )
 
     # Backbone args
     backbone_weights: PathLike | None = None

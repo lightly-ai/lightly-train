@@ -22,7 +22,6 @@ from torch.optim.sgd import SGD
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
-from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._metrics.classification.task_metric import (
     ClassificationTaskMetric,
     ClassificationTaskMetricArgs,
@@ -81,19 +80,13 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
             self.lr = [self.lr]
         return self
 
-    def resolve_auto(
-        self,
-        total_steps: int,
-        model_name: str,
-        model_init_args: dict[str, Any],
-        data_args: TaskDataArgs,
-    ) -> None:
-        pass
-
 
 class ImageClassificationMultiheadTrain(TrainModel):
     task = "image_classification_multihead"
     train_model_args_cls = ImageClassificationMultiheadTrainArgs
+    # Needs type ignore because ClassificationTaskMetricArgs is not a pure type but
+    # a union of MulticlassClassificationTaskMetricArgs and MultilabelClassificationTaskMetricArgs
+    # This is properly handled in get_metric_args in train_task_helpers.py
     task_metric_args_cls = ClassificationTaskMetricArgs  # type: ignore[assignment]
     task_model_cls = ImageClassificationMultihead
     train_transform_cls = ImageClassificationMultiheadTrainTransform

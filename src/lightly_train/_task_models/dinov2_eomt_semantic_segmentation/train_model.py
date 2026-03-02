@@ -9,12 +9,11 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any, ClassVar, Literal, TypedDict, Unpack, get_type_hints
+from typing import Any, ClassVar, Literal
 
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
-from pydantic import BaseModel
 from torch import Tensor
 from torch.nn import ModuleList
 from torch.optim.adamw import AdamW
@@ -32,7 +31,6 @@ from lightly_train._metrics.semantic_segmentation.task_metric import (
     SemanticSegmentationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -54,32 +52,11 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
-class MyConfig(BaseModel):
-    name: str
-    age: int
-
-
-# Dynamically create a TypedDict from the Pydantic model
-MyConfigDict = TypedDict("MyConfigDict", get_type_hints(MyConfig))  # type: ignore
-
-
-def fun(**kwargs: Unpack[MyConfigDict]) -> None:
-    pass
-
-
-class DINOv2EoMTSemanticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/miou"
-    mode: Literal["min", "max"] = "max"
-
-
 class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from ADE20K dataset:
     # 20210 images / batch size 16 * 31 epochs ~= 40k steps.
     default_steps: ClassVar[int] = 40_000
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        DINOv2EoMTSemanticSegmentationTaskSaveCheckpointArgs
-    )
 
     # Model args
     backbone_weights: PathLike | None = None

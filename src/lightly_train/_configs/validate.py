@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 from omegaconf import DictConfig, OmegaConf
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 from pydantic_core import ErrorDetails
-from typing_extensions import Any, Literal, Type, TypeVar
+from typing_extensions import Any, Literal, Type, TypeVar, overload
 
 from lightly_train._configs import omegaconf_utils
 from lightly_train._configs.config import PydanticConfig
@@ -20,13 +20,30 @@ from lightly_train.errors import (
 )
 
 _PydanticConfig = TypeVar("_PydanticConfig", bound=PydanticConfig)
+_T = TypeVar("_T")
 
 
+@overload
 def pydantic_model_validate(
     model: Type[_PydanticConfig],
     obj: dict[str, Any],
-) -> _PydanticConfig:
+) -> _PydanticConfig: ...
+
+
+@overload
+def pydantic_model_validate(
+    model: TypeAdapter[_T],
+    obj: dict[str, Any],
+) -> _T: ...
+
+
+def pydantic_model_validate(
+    model: Type[_PydanticConfig] | TypeAdapter[_T],
+    obj: dict[str, Any],
+) -> _PydanticConfig | _T:
     try:
+        if isinstance(model, TypeAdapter):
+            return model.validate_python(obj)  # type: ignore[return-value]
         return model.model_validate(obj)
     except ValidationError as ex:
         errors = ex.errors()
@@ -52,9 +69,6 @@ def pydantic_model_merge(
     assert isinstance(merged_dict_cfg, DictConfig)
     merged_dict = omegaconf_utils.config_to_dict(merged_dict_cfg)
     return pydantic_model_validate(model=model.__class__, obj=merged_dict)
-
-
-_T = TypeVar("_T")
 
 
 def no_auto(v: _T | Literal["auto"]) -> _T:

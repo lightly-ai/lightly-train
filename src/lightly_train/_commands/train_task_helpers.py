@@ -21,6 +21,7 @@ from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
+from pydantic import TypeAdapter
 from torch import Tensor
 from torch.utils.data import DataLoader
 
@@ -431,13 +432,13 @@ def get_metric_args(
     classification_task = getattr(data_args, "classification_task", None)
     if classification_task is not None:
         metric_args_dict.setdefault("classification_task", classification_task)
-
-    from pydantic import TypeAdapter
-
+    # Needs type adapter because TaskMetricArgs can be a discriminated union.
+    # For example, for classification we have:
+    # task_metric_args_cls = Union[ClassificationTaskMetricArgs, ClassificationMultiheadTaskMetricArgs]
     adapter: TypeAdapter[TaskMetricArgs] = TypeAdapter(
         train_model_cls.task_metric_args_cls  # type: ignore[type-abstract]
     )
-    return adapter.validate_python(metric_args_dict)
+    return validate.pydantic_model_validate(adapter, metric_args_dict)
 
 
 def get_val_transform(
