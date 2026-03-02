@@ -44,6 +44,7 @@ from lightly_train._metrics.task_metric import (
 
 class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
     watch_metric: str = "val_metric/top1_acc_micro"
+    classwise: bool = False
     accuracy: MulticlassAccuracyArgs | None = Field(
         default_factory=MulticlassAccuracyArgs
     )
@@ -56,6 +57,7 @@ class MulticlassClassificationTaskMetricArgs(TaskMetricArgs):
 
 class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
     watch_metric: str = "val_metric/f1_macro"
+    classwise: bool = False
     accuracy: MultilabelAccuracyArgs | None = Field(
         default_factory=MultilabelAccuracyArgs
     )
@@ -83,8 +85,6 @@ class ClassificationTaskMetric(TaskMetric):
         task_metric_args: ClassificationTaskMetricArgs,
         split: str,
         class_names: Sequence[str],
-        classwise: bool,
-        classwise_metric_args: ClassificationTaskMetricArgs | None,
         loss_names: Sequence[str],
         init_metrics: bool = True,
     ) -> None:
@@ -94,8 +94,7 @@ class ClassificationTaskMetric(TaskMetric):
             task_metric_args: Metrics configuration
             split: Split name (e.g., "val", "train")
             class_names: Class names for all metrics
-            classwise: Whether to log classwise metrics
-            classwise_metric_args: Optional separate args for classwise metrics
+            loss_names: Names of losses to track
             init_metrics:
                 Whether to initialize metrics. Set to False to not build metrics, for
                 example if only losses should be tracked.
@@ -104,7 +103,6 @@ class ClassificationTaskMetric(TaskMetric):
         super().__init__(task_metric_args=task_metric_args)
         self.split = split
         self.class_names = class_names
-        self.classwise = classwise
         self.watch_metric = task_metric_args.watch_metric
         self.watch_metric_mode = get_watch_metric_mode(
             task_metric_args, list(loss_names), task_metric_args.watch_metric
@@ -117,9 +115,9 @@ class ClassificationTaskMetric(TaskMetric):
             init_metrics=init_metrics,
         )
         self.metrics_classwise = self.build_classwise_metric_collection(
-            classwise=classwise,
+            classwise=task_metric_args.classwise,
             prefix=f"{self.split}_metric_classwise/",
-            classwise_metrics_args=classwise_metric_args,
+            classwise_metrics_args=None,
             class_names=class_names,
             init_metrics=init_metrics,
         )

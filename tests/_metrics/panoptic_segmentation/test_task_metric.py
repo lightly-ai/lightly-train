@@ -25,7 +25,6 @@ class TestPanopticSegmentationTaskMetric:
             stuffs=[2],
             thing_class_names=["cat", "dog"],
             stuff_class_names=["road"],
-            classwise=False,
             loss_names=["loss"],
         )
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
@@ -41,13 +40,12 @@ class TestPanopticSegmentationTaskMetric:
 
     def test_update__classwise(self) -> None:
         metric = PanopticSegmentationTaskMetric(
-            task_metric_args=PanopticSegmentationTaskMetricArgs(),
+            task_metric_args=PanopticSegmentationTaskMetricArgs(classwise=True),
             split="val",
             things=[0, 1],
             stuffs=[2],
             thing_class_names=["cat", "dog"],
             stuff_class_names=["road"],
-            classwise=True,
             loss_names=["loss"],
         )
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)

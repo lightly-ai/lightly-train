@@ -23,8 +23,6 @@ class TestClassificationTaskMetric:
             task_metric_args=MulticlassClassificationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog", "bird"],
-            classwise=False,
-            classwise_metric_args=None,
             loss_names=["loss"],
         )
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
@@ -46,8 +44,6 @@ class TestClassificationTaskMetric:
             task_metric_args=MultilabelClassificationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog", "bird"],
-            classwise=False,
-            classwise_metric_args=None,
             loss_names=["loss"],
         )
         preds = torch.tensor([[0.8, 0.5, 0.1], [0.1, 0.7, 0.2]])
@@ -70,8 +66,6 @@ class TestClassificationTaskMetric:
             task_metric_args=MulticlassClassificationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog", "bird"],
-            classwise=False,
-            classwise_metric_args=None,
             loss_names=["loss"],
         )
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
@@ -87,11 +81,9 @@ class TestClassificationTaskMetric:
 
     def test_update__classwise(self) -> None:
         metric = ClassificationTaskMetric(
-            task_metric_args=MulticlassClassificationTaskMetricArgs(),
+            task_metric_args=MulticlassClassificationTaskMetricArgs(classwise=True),
             split="val",
             class_names=["cat", "dog"],
-            classwise=True,
-            classwise_metric_args=None,
             loss_names=["loss"],
         )
         preds = torch.tensor([[0.8, 0.1], [0.1, 0.7]])

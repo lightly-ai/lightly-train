@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, TypedDict, Unpack, get_type_hints
 
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
-from pydantic import Field
+from pydantic import BaseModel, Field
 from torch import Tensor
 from torch.nn import ModuleList
 from torch.optim.adamw import AdamW
@@ -54,15 +54,14 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
-from typing import TypedDict, Unpack, get_type_hints
-from pydantic import BaseModel
-
 class MyConfig(BaseModel):
     name: str
     age: int
 
+
 # Dynamically create a TypedDict from the Pydantic model
 MyConfigDict = TypedDict("MyConfigDict", get_type_hints(MyConfig))  # type: ignore
+
 
 def fun(**kwargs: Unpack[MyConfigDict]) -> None:
     pass
@@ -115,7 +114,6 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
     # Metrics
-    metric_log_classwise: bool = True
     metric_log_debug: bool = False
     metric_log_train: bool = False
 
@@ -252,7 +250,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             split="train",
             class_names=list(data_args.included_classes.values()),
             ignore_index=data_args.ignore_index,
-            classwise=model_args.metric_log_classwise,
             loss_names=["loss"],
             init_metrics=model_args.metric_log_train,
         )
@@ -261,7 +258,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             split="val",
             class_names=list(data_args.included_classes.values()),
             ignore_index=data_args.ignore_index,
-            classwise=model_args.metric_log_classwise,
             loss_names=["loss"],
             init_metrics=True,
         )

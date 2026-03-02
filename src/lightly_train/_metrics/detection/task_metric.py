@@ -29,7 +29,7 @@ from lightly_train._metrics.task_metric import (
 
 class ObjectDetectionTaskMetricArgs(TaskMetricArgs):
     watch_metric: str = "val_metric/map"
-
+    classwise: bool = False
     map: MeanAveragePrecisionArgs | None = Field(
         default_factory=MeanAveragePrecisionArgs
     )
@@ -49,7 +49,6 @@ class ObjectDetectionTaskMetric(TaskMetric):
         task_metric_args: ObjectDetectionTaskMetricArgs,
         split: str,
         class_names: Sequence[str],
-        classwise: bool,
         box_format: Literal["xyxy", "xywh", "cxcywh"],
         loss_names: Sequence[str],
         init_metrics: bool = True,
@@ -60,7 +59,8 @@ class ObjectDetectionTaskMetric(TaskMetric):
             metric_args: Metrics configuration
             split: Split name (e.g., "val", "train")
             class_names: Class names for all metrics
-            classwise: Whether to log classwise metrics
+            box_format: Box format for predictions
+            loss_names: Names of losses to track
             init_metrics:
                 Whether to initialize metrics. Set to False to not build metrics, for
                 example if only losses should be tracked.
@@ -69,7 +69,6 @@ class ObjectDetectionTaskMetric(TaskMetric):
         self.num_classes = len(class_names)
         self.split = split
         self.class_names = class_names
-        self.classwise = classwise
         self.watch_metric = task_metric_args.watch_metric
         self.watch_metric_mode = get_watch_metric_mode(
             task_metric_args, list(loss_names), task_metric_args.watch_metric
@@ -79,7 +78,7 @@ class ObjectDetectionTaskMetric(TaskMetric):
         if init_metrics and task_metric_args.map is not None:
             metrics.update(
                 task_metric_args.map.get_metrics(
-                    classwise=classwise,
+                    classwise=task_metric_args.classwise,
                     prefix=f"{split}_metric",
                     class_names=class_names,
                     iou_type="bbox",

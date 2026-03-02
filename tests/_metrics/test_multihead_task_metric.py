@@ -23,11 +23,10 @@ from lightly_train._metrics.semantic_segmentation.task_metric import (
 
 def _make_head_metric(split: str = "val") -> SemanticSegmentationTaskMetric:
     return SemanticSegmentationTaskMetric(
-        task_metric_args=SemanticSegmentationTaskMetricArgs(),
+        task_metric_args=SemanticSegmentationTaskMetricArgs(classwise=False),
         split=split,
         class_names=["cat", "dog", "bird"],
         ignore_index=None,
-        classwise=False,
         loss_names=["loss"],
     )
 

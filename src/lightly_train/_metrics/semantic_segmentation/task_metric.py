@@ -31,7 +31,7 @@ from lightly_train._metrics.task_metric import (
 
 class SemanticSegmentationTaskMetricArgs(TaskMetricArgs):
     watch_metric: str = "val_metric/miou"
-
+    classwise: bool = True
     miou: JaccardIndexArgs | None = Field(default_factory=JaccardIndexArgs)
 
 
@@ -50,7 +50,6 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         split: str,
         class_names: Sequence[str],
         ignore_index: int | None,
-        classwise: bool,
         loss_names: Sequence[str],
         init_metrics: bool = True,
     ) -> None:
@@ -61,8 +60,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             split: Split name (e.g., "val", "train")
             num_classes: Number of classes
             ignore_index: Class index to ignore in computation
-            classwise: Whether to log classwise metrics
-            loss_names: Names of losses
+            loss_names: Names of losses to track
             init_metrics:
                 Whether to initialize metrics. Set to False to not build metrics, for
                 example if only losses should be tracked.
@@ -70,7 +68,6 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         super().__init__(task_metric_args=task_metric_args)
         self.split = split
         self.ignore_index = ignore_index
-        self.classwise = classwise
         self.watch_metric = task_metric_args.watch_metric
         self.watch_metric_mode = get_watch_metric_mode(
             task_metric_args, list(loss_names), task_metric_args.watch_metric
@@ -88,7 +85,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         self.metrics = MetricCollection(metrics, prefix=f"{split}_metric/")  # type: ignore
 
         metrics_classwise = {}
-        if classwise and task_metric_args.miou is not None:
+        if task_metric_args.classwise and task_metric_args.miou is not None:
             metrics_classwise = task_metric_args.miou.get_metrics(
                 classwise=True,
                 num_classes=len(class_names),

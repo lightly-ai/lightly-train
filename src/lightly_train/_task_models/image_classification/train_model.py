@@ -93,7 +93,6 @@ class ImageClassificationTrainArgs(TrainModelArgs):
     # Metrics
     # metrics: dict[str, dict[str, Any]] | Literal["auto"] = "auto"
     metrics_classwise: dict[str, dict[str, Any]] | None = None
-    metric_log_classwise: bool = False
     metric_log_debug: bool = False
 
     metrics: (
@@ -204,18 +203,12 @@ class ImageClassificationTrain(TrainModel):
             task_metric_args=model_args.metrics,
             split="val",
             class_names=list(data_args.included_classes.values()),
-            classwise=model_args.metric_log_classwise,
-            # TODO(Guarin, 02/26): Add option for separate classwise metric args.
-            classwise_metric_args=None,
             loss_names=["loss"],
         )
         self.train_metrics = ClassificationTaskMetric(
             task_metric_args=model_args.metrics,
             split="train",
             class_names=list(data_args.included_classes.values()),
-            classwise=model_args.metric_log_classwise,
-            # TODO(Guarin, 02/26): Add option for separate classwise metric args.
-            classwise_metric_args=None,
             loss_names=["loss"],
         )
 

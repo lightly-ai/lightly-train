@@ -28,7 +28,7 @@ from lightly_train._metrics.task_metric import (
 
 class PanopticSegmentationTaskMetricArgs(TaskMetricArgs):
     watch_metric: str = "val_metric/pq"
-
+    classwise: bool = False
     pq: PanopticQualityArgs | None = Field(default_factory=PanopticQualityArgs)
 
 
@@ -49,7 +49,6 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         stuffs: Sequence[int],
         thing_class_names: Sequence[str],
         stuff_class_names: Sequence[str],
-        classwise: bool,
         loss_names: Sequence[str],
         init_metrics: bool = True,
     ) -> None:
@@ -76,7 +75,11 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         self.metrics = MetricCollection(metrics)  # type: ignore
 
         metrics_classwise = {}
-        if init_metrics and classwise and task_metric_args.pq is not None:
+        if (
+            init_metrics
+            and task_metric_args.classwise
+            and task_metric_args.pq is not None
+        ):
             metrics_classwise = task_metric_args.pq.get_metrics(
                 prefix=f"{split}_metric",
                 classwise=True,

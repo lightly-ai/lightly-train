@@ -22,7 +22,6 @@ class TestObjectDetectionTaskMetric:
             task_metric_args=ObjectDetectionTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog"],
-            classwise=False,
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
         )
@@ -73,10 +72,9 @@ class TestObjectDetectionTaskMetric:
 
     def test_update__classwise(self) -> None:
         metric = ObjectDetectionTaskMetric(
-            task_metric_args=ObjectDetectionTaskMetricArgs(),
+            task_metric_args=ObjectDetectionTaskMetricArgs(classwise=True),
             split="val",
             class_names=["cat", "dog"],
-            classwise=True,
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
         )
