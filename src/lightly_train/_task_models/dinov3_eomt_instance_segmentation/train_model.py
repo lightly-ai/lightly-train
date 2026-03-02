@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
+from pydantic import Field
 from torch import Tensor
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
@@ -25,8 +26,11 @@ from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.yolo_instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
 )
+from lightly_train._metrics.instance_segmentation.task_metric import (
+    InstanceSegmentationTaskMetric,
+    InstanceSegmentationTaskMetricArgs,
+)
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -48,20 +52,11 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import InstanceSegmentationBatch, PathLike
 
 
-class DINOv3EoMTInstanceSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/map"
-    mode: Literal["min", "max"] = "max"
-
-
 class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from COCO dataset:
     # 118287 images / batch size 16 * 12 epochs ~= 90k steps.
     default_steps: ClassVar[int] = 90_000
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        DINOv3EoMTInstanceSegmentationTaskSaveCheckpointArgs
-    )
 
     # Model args
     backbone_weights: PathLike | None = None
@@ -98,10 +93,10 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     poly_power: float = 0.9  # Used for lr and mask annealing.
 
     # Metrics
-    metric_topk_instances: int = 100
-    metric_log_classwise: bool = True
-    metric_log_train: bool = False
     metric_log_debug: bool = False
+    metric_args: InstanceSegmentationTaskMetricArgs = Field(
+        default_factory=InstanceSegmentationTaskMetricArgs
+    )
 
     def resolve_auto(
         self,
@@ -181,18 +176,13 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         val_transform_args: DINOv3EoMTInstanceSegmentationValTransformArgs,
         load_weights: bool,
     ) -> None:
-        super().__init__()
-        # Lazy import because torchmetrics is an optional dependency.
-        from torchmetrics import MeanMetric
-
-        # Type ignore because torchmetrics < 1.0 doesn't explicitly export MeanAveragePrecision
-        from torchmetrics.detection import MeanAveragePrecision  # type: ignore
-
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependency.
         from lightly_train._task_models.dinov3_eomt_instance_segmentation.mask_loss import (
             MaskClassificationLoss,
         )
+
+        super().__init__()
 
         self.model_args = model_args
         num_queries = no_auto(self.model_args.num_queries)
@@ -226,13 +216,18 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             no_object_coefficient=model_args.loss_no_object_coefficient,
         )
 
-        # Metrics
-        self.val_loss = MeanMetric()
-
-        # Type ignore because old torchmetrics have different formats for iou_type.
-        self.train_map = MeanAveragePrecision(iou_type="segm")  # type: ignore[arg-type]
-        self.train_map.warn_on_many_detections = False
-        self.val_map = self.train_map.clone()
+        self.train_metrics = InstanceSegmentationTaskMetric(
+            task_metric_args=model_args.metric_args,
+            split="train",
+            class_names=list(data_args.included_classes.values()),
+            loss_names=["loss"],
+        )
+        self.val_metrics = InstanceSegmentationTaskMetric(
+            task_metric_args=model_args.metric_args,
+            split="val",
+            class_names=list(data_args.included_classes.values()),
+            loss_names=["loss"],
+        )
 
         _torch_helpers.register_load_state_dict_pre_hook(
             self, hooks.criterion_empty_weight_reinit_hook
@@ -248,7 +243,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         images = batch["image"]
         assert isinstance(images, Tensor), "Images must be a single tensor for training"
         binary_masks = batch["binary_masks"]
-        _, _, H, W = images.shape
+        B, _, H, W = images.shape
 
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
             images, return_logits_per_layer=True
@@ -272,15 +267,10 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
             losses.update(block_losses)
         loss = self.criterion.loss_total(losses_all_layers=losses)
-        loss_log_dict = {
-            f"train_loss/{k}": v
-            for k, v in losses.items()
-            if "block" not in k or self.model_args.metric_log_debug
-        }
 
         # Metrics
-        metrics: dict[str, Any] = {}
-        if self.model_args.metric_log_train:
+        self.train_metrics.update_loss({"loss": loss.detach()}, weight=B)
+        if self.model_args.metric_args.train:
             with torch.no_grad():
                 mask_logits = mask_logits_per_layer[-1]
                 class_logits = class_logits_per_layer[-1]
@@ -289,7 +279,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 labels, masks, scores = self.model.get_labels_masks_scores(
                     mask_logits=mask_logits, class_logits=class_logits
                 )
-            self.train_map.update(
+            self.train_metrics.update(
                 preds=[
                     {
                         "labels": labels[i],
@@ -300,7 +290,6 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 ],
                 target=binary_masks,  # type: ignore[arg-type]
             )
-            metrics["train_metric/map"] = self.train_map
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -319,12 +308,8 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
 
         return TaskStepResult(
             loss=loss,
-            log_dict={
-                "train_loss": loss.detach(),
-                **loss_log_dict,
-                **metrics,
-                **mask_prob_dict,
-            },
+            log_dict=mask_prob_dict,
+            metrics=self.train_metrics,
         )
 
     def validation_step(
@@ -379,14 +364,8 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         # Compute the total loss.
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
-        # Store the block-wise losses.
-        log_dict = {
-            f"val_loss/{k}": v
-            for k, v in losses.items()
-            if "block" not in k or self.model_args.metric_log_debug
-        }
-
         # Metrics
+        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
         # Final layer only
         resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
         class_logits_last_layer = class_logits_per_layer[-1]
@@ -419,22 +398,15 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 }
             )
 
-        self.val_map.update(
+        self.val_metrics.update(
             preds=predictions,
             target=binary_masks,
         )
 
-        metrics: dict[str, Any] = {
-            "val_metric/map": self.val_map,
-        }
-
         return TaskStepResult(
             loss=loss,
-            log_dict={
-                "val_loss": loss.detach(),
-                **log_dict,
-                **metrics,
-            },
+            log_dict={},
+            metrics=self.val_metrics,
         )
 
     def mask_annealing(
