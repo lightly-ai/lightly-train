@@ -26,10 +26,10 @@ class LossMetrics(Module):
             # Type ignore for old torchmetrics versions
             from torchmetrics import RunningMean  # type: ignore[attr-defined]
 
-            running_mean_fn = partial(RunningMean, window=running_mean_window)
+            running_mean_cls = partial(RunningMean, window=running_mean_window)
         except ImportError:
             # Fall back to MeanMetric for old torchmetrics versions
-            running_mean_fn = MeanMetric
+            running_mean_cls = MeanMetric
 
         super().__init__()
         self.split = split
@@ -37,7 +37,7 @@ class LossMetrics(Module):
         # up-to-date estimate of the current loss. We do not only track the last loss
         # value because of gradient accumulation which can cause the loss to fluctuate
         # a lot from accumulation step to accumulation step.
-        metric_cls = running_mean_fn if split == "train" else MeanMetric
+        metric_cls = running_mean_cls if split == "train" else MeanMetric
         self.metrics = ModuleDict({loss_name: metric_cls() for loss_name in loss_names})
 
     def update(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
