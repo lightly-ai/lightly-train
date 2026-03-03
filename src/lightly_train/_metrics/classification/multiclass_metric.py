@@ -32,8 +32,8 @@ class MulticlassAccuracyArgs(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MulticlassAccuracy,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MulticlassAccuracy,
         )
 
         metrics: dict[str, Metric] = {}
@@ -83,8 +83,8 @@ class MulticlassF1Args(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MulticlassF1Score,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MulticlassF1Score,
         )
 
         if classwise:
@@ -116,8 +116,8 @@ class MulticlassPrecisionArgs(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MulticlassPrecision,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MulticlassPrecision,
         )
 
         if classwise:
@@ -155,8 +155,8 @@ class MulticlassRecallArgs(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MulticlassRecall,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MulticlassRecall,
         )
 
         if classwise:
