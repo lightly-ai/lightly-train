@@ -14,7 +14,7 @@ from torch import Tensor
 from torchmetrics import Metric
 
 try:
-    from torchmetrics.detection import (
+    from torchmetrics.detection import (  # type: ignore[attr-defined]
         PanopticQuality as TorchMetricsPanopticQuality,
     )
 

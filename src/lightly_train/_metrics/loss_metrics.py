@@ -29,7 +29,7 @@ class LossMetrics(Module):
             running_mean_cls = partial(RunningMean, window=running_mean_window)
         except ImportError:
             # Fall back to MeanMetric for old torchmetrics versions
-            running_mean_cls = MeanMetric
+            running_mean_cls = MeanMetric  # type: ignore
 
         super().__init__()
         self.split = split
