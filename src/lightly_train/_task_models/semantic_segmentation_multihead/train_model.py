@@ -236,7 +236,6 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
         # Compute loss and update metrics for each head.
         losses: list[Tensor] = []
-        log_dict: dict[str, Any] = {}
         for head_name, logits in logits_dict.items():
             # Handle ignore class.
             if self.model.class_ignore_index is not None:
@@ -245,7 +244,6 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             # Compute loss.
             loss = self.loss_fn(logits, masks)
             losses.append(loss)
-            log_dict[f"train_loss_head/{head_name}"] = loss.detach()
 
             # Update per-head quality metrics and loss (scalar, no accumulation).
             head_metrics = self.train_metrics.head_metrics[head_name]
@@ -255,9 +253,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         # Sum losses for backprop.
         loss_sum = torch.stack(losses).sum()
 
-        return TaskStepResult(
-            loss=loss_sum, log_dict=log_dict, metrics=self.train_metrics
-        )
+        return TaskStepResult(loss=loss_sum, log_dict={}, metrics=self.train_metrics)
 
     def validation_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch

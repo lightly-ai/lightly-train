@@ -184,8 +184,7 @@ class ImageClassificationTrain(TrainModel):
 
         self.train_metrics.update(logits, targets)
         self.train_metrics.update_loss({"loss": loss}, weight=len(images))
-        log_dict = {"train_loss": loss.detach()}
-        return TaskStepResult(loss=loss, log_dict=log_dict, metrics=self.train_metrics)
+        return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
 
     def validation_step(
         self, fabric: Fabric, batch: ImageClassificationBatch
@@ -208,8 +207,7 @@ class ImageClassificationTrain(TrainModel):
             )
         self.val_metrics.update(logits, targets)
         self.val_metrics.update_loss({"loss": loss}, weight=len(images))
-        log_dict = {"val_loss": loss.detach()}
-        return TaskStepResult(loss=loss, log_dict=log_dict, metrics=self.val_metrics)
+        return TaskStepResult(loss=loss, log_dict={}, metrics=self.val_metrics)
 
     def get_optimizer(
         self,
