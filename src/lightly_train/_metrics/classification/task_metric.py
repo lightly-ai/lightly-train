@@ -9,11 +9,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Annotated, Literal
+from typing import Literal, Union
 
 from pydantic import Field
 from torch import Tensor
 from torchmetrics import Metric, MetricCollection
+from typing_extensions import Annotated
 
 from lightly_train._metrics.classification.metric_args import ClassificationMetricArgs
 from lightly_train._metrics.classification.multiclass_metric import (
@@ -79,7 +80,9 @@ class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
 
 
 ClassificationTaskMetricArgs = Annotated[
-    MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs,
+    Union[
+        MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs
+    ],
     Field(discriminator="classification_task"),
 ]
 
@@ -88,7 +91,8 @@ class ClassificationTaskMetric(TaskMetric):
     def __init__(
         self,
         *,
-        task_metric_args: ClassificationTaskMetricArgs,
+        task_metric_args: MulticlassClassificationTaskMetricArgs
+        | MultilabelClassificationTaskMetricArgs,
         split: str,
         class_names: Sequence[str],
         loss_names: Sequence[str],

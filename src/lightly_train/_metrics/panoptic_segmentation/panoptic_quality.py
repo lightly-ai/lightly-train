@@ -12,7 +12,11 @@ from collections.abc import Sequence
 
 from torch import Tensor
 from torchmetrics import Metric
-from torchmetrics.detection import PanopticQuality as TorchMetricsPanopticQuality
+
+# Type ignore needed for old torchmetrics versions which do not have PanopticQuality
+from torchmetrics.detection import (
+    PanopticQuality as TorchMetricsPanopticQuality,  # type: ignore[attr-defined]
+)
 
 from lightly_train._metrics.metric_args import MetricArgs
 
