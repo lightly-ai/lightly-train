@@ -11,6 +11,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- PicoDet switched to O2O NMS-free inference/export, updated L preset to `picodet/l-640`, and improved ONNX/TensorRT export robustness.
+
 ### Deprecated
 
 ### Removed
