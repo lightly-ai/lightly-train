@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import json
 import logging
 import os
 from copy import deepcopy
@@ -221,6 +222,29 @@ class PicoDetObjectDetection(TaskModel):
             total_peaks[level_idx] = keep.sum()
         batch_size = cls_scores_list[0].shape[0]
         return total_peaks / float(batch_size)
+
+    def _add_onnx_metadata(self, out: PathLike) -> None:
+        """Attach class mapping metadata to exported ONNX model."""
+        if self.classes is None:
+            return
+        try:
+            import onnx
+        except ImportError:
+            logger.warning(
+                "ONNX is not installed, skipping metadata attachment for '%s'.", out
+            )
+            return
+
+        model = onnx.load(str(out))
+        metadata = {entry.key: entry.value for entry in model.metadata_props}
+        metadata["classes"] = json.dumps(self.classes, sort_keys=True)
+
+        del model.metadata_props[:]
+        for key, value in metadata.items():
+            entry = model.metadata_props.add()
+            entry.key = str(key)
+            entry.value = str(value)
+        onnx.save(model, str(out))
 
     def load_backbone_weights(self, path: PathLike) -> None:
         """Load backbone weights from a checkpoint file.
@@ -647,6 +671,8 @@ class PicoDetObjectDetection(TaskModel):
                 output_model=out,
                 skip_optimizations=["constant_folding"],
             )
+
+        self._add_onnx_metadata(out=out)
 
         if verify:
             logger.info("Verifying ONNX model")
