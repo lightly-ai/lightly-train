@@ -141,8 +141,6 @@ class PicoDetObjectDetection(TaskModel):
         )
         backbone_out_channels = self.backbone.out_channels
 
-        print("Attempting to load backbone weights: ", load_weights, backbone_weights)
-
         if load_weights and backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 

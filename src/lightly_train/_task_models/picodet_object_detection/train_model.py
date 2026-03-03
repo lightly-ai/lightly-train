@@ -243,7 +243,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss_o2o_cls,
             loss_o2o_box,
             loss_o2o_dfl,
-            o2o_stats,
+            _o2o_stats,
         ) = self._compute_o2o_losses(
             cls_scores=o2o_cls_scores,
             bbox_preds=o2o_bbox_preds,
@@ -251,7 +251,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_labels_list=gt_labels_list,
             image_size=(img_h, img_w),
         )
-        o2o_peak_kept = self.model._count_o2o_peaks(o2o_cls_scores)
 
         total_loss = o2o_loss + 0.5 * dense_loss
 
@@ -267,23 +266,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "train_loss/loss_vfl": loss_vfl,
                 "train_loss/loss_giou": loss_giou,
                 "train_loss/loss_dfl": loss_dfl,
-                # TODO(igorsusmelj): remove o2o debug stats after investigation.
-                "debug/o2o_num_pos": o2o_stats["o2o_num_pos"],
-                "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"],
-                "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"],
-                "debug/o2o_peak_kept_p3": o2o_peak_kept[0],
-                "debug/o2o_peak_kept_p4": o2o_peak_kept[1],
-                "debug/o2o_peak_kept_p5": o2o_peak_kept[2],
-                "debug/o2o_peak_kept_p6": o2o_peak_kept[3],
-                "debug/o2o_gt_small": o2o_stats["o2o_gt_small"],
-                "debug/o2o_gt_medium": o2o_stats["o2o_gt_medium"],
-                "debug/o2o_gt_large": o2o_stats["o2o_gt_large"],
-                "debug/o2o_gt_center_small": o2o_stats["o2o_gt_center_small"],
-                "debug/o2o_gt_center_medium": o2o_stats["o2o_gt_center_medium"],
-                "debug/o2o_gt_center_large": o2o_stats["o2o_gt_center_large"],
-                "debug/o2o_gt_matched_small": o2o_stats["o2o_gt_matched_small"],
-                "debug/o2o_gt_matched_medium": o2o_stats["o2o_gt_matched_medium"],
-                "debug/o2o_gt_matched_large": o2o_stats["o2o_gt_matched_large"],
             }
         )
 
@@ -338,7 +320,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss_o2o_cls,
             loss_o2o_box,
             loss_o2o_dfl,
-            o2o_stats,
+            _o2o_stats,
         ) = self._compute_o2o_losses(
             cls_scores=o2o_cls_scores,
             bbox_preds=o2o_bbox_preds,
@@ -346,7 +328,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_labels_list=gt_labels_list,
             image_size=(img_h, img_w),
         )
-        o2o_peak_kept = model_to_use._count_o2o_peaks(o2o_cls_scores)
         total_loss = o2o_loss + 0.5 * dense_loss
 
         boxes_xyxy, cls_logits = model_to_use._decode_o2o_predictions(
@@ -408,25 +389,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 "val_loss/loss_vfl": loss_vfl.item(),
                 "val_loss/loss_giou": loss_giou.item(),
                 "val_loss/loss_dfl": loss_dfl.item(),
-                # TODO(igorsusmelj): remove o2o debug stats after investigation.
-                "debug/o2o_num_pos": o2o_stats["o2o_num_pos"].item(),
-                "debug/o2o_mean_iou": o2o_stats["o2o_mean_iou"].item(),
-                "debug/o2o_cls_target_sum": o2o_stats["o2o_cls_target_sum"].item(),
-                "debug/o2o_peak_kept_p3": o2o_peak_kept[0].item(),
-                "debug/o2o_peak_kept_p4": o2o_peak_kept[1].item(),
-                "debug/o2o_peak_kept_p5": o2o_peak_kept[2].item(),
-                "debug/o2o_peak_kept_p6": o2o_peak_kept[3].item(),
-                "debug/o2o_gt_small": o2o_stats["o2o_gt_small"].item(),
-                "debug/o2o_gt_medium": o2o_stats["o2o_gt_medium"].item(),
-                "debug/o2o_gt_large": o2o_stats["o2o_gt_large"].item(),
-                "debug/o2o_gt_center_small": o2o_stats["o2o_gt_center_small"].item(),
-                "debug/o2o_gt_center_medium": o2o_stats["o2o_gt_center_medium"].item(),
-                "debug/o2o_gt_center_large": o2o_stats["o2o_gt_center_large"].item(),
-                "debug/o2o_gt_matched_small": o2o_stats["o2o_gt_matched_small"].item(),
-                "debug/o2o_gt_matched_medium": o2o_stats[
-                    "o2o_gt_matched_medium"
-                ].item(),
-                "debug/o2o_gt_matched_large": o2o_stats["o2o_gt_matched_large"].item(),
                 "val_metric/map": self.map_metric,
             },
         )
