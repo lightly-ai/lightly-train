@@ -11,7 +11,6 @@ import contextlib
 import hashlib
 import json
 import logging
-import os
 from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Generator, Iterable, Literal, Mapping, cast
@@ -31,6 +30,7 @@ from lightly_train._data._serialize.memory_mapped_sequence import (
     MemoryMappedSequence,
     Primitive,
 )
+from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
@@ -39,6 +39,9 @@ from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._loggers.wandb import WandbLogger
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import task_model_helpers
+from lightly_train._task_models.dinov2_eomt_instance_segmentation.train_model import (
+    DINOv2EoMTInstanceSegmentationTrain,
+)
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
@@ -60,17 +63,28 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model im
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
 )
+from lightly_train._task_models.image_classification.train_model import (
+    ImageClassificationTrain,
+)
+from lightly_train._task_models.image_classification_multihead.train_model import (
+    ImageClassificationMultiheadTrain,
+)
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
+)
+from lightly_train._task_models.semantic_segmentation_multihead.train_model import (
+    SemanticSegmentationMultiheadTrain,
 )
 from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
+from lightly_train._torch_helpers import _torch_weights_only_false
 from lightly_train._train_task_state import (
     CheckpointDict,
     TrainTaskState,
 )
+from lightly_train._training_step_timer import TimerAggregateMetrics
 from lightly_train._transforms.task_transform import (
     TaskTransform,
     TaskTransformArgs,
@@ -89,11 +103,15 @@ logger = logging.getLogger(__name__)
 
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
+    ImageClassificationTrain,
+    ImageClassificationMultiheadTrain,
+    DINOv2EoMTInstanceSegmentationTrain,
     DINOv3EoMTInstanceSegmentationTrain,
     DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
     DINOv2LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
+    SemanticSegmentationMultiheadTrain,
     DINOv2LTDETRObjectDetectionTrain,
     DINOv3LTDETRObjectDetectionTrain,
     PicoDetObjectDetectionTrain,
@@ -326,7 +344,11 @@ def get_transform_args(
     ignore_index: int | None,
     model_init_args: dict[str, Any],
 ) -> tuple[TaskTransformArgs, TaskTransformArgs]:
-    if train_model_cls.task != "semantic_segmentation" and ignore_index is not None:
+    if (
+        train_model_cls.task
+        not in ("semantic_segmentation", "semantic_segmentation_multihead")
+        and ignore_index is not None
+    ):
         raise ValueError(
             "`ignore_index` is only supported for semantic segmentation tasks."
         )
@@ -636,6 +658,38 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
     return default_steps if steps == "auto" else steps
 
 
+def get_gradient_accumulation_steps(
+    gradient_accumulation_steps: int | Literal["auto"],
+    global_batch_size: int,
+    default_batch_size: int,
+) -> int:
+    """Returns the number of gradient accumulation steps.
+
+    When 'auto', activates gradient accumulation when global_batch_size is
+    smaller than default_batch_size. The number of steps is set to
+    max(1, default_batch_size // global_batch_size) to keep the effective
+    batch size as close as possible to the model's default batch size.
+
+    Args:
+        gradient_accumulation_steps: Number of steps or 'auto'.
+        global_batch_size: The global batch size across all devices.
+        default_batch_size: The model's default batch size.
+
+    Returns:
+        The number of gradient accumulation steps.
+
+    Raises:
+        ValueError: If gradient_accumulation_steps < 1.
+    """
+    if gradient_accumulation_steps == "auto":
+        return max(1, default_batch_size // global_batch_size)
+    if gradient_accumulation_steps < 1:
+        raise ValueError(
+            f"gradient_accumulation_steps must be >= 1, got {gradient_accumulation_steps}."
+        )
+    return gradient_accumulation_steps
+
+
 def get_train_model_cls(model_name: str, task: str) -> type[TrainModel]:
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
         if (
@@ -652,13 +706,17 @@ def get_train_model_args(
     total_steps: int,
     model_name: str,
     model_init_args: dict[str, Any],
+    data_args: TaskDataArgs,
 ) -> TrainModelArgs:
     if isinstance(model_args, TrainModelArgs):
         return model_args
     model_args = {} if model_args is None else model_args
     args = validate.pydantic_model_validate(model_args_cls, model_args)
     args.resolve_auto(
-        total_steps=total_steps, model_name=model_name, model_init_args=model_init_args
+        total_steps=total_steps,
+        model_name=model_name,
+        model_init_args=model_init_args,
+        data_args=data_args,
     )
     return args
 
@@ -669,6 +727,9 @@ def log_step(
     max_steps: int,
     log_dict: dict[str, Any],
     task: str,
+    timer_agg: TimerAggregateMetrics,
+    global_batch_size: int,
+    gradient_accumulation_steps: int = 1,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
@@ -677,14 +738,192 @@ def log_step(
     }
     name_to_display_name = {**name_to_display_name, **TASK_TO_METRICS.get(task, {})}
 
+    width = len(str(max_steps))
     parts = [
-        f"{split_cap} Step {step + 1}/{max_steps}",
+        f"{split_cap} Step {step + 1:>{width}}/{max_steps:>{width}}",
     ]
     for name, value in log_dict.items():
         if name in name_to_display_name:
-            parts.append(f"{name_to_display_name[name]}: {value:.4f}")
+            parts.append(f"{name_to_display_name[name]}: {value:4.4f}")
+
+    # Add profiling information.
+    profiling_parts = []
+    step_name = f"{split}_step"
+    dataload_step_name = f"{split}_dataload"
+
+    # GPU utilization
+    gpu_util = timer_agg["phase_gpu_utils"].get(split, -1.0)
+    if gpu_util >= 0:
+        profiling_parts.append(f"GPU Util {gpu_util:3.1f}%")
+
+    # GPU max memory
+    gpu_max_mem = timer_agg["phase_gpu_max_mem"].get(split, -1.0)
+    if gpu_max_mem >= 0:
+        profiling_parts.append(f"GPU Max Mem {gpu_max_mem:7.1f} MB")
+
+    # Step time (average time per full step)
+    step_count = timer_agg["step_counts"].get(step_name, 0)
+    step_time_total = timer_agg["step_total_times"].get(step_name, 0.0)
+    step_time = step_time_total / step_count if step_count > 0 else 0.0
+    profiling_parts.append(f"Step Time {step_time:4.2f}s")
+
+    # Data time (average dataload time per effective training step).
+    # The timer records one entry per microbatch, so we multiply by
+    # gradient_accumulation_steps to get the per-effective-step total.
+    dataload_count = timer_agg["step_counts"].get(dataload_step_name, 0)
+    dataload_time_total = timer_agg["step_total_times"].get(dataload_step_name, 0.0)
+    data_time = (
+        dataload_time_total / dataload_count * gradient_accumulation_steps
+        if dataload_count > 0
+        else 0.0
+    )
+    profiling_parts.append(f"Data Time {data_time:4.2f}s")
+
+    # Throughput (images per second)
+    throughput = global_batch_size / step_time if step_time > 0 else 0.0
+    profiling_parts.append(f"{throughput:4.0f} img/s")
+
+    if profiling_parts:
+        parts.append(f"Profiling [ {' | '.join(profiling_parts)} ]")
+
     line = " | ".join(parts)
     logger.info(line)
+
+
+def log_training_summary(
+    timer_agg: TimerAggregateMetrics,
+    fabric: Fabric,
+    global_batch_size: int,
+    gradient_accumulation_steps: int,
+) -> None:
+    """Log comprehensive training profiling summary.
+
+    Logs a formatted summary showing:
+    - Total time, train time, val time
+    - Throughput for train and val
+    - GPU utilization and max memory for train and val
+
+    Args:
+        timer_agg: The aggregated metrics dict from timer.get_aggregated_metrics().
+        fabric: The Fabric instance for distributed communication.
+        global_batch_size: The global batch size across all GPUs.
+        gradient_accumulation_steps: Number of gradient accumulation steps. Used to
+            compute the effective global batch size for train throughput.
+    """
+
+    # Calculate total time
+    train_time_sec = timer_agg["step_total_times"].get("train_step", 0.0)
+    val_time_sec = timer_agg["step_total_times"].get("val_step", 0.0)
+    total_time_sec = train_time_sec + val_time_sec
+
+    # Only log on rank 0
+    if fabric.global_rank != 0:
+        return
+
+    # Calculate derived metrics
+    total_time_min = total_time_sec / 60
+    train_time_min = train_time_sec / 60
+    val_time_min = val_time_sec / 60
+
+    train_time_perc = (
+        (train_time_sec / total_time_sec * 100) if total_time_sec > 0 else 0.0
+    )
+    val_time_perc = (val_time_sec / total_time_sec * 100) if total_time_sec > 0 else 0.0
+
+    # Use aggregated step counts for averages
+    train_count = timer_agg["step_counts"].get("train_step", 0)
+    val_count = timer_agg["step_counts"].get("val_step", 0)
+    train_step_time = train_time_sec / train_count if train_count > 0 else 0.0
+    val_step_time = val_time_sec / val_count if val_count > 0 else 0.0
+
+    effective_global_batch_size = global_batch_size * gradient_accumulation_steps
+    train_throughput = (
+        (effective_global_batch_size / train_step_time) if train_step_time > 0 else 0.0
+    )
+    val_throughput = (global_batch_size / val_step_time) if val_step_time > 0 else 0.0
+
+    train_gpu_util = timer_agg["phase_gpu_utils"].get("train", -1.0)
+    val_gpu_util = timer_agg["phase_gpu_utils"].get("val", -1.0)
+
+    train_gpu_max_mem = timer_agg["phase_gpu_max_mem"].get("train", -1.0)
+    val_gpu_max_mem = timer_agg["phase_gpu_max_mem"].get("val", -1.0)
+
+    # Format and log the summary
+    logger.info("Profiling")
+    logger.info(f"  Total Time        : {total_time_min:5.1f} min")
+    logger.info(
+        f"  Train Time        : {train_time_min:5.1f} min ({train_time_perc:3.1f}%) ({train_step_time:4.2f} s/step)"
+    )
+    logger.info(
+        f"  Val Time          : {val_time_min:5.1f} min ({val_time_perc:3.1f}%) ({val_step_time:4.2f} s/step)"
+    )
+    logger.info(f"  Train Throughput  : {train_throughput:4.0f} img/s")
+    if train_gpu_util >= 0:
+        logger.info(f"  Train GPU Util    : {train_gpu_util:3.1f}%")
+    if train_gpu_max_mem >= 0:
+        logger.info(f"  Train GPU Max Mem : {train_gpu_max_mem:7.1f} MB")
+    logger.info(f"  Val Throughput    : {val_throughput:4.0f} img/s")
+    if val_gpu_util >= 0:
+        logger.info(f"  Val GPU Util      : {val_gpu_util:3.1f}%")
+    if val_gpu_max_mem >= 0:
+        logger.info(f"  Val GPU Max Mem   : {val_gpu_max_mem:7.1f} MB")
+
+
+def add_timer_logs(
+    timer_agg: TimerAggregateMetrics,
+    log_dict: dict[str, Any],
+    split: Literal["train", "val"],
+    global_batch_size: int,
+    gradient_accumulation_steps: int,
+) -> None:
+    """Add profiling metrics to the log dictionary.
+
+    Adds GPU util, GPU mem, step time, data time, and throughput to the log_dict
+    for logging to tensorboard, wandb, etc.
+
+    Args:
+        timer_agg: The aggregated metrics dict from timer.get_aggregated_metrics().
+        log_dict: The dictionary to add metrics to.
+        split: The split ("train" or "val") to get metrics for.
+        global_batch_size: The global batch size across all GPUs.
+        gradient_accumulation_steps: Number of gradient accumulation steps. The timer
+            records one dataload entry per microbatch, so this factor is used to convert
+            to a per-effective-step data time.
+    """
+    step_name = f"{split}_step"
+    dataload_step_name = f"{split}_dataload"
+
+    # GPU utilization
+    gpu_util = timer_agg["phase_gpu_utils"].get(split, -1.0)
+    if gpu_util >= 0:
+        log_dict[f"profiling/{split}_gpu_util_perc"] = gpu_util
+
+    # GPU max memory
+    gpu_max_mem = timer_agg["phase_gpu_max_mem"].get(split, -1.0)
+    if gpu_max_mem >= 0:
+        log_dict[f"profiling/{split}_gpu_max_mem_mb"] = gpu_max_mem
+
+    # Step time
+    step_count = timer_agg["step_counts"].get(step_name, 0)
+    step_time_total = timer_agg["step_total_times"].get(step_name, 0.0)
+    step_time = step_time_total / step_count if step_count > 0 else 0.0
+    log_dict[f"profiling/{split}_step_time_sec"] = step_time
+
+    # Data time (per effective training step).
+    # The timer records one entry per microbatch, so we multiply by
+    # gradient_accumulation_steps to get the per-effective-step total.
+    dataload_count = timer_agg["step_counts"].get(dataload_step_name, 0)
+    dataload_time_total = timer_agg["step_total_times"].get(dataload_step_name, 0.0)
+    data_time = (
+        dataload_time_total / dataload_count * gradient_accumulation_steps
+        if dataload_count > 0
+        else 0.0
+    )
+    log_dict[f"profiling/{split}_data_time_sec"] = data_time
+
+    # Throughput
+    throughput = global_batch_size / step_time if step_time > 0 else 0.0
+    log_dict[f"profiling/{split}_throughput_img_per_sec"] = throughput
 
 
 def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
@@ -757,19 +996,54 @@ def reset_metrics(log_dict: dict[str, Any]) -> None:
             value.reset()
 
 
+def accumulate_log_dict(accumulated: dict[str, Any], new: dict[str, Any]) -> None:
+    """Accumulate log_dict values from a microbatch into a running accumulator.
+
+    Plain tensors are summed; Metric objects (and any other values) are stored by
+    reference — they accumulate state internally via update() calls inside
+    training_step, so the last reference is sufficient.
+    """
+    for key, value in new.items():
+        if isinstance(value, Tensor):
+            if key in accumulated:
+                accumulated[key] = accumulated[key] + value
+            else:
+                accumulated[key] = value.clone()
+        else:
+            accumulated[key] = value
+
+
+def average_accumulated_log_dict(
+    accumulated: dict[str, Any], num_accumulation_steps: int
+) -> None:
+    """Divide all plain Tensor values in accumulated by num_accumulation_steps in-place.
+
+    Metric objects are left untouched because they already represent the mean over all
+    samples seen via their internal update() calls.
+
+    # TODO (Lionel, 02/26): Consider additional smoothing when batch_size does not
+    # evenly divide the model's default_batch_size.
+    """
+    for key, value in accumulated.items():
+        if isinstance(value, Tensor):
+            accumulated[key] = value / num_accumulation_steps
+
+
 def get_save_checkpoint_args(
     train_model_cls: type[TrainModel],
     checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None,
+    data_args: TaskDataArgs,
 ) -> TaskSaveCheckpointArgs:
     if isinstance(checkpoint_args, TaskSaveCheckpointArgs):
-        return checkpoint_args
+        checkpoint_args = checkpoint_args.model_dump()
     checkpoint_args_cls = train_model_cls.train_model_args_cls.save_checkpoint_args_cls
     # Merge with possible overrides from checkpoint_args.
     default_checkpoint_args = checkpoint_args_cls().model_dump()  # type: ignore[call-arg]
     default_checkpoint_args.update(checkpoint_args or {})
     args = validate.pydantic_model_validate(
-        TaskSaveCheckpointArgs, default_checkpoint_args
+        checkpoint_args_cls, default_checkpoint_args
     )
+    args.resolve_auto(data_args=data_args)
     return args
 
 
@@ -995,19 +1269,3 @@ def finetune_from_checkpoint(
             "Unexpected keys after loading checkpoint: %s",
             incompatible.unexpected_keys,
         )
-
-
-# TODO(Guarin, 12/25): When you remove this context manager, also remove
-# the corresponding weights_only warning in _warnings.py
-@contextlib.contextmanager
-def _torch_weights_only_false() -> Generator[None, None, None]:
-    """All torch.load calls within this context will run with weights_only=False."""
-    previous_state = os.environ.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD")
-    try:
-        os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
-        yield
-    finally:
-        if previous_state is not None:
-            os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = previous_state
-        else:
-            del os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"]

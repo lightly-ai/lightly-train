@@ -12,6 +12,7 @@ from lightly_train._methods.dino.dino import DINO
 from lightly_train._methods.dinov2.dinov2 import DINOv2
 from lightly_train._methods.distillation.distillation import Distillation
 from lightly_train._methods.distillationv2.distillationv2 import DistillationV2
+from lightly_train._methods.distillationv3.distillationv3 import DistillationV3
 from lightly_train._methods.method import Method
 from lightly_train._methods.simclr.simclr import SimCLR
 
@@ -57,6 +58,7 @@ def _method_name_to_cls() -> dict[str, type[Method]]:
             DINO,
             DINOv2,
             DistillationV2,
+            DistillationV3,
             SimCLR,
         ]
     }

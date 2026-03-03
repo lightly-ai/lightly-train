@@ -140,13 +140,18 @@ add-header:
 
 	# Apply the Apache 2.0 license header to DEIMv2 derived files
 	licenseheaders -t dev_tools/deimv2_licenseheader.tmpl \
-		-f src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
+		-f src/lightly_train/_task_models/dinov2_ltdetr_object_detection/dinov2_vit_wrapper.py \
+		src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
+		-E py
 
 	# Apply the MIT license header to the EoMT derived files
 	licenseheaders -t dev_tools/eomt_licenseheader.tmpl \
 		-f src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov2_eomt_semantic_segmentation/scheduler.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/mask_loss.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/scale_block.py \
+		src/lightly_train/_task_models/dinov2_eomt_instance_segmentation/scheduler.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov3_eomt_instance_segmentation/scheduler.py \
@@ -180,7 +185,7 @@ test-ci:
 
 .PHONY: install-uv
 install-uv:
-	curl -LsSf https://astral.sh/uv/0.5.4/install.sh | sh
+	curl -LsSf https://astral.sh/uv/0.10.0/install.sh | sh
 
 
 .PHONY: reset-venv
@@ -206,13 +211,29 @@ endif
 
 # RFDETR and ONNXRuntime is not compatible with Python<3.9. Therefore we exclude it from the
 # default extras.
-EXTRAS_PY38 := [dev,dicom,mlflow,notebook,onnx,super-gradients,tensorboard,timm,ultralytics,wandb]
+#
+# Notebook is excluded from the Python 3.8 extras because its dependency pywinpty is not
+# compatible with uv 0.10.0 on Python 3.8. It fails with:
+#   × Failed to download and build `pywinpty==2.0.14`
+#   ├─▶ Failed to parse:
+#   │   `D:\a\_temp\setup-uv-cache\sdists-v9\pypi\pywinpty\2.0.14\pQ3SKTY_3WgM9I6D1MxET\src\pyproject.toml`
+#   ╰─▶ TOML parse error at line 1, column 1
+#         |
+#       1 | [project]
+#         | ^^^^^^^^^
+#       `pyproject.toml` is using the `[project]` table, but the required
+#       `project.version` field is neither set nor present in the
+#       `project.dynamic` list
+# 
+# This problem is fixed in pywinpty>2.0.14 but these versions are not compatible with
+# Python 3.8.
+EXTRAS_PY38 := [dev,dicom,mlflow,onnx,super-gradients,tensorboard,timm,ultralytics,wandb]
 
 # SuperGradients is not compatible with Python>=3.10. It is also not easy to install
 # on MacOS. Therefore we exclude it from the default extras.
-# RFDETR has installation issues because of onnxsim dependency on CI with Python 3.12.
+# RFDETR has installation issues because of onnxsim dependency on CI with Python 3.13.
 # Onnx dependencies in RFDETR should become optional in RFDETR >1.1.0.
-EXTRAS_PY312 := [dev,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY313 := [dev,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies. And SuperGradients is not compatible with
@@ -225,7 +246,7 @@ DOCKER_EXTRAS := --extra mlflow --extra tensorboard --extra timm --extra wandb -
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
-EXCLUDE_NEWER_DATE := "2025-12-29"
+EXCLUDE_NEWER_DATE := "2026-02-09"
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
 # on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
@@ -242,17 +263,17 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
 ifdef CI
 PINNED_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-PINNED_TORCH_VERSION_PY312 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
+PINNED_TORCH_VERSION_PY313 := "torch@https://download.pytorch.org/whl/cu118/torch-2.7.0%2Bcu118-cp313-cp313-manylinux_2_28_x86_64.whl"
 PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-PINNED_TORCHVISION_VERSION_PY312 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp312-cp312-linux_x86_64.whl"
+PINNED_TORCHVISION_VERSION_PY313 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.22.0%2Bcu118-cp313-cp313-manylinux_2_28_x86_64.whl"
 MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 endif
 else
 PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
-PINNED_TORCH_VERSION_PY312 := "torch==2.4.0"
+PINNED_TORCH_VERSION_PY313 := "torch==2.7.0"
 PINNED_TORCHVISION_VERSION_PY38 := "torchvision==0.19.0"
-PINNED_TORCHVISION_VERSION_PY312 := "torchvision==0.19.0"
+PINNED_TORCHVISION_VERSION_PY313 := "torchvision==0.22.0"
 MINIMAL_TORCH_VERSION_PY38 := "torch==2.1.0"
 MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision==0.16.0"
 endif
@@ -318,34 +339,29 @@ install-pinned-3.8:
 	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY38}" --requirement pyproject.toml \
 		${PINNED_TORCH_VERSION_PY38} ${PINNED_TORCHVISION_VERSION_PY38}
 
-# Install package for Python 3.12 with dependencies pinned to the latest compatible
+# Install package for Python 3.13 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE.
 #
-# For Python 3.12 we install the package with RFDETR and without SuperGradients.
 # See install-pinned-3.8 for more information.
-.PHONY: install-pinned-3.12
-install-pinned-3.12:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY312}" --requirement pyproject.toml \
-		${PINNED_TORCH_VERSION_PY312} ${PINNED_TORCHVISION_VERSION_PY312}
+.PHONY: install-pinned-3.13
+install-pinned-3.13:
+	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY313}" --requirement pyproject.toml \
+		${PINNED_TORCH_VERSION_PY313} ${PINNED_TORCHVISION_VERSION_PY313}
 
 # Install package with the latest dependencies for Python 3.8.
 .PHONY: install-latest-3.8
 install-latest-3.8:
 	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY38}"
 
-# Install package with the latest dependencies for Python 3.12.
-.PHONY: install-latest-3.12
-install-latest-3.12:
-	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY312}" "torch<2.9.0"
-
-# Install package with same dependencies as for Python 3.12
+# Install package with the latest dependencies for Python 3.13.
 .PHONY: install-latest-3.13
-install-latest-3.13: install-latest-3.12
+install-latest-3.13:
+	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY313}"
 
 # Install package for building docs.
 .PHONY: install-docs
 install-docs:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY312}" --requirement pyproject.toml
+	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY313}" --requirement pyproject.toml
 
 # Install package dependencies in Docker image.
 # Uninstall opencv-python and opencv-python-headless because they are both installed by rfdetr

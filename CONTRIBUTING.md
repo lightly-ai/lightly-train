@@ -32,6 +32,12 @@ and if you want to run all the tests:
 make test
 ```
 
+To run a specific test file, use:
+
+```
+pytest path/to/test_file.py
+```
+
 ### Documentation
 
 Documentation is in the [docs](./docs) folder. To build the documentation, install dev

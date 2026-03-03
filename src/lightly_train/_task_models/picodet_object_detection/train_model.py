@@ -27,6 +27,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._distributed import reduce_dict
+from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.object_detection_components.utils import (
@@ -104,6 +105,7 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     lr: float = 0.1
     momentum: float = 0.9
     weight_decay: float = 4e-5
+    backbone_freeze: bool = False
 
     lr_warmup_steps: int = 300
     warmup_ratio: float = 0.1
@@ -163,6 +165,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             classes=data_args.included_classes,
             image_normalize=image_normalize,
             backbone_weights=model_args.backbone_weights,
+            backbone_freeze=model_args.backbone_freeze,
             load_weights=load_weights,
         )
 
@@ -197,6 +200,11 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         self.map_metric = MeanAveragePrecision()
         self.map_metric.warn_on_many_detections = False
+
+    def set_train_mode(self) -> None:
+        super().set_train_mode()
+        if self.model_args.backbone_freeze:
+            self.model.freeze_backbone()
 
     def get_task_model(self) -> PicoDetObjectDetection:
         """Return the task model for inference/export.
@@ -781,28 +789,42 @@ class PicoDetObjectDetectionTrain(TrainModel):
         total_dfl = total_dfl / batch_size
         return total_loss, total_obj, total_cls, total_box, total_dfl, stats
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+    def get_optimizer(
+        self,
+        total_steps: int,
+        global_batch_size: int,
+    ) -> tuple[Optimizer, LRScheduler]:
         """Create optimizer and learning rate scheduler.
 
         Uses cosine schedule with warmup steps.
         """
+        lr = self.model_args.lr * global_batch_size / self.model_args.default_batch_size
+        params_wd, params_no_wd = optimizer_helpers.get_weight_decay_parameters(
+            [self.model]
+        )
+
         param_groups = [
             {
-                "name": "default",
-                "params": list(self.model.parameters()),
-                "lr": self.model_args.lr,
-                "weight_decay": self.model_args.weight_decay,
-            }
+                "name": "params",
+                "params": params_wd,
+                "lr": lr,
+            },
+            {
+                "name": "params_no_weight_decay",
+                "params": params_no_wd,
+                "lr": lr,
+                "weight_decay": 0.0,
+            },
         ]
         optimizer = SGD(
             param_groups,
-            lr=self.model_args.lr,
+            lr=lr,
             momentum=self.model_args.momentum,
             weight_decay=self.model_args.weight_decay,
         )
 
-        warmup_steps = min(self.model_args.lr_warmup_steps, total_steps)
         max_steps = total_steps
+        warmup_steps = min(max_steps, self.model_args.lr_warmup_steps)
         scheduler = CosineWarmupScheduler(
             optimizer=optimizer,
             warmup_epochs=warmup_steps,

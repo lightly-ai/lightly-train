@@ -227,7 +227,9 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
                 torch.testing.assert_close(
                     output_onnx,
                     output_model,
-                    msg=lambda s: f'ONNX validation failed for output "{output_name}": {s}',
+                    msg=lambda s: (
+                        f'ONNX validation failed for output "{output_name}": {s}'
+                    ),
                     equal_nan=True,
                     check_device=False,
                     check_dtype=False,

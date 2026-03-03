@@ -9,13 +9,17 @@ Documentation of the public API of the `lightly_train` package.
 ```{eval-rst}
 
 .. automodule:: lightly_train
-    :members: embed, export, export_onnx, list_methods, list_models, load_model, pretrain, train, train_instance_segmentation, train_object_detection, train_panoptic_segmentation, train_semantic_segmentation
+    :members: embed, export, export_onnx, list_methods, list_models, load_model, pretrain, train, train_image_classification, train_instance_segmentation, train_object_detection, train_panoptic_segmentation, train_semantic_segmentation
 
 ```
 
 ## Models
 
 ```{eval-rst}
+
+.. autoclass:: lightly_train._task_models.image_classification.task_model.ImageClassification
+    :members: export_onnx, export_tensorrt, predict
+    :exclude-members: __init__, __new__
 
 .. autoclass:: lightly_train._task_models.dinov3_eomt_instance_segmentation.task_model.DINOv3EoMTInstanceSegmentation
     :members: export_onnx, export_tensorrt, predict

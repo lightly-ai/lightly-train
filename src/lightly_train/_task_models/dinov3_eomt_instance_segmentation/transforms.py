@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
+from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
 from lightly_train._transforms.instance_segmentation_transform import (
@@ -22,10 +23,15 @@ from lightly_train._transforms.transform import (
     NormalizeArgs,
     RandomCropArgs,
     RandomFlipArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
 from lightly_train.types import ImageSizeTuple
+
+ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1.4.5")
+ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
 class DINOv3EoMTInstanceSegmentationColorJitterArgs(ColorJitterArgs):
@@ -79,6 +85,8 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     color_jitter: DINOv3EoMTInstanceSegmentationColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = Field(
         default_factory=DINOv3EoMTInstanceSegmentationScaleJitterArgs
@@ -88,7 +96,14 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
         default_factory=DINOv3EoMTInstanceSegmentationRandomCropArgs
     )
     bbox_params: BboxParams = BboxParams(
-        format="yolo", label_fields=["class_labels", "indices"]
+        format="yolo",
+        label_fields=["class_labels", "indices"],
+        **(
+            dict(filter_invalid_bboxes=True)
+            if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
+            else {}
+        ),
+        **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
     )
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
@@ -127,12 +142,21 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = None
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs | None = None
     bbox_params: BboxParams = BboxParams(
-        format="yolo", label_fields=["class_labels", "indices"]
+        format="yolo",
+        label_fields=["class_labels", "indices"],
+        **(
+            dict(filter_invalid_bboxes=True)
+            if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
+            else {}
+        ),
+        **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
     )
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:

@@ -71,4 +71,4 @@ html_static_path = ["_static"]
 myst_enable_extensions = [
     "colon_fence",  # Allows to use markdown within directives, see https://myst-parser.readthedocs.io/en/latest/syntax/optional.html#code-fences-using-colons
 ]
-myst_heading_anchors = 3  # Creates anchors for headings up to level 3
+myst_heading_anchors = 4  # Creates anchors for headings up to level 4

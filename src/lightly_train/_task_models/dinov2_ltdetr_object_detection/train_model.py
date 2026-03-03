@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import copy
-import re
+import math
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -17,7 +17,10 @@ from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
-from torch.optim.lr_scheduler import LRScheduler, MultiStepLR
+from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
+    LinearLR,
+    LRScheduler,
+)
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 from lightly_train._configs.validate import no_auto
@@ -25,6 +28,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._distributed import reduce_dict
+from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
     DINOv2LTDETRObjectDetection,
@@ -73,6 +77,7 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
+    backbone_freeze: bool = False
 
     use_ema_model: bool = True
     ema_momentum: float = 0.9999
@@ -116,10 +121,9 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     detector_weight_decay: float = 0.0
 
     # Scheduler configuration
-    scheduler_milestones: list[int] = Field(default_factory=lambda: [1000])
-    scheduler_gamma: float = 0.1
-    lr_warmup_steps: int | None = Field(
-        default=None,  # TODO (Thomas, 10/25): Change to flat-cosine with warmup.
+    scheduler_start_factor: float = 0.01
+    lr_warmup_steps: int = Field(
+        default=2000,
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
@@ -155,11 +159,13 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             normalize_dict = None
         else:
             normalize_dict = normalize.model_dump()
+
         self.model = DINOv2LTDETRObjectDetection(
             model_name=model_name,
             image_size=no_auto(val_transform_args.image_size),
             classes=data_args.included_classes,
             image_normalize=normalize_dict,
+            backbone_freeze=model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
             load_weights=load_weights,
@@ -239,12 +245,13 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
     def set_train_mode(self) -> None:
         super().set_train_mode()
         self.criterion.train()  # TODO (Lionel, 10/25): Check if this is necessary.
+        if self.model_args.backbone_freeze:
+            self.model.freeze_backbone()
 
     def training_step(
         self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
     ) -> TaskStepResult:
         samples, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
-        boxes = _yolo_to_xyxy(boxes)
         targets: list[dict[str, Tensor]] = [
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
@@ -254,6 +261,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             targets=targets,
         )
         # Additional kwargs are anyway ignore in RTDETRCriterionv2.
+        # The loss expects gt boxes in cxcywh format normalized in [0,1].
         loss_dict = self.criterion(
             outputs=outputs,
             targets=targets,
@@ -281,9 +289,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         if self.ema_model is not None:
             self.ema_model.update(self.model)
 
-    # def get_ema_model(self) -> Module | None:
-    #     return self.ema_model.model if self.ema_model is not None else None
-
     def validation_step(
         self,
         fabric: Fabric,
@@ -295,7 +300,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             batch["classes"],
             batch["original_size"],
         )
-        boxes = _yolo_to_xyxy(boxes)
         targets = [
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
@@ -312,6 +316,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 targets=targets,
             )
             # TODO (Lionel, 10/25): Pass epoch, step, global_step.
+            # The loss expects gt boxes in cxcywh format normalized in [0,1].
             loss_dict = self.criterion(
                 outputs=outputs,
                 targets=targets,
@@ -326,7 +331,8 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
-        # De-normalize boxes target boxes.
+        # Convert to xyxy format and de-normalize the boxes.
+        boxes = _yolo_to_xyxy(boxes)
         boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
         for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
             target["boxes"] = sample_denormalized_boxes
@@ -356,40 +362,103 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             },
         )
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
-        # TODO (Thomas, 10/25): Update groups as done for DINOv3 backbones.
-        param_groups = [
-            {
-                "name": "backbone",
-                "params": [
-                    p
-                    for n, p in self.model.named_parameters()
-                    if re.match(r"^(?=.*backbone)(?!.*norm).*$", n)
-                ],
-                "lr": self.model_args.lr * self.model_args.backbone_lr_factor,
-            },
-            {
-                "name": "detector",
-                "params": [
-                    p
-                    for n, p in self.model.named_parameters()
-                    if re.match(r"^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$", n)
-                ],
-                "weight_decay": self.model_args.detector_weight_decay,
-            },
-        ]
+    def get_optimizer(
+        self, total_steps: int, global_batch_size: int
+    ) -> tuple[Optimizer, LRScheduler]:
+        _, params_no_wd_list = optimizer_helpers.get_weight_decay_parameters(
+            modules=[self.model]
+        )
+        params_no_wd = set(params_no_wd_list)
+
+        param_groups = []
+        lr = self.model_args.lr * math.sqrt(
+            global_batch_size / self.model_args.default_batch_size
+        )
+        backbone_lr = lr * self.model_args.backbone_lr_factor
+        backbone_weight_decay = (
+            self.model_args.backbone_weight_decay
+            if self.model_args.backbone_weight_decay is not None
+            else self.model_args.weight_decay
+        )
+        detector_weight_decay = self.model_args.detector_weight_decay
+
+        backbone_params = list(self.model.backbone.parameters())
+        backbone_params_wd = [p for p in backbone_params if p not in params_no_wd]
+        backbone_params_no_wd = [p for p in backbone_params if p in params_no_wd]
+        if backbone_params_wd:
+            param_groups.append(
+                {
+                    "name": "backbone",
+                    "params": backbone_params_wd,
+                    "lr": backbone_lr,
+                    "weight_decay": backbone_weight_decay,
+                }
+            )
+        if backbone_params_no_wd:
+            param_groups.append(
+                {
+                    "name": "backbone_no_wd",
+                    "params": backbone_params_no_wd,
+                    "lr": backbone_lr,
+                    "weight_decay": 0.0,
+                }
+            )
+
+        detector_params = list(self.model.encoder.parameters()) + list(
+            self.model.decoder.parameters()
+        )
+        detector_params_wd = [p for p in detector_params if p not in params_no_wd]
+        detector_params_no_wd = [p for p in detector_params if p in params_no_wd]
+        if detector_params_wd:
+            param_groups.append(
+                {
+                    "name": "detector",
+                    "params": detector_params_wd,
+                    "weight_decay": detector_weight_decay,
+                }
+            )
+        if detector_params_no_wd:
+            param_groups.append(
+                {
+                    "name": "detector_no_wd",
+                    "params": detector_params_no_wd,
+                    "weight_decay": 0.0,
+                }
+            )
+
+        # Default group for all remaining parameters.
+        used_params = set(backbone_params + detector_params)
+        default_params = [p for p in self.model.parameters() if p not in used_params]
+        default_params_wd = [p for p in default_params if p not in params_no_wd]
+        default_params_no_wd = [p for p in default_params if p in params_no_wd]
+        if default_params_wd:
+            param_groups.append(
+                {
+                    "name": "default",
+                    "params": default_params_wd,
+                }
+            )
+        if default_params_no_wd:
+            param_groups.append(
+                {
+                    "name": "default_no_wd",
+                    "params": default_params_no_wd,
+                    "weight_decay": 0.0,
+                }
+            )
+
         optim = AdamW(
             param_groups,
-            lr=self.model_args.lr,
+            lr=lr,
             betas=self.model_args.optimizer_betas,
             weight_decay=self.model_args.weight_decay,
         )
-        scheduler = MultiStepLR(
+        # TODO (Thomas, 11/25): Change to flat-cosine with warmup.
+        scheduler = LinearLR(
             optimizer=optim,
-            milestones=self.model_args.scheduler_milestones,
-            gamma=self.model_args.scheduler_gamma,
+            total_iters=self.model_args.lr_warmup_steps,
+            start_factor=self.model_args.scheduler_start_factor,
         )
-        # TODO (Lionel, 10/25): Use the warmup scheduler.
         return optim, scheduler
 
     def get_task_model(self) -> TaskModel:

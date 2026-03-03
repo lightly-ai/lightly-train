@@ -35,12 +35,14 @@ class CheckpointLightlyTrain:
     date: datetime
     models: CheckpointLightlyTrainModels
     normalize_args: NormalizeArgs
+    license_info: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = dataclasses.asdict(self)
         d["date"] = d["date"].isoformat()
         d["models"] = self.models.to_dict()
         d["normalize_args"] = self.normalize_args.to_dict()
+        d["license_info"] = self.license_info
         return d
 
     @staticmethod
@@ -50,17 +52,21 @@ class CheckpointLightlyTrain:
             date=datetime.fromisoformat(checkpoint_info["date"]),
             models=CheckpointLightlyTrainModels.from_dict(checkpoint_info["models"]),
             normalize_args=NormalizeArgs.from_dict(checkpoint_info["normalize_args"]),
+            license_info=checkpoint_info.get("license_info"),
         )
 
     @staticmethod
     def from_now(
-        models: CheckpointLightlyTrainModels, normalize_args: NormalizeArgs
+        models: CheckpointLightlyTrainModels,
+        normalize_args: NormalizeArgs,
+        license_info: str | None = None,
     ) -> CheckpointLightlyTrain:
         return CheckpointLightlyTrain(
             version=lightly_train.__version__,
             date=datetime.now(timezone.utc).astimezone(),
             models=models,
             normalize_args=normalize_args,
+            license_info=license_info,
         )
 
     @staticmethod

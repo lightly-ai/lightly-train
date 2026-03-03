@@ -10,7 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
-import os
+from pathlib import Path
 from typing import Any, Literal
 
 import torch
@@ -20,7 +20,7 @@ from torch.nn import GELU, Embedding, Linear, Sequential
 from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
-from lightly_train import _logging, _torch_testing
+from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import onnx_helpers, tensorrt_helpers
 from lightly_train._models import package_helpers
@@ -29,10 +29,10 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Att
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
-from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
 )
+from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -141,10 +141,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         if load_weights and backbone_weights is not None:
             self.load_backbone_weights(backbone_weights)
 
-        if len(self.backbone.blocks) < num_joint_blocks:
+        if self.backbone.n_blocks < num_joint_blocks:
             raise ValueError(
                 f"num_joint_blocks ({num_joint_blocks}) cannot be larger than the "
-                f"number of blocks in the backbone ({len(self.backbone.blocks)})."
+                f"number of blocks in the backbone ({self.backbone.n_blocks})."
             )
 
         ### EoMT Specific parameters.
@@ -174,21 +174,12 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             "attn_mask_probs", torch.ones(self.num_joint_blocks), persistent=False
         )
 
-        if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.queries_adjust_num_queries_hook
-            )
-            self.register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.class_head_reuse_or_reinit_hook
-            )
-        else:
-            # Backwards compatibility for PyTorch <= 2.4
-            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.queries_adjust_num_queries_hook, with_module=True
-            )
-            self._register_load_state_dict_pre_hook(  # type: ignore[no-untyped-call]
-                task_model_helpers.class_head_reuse_or_reinit_hook, with_module=True
-            )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, hooks.queries_adjust_num_queries_hook
+        )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, hooks.class_head_reuse_or_reinit_hook
+        )
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -318,10 +309,17 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         x = self.backbone.prepare_tokens_with_masks(x)  # type: ignore[no-untyped-call]
         mask_logits_per_layer, class_logits_per_layer = [], []
 
-        for i, block in enumerate(self.backbone.blocks):
+        for i in range(self.backbone.n_blocks):
+            if not self.backbone.chunked_blocks:
+                block = self.backbone.blocks[i]
+            else:
+                chunk_size = self.backbone.n_blocks // len(self.backbone.blocks)
+                chunk = i // chunk_size
+                block = self.backbone.blocks[chunk][i]  # type: ignore
+
             attn_mask = None
 
-            if i == len(self.backbone.blocks) - self.num_joint_blocks:
+            if i == self.backbone.n_blocks - self.num_joint_blocks:
                 # Prepend query tokens.
                 x = torch.cat(
                     (self.queries.weight[None, :, :].expand(x.shape[0], -1, -1), x),
@@ -330,7 +328,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
             if (
                 return_logits_per_layer
-                and i >= len(self.backbone.blocks) - self.num_joint_blocks
+                and i >= self.backbone.n_blocks - self.num_joint_blocks
             ):
                 mask_logits, class_logits = self._predict(
                     self.backbone.norm(x), grid_size=grid_size
@@ -370,7 +368,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                     attn_mask = self._disable_attn_mask(
                         attn_mask=attn_mask,
                         prob=self.attn_mask_probs[
-                            i - len(self.backbone.blocks) + self.num_joint_blocks
+                            i - self.backbone.n_blocks + self.num_joint_blocks
                         ],
                     )
 
@@ -596,10 +594,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         Args:
             path: path to a .pt file, e.g., exported_last.pt.
         """
-        # Check if the file exists.
-        if not os.path.exists(path):
-            logger.error(f"Checkpoint file not found: {path}")
-            return
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
 
         # Load the checkpoint.
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
@@ -614,7 +611,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             if unexpected:
                 logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
         else:
-            logger.info("Backbone weights loaded successfully.")
+            logger.info(f"Backbone weights loaded from '{path}'")
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""

@@ -27,6 +27,12 @@ ImageDtypes = Union[np.uint8, np.float32]
 NDArrayImage = NDArray[ImageDtypes]  # (H, W) or (H, W, C)
 NDArrayMask = NDArray[Union[np.uint8, np.uint16, np.int_]]  # (H, W) or (H, W, C)
 NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
+NDArrayOBBoxes = NDArray[
+    np.float64
+]  # (n_boxes, 5) with (x_center, y_center, w, h, angle) coordinates.
+NDArray4Corners = NDArray[
+    np.float64
+]  # (n_boxes, 8) with x1, y1, x2, y2, x3, y3, x4, y4 coordinates.
 NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
 # Array with x0, y0, x1, y1, x2, y2, ... coordinates of the polygon points. Coordinates
 # are in [0, 1].
@@ -167,6 +173,23 @@ class MaskPanopticSegmentationBatch(TypedDict):
     # Tensor with shape (batch_size, H, W, 2) or list of Tensors with shape (H, W, 2).
     masks: Tensor | list[Tensor]
     binary_masks: list[PanopticBinaryMasksDict]  # One dict per image.
+
+
+class ImageClassificationDatasetItem(TypedDict):
+    image_path: ImageFilename
+    image: Tensor
+    # Tensor with shape (n_labels,) with the class labels for multilabel classification,
+    # or (1,) with the class label for multiclass classification.
+    classes: Tensor
+
+
+class ImageClassificationBatch(TypedDict):
+    image_path: list[ImageFilename]  # length==batch_size
+    image: Tensor  # Tensor with shape (batch_size, 3, H, W).
+    # One tensor per image, each of shape (n_labels,) with the class labels for
+    # multilabel classification, or (1,) with the class label for multiclass
+    # classification.
+    classes: list[Tensor]
 
 
 # Replaces torch.optim.optimizer.ParamsT

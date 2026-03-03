@@ -41,6 +41,7 @@ from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
+from lightly_train._torch_helpers import _torch_weights_only_false
 from lightly_train._transforms.transform import MethodTransformArgs
 from lightly_train.types import PathLike
 
@@ -388,6 +389,17 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             devices=config.devices,
             epochs=config.epochs,
         )
+
+        LICENSE_INFO = (
+            "LightlyTrain License Notice\n"
+            "\n"
+            "Model training and inference in commercial settings require a valid Commercial License.\n"
+            "If you are using LightlyTrain for open-source (AGPL-3.0) or under a Free Community License,\n"
+            "please ensure your usage complies with the respective terms.\n"
+            "See https://docs.lightly.ai/train/stable/index.html#license for more details.\n"
+            "Contact us at https://www.lightly.ai/contact to discuss the best licensing option for your use case."
+        )
+
         callback_instances = callback_helpers.get_callbacks(
             callback_args=config.callbacks,
             out=out_dir,
@@ -395,6 +407,7 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             embedding_model=embedding_model,
             normalize_args=transform_instance.transform_args.normalize,
             loggers=logger_instances,
+            license_info=LICENSE_INFO,
         )
         config.accelerator = common_helpers.get_accelerator(
             accelerator=config.accelerator
@@ -472,11 +485,16 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             method=method_instance,
         )
         log_resolved_config(config=config, loggers=logger_instances)
-        trainer_instance.fit(
-            model=method_instance,
-            train_dataloaders=dataloader,
-            ckpt_path="last" if config.resume_interrupted else None,
-        )
+
+        with _torch_weights_only_false():
+            # TODO(Guarin, 02/26): trainer.fit has a weights_only argument from
+            # lightning 2.6 onwards. The above context manager can be removed once we
+            # drop support for earlier lightning versions.
+            trainer_instance.fit(
+                model=method_instance,
+                train_dataloaders=dataloader,
+                ckpt_path="last" if config.resume_interrupted else None,
+            )
 
     if config.epochs == 0:
         logger.info("No training epochs specified. Saving model and exiting.")

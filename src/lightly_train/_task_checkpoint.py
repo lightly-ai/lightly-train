@@ -12,6 +12,7 @@ from pydantic import model_validator
 from typing_extensions import Self
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._data.task_data_args import TaskDataArgs
 
 logger = logging.getLogger(__name__)
 
@@ -32,3 +33,6 @@ class TaskSaveCheckpointArgs(PydanticConfig):
                 "artifacts are required."
             )
         return self
+
+    def resolve_auto(self, data_args: TaskDataArgs) -> None:
+        pass

@@ -22,6 +22,8 @@ from lightly_train._transforms.transform import (
     RandomFlipArgs,
     RandomIoUCropArgs,
     RandomPhotometricDistortArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
@@ -66,19 +68,20 @@ class DINOv2LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
 
 
 class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
+    # Sizes must be multiples of patch size * 2
     sizes: Sequence[tuple[int, int]] | None = [
-        (490, 490),
-        (518, 518),
-        (546, 546),
+        (476, 476),
+        (504, 504),
+        (532, 532),
+        (560, 560),
         (588, 588),
         (616, 616),
         (644, 644),
-        (644, 644),
-        (644, 644),
-        (686, 686),
-        (714, 714),
-        (742, 742),
-        (770, 770),
+        (672, 672),
+        (700, 700),
+        (728, 728),
+        (756, 756),
+        (784, 784),
         (812, 812),
     ]
     min_scale: float | None = None
@@ -110,6 +113,8 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     random_flip: DINOv2LTDETRObjectDetectionRandomFlipArgs | None = Field(
         default_factory=DINOv2LTDETRObjectDetectionRandomFlipArgs
     )
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
@@ -175,6 +180,8 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_zoom_out: None = None
     random_iou_crop: None = None
     random_flip: None = None
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
     stop_policy: None = None
     resize: ResizeArgs | None = Field(

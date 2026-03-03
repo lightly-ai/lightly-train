@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, ClassVar, Literal
 
@@ -19,10 +20,13 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torchvision.transforms.functional import InterpolationMode
 
+from lightly_train import _torch_helpers
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_panoptic_segmentation_dataset import (
     MaskPanopticSegmentationDataArgs,
 )
+from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
@@ -36,6 +40,7 @@ from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.transforms imp
     DINOv3EoMTPanopticSegmentationValTransform,
     DINOv3EoMTPanopticSegmentationValTransformArgs,
 )
+from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
@@ -117,6 +122,7 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
         total_steps: int,
         model_name: str,
         model_init_args: dict[str, Any],
+        data_args: TaskDataArgs,
     ) -> None:
         if self.num_queries == "auto":
             num_queries = model_init_args.get("num_queries", 200)
@@ -265,6 +271,10 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             return_per_class=True,
         )
         self.val_pq = self.train_pq.clone()
+
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, hooks.criterion_empty_weight_reinit_hook
+        )
 
     def get_task_model(self) -> DINOv3EoMTPanopticSegmentation:
         return self.model
@@ -501,18 +511,28 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             )
             return (1.0 - progress).pow(self.model_args.poly_power)  # type: ignore[no-any-return]
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
+    def get_optimizer(
+        self,
+        total_steps: int,
+        global_batch_size: int,
+    ) -> tuple[Optimizer, LRScheduler]:
         # TODO(Guarin, 07/25): It seems like EoMT doesn't exclude norm/bias params
         # from weight decay. We might want to change this.
+        _, params_no_wd_list = optimizer_helpers.get_weight_decay_parameters([self])
+        params_no_wd = set(params_no_wd_list)
+
         backbone_params = set(self.model.backbone.parameters())
         backbone_param_groups = []
         other_param_groups = []
         backbone_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         block_i = backbone_blocks
+        lr = self.model_args.lr * math.sqrt(
+            global_batch_size / self.model_args.default_batch_size
+        )
 
         for name, param in reversed(list(self.named_parameters())):
-            lr = self.model_args.lr
+            param_lr = lr
             if param in backbone_params:
                 name_list = name.split(".")
                 is_block = False
@@ -533,18 +553,35 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                         if is_joint_block
                         else self.model_args.llrd
                     )
-                    lr *= llrd ** (backbone_blocks - 1 - block_i)
+                    param_lr *= llrd ** (backbone_blocks - 1 - block_i)
 
-                backbone_param_groups.append(
-                    {"params": [param], "lr": lr, "name": name}
+                if param in params_no_wd:
+                    backbone_param_groups.append(
+                        {
+                            "params": [param],
+                            "lr": param_lr,
+                            "weight_decay": 0.0,
+                            "name": name,
+                        }
+                    )
+                else:
+                    backbone_param_groups.append(
+                        {"params": [param], "lr": param_lr, "name": name}
+                    )
+            elif param in params_no_wd:
+                other_param_groups.append(
+                    {
+                        "params": [param],
+                        "lr": param_lr,
+                        "weight_decay": 0.0,
+                        "name": name,
+                    }
                 )
             else:
                 other_param_groups.append(
-                    {"params": [param], "lr": self.model_args.lr, "name": name}
+                    {"params": [param], "lr": param_lr, "name": name}
                 )
 
-        # TODO(Guarin, 07/25): Added this to reduce number of logged lr/wd values.
-        # Might want to revisit this. Maybe we can make it nicer based on block names?
         def group_param_groups(
             param_groups: list[dict[str, Any]],
         ) -> list[dict[str, Any]]:
@@ -555,7 +592,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 if not current_group:
                     current_group = group
                     grouped.append(current_group)
-                elif group["lr"] != current_group["lr"]:
+                elif group["lr"] != current_group["lr"] or group.get(
+                    "weight_decay"
+                ) != current_group.get("weight_decay"):
                     assert last_group is not None
                     current_group["name"] = (
                         f"{current_group['name']}-{last_group['name']}"
@@ -565,6 +604,20 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 else:
                     current_group["params"].extend(group["params"])
                 last_group = group
+            for group in grouped:
+                name = group.get("name", "")
+                if (
+                    "backbone.cls_token" in name
+                    or "queries" in name
+                    or "attn.qkv.weight" in name
+                    or "class_head.weight" in name
+                    or "mask_head.0.weight" in name
+                    or "upscale.0.conv1.weight" in name
+                ):
+                    pass
+                else:
+                    # Do not log lr/wd for most groups to reduce logging overhead.
+                    group["log"] = False
             return grouped
 
         grouped_backbone_param_groups = group_param_groups(backbone_param_groups)

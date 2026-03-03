@@ -20,6 +20,8 @@ from lightly_train._transforms.object_detection_transform import (
 from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.task_transform import TaskTransformArgs
 from lightly_train.types import (
+    ImageClassificationBatch,
+    ImageClassificationDatasetItem,
     InstanceSegmentationBatch,
     InstanceSegmentationDatasetItem,
     MaskPanopticSegmentationBatch,
@@ -37,6 +39,19 @@ class BaseCollateFunction:
     ):
         self.split = split
         self.transform_args = transform_args
+
+
+class ImageClassificationCollateFunction(BaseCollateFunction):
+    def __call__(
+        self, batch: list[ImageClassificationDatasetItem]
+    ) -> ImageClassificationBatch:
+        images = [item["image"] for item in batch]
+        out: ImageClassificationBatch = {
+            "image_path": [item["image_path"] for item in batch],
+            "image": torch.stack(images),
+            "classes": [item["classes"] for item in batch],
+        }
+        return out
 
 
 class MaskSemanticSegmentationCollateFunction(BaseCollateFunction):

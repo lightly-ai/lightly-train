@@ -20,7 +20,9 @@ from albumentations import (
     HorizontalFlip,
     OneOf,
     RandomCrop,
+    RandomRotate90,
     Resize,
+    Rotate,
     SmallestMaxSize,
     VerticalFlip,
 )
@@ -43,6 +45,8 @@ from lightly_train._transforms.transform import (
     NormalizeArgs,
     RandomCropArgs,
     RandomFlipArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
     ScaleJitterArgs,
     SmallestMaxSizeArgs,
 )
@@ -77,6 +81,8 @@ class InstanceSegmentationTransformArgs(TaskTransformArgs):
     num_channels: int | Literal["auto"]
     normalize: NormalizeArgs | Literal["auto"]
     random_flip: RandomFlipArgs | None
+    random_rotate_90: RandomRotate90Args | None
+    random_rotate: RandomRotationArgs | None
     color_jitter: ColorJitterArgs | None
     # TODO: Lionel(09/25): These are currently not fully used.
     scale_jitter: ScaleJitterArgs | None
@@ -208,6 +214,18 @@ class InstanceSegmentationTransform(TaskTransform):
             if transform_args.random_flip.vertical_prob > 0.0:
                 transform += [VerticalFlip(p=transform_args.random_flip.vertical_prob)]
 
+        if transform_args.random_rotate_90 is not None:
+            transform += [RandomRotate90(p=transform_args.random_rotate_90.prob)]
+
+        if transform_args.random_rotate is not None:
+            transform += [
+                Rotate(
+                    limit=transform_args.random_rotate.degrees,
+                    interpolation=transform_args.random_rotate.interpolation,
+                    p=transform_args.random_rotate.prob,
+                )
+            ]
+
         # Optionally apply color jitter.
         if transform_args.color_jitter is not None:
             transform += [
@@ -244,6 +262,28 @@ class InstanceSegmentationTransform(TaskTransform):
     def __call__(
         self, input: InstanceSegmentationTransformInput
     ) -> InstanceSegmentationTransformOutput:
+        # Handle the case when there are no masks. Albumentations doesn't like passing
+        # empty numpy arrays as masks.
+        if len(input["binary_masks"]) == 0:
+            # Transform only the image without masks.
+            transformed = self.transform(
+                image=input["image"],
+                # Pass empty lists to avoid albumentations errors. Yes this is weird,
+                # empty numpy arrays don't work but empty lists do.
+                masks=[],
+                bboxes=[],
+                class_labels=[],
+                indices=[],
+            )
+            image = transformed["image"]
+            H, W = image.shape[-2:]
+            return {
+                "image": image,
+                "binary_masks": image.new_zeros(0, H, W, dtype=torch.int),
+                "bboxes": np.array([], dtype=np.float64).reshape(0, 4),
+                "class_labels": np.array([], dtype=np.int64),
+            }
+
         # Mask augmentations only work correctly when passed as `masks` to albumentations.
         # Passing as `binary_masks` and adding `additional_targets={"binary_masks": "masks"}`
         # doesn't work. "mask" also doesn't work as target.

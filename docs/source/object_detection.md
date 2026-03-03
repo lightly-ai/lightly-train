@@ -30,7 +30,6 @@ using TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 |  LightlyTrain  |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |  640×640   |
 |  LightlyTrain  |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |  640×640   |
 |  LightlyTrain  |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |  640×640   |
-|  LightlyTrain  |  dinov2/vits14-noreg-ltdetr-coco  |          55.7           |     16.9     |    55.3    |  644×644   |
 |  LightlyTrain  | dinov3/convnext-tiny-ltdetr-coco  |          54.4           |     13.3     |    61.1    |  640×640   |
 |  LightlyTrain  | dinov3/convnext-small-ltdetr-coco |          56.9           |     17.7     |    82.7    |  640×640   |
 |  LightlyTrain  | dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |  640×640   |
@@ -67,6 +66,10 @@ if __name__ == "__main__":
             # Optional, classes that are in the dataset but should be ignored during
             # training.
             # "ignore_classes": [0],
+            #
+            # Optional, skip images without label files. By default, these are included
+            # as negative samples.
+            # "skip_if_label_file_missing": True,
         }
     )
 ```
@@ -378,96 +381,142 @@ you would like to skip specific classes during training, add their IDs to the op
 `ignore_classes` list. The trainer omits these classes from loss computation and the
 exported model does not predict them.
 
-(object-detection-logging)=
+### Missing Labels
 
-## Logging
+There are three cases in which an image may not have any corresponding labels:
 
-Logging is configured with the `logger_args` argument. The following loggers are
-supported:
+1. The label file is missing.
+1. The label file is empty.
+1. The label file only contains annotations for classes that are in `ignore_classes`.
 
-- [`mlflow`](object-detection-mlflow): Logs training metrics to MLflow (disabled by
-  default, requires MLflow to be installed)
-- [`tensorboard`](object-detection-tensorboard): Logs training metrics to TensorBoard
-  (enabled by default, requires TensorBoard to be installed)
-- [`wandb`](object-detection-wandb): Logs training metrics to Weights & Biases (disabled
-  by default, requires wandb to be installed)
+LightlyTrain treats all three cases as "negative" samples and includes the images in
+training with an empty list of bounding boxes.
 
-(object-detection-mlflow)=
-
-### MLflow
-
-```{important}
-MLflow must be installed with `pip install "lightly-train[mlflow]"`.
-```
-
-The mlflow logger can be configured with the following arguments:
+If you would like to exclude images without label files from training, you can set the
+`skip_if_label_file_missing` argument in the `data` configuration. This only excludes
+images without a label file (case 1) but still includes cases 2 and 3 as negative
+samples.
 
 ```python
 import lightly_train
 
-if __name__ == "__main__":
-    lightly_train.train_object_detection(
-        out="out/my_experiment",
-        model="dinov3/vitt16-ltdetr-coco",
-        data={
-            # ...
-        },
-        logger_args={
-            "mlflow": {
-                "experiment_name": "my_experiment",
-                "run_name": "my_run",
-                "tracking_uri": "tracking_uri",
-            },
-        },
-    )
+lightly_train.train_object_detection(
+    ...,
+    data={
+        "path": "my_data_dir",
+        "train": "images/train",
+        "val": "images/val",
+        "names": {...},
+        "skip_if_label_file_missing": True, # Skip images without label files.
+    }
+)
 ```
+
+(object-detection-model)=
+
+## Model
+
+The `model` argument defines the model used for object detection training. The following
+models are available:
+
+### PicoDet Models
+
+- `picodet-s-coco` (pretrained on COCO)
+- `picodet-l-coco` (pretrained on COCO)
+
+### LTDETR DINOv3 Models
+
+- `dinov3/vitt16-ltdetr-coco` (pretrained on COCO)
+- `dinov3/vitt16plus-ltdetr-coco` (pretrained on COCO)
+- `dinov3/vits16-ltdetr-coco` (pretrained on COCO)
+- `dinov3/convnext-tiny-ltdetr-coco` (pretrained on COCO)
+- `dinov3/convnext-small-ltdetr-coco` (pretrained on COCO)
+- `dinov3/convnext-base-ltdetr-coco` (pretrained on COCO)
+- `dinov3/convnext-large-ltdetr-coco` (pretrained on COCO)
+- `dinov3/vitt16-ltdetr`
+- `dinov3/vitt16plus-ltdetr`
+- `dinov3/vits16-ltdetr`
+- `dinov3/vitb16-ltdetr`
+- `dinov3/vitl16-ltdetr`
+- `dinov3/convnext-tiny-ltdetr`
+- `dinov3/convnext-small-ltdetr`
+- `dinov3/convnext-base-ltdetr`
+- `dinov3/convnext-large-ltdetr`
+
+All models are
+[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+
+### LTDETR DINOv2 Models
+
+- `dinov2/vits14-ltdetr`
+- `dinov2/vitb14-ltdetr`
+- `dinov2/vitl14-ltdetr`
+- `dinov2/vitg14-ltdetr`
+
+All models are
+[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
+
+## Training Settings
+
+See [](train-settings) on how to configure training settings.
+
+(object-detection-logging)=
 
 (object-detection-tensorboard)=
 
-### TensorBoard
-
-TensorBoard logs are automatically saved to the output directory. Run TensorBoard in a
-new terminal to visualize the training progress:
-
-```bash
-tensorboard --logdir out/my_experiment
-```
-
-Disable the TensorBoard logger with:
-
-```python
-logger_args={"tensorboard": None}
-```
+(object-detection-mlflow)=
 
 (object-detection-wandb)=
 
-### Weights & Biases
+## Logging
 
-```{important}
-Weights & Biases must be installed with `pip install "lightly-train[wandb]"`.
+See [](train-settings-logging) on how to configure logging.
+
+(object-detection-resume-training)=
+
+## Resume Training
+
+See [](train-settings-resume-training) on how to resume training.
+
+(object-detection-transform-args)=
+
+## Default Image Transform Arguments
+
+The following are the default image transform arguments. See
+[](train-settings-transforms) on how to customize transforms.
+
+`````{dropdown} DINOv3 LTDETR Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/dinov3ltdetrobjectdetectiontrain_train_transform_args.md
 ```
-
-The Weights & Biases logger can be configured with the following arguments:
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.train_object_detection(
-        out="out/my_experiment",
-        model="dinov3/vitt16-ltdetr-coco",
-        data={
-            # ...
-        },
-        logger_args={
-            "wandb": {
-                "project": "my_project",
-                "name": "my_experiment",
-                "log_model": False,        # Set to True to upload model checkpoints
-            },
-        },
-    )
+````
+````{dropdown} Val
+```{include} _auto/dinov3ltdetrobjectdetectiontrain_val_transform_args.md
 ```
+````
+`````
+
+`````{dropdown} DINOv2 LTDETR Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/dinov2ltdetrobjectdetectiontrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} _auto/dinov2ltdetrobjectdetectiontrain_val_transform_args.md
+```
+````
+`````
+
+`````{dropdown} PicoDet Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/picodetobjectdetectiontrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} _auto/picodetobjectdetectiontrain_val_transform_args.md
+```
+````
+`````
 
 (object-detection-onnx)=
 

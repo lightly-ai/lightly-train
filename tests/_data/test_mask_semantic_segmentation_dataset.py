@@ -43,6 +43,8 @@ def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
         num_channels=num_channels,
         normalize=NormalizeArgs(),
         random_flip=None,
+        random_rotate_90=None,
+        random_rotate=None,
         color_jitter=None,
         scale_jitter=None,
         smallest_max_size=SmallestMaxSizeArgs(max_size=32, prob=1.0),

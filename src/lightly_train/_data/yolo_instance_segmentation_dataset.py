@@ -14,6 +14,7 @@ from typing import ClassVar, Sequence
 import numpy as np
 import pydantic
 import torch
+from pydantic import Field
 
 from lightly_train._data import file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.file_helpers import ImageMode
@@ -95,15 +96,20 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
 
         if not image_path.exists():
             raise FileNotFoundError(f"Image file '{image_path}' does not exist.")
-        if not label_path.exists():
-            raise FileNotFoundError(f"Label file '{label_path}' does not exist.")
 
         image_np = file_helpers.open_image_numpy(image_path)
-        polygons_np, bboxes_np, class_labels_np = (
-            file_helpers.open_yolo_instance_segmentation_label_numpy(
-                label_path=label_path
+
+        if label_path.exists():
+            polygons_np, bboxes_np, class_labels_np = (
+                file_helpers.open_yolo_instance_segmentation_label_numpy(
+                    label_path=label_path
+                )
             )
-        )
+        else:
+            polygons_np = []
+            bboxes_np = np.empty((0, 4), dtype=np.float64)
+            class_labels_np = np.empty((0,), dtype=np.int64)
+
         polygons_np, bboxes_np, class_labels_np = (
             self.map_class_ids_to_internal_class_ids(
                 polygons=polygons_np,
@@ -187,8 +193,8 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
     test: PathLike | None = None
     # "names" instead of "classes" to match YOLO convention.
     names: dict[int, str]
-    # TODO(Guarin, 10/25): Implement ignore classes.
-    ignore_classes: None = None
+    ignore_classes: set[int] | None = Field(default=None, strict=False)
+    skip_if_label_file_missing: bool = False
 
     def train_imgs_path(self) -> Path:
         return Path(self.path) / self.train
@@ -205,9 +211,13 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
 
     @property
     def included_classes(self) -> dict[int, str]:
-        """Returns classes that are not ignored."""
-        # TODO(Guarin, 10/25): Implement ignore classes.
-        return self.names
+        """Returns included classes."""
+        ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+        return {
+            class_id: class_name
+            for class_id, class_name in self.names.items()
+            if class_id not in ignore_classes
+        }
 
     @property
     def num_included_classes(self) -> int:
@@ -230,6 +240,7 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
             label_dir=label_dir,
             classes=self.names,
             ignore_classes=self.ignore_classes,
+            skip_if_label_file_missing=self.skip_if_label_file_missing,
         )
 
     def get_val_args(self) -> YOLOInstanceSegmentationDatasetArgs:
@@ -247,6 +258,7 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
             label_dir=label_dir,
             classes=self.names,
             ignore_classes=self.ignore_classes,
+            skip_if_label_file_missing=self.skip_if_label_file_missing,
         )
 
 
@@ -254,7 +266,8 @@ class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
     image_dir: Path
     label_dir: Path
     classes: dict[int, str]
-    ignore_classes: None
+    ignore_classes: set[int] | None
+    skip_if_label_file_missing: bool
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
         for image_filename in file_helpers.list_image_filenames_from_dir(
@@ -262,11 +275,13 @@ class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
         ):
             image_filepath = self.image_dir / Path(image_filename)
             label_filepath = self.label_dir / Path(image_filename).with_suffix(".txt")
-            if label_filepath.exists():
-                yield {
-                    "image_path": str(image_filepath),
-                    "label_path": str(label_filepath),
-                }
+            if self.skip_if_label_file_missing and not label_filepath.exists():
+                continue
+
+            yield {
+                "image_path": str(image_filepath),
+                "label_path": str(label_filepath),
+            }
 
     @staticmethod
     def get_dataset_cls() -> type[YOLOInstanceSegmentationDataset]:

@@ -40,7 +40,7 @@ jobs:
     if: needs.detect-code-changes.outputs.run-tests == 'true'
     strategy:
       matrix:
-        python: ["3.8", "3.12"]
+        python: ["3.8", "3.13"]
         runners: ["ubuntu-latest", "windows-latest"]
     runs-on: ${{ matrix.runners }}
     steps:
@@ -59,7 +59,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
         id: setup-uv
         with:
-          version: 0.6.11
+          version: 0.10.0
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
           python-version: ${{ matrix.python }}

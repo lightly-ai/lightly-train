@@ -12,6 +12,7 @@
 # Modifications Copyright 2025 Lightly AG:
 # - Modified load_state_dict to handle different number of input channels
 
+from __future__ import annotations
 
 import math
 from typing import Callable, Optional, Tuple, Union
@@ -20,6 +21,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from lightly_train import _torch_helpers
 from lightly_train._models import _model_helpers
 
 
@@ -77,15 +79,9 @@ class PatchEmbed(nn.Module):
         )
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
-        if hasattr(self, "register_load_state_dict_pre_hook"):
-            self.register_load_state_dict_pre_hook(
-                _model_helpers.patch_embed_adjust_input_channels_hook
-            )
-        else:
-            # Backwards compatibility for PyTorch <= 2.4
-            self._register_load_state_dict_pre_hook(
-                _model_helpers.patch_embed_adjust_input_channels_hook, with_module=True
-            )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, _model_helpers.patch_embed_adjust_input_channels_hook
+        )
 
     def forward(self, x: Tensor) -> Tuple[Tensor, int, int]:
         _, _, H, W = x.shape

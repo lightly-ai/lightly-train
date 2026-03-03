@@ -15,14 +15,11 @@ from lightly_train._methods import method_helpers
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
     DINOv2LinearSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
-    DINOv2LTDETRObjectDetectionTrain,
+from lightly_train._task_models.image_classification_multihead.train_model import (
+    ImageClassificationMultiheadTrain,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
-    DINOv3LTDETRObjectDetectionTrain,
-)
-from lightly_train._task_models.picodet_object_detection.train_model import (
-    PicoDetObjectDetectionTrain,
+from lightly_train._task_models.semantic_segmentation_multihead.train_model import (
+    SemanticSegmentationMultiheadTrain,
 )
 
 THIS_DIR = Path(__file__).parent.resolve()
@@ -85,7 +82,7 @@ def build_changelog_html(source_dir: Path) -> None:
 def dump_transform_args_for_methods(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     for method in method_helpers.list_methods():
-        if method in {"distillationv1", "distillationv2"}:
+        if method in {"distillationv1", "distillationv2", "distillationv3"}:
             continue
         transform_args = train_helpers.get_transform_args(
             method=method, transform_args=None
@@ -103,13 +100,10 @@ def dump_transform_args_for_methods(dest_dir: Path) -> None:
 def dump_transform_args_for_tasks(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
-        # TODO(Thomas, 10/25): Allow to dump transform args for object detection tasks too.
-        # TODO(Guarin, 11/25): Allow to dump transform args for instance segmentation tasks too.
         if train_model_cls in {
+            SemanticSegmentationMultiheadTrain,
+            ImageClassificationMultiheadTrain,
             DINOv2LinearSemanticSegmentationTrain,
-            DINOv2LTDETRObjectDetectionTrain,
-            DINOv3LTDETRObjectDetectionTrain,
-            PicoDetObjectDetectionTrain,
         }:
             continue
         transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
@@ -145,7 +139,7 @@ def dump_method_args(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     # dump transform args for all methods
     for method in method_helpers.list_methods():
-        if method in {"distillationv1", "distillationv2"}:
+        if method in {"distillationv1", "distillationv2", "distillationv3"}:
             continue
         method_args = method_helpers.get_method_cls(method).method_args_cls()()
         args = common_helpers.pretty_format_args(method_args.model_dump(), limit=False)

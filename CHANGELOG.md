@@ -19,6 +19,58 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
+## [0.14.2] - 2026-02-24
+
+**New Classification Support:** You can now train image classification models with
+LightlyTrain! See the
+[classification documentation](https://docs.lightly.ai/train/stable/image_classification.html)
+for more information.
+
+### Added
+
+- Add
+  [classification support](https://docs.lightly.ai/train/stable/image_classification.html)
+- Add support for frozen backbone training in LTDETR and Picodet object detection
+  models. Set `model_args={"backbone_freeze": True}` in `train_object_detection` to
+  freeze the backbone and reduce VRAM usage.
+- Add LTDETR support for DINOv3 ViT-B/L and DINOv2 ViT-L/B/G models. Pretrained weights
+  are not yet available for these models.
+- Add support for fine-tuning DINOv2 models for instance segmentation with the
+  `train_instance_segmentation` command. See the
+  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#model)
+  for more information.
+
+### Fixed
+
+- Filter invalid bounding boxes in instance segmentation
+- Fix incorrect logging of training times.
+
+## [0.14.1] - 2026-02-09
+
+### Added
+
+- Add Python 3.13 support.
+- Add random rotation transforms for all fine-tuning tasks.
+- Add DistillationV3 preview tailored for ViT models.
+- Skip weight decay for bias/norm/token/etc. layers.
+- Add automatic fine-tuning learning rate scaling based on batch size for all tasks.
+- Log fine-tuning training time breakdown.
+
+### Changed
+
+- Missing object detection and instance segmentation label files are now treated as
+  images without objects instead of being skipped. This can be configured by setting the
+  `skip_if_label_file_missing` flag in the `data` argument of the
+  `train_object_detection` and `train_instance_segmentation` functions respectively.
+- DINO now updates the teacher temperature and last layer freezing based on the number
+  of training steps instead of epochs.
+
+### Fixed
+
+- Fix missing libxcb1 dependency in Dockerfile causing cv2 import errors.
+- Fix issue when fine-tuning panoptic segmentation models with a different number of
+  classes than the pretrained model.
+
 ## [0.14.0] - 2026-01-19
 
 **New PicoDet Models:** We release a preview of PicoDet object detection models for
