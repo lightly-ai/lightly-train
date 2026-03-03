@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 import pytest
 from pydantic import TypeAdapter
@@ -149,7 +149,7 @@ def test_no_auto() -> None:
 # TypeAdapter overload of pydantic_model_validate.
 _SimpleConfigAdapter: TypeAdapter[_SimpleConfig] = TypeAdapter(_SimpleConfig)
 _SimpleConfigUnionAdapter: TypeAdapter[_SimpleConfig | _NestedConfig] = TypeAdapter(
-    _SimpleConfig | _NestedConfig  # type: ignore[arg-type]
+    Union[_SimpleConfig | _NestedConfig]
 )
 
 

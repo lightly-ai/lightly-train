@@ -5,18 +5,21 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 from functools import partial
 
 from torch import Tensor
 from torch.nn import Module, ModuleDict
-from torchmetrics import MeanMetric, RunningMean
 
 
 class LossMetrics(Module):
     """Tracks a collection of loss metrics, one for each loss name."""
 
     def __init__(self, split: str, loss_names: Sequence[str]):
+        from torchmetrics import MeanMetric, RunningMean
+
         super().__init__()
         self.split = split
         # For training we only track the last value of each loss to avoid accumulating

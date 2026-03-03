@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 from torchmetrics import Metric
-from torchmetrics.classification import MulticlassJaccardIndex
 
 from lightly_train._metrics.metric_args import MetricArgs
 
@@ -34,6 +33,8 @@ class JaccardIndexArgs(MetricArgs):
         Returns:
             Dictionary with "miou" or "iou" key containing the metric instance
         """
+        from torchmetrics.classification import MulticlassJaccardIndex
+
         metrics: dict[str, Metric] = {}
 
         if classwise:
