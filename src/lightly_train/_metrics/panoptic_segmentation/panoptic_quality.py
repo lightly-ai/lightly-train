@@ -14,8 +14,8 @@ from torch import Tensor
 from torchmetrics import Metric
 
 # Type ignore needed for old torchmetrics versions which do not have PanopticQuality
-from torchmetrics.detection import (
-    PanopticQuality as TorchMetricsPanopticQuality,  # type: ignore[attr-defined]
+from torchmetrics.detection import (  # type: ignore[attr-defined]
+    PanopticQuality as TorchMetricsPanopticQuality,
 )
 
 from lightly_train._metrics.metric_args import MetricArgs
@@ -65,7 +65,7 @@ class PanopticQualityArgs(MetricArgs):
         return ["pq", "sq", "rq"]
 
 
-class PanopticQuality(TorchMetricsPanopticQuality):
+class PanopticQuality(TorchMetricsPanopticQuality):  # type: ignore[misc]
     """Wrapper around torchmetrics PanopticQuality to flatten results in a single-level
     dictionary."""
 

@@ -32,8 +32,8 @@ class MultilabelAccuracyArgs(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MultilabelAccuracy,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MultilabelAccuracy,
         )
 
         if classwise:
@@ -76,8 +76,8 @@ class MultilabelF1Args(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MultilabelF1Score,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MultilabelF1Score,
         )
 
         if classwise:
@@ -120,8 +120,8 @@ class MultilabelPrecisionArgs(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MultilabelPrecision,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MultilabelPrecision,
         )
 
         if classwise:
@@ -164,8 +164,8 @@ class MultilabelRecallArgs(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MultilabelRecall,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MultilabelRecall,
         )
 
         if classwise:
@@ -207,8 +207,8 @@ class MultilabelAUROCArgs(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MultilabelAUROC,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MultilabelAUROC,
         )
 
         if classwise:
@@ -240,8 +240,8 @@ class MultilabelAveragePrecisionArgs(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MultilabelAveragePrecision,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MultilabelAveragePrecision,
         )
 
         if classwise:
@@ -278,8 +278,8 @@ class MultilabelHammingDistanceArgs(ClassificationMetricArgs):
         num_classes: int,
     ) -> dict[str, Metric]:
         # Type ignore for old torchmetrics versions
-        from torchmetrics.classification import (
-            MultilabelHammingDistance,  # type: ignore[attr-defined]
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MultilabelHammingDistance,
         )
 
         # Hamming distance doesn't support classwise or averaging
