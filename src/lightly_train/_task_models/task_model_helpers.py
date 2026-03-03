@@ -76,12 +76,12 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0",
     ),
     "picodet-s-coco": (
-        "picodet_s_coco_416_260109_ee0a9f46.pt",
-        "ee0a9f4617c36222bdee77a7d87c9e041262af418679ae24143c5d284cb68511",
+        "picodet_s_coco_416_260303_23022a45.pt",
+        "23022a456b2583246288041762a1a66d8d59820d5e775912cb4eb366d3a0cd68",
     ),
     "picodet-l-coco": (
-        "picodet_l_coco_416_260109_7096f43c.pt",
-        "7096f43c43e85d5bb46b6e96a4890d24894bb3dec497f5b826cdf2d3e8547226",
+        "picodet_l_coco_640_260303_b1a16990.pt",
+        "b1a16990fe4f86fe60aefb2dcb4bf97ead9cc616f6c14ce4638aa2b838351fff",
     ),
     #### Instance Segmentation
     "dinov3/vitt16-eomt-inst-coco": (  # 6x schedule
