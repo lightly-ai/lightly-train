@@ -27,7 +27,7 @@ from lightly_train._metrics.instance_segmentation.task_metric import (
 class TestInstanceSegmentationTaskMetric:
     def test_update(self) -> None:
         metric = InstanceSegmentationTaskMetric(
-            task_metric_args=InstanceSegmentationTaskMetricArgs(classwise=False),
+            task_metric_args=InstanceSegmentationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog"],
             loss_names=["loss"],
@@ -68,7 +68,7 @@ class TestInstanceSegmentationTaskMetric:
 
     def test_update__classwise(self) -> None:
         metric = InstanceSegmentationTaskMetric(
-            task_metric_args=InstanceSegmentationTaskMetricArgs(),
+            task_metric_args=InstanceSegmentationTaskMetricArgs(classwise=True),
             split="val",
             class_names=["cat", "dog"],
             loss_names=["loss"],

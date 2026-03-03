@@ -27,7 +27,7 @@ from lightly_train._metrics.semantic_segmentation.task_metric import (
 class TestSemanticSegmentationTaskMetric:
     def test_update(self) -> None:
         metric = SemanticSegmentationTaskMetric(
-            task_metric_args=SemanticSegmentationTaskMetricArgs(classwise=False),
+            task_metric_args=SemanticSegmentationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog"],
             ignore_index=None,
@@ -46,7 +46,7 @@ class TestSemanticSegmentationTaskMetric:
 
     def test_update__ignore_index(self) -> None:
         metric = SemanticSegmentationTaskMetric(
-            task_metric_args=SemanticSegmentationTaskMetricArgs(classwise=False),
+            task_metric_args=SemanticSegmentationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog"],
             ignore_index=255,
@@ -63,7 +63,7 @@ class TestSemanticSegmentationTaskMetric:
 
     def test_update__classwise(self) -> None:
         metric = SemanticSegmentationTaskMetric(
-            task_metric_args=SemanticSegmentationTaskMetricArgs(),
+            task_metric_args=SemanticSegmentationTaskMetricArgs(classwise=True),
             split="val",
             class_names=["cat", "dog"],
             ignore_index=None,
