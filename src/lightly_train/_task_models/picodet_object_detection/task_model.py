@@ -200,9 +200,7 @@ class PicoDetObjectDetection(TaskModel):
         scores = cls_score.sigmoid().amax(dim=1, keepdim=True)
         threshold = self._o2o_peak_score_thresholds[level_idx]
         kernel = self._o2o_peak_kernels[level_idx]
-        pooled = F.max_pool2d(
-            scores, kernel_size=kernel, stride=1, padding=kernel // 2
-        )
+        pooled = F.max_pool2d(scores, kernel_size=kernel, stride=1, padding=kernel // 2)
         keep = (scores >= threshold) & (scores == pooled)
         suppressed = cls_score.new_full((), self._o2o_suppress_logit)
         return torch.where(keep, cls_score, suppressed)
