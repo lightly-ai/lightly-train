@@ -13,10 +13,15 @@ from collections.abc import Sequence
 from torch import Tensor
 from torchmetrics import Metric
 
-# Type ignore needed for old torchmetrics versions which do not have PanopticQuality
-from torchmetrics.detection import (  # type: ignore[attr-defined]
-    PanopticQuality as TorchMetricsPanopticQuality,
-)
+try:
+    from torchmetrics.detection import (
+        PanopticQuality as TorchMetricsPanopticQuality,
+    )
+
+    _PANOPTIC_QUALITY_AVAILABLE = True
+except ImportError:
+    TorchMetricsPanopticQuality = object  # type: ignore[assignment, misc]
+    _PANOPTIC_QUALITY_AVAILABLE = False
 
 from lightly_train._metrics.metric_args import MetricArgs
 
@@ -80,6 +85,11 @@ class PanopticQuality(TorchMetricsPanopticQuality):  # type: ignore[misc]
         return_sq_and_rq: bool = False,
         return_per_class: bool = False,
     ) -> None:
+        if not _PANOPTIC_QUALITY_AVAILABLE:
+            raise ImportError(
+                "PanopticQuality requires a newer version of torchmetrics. "
+                "Please upgrade: pip install -U torchmetrics"
+            )
         super().__init__(
             things=things,
             stuffs=stuffs,
