@@ -12,15 +12,6 @@ from typing import ClassVar, Literal
 
 from pydantic import Field
 from torchmetrics import Metric
-from torchmetrics.classification import (
-    MultilabelAccuracy,
-    MultilabelAUROC,
-    MultilabelAveragePrecision,
-    MultilabelF1Score,
-    MultilabelHammingDistance,
-    MultilabelPrecision,
-    MultilabelRecall,
-)
 
 from lightly_train._metrics.classification.metric_args import ClassificationMetricArgs
 
@@ -40,6 +31,8 @@ class MultilabelAccuracyArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MultilabelAccuracy
+
         if classwise:
             return {
                 "accuracy": MultilabelAccuracy(
@@ -79,6 +72,8 @@ class MultilabelF1Args(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MultilabelF1Score
+
         if classwise:
             return {
                 "f1": MultilabelF1Score(
@@ -118,6 +113,8 @@ class MultilabelPrecisionArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MultilabelPrecision
+
         if classwise:
             return {
                 "precision": MultilabelPrecision(
@@ -157,6 +154,8 @@ class MultilabelRecallArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MultilabelRecall
+
         if classwise:
             return {
                 "recall": MultilabelRecall(
@@ -195,6 +194,8 @@ class MultilabelAUROCArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MultilabelAUROC
+
         if classwise:
             return {"auroc": MultilabelAUROC(num_labels=num_classes, average="none")}
         return {
@@ -223,6 +224,8 @@ class MultilabelAveragePrecisionArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MultilabelAveragePrecision
+
         if classwise:
             return {
                 "avg_precision": MultilabelAveragePrecision(
@@ -256,6 +259,8 @@ class MultilabelHammingDistanceArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MultilabelHammingDistance
+
         # Hamming distance doesn't support classwise or averaging
         if classwise:
             return {}

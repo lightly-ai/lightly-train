@@ -12,12 +12,6 @@ from typing import Literal
 
 from pydantic import Field
 from torchmetrics import Metric
-from torchmetrics.classification import (
-    MulticlassAccuracy,
-    MulticlassF1Score,
-    MulticlassPrecision,
-    MulticlassRecall,
-)
 
 from lightly_train._metrics.classification.metric_args import ClassificationMetricArgs
 
@@ -37,6 +31,8 @@ class MulticlassAccuracyArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MulticlassAccuracy
+
         metrics: dict[str, Metric] = {}
 
         for k in self.topk:
@@ -83,6 +79,8 @@ class MulticlassF1Args(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MulticlassF1Score
+
         if classwise:
             return {"f1": MulticlassF1Score(num_classes=num_classes, average="none")}
         return {
@@ -111,6 +109,8 @@ class MulticlassPrecisionArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MulticlassPrecision
+
         if classwise:
             return {
                 "precision": MulticlassPrecision(
@@ -145,6 +145,8 @@ class MulticlassRecallArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
+        from torchmetrics.classification import MulticlassRecall
+
         if classwise:
             return {"recall": MulticlassRecall(num_classes=num_classes, average="none")}
         return {
