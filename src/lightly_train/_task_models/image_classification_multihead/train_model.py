@@ -260,7 +260,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
 
             head_metrics = self.train_metrics.head_metrics[head_name]
             head_metrics.update(logits, targets.int())  # type: ignore
-            head_metrics.update_loss({"loss": loss}, weight=len(images))  # type: ignore
+            head_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore
 
         loss = torch.stack(losses).sum()
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
@@ -291,7 +291,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
 
             head_metrics = self.val_metrics.head_metrics[head_name]
             head_metrics.update(logits, targets.int())  # type: ignore
-            head_metrics.update_loss({"loss": loss}, weight=len(images))  # type: ignore
+            head_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore
 
         loss = torch.stack(losses).sum()
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.val_metrics)

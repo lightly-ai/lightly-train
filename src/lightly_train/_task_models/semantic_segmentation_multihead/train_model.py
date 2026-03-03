@@ -248,7 +248,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             # Update per-head quality metrics and loss (scalar, no accumulation).
             head_metrics = self.train_metrics.head_metrics[head_name]
             head_metrics.update(logits, masks)  # type: ignore[operator]
-            head_metrics.update_loss({"loss": loss.detach()})  # type: ignore[operator]
+            head_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore[operator]
 
         # Sum losses for backprop.
         loss_sum = torch.stack(losses).sum()
@@ -296,7 +296,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             losses.append(head_loss)
 
             # Accumulate loss in the head's TaskMetric (weighted by batch size).
-            head_metrics.update_loss({"loss": head_loss}, weight=len(images))  # type: ignore[operator]
+            head_metrics.update_loss({"loss": head_loss.detach()}, weight=len(images))  # type: ignore[operator]
 
         # Use sum of losses for consistency with training_step.
         loss_sum = torch.stack(losses).sum()
