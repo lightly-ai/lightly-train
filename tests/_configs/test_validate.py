@@ -148,8 +148,8 @@ def test_no_auto() -> None:
 # TypeAdapter variants of the _SimpleConfig and _NestedConfig to exercise the
 # TypeAdapter overload of pydantic_model_validate.
 _SimpleConfigAdapter: TypeAdapter[_SimpleConfig] = TypeAdapter(_SimpleConfig)
-_SimpleConfigUnionAdapter: TypeAdapter[_SimpleConfig | _NestedConfig] = TypeAdapter(
-    Union[_SimpleConfig | _NestedConfig]
+_SimpleConfigUnionAdapter: TypeAdapter[Union[_SimpleConfig, _NestedConfig]] = (
+    TypeAdapter(Union[_SimpleConfig, _NestedConfig])
 )
 
 

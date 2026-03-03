@@ -19,7 +19,10 @@ if RequirementCache("torchmetrics<1.5"):
 
 
 from torchmetrics import MetricCollection
-from torchmetrics.classification import MulticlassAccuracy, MulticlassPrecision
+from torchmetrics.classification import (  # type: ignore[attr-defined]
+    MulticlassAccuracy,
+    MulticlassPrecision,
+)
 
 from lightly_train._metrics.classwise_metric_collection import (
     ClasswiseMetricCollection,

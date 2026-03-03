@@ -79,9 +79,9 @@ class MultilabelClassificationTaskMetricArgs(TaskMetricArgs):
     )
 
 
-ClassificationTaskMetricArgs = Annotated[
+ClassificationTaskMetricArgs = Annotated[  # type: ignore[valid-type]
     Union[
-        MulticlassClassificationTaskMetricArgs | MultilabelClassificationTaskMetricArgs
+        MulticlassClassificationTaskMetricArgs, MultilabelClassificationTaskMetricArgs
     ],
     Field(discriminator="classification_task"),
 ]

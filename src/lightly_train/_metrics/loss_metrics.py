@@ -20,7 +20,8 @@ class LossMetrics(Module):
     def __init__(
         self, split: str, loss_names: Sequence[str], running_mean_window: int = 20
     ) -> None:
-        from torchmetrics import MeanMetric, RunningMean
+        # Type ignore for old torchmetrics versions
+        from torchmetrics import MeanMetric, RunningMean  # type: ignore[attr-defined]
 
         super().__init__()
         self.split = split

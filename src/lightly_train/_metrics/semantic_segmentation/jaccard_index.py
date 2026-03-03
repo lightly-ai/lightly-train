@@ -33,7 +33,10 @@ class JaccardIndexArgs(MetricArgs):
         Returns:
             Dictionary with "miou" or "iou" key containing the metric instance
         """
-        from torchmetrics.classification import MulticlassJaccardIndex
+        # Type ignore for old torchmetrics versions
+        from torchmetrics.classification import (
+            MulticlassJaccardIndex,  # type: ignore[attr-defined]
+        )
 
         metrics: dict[str, Metric] = {}
 

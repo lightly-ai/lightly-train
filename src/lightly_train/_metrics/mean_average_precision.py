@@ -115,14 +115,14 @@ class MeanAveragePrecision(TorchMetricsMeanAveragePrecision):
     ) -> None:
         super().__init__(
             box_format=box_format,
-            iou_type=iou_type,
+            iou_type=iou_type,  # type: ignore
             iou_thresholds=iou_thresholds,  # type: ignore
             rec_thresholds=rec_thresholds,  # type: ignore
             max_detection_thresholds=max_detection_thresholds,  # type: ignore
             class_metrics=class_metrics,
-            extended_summary=extended_summary,
-            average=average,
-            backend=backend,
+            extended_summary=extended_summary,  # type: ignore
+            average=average,  # type: ignore
+            backend=backend,  # type: ignore
             **kwargs,
         )
         self.prefix = prefix

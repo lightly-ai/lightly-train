@@ -31,7 +31,10 @@ class MulticlassAccuracyArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        from torchmetrics.classification import MulticlassAccuracy
+        # Type ignore for old torchmetrics versions
+        from torchmetrics.classification import (
+            MulticlassAccuracy,  # type: ignore[attr-defined]
+        )
 
         metrics: dict[str, Metric] = {}
 
@@ -79,7 +82,10 @@ class MulticlassF1Args(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        from torchmetrics.classification import MulticlassF1Score
+        # Type ignore for old torchmetrics versions
+        from torchmetrics.classification import (
+            MulticlassF1Score,  # type: ignore[attr-defined]
+        )
 
         if classwise:
             return {"f1": MulticlassF1Score(num_classes=num_classes, average="none")}
@@ -109,7 +115,10 @@ class MulticlassPrecisionArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        from torchmetrics.classification import MulticlassPrecision
+        # Type ignore for old torchmetrics versions
+        from torchmetrics.classification import (
+            MulticlassPrecision,  # type: ignore[attr-defined]
+        )
 
         if classwise:
             return {
@@ -145,7 +154,10 @@ class MulticlassRecallArgs(ClassificationMetricArgs):
         classwise: bool,
         num_classes: int,
     ) -> dict[str, Metric]:
-        from torchmetrics.classification import MulticlassRecall
+        # Type ignore for old torchmetrics versions
+        from torchmetrics.classification import (
+            MulticlassRecall,  # type: ignore[attr-defined]
+        )
 
         if classwise:
             return {"recall": MulticlassRecall(num_classes=num_classes, average="none")}

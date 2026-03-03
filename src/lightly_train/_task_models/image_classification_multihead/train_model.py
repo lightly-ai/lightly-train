@@ -25,6 +25,8 @@ from lightly_train._data.image_classification_dataset import ImageClassification
 from lightly_train._metrics.classification.task_metric import (
     ClassificationTaskMetric,
     ClassificationTaskMetricArgs,
+    MulticlassClassificationTaskMetricArgs,
+    MultilabelClassificationTaskMetricArgs,
 )
 from lightly_train._metrics.multihead_task_metric import MultiheadTaskMetric
 from lightly_train._optim import optimizer_helpers
@@ -101,7 +103,8 @@ class ImageClassificationMultiheadTrain(TrainModel):
         train_transform_args: ImageClassificationMultiheadTrainTransformArgs,
         val_transform_args: ImageClassificationMultiheadValTransformArgs,
         load_weights: bool,
-        metric_args: ClassificationTaskMetricArgs,
+        metric_args: MulticlassClassificationTaskMetricArgs
+        | MultilabelClassificationTaskMetricArgs,
     ) -> None:
         super().__init__()
         image_size = no_auto(val_transform_args.image_size)
