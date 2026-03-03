@@ -87,6 +87,7 @@ def train_image_classification(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an image classification model.
 
@@ -198,6 +199,12 @@ def train_image_classification(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        gradient_accumulation_steps:
+            Number of gradient accumulation steps. 'auto' automatically enables
+            gradient accumulation when batch_size is smaller than the model's default
+            batch size, using ``max(1, default_batch_size // batch_size)`` steps to
+            keep the effective batch size and learning rate close to the model defaults.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     kwargs = {**locals()}
     classification_task = kwargs.pop("classification_task")
@@ -249,6 +256,7 @@ def train_image_classification_multihead(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an image classification model with multiple classification heads.
 
@@ -329,6 +337,12 @@ def train_image_classification_multihead(
             Arguments for the PyTorch DataLoader.
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints.
+        gradient_accumulation_steps:
+            Number of gradient accumulation steps. 'auto' automatically enables
+            gradient accumulation when batch_size is smaller than the model's default
+            batch size, using ``max(1, default_batch_size // batch_size)`` steps to
+            keep the effective batch size and learning rate close to the model defaults.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     kwargs = {**locals()}
     classification_task = kwargs.pop("classification_task")
@@ -379,6 +393,7 @@ def train_instance_segmentation(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an instance segmentation model.
 
@@ -488,6 +503,12 @@ def train_instance_segmentation(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        gradient_accumulation_steps:
+            Number of gradient accumulation steps. 'auto' automatically enables
+            gradient accumulation when batch_size is smaller than the model's default
+            batch size, using ``max(1, default_batch_size // batch_size)`` steps to
+            keep the effective batch size and learning rate close to the model defaults.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     tracker.track_training_started(
         task_type="instance_segmentation",
@@ -525,6 +546,7 @@ def train_object_detection(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an object detection model.
 
@@ -634,6 +656,12 @@ def train_object_detection(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        gradient_accumulation_steps:
+            Number of gradient accumulation steps. 'auto' automatically enables
+            gradient accumulation when batch_size is smaller than the model's default
+            batch size, using ``max(1, default_batch_size // batch_size)`` steps to
+            keep the effective batch size and learning rate close to the model defaults.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     tracker.track_training_started(
         task_type="object_detection",
@@ -671,6 +699,7 @@ def train_panoptic_segmentation(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train a panoptic segmentation model.
 
@@ -781,6 +810,12 @@ def train_panoptic_segmentation(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        gradient_accumulation_steps:
+            Number of gradient accumulation steps. 'auto' automatically enables
+            gradient accumulation when batch_size is smaller than the model's default
+            batch size, using ``max(1, default_batch_size // batch_size)`` steps to
+            keep the effective batch size and learning rate close to the model defaults.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     tracker.track_training_started(
         task_type="panoptic_segmentation",
@@ -818,6 +853,7 @@ def train_semantic_segmentation(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train a semantic segmentation model.
 
@@ -927,6 +963,12 @@ def train_semantic_segmentation(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        gradient_accumulation_steps:
+            Number of gradient accumulation steps. 'auto' automatically enables
+            gradient accumulation when batch_size is smaller than the model's default
+            batch size, using ``max(1, default_batch_size // batch_size)`` steps to
+            keep the effective batch size and learning rate close to the model defaults.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     tracker.track_training_started(
         task_type="semantic_segmentation",
@@ -963,6 +1005,7 @@ def train_semantic_segmentation_multihead(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train a multi-head semantic segmentation model.
 
@@ -1037,6 +1080,12 @@ def train_semantic_segmentation_multihead(
             Arguments for the PyTorch DataLoader.
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints.
+        gradient_accumulation_steps:
+            Number of gradient accumulation steps. 'auto' automatically enables
+            gradient accumulation when batch_size is smaller than the model's default
+            batch size, using ``max(1, default_batch_size // batch_size)`` steps to
+            keep the effective batch size and learning rate close to the model defaults.
+            Set to 1 to explicitly disable gradient accumulation.
     """
     tracker.track_training_started(
         task_type="semantic_segmentation_multihead",
@@ -1077,6 +1126,7 @@ def _train_task(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     kwargs = locals()
     kwargs.pop("config_cls")
@@ -1228,6 +1278,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             num_devices_per_node=fabric.world_size // config.num_nodes,
         )
 
+        config.gradient_accumulation_steps = helpers.get_gradient_accumulation_steps(
+            gradient_accumulation_steps=config.gradient_accumulation_steps,
+            global_batch_size=config.batch_size,
+            default_batch_size=train_model_args_cls.default_batch_size,
+        )
+        effective_global_batch_size = (
+            config.batch_size * config.gradient_accumulation_steps
+        )
+
         config.model_args = helpers.get_train_model_args(
             model_args=config.model_args,
             model_args_cls=train_model_args_cls,
@@ -1290,7 +1349,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_model.set_train_mode()
         optimizer, scheduler = train_model.get_optimizer(
             total_steps=config.steps,
-            global_batch_size=config.batch_size,
+            global_batch_size=effective_global_batch_size,
         )
         # NOTE(Guarin, 07/25): Fabric returns wrapped versions of the model and
         # optimizer but for all practical purposes we can treat them as the original
@@ -1374,6 +1433,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             logger.info(f"Resuming training from step {start_step}/{config.steps}...")
         else:
             logger.info(f"Training for {config.steps} steps...")
+        logger.info(
+            f"Gradient accumulation steps: {config.gradient_accumulation_steps} "
+            f"(effective global batch size: {effective_global_batch_size})."
+        )
         logger.info(f"Logging every {config.logger_args.log_every_num_steps} steps.")
         logger.info(f"Validating every {config.logger_args.val_every_num_steps} steps.")
         logger.info(
@@ -1407,18 +1470,25 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
             timer.start_step("train_step")
 
-            # Training data loading.
-            timer.start_step("train_dataload")
-            batch = next(infinite_train_dataloader)
-            timer.end_step("train_dataload")
+            # Training data loading, forward passes, and gradient accumulation.
+            for acc_step in range(config.gradient_accumulation_steps):
+                is_accumulating = acc_step < config.gradient_accumulation_steps - 1
 
-            # Training forward pass.
-            train_result = train_model.training_step(
-                fabric=fabric, batch=batch, step=step
-            )
+                timer.start_step("train_dataload")
+                batch = next(infinite_train_dataloader)
+                timer.end_step("train_dataload")
 
-            # Training backward pass, optimizer step, and scheduler step.
-            fabric.backward(train_result.loss)
+                # Type ignore is needed because `train_model` is not recognized as an
+                # instance of `_FabricModule`
+                with fabric.no_backward_sync(train_model, enabled=is_accumulating):  # type: ignore[arg-type]
+                    train_result = train_model.training_step(
+                        fabric=fabric, batch=batch, step=step
+                    )
+                    fabric.backward(
+                        train_result.loss / config.gradient_accumulation_steps
+                    )
+
+            # Optimizer step and scheduler step.
             train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
             optimizer.step()
             optimizer.zero_grad()
@@ -1434,6 +1504,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 train_log_dict = train_result.log_dict
                 train_metrics = train_result.metrics.compute()
                 train_result.metrics.reset()
+                # train_log_dict = helpers.compute_metrics(accumulated_log_dict)
                 timer_agg = timer.get_aggregated_metrics(fabric)
 
                 helpers.log_step(
@@ -1443,13 +1514,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     metrics=train_metrics,
                     task=config.task,
                     timer_agg=timer_agg,
-                    global_batch_size=config.batch_size,
+                    global_batch_size=effective_global_batch_size,
+                    gradient_accumulation_steps=config.gradient_accumulation_steps,
                 )
                 helpers.add_timer_logs(
                     timer_agg=timer_agg,
                     log_dict=train_log_dict,
                     split="train",
-                    global_batch_size=config.batch_size,
+                    global_batch_size=effective_global_batch_size,
+                    gradient_accumulation_steps=config.gradient_accumulation_steps,
                 )
 
                 for group in optimizer.param_groups:
@@ -1495,6 +1568,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 timer.reset_gpu_max_memory("val")
 
                 val_dataloader_iter = iter(val_dataloader)
+                # TODO (Lionel, 02/26): Average metrics during validation instead of
+                # only singular metrics at the end of the epoch.
                 for val_step in range(len(val_dataloader)):
                     is_last_val_step = val_step + 1 == len(val_dataloader)
                     is_val_log_step = (
@@ -1541,6 +1616,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             log_dict=val_result.log_dict,
                             split="val",
                             global_batch_size=config.batch_size,
+                            gradient_accumulation_steps=config.gradient_accumulation_steps,
                         )
                         helpers.log_fabric(
                             fabric=fabric,
@@ -1580,6 +1656,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             best_val_metrics=best_metrics,
                             step=step,
                             global_batch_size=config.batch_size,
+                            gradient_accumulation_steps=config.gradient_accumulation_steps,
                         )
 
                     elif is_val_log_step:
@@ -1634,6 +1711,7 @@ class TrainTaskConfig(PydanticConfig):
     metric_args: dict[str, Any] | TaskMetricArgs | None = None
     loader_args: dict[str, Any] | None = None
     save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
+    gradient_accumulation_steps: int | Literal["auto"] = "auto"
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)

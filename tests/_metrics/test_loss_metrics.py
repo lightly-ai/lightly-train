@@ -23,12 +23,13 @@ from lightly_train._metrics.loss_metrics import LossMetrics
 
 class TestLossMetrics:
     def test_compute__train_split(self) -> None:
-        # RunningMean(window=1) keeps only the last value.
-        metric = LossMetrics(split="train", loss_names=["loss"])
+        # RunningMean(window=2) keeps only the last two values.
+        metric = LossMetrics(split="train", loss_names=["loss"], running_mean_window=2)
         metric.update({"loss": torch.tensor(1.0)}, weight=1)
         metric.update({"loss": torch.tensor(3.0)}, weight=1)
+        metric.update({"loss": torch.tensor(5.0)}, weight=1)
         result = metric.compute()
-        assert result == {"train_loss": pytest.approx(3.0)}
+        assert result == {"train_loss": pytest.approx(4.0)}
 
     def test_compute__val_split(self) -> None:
         # MeanMetric accumulates a weighted mean across batches.

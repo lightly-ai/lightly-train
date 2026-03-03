@@ -17,16 +17,22 @@ from torch.nn import Module, ModuleDict
 class LossMetrics(Module):
     """Tracks a collection of loss metrics, one for each loss name."""
 
-    def __init__(self, split: str, loss_names: Sequence[str]):
+    def __init__(
+        self, split: str, loss_names: Sequence[str], running_mean_window: int = 20
+    ) -> None:
         from torchmetrics import MeanMetric, RunningMean
 
         super().__init__()
         self.split = split
-        # For training we only track the last value of each loss to avoid accumulating
-        # over many batches.
-        #
-        # TODO(02/26, Guarin): Align RunningMean window with gradient accumulation steps?
-        metric_cls = partial(RunningMean, window=1) if split == "train" else MeanMetric
+        # For training we only track the losses of the most recent batches to keep an
+        # up-to-date estimate of the current loss. We do not only track the last loss
+        # value because of gradient accumulation which can cause the loss to fluctuate
+        # a lot from accumulation step to accumulation step.
+        metric_cls = (
+            partial(RunningMean, window=running_mean_window)
+            if split == "train"
+            else MeanMetric
+        )
         self.metrics = ModuleDict({loss_name: metric_cls() for loss_name in loss_names})
 
     def update(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
