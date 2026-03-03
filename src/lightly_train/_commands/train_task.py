@@ -1549,6 +1549,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             log_dict=val_log_dict,
                             split="val",
                             global_batch_size=config.batch_size,
+                            gradient_accumulation_steps=config.gradient_accumulation_steps,
                         )
                         fabric.log_dict(val_log_dict, step=step)
                         helpers.reset_metrics(val_result.log_dict)
