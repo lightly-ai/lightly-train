@@ -300,10 +300,10 @@ class PicoDetObjectDetectionTrain(TrainModel):
         device = images.device
 
         # Use EMA model for validation
-        model_to_use = self.ema_model.model  # type: ignore[assignment]
-        model_to_use.eval()
+        ema_model = cast(PicoDetObjectDetection, self.ema_model.model)
+        ema_model.eval()
         with torch.no_grad():
-            outputs = model_to_use._forward_train(images)  # type: ignore[operator]
+            outputs = ema_model._forward_train(images)
 
         cls_scores_list = cast(list[Tensor], outputs["cls_scores"])
         bbox_preds_list = cast(list[Tensor], outputs["bbox_preds"])
@@ -338,7 +338,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         )
         total_loss = o2o_loss + 0.5 * dense_loss
 
-        boxes_xyxy, cls_logits = model_to_use._decode_o2o_predictions(
+        boxes_xyxy, cls_logits = self.model._decode_o2o_predictions(
             cls_scores_list=o2o_cls_scores,
             bbox_preds_list=o2o_bbox_preds,
             image_size=(img_h, img_w),
@@ -351,7 +351,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         preds = []
         targets = []
-        max_detections = model_to_use.postprocessor.max_detections
+        max_detections = int(self.model.postprocessor.max_detections)
 
         for i in range(batch_size):
             pred_boxes = boxes_xyxy[i].detach()
