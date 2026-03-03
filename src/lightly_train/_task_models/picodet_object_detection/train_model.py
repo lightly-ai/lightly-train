@@ -300,7 +300,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         device = images.device
 
         # Use EMA model for validation
-        model_to_use = self.ema_model.model
+        model_to_use = self.ema_model.model  # type: ignore[assignment]
         model_to_use.eval()
         with torch.no_grad():
             outputs = model_to_use._forward_train(images)  # type: ignore[operator]
@@ -586,7 +586,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         gt_boxes_xyxy_list: list[Tensor],
         gt_labels_list: list[Tensor],
         image_size: tuple[int, int],
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor, dict[str, Tensor]]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, dict[str, Tensor]]:
         batch_size = cls_scores[0].shape[0]
         device = cls_scores[0].device
 

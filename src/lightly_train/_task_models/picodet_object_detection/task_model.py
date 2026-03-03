@@ -507,7 +507,7 @@ class PicoDetObjectDetection(TaskModel):
             cls_scores_list=cls_scores_list,
             bbox_preds_list=bbox_preds_list,
             image_size=(orig_h, orig_w),
-            input_size=tuple(self.image_size),
+            input_size=(int(self.image_size[0]), int(self.image_size[1])),
         )
         boxes = boxes_xyxy[0]
         internal_labels = cls_logits[0].argmax(dim=-1)
