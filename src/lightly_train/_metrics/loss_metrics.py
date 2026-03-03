@@ -24,7 +24,7 @@ class LossMetrics(Module):
 
         try:
             # Type ignore for old torchmetrics versions
-            from torchmetrics import RunningMean # type: ignore[attr-defined]
+            from torchmetrics import RunningMean  # type: ignore[attr-defined]
 
             running_mean_fn = partial(RunningMean, window=running_mean_window)
         except ImportError:
