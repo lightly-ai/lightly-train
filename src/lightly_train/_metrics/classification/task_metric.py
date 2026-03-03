@@ -130,7 +130,6 @@ class ClassificationTaskMetric(TaskMetric):
         self.metrics_classwise = self.build_classwise_metric_collection(
             classwise=task_metric_args.classwise,
             prefix=f"{self.split}_metric_classwise/",
-            classwise_metrics_args=None,
             class_names=class_names,
             init_metrics=init_metrics,
         )
@@ -224,15 +223,12 @@ class ClassificationTaskMetric(TaskMetric):
         *,
         classwise: bool,
         prefix: str,
-        classwise_metrics_args: TaskMetricArgs | None,
         class_names: Sequence[str],
         init_metrics: bool,
     ) -> MetricCollection | None:
         """Build a classwise MetricCollection if classwise is True."""
         if not classwise:
             return None
-        if classwise_metrics_args is None:
-            classwise_metrics_args = self.task_metric_args.model_copy()
         metrics = self.build_metric_collection(
             prefix="",
             classwise=True,
