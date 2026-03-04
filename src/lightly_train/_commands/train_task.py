@@ -1598,6 +1598,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             best_metrics=best_metrics,
                             last_metrics=val_metrics,
                             step=step,
+                            metric_args=config.metric_args,
                         )
 
                         timer_agg = timer.get_aggregated_metrics(fabric)
