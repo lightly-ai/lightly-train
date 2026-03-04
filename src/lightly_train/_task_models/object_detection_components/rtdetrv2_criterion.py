@@ -20,6 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 
+from lightly_train import _torch_compile
 from lightly_train._task_models.object_detection_components.box_ops import (
     box_cxcywh_to_xyxy,
     box_iou,
@@ -176,6 +177,13 @@ class RTDETRCriterionv2(nn.Module):
         tgt_idx = torch.cat([tgt for (_, tgt) in indices])
         return batch_idx, tgt_idx
 
+    # Disable compile because:
+    # W0304 14:31:20.983000 79291 .venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1016] [12/8] torch._dynamo hit config.recompile_limit (8)
+    # W0304 14:31:20.983000 79291 .venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1016] [12/8]    function: 'get_loss' (src/lightly_train/_task_models/object_detection_components/rtdetrv2_criterion.py:179)
+    # W0304 14:31:20.983000 79291 .venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1016] [12/8]    last reason: 12/7: loss == 'boxes'
+    # W0304 14:31:20.983000 79291 .venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1016] [12/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+    # W0304 14:31:20.983000 79291 .venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1016] [12/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html.
+    @_torch_compile.disable_compile
     def get_loss(self, loss, outputs, targets, indices, num_boxes, **kwargs):
         loss_map = {
             "boxes": self.loss_boxes,

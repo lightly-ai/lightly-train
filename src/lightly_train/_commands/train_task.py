@@ -21,7 +21,7 @@ from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
 
-from lightly_train import _float32_matmul_precision, _logging, _system
+from lightly_train import _float32_matmul_precision, _logging, _system, _torch_compile
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._commands.train_task_helpers import BestMetric
@@ -87,6 +87,7 @@ def train_image_classification(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an image classification model.
@@ -256,6 +257,7 @@ def train_image_classification_multihead(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an image classification model with multiple classification heads.
@@ -393,6 +395,7 @@ def train_instance_segmentation(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an instance segmentation model.
@@ -546,6 +549,7 @@ def train_object_detection(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an object detection model.
@@ -699,6 +703,7 @@ def train_panoptic_segmentation(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train a panoptic segmentation model.
@@ -853,6 +858,7 @@ def train_semantic_segmentation(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train a semantic segmentation model.
@@ -1005,6 +1011,7 @@ def train_semantic_segmentation_multihead(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train a multi-head semantic segmentation model.
@@ -1126,6 +1133,7 @@ def _train_task(
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     kwargs = locals()
@@ -1351,6 +1359,17 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             total_steps=config.steps,
             global_batch_size=effective_global_batch_size,
         )
+        train_model.training_step = _torch_compile.try_compile(
+            train_model.training_step,
+            "training_step",
+            torch_compile_args=config.torch_compile_args,
+        )
+        train_model.validation_step = _torch_compile.try_compile(
+            train_model.validation_step,
+            "validation_step",
+            torch_compile_args=config.torch_compile_args,
+        )
+
         # NOTE(Guarin, 07/25): Fabric returns wrapped versions of the model and
         # optimizer but for all practical purposes we can treat them as the original
         # objects.
@@ -1712,6 +1731,7 @@ class TrainTaskConfig(PydanticConfig):
     metric_args: dict[str, Any] | TaskMetricArgs | None = None
     loader_args: dict[str, Any] | None = None
     save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
+    torch_compile_args: dict[str, Any] | None = None
     gradient_accumulation_steps: int | Literal["auto"] = "auto"
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...

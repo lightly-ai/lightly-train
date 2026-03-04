@@ -13,6 +13,8 @@ from functools import partial
 from torch import Tensor
 from torch.nn import Module, ModuleDict
 
+from lightly_train import _torch_compile
+
 
 class LossMetrics(Module):
     """Tracks a collection of loss metrics, one for each loss name."""
@@ -40,6 +42,7 @@ class LossMetrics(Module):
         metric_cls = running_mean_cls if split == "train" else MeanMetric
         self.metrics = ModuleDict({loss_name: metric_cls() for loss_name in loss_names})
 
+    @_torch_compile.disable_compile
     def update(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         if loss_dict.keys() != self.metrics.keys():
             raise ValueError(
