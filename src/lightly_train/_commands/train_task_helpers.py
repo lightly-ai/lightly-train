@@ -909,16 +909,17 @@ def log_training_summary(
             )
         logger.info("")
 
-    logger.info("Validation Metrics - Watch Metric")
-    logger.info(
-        f"  | {'Watch Metric':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |"
-    )
-    logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
-    logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
-    logger.info(
-        f"  | {best_metrics.watch_metric:<{max_len}} | {best_metrics.watch_metric_value:>{col}.4f} | {last_val_metrics.watch_metric_value:>{col}.4f} |"
-    )
-    logger.info("")
+    if best_metrics.watch_metric is not None:
+        logger.info("Validation Metrics - Watch Metric")
+        logger.info(
+            f"  | {'Watch Metric':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |"
+        )
+        logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
+        logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
+        logger.info(
+            f"  | {best_metrics.watch_metric:<{max_len}} | {best_metrics.watch_metric_value:>{col}.4f} | {last_val_metrics.watch_metric_value:>{col}.4f} |"
+        )
+        logger.info("")
 
     ### Profiling Info
 

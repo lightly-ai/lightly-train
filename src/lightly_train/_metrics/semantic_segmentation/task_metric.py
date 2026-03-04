@@ -84,7 +84,11 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         self.metrics = MetricCollection(metrics, prefix=f"{split}_metric/")  # type: ignore
 
         metrics_classwise = {}
-        if task_metric_args.classwise and task_metric_args.miou is not None:
+        if (
+            init_metrics
+            and task_metric_args.classwise
+            and task_metric_args.miou is not None
+        ):
             metrics_classwise = task_metric_args.miou.get_metrics(
                 classwise=True,
                 num_classes=len(class_names),

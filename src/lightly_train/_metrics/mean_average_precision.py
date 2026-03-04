@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Literal
 
-from torch.special import Tensor
+from torch import Tensor
 from torchmetrics import Metric
 from torchmetrics.detection.mean_ap import (
     MeanAveragePrecision as TorchMetricsMeanAveragePrecision,
@@ -57,6 +57,7 @@ class MeanAveragePrecisionArgs(MetricArgs):
             rec_thresholds=self.rec_thresholds,
             max_detection_thresholds=self.max_detection_thresholds,
             backend=self.backend,
+            average=self.average,
         )
         map_metric.warn_on_many_detections = False  # type: ignore[attr-defined]
         metrics["map"] = map_metric
