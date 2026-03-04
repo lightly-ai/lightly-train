@@ -1093,24 +1093,37 @@ def get_best_metrics(
     best_metrics: BestMetric | None,
     last_metrics: MetricComputeResult,
     step: int,
+    metric_args: TaskMetricArgs,
 ) -> BestMetric:
-    if best_metrics is None:
+    if last_metrics.watch_metric is None:
+        logger.warning(
+            f"Unknown watch metric: '{metric_args.watch_metric}'! No metric will be "
+            "tracked as best metric and the last checkpoint will be saved as best "
+            f"checkpoint. Set `metric_args={{'watch_metric': '<metric name>'}}` to a "
+            f"valid metric to enable best checkpoint tracking. Valid metrics are: "
+            f"{list(last_metrics.metrics.keys())}"
+        )
+
+    if (
+        best_metrics is None
+        or best_metrics.metrics.watch_metric is None
+        or best_metrics.metrics.watch_metric_value is None
+        or best_metrics.metrics.watch_metric_mode is None
+    ):
         return BestMetric(
             metrics=last_metrics,
             step=step,
         )
 
-    best_metric_name = best_metrics.metrics.watch_metric
-    last_metric_name = last_metrics.watch_metric
+    if last_metrics.watch_metric is None or last_metrics.watch_metric_value is None:
+        return best_metrics
+
+    if best_metrics.metrics.watch_metric != last_metrics.watch_metric:
+        return best_metrics  # Shouldn't happen, but safe to assume we want best metrics
+
     best_metric_value = best_metrics.metrics.watch_metric_value
     last_metric_value = last_metrics.watch_metric_value
     mode = best_metrics.metrics.watch_metric_mode
-    assert best_metric_value is not None
-    assert last_metric_value is not None
-    assert mode is not None
-
-    if best_metric_name != last_metric_name:
-        return best_metrics  # Shouldn't happen, but safe to assume we want best metrics
 
     if (mode == "max" and last_metric_value > best_metric_value) or (
         mode == "min" and last_metric_value < best_metric_value
