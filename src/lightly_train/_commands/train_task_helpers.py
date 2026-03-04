@@ -47,6 +47,9 @@ from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_instance_segmentation.train_model import (
     DINOv2EoMTInstanceSegmentationTrain,
 )
+from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.train_model import (
+    DINOv2EoMTPanopticSegmentationTrain,
+)
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
@@ -111,6 +114,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     ImageClassificationTrain,
     ImageClassificationMultiheadTrain,
     DINOv2EoMTInstanceSegmentationTrain,
+    DINOv2EoMTPanopticSegmentationTrain,
     DINOv3EoMTInstanceSegmentationTrain,
     DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,

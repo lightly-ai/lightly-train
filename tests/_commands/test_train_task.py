@@ -331,6 +331,52 @@ def test_train_panoptic_segmentation(
     assert results["scores"].ndim == 1
 
 
+def test_train_panoptic_segmentation__dinov2(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "out"
+    data = tmp_path / "data"
+    helpers.create_coco_panoptic_segmentation_dataset(data, num_files=4)
+
+    # Check training
+    # Reduce number of joint blocks for _vittest14.
+    lightly_train.train_panoptic_segmentation(
+        out=out,
+        data={
+            "train": {
+                "images": data / "images" / "train",
+                "masks": data / "annotations" / "train",
+                "annotations": data / "annotations" / "train.json",
+            },
+            "val": {
+                "images": data / "images" / "val",
+                "masks": data / "annotations" / "val",
+                "annotations": data / "annotations" / "val.json",
+            },
+        },
+        model="dinov2/_vittest14-eomt",
+        model_args={"num_joint_blocks": 1},
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+        devices=1,
+        batch_size=2,
+        num_workers=2,
+        steps=2,
+    )
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()
+
+    # Check that the model can be loaded again
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+
+    # Check forward pass
+    dummy_input = torch.randn(3, 100, 200)
+    results = model.predict(dummy_input)
+    assert results["masks"].shape == (100, 200, 2)
+    assert results["segment_ids"].ndim == 1
+    assert results["scores"].ndim == 1
+
+
 @pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
     reason=(
