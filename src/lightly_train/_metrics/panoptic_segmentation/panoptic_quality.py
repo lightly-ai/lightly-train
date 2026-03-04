@@ -57,8 +57,8 @@ class PanopticQualityArgs(MetricArgs):
             stuff_class_names=stuff_class_names,
             things=things,
             stuffs=stuffs,
+            classwise=classwise,
             return_sq_and_rq=True,
-            return_per_class=classwise,
         )
 
         return metrics
@@ -82,8 +82,8 @@ class PanopticQuality(TorchMetricsPanopticQuality):  # type: ignore[misc]
         stuffs: Sequence[int],
         thing_class_names: Sequence[str],
         stuff_class_names: Sequence[str],
+        classwise: bool,
         return_sq_and_rq: bool = False,
-        return_per_class: bool = False,
     ) -> None:
         if not _PANOPTIC_QUALITY_AVAILABLE:
             raise ImportError(
@@ -94,11 +94,14 @@ class PanopticQuality(TorchMetricsPanopticQuality):  # type: ignore[misc]
             things=things,
             stuffs=stuffs,
             return_sq_and_rq=return_sq_and_rq,
-            return_per_class=return_per_class,
+            # We always compute per-class metrics because we need them to handle the
+            # ignore class.
+            return_per_class=True,
         )
         self.prefix = prefix
         self.thing_class_names = thing_class_names
         self.stuff_class_names = stuff_class_names
+        self.classwise = classwise
         self.class_id_to_name = {
             class_id: name
             for class_id, name in zip(
@@ -109,8 +112,16 @@ class PanopticQuality(TorchMetricsPanopticQuality):  # type: ignore[misc]
 
     def compute(self) -> dict[str, Tensor]:  # type: ignore
         metrics = super().compute()
+        metrics = metrics[:-1]  # Exclude ignore class
         result: dict[str, Tensor] = {}
-        if self.return_per_class:
+        if self.return_sq_and_rq:
+            result[f"{self.prefix}/pq"] = metrics[:, 0].mean()
+            result[f"{self.prefix}/sq"] = metrics[:, 1].mean()
+            result[f"{self.prefix}/rq"] = metrics[:, 2].mean()
+        else:
+            result[f"{self.prefix}/pq"] = metrics[:, 0].mean()
+
+        if self.classwise:
             if self.return_sq_and_rq:
                 # Metrics has shape (num_classes, 3)
                 for class_id in range(len(metrics)):
@@ -131,12 +142,4 @@ class PanopticQuality(TorchMetricsPanopticQuality):  # type: ignore[misc]
                     result[f"{self.prefix}_classwise/pq_{class_name}"] = metrics[
                         class_id
                     ]
-        elif self.return_sq_and_rq:
-            # Metrics has shape (3,)
-            result[f"{self.prefix}/pq"] = metrics[0]
-            result[f"{self.prefix}/sq"] = metrics[1]
-            result[f"{self.prefix}/rq"] = metrics[2]
-        else:
-            # Metrics is a single scalar
-            result[f"{self.prefix}/pq"] = metrics
         return result
