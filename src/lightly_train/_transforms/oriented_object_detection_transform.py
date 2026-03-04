@@ -62,9 +62,7 @@ class OrientedObjectDetectionTransform(TaskTransform):
         )
         self.global_step = 0
         self.stop_ops = (
-            transform_args.stop_policy.ops
-            if transform_args.stop_policy
-            else set[type[v2.Transform]]()
+            transform_args.stop_policy.ops if transform_args.stop_policy else set()
         )
         self.past_stop = False
 
