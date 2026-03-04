@@ -50,9 +50,9 @@ class TestPanopticSegmentationTaskMetric:
             task_metric_args=PanopticSegmentationTaskMetricArgs(classwise=True),
             split="val",
             things=[0, 1],
-            stuffs=[2],
+            stuffs=[2, 3],
             thing_class_names=["cat", "dog"],
-            stuff_class_names=["road"],
+            stuff_class_names=["road", "ignore"],
             loss_names=["loss"],
         )
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
