@@ -331,6 +331,13 @@ def test_train_panoptic_segmentation(
     assert results["scores"].ndim == 1
 
 
+@pytest.mark.skipif(
+    is_self_hosted_docker_runner,
+    reason=(
+        "Fails on self-hosted CI with GPU (insufficient shared memory causes worker "
+        "bus error"
+    ),
+)
 def test_train_panoptic_segmentation__dinov2(
     tmp_path: Path,
 ) -> None:
