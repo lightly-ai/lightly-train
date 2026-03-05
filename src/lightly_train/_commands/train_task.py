@@ -1504,8 +1504,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 train_log_dict = train_result.log_dict
                 train_metrics = train_result.metrics.compute()
                 train_result.metrics.reset()
-                # train_log_dict = helpers.compute_metrics(accumulated_log_dict)
                 timer_agg = timer.get_aggregated_metrics(fabric)
+
+                current_lr = helpers.get_current_learning_rate(
+                    optimizer=optimizer, scheduler=scheduler
+                )
+                train_log_dict["learning_rate"] = current_lr
 
                 helpers.log_step(
                     split="train",
@@ -1516,6 +1520,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     timer_agg=timer_agg,
                     global_batch_size=effective_global_batch_size,
                     gradient_accumulation_steps=config.gradient_accumulation_steps,
+                    learning_rate=current_lr,
                 )
                 helpers.add_timer_logs(
                     timer_agg=timer_agg,
@@ -1524,13 +1529,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     global_batch_size=effective_global_batch_size,
                     gradient_accumulation_steps=config.gradient_accumulation_steps,
                 )
-
-                for group in optimizer.param_groups:
-                    if group.get("log", True):
-                        train_log_dict[f"learning_rate/{group['name']}"] = group["lr"]
-                        train_log_dict[f"weight_decay/{group['name']}"] = group[
-                            "weight_decay"
-                        ]
                 helpers.log_fabric(
                     fabric=fabric,
                     log_dict=train_log_dict,
