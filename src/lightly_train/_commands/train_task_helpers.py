@@ -22,7 +22,7 @@ from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
 from pydantic import TypeAdapter
-from torch.optim import Optimizer
+from torch.optim import Optimizer  # type: ignore[attr-defined]
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
 
