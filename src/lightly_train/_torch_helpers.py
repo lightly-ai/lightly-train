@@ -11,6 +11,7 @@ import contextlib
 import os
 from typing import Any, Callable, Generator
 
+import torch
 from torch.nn import Module
 
 
@@ -49,3 +50,21 @@ def register_load_state_dict_pre_hook(
     else:
         # Backwards compatibility for PyTorch <= 2.4
         module._register_load_state_dict_pre_hook(hook, with_module=True)  # type: ignore[no-untyped-call]
+
+
+def set_warn_on_accumulate_grad_stream_mismatch(value: bool) -> None:
+    # Avoids the following warning when using DDP:
+    #
+    # UserWarning: The AccumulateGrad node's stream does not match the stream of the
+    # node that produced the incoming gradient. This may incur unnecessary
+    # synchronization and break CUDA graph capture if the AccumulateGrad node's stream
+    # is the default stream. This mismatch is caused by an AccumulateGrad node created
+    # prior to the current iteration being kept alive. This can happen if the autograd
+    # graph is still being kept alive by tensors such as the loss, or if you are using
+    # DDP, which will stash a reference to the node. To resolve the mismatch, delete all
+    # references to the autograd graph or ensure that DDP initialization is performed
+    # under the same stream as subsequent forwards. If the mismatch is intentional, you
+    # can use torch.autograd.graph.set_warn_on_accumulate_grad_stream_mismatch(False) to
+    # suppress this warning.
+    if hasattr(torch.autograd.graph, "set_warn_on_accumulate_grad_stream_mismatch"):
+        torch.autograd.graph.set_warn_on_accumulate_grad_stream_mismatch(value)  # type: ignore
