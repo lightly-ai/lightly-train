@@ -22,7 +22,7 @@ def dummy_tv_image() -> tv_tensors.Image:
 
 @pytest.mark.skipif(
     not RequirementCache("torchvision>=0.23"),
-    reason="torchvision too old for oriented bounding box suport",
+    reason="torchvision too old",
 )
 class TestRandomRotate90:
     def test_forward_image_shape(self, dummy_tv_image: tv_tensors.Image) -> None:

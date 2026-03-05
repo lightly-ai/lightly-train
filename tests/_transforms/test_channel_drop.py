@@ -85,7 +85,7 @@ class TestChannelDrop:
 
 @pytest.mark.skipif(
     not RequirementCache("torchvision>=0.23"),
-    reason="torchvision too old for oriented bounding box suport",
+    reason="torchvision too old",
 )
 class TestChannelDropTV:
     @pytest.mark.parametrize(
