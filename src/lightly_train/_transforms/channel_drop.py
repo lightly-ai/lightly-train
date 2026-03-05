@@ -103,7 +103,7 @@ class ChannelDrop(ImageOnlyTransform):  # type: ignore[misc]
         return ("num_channels_keep", "weight_drop")
 
 
-class ChannelDropTV(v2.Transform):
+class ChannelDropTV(v2.Transform):  # type: ignore
     def __init__(
         self,
         num_channels_keep: int,

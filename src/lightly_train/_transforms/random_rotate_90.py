@@ -12,7 +12,7 @@ from typing import Any
 from torchvision.transforms import v2
 
 
-class RandomRotate90(v2.Transform):
+class RandomRotate90(v2.Transform):  # type: ignore
     """
     Rotate an image by 90, 180, or 270 degrees with a given probability.
 

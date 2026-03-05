@@ -123,7 +123,7 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
         return self.transforms[idx].apply_to_mask(mask, **params)  # type: ignore[no-any-return]
 
 
-class TorchVisionScaleJitter(v2.Transform):
+class TorchVisionScaleJitter(v2.Transform):  # type: ignore
     """
     Resize an image to a random size from a list of sizes or a list of scales.
 
