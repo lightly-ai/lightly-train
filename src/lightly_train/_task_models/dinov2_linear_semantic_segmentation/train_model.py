@@ -24,8 +24,11 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._metrics.semantic_segmentation.task_metric import (
+    SemanticSegmentationTaskMetric,
+    SemanticSegmentationTaskMetricArgs,
+)
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.task_model import (
     DINOv2LinearSemanticSegmentation,
 )
@@ -43,19 +46,10 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
-class DINOv2LinearSemanticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/miou"
-    mode: Literal["min", "max"] = "max"
-
-
 class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from PVOC12
     default_steps: ClassVar[int] = 80_000
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        DINOv2LinearSemanticSegmentationTaskSaveCheckpointArgs
-    )
 
     # Model args
     backbone_freeze: bool = True
@@ -68,10 +62,6 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     # Optim
     lr: float = 0.001
     weight_decay: float = 0.01
-
-    # Metrics
-    metric_log_classwise: bool = True
-    metric_log_debug: bool = False
 
     def resolve_auto(
         self,
@@ -92,6 +82,7 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
 class DINOv2LinearSemanticSegmentationTrain(TrainModel):
     task = "semantic_segmentation"
     train_model_args_cls = DINOv2LinearSemanticSegmentationTrainArgs
+    task_metric_args_cls = SemanticSegmentationTaskMetricArgs
     task_model_cls = DINOv2LinearSemanticSegmentation
     train_transform_cls = DINOv2LinearSemanticSegmentationTrainTransform
     val_transform_cls = DINOv2LinearSemanticSegmentationValTransform
@@ -105,14 +96,9 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         train_transform_args: DINOv2LinearSemanticSegmentationTrainTransformArgs,
         val_transform_args: DINOv2LinearSemanticSegmentationValTransformArgs,
         load_weights: bool,
+        metric_args: SemanticSegmentationTaskMetricArgs,
     ) -> None:
         super().__init__()
-        # Lazy import because torchmetrics is an optional dependency.
-        from torchmetrics import ClasswiseWrapper, JaccardIndex, MeanMetric
-        from torchmetrics.classification import (  # type: ignore[attr-defined]
-            MulticlassJaccardIndex,
-        )
-
         image_size = no_auto(val_transform_args.image_size)
         normalize = no_auto(val_transform_args.normalize)
 
@@ -135,30 +121,22 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         self.criterion = CrossEntropyLoss(ignore_index=data_args.ignore_index)
 
         # Metrics
-        self.val_loss = MeanMetric()
-
-        # TODO(Guarin, 08/25): Speed up metric calculation by not calculating
-        # mIoU and classwise IoU separately. mIoU can be derived from the classwise IoU.
-        self.train_miou = JaccardIndex(
-            task="multiclass",  # type: ignore[arg-type]
-            num_classes=data_args.num_included_classes,
+        class_names = list(data_args.included_classes.values())
+        self.metric_args = metric_args
+        self.train_metrics = SemanticSegmentationTaskMetric(
+            task_metric_args=metric_args,
+            split="train",
+            class_names=class_names,
             ignore_index=data_args.ignore_index,
+            loss_names=["loss"],
         )
-        self.val_miou = self.train_miou.clone()
-
-        # Classwise MeanIoU
-        class_labels = list(data_args.included_classes.values())
-        self.train_classwise_iou = ClasswiseWrapper(  # type: ignore[call-arg]
-            MulticlassJaccardIndex(
-                num_classes=data_args.num_included_classes,
-                validate_args=False,
-                ignore_index=data_args.ignore_index,
-                average=None,
-            ),
-            prefix="_",
-            labels=class_labels,
+        self.val_metrics = SemanticSegmentationTaskMetric(
+            task_metric_args=metric_args,
+            split="val",
+            class_names=class_names,
+            ignore_index=data_args.ignore_index,
+            loss_names=["loss"],
         )
-        self.val_classwise_iou = self.train_classwise_iou.clone()
 
     def get_task_model(self) -> DINOv2LinearSemanticSegmentation:
         return self.model
@@ -176,16 +154,11 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             logits = logits[:, :-1]  # Drop logits for the ignored class.
         loss = self.criterion(logits, masks)
 
-        self.train_miou.update(logits, masks)
-        log_dict = {
-            "train_loss": loss.detach(),
-            "train_metric/miou": self.train_miou,
-        }
-        if self.model_args.metric_log_debug or self.model_args.metric_log_classwise:
-            self.train_classwise_iou.update(logits, masks)
-            log_dict["train_metric_classwise/miou"] = self.train_classwise_iou
+        self.train_metrics.update_loss({"loss": loss.detach()}, weight=images.shape[0])
+        if self.metric_args.train:
+            self.train_metrics.update(logits.argmax(dim=1), masks)
 
-        return TaskStepResult(loss=loss, log_dict=log_dict)
+        return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
 
     def validation_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
@@ -212,21 +185,12 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             image_logits = image_logits.unsqueeze(0)  # Add batch dimension.
             image_mask = image_mask.unsqueeze(0)  # Add batch dimension.
             loss += self.criterion(image_logits, image_mask)
-            self.val_miou.update(image_logits, image_mask)
-            if self.model_args.metric_log_debug or self.model_args.metric_log_classwise:
-                self.val_classwise_iou.update(image_logits, image_mask)
+            self.val_metrics.update(image_logits.argmax(dim=1), image_mask)
         loss /= len(images)
 
-        # Metrics
-        self.val_loss.update(loss, weight=len(images))
-        log_dict = {
-            "val_loss": loss.detach(),
-            "val_metric/miou": self.val_miou,
-        }
-        if self.model_args.metric_log_debug or self.model_args.metric_log_classwise:
-            log_dict["val_metric_classwise/miou"] = self.val_classwise_iou
+        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
 
-        return TaskStepResult(loss=loss, log_dict=log_dict)
+        return TaskStepResult(loss=loss, log_dict={}, metrics=self.val_metrics)
 
     def get_optimizer(
         self,

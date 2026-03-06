@@ -8,9 +8,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 import pytest
+from pydantic import TypeAdapter
 
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
@@ -142,3 +143,59 @@ def test_no_auto() -> None:
     assert out == 1
     with pytest.raises(UnresolvedAutoError):
         validate.no_auto("auto")
+
+
+# TypeAdapter variants of the _SimpleConfig and _NestedConfig to exercise the
+# TypeAdapter overload of pydantic_model_validate.
+_SimpleConfigAdapter: TypeAdapter[_SimpleConfig] = TypeAdapter(_SimpleConfig)
+_SimpleConfigUnionAdapter: TypeAdapter[Union[_SimpleConfig, _NestedConfig]] = (
+    TypeAdapter(Union[_SimpleConfig, _NestedConfig])
+)
+
+
+@pytest.mark.parametrize(
+    "adapter, obj, expected",
+    [
+        (_SimpleConfigAdapter, {"a": 1}, _SimpleConfig(a=1)),
+        (
+            _SimpleConfigUnionAdapter,
+            {"a": 1},
+            _SimpleConfig(a=1),
+        ),
+        (
+            _SimpleConfigUnionAdapter,
+            {"a": {"b": 1}},
+            _NestedConfig(a=_NestedConfig.A(b=1)),
+        ),
+    ],
+)
+def test_pydantic_model_validate__type_adapter(
+    adapter: TypeAdapter[Any], obj: dict[str, Any], expected: PydanticConfig
+) -> None:
+    validated = validate.pydantic_model_validate(model=adapter, obj=obj)
+    assert validated == expected
+
+
+@pytest.mark.parametrize(
+    "adapter, obj, errors",
+    [
+        (_SimpleConfigAdapter, {}, ["Missing key: 'a'"]),
+        (_SimpleConfigAdapter, {"a": 1, "b": 2}, ["Unknown key: 'b'"]),
+        (
+            _SimpleConfigAdapter,
+            {"a": "1"},
+            [
+                "Invalid type for key 'a': Input should be a valid integer but got '1' with type 'str'"
+            ],
+        ),
+    ],
+)
+def test_pydantic_model_validate__type_adapter__error(
+    adapter: TypeAdapter[Any], obj: dict[str, Any], errors: list[str]
+) -> None:
+    with pytest.raises(
+        ConfigValidationError, match=f"Found {len(errors)} errors"
+    ) as ex_info:
+        validate.pydantic_model_validate(model=adapter, obj=obj)
+    for error in errors:
+        assert error in str(ex_info.value)

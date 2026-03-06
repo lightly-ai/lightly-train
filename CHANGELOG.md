@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add support for `metric_args` in all fine-tuning commands to allow configuring the
+  metrics used for validation and best model checkpointing. See the
+  [documentation](https://docs.lightly.ai/train/stable/settings/train_settings.html#metric-args)
+  for details.
+
 ### Changed
 
 ### Deprecated
