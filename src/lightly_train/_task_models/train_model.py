@@ -18,7 +18,7 @@ from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data.task_data_args import TaskDataArgs
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
+from lightly_train._metrics.task_metric import TaskMetric, TaskMetricArgs
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._transforms.task_transform import TaskTransform
 
@@ -29,8 +29,6 @@ class TrainModelArgs(PydanticConfig):
     # are ClassVar because they have to be accessed before the class is instantiated.
     default_batch_size: ClassVar[int]
     default_steps: ClassVar[int]
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]]
 
     def resolve_auto(
         self,
@@ -51,6 +49,7 @@ class TrainModel(Module):
 
     task: ClassVar[str]
     train_model_args_cls: ClassVar[type[TrainModelArgs]]
+    task_metric_args_cls: ClassVar[type[TaskMetricArgs]]
     task_model_cls: ClassVar[type[TaskModel]]
     train_transform_cls: ClassVar[type[TaskTransform]]
     val_transform_cls: ClassVar[type[TaskTransform]]
@@ -119,5 +118,14 @@ class TrainModel(Module):
 
 @dataclass
 class TaskStepResult:
+    # Loss value on which backwards will be called.
     loss: Tensor
-    log_dict: dict[str, Any]
+
+    # Metrics that will be computed and logged. Metrics include:
+    # - Logged loss and individual losses
+    # - Metrics like mAP, accuracy, etc.
+    metrics: TaskMetric
+
+    # Dictionary with extra values to log. These values will only be logged to external
+    # loggers like wandb, tensorboard, etc and are currently not shown in the console logs.
+    log_dict: dict[str, float]

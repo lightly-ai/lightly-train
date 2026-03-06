@@ -26,8 +26,11 @@ from lightly_train._data.mask_panoptic_segmentation_dataset import (
     MaskPanopticSegmentationDataArgs,
 )
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._metrics.panoptic_segmentation.task_metric import (
+    PanopticSegmentationTaskMetric,
+    PanopticSegmentationTaskMetricArgs,
+)
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -52,20 +55,11 @@ from lightly_train.types import (
 )
 
 
-class DINOv3EoMTPanopticSegmentationTaskSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/pq"
-    mode: Literal["min", "max"] = "max"
-
-
 class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from COCO dataset:
     # 118287 images / batch size 16 * 12 epochs ~= 90k steps.
     default_steps: ClassVar[int] = 90_000
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        DINOv3EoMTPanopticSegmentationTaskSaveCheckpointArgs
-    )
 
     # Model args
     backbone_weights: PathLike | None = None
@@ -113,8 +107,6 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
     mask_overlap_threshold: float = 0.8
 
     # Metrics
-    metric_log_classwise: bool = False
-    metric_log_train: bool = False
     metric_log_debug: bool = False
 
     def resolve_auto(
@@ -185,6 +177,7 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
 class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
     task = "panoptic_segmentation"
     train_model_args_cls = DINOv3EoMTPanopticSegmentationTrainArgs
+    task_metric_args_cls = PanopticSegmentationTaskMetricArgs
     task_model_cls = DINOv3EoMTPanopticSegmentation
     train_transform_cls = DINOv3EoMTPanopticSegmentationTrainTransform
     val_transform_cls = DINOv3EoMTPanopticSegmentationValTransform
@@ -198,22 +191,18 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         train_transform_args: DINOv3EoMTPanopticSegmentationTrainTransformArgs,
         val_transform_args: DINOv3EoMTPanopticSegmentationValTransformArgs,
         load_weights: bool,
+        metric_args: PanopticSegmentationTaskMetricArgs,
     ) -> None:
-        super().__init__()
-        # Lazy import because torchmetrics is an optional dependency.
-        from torchmetrics import MeanMetric
-
-        # Type ignore because PanopticQuality is not available in old torchmetrics
-        # versions.
-        from torchmetrics.detection import PanopticQuality  # type: ignore[attr-defined]
-
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependency.
         from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.mask_loss import (
             MaskClassificationLoss,
         )
 
+        super().__init__()
+
         self.model_args = model_args
+        self.metric_args = metric_args
         num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         image_size_train = no_auto(train_transform_args.image_size)
@@ -246,9 +235,6 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             no_object_coefficient=model_args.loss_no_object_coefficient,
         )
 
-        # Metrics
-        self.val_loss = MeanMetric()
-
         internal_thing_ids = [
             self.model.class_to_internal_class[class_id]
             for class_id in self.model.thing_classes.keys()
@@ -264,13 +250,24 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         # ignored from the final metric calculation in train_task_helpers.py
         internal_stuff_ids.append(self.model.internal_ignore_class_id)
 
-        self.train_pq = PanopticQuality(
+        self.train_metrics = PanopticSegmentationTaskMetric(
+            task_metric_args=metric_args,
+            split="train",
             things=internal_thing_ids,
             stuffs=internal_stuff_ids,
-            return_sq_and_rq=True,
-            return_per_class=True,
+            thing_class_names=list(data_args.thing_classes.values()),
+            stuff_class_names=list(data_args.stuff_classes.values()) + ["ignore"],
+            loss_names=["loss"],
         )
-        self.val_pq = self.train_pq.clone()
+        self.val_metrics = PanopticSegmentationTaskMetric(
+            task_metric_args=metric_args,
+            split="val",
+            things=internal_thing_ids,
+            stuffs=internal_stuff_ids,
+            thing_class_names=list(data_args.thing_classes.values()),
+            stuff_class_names=list(data_args.stuff_classes.values()) + ["ignore"],
+            loss_names=["loss"],
+        )
 
         _torch_helpers.register_load_state_dict_pre_hook(
             self, hooks.criterion_empty_weight_reinit_hook
@@ -292,7 +289,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         assert isinstance(target_masks, Tensor), (
             "Masks must be a single tensor for training"
         )
-        _, _, H, W = images.shape
+        B, _, H, W = images.shape
 
         mask_logits_per_layer, class_logits_per_layer = self.model.forward_train(
             images, return_logits_per_layer=True
@@ -316,15 +313,10 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             block_losses = {f"{k}{block_suffix}": v for k, v in block_losses.items()}
             losses.update(block_losses)
         loss = self.criterion.loss_total(losses_all_layers=losses)
-        loss_log_dict = {
-            f"train_loss/{k}": v
-            for k, v in losses.items()
-            if "block" not in k or self.model_args.metric_log_debug
-        }
 
         # Metrics
-        metrics: dict[str, Any] = {}
-        if self.model_args.metric_log_train:
+        self.train_metrics.update_loss({"loss": loss.detach()}, weight=B)
+        if self.metric_args.train:
             with torch.no_grad():
                 mask_logits = mask_logits_per_layer[-1].detach()
                 class_logits = class_logits_per_layer[-1].detach()
@@ -340,10 +332,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 _mark_ignore_regions(
                     target_masks=target_masks,
                     ignore_class_id=self.model.internal_ignore_class_id,
-                    void_color=self.train_pq.void_color,  # type: ignore
+                    void_color=self.train_metrics.metrics["pq"].void_color,  # type: ignore
                 )
-                self.train_pq.update(preds=masks, target=target_masks)
-                metrics["train_metric/pq"] = self.train_pq
+                self.train_metrics.update(preds=masks, target=target_masks)
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -362,12 +353,8 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
 
         return TaskStepResult(
             loss=loss,
-            log_dict={
-                "train_loss": loss.detach(),
-                **loss_log_dict,
-                **metrics,
-                **mask_prob_dict,
-            },
+            log_dict=mask_prob_dict,
+            metrics=self.train_metrics,
         )
 
     def validation_step(
@@ -429,14 +416,8 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         # Compute the total loss.
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
-        # Store the block-wise losses.
-        log_dict = {
-            f"val_loss/{k}": v
-            for k, v in losses.items()
-            if "block" not in k or self.model_args.metric_log_debug
-        }
-
         # Metrics
+        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
         # Final layer only
         resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
         class_logits_last_layer = class_logits_per_layer[-1]
@@ -471,24 +452,17 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             _mark_ignore_regions(
                 target_masks=target_masks,
                 ignore_class_id=self.model.internal_ignore_class_id,
-                void_color=self.val_pq.void_color,  # type: ignore
+                void_color=self.val_metrics.metrics["pq"].void_color,  # type: ignore
             )
-            self.val_pq.update(
+            self.val_metrics.update(
                 preds=masks.unsqueeze(0),  # (1, H, W, 2)
                 target=target_masks.unsqueeze(0),  # (1, H, W, 2)
             )
 
-        metrics: dict[str, Any] = {
-            "val_metric/pq": self.val_pq,
-        }
-
         return TaskStepResult(
             loss=loss,
-            log_dict={
-                "val_loss": loss.detach(),
-                **log_dict,
-                **metrics,
-            },
+            log_dict={},
+            metrics=self.val_metrics,
         )
 
     def mask_annealing(

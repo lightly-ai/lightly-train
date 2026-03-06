@@ -11,6 +11,7 @@ import contextlib
 import hashlib
 import json
 import logging
+from dataclasses import dataclass
 from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Generator, Iterable, Literal, Mapping, cast
@@ -20,7 +21,7 @@ from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
-from torch import Tensor
+from pydantic import TypeAdapter
 from torch.utils.data import DataLoader
 
 from lightly_train._configs import validate
@@ -37,6 +38,10 @@ from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._loggers.wandb import WandbLogger
+from lightly_train._metrics.task_metric import (
+    MetricComputeResult,
+    TaskMetricArgs,
+)
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov2_eomt_instance_segmentation.train_model import (
@@ -412,6 +417,29 @@ def get_train_transform(
     return train_model_cls.train_transform_cls(transform_args=train_transform_args)
 
 
+def get_metric_args(
+    train_model_cls: type[TrainModel],
+    metric_args: dict[str, Any] | TaskMetricArgs | None,
+    data_args: TaskDataArgs,
+) -> TaskMetricArgs:
+    if isinstance(metric_args, TaskMetricArgs):
+        return metric_args
+    metric_args_dict: dict[str, Any] = {} if metric_args is None else dict(metric_args)
+
+    # TODO(Guarin, 02/26): This is a bit hacky, we should find a better way. We have to
+    # inject the classification_task here for Pydantic to be able to select the correct
+    # metrics class depending on the classification task (e.g. multiclass vs multilabel).
+    classification_task = getattr(data_args, "classification_task", None)
+    if classification_task is not None:
+        metric_args_dict.setdefault("classification_task", classification_task)
+    # Needs type adapter because TaskMetricArgs can be a union type. For example:
+    # task_metric_args_cls = Union[ClassificationTaskMetricArgs, ClassificationMultiheadTaskMetricArgs]
+    adapter: TypeAdapter[TaskMetricArgs] = TypeAdapter(
+        train_model_cls.task_metric_args_cls  # type: ignore[type-abstract]
+    )
+    return validate.pydantic_model_validate(adapter, metric_args_dict)
+
+
 def get_val_transform(
     train_model_cls: type[TrainModel],
     val_transform_args: TaskTransformArgs,
@@ -658,6 +686,38 @@ def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
     return default_steps if steps == "auto" else steps
 
 
+def get_gradient_accumulation_steps(
+    gradient_accumulation_steps: int | Literal["auto"],
+    global_batch_size: int,
+    default_batch_size: int,
+) -> int:
+    """Returns the number of gradient accumulation steps.
+
+    When 'auto', activates gradient accumulation when global_batch_size is
+    smaller than default_batch_size. The number of steps is set to
+    max(1, default_batch_size // global_batch_size) to keep the effective
+    batch size as close as possible to the model's default batch size.
+
+    Args:
+        gradient_accumulation_steps: Number of steps or 'auto'.
+        global_batch_size: The global batch size across all devices.
+        default_batch_size: The model's default batch size.
+
+    Returns:
+        The number of gradient accumulation steps.
+
+    Raises:
+        ValueError: If gradient_accumulation_steps < 1.
+    """
+    if gradient_accumulation_steps == "auto":
+        return max(1, default_batch_size // global_batch_size)
+    if gradient_accumulation_steps < 1:
+        raise ValueError(
+            f"gradient_accumulation_steps must be >= 1, got {gradient_accumulation_steps}."
+        )
+    return gradient_accumulation_steps
+
+
 def get_train_model_cls(model_name: str, task: str) -> type[TrainModel]:
     for train_model_cls in TASK_TRAIN_MODEL_CLASSES:
         if (
@@ -693,10 +753,11 @@ def log_step(
     split: Literal["train", "val"],
     step: int,
     max_steps: int,
-    log_dict: dict[str, Any],
+    metrics: MetricComputeResult | None,
     task: str,
     timer_agg: TimerAggregateMetrics,
     global_batch_size: int,
+    gradient_accumulation_steps: int = 1,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
@@ -709,9 +770,16 @@ def log_step(
     parts = [
         f"{split_cap} Step {step + 1:>{width}}/{max_steps:>{width}}",
     ]
-    for name, value in log_dict.items():
-        if name in name_to_display_name:
-            parts.append(f"{name_to_display_name[name]}: {value:4.4f}")
+
+    # TODO(Guarin, 02/26): Loss name should be part of MetricComputeResult and not
+    # be redefined here.
+    if metrics is not None:
+        loss_name = f"{split}_loss"
+        loss = metrics.metrics.get(loss_name)
+        if loss is not None:
+            parts.append(f"{loss_name}: {loss:4.4f}")
+        if metrics.watch_metric_value is not None and metrics.watch_metric != loss_name:
+            parts.append(f"{metrics.watch_metric}: {metrics.watch_metric_value:4.4f}")
 
     # Add profiling information.
     profiling_parts = []
@@ -734,10 +802,16 @@ def log_step(
     step_time = step_time_total / step_count if step_count > 0 else 0.0
     profiling_parts.append(f"Step Time {step_time:4.2f}s")
 
-    # Data time (average dataload time)
+    # Data time (average dataload time per effective training step).
+    # The timer records one entry per microbatch, so we multiply by
+    # gradient_accumulation_steps to get the per-effective-step total.
     dataload_count = timer_agg["step_counts"].get(dataload_step_name, 0)
     dataload_time_total = timer_agg["step_total_times"].get(dataload_step_name, 0.0)
-    data_time = dataload_time_total / dataload_count if dataload_count > 0 else 0.0
+    data_time = (
+        dataload_time_total / dataload_count * gradient_accumulation_steps
+        if dataload_count > 0
+        else 0.0
+    )
     profiling_parts.append(f"Data Time {data_time:4.2f}s")
 
     # Throughput (images per second)
@@ -751,23 +825,103 @@ def log_step(
     logger.info(line)
 
 
+def log_fabric(
+    fabric: Fabric,
+    log_dict: dict[str, float],
+    metrics: MetricComputeResult,
+    step: int,
+) -> None:
+    final_dict = {}
+    final_dict.update(metrics.metrics)
+    final_dict.update(log_dict)
+    fabric.log_dict(final_dict, step=step)
+
+
 def log_training_summary(
     timer_agg: TimerAggregateMetrics,
     fabric: Fabric,
+    last_val_metrics: MetricComputeResult,
+    best_val_metrics: BestMetric,
+    step: int,
     global_batch_size: int,
+    gradient_accumulation_steps: int,
 ) -> None:
-    """Log comprehensive training profiling summary.
-
-    Logs a formatted summary showing:
-    - Total time, train time, val time
-    - Throughput for train and val
-    - GPU utilization and max memory for train and val
+    """Log validation metrics and profiling information.
 
     Args:
         timer_agg: The aggregated metrics dict from timer.get_aggregated_metrics().
         fabric: The Fabric instance for distributed communication.
+        last_val_metrics: The metrics from the last validation step.
+        best_val_metrics: The best validation metrics seen so far.
+        step: The current training step.
         global_batch_size: The global batch size across all GPUs.
+        gradient_accumulation_steps: Number of gradient accumulation steps. Used to
+            compute the effective global batch size for train throughput.
     """
+    max_len = max(len(name) for name in last_val_metrics.metrics.keys())
+    best_metrics = best_val_metrics.metrics
+    best_step = best_val_metrics.step
+
+    # All metrics
+    logger.info("")
+    logger.info("Validation Metrics")
+    col = 8
+    logger.info(f"  | {'Name':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |")
+    logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
+    logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
+    for metric_name in sorted(last_val_metrics.metrics.keys()):
+        last_value = last_val_metrics.metrics[metric_name]
+        best_value = best_metrics.metrics.get(metric_name, float("nan"))
+        logger.info(
+            f"  | {metric_name:<{max_len}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
+        )
+    logger.info("")
+
+    # Best head metrics
+    if last_val_metrics.best_head_metrics is not None:
+        best_head_metrics = (
+            best_metrics.best_head_metrics
+            if best_metrics.best_head_metrics is not None
+            else last_val_metrics.best_head_metrics
+        )
+
+        logger.info(
+            f"Validation Metrics - Best Head: {last_val_metrics.best_head_name}"
+        )
+        col = 8
+        max_len_head = max(
+            len(name) for name in last_val_metrics.best_head_metrics.keys()
+        )
+
+        logger.info(
+            f"  | {'Metric':<{max_len_head}} | {'Best':^{col}} | {'Last':^{col}} |"
+        )
+        logger.info(f"  |:{'-' * max_len_head}-|:{'-' * col}:|:{'-' * col}:|")
+        logger.info(
+            f"  | {'step':<{max_len_head}} | {best_step:>{col}} | {step:>{col}} |"
+        )
+
+        for metric_name in sorted(last_val_metrics.best_head_metrics.keys()):
+            last_value = last_val_metrics.best_head_metrics[metric_name]
+            best_value = best_head_metrics.get(metric_name, float("nan"))
+            logger.info(
+                f"  | {metric_name:<{max_len_head}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
+            )
+        logger.info("")
+
+    if best_metrics.watch_metric is not None:
+        logger.info("Validation Metrics - Watch Metric")
+        logger.info(
+            f"  | {'Watch Metric':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |"
+        )
+        logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
+        logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
+        logger.info(
+            f"  | {best_metrics.watch_metric:<{max_len}} | {best_metrics.watch_metric_value:>{col}.4f} | {last_val_metrics.watch_metric_value:>{col}.4f} |"
+        )
+        logger.info("")
+
+    ### Profiling Info
 
     # Calculate total time
     train_time_sec = timer_agg["step_total_times"].get("train_step", 0.0)
@@ -794,8 +948,9 @@ def log_training_summary(
     train_step_time = train_time_sec / train_count if train_count > 0 else 0.0
     val_step_time = val_time_sec / val_count if val_count > 0 else 0.0
 
+    effective_global_batch_size = global_batch_size * gradient_accumulation_steps
     train_throughput = (
-        (global_batch_size / train_step_time) if train_step_time > 0 else 0.0
+        (effective_global_batch_size / train_step_time) if train_step_time > 0 else 0.0
     )
     val_throughput = (global_batch_size / val_step_time) if val_step_time > 0 else 0.0
 
@@ -807,30 +962,72 @@ def log_training_summary(
 
     # Format and log the summary
     logger.info("Profiling")
-    logger.info(f"  Total Time        : {total_time_min:5.1f} min")
+
+    name_w = 22
+    time_w = 5  # matches :5.1f for minutes
+
+    v_total = f"{total_time_min:5.1f} min"
+    v_train = f"{train_time_min:5.1f} min ({train_time_perc:3.1f}%) ({train_step_time:4.2f} s/step)"
+    v_val = (
+        f"{val_time_min:5.1f} min ({val_time_perc:3.1f}%) ({val_step_time:4.2f} s/step)"
+    )
+    v_train_tp = f"{train_throughput:4.0f} img/s"
+    v_val_tp = f"{val_throughput:4.0f} img/s"
+
+    v_train_util = f"{train_gpu_util:3.1f}%" if train_gpu_util >= 0 else None
+    v_train_mem = f"{train_gpu_max_mem:7.1f} MB" if train_gpu_max_mem >= 0 else None
+    v_val_util = f"{val_gpu_util:3.1f}%" if val_gpu_util >= 0 else None
+    v_val_mem = f"{val_gpu_max_mem:7.1f} MB" if val_gpu_max_mem >= 0 else None
+
+    val_w = max(
+        len(v_total),
+        len(v_train),
+        len(v_val),
+        len(v_train_tp),
+        len(v_val_tp),
+        *(
+            len(x)
+            for x in [v_train_util, v_train_mem, v_val_util, v_val_mem]
+            if x is not None
+        ),
+    )
+
+    logger.info(f"  | {'Name':<{name_w}} | {'Value':<{val_w}} |")
+    logger.info(f"  |:{'-' * name_w}-|:{'-' * val_w}:|")
+
+    # align the "X.Y min" chunk across Total/Train/Val
+    prefix_w = time_w + 4  # "xxxxx.x min"
+
     logger.info(
-        f"  Train Time        : {train_time_min:5.1f} min ({train_time_perc:3.1f}%) ({train_step_time:4.2f} s/step)"
+        f"  | {'Total Time':<{name_w}} | {v_total:>{prefix_w}}{'':<{val_w - prefix_w}} |"
     )
     logger.info(
-        f"  Val Time          : {val_time_min:5.1f} min ({val_time_perc:3.1f}%) ({val_step_time:4.2f} s/step)"
+        f"  | {'Train Time':<{name_w}} | {v_train[:prefix_w]:>{prefix_w}}{v_train[prefix_w:]:<{val_w - prefix_w}} |"
     )
-    logger.info(f"  Train Throughput  : {train_throughput:4.0f} img/s")
-    if train_gpu_util >= 0:
-        logger.info(f"  Train GPU Util    : {train_gpu_util:3.1f}%")
-    if train_gpu_max_mem >= 0:
-        logger.info(f"  Train GPU Max Mem : {train_gpu_max_mem:7.1f} MB")
-    logger.info(f"  Val Throughput    : {val_throughput:4.0f} img/s")
-    if val_gpu_util >= 0:
-        logger.info(f"  Val GPU Util      : {val_gpu_util:3.1f}%")
-    if val_gpu_max_mem >= 0:
-        logger.info(f"  Val GPU Max Mem   : {val_gpu_max_mem:7.1f} MB")
+    logger.info(
+        f"  | {'Val Time':<{name_w}} | {v_val[:prefix_w]:>{prefix_w}}{v_val[prefix_w:]:<{val_w - prefix_w}} |"
+    )
+
+    logger.info(f"  | {'Train Throughput':<{name_w}} | {v_train_tp:>{val_w}} |")
+    if v_train_util is not None:
+        logger.info(f"  | {'Train GPU Util':<{name_w}} | {v_train_util:>{val_w}} |")
+    if v_train_mem is not None:
+        logger.info(f"  | {'Train GPU Max Mem':<{name_w}} | {v_train_mem:>{val_w}} |")
+
+    logger.info(f"  | {'Val Throughput':<{name_w}} | {v_val_tp:>{val_w}} |")
+    if v_val_util is not None:
+        logger.info(f"  | {'Val GPU Util':<{name_w}} | {v_val_util:>{val_w}} |")
+    if v_val_mem is not None:
+        logger.info(f"  | {'Val GPU Max Mem':<{name_w}} | {v_val_mem:>{val_w}} |")
+    logger.info("")
 
 
 def add_timer_logs(
     timer_agg: TimerAggregateMetrics,
-    log_dict: dict[str, Any],
+    log_dict: dict[str, float],
     split: Literal["train", "val"],
     global_batch_size: int,
+    gradient_accumulation_steps: int,
 ) -> None:
     """Add profiling metrics to the log dictionary.
 
@@ -842,6 +1039,9 @@ def add_timer_logs(
         log_dict: The dictionary to add metrics to.
         split: The split ("train" or "val") to get metrics for.
         global_batch_size: The global batch size across all GPUs.
+        gradient_accumulation_steps: Number of gradient accumulation steps. The timer
+            records one dataload entry per microbatch, so this factor is used to convert
+            to a per-effective-step data time.
     """
     step_name = f"{split}_step"
     dataload_step_name = f"{split}_dataload"
@@ -862,10 +1062,16 @@ def add_timer_logs(
     step_time = step_time_total / step_count if step_count > 0 else 0.0
     log_dict[f"profiling/{split}_step_time_sec"] = step_time
 
-    # Data time
+    # Data time (per effective training step).
+    # The timer records one entry per microbatch, so we multiply by
+    # gradient_accumulation_steps to get the per-effective-step total.
     dataload_count = timer_agg["step_counts"].get(dataload_step_name, 0)
     dataload_time_total = timer_agg["step_total_times"].get(dataload_step_name, 0.0)
-    data_time = dataload_time_total / dataload_count if dataload_count > 0 else 0.0
+    data_time = (
+        dataload_time_total / dataload_count * gradient_accumulation_steps
+        if dataload_count > 0
+        else 0.0
+    )
     log_dict[f"profiling/{split}_data_time_sec"] = data_time
 
     # Throughput
@@ -873,90 +1079,67 @@ def add_timer_logs(
     log_dict[f"profiling/{split}_throughput_img_per_sec"] = throughput
 
 
-def compute_metrics(log_dict: dict[str, Any]) -> dict[str, Any]:
-    # Lazy import because torchmetrics is optional dependency.
-    from torchmetrics import Metric
-
-    metrics = {}
-    for name, value in log_dict.items():
-        if isinstance(value, Metric):
-            value = value.compute()
-        if "/pq" in name:
-            # Classwise panoptic quality
-            # (num_things + num_stuffs, 3)
-            value = value[:-1]  # Drop ignore class
-            pq = value[..., 0].mean()
-            sq = value[..., 1].mean()
-            rq = value[..., 2].mean()
-            metrics[name] = pq.item()
-            metrics[name.replace("/pq", "/sq")] = sq.item()
-            metrics[name.replace("/pq", "/rq")] = rq.item()
-        elif isinstance(value, Tensor) and value.numel() > 1:
-            for i, v in enumerate(value):
-                metrics[f"{name}_{i}"] = v.item()
-        elif isinstance(value, dict):
-            if "map" in value:
-                # Special case for detection metrics which return results like this:
-                # {"map": 0.5, "map_50": 0.7, ...}
-                agg_metrics = {
-                    "map",
-                    "map_50",
-                    "map_75",
-                    "map_small",
-                    "map_medium",
-                    "map_large",
-                    "mar_1",
-                    "mar_10",
-                    "mar_100",
-                    "mar_small",
-                    "mar_medium",
-                    "mar_large",
-                }
-                # cls_metrics = {"map_per_class", "mar_100_per_class", "classes"}
-                if name.endswith("/map"):
-                    name = name[:-4]
-                for key, val in value.items():
-                    if key in agg_metrics:
-                        metrics[f"{name}/{key}"] = val.item()
-                    elif "per_class" in key:
-                        # Single scalar means the class-wise metrics are disabled.
-                        if val.ndim > 0:
-                            for i, v in enumerate(val):
-                                new_key = key.replace("per_class", "class")
-                                metrics[f"{name}/{new_key}_{i}"] = v.item()
-            else:
-                # Class-wise metrics that look like this:
-                # {"class 1": 0.5, "class 2": 0.7, ...}
-                for key, val in value.items():
-                    metrics[f"{name}{key}"] = val.item()
-        else:
-            metrics[name] = value
-    return metrics
+@dataclass
+class BestMetric:
+    metrics: MetricComputeResult
+    step: int
 
 
-def reset_metrics(log_dict: dict[str, Any]) -> None:
-    # Lazy import because torchmetrics is optional dependency.
-    from torchmetrics import Metric
+def get_best_metrics(
+    best_metrics: BestMetric | None,
+    last_metrics: MetricComputeResult,
+    step: int,
+    metric_args: TaskMetricArgs,
+) -> BestMetric:
+    if last_metrics.watch_metric is None:
+        logger.warning(
+            f"Unknown watch metric: '{metric_args.watch_metric}'! No metric will be "
+            "tracked as best metric and the last checkpoint will be saved as best "
+            f"checkpoint. Set `metric_args={{'watch_metric': '<metric name>'}}` to a "
+            f"valid metric to enable best checkpoint tracking. Valid metrics are: "
+            f"{list(last_metrics.metrics.keys())}"
+        )
 
-    for value in log_dict.values():
-        if isinstance(value, Metric):
-            value.reset()
+    if (
+        best_metrics is None
+        or best_metrics.metrics.watch_metric is None
+        or best_metrics.metrics.watch_metric_value is None
+        or best_metrics.metrics.watch_metric_mode is None
+    ):
+        return BestMetric(
+            metrics=last_metrics,
+            step=step,
+        )
+
+    if last_metrics.watch_metric is None or last_metrics.watch_metric_value is None:
+        return best_metrics
+
+    if best_metrics.metrics.watch_metric != last_metrics.watch_metric:
+        return best_metrics  # Shouldn't happen, but safe to assume we want best metrics
+
+    best_metric_value = best_metrics.metrics.watch_metric_value
+    last_metric_value = last_metrics.watch_metric_value
+    mode = best_metrics.metrics.watch_metric_mode
+
+    if (mode == "max" and last_metric_value > best_metric_value) or (
+        mode == "min" and last_metric_value < best_metric_value
+    ):
+        return BestMetric(
+            metrics=last_metrics,
+            step=step,
+        )
+    else:
+        return best_metrics
 
 
 def get_save_checkpoint_args(
-    train_model_cls: type[TrainModel],
     checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None,
     data_args: TaskDataArgs,
 ) -> TaskSaveCheckpointArgs:
     if isinstance(checkpoint_args, TaskSaveCheckpointArgs):
         checkpoint_args = checkpoint_args.model_dump()
-    checkpoint_args_cls = train_model_cls.train_model_args_cls.save_checkpoint_args_cls
-    # Merge with possible overrides from checkpoint_args.
-    default_checkpoint_args = checkpoint_args_cls().model_dump()  # type: ignore[call-arg]
-    default_checkpoint_args.update(checkpoint_args or {})
-    args = validate.pydantic_model_validate(
-        checkpoint_args_cls, default_checkpoint_args
-    )
+    checkpoint_args = {} if checkpoint_args is None else checkpoint_args
+    args = validate.pydantic_model_validate(TaskSaveCheckpointArgs, checkpoint_args)
     args.resolve_auto(data_args=data_args)
     return args
 
