@@ -62,6 +62,7 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
     default_steps: ClassVar[int] = 90_000
 
     # Model args
+    backbone_freeze: bool = False
     backbone_weights: PathLike | None = None
     num_queries: int | Literal["auto"] = "auto"
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
@@ -220,6 +221,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             image_normalize=normalize.model_dump(),
             num_queries=num_queries,
             num_joint_blocks=num_joint_blocks,
+            backbone_freeze=self.model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             load_weights=load_weights,
         )
@@ -506,6 +508,8 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         )
 
         for name, param in reversed(list(self.named_parameters())):
+            if not param.requires_grad:
+                continue
             param_lr = lr
             if param in backbone_params:
                 name_list = name.split(".")
@@ -611,6 +615,8 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         self.train()
+        if self.model_args.backbone_freeze:
+            self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         fabric.clip_gradients(

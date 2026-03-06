@@ -64,6 +64,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     default_steps: ClassVar[int] = 40_000
 
     # Model args
+    backbone_freeze: bool = False
     backbone_weights: PathLike | None = None
     # Deprecated. Weights are now automatically loaded based on model name.
     backbone_url: str | None = None
@@ -227,6 +228,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             image_normalize=normalize.model_dump(),
             num_queries=num_queries,
             num_joint_blocks=num_joint_blocks,
+            backbone_freeze=self.model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
             backbone_args=backbone_args,
@@ -453,6 +455,8 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         for name, param in reversed(list(self.named_parameters())):
+            if not param.requires_grad:
+                continue
             param_lr = lr
             if param in backbone_params:
                 name_list = name.split(".")
@@ -545,6 +549,8 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         self.train()
+        if self.model_args.backbone_freeze:
+            self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         fabric.clip_gradients(
