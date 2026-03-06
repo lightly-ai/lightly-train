@@ -455,6 +455,8 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         for name, param in reversed(list(self.named_parameters())):
+            if not param.requires_grad:
+                continue
             param_lr = lr
             if param in backbone_params:
                 name_list = name.split(".")
