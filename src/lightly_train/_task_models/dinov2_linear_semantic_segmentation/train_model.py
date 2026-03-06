@@ -19,6 +19,7 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
+from lightly_train import _torch_compile
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,

@@ -35,6 +35,9 @@ def try_compile(
     if torch_compile_args is None:
         torch_compile_args = {}  # {"dynamic": True}
 
+    if torch_compile_args.get("disable"):
+        return fn
+
     # try:
     #     torch._dynamo.config.capture_scalar_outputs = True
     # except AttributeError:

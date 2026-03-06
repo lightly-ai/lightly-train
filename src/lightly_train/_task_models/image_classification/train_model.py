@@ -20,6 +20,7 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
+from lightly_train import _torch_compile
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
 from lightly_train._data.task_data_args import TaskDataArgs
@@ -161,13 +162,17 @@ class ImageClassificationTrain(TrainModel):
 
     def get_task_model(self) -> ImageClassification:
         return self.model
+    
+    def forward(self, images: Tensor) -> Tensor:
+        return self.model.forward_train(images)
 
+    @_torch_compile.disable_compile
     def training_step(
         self, fabric: Fabric, batch: ImageClassificationBatch, step: int
     ) -> TaskStepResult:
         images = batch["image"]
         classes = batch["classes"]
-        logits = self.model.forward_train(images)
+        logits = self(images)
         if self.model.classification_task == "multiclass":
             targets = torch.concatenate(classes)
             loss = self.criterion(logits, targets)
@@ -186,12 +191,13 @@ class ImageClassificationTrain(TrainModel):
         self.train_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
 
+    @_torch_compile.disable_compile
     def validation_step(
         self, fabric: Fabric, batch: ImageClassificationBatch
     ) -> TaskStepResult:
         images = batch["image"]
         classes = batch["classes"]
-        logits = self.model.forward_train(images)
+        logits = self(images)
         if self.model.classification_task == "multiclass":
             targets = torch.concatenate(classes)
             loss = self.criterion(logits, targets)
