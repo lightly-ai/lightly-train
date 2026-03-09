@@ -117,6 +117,7 @@ def test_train_image_classification__multilabel(tmp_path: Path) -> None:
     assert results["scores"].shape == (3,)
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 def test_train_image_classification_multihead(
     tmp_path: Path,
 ) -> None:

@@ -22,6 +22,8 @@ from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
 from pydantic import TypeAdapter
+from torch.optim import Optimizer  # type: ignore[attr-defined]
+from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
 
 from lightly_train._configs import validate
@@ -753,6 +755,17 @@ def get_train_model_args(
     return args
 
 
+def get_current_learning_rate(optimizer: Optimizer, scheduler: LRScheduler) -> float:
+    """Returns current learning rate independent of parameter groups.
+
+    This is essentially the learning rate that was passed to the Optimizer at
+    construction time multiplied by the scheduler value at the current step.
+    """
+    scheduler_factor: float = scheduler.get_last_lr()[0] / scheduler.base_lrs[0]
+    lr: float = optimizer.defaults["lr"] * scheduler_factor
+    return lr
+
+
 def log_step(
     split: Literal["train", "val"],
     step: int,
@@ -762,6 +775,7 @@ def log_step(
     timer_agg: TimerAggregateMetrics,
     global_batch_size: int,
     gradient_accumulation_steps: int = 1,
+    learning_rate: float | None = None,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
@@ -782,8 +796,9 @@ def log_step(
         loss = metrics.metrics.get(loss_name)
         if loss is not None:
             parts.append(f"{loss_name}: {loss:4.4f}")
-        if metrics.watch_metric_value is not None and metrics.watch_metric != loss_name:
-            parts.append(f"{metrics.watch_metric}: {metrics.watch_metric_value:4.4f}")
+
+    if learning_rate is not None:
+        parts.append(f"lr: {learning_rate:2.8f}")
 
     # Add profiling information.
     profiling_parts = []
