@@ -42,6 +42,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train.types import (
     ImageClassificationBatch,
     PathLike,
@@ -101,6 +102,7 @@ class ImageClassificationTrain(TrainModel):
     task_model_cls = ImageClassification
     train_transform_cls = ImageClassificationTrainTransform
     val_transform_cls = ImageClassificationValTransform
+    torch_compile_args_cls = TorchCompileArgs
 
     def __init__(
         self,

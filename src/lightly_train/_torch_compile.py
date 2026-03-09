@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, TypeVar
+from typing import TypeVar
 
 import torch
+from pydantic import ConfigDict
+
+from lightly_train._configs.config import PydanticConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +22,7 @@ logger = logging.getLogger(__name__)
 _T = TypeVar("_T")
 
 
-def disable_compile(fn: _T, recursive: bool = True, ) -> _T:
+def disable_compile(fn: _T, recursive: bool = True) -> _T:
     """Same as torch.compiler.disable but handles missing torch.compile gracefully.
 
     Usage:
@@ -34,27 +37,23 @@ def disable_compile(fn: _T, recursive: bool = True, ) -> _T:
     return fn
 
 
-def try_compile(
-    fn: _T, name: str, torch_compile_args: dict[str, Any] | None = None
-) -> _T:
-    logger.info(f"Compiling {name} with torch.compile")
+class TorchCompileArgs(PydanticConfig):
+    disable: bool = True
+
+    # Allow extra fields as torch.compile accepts many arguments
+    model_config = ConfigDict(extra="allow")
+
+
+def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
+    if torch_compile_args.disable:
+        return fn
     if not hasattr(torch, "compile"):
         return fn
 
-    if torch_compile_args is None:
-        torch_compile_args = {}  # {"dynamic": True}
-
-    if torch_compile_args.get("disable"):
-        return fn
-
-    # try:
-    #     torch._dynamo.config.capture_scalar_outputs = True
-    # except AttributeError:
-    #     return fn
-
+    logger.info(f"Compiling {name} with torch.compile")
     start_time = time.perf_counter()
     try:
-        fn = torch.compile(fn, **torch_compile_args)  # type: ignore
+        fn = torch.compile(fn, **torch_compile_args.model_dump())  # type: ignore
     except Exception as ex:
         logger.warning(
             f"Compilation failed, falling back to uncompiled version. Error: {ex}"

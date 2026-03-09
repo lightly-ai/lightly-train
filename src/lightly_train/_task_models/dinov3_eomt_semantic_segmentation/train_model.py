@@ -52,6 +52,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 logger = logging.getLogger(__name__)
@@ -188,6 +189,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
     task_model_cls = DINOv3EoMTSemanticSegmentation
     train_transform_cls = DINOv3EoMTSemanticSegmentationTrainTransform
     val_transform_cls = DINOv3EoMTSemanticSegmentationValTransform
+    torch_compile_args_cls = TorchCompileArgs
 
     def __init__(
         self,

@@ -58,6 +58,7 @@ from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._metrics.task_metric import MetricComputeResult, TaskMetricArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._train_task_state import (
     TrainTaskState,
 )
@@ -1315,6 +1316,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             metric_args=config.metric_args,
             data_args=config.data,
         )
+        config.torch_compile_args = helpers.get_torch_compile_args(
+            train_model_cls=train_model_cls,
+            torch_compile_args=config.torch_compile_args,
+        )
 
         # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
         train_dataloader = helpers.get_train_dataloader(
@@ -1731,7 +1736,7 @@ class TrainTaskConfig(PydanticConfig):
     metric_args: dict[str, Any] | TaskMetricArgs | None = None
     loader_args: dict[str, Any] | None = None
     save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
-    torch_compile_args: dict[str, Any] | None = None
+    torch_compile_args: dict[str, Any] | TorchCompileArgs | None = None
     gradient_accumulation_steps: int | Literal["auto"] = "auto"
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
