@@ -838,7 +838,7 @@ lightly_train.train_object_detection(
 )
 ```
 
-(train-settings-compildation)=
+(train-settings-compilation)=
 
 ## Compilation
 
