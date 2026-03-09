@@ -151,7 +151,7 @@ class ClassificationTaskMetric(TaskMetric):
         if self.metrics_classwise is not None:
             self.metrics_classwise.update(preds, target)
 
-    def update_loss(
+    def update_with_losses(
         self,
         loss_dict: Mapping[str, Tensor],
         weight: int,

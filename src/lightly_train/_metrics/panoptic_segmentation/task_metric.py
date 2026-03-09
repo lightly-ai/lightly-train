@@ -103,7 +103,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         self.metrics.update(preds, target)
         self.metrics_classwise.update(preds, target)
 
-    def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
+    def update_with_losses(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)
 
     def compute(self) -> MetricComputeResult:

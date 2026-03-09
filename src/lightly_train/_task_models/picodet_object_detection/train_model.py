@@ -249,7 +249,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             gt_labels_list=gt_labels_list,
         )
 
-        self.train_metrics.update_loss(
+        self.train_metrics.update_with_losses(
             {
                 "loss": total_loss.detach(),
                 "loss_vfl": loss_vfl.detach(),
@@ -374,7 +374,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 }
             )
 
-        self.val_metrics.update_loss(
+        self.val_metrics.update_with_losses(
             {
                 "loss": total_loss.detach(),
                 "loss_vfl": loss_vfl.detach(),

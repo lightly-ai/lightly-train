@@ -25,7 +25,7 @@ from lightly_train._metrics.semantic_segmentation.task_metric import (
 
 
 class TestSemanticSegmentationTaskMetric:
-    def test_update_with_predictions(self) -> None:
+    def test_update__default(self) -> None:
         metric = SemanticSegmentationTaskMetric(
             task_metric_args=SemanticSegmentationTaskMetricArgs(),
             split="val",
@@ -36,7 +36,7 @@ class TestSemanticSegmentationTaskMetric:
         preds = torch.zeros(2, 10, 10, dtype=torch.long)
         target = torch.zeros(2, 10, 10, dtype=torch.long)
         metric.update_with_predictions(preds, target)
-        metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
+        metric.update_with_losses({"loss": torch.tensor(0.5)}, weight=1)
         result = metric.compute()
         assert result.metrics["val_loss"] == 0.5
         assert result.metrics.keys() == {
@@ -44,7 +44,7 @@ class TestSemanticSegmentationTaskMetric:
             "val_metric/miou",
         }
 
-    def test_update_with_predictions__ignore_index(self) -> None:
+    def test_update__ignore_index(self) -> None:
         metric = SemanticSegmentationTaskMetric(
             task_metric_args=SemanticSegmentationTaskMetricArgs(),
             split="val",
@@ -56,12 +56,12 @@ class TestSemanticSegmentationTaskMetric:
         target = torch.zeros(2, 4, 4, dtype=torch.long)
         target[:, 0, 0] = 255  # ignored pixels
         metric.update_with_predictions(preds, target)
-        metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
+        metric.update_with_losses({"loss": torch.tensor(0.5)}, weight=1)
         result = metric.compute()
         assert result.metrics["val_loss"] == 0.5
         assert result.metrics.keys() == {"val_loss", "val_metric/miou"}
 
-    def test_update_with_predictions__classwise(self) -> None:
+    def test_update__classwise(self) -> None:
         metric = SemanticSegmentationTaskMetric(
             task_metric_args=SemanticSegmentationTaskMetricArgs(classwise=True),
             split="val",
@@ -72,7 +72,7 @@ class TestSemanticSegmentationTaskMetric:
         preds = torch.zeros(2, 10, 10, dtype=torch.long)
         target = torch.zeros(2, 10, 10, dtype=torch.long)
         metric.update_with_predictions(preds, target)
-        metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
+        metric.update_with_losses({"loss": torch.tensor(0.5)}, weight=1)
         result = metric.compute()
         assert result.metrics["val_loss"] == 0.5
         assert result.metrics.keys() == {

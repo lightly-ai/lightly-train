@@ -98,7 +98,7 @@ class ObjectDetectionTaskMetric(TaskMetric):
         """
         self.metrics.update(preds, target)
 
-    def update_loss(
+    def update_with_losses(
         self,
         loss_dict: Mapping[str, Tensor],
         weight: int,

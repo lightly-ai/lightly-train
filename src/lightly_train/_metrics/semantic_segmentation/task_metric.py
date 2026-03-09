@@ -112,7 +112,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         self.metrics.update(preds, target)  # type: ignore[operator]
         self.metrics_classwise.update(preds, target)  # type: ignore[operator]
 
-    def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
+    def update_with_losses(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)  # type: ignore[operator]
 
     def compute(self) -> MetricComputeResult:

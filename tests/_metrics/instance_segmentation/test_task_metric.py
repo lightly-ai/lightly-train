@@ -25,7 +25,7 @@ from lightly_train._metrics.instance_segmentation.task_metric import (
 
 
 class TestInstanceSegmentationTaskMetric:
-    def test_update_with_predictions(self) -> None:
+    def test_update__default(self) -> None:
         metric = InstanceSegmentationTaskMetric(
             task_metric_args=InstanceSegmentationTaskMetricArgs(),
             split="val",
@@ -47,7 +47,7 @@ class TestInstanceSegmentationTaskMetric:
                 }
             ],
         )
-        metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
+        metric.update_with_losses({"loss": torch.tensor(0.5)}, weight=1)
         result = metric.compute()
         assert result.metrics["val_loss"] == 0.5
         assert result.metrics.keys() == {
@@ -66,7 +66,7 @@ class TestInstanceSegmentationTaskMetric:
             "val_metric/mar_large",
         }
 
-    def test_update_with_predictions__classwise(self) -> None:
+    def test_update__classwise(self) -> None:
         metric = InstanceSegmentationTaskMetric(
             task_metric_args=InstanceSegmentationTaskMetricArgs(classwise=True),
             split="val",
@@ -88,7 +88,7 @@ class TestInstanceSegmentationTaskMetric:
                 }
             ],
         )
-        metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
+        metric.update_with_losses({"loss": torch.tensor(0.5)}, weight=1)
         result = metric.compute()
         assert result.metrics["val_loss"] == 0.5
         print(result.metrics.keys())

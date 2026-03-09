@@ -70,17 +70,13 @@ class TestMultiheadTaskMetric:
         torch.manual_seed(0)
         preds = torch.randint(0, 3, (2, 10, 10))
         target = torch.randint(0, 3, (2, 10, 10))
-        wrapper.head_metrics["lr0_001"].update_with_predictions(
-            preds, target
-        )  # type: ignore[operator]
+        wrapper.head_metrics["lr0_001"].update_with_predictions(preds, target)  # type: ignore[operator]
         result_before = wrapper.compute()
         wrapper.reset()
         torch.manual_seed(1)
         preds2 = torch.randint(0, 3, (2, 10, 10))
         target2 = torch.randint(0, 3, (2, 10, 10))
-        wrapper.head_metrics["lr0_001"].update_with_predictions(
-            preds2, target2
-        )  # type: ignore[operator]
+        wrapper.head_metrics["lr0_001"].update_with_predictions(preds2, target2)  # type: ignore[operator]
         result_after = wrapper.compute()
         assert result_after.metrics != result_before.metrics
 

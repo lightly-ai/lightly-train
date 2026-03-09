@@ -24,7 +24,7 @@ from lightly_train._metrics.panoptic_segmentation.task_metric import (
 
 
 class TestPanopticSegmentationTaskMetric:
-    def test_update_with_predictions(self) -> None:
+    def test_update_with_predictions__default(self) -> None:
         metric = PanopticSegmentationTaskMetric(
             task_metric_args=PanopticSegmentationTaskMetricArgs(),
             split="val",
