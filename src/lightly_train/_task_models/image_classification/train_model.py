@@ -92,6 +92,10 @@ class ImageClassificationTrainArgs(TrainModelArgs):
                 self.gradient_clip_val = 3.0
 
 
+class ImageClassificationTorchCompileArgs(TorchCompileArgs):
+    disable: bool = False
+
+
 class ImageClassificationTrain(TrainModel):
     task = "image_classification"
     train_model_args_cls = ImageClassificationTrainArgs
@@ -102,7 +106,7 @@ class ImageClassificationTrain(TrainModel):
     task_model_cls = ImageClassification
     train_transform_cls = ImageClassificationTrainTransform
     val_transform_cls = ImageClassificationValTransform
-    torch_compile_args_cls = TorchCompileArgs
+    torch_compile_args_cls = ImageClassificationTorchCompileArgs
 
     def __init__(
         self,
