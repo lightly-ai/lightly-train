@@ -21,23 +21,87 @@ from lightly_train._metrics.metric_args import MetricArgs
 #
 # The metrics system has three layers:
 #
-# 1. **MetricArgs** (Pydantic): Configuration for individual metrics
-#    - Example: MulticlassAccuracyArgs(topk=[1, 5], average=["micro", "macro"])
+# 1. **MetricArgs** (Pydantic)
+#   Stores configuration for one type of torchmetrics Metric. For example, AccuracyArgs
+#   for torchmetrics.Accuracy, F1Args for torchmetrics.F1 etc. The sole purpose of
+#   these classes is validation of user input through Pydantic and instantiation of
+#   the actual torchmetrics Metric instances.
 #
-# 2. **TaskMetricArgs** (Pydantic): Configuration for all metrics in a task
-#    - Example: MulticlassClassificationTaskMetricArgs(
-#         accuracy=..., f1=..., precision=...
-#     )
-#    - Groups related MetricArgs for a task. This is what the user configures
+# 2. **TaskMetricArgs** (Pydantic)
+#   Stores configuration for all metrics of a task. For example, ClassificationTaskMetricArgs
+#   stores the MetricArgs for all classification metrics (e.g. AccuracyArgs, F1Args, etc.)
+#   This is what the user interacts with when configuring `metric_args` in the train
+#   commands.
 #
-# 3. **TaskMetric** : Class that stores actual Metric instances
-#    - Example: ClassificationTaskMetric(metric_args, class_names=[...], prefix="val_metric/")
-#    - Stores actual torchmetrics instances (MetricCollection, MeanMetric, etc.)
-#    - Provides .update(), .update_loss(), and .reset() for updating metrics during training/validation
-#    - Provides .compute() for logging
-#    - All metric logic for a task must be contained in this class. The training loop
-#      only interacts with TaskMetric objects, not individual Metric instances.
+# 3. **TaskMetric** (PyTorch Module)
+#   Is initialized from TaskMetricArgs and stores all torchmetrics Metric instances
+#   for a task and provides a unified interface for keeping track of metrics during
+#   training and validation.
 #
+#   TaskMetric is updated with the latest predictions and losses in training_step and
+#   validation_step of TrainModel. The TaskMetric instance is then returned from these
+#   steps and the training loop calls compute() to compute the aggregated metric values
+#   over multiple training/validation steps for logging and best model selection.
+#   Finally, the training loop calls reset() to reset the metrics after each logging step.
+#
+#
+# The metrics system follows the same structure as the transforms with the following
+# equivalences:
+# - MetricArgs      <-> TransformArgs
+# - TaskMetricArgs  <-> TaskTransformArgs
+# - TaskMetric      <-> TaskTransform
+#
+# Transforms have one additional layer which are <Model>TaskTransformArgs which store
+# model specific configurations. This is not needed for metrics as they do not need
+# model specific settings. For example, an ObjectDetectionTaskMetric works for all
+# object detection models.
+#
+#
+# ## Loss "Metrics"
+#
+# Losses are also tracked in the metrics system for the purpose of logging and
+# best model selection. There is essentially no difference between a loss metric and a
+# regular metric, both have a name and an associated float value. For this reason the
+# TaskMetric classes also track the losses in addition to the regular metrics.
+# This simplifies the interfaces and keeps all metric handling in one place.
+#
+# Note that the actual loss value for backpropagation is handled separately from the
+# metrics system as it requires gradients. Everything in the metrics system is detached.
+#
+
+
+class TaskMetricArgs(PydanticConfig):
+    """Base class for task-specific metrics configuration.
+
+    Add any MetricArgs fields for the task here.
+    """
+
+    # Metric to watch for best model selection. E.g. "val_metric/f1_macro".
+    watch_metric: str
+
+
+class TaskMetric(Module):
+    """Stores all torchmetric instances for a task and provides a unified interface for
+    updating and computing metrics during training and validation.
+
+    This is the base class for all task-specific metrics (e.g., ClassificationTaskMetric)
+    and is the object returned from the training and validation steps.
+    """
+
+    def __init__(self, task_metric_args: TaskMetricArgs) -> None:
+        super().__init__()
+        self.task_metric_args = task_metric_args
+
+    def compute(self) -> MetricComputeResult:
+        """Aggregate all metric values since the last .reset() and return them as a
+        MetricComputeResult."""
+        raise NotImplementedError
+
+    def reset(self) -> None:
+        """Resets all metrics."""
+        for module in self.modules():
+            if isinstance(module, Metric):
+                module.reset()
 
 
 @dataclass
@@ -75,35 +139,6 @@ class MetricComputeResult:
     watch_metric_mode: Literal["min", "max"] | None
     best_head_name: str | None
     best_head_metrics: dict[str, float] | None
-
-
-class TaskMetricArgs(PydanticConfig):
-    """Base class for task-specific metrics collection configurations."""
-
-    # Metric to watch for best model selection. E.g. "val_metric/f1_macro".
-    watch_metric: str
-
-
-class TaskMetric(Module):
-    """Stores all metrics for a task and provides unified update/compute interface.
-
-    This is the base class for all task-specific metrics (e.g., ClassificationTaskMetric)
-    and is the object returned from the training and validation steps for logging.
-    """
-
-    def __init__(self, task_metric_args: TaskMetricArgs) -> None:
-        super().__init__()
-        self.task_metric_args = task_metric_args
-
-    def compute(self) -> MetricComputeResult:
-        """Compute all metrics and return values for logging."""
-        raise NotImplementedError
-
-    def reset(self) -> None:
-        """Reset all metrics."""
-        for module in self.modules():
-            if isinstance(module, Metric):
-                module.reset()
 
 
 def get_watch_metric_mode(
