@@ -13,7 +13,7 @@ from typing import Literal
 
 from torch.nn import ModuleDict
 
-from lightly_train._metrics.task_metric import MetricComputeResult, TaskMetric
+from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetric
 
 
 class MultiheadTaskMetric(TaskMetric):
@@ -25,11 +25,11 @@ class MultiheadTaskMetric(TaskMetric):
     3. Selects the best head based on each head's watch_metric_value
     4. Promotes the best head's metrics to the top-level prefix (no head suffix)
 
-    The watch_metric and watch_metric_value in the returned MetricComputeResult
+    The watch_metric and watch_metric_value in the returned AggregatedMetricValues
     refer to the promoted best-head metric, making it compatible with the training
     loop's checkpointing logic.
 
-    The watch_metric_mode is taken from the head's MetricComputeResult in compute().
+    The watch_metric_mode is taken from the head's AggregatedMetricValues in compute_aggregated_values().
 
     Usage:
         # Create per-head metrics
@@ -44,8 +44,8 @@ class MultiheadTaskMetric(TaskMetric):
         val_metrics.head_metrics["lr0_01"].update_with_predictions(preds, target)
 
         # Compute at end of validation epoch
-        result = val_metrics.compute()
-        # result.metrics contains:
+        result = val_metrics.compute_aggregated_values()
+        # result.metric_values contains:
         #   "val_metric_head/miou_lr0_001": 0.72
         #   "val_metric_head/miou_lr0_01":  0.75  (best)
         #   "val_metric/miou": 0.75              (best head promoted)
@@ -69,12 +69,12 @@ class MultiheadTaskMetric(TaskMetric):
         super().__init__(task_metric_args=task_metric.task_metric_args)
         self.head_metrics: ModuleDict = ModuleDict(head_metrics)  # type: ignore[arg-type]
 
-    def compute(self) -> MetricComputeResult:
+    def compute_aggregated_values(self) -> AggregatedMetricValues:
         """Compute metrics for all heads and promote the best head's metrics.
 
         Returns:
-            MetricComputeResult where:
-            - metrics contains per-head keys AND best-head top-level keys
+            AggregatedMetricValues where:
+            - metric_values contains per-head keys AND best-head top-level keys
             - watch_metric is the top-level key of the best metric
             - watch_metric_value is the value of the best metric
         """
@@ -82,13 +82,13 @@ class MultiheadTaskMetric(TaskMetric):
         watch_metric_mode: Literal["min", "max"] | None = None
         best_value: float | None = None
         best_head_name = ""
-        best_head_result: MetricComputeResult | None = None
+        best_head_result: AggregatedMetricValues | None = None
 
         for head_name, head_metric in self.head_metrics.items():
-            head_result = head_metric.compute()  # type: ignore[operator]
+            head_result = head_metric.compute_aggregated_values()  # type: ignore[operator]
 
             # Rename keys and add to all_metrics
-            for key, value in head_result.metrics.items():
+            for key, value in head_result.metric_values.items():
                 renamed_key = _rename_key_for_head(key, head_name)
                 all_metrics[renamed_key] = value
 
@@ -110,24 +110,24 @@ class MultiheadTaskMetric(TaskMetric):
 
         # Promote best head's metrics to top-level (without head suffix)
         if best_head_result is not None:
-            all_metrics.update(best_head_result.metrics)
-            return MetricComputeResult(
-                metrics=all_metrics,
+            all_metrics.update(best_head_result.metric_values)
+            return AggregatedMetricValues(
+                metric_values=all_metrics,
                 watch_metric=best_head_result.watch_metric,
                 watch_metric_value=best_value,
                 watch_metric_mode=watch_metric_mode,
                 best_head_name=best_head_name,
-                best_head_metrics=best_head_result.metrics,
+                best_head_metric_values=best_head_result.metric_values,
             )
 
         # Fallback: no heads, or all heads have no matching watch metric
-        return MetricComputeResult(
-            metrics=all_metrics,
+        return AggregatedMetricValues(
+            metric_values=all_metrics,
             watch_metric=None,
             watch_metric_value=None,
             watch_metric_mode=None,
             best_head_name=None,
-            best_head_metrics=None,
+            best_head_metric_values=None,
         )
 
 

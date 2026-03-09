@@ -40,9 +40,10 @@ from lightly_train._metrics.metric_args import MetricArgs
 #
 #   TaskMetric is updated with the latest predictions and losses in training_step and
 #   validation_step of TrainModel. The TaskMetric instance is then returned from these
-#   steps and the training loop calls compute() to compute the aggregated metric values
-#   over multiple training/validation steps for logging and best model selection.
-#   Finally, the training loop calls reset() to reset the metrics after each logging step.
+#   steps and the training loop calls compute_aggregated_values() to compute the aggregated
+#   metric values over multiple training/validation steps for logging and best model
+#   selection. Finally, the training loop calls reset() to reset the metrics after each
+#   logging step.
 #
 #
 # The metrics system follows the same structure as the transforms with the following
@@ -92,9 +93,9 @@ class TaskMetric(Module):
         super().__init__()
         self.task_metric_args = task_metric_args
 
-    def compute(self) -> MetricComputeResult:
-        """Aggregate all metric values since the last .reset() and return them as a
-        MetricComputeResult."""
+    def compute_aggregated_values(self) -> AggregatedMetricValues:
+        """Aggregate all metric values since the last .reset() and return them as an
+        AggregatedMetricValues."""
         raise NotImplementedError
 
     def reset(self) -> None:
@@ -105,11 +106,11 @@ class TaskMetric(Module):
 
 
 @dataclass
-class MetricComputeResult:
+class AggregatedMetricValues:
     """Result of computing all metrics.
 
     Attributes:
-        metrics:
+        metric_values:
             Dictionary mapping metric names to computed float values.
             For multihead metrics, contains per-head keys (e.g.,
             "val_metric_head/miou_lr0_001") and best-head top-level keys
@@ -128,17 +129,17 @@ class MetricComputeResult:
         best_head_name:
             Name of the best head (e.g., "lr0_01").
             None for single-head metrics.
-        best_head_metrics:
-            Metrics of the best head with top-level keys
+        best_head_metric_values:
+            Metric values of the best head with top-level keys
             (no head suffix). None for single-head metrics.
     """
 
-    metrics: dict[str, float]
+    metric_values: dict[str, float]
     watch_metric: str | None
     watch_metric_value: float | None
     watch_metric_mode: Literal["min", "max"] | None
     best_head_name: str | None
-    best_head_metrics: dict[str, float] | None
+    best_head_metric_values: dict[str, float] | None
 
 
 def get_watch_metric_mode(

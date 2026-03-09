@@ -37,8 +37,8 @@ class TestPanopticSegmentationTaskMetric:
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
         target = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
         metric.update_with_predictions(preds, target)
-        result = metric.compute()
-        assert result.metrics.keys() == {
+        result = metric.compute_aggregated_values()
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_metric/pq",
             "val_metric/sq",
@@ -58,8 +58,8 @@ class TestPanopticSegmentationTaskMetric:
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
         target = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
         metric.update_with_predictions(preds, target)
-        result = metric.compute()
-        assert result.metrics.keys() == {
+        result = metric.compute_aggregated_values()
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_metric/pq",
             "val_metric/sq",

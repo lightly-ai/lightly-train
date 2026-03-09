@@ -42,7 +42,7 @@ from lightly_train._metrics.classwise_metric_collection import (
 )
 from lightly_train._metrics.loss_metric_collection import LossMetricCollection
 from lightly_train._metrics.task_metric import (
-    MetricComputeResult,
+    AggregatedMetricValues,
     TaskMetric,
     TaskMetricArgs,
     get_watch_metric_mode,
@@ -168,11 +168,11 @@ class ClassificationTaskMetric(TaskMetric):
         """
         self.loss_metrics.update(loss_dict, weight=weight)  # type: ignore[operator]
 
-    def compute(self) -> MetricComputeResult:
+    def compute_aggregated_values(self) -> AggregatedMetricValues:
         """Compute all metrics and return combined results.
 
         Returns:
-            MetricComputeResult with metrics dict, watch_metric, and watch_metric_value
+            AggregatedMetricValues with metric_values dict, watch_metric, and watch_metric_value
         """
         result = self.loss_metrics.compute()
         result.update(self.metrics.compute())
@@ -180,13 +180,13 @@ class ClassificationTaskMetric(TaskMetric):
             result.update(self.metrics_classwise.compute())
         result = {name: float(value) for name, value in result.items()}
         best_val = result.get(self.watch_metric)
-        return MetricComputeResult(
-            metrics=result,
+        return AggregatedMetricValues(
+            metric_values=result,
             watch_metric=self.watch_metric if best_val is not None else None,
             watch_metric_value=float(best_val) if best_val is not None else None,
             watch_metric_mode=self.watch_metric_mode if best_val is not None else None,
             best_head_name=None,
-            best_head_metrics=None,
+            best_head_metric_values=None,
         )
 
     def build_metric_collection(

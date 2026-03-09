@@ -24,7 +24,7 @@ from torch.optim import Optimizer  # type: ignore[attr-defined]
 from lightly_train import _float32_matmul_precision, _logging, _system, _torch_helpers
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands import train_task_helpers as helpers
-from lightly_train._commands.train_task_helpers import BestMetric
+from lightly_train._commands.train_task_helpers import BestAggregatedMetricValues
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
@@ -49,7 +49,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
-from lightly_train._metrics.task_metric import MetricComputeResult, TaskMetricArgs
+from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
 from lightly_train._train_task_state import (
@@ -1390,7 +1390,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         # TODO(Guarin, 02/26): Add best metric to state?
-        best_metrics: BestMetric | None = None
+        best_metrics: BestAggregatedMetricValues | None = None
 
         state = TrainTaskState(
             train_model=train_model,
@@ -1503,7 +1503,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
             if is_log_step or is_last_step:
                 train_log_dict = train_result.log_dict
-                train_metrics = train_result.metrics.compute()
+                train_agg_metric_values = (
+                    train_result.metrics.compute_aggregated_values()
+                )
                 train_result.metrics.reset()
                 # train_log_dict = helpers.compute_metrics(accumulated_log_dict)
                 timer_agg = timer.get_aggregated_metrics(fabric)
@@ -1512,7 +1514,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     split="train",
                     step=step,
                     max_steps=config.steps,
-                    metrics=train_metrics,
+                    agg_metric_values=train_agg_metric_values,
                     task=config.task,
                     timer_agg=timer_agg,
                     global_batch_size=effective_global_batch_size,
@@ -1535,7 +1537,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 helpers.log_fabric(
                     fabric=fabric,
                     log_dict=train_log_dict,
-                    metrics=train_metrics,
+                    agg_metric_values=train_agg_metric_values,
                     step=step,
                 )
 
@@ -1563,7 +1565,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 logger.info("Validating...")
                 train_model.eval()
 
-                val_metrics: MetricComputeResult | None = None
+                agg_val_metric_values: AggregatedMetricValues | None = None
 
                 # Reset GPU memory tracking before val phase.
                 timer.reset_gpu_max_memory("val")
@@ -1593,11 +1595,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     timer.record_gpu_stats("val")
 
                     if is_last_val_step:
-                        val_metrics = val_result.metrics.compute()
+                        agg_val_metric_values = (
+                            val_result.metrics.compute_aggregated_values()
+                        )
                         val_result.metrics.reset()
                         best_metrics = helpers.get_best_metrics(
-                            best_metrics=best_metrics,
-                            last_metrics=val_metrics,
+                            best_agg_metric_values=best_metrics,
+                            last_agg_metric_values=agg_val_metric_values,
                             step=step,
                             metric_args=config.metric_args,
                         )
@@ -1608,7 +1612,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
-                            metrics=val_metrics,
+                            agg_metric_values=agg_val_metric_values,
                             task=config.task,
                             timer_agg=timer_agg,
                             global_batch_size=config.batch_size,
@@ -1623,7 +1627,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         helpers.log_fabric(
                             fabric=fabric,
                             log_dict=val_result.log_dict,
-                            metrics=val_metrics,
+                            agg_metric_values=agg_val_metric_values,
                             step=step,
                         )
 
@@ -1654,8 +1658,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         helpers.log_training_summary(
                             timer_agg=timer_agg,
                             fabric=fabric,
-                            last_val_metrics=val_metrics,
-                            best_val_metrics=best_metrics,
+                            last_val_agg_metric_values=agg_val_metric_values,
+                            best_val_agg_metric_values=best_metrics,
                             step=step,
                             global_batch_size=config.batch_size,
                             gradient_accumulation_steps=config.gradient_accumulation_steps,
@@ -1669,7 +1673,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
-                            metrics=None,
+                            agg_metric_values=None,
                             task=config.task,
                             timer_agg=timer_agg,
                             global_batch_size=config.batch_size,

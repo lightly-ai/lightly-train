@@ -22,7 +22,7 @@ from lightly_train._metrics.semantic_segmentation.jaccard_index import (
     JaccardIndexArgs,
 )
 from lightly_train._metrics.task_metric import (
-    MetricComputeResult,
+    AggregatedMetricValues,
     TaskMetric,
     TaskMetricArgs,
     get_watch_metric_mode,
@@ -115,17 +115,17 @@ class SemanticSegmentationTaskMetric(TaskMetric):
     def update_with_losses(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)  # type: ignore[operator]
 
-    def compute(self) -> MetricComputeResult:
+    def compute_aggregated_values(self) -> AggregatedMetricValues:
         result = self.loss_metrics.compute()  # type: ignore[operator]
         result.update(self.metrics.compute())
         result.update(self.metrics_classwise.compute())
         result = {name: float(value) for name, value in result.items()}
         best_val = result.get(self.watch_metric)
-        return MetricComputeResult(
-            metrics=result,
+        return AggregatedMetricValues(
+            metric_values=result,
             watch_metric=self.watch_metric if best_val is not None else None,
             watch_metric_value=float(best_val) if best_val is not None else None,
             watch_metric_mode=self.watch_metric_mode if best_val is not None else None,
             best_head_name=None,
-            best_head_metrics=None,
+            best_head_metric_values=None,
         )

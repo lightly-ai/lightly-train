@@ -48,9 +48,9 @@ class TestInstanceSegmentationTaskMetric:
             ],
         )
         metric.update_with_losses({"loss": torch.tensor(0.5)}, weight=1)
-        result = metric.compute()
-        assert result.metrics["val_loss"] == 0.5
-        assert result.metrics.keys() == {
+        result = metric.compute_aggregated_values()
+        assert result.metric_values["val_loss"] == 0.5
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_metric/map",
             "val_metric/map_50",
@@ -89,10 +89,10 @@ class TestInstanceSegmentationTaskMetric:
             ],
         )
         metric.update_with_losses({"loss": torch.tensor(0.5)}, weight=1)
-        result = metric.compute()
-        assert result.metrics["val_loss"] == 0.5
-        print(result.metrics.keys())
-        assert result.metrics.keys() == {
+        result = metric.compute_aggregated_values()
+        assert result.metric_values["val_loss"] == 0.5
+        print(result.metric_values.keys())
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_metric/map",
             "val_metric/map_50",
