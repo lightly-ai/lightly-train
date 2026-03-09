@@ -140,7 +140,7 @@ class ClassificationTaskMetric(TaskMetric):
         )
         self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
 
-    def update(self, preds: Tensor, target: Tensor) -> None:
+    def update_with_predictions(self, preds: Tensor, target: Tensor) -> None:
         """Update all quality metrics with inputs.
 
         Args:

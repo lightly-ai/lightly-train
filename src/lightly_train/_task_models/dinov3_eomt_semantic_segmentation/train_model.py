@@ -314,7 +314,9 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                 )
                 logits = logits[:, :-1]  # Drop ignore class logits.
                 for pred, targ in zip(logits, masks):
-                    self.train_metrics.update(pred[None, ...], targ[None, ...])  # type: ignore
+                    self.train_metrics.update_with_predictions(
+                        pred[None, ...], targ[None, ...]
+                    )  # type: ignore
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -401,7 +403,9 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                     crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
                 )
                 for pred, targ in zip(logits, masks):
-                    self.val_metrics.update(pred[None, ...], targ[None, ...])  # type: ignore
+                    self.val_metrics.update_with_predictions(
+                        pred[None, ...], targ[None, ...]
+                    )  # type: ignore
 
         # Compute the total loss.
         loss = self.criterion.loss_total(losses_all_layers=losses)

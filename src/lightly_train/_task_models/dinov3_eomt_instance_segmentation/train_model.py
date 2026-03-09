@@ -278,7 +278,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 labels, masks, scores = self.model.get_labels_masks_scores(
                     mask_logits=mask_logits, class_logits=class_logits
                 )
-            self.train_metrics.update(
+            self.train_metrics.update_with_predictions(
                 preds=[
                     {
                         "labels": labels[i],
@@ -397,7 +397,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 }
             )
 
-        self.val_metrics.update(
+        self.val_metrics.update_with_predictions(
             preds=predictions,
             target=binary_masks,
         )

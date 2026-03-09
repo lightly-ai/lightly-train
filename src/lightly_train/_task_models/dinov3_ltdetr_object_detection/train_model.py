@@ -303,7 +303,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             results = self.model.postprocessor(
                 outputs, orig_target_sizes=orig_target_sizes_tensor
             )
-            self.train_metrics.update(results, targets)  # type: ignore[operator]
+            self.train_metrics.update_with_predictions(
+                results, targets
+            )  # type: ignore[operator]
 
         return TaskStepResult(
             loss=total_loss,
@@ -380,7 +382,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             },
             weight=samples.shape[0],
         )  # type: ignore[operator]
-        self.val_metrics.update(results, targets)  # type: ignore[operator]
+        self.val_metrics.update_with_predictions(
+            results, targets
+        )  # type: ignore[operator]
 
         return TaskStepResult(
             loss=total_loss,

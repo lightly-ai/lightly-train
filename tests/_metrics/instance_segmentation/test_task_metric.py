@@ -25,14 +25,14 @@ from lightly_train._metrics.instance_segmentation.task_metric import (
 
 
 class TestInstanceSegmentationTaskMetric:
-    def test_update(self) -> None:
+    def test_update_with_predictions(self) -> None:
         metric = InstanceSegmentationTaskMetric(
             task_metric_args=InstanceSegmentationTaskMetricArgs(),
             split="val",
             class_names=["cat", "dog"],
             loss_names=["loss"],
         )
-        metric.update(
+        metric.update_with_predictions(
             preds=[
                 {
                     "masks": torch.tensor([[[0, 0, 0], [0, 1, 1], [0, 1, 1]]]).bool(),
@@ -66,14 +66,14 @@ class TestInstanceSegmentationTaskMetric:
             "val_metric/mar_large",
         }
 
-    def test_update__classwise(self) -> None:
+    def test_update_with_predictions__classwise(self) -> None:
         metric = InstanceSegmentationTaskMetric(
             task_metric_args=InstanceSegmentationTaskMetricArgs(classwise=True),
             split="val",
             class_names=["cat", "dog"],
             loss_names=["loss"],
         )
-        metric.update(
+        metric.update_with_predictions(
             preds=[
                 {
                     "masks": torch.tensor([[[0, 0, 0], [0, 1, 1], [0, 1, 1]]]).bool(),

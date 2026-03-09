@@ -89,7 +89,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         self.metrics_classwise = TorchmetricsMetricCollection(metrics_classwise)  # type: ignore
         self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
 
-    def update(
+    def update_with_predictions(
         self,
         preds: Tensor,
         target: Tensor,

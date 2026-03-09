@@ -26,7 +26,7 @@ from lightly_train._metrics.classification.task_metric import (
 
 
 class TestClassificationTaskMetric:
-    def test_update__multiclass(self) -> None:
+    def test_update_with_predictions__multiclass(self) -> None:
         metric = ClassificationTaskMetric(
             task_metric_args=MulticlassClassificationTaskMetricArgs(),
             split="val",
@@ -35,7 +35,7 @@ class TestClassificationTaskMetric:
         )
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([0, 1])
-        metric.update(preds, target)
+        metric.update_with_predictions(preds, target)
         metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
         result = metric.compute()
         assert result.metrics["val_loss"] == 0.5
@@ -47,7 +47,7 @@ class TestClassificationTaskMetric:
             "val_metric/recall_macro",
         }
 
-    def test_update__multilabel(self) -> None:
+    def test_update_with_predictions__multilabel(self) -> None:
         metric = ClassificationTaskMetric(
             task_metric_args=MultilabelClassificationTaskMetricArgs(),
             split="val",
@@ -56,7 +56,7 @@ class TestClassificationTaskMetric:
         )
         preds = torch.tensor([[0.8, 0.5, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([[1, 1, 0], [0, 1, 1]])
-        metric.update(preds, target)
+        metric.update_with_predictions(preds, target)
         metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
         result = metric.compute()
         assert result.metrics["val_loss"] == 0.5
@@ -78,16 +78,16 @@ class TestClassificationTaskMetric:
         )
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([0, 1])
-        metric.update(preds, target)
+        metric.update_with_predictions(preds, target)
         metric.update_loss({"loss": torch.tensor(1.0)}, weight=1)
         result1 = metric.compute()
         metric.reset()
-        metric.update(preds, target)
+        metric.update_with_predictions(preds, target)
         metric.update_loss({"loss": torch.tensor(0.1)}, weight=1)
         result2 = metric.compute()
         assert result1 != result2
 
-    def test_update__classwise(self) -> None:
+    def test_update_with_predictions__classwise(self) -> None:
         metric = ClassificationTaskMetric(
             task_metric_args=MulticlassClassificationTaskMetricArgs(classwise=True),
             split="val",
@@ -96,7 +96,7 @@ class TestClassificationTaskMetric:
         )
         preds = torch.tensor([[0.8, 0.1], [0.1, 0.7]])
         target = torch.tensor([0, 1])
-        metric.update(preds, target)
+        metric.update_with_predictions(preds, target)
         metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
         result = metric.compute()
         assert result.metrics["val_loss"] == 0.5

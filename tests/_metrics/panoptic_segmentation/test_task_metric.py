@@ -24,7 +24,7 @@ from lightly_train._metrics.panoptic_segmentation.task_metric import (
 
 
 class TestPanopticSegmentationTaskMetric:
-    def test_update(self) -> None:
+    def test_update_with_predictions(self) -> None:
         metric = PanopticSegmentationTaskMetric(
             task_metric_args=PanopticSegmentationTaskMetricArgs(),
             split="val",
@@ -36,7 +36,7 @@ class TestPanopticSegmentationTaskMetric:
         )
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
         target = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
-        metric.update(preds, target)
+        metric.update_with_predictions(preds, target)
         result = metric.compute()
         assert result.metrics.keys() == {
             "val_loss",
@@ -45,7 +45,7 @@ class TestPanopticSegmentationTaskMetric:
             "val_metric/rq",
         }
 
-    def test_update__classwise(self) -> None:
+    def test_update_with_predictions__classwise(self) -> None:
         metric = PanopticSegmentationTaskMetric(
             task_metric_args=PanopticSegmentationTaskMetricArgs(classwise=True),
             split="val",
@@ -57,7 +57,7 @@ class TestPanopticSegmentationTaskMetric:
         )
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
         target = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
-        metric.update(preds, target)
+        metric.update_with_predictions(preds, target)
         result = metric.compute()
         assert result.metrics.keys() == {
             "val_loss",

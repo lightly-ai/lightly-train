@@ -247,7 +247,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
             # Update per-head quality metrics and loss (scalar, no accumulation).
             head_metrics = self.train_metrics.head_metrics[head_name]
-            head_metrics.update(logits, masks)  # type: ignore[operator]
+            head_metrics.update_with_predictions(logits, masks)  # type: ignore[operator]
             head_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore[operator]
 
         # Sum losses for backprop.
@@ -291,7 +291,9 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
                 image_mask = image_mask.unsqueeze(0)  # Add batch dimension.
                 loss = self.loss_fn(image_logits, image_mask)
                 head_loss += loss
-                head_metrics.update(image_logits, image_mask)  # type: ignore[operator]
+                head_metrics.update_with_predictions(
+                    image_logits, image_mask
+                )  # type: ignore[operator]
             head_loss /= len(images)
             losses.append(head_loss)
 

@@ -85,7 +85,7 @@ class ObjectDetectionTaskMetric(TaskMetric):
         self.metrics = TorchmetricsMetricCollection(metrics)  # type: ignore
         self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
 
-    def update(
+    def update_with_predictions(
         self,
         preds: Sequence[Mapping[str, Any]],
         target: Sequence[Mapping[str, Any]],

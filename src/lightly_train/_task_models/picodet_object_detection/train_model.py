@@ -294,7 +294,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                         "labels": gt_labels_i,
                     }
                 )
-            self.train_metrics.update(preds, targets)
+            self.train_metrics.update_with_predictions(preds, targets)
 
         return TaskStepResult(
             loss=total_loss,
@@ -383,7 +383,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             },
             weight=images.shape[0],
         )
-        self.val_metrics.update(preds, targets)
+        self.val_metrics.update_with_predictions(preds, targets)
 
         return TaskStepResult(
             loss=total_loss,

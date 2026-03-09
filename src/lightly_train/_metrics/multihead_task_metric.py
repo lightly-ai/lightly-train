@@ -40,8 +40,8 @@ class MultiheadTaskMetric(TaskMetric):
         val_metrics = MultiheadTaskMetric(head_metrics=head_metrics)
 
         # Update per head during validation
-        val_metrics.head_metrics["lr0_001"].update(preds, target)
-        val_metrics.head_metrics["lr0_01"].update(preds, target)
+        val_metrics.head_metrics["lr0_001"].update_with_predictions(preds, target)
+        val_metrics.head_metrics["lr0_01"].update_with_predictions(preds, target)
 
         # Compute at end of validation epoch
         result = val_metrics.compute()

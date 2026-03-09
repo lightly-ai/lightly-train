@@ -25,7 +25,7 @@ from lightly_train._metrics.detection.task_metric import (
 
 
 class TestObjectDetectionTaskMetric:
-    def test_update(self) -> None:
+    def test_update_with_predictions(self) -> None:
         metric = ObjectDetectionTaskMetric(
             task_metric_args=ObjectDetectionTaskMetricArgs(),
             split="val",
@@ -33,7 +33,7 @@ class TestObjectDetectionTaskMetric:
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
         )
-        metric.update(
+        metric.update_with_predictions(
             preds=[
                 {
                     "boxes": torch.tensor([[10.0, 20.0, 30.0, 40.0]]),
@@ -78,7 +78,7 @@ class TestObjectDetectionTaskMetric:
             "val_metric/mar_large",
         }
 
-    def test_update__classwise(self) -> None:
+    def test_update_with_predictions__classwise(self) -> None:
         metric = ObjectDetectionTaskMetric(
             task_metric_args=ObjectDetectionTaskMetricArgs(classwise=True),
             split="val",
@@ -86,7 +86,7 @@ class TestObjectDetectionTaskMetric:
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
         )
-        metric.update(
+        metric.update_with_predictions(
             preds=[
                 {
                     "boxes": torch.tensor([[10.0, 20.0, 30.0, 40.0]]),

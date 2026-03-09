@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from torch.nn import Module
 from torchmetrics import Metric as TorchmetricsMetric
