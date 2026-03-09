@@ -24,8 +24,8 @@ class LossMetricCollection(Module):
 
         try:
             # Type ignore for old torchmetrics versions
-            from torchmetrics import (
-                RunningMean as TorchmetricsRunningMean,  # type: ignore[attr-defined]
+            from torchmetrics import (  # type: ignore[attr-defined]
+                RunningMean as TorchmetricsRunningMean,
             )
 
             running_mean_cls = partial(

@@ -46,8 +46,10 @@ class ClasswiseMetricCollection(TorchmetricsMetricCollection):  # type: ignore[m
         if classwise_prefix is not None:
             wrapper_prefix = f"{classwise_prefix}_{self._SEPARATOR}"
         wrapped_metrics = {
-            name: TorchmetricsClasswiseWrapper(
-                metric, labels=list(class_names), prefix=wrapper_prefix
+            name: TorchmetricsClasswiseWrapper(  # type: ignore[call-arg]
+                metric,  # type: ignore[arg-type]
+                labels=list(class_names),
+                prefix=wrapper_prefix,
             )
             for name, metric in metrics.items()
         }

@@ -22,7 +22,7 @@ from torchmetrics import MetricCollection as TorchmetricsMetricCollection
 from torchmetrics.classification import (  # type: ignore[attr-defined]
     MulticlassAccuracy as TorchmetricsMulticlassAccuracy,
 )
-from torchmetrics.classification import (
+from torchmetrics.classification import (  # type: ignore[attr-defined]
     MulticlassPrecision as TorchmetricsMulticlassPrecision,
 )
 
