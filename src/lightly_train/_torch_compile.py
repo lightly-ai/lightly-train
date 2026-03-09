@@ -52,5 +52,5 @@ def try_compile(
         )
         return fn
     total_time = time.perf_counter() - start_time
-    logger.info(f"Compilation complete in {total_time:.1f} seconds")
+    logger.info(f"Compilation completed in {total_time:.1f} seconds")
     return fn

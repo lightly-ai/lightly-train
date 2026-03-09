@@ -1359,9 +1359,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             total_steps=config.steps,
             global_batch_size=effective_global_batch_size,
         )
-        train_model = _torch_compile.try_compile(
-            train_model,
-            "train_model",
+        train_model.forward = _torch_compile.try_compile(
+            train_model.forward,
+            "model",
             torch_compile_args=config.torch_compile_args,
         )
 

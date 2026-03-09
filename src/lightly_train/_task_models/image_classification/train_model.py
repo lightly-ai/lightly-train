@@ -162,7 +162,7 @@ class ImageClassificationTrain(TrainModel):
 
     def get_task_model(self) -> ImageClassification:
         return self.model
-    
+
     def forward(self, images: Tensor) -> Tensor:
         return self.model.forward_train(images)
 

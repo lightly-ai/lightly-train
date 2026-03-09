@@ -251,18 +251,18 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
 
+    def forward(self, images: Tensor, targets: list[dict[str, Tensor]]) -> Tensor:
+        return self.model._forward_train(x=images, targets=targets)
+
     def training_step(
         self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
     ) -> TaskStepResult:
-        samples, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
+        images, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
         targets: list[dict[str, Tensor]] = [
             {"boxes": boxes, "labels": classes}
             for boxes, classes in zip(boxes, classes)
         ]
-        outputs = self.model._forward_train(
-            x=samples,
-            targets=targets,
-        )
+        outputs = self(images, targets)
 
         # Additional kwargs are anyway ignored in RTDETRCriterionv2.
         # The loss expects gt boxes in cxcywh format normalized in [0,1].
@@ -287,7 +287,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 "loss_bbox": loss_dict["loss_bbox"].detach(),
                 "loss_giou": loss_dict["loss_giou"].detach(),
             },
-            weight=samples.shape[0],
+            weight=images.shape[0],
         )  # type: ignore[operator]
         if self.metric_args.train:
             orig_target_sizes = batch["original_size"]
@@ -298,7 +298,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 target["boxes"] = sample_denormalized_boxes
 
             orig_target_sizes_tensor = torch.tensor(
-                orig_target_sizes, device=samples.device
+                orig_target_sizes, device=images.device
             )
             results = self.model.postprocessor(
                 outputs, orig_target_sizes=orig_target_sizes_tensor
@@ -320,7 +320,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         fabric: Fabric,
         batch: ObjectDetectionBatch,
     ) -> TaskStepResult:
-        samples, boxes, classes, orig_target_sizes = (
+        images, boxes, classes, orig_target_sizes = (
             batch["image"],
             batch["bboxes"],
             batch["classes"],
@@ -332,15 +332,12 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         ]
 
         if self.ema_model is not None:
-            model_to_use = self.ema_model.model
+            forward = self.ema_model.model.forward
         else:
-            model_to_use = self.model
+            forward = self.model.forward
 
         with torch.no_grad():
-            outputs = model_to_use._forward_train(  # type: ignore[operator]
-                x=samples,
-                targets=targets,
-            )
+            outputs = forward(images, targets)
             # TODO (Lionel, 10/25): Pass epoch, step, global_step.
             # The loss expects gt boxes in cxcywh format normalized in [0,1].
             loss_dict = self.criterion(
@@ -363,9 +360,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
             target["boxes"] = sample_denormalized_boxes
 
-        orig_target_sizes_tensor = torch.tensor(
-            orig_target_sizes, device=samples.device
-        )
+        orig_target_sizes_tensor = torch.tensor(orig_target_sizes, device=images.device)
         results = self.model.postprocessor(
             outputs, orig_target_sizes=orig_target_sizes_tensor
         )
@@ -378,7 +373,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 "loss_bbox": loss_dict["loss_bbox"].detach(),
                 "loss_giou": loss_dict["loss_giou"].detach(),
             },
-            weight=samples.shape[0],
+            weight=images.shape[0],
         )  # type: ignore[operator]
         self.val_metrics.update(results, targets)  # type: ignore[operator]
 
