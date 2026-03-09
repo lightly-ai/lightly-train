@@ -15,7 +15,7 @@ from pydantic import Field
 from torch import Tensor
 from torchmetrics import MetricCollection as TorchmetricsMetricCollection
 
-from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.loss_metric_collection import LossMetricCollection
 from lightly_train._metrics.mean_average_precision import (
     MeanAveragePrecisionArgs,
 )
@@ -83,7 +83,7 @@ class ObjectDetectionTaskMetric(TaskMetric):
                 )
             )
         self.metrics = TorchmetricsMetricCollection(metrics)  # type: ignore
-        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
+        self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
 
     def update(
         self,

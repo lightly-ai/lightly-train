@@ -40,7 +40,7 @@ from lightly_train._metrics.classification.multilabel_metric import (
 from lightly_train._metrics.classwise_metric_collection import (
     ClasswiseMetricCollection,
 )
-from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.loss_metric_collection import LossMetricCollection
 from lightly_train._metrics.task_metric import (
     MetricComputeResult,
     TaskMetric,
@@ -138,7 +138,7 @@ class ClassificationTaskMetric(TaskMetric):
             class_names=class_names,
             init_metrics=init_metrics,
         )
-        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
+        self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
 
     def update(self, preds: Tensor, target: Tensor) -> None:
         """Update all quality metrics with inputs.

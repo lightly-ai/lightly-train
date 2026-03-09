@@ -17,7 +17,7 @@ from torchmetrics import MetricCollection as TorchmetricsMetricCollection
 from lightly_train._metrics.classwise_metric_collection import (
     ClasswiseMetricCollection,
 )
-from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.loss_metric_collection import LossMetricCollection
 from lightly_train._metrics.semantic_segmentation.jaccard_index import (
     JaccardIndexArgs,
 )
@@ -100,7 +100,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             prefix=f"{split}_metric_classwise/",
             classwise_prefix="iou",
         )
-        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
+        self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
 
     def update(self, preds: Tensor, target: Tensor) -> None:
         """Update all metrics

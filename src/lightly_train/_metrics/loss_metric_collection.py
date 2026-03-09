@@ -14,7 +14,7 @@ from torch import Tensor
 from torch.nn import Module, ModuleDict
 
 
-class LossMetrics(Module):
+class LossMetricCollection(Module):
     """Tracks a collection of loss metrics, one for each loss name."""
 
     def __init__(
