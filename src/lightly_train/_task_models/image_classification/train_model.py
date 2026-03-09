@@ -20,7 +20,6 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
-from lightly_train import _torch_compile
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
 from lightly_train._data.task_data_args import TaskDataArgs
@@ -166,7 +165,6 @@ class ImageClassificationTrain(TrainModel):
     def forward(self, images: Tensor) -> Tensor:
         return self.model.forward_train(images)
 
-    @_torch_compile.disable_compile
     def training_step(
         self, fabric: Fabric, batch: ImageClassificationBatch, step: int
     ) -> TaskStepResult:

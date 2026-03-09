@@ -19,9 +19,18 @@ logger = logging.getLogger(__name__)
 _T = TypeVar("_T")
 
 
-def disable_compile(fn: _T) -> _T:
+def disable_compile(fn: _T, recursive: bool = True, ) -> _T:
+    """Same as torch.compiler.disable but handles missing torch.compile gracefully.
+
+    Usage:
+        @_torch_compile.disable_compile
+        def my_function(...):
+            ...
+    """
     if hasattr(torch, "compiler") and hasattr(torch.compiler, "disable"):
-        return torch.compiler.disable(fn)  # type: ignore
+        return torch.compiler.disable(fn, recursive=recursive)  # type: ignore
+    if hasattr(torch, "_dynamo") and hasattr(torch._dynamo, "disable"):
+        return torch._dynamo.disable(fn, recursive=recursive)  # type: ignore
     return fn
 
 
