@@ -27,6 +27,7 @@ please refer to the [](pretrain-settings) page.
 | [`transform_args`](#transform_args)             | `dict`                        | `None`         | Data transform configuration (e.g. image size, normalization).                                                                                                      |
 | [`metric_args`](#metric_args)                   | `dict`                        | `None`         | Metric configuration dict. `None` uses defaults; keys configure or disable individual metrics.                                                                      |
 | [`save_checkpoint_args`](#save_checkpoint_args) | `dict`                        | `None`         | Checkpoint saving configuration (e.g. save frequency).                                                                                                              |
+| [`torch_compile_args`](#torch_compile_args)     | `dict`                        | `None`         | Torch compile configuration dict. `None` uses defaults; keys configure or disable torch.compile options.                                                            |
 
 ```{tip}
 LightlyTrain automatically selects suitable default values based on the chosen model,
@@ -836,6 +837,21 @@ lightly_train.train_object_detection(
     },
 )
 ```
+
+(train-settings-compildation)=
+
+## Compilation
+
+### `torch_compile_args`
+
+Dictionary to configure model compilation with
+[`torch.compile`](https://docs.pytorch.org/docs/stable/generated/torch.compile.html).
+All entries in the dictionary are passed directly to `torch.compile`. By default, model
+compilation is disabled for most models.
+
+| Key       | Type   | Description                                                        |
+| --------- | ------ | ------------------------------------------------------------------ |
+| `disable` | `bool` | Disable model compilation. If `True`, `torch.compile` is not used. |
 
 ```{toctree}
 ---
