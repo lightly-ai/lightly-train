@@ -287,7 +287,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 "loss_bbox": loss_dict["loss_bbox"].detach(),
                 "loss_giou": loss_dict["loss_giou"].detach(),
             },
-            weight=images.shape[0],
+            weight=samples.shape[0],
         )  # type: ignore[operator]
         if self.metric_args.train:
             orig_target_sizes = batch["original_size"]
@@ -298,7 +298,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 target["boxes"] = sample_denormalized_boxes
 
             orig_target_sizes_tensor = torch.tensor(
-                orig_target_sizes, device=images.device
+                orig_target_sizes, device=samples.device
             )
             results = self.model.postprocessor(
                 outputs, orig_target_sizes=orig_target_sizes_tensor
@@ -373,7 +373,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 "loss_bbox": loss_dict["loss_bbox"].detach(),
                 "loss_giou": loss_dict["loss_giou"].detach(),
             },
-            weight=images.shape[0],
+            weight=samples.shape[0],
         )  # type: ignore[operator]
         self.val_metrics.update(results, targets)  # type: ignore[operator]
 

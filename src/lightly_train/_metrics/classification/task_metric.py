@@ -16,7 +16,6 @@ from torch import Tensor
 from torchmetrics import Metric, MetricCollection
 from typing_extensions import Annotated
 
-from lightly_train import _torch_compile
 from lightly_train._metrics.classification.metric_args import ClassificationMetricArgs
 from lightly_train._metrics.classification.multiclass_metric import (
     MulticlassAccuracyArgs,
@@ -136,7 +135,6 @@ class ClassificationTaskMetric(TaskMetric):
         )
         self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
-    @_torch_compile.disable_compile
     def update(self, preds: Tensor, target: Tensor) -> None:
         """Update all quality metrics with inputs.
 
@@ -148,7 +146,6 @@ class ClassificationTaskMetric(TaskMetric):
         if self.metrics_classwise is not None:
             self.metrics_classwise.update(preds, target)
 
-    @_torch_compile.disable_compile
     def update_loss(
         self,
         loss_dict: Mapping[str, Tensor],

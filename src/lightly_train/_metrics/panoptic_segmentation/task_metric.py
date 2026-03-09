@@ -14,7 +14,6 @@ from pydantic import Field
 from torch import Tensor
 from torchmetrics import MetricCollection
 
-from lightly_train import _torch_compile
 from lightly_train._metrics.loss_metrics import LossMetrics
 from lightly_train._metrics.panoptic_segmentation.panoptic_quality import (
     PanopticQualityArgs,
@@ -90,7 +89,6 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         self.metrics_classwise = MetricCollection(metrics_classwise)  # type: ignore
         self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
-    @_torch_compile.disable_compile
     def update(
         self,
         preds: Tensor,
@@ -105,7 +103,6 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         self.metrics.update(preds, target)
         self.metrics_classwise.update(preds, target)
 
-    @_torch_compile.disable_compile
     def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)
 

@@ -14,7 +14,6 @@ from pydantic import Field
 from torch import Tensor
 from torchmetrics import MetricCollection
 
-from lightly_train import _torch_compile
 from lightly_train._metrics.classwise_metric_collection import (
     ClasswiseMetricCollection,
 )
@@ -103,7 +102,6 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         )
         self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
-    @_torch_compile.disable_compile
     def update(self, preds: Tensor, target: Tensor) -> None:
         """Update all metrics
 
@@ -114,7 +112,6 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         self.metrics.update(preds, target)  # type: ignore[operator]
         self.metrics_classwise.update(preds, target)  # type: ignore[operator]
 
-    @_torch_compile.disable_compile
     def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)  # type: ignore[operator]
 

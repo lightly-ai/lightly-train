@@ -191,7 +191,7 @@ class ImageClassificationTrain(TrainModel):
         self.train_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
 
-    @_torch_compile.disable_compile
+
     def validation_step(
         self, fabric: Fabric, batch: ImageClassificationBatch
     ) -> TaskStepResult:

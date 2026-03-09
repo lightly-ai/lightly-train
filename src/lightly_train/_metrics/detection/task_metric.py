@@ -15,7 +15,6 @@ from pydantic import Field
 from torch import Tensor
 from torchmetrics import MetricCollection
 
-from lightly_train import _torch_compile
 from lightly_train._metrics.loss_metrics import LossMetrics
 from lightly_train._metrics.mean_average_precision import (
     MeanAveragePrecisionArgs,
@@ -86,7 +85,6 @@ class ObjectDetectionTaskMetric(TaskMetric):
         self.metrics = MetricCollection(metrics)  # type: ignore
         self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
-    @_torch_compile.disable_compile
     def update(
         self,
         preds: Sequence[Mapping[str, Any]],
@@ -100,7 +98,6 @@ class ObjectDetectionTaskMetric(TaskMetric):
         """
         self.metrics.update(preds, target)
 
-    @_torch_compile.disable_compile
     def update_loss(
         self,
         loss_dict: Mapping[str, Tensor],
