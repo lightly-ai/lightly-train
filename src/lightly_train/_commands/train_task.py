@@ -21,7 +21,7 @@ from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
 
-from lightly_train import _float32_matmul_precision, _logging, _system
+from lightly_train import _float32_matmul_precision, _logging, _system, _torch_helpers
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._commands.train_task_helpers import BestMetric
@@ -1185,6 +1185,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     _system.log_system_information(system_information=system_information)
 
     fabric.seed_everything(seed=config.seed, workers=True)
+    _torch_helpers.set_warn_on_accumulate_grad_stream_mismatch(False)
 
     config.float32_matmul_precision = (
         _float32_matmul_precision.get_float32_matmul_precision(
