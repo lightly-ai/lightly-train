@@ -24,13 +24,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from scipy.optimize import linear_sum_assignment
 
-from lightly_train import _torch_compile
 from lightly_train._task_models.object_detection_components.box_ops import (
     box_cxcywh_to_xyxy,
     generalized_box_iou,
 )
-
-linear_sum_assignment = _torch_compile.disable_compile(linear_sum_assignment)
 
 
 class HungarianMatcher(nn.Module):
@@ -62,11 +59,6 @@ class HungarianMatcher(nn.Module):
             "all costs cant be 0"
         )
 
-    # Disable torch compile because of:
-    # W0304 14:34:10.518000 79291 .venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1016] [9/8] torch._dynamo hit config.recompile_limit (8)
-    # W0304 14:34:10.518000 79291 .venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1016] [9/8]    function: 'forward' (src/lightly_train/_task_models/object_detection_components/matcher.py:64)
-    # W0304 14:34:10.518000 79291 .venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1016] [9/8]    last reason: 9/7: tensor 'outputs['pred_boxes']' stride mismatch at index 0. expected 1200, actual 2000
-    @_torch_compile.disable_compile
     @torch.no_grad()
     def forward(self, outputs: Dict[str, torch.Tensor], targets):
         """Performs the matching

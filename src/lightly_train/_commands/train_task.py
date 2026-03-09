@@ -21,7 +21,13 @@ from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
 
-from lightly_train import _float32_matmul_precision, _logging, _system, _torch_helpers
+from lightly_train import (
+    _float32_matmul_precision,
+    _logging,
+    _system,
+    _torch_compile,
+    _torch_helpers,
+)
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._commands.train_task_helpers import BestMetric
