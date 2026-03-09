@@ -1390,7 +1390,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         # TODO(Guarin, 02/26): Add best metric to state?
-        best_metrics: BestAggregatedMetricValues | None = None
+        best_agg_metric_values: BestAggregatedMetricValues | None = None
 
         state = TrainTaskState(
             train_model=train_model,
@@ -1599,8 +1599,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             val_result.metrics.compute_aggregated_values()
                         )
                         val_result.metrics.reset()
-                        best_metrics = helpers.get_best_metrics(
-                            best_agg_metric_values=best_metrics,
+                        best_agg_metric_values = helpers.get_best_metrics(
+                            best_agg_metric_values=best_agg_metric_values,
                             last_agg_metric_values=agg_val_metric_values,
                             step=step,
                             metric_args=config.metric_args,
@@ -1633,7 +1633,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
                         if (
                             config.save_checkpoint_args.save_best
-                            and best_metrics.step == step
+                            and best_agg_metric_values.step == step
                         ):
                             helpers.save_checkpoint(
                                 fabric=fabric,
@@ -1659,7 +1659,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             timer_agg=timer_agg,
                             fabric=fabric,
                             last_val_agg_metric_values=agg_val_metric_values,
-                            best_val_agg_metric_values=best_metrics,
+                            best_val_agg_metric_values=best_agg_metric_values,
                             step=step,
                             global_batch_size=config.batch_size,
                             gradient_accumulation_steps=config.gradient_accumulation_steps,
