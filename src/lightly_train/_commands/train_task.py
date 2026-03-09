@@ -207,6 +207,11 @@ def train_image_classification(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -345,7 +350,13 @@ def train_image_classification_multihead(
         loader_args:
             Arguments for the PyTorch DataLoader.
         save_checkpoint_args:
-            Arguments to configure the saving of checkpoints.
+            Arguments to configure the saving of checkpoints. The checkpoint frequency
+            can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -513,6 +524,11 @@ def train_instance_segmentation(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -667,6 +683,11 @@ def train_object_detection(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -822,6 +843,11 @@ def train_panoptic_segmentation(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -976,6 +1002,11 @@ def train_semantic_segmentation(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -1093,7 +1124,13 @@ def train_semantic_segmentation_multihead(
         loader_args:
             Arguments for the PyTorch DataLoader.
         save_checkpoint_args:
-            Arguments to configure the saving of checkpoints.
+            Arguments to configure the saving of checkpoints. The checkpoint frequency
+            can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
