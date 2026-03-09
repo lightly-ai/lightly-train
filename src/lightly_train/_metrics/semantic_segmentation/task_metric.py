@@ -75,7 +75,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         metrics = {}
         if init_metrics and task_metric_args.miou is not None:
             metrics.update(
-                task_metric_args.miou.get_metrics(
+                task_metric_args.miou.get_torchmetrics_instances(
                     classwise=False,
                     num_classes=len(class_names),
                     ignore_index=ignore_index,
@@ -89,7 +89,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             and task_metric_args.classwise
             and task_metric_args.miou is not None
         ):
-            metrics_classwise = task_metric_args.miou.get_metrics(
+            metrics_classwise = task_metric_args.miou.get_torchmetrics_instances(
                 classwise=True,
                 num_classes=len(class_names),
                 ignore_index=ignore_index,

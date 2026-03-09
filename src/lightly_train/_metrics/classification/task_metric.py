@@ -126,13 +126,13 @@ class ClassificationTaskMetric(TaskMetric):
         if init_metrics is None:
             init_metrics = task_metric_args.train if split == "train" else True
 
-        self.metrics = self.build_metric_collection(
+        self.metrics = self.build_torchmetrics_metric_collection(
             prefix=f"{self.split}_metric/",
             classwise=False,
             num_classes=len(class_names),
             init_metrics=init_metrics,
         )
-        self.metrics_classwise = self.build_classwise_metric_collection(
+        self.metrics_classwise = self.build_classwise_torchmetrics_metric_collection(
             classwise=task_metric_args.classwise,
             prefix=f"{self.split}_metric_classwise/",
             class_names=class_names,
@@ -189,7 +189,7 @@ class ClassificationTaskMetric(TaskMetric):
             best_head_metric_values=None,
         )
 
-    def build_metric_collection(
+    def build_torchmetrics_metric_collection(
         self,
         *,
         prefix: str,
@@ -216,14 +216,14 @@ class ClassificationTaskMetric(TaskMetric):
                 if classwise and not metric_args.supports_classwise():
                     continue
                 all_metrics.update(
-                    metric_args.get_metrics(
+                    metric_args.get_torchmetrics_instances(
                         classwise=classwise, num_classes=num_classes
                     )
                 )
 
         return TorchmetricsMetricCollection(all_metrics, prefix=prefix)  # type: ignore[arg-type]
 
-    def build_classwise_metric_collection(
+    def build_classwise_torchmetrics_metric_collection(
         self,
         *,
         classwise: bool,
@@ -234,7 +234,7 @@ class ClassificationTaskMetric(TaskMetric):
         """Build a classwise MetricCollection if classwise is True."""
         if not classwise:
             return None
-        metrics = self.build_metric_collection(
+        metrics = self.build_torchmetrics_metric_collection(
             prefix="",
             classwise=True,
             num_classes=len(class_names),

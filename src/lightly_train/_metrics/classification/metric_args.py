@@ -13,7 +13,7 @@ from lightly_train._metrics.metric_args import MetricArgs
 
 
 class ClassificationMetricArgs(MetricArgs):
-    def get_metrics(
+    def get_torchmetrics_instances(
         self, *, classwise: bool, num_classes: int
     ) -> dict[str, TorchmetricsMetric]:
         raise NotImplementedError("Must be implemented by subclasses.")

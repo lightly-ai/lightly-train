@@ -62,7 +62,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
 
         metrics = {}
         if init_metrics and task_metric_args.pq is not None:
-            metrics = task_metric_args.pq.get_metrics(
+            metrics = task_metric_args.pq.get_torchmetrics_instances(
                 prefix=f"{split}_metric",
                 classwise=False,
                 thing_class_names=thing_class_names,
@@ -78,7 +78,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
             and task_metric_args.classwise
             and task_metric_args.pq is not None
         ):
-            metrics_classwise = task_metric_args.pq.get_metrics(
+            metrics_classwise = task_metric_args.pq.get_torchmetrics_instances(
                 prefix=f"{split}_metric",
                 classwise=True,
                 thing_class_names=thing_class_names,

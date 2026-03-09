@@ -34,8 +34,8 @@ class MultiheadTaskMetric(TaskMetric):
     Usage:
         # Create per-head metrics
         head_metrics = {
-            "lr0_001": seg_task_metric_args.get_metrics(split="val", ...),
-            "lr0_01":  seg_task_metric_args.get_metrics(split="val", ...),
+            "lr0_001": seg_task_metric_args.get_torchmetrics_instances(split="val", ...),
+            "lr0_01":  seg_task_metric_args.get_torchmetrics_instances(split="val", ...),
         }
         val_metrics = MultiheadTaskMetric(head_metrics=head_metrics)
 

@@ -16,7 +16,7 @@ from lightly_train._metrics.metric_args import MetricArgs
 class JaccardIndexArgs(MetricArgs):
     """Jaccard Index (IoU/mIoU) metric for semantic segmentation."""
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,

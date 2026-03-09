@@ -73,7 +73,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         metrics = {}
         if init_metrics and task_metric_args.map is not None:
             metrics.update(
-                task_metric_args.map.get_metrics(
+                task_metric_args.map.get_torchmetrics_instances(
                     classwise=task_metric_args.classwise,
                     prefix=f"{split}_metric",
                     class_names=class_names,

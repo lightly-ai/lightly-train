@@ -25,7 +25,7 @@ class MultilabelAccuracyArgs(ClassificationMetricArgs):
         strict=False,
     )
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
@@ -69,7 +69,7 @@ class MultilabelF1Args(ClassificationMetricArgs):
         strict=False,
     )
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
@@ -113,7 +113,7 @@ class MultilabelPrecisionArgs(ClassificationMetricArgs):
         strict=False,
     )
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
@@ -157,7 +157,7 @@ class MultilabelRecallArgs(ClassificationMetricArgs):
         strict=False,
     )
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
@@ -200,7 +200,7 @@ class MultilabelAUROCArgs(ClassificationMetricArgs):
         strict=False,
     )
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
@@ -239,7 +239,7 @@ class MultilabelAveragePrecisionArgs(ClassificationMetricArgs):
         strict=False,
     )
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
@@ -277,7 +277,7 @@ class MultilabelHammingDistanceArgs(ClassificationMetricArgs):
 
     threshold: float = 0.5
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,

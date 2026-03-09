@@ -29,7 +29,7 @@ from lightly_train._metrics.metric_args import MetricArgs
 class PanopticQualityArgs(MetricArgs):
     """Panoptic Quality metric for panoptic segmentation."""
 
-    def get_metrics(  # type: ignore[override]
+    def get_torchmetrics_instances(  # type: ignore[override]
         self,
         *,
         prefix: str,

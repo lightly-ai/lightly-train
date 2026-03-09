@@ -27,7 +27,7 @@ class MeanAveragePrecisionArgs(MetricArgs):
     average: Literal["macro", "micro"] = "macro"
     backend: Literal["pycocotools", "faster_coco_eval"] = "pycocotools"
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,

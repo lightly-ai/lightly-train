@@ -25,7 +25,7 @@ class MulticlassAccuracyArgs(ClassificationMetricArgs):
         strict=False,
     )
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
@@ -76,7 +76,7 @@ class MulticlassF1Args(ClassificationMetricArgs):
         strict=False,
     )
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
@@ -115,7 +115,7 @@ class MulticlassPrecisionArgs(ClassificationMetricArgs):
         strict=False,
     )
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
@@ -154,7 +154,7 @@ class MulticlassRecallArgs(ClassificationMetricArgs):
         strict=False,
     )
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
