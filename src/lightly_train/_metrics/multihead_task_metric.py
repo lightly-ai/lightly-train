@@ -19,7 +19,8 @@ from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetri
 class MultiheadTaskMetric(TaskMetric):
     """Wrapper that manages metrics for multiple heads and selects the best head.
 
-    This wrapper holds one TaskMetric instance per head. On compute(), it:
+    This wrapper holds one TaskMetric instance per head. On compute_aggregated_values(),
+    it:
     1. Computes metrics for all heads
     2. Renames per-head keys: "val_metric/miou" -> "val_metric_head/miou_{head_name}"
     3. Selects the best head based on each head's watch_metric_value
@@ -34,8 +35,8 @@ class MultiheadTaskMetric(TaskMetric):
     Usage:
         # Create per-head metrics
         head_metrics = {
-            "lr0_001": seg_task_metric_args.get_torchmetrics_instances(split="val", ...),
-            "lr0_01":  seg_task_metric_args.get_torchmetrics_instances(split="val", ...),
+            "lr0_001": SemanticSegmentationTaskMetric(...),
+            "lr0_01":  SemanticSegmentationTaskMetric(...),
         }
         val_metrics = MultiheadTaskMetric(head_metrics=head_metrics)
 

@@ -112,7 +112,6 @@ class TestObjectDetectionTaskMetric:
         )
         result = metric.compute_aggregated_values()
         assert result.metric_values["val_loss"] == 0.5
-        print(result.metric_values.keys())
         assert result.metric_values.keys() == {
             "val_loss",
             "val_loss/loss_vfl",
