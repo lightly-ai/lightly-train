@@ -7,11 +7,13 @@
 #
 from __future__ import annotations
 
-from torchmetrics import Metric
+from torchmetrics import Metric as TorchmetricsMetric
 
 from lightly_train._metrics.metric_args import MetricArgs
 
 
 class ClassificationMetricArgs(MetricArgs):
-    def get_metrics(self, *, classwise: bool, num_classes: int) -> dict[str, Metric]:
+    def get_metrics(
+        self, *, classwise: bool, num_classes: int
+    ) -> dict[str, TorchmetricsMetric]:
         raise NotImplementedError("Must be implemented by subclasses.")

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from torch.nn import Module
-from torchmetrics import Metric
+from torchmetrics import Metric as TorchmetricsMetric
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._metrics.metric_args import MetricArgs
@@ -100,7 +100,7 @@ class TaskMetric(Module):
     def reset(self) -> None:
         """Resets all metrics."""
         for module in self.modules():
-            if isinstance(module, Metric):
+            if isinstance(module, TorchmetricsMetric):
                 module.reset()
 
 

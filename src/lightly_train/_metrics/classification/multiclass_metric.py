@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import Field
-from torchmetrics import Metric
+from torchmetrics import Metric as TorchmetricsMetric
 
 from lightly_train._metrics.classification.metric_args import ClassificationMetricArgs
 
@@ -30,13 +30,13 @@ class MulticlassAccuracyArgs(ClassificationMetricArgs):
         *,
         classwise: bool,
         num_classes: int,
-    ) -> dict[str, Metric]:
+    ) -> dict[str, TorchmetricsMetric]:
         # Type ignore for old torchmetrics versions
         from torchmetrics.classification import (  # type: ignore[attr-defined]
-            MulticlassAccuracy,
+            MulticlassAccuracy as TorchmetricsMulticlassAccuracy,
         )
 
-        metrics: dict[str, Metric] = {}
+        metrics: dict[str, TorchmetricsMetric] = {}
 
         for k in self.topk:
             if k > num_classes:
@@ -45,14 +45,14 @@ class MulticlassAccuracyArgs(ClassificationMetricArgs):
             if classwise and k > 1:
                 continue
             if classwise:
-                metrics[f"top{k}_acc"] = MulticlassAccuracy(
+                metrics[f"top{k}_acc"] = TorchmetricsMulticlassAccuracy(
                     num_classes=num_classes,
                     top_k=k,
                     average="none",
                 )
             else:
                 for avg in self.average:
-                    metrics[f"top{k}_acc_{avg}"] = MulticlassAccuracy(
+                    metrics[f"top{k}_acc_{avg}"] = TorchmetricsMulticlassAccuracy(
                         num_classes=num_classes,
                         top_k=k,
                         average=avg,
@@ -81,16 +81,22 @@ class MulticlassF1Args(ClassificationMetricArgs):
         *,
         classwise: bool,
         num_classes: int,
-    ) -> dict[str, Metric]:
+    ) -> dict[str, TorchmetricsMetric]:
         # Type ignore for old torchmetrics versions
         from torchmetrics.classification import (  # type: ignore[attr-defined]
-            MulticlassF1Score,
+            MulticlassF1Score as TorchmetricsMulticlassF1Score,
         )
 
         if classwise:
-            return {"f1": MulticlassF1Score(num_classes=num_classes, average="none")}
+            return {
+                "f1": TorchmetricsMulticlassF1Score(
+                    num_classes=num_classes, average="none"
+                )
+            }
         return {
-            f"f1_{avg}": MulticlassF1Score(num_classes=num_classes, average=avg)
+            f"f1_{avg}": TorchmetricsMulticlassF1Score(
+                num_classes=num_classes, average=avg
+            )
             for avg in self.average
         }
 
@@ -114,20 +120,20 @@ class MulticlassPrecisionArgs(ClassificationMetricArgs):
         *,
         classwise: bool,
         num_classes: int,
-    ) -> dict[str, Metric]:
+    ) -> dict[str, TorchmetricsMetric]:
         # Type ignore for old torchmetrics versions
         from torchmetrics.classification import (  # type: ignore[attr-defined]
-            MulticlassPrecision,
+            MulticlassPrecision as TorchmetricsMulticlassPrecision,
         )
 
         if classwise:
             return {
-                "precision": MulticlassPrecision(
+                "precision": TorchmetricsMulticlassPrecision(
                     num_classes=num_classes, average="none"
                 )
             }
         return {
-            f"precision_{avg}": MulticlassPrecision(
+            f"precision_{avg}": TorchmetricsMulticlassPrecision(
                 num_classes=num_classes, average=avg
             )
             for avg in self.average
@@ -153,16 +159,22 @@ class MulticlassRecallArgs(ClassificationMetricArgs):
         *,
         classwise: bool,
         num_classes: int,
-    ) -> dict[str, Metric]:
+    ) -> dict[str, TorchmetricsMetric]:
         # Type ignore for old torchmetrics versions
         from torchmetrics.classification import (  # type: ignore[attr-defined]
-            MulticlassRecall,
+            MulticlassRecall as TorchmetricsMulticlassRecall,
         )
 
         if classwise:
-            return {"recall": MulticlassRecall(num_classes=num_classes, average="none")}
+            return {
+                "recall": TorchmetricsMulticlassRecall(
+                    num_classes=num_classes, average="none"
+                )
+            }
         return {
-            f"recall_{avg}": MulticlassRecall(num_classes=num_classes, average=avg)
+            f"recall_{avg}": TorchmetricsMulticlassRecall(
+                num_classes=num_classes, average=avg
+            )
             for avg in self.average
         }
 

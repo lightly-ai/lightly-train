@@ -13,7 +13,12 @@ from typing import Literal, Union
 
 from pydantic import Field
 from torch import Tensor
-from torchmetrics import Metric, MetricCollection
+from torchmetrics import (
+    Metric as TorchmetricsMetric,
+)
+from torchmetrics import (
+    MetricCollection as TorchmetricsMetricCollection,
+)
 from typing_extensions import Annotated
 
 from lightly_train._metrics.classification.metric_args import ClassificationMetricArgs
@@ -191,7 +196,7 @@ class ClassificationTaskMetric(TaskMetric):
         classwise: bool,
         num_classes: int,
         init_metrics: bool,
-    ) -> MetricCollection:
+    ) -> TorchmetricsMetricCollection:
         """Build a flat dictionary of metric instances from TaskMetricArgs and then
         wrap them in a MetricCollection instance.
 
@@ -202,7 +207,7 @@ class ClassificationTaskMetric(TaskMetric):
         """
         task_metric_args = self.task_metric_args
 
-        all_metrics: dict[str, Metric] = {}
+        all_metrics: dict[str, TorchmetricsMetric] = {}
         if init_metrics:
             for field_name in task_metric_args.__class__.model_fields:
                 metric_args = getattr(task_metric_args, field_name)
@@ -216,7 +221,7 @@ class ClassificationTaskMetric(TaskMetric):
                     )
                 )
 
-        return MetricCollection(all_metrics, prefix=prefix)  # type: ignore[arg-type]
+        return TorchmetricsMetricCollection(all_metrics, prefix=prefix)  # type: ignore[arg-type]
 
     def build_classwise_metric_collection(
         self,
@@ -225,7 +230,7 @@ class ClassificationTaskMetric(TaskMetric):
         prefix: str,
         class_names: Sequence[str],
         init_metrics: bool,
-    ) -> MetricCollection | None:
+    ) -> TorchmetricsMetricCollection | None:
         """Build a classwise MetricCollection if classwise is True."""
         if not classwise:
             return None

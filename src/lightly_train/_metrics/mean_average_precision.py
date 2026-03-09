@@ -12,9 +12,9 @@ from collections.abc import Sequence
 from typing import Any, Literal
 
 from torch import Tensor
-from torchmetrics import Metric
+from torchmetrics import Metric as TorchmetricsMetric
 from torchmetrics.detection.mean_ap import (
-    MeanAveragePrecision as TorchMetricsMeanAveragePrecision,
+    MeanAveragePrecision as TorchmetricsMeanAveragePrecision,
 )
 
 from lightly_train._metrics.metric_args import MetricArgs
@@ -35,7 +35,7 @@ class MeanAveragePrecisionArgs(MetricArgs):
         class_names: Sequence[str],
         box_format: Literal["xyxy", "xywh", "cxcywh"],
         iou_type: Literal["bbox", "segm"] | tuple[Literal["bbox", "segm"], ...],
-    ) -> dict[str, Metric]:
+    ) -> dict[str, TorchmetricsMetric]:
         """Create MeanAveragePrecision metric instance.
 
         Args:
@@ -45,7 +45,7 @@ class MeanAveragePrecisionArgs(MetricArgs):
         Returns:
             Dictionary with single "map" key containing the metric instance
         """
-        metrics: dict[str, Metric] = {}
+        metrics: dict[str, TorchmetricsMetric] = {}
 
         map_metric = MeanAveragePrecision(
             prefix=prefix,
@@ -91,7 +91,7 @@ class MeanAveragePrecisionArgs(MetricArgs):
         return names
 
 
-class MeanAveragePrecision(TorchMetricsMeanAveragePrecision):
+class MeanAveragePrecision(TorchmetricsMeanAveragePrecision):
     """Wrapper around torchmetrics MeanAveragePrecision to flatten results from
     .compute() calls into a single-level dictionary.
 

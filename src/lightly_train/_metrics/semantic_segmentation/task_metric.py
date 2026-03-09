@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 
 from pydantic import Field
 from torch import Tensor
-from torchmetrics import MetricCollection
+from torchmetrics import MetricCollection as TorchmetricsMetricCollection
 
 from lightly_train._metrics.classwise_metric_collection import (
     ClasswiseMetricCollection,
@@ -81,7 +81,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
                     ignore_index=ignore_index,
                 )
             )
-        self.metrics = MetricCollection(metrics, prefix=f"{split}_metric/")  # type: ignore
+        self.metrics = TorchmetricsMetricCollection(metrics, prefix=f"{split}_metric/")  # type: ignore
 
         metrics_classwise = {}
         if (

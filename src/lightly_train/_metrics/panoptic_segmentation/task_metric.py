@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 
 from pydantic import Field
 from torch import Tensor
-from torchmetrics import MetricCollection
+from torchmetrics import MetricCollection as TorchmetricsMetricCollection
 
 from lightly_train._metrics.loss_metrics import LossMetrics
 from lightly_train._metrics.panoptic_segmentation.panoptic_quality import (
@@ -70,7 +70,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
                 things=things,
                 stuffs=stuffs,
             )
-        self.metrics = MetricCollection(metrics)  # type: ignore
+        self.metrics = TorchmetricsMetricCollection(metrics)  # type: ignore
 
         metrics_classwise = {}
         if (
@@ -86,7 +86,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
                 things=things,
                 stuffs=stuffs,
             )
-        self.metrics_classwise = MetricCollection(metrics_classwise)  # type: ignore
+        self.metrics_classwise = TorchmetricsMetricCollection(metrics_classwise)  # type: ignore
         self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
     def update(

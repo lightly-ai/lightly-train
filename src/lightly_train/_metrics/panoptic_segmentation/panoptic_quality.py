@@ -11,16 +11,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from torch import Tensor
-from torchmetrics import Metric
+from torchmetrics import Metric as TorchmetricsMetric
 
 try:
     from torchmetrics.detection import (  # type: ignore[attr-defined]
-        PanopticQuality as TorchMetricsPanopticQuality,
+        PanopticQuality as TorchmetricsPanopticQuality,
     )
 
     _PANOPTIC_QUALITY_AVAILABLE = True
 except ImportError:
-    TorchMetricsPanopticQuality = object  # type: ignore[assignment, misc]
+    TorchmetricsPanopticQuality = object  # type: ignore[assignment, misc]
     _PANOPTIC_QUALITY_AVAILABLE = False
 
 from lightly_train._metrics.metric_args import MetricArgs
@@ -38,7 +38,7 @@ class PanopticQualityArgs(MetricArgs):
         stuff_class_names: Sequence[str],
         things: Sequence[int],
         stuffs: Sequence[int],
-    ) -> dict[str, Metric]:
+    ) -> dict[str, TorchmetricsMetric]:
         """Create PanopticQuality metric instance for panoptic segmentation.
 
         Args:
@@ -49,7 +49,7 @@ class PanopticQualityArgs(MetricArgs):
         Returns:
             Dictionary with single "pq" key containing the metric instance
         """
-        metrics: dict[str, Metric] = {}
+        metrics: dict[str, TorchmetricsMetric] = {}
 
         metrics["pq"] = PanopticQuality(
             prefix=prefix,
@@ -70,7 +70,7 @@ class PanopticQualityArgs(MetricArgs):
         return ["pq", "sq", "rq"]
 
 
-class PanopticQuality(TorchMetricsPanopticQuality):  # type: ignore[misc]
+class PanopticQuality(TorchmetricsPanopticQuality):  # type: ignore[misc]
     """Wrapper around torchmetrics PanopticQuality to flatten results in a single-level
     dictionary."""
 

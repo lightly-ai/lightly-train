@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic import Field
 from torch import Tensor
-from torchmetrics import MetricCollection
+from torchmetrics import MetricCollection as TorchmetricsMetricCollection
 
 from lightly_train._metrics.loss_metrics import LossMetrics
 from lightly_train._metrics.mean_average_precision import (
@@ -81,7 +81,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
                     box_format="xyxy",
                 )
             )
-        self.metrics = MetricCollection(metrics)  # type: ignore
+        self.metrics = TorchmetricsMetricCollection(metrics)  # type: ignore
         self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
 
     def update(

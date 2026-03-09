@@ -18,10 +18,12 @@ if RequirementCache("torchmetrics<1.5"):
     pytest.skip("Old torchmetrics version", allow_module_level=True)
 
 
-from torchmetrics import MetricCollection
+from torchmetrics import MetricCollection as TorchmetricsMetricCollection
 from torchmetrics.classification import (  # type: ignore[attr-defined]
-    MulticlassAccuracy,
-    MulticlassPrecision,
+    MulticlassAccuracy as TorchmetricsMulticlassAccuracy,
+)
+from torchmetrics.classification import (
+    MulticlassPrecision as TorchmetricsMulticlassPrecision,
 )
 
 from lightly_train._metrics.classwise_metric_collection import (
@@ -31,10 +33,14 @@ from lightly_train._metrics.classwise_metric_collection import (
 
 class TestClasswiseMetricCollection:
     def test_classwise_metric_collection(self) -> None:
-        metrics = MetricCollection(
+        metrics = TorchmetricsMetricCollection(
             {
-                "accuracy": MulticlassAccuracy(num_classes=2, average="none"),
-                "precision": MulticlassPrecision(num_classes=2, average="none"),
+                "accuracy": TorchmetricsMulticlassAccuracy(
+                    num_classes=2, average="none"
+                ),
+                "precision": TorchmetricsMulticlassPrecision(
+                    num_classes=2, average="none"
+                ),
             },
             prefix="prefix1/",
         )
