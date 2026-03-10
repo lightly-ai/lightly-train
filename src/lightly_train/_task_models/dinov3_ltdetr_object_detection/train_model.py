@@ -280,7 +280,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         loss_dict = reduce_dict(loss_dict)
 
         # Metrics
-        self.train_metrics.update_loss(
+        self.train_metrics.update_with_losses(
             loss_dict={
                 "loss": total_loss.detach(),
                 "loss_vfl": loss_dict["loss_vfl"].detach(),
@@ -288,7 +288,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 "loss_giou": loss_dict["loss_giou"].detach(),
             },
             weight=samples.shape[0],
-        )  # type: ignore[operator]
+        )
         if self.metric_args.train:
             orig_target_sizes = batch["original_size"]
             # Convert to xyxy format and de-normalize the boxes.
@@ -303,7 +303,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             results = self.model.postprocessor(
                 outputs, orig_target_sizes=orig_target_sizes_tensor
             )
-            self.train_metrics.update(results, targets)  # type: ignore[operator]
+            self.train_metrics.update_with_predictions(results, targets)
 
         return TaskStepResult(
             loss=total_loss,
@@ -371,7 +371,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         )
 
         # Metrics
-        self.val_metrics.update_loss(
+        self.val_metrics.update_with_losses(
             loss_dict={
                 "loss": total_loss.detach(),
                 "loss_vfl": loss_dict["loss_vfl"].detach(),
@@ -379,8 +379,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 "loss_giou": loss_dict["loss_giou"].detach(),
             },
             weight=samples.shape[0],
-        )  # type: ignore[operator]
-        self.val_metrics.update(results, targets)  # type: ignore[operator]
+        )
+        self.val_metrics.update_with_predictions(results, targets)
 
         return TaskStepResult(
             loss=total_loss,

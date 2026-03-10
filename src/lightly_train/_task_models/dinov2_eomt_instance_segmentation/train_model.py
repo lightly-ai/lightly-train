@@ -261,7 +261,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
         # Metrics
-        self.train_metrics.update_loss({"loss": loss.detach()}, weight=B)
+        self.train_metrics.update_with_losses({"loss": loss.detach()}, weight=B)
         if self.metric_args.train:
             with torch.no_grad():
                 mask_logits = mask_logits_per_layer[-1]
@@ -271,7 +271,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
                 labels, masks, scores = self.model.get_labels_masks_scores(
                     mask_logits=mask_logits, class_logits=class_logits
                 )
-            self.train_metrics.update(
+            self.train_metrics.update_with_predictions(
                 preds=[
                     {
                         "labels": labels[i],
@@ -359,7 +359,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
         # Metrics
-        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
+        self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
         # Final layer only
         resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
         class_logits_last_layer = class_logits_per_layer[-1]
@@ -392,7 +392,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
                 }
             )
 
-        self.val_metrics.update(preds=predictions, target=binary_masks)
+        self.val_metrics.update_with_predictions(preds=predictions, target=binary_masks)
 
         return TaskStepResult(
             loss=loss,

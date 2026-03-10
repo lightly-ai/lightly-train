@@ -12,14 +12,14 @@ from collections.abc import Mapping, Sequence
 
 from pydantic import Field
 from torch import Tensor
-from torchmetrics import MetricCollection
+from torchmetrics import MetricCollection as TorchmetricsMetricCollection
 
-from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.loss_metric_collection import LossMetricCollection
 from lightly_train._metrics.panoptic_segmentation.panoptic_quality import (
     PanopticQualityArgs,
 )
 from lightly_train._metrics.task_metric import (
-    MetricComputeResult,
+    AggregatedMetricValues,
     TaskMetric,
     TaskMetricArgs,
     get_watch_metric_mode,
@@ -62,7 +62,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
 
         metrics = {}
         if init_metrics and task_metric_args.pq is not None:
-            metrics = task_metric_args.pq.get_metrics(
+            metrics = task_metric_args.pq.get_torchmetrics_instances(
                 prefix=f"{split}_metric",
                 classwise=False,
                 thing_class_names=thing_class_names,
@@ -70,7 +70,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
                 things=things,
                 stuffs=stuffs,
             )
-        self.metrics = MetricCollection(metrics)  # type: ignore
+        self.metrics = TorchmetricsMetricCollection(metrics)  # type: ignore
 
         metrics_classwise = {}
         if (
@@ -78,7 +78,7 @@ class PanopticSegmentationTaskMetric(TaskMetric):
             and task_metric_args.classwise
             and task_metric_args.pq is not None
         ):
-            metrics_classwise = task_metric_args.pq.get_metrics(
+            metrics_classwise = task_metric_args.pq.get_torchmetrics_instances(
                 prefix=f"{split}_metric",
                 classwise=True,
                 thing_class_names=thing_class_names,
@@ -86,10 +86,10 @@ class PanopticSegmentationTaskMetric(TaskMetric):
                 things=things,
                 stuffs=stuffs,
             )
-        self.metrics_classwise = MetricCollection(metrics_classwise)  # type: ignore
-        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
+        self.metrics_classwise = TorchmetricsMetricCollection(metrics_classwise)  # type: ignore
+        self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
 
-    def update(
+    def update_with_predictions(
         self,
         preds: Tensor,
         target: Tensor,
@@ -103,22 +103,22 @@ class PanopticSegmentationTaskMetric(TaskMetric):
         self.metrics.update(preds, target)
         self.metrics_classwise.update(preds, target)
 
-    def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
+    def update_with_losses(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)
 
-    def compute(self) -> MetricComputeResult:
+    def compute_aggregated_values(self) -> AggregatedMetricValues:
         result = self.loss_metrics.compute()
         result.update(self.metrics.compute())
         result.update(self.metrics_classwise.compute())
         result = {name: float(value) for name, value in result.items()}
         best_value = result.get(self.watch_metric)
-        return MetricComputeResult(
-            metrics=result,
+        return AggregatedMetricValues(
+            metric_values=result,
             watch_metric=self.watch_metric if best_value is not None else None,
             watch_metric_value=float(best_value) if best_value is not None else None,
             watch_metric_mode=(
                 self.watch_metric_mode if best_value is not None else None
             ),
             best_head_name=None,
-            best_head_metrics=None,
+            best_head_metric_values=None,
         )
