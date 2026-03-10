@@ -8,14 +8,14 @@
 from __future__ import annotations
 
 import math
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
 from pydantic import Field, model_validator
 from torch import Tensor
-from torch.nn import CrossEntropyLoss, ModuleDict
+from torch.nn import CrossEntropyLoss
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
@@ -24,9 +24,12 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
-from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._metrics.multihead_task_metric import MultiheadTaskMetric
+from lightly_train._metrics.semantic_segmentation.task_metric import (
+    SemanticSegmentationTaskMetric,
+    SemanticSegmentationTaskMetricArgs,
+)
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.semantic_segmentation_multihead.task_model import (
     SemanticSegmentationMultihead,
 )
@@ -44,18 +47,9 @@ from lightly_train._task_models.train_model import (
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
-class SemanticSegmentationMultiheadSaveCheckpointArgs(TaskSaveCheckpointArgs):
-    watch_metric: str = "val_metric/miou"
-    mode: Literal["min", "max"] = "max"
-
-
 class SemanticSegmentationMultiheadTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     default_steps: ClassVar[int] = 80_000
-
-    save_checkpoint_args_cls: ClassVar[type[TaskSaveCheckpointArgs]] = (
-        SemanticSegmentationMultiheadSaveCheckpointArgs
-    )
 
     # Backbone args
     backbone_weights: PathLike | None = None
@@ -78,11 +72,6 @@ class SemanticSegmentationMultiheadTrainArgs(TrainModelArgs):
     weight_decay: float = 0.0
     lr_warmup_steps: int = 0
 
-    # Metrics
-    metrics: dict[str, dict[str, Any]] | Literal["auto"] = "auto"
-    metrics_classwise: dict[str, dict[str, Any]] | None = None
-    metric_log_classwise: bool = True
-
     @model_validator(mode="after")
     def _convert_lr_to_list(self) -> SemanticSegmentationMultiheadTrainArgs:
         """Convert float lr to single-element list."""
@@ -90,22 +79,11 @@ class SemanticSegmentationMultiheadTrainArgs(TrainModelArgs):
             self.lr = [self.lr]
         return self
 
-    def resolve_auto(
-        self,
-        total_steps: int,
-        model_name: str,
-        model_init_args: dict[str, Any],
-        data_args: TaskDataArgs,
-    ) -> None:
-        if self.metrics == "auto":
-            self.metrics = {
-                "miou": {},
-            }
-
 
 class SemanticSegmentationMultiheadTrain(TrainModel):
     task = "semantic_segmentation_multihead"
     train_model_args_cls = SemanticSegmentationMultiheadTrainArgs
+    task_metric_args_cls = SemanticSegmentationTaskMetricArgs
     task_model_cls = SemanticSegmentationMultihead
     train_transform_cls = SemanticSegmentationMultiheadTrainTransform
     val_transform_cls = SemanticSegmentationMultiheadValTransform
@@ -119,15 +97,15 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         train_transform_args: SemanticSegmentationMultiheadTrainTransformArgs,
         val_transform_args: SemanticSegmentationMultiheadValTransformArgs,
         load_weights: bool,
+        metric_args: SemanticSegmentationTaskMetricArgs,
     ) -> None:
         super().__init__()
-        # Lazy import because torchmetrics is an optional dependency.
-        from torchmetrics import ClasswiseWrapper, MeanMetric, MetricCollection
 
         image_size = no_auto(val_transform_args.image_size)
         normalize = no_auto(val_transform_args.normalize)
 
         self.model_args = model_args
+        self.metric_args = metric_args
 
         # Convert lr to list and store for optimizer creation.
         self.lrs = model_args.lr if isinstance(model_args.lr, list) else [model_args.lr]
@@ -151,111 +129,36 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
         self.loss_fn = CrossEntropyLoss(ignore_index=data_args.ignore_index)
 
-        # Create per-head training and validation loss metrics.
-        val_loss_metrics: dict[str, MeanMetric] = {}
+        # Create per-head metrics using MultiheadTaskMetric.
+        # Loss tracking is embedded inside each head's TaskMetric via update_loss().
+        # Always pass ignore_index: the dataset maps padded/unknown pixels to
+        # data_args.ignore_index (-100) regardless of whether ignore_classes is set.
+        ignore_index = data_args.ignore_index
+        class_names = list(data_args.included_classes.values())
+        train_head_metrics: dict[str, SemanticSegmentationTaskMetric] = {}
+        val_head_metrics: dict[str, SemanticSegmentationTaskMetric] = {}
         for lr in self.lrs:
             head_name = _format_head_name(lr)
-            val_loss_metrics[head_name] = MeanMetric()
-        self.val_loss_metrics = ModuleDict(val_loss_metrics)
-
-        # Create metrics from configuration.
-        base_metrics = {}
-        for metric_name, metric_config in no_auto(model_args.metrics).items():
-            base_metrics.update(
-                _create_metric(
-                    metric_name=metric_name,
-                    metric_config=metric_config,
-                    num_classes=data_args.num_included_classes,
-                    ignore_index=data_args.ignore_index,
-                )
+            train_head_metrics[head_name] = SemanticSegmentationTaskMetric(
+                task_metric_args=metric_args,
+                split="train",
+                class_names=class_names,
+                ignore_index=ignore_index,
+                loss_names=["loss"],
             )
-
-        # Create per-head metric collections for training and validation.
-        train_metrics: dict[str, MetricCollection] = {}
-        val_metrics: dict[str, MetricCollection] = {}
-        for lr in self.lrs:
-            head_name = _format_head_name(lr)
-            # Clone metrics for this head.
-            head_train_metrics = {}
-            head_val_metrics = {}
-            for key, metric in base_metrics.items():
-                head_train_metrics[key] = metric.clone()
-                head_val_metrics[key] = metric.clone()
-
-            # Type ignore because old torchmetrics versions (0.8) don't have the
-            # correct type annotations for MetricCollection.
-            train_metrics[head_name] = MetricCollection(
-                head_train_metrics,  # type: ignore[arg-type]
-                prefix="train_metric_head/",
-                postfix=f"_{head_name}",
+            val_head_metrics[head_name] = SemanticSegmentationTaskMetric(
+                task_metric_args=metric_args,
+                split="val",
+                class_names=class_names,
+                ignore_index=ignore_index,
+                loss_names=["loss"],
             )
-            val_metrics[head_name] = MetricCollection(
-                head_val_metrics,  # type: ignore[arg-type]
-                prefix="val_metric_head/",
-                postfix=f"_{head_name}",
-            )
-        self.train_metrics = ModuleDict(train_metrics)
-        self.val_metrics = ModuleDict(val_metrics)
-
-        # Create classwise metrics if enabled.
-        train_metrics_classwise: dict[str, MetricCollection] = {}
-        val_metrics_classwise: dict[str, MetricCollection] = {}
-        self.train_metrics_classwise: ModuleDict | None
-        self.val_metrics_classwise: ModuleDict | None
-        if model_args.metric_log_classwise:
-            # If metrics_classwise is None, use metrics from main metrics config.
-            if model_args.metrics_classwise is None:
-                metrics_classwise_config = no_auto(model_args.metrics)
-            else:
-                metrics_classwise_config = model_args.metrics_classwise
-
-            class_labels = list(data_args.included_classes.values())
-
-            # Create classwise base metrics.
-            classwise_base_metrics = {}
-            for metric_name, metric_config in metrics_classwise_config.items():
-                base_metrics_classwise = _create_metric(
-                    metric_name=metric_name,
-                    metric_config=metric_config,
-                    num_classes=data_args.num_included_classes,
-                    ignore_index=data_args.ignore_index,
-                    classwise=True,
-                )
-                for key, base_metric in base_metrics_classwise.items():
-                    # Type ignore because old torchmetrics versions (0.8) don't support
-                    # the `prefix` argument.
-                    classwise_base_metrics[key] = ClasswiseWrapper(  # type: ignore[call-arg]
-                        base_metric,
-                        prefix="_",
-                        labels=class_labels,
-                    )
-
-            # Create per-head classwise metrics.
-            for lr in self.lrs:
-                head_name = _format_head_name(lr)
-                head_train_classwise_metrics = {}
-                head_val_classwise_metrics = {}
-                for key, metric in classwise_base_metrics.items():
-                    head_train_classwise_metrics[key] = metric.clone()
-                    head_val_classwise_metrics[key] = metric.clone()
-
-                # Type ignore because old torchmetrics versions (0.8) don't have the
-                # correct type annotations for MetricCollection.
-                train_metrics_classwise[head_name] = MetricCollection(
-                    head_train_classwise_metrics,  # type: ignore[arg-type]
-                    prefix="train_metric_head_classwise/",
-                    postfix=f"_{head_name}",
-                )
-                val_metrics_classwise[head_name] = MetricCollection(
-                    head_val_classwise_metrics,  # type: ignore[arg-type]
-                    prefix="val_metric_head_classwise/",
-                    postfix=f"_{head_name}",
-                )
-            self.train_metrics_classwise = ModuleDict(train_metrics_classwise)
-            self.val_metrics_classwise = ModuleDict(val_metrics_classwise)
-        else:
-            self.train_metrics_classwise = None
-            self.val_metrics_classwise = None
+        self.train_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
+            head_metrics=train_head_metrics,
+        )
+        self.val_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
+            head_metrics=val_head_metrics,
+        )
 
     def get_task_model(self) -> SemanticSegmentationMultihead:
         return self.model
@@ -333,7 +236,6 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
         # Compute loss and update metrics for each head.
         losses: list[Tensor] = []
-        log_dict: dict[str, Any] = {}
         for head_name, logits in logits_dict.items():
             # Handle ignore class.
             if self.model.class_ignore_index is not None:
@@ -343,32 +245,15 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             loss = self.loss_fn(logits, masks)
             losses.append(loss)
 
-            # Update per-head loss tracker.
-            log_dict[f"train_loss_head/{head_name}"] = loss.detach()
-
-            # Update per-head metrics.
-            self.train_metrics[head_name].update(logits, masks)  # type: ignore[operator]
-
-            # Update per-head classwise metrics if enabled.
-            if self.train_metrics_classwise is not None:
-                self.train_metrics_classwise[head_name].update(logits, masks)  # type: ignore[operator]
+            # Update per-head quality metrics and loss (scalar, no accumulation).
+            head_metrics = self.train_metrics.head_metrics[head_name]
+            head_metrics.update(logits, masks)  # type: ignore[operator]
+            head_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore[operator]
 
         # Sum losses for backprop.
         loss_sum = torch.stack(losses).sum()
-        # Mean loss for logging.
-        loss_mean = torch.stack(losses).mean()
-        log_dict["train_loss"] = loss_mean.detach()
 
-        # Add per-head metrics to log dict.
-        for head_name in logits_dict.keys():
-            log_dict.update(dict(self.train_metrics[head_name].items()))  # type: ignore[operator]
-
-        # Add classwise metrics if enabled.
-        if self.train_metrics_classwise is not None:
-            for head_name in logits_dict.keys():
-                log_dict.update(dict(self.train_metrics_classwise[head_name].items()))  # type: ignore[operator]
-
-        return TaskStepResult(loss=loss_sum, log_dict=log_dict)
+        return TaskStepResult(loss=loss_sum, log_dict={}, metrics=self.train_metrics)
 
     def validation_step(
         self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
@@ -386,8 +271,6 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
 
         # Process each head separately.
         losses: list[Tensor] = []
-        log_dict: dict[str, Any] = {}
-
         for head_name, crop_logits in crop_logits_dict.items():
             # Handle ignore class.
             if self.model.class_ignore_index is not None:
@@ -399,6 +282,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             )
 
             # Compute loss and update metrics per image.
+            head_metrics = self.val_metrics.head_metrics[head_name]
             head_loss = torch.tensor(
                 0.0, device=crop_logits.device, dtype=crop_logits.dtype
             )
@@ -407,34 +291,16 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
                 image_mask = image_mask.unsqueeze(0)  # Add batch dimension.
                 loss = self.loss_fn(image_logits, image_mask)
                 head_loss += loss
-                self.val_metrics[head_name].update(image_logits, image_mask)  # type: ignore[operator]
-                if self.val_metrics_classwise is not None:
-                    self.val_metrics_classwise[head_name].update(  # type: ignore[operator]
-                        image_logits, image_mask
-                    )
+                head_metrics.update(image_logits, image_mask)  # type: ignore[operator]
             head_loss /= len(images)
             losses.append(head_loss)
 
-            # Update per-head loss tracker.
-            self.val_loss_metrics[head_name].update(head_loss, weight=len(images))  # type: ignore[operator]
-            log_dict[f"val_loss_head/{head_name}"] = head_loss.detach()
-
-        # Mean loss across all heads.
-        loss_mean = torch.stack(losses).mean()
-        log_dict["val_loss"] = loss_mean.detach()
-
-        # Add per-head metrics to log dict.
-        for head_name in crop_logits_dict.keys():
-            log_dict.update(dict(self.val_metrics[head_name].items()))  # type: ignore[operator]
-
-        # Add classwise metrics if enabled.
-        if self.val_metrics_classwise is not None:
-            for head_name in crop_logits_dict.keys():
-                log_dict.update(dict(self.val_metrics_classwise[head_name].items()))  # type: ignore[operator]
+            # Accumulate loss in the head's TaskMetric (weighted by batch size).
+            head_metrics.update_loss({"loss": head_loss.detach()}, weight=len(images))  # type: ignore[operator]
 
         # Use sum of losses for consistency with training_step.
         loss_sum = torch.stack(losses).sum()
-        return TaskStepResult(loss=loss_sum, log_dict=log_dict)
+        return TaskStepResult(loss=loss_sum, log_dict={}, metrics=self.val_metrics)
 
     def set_train_mode(self) -> None:
         self.train()
@@ -448,46 +314,6 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
                 optimizer=optimizer,
                 max_norm=self.model_args.gradient_clip_val,
             )
-
-
-def _create_metric(
-    metric_name: str,
-    metric_config: dict[str, Any],
-    num_classes: int,
-    ignore_index: int,
-    classwise: bool = False,
-) -> dict[str, Any]:
-    """Create metrics from configuration.
-
-    Args:
-        metric_name: Name of the metric (e.g., "miou").
-        metric_config: Configuration dictionary for the metric.
-        num_classes: Number of classes.
-        ignore_index: Index to ignore during metric calculation.
-        classwise: Whether to create classwise metrics.
-
-    Returns:
-        Dictionary mapping metric names to metric instances.
-    """
-    from torchmetrics import Metric
-    from torchmetrics.classification import (  # type: ignore[attr-defined]
-        MulticlassJaccardIndex,
-    )
-
-    metrics: dict[str, Metric] = {}
-
-    if metric_name == "miou":
-        key = "miou"
-        metrics[key] = MulticlassJaccardIndex(
-            num_classes=num_classes,
-            ignore_index=ignore_index,
-            validate_args=False,
-            average=None if classwise else "macro",
-        )
-    else:
-        raise ValueError(f"Unsupported metric: {metric_name}")
-
-    return metrics
 
 
 def _format_head_name(lr: float) -> str:

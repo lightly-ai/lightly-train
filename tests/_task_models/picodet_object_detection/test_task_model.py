@@ -18,6 +18,7 @@ from torch import nn
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
 from lightly_train._task_models.picodet_object_detection.task_model import (
     PicoDetObjectDetection,
 )
@@ -138,5 +139,6 @@ def _create_train_model(
         train_transform_args=train_transform_args,
         val_transform_args=val_transform_args,
         load_weights=False,
+        metric_args=ObjectDetectionTaskMetricArgs(),
     )
     return train_model

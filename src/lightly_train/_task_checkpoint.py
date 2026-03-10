@@ -6,7 +6,6 @@
 # LICENSE file in the root directory of this source tree.
 #
 import logging
-from typing import Literal
 
 from pydantic import model_validator
 from typing_extensions import Self
@@ -21,8 +20,6 @@ class TaskSaveCheckpointArgs(PydanticConfig):
     save_every_num_steps: int = 1000
     save_last: bool = True
     save_best: bool = True
-    watch_metric: str
-    mode: Literal["min", "max"]
 
     @model_validator(mode="after")
     def _warn_if_no_checkpoints(self) -> Self:

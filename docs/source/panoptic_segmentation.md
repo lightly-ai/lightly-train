@@ -5,8 +5,9 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
 
 ```{note}
-🔥 LightlyTrain now supports training **DINOv3**-based panoptic segmentation models
-with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by Kerssies et al.!
+🔥 LightlyTrain now supports training **DINOv2** and **DINOv3**-based panoptic
+segmentation models with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by
+Kerssies et al.!
 ```
 
 (panoptic-segmentation-benchmark-results)=
@@ -250,9 +251,19 @@ following models are available:
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
 
-All models are
+All DINOv3 models are
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
 and fine-tuned by Lightly, except the `vitt` models which are pretrained by Lightly.
+
+### DINOv2 Models
+
+- `dinov2/vits14-eomt`
+- `dinov2/vitb14-eomt`
+- `dinov2/vitl14-eomt`
+- `dinov2/vitg14-eomt`
+
+All DINOv2 models are
+[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
 
 ## Training Settings
 
@@ -290,6 +301,17 @@ The following are the default image transform arguments. See
 ````
 ````{dropdown} Val
 ```{include} _auto/dinov3eomtpanopticsegmentationtrain_val_transform_args.md
+```
+````
+`````
+
+`````{dropdown} EoMT Panoptic Segmentation DINOv2 Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/dinov2eomtpanopticsegmentationtrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} _auto/dinov2eomtpanopticsegmentationtrain_val_transform_args.md
 ```
 ````
 `````
