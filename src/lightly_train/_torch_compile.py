@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 import time
 from typing import TypeVar
 
@@ -70,6 +71,9 @@ def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
     if torch_compile_args.disable:
         return fn
     if not hasattr(torch, "compile"):
+        return fn
+    if sys.platform.startswith("win"):
+        # Compilation is currently unstable on Windows.
         return fn
 
     logger.info(f"Compiling {name} with torch.compile")
