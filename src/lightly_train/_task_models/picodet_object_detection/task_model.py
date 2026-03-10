@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Literal
 
 import torch
@@ -250,9 +250,9 @@ class PicoDetObjectDetection(TaskModel):
         Args:
             path: Path to a .pt file (e.g., exported_last.pt).
         """
-        if not os.path.exists(path):
-            logger.error("Checkpoint file not found: %s", path)
-            return
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
 
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
         if isinstance(state_dict, dict):

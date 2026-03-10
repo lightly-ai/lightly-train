@@ -99,8 +99,9 @@ class Integral(nn.Module):
         x = F.softmax(x, dim=-1)
 
         # Compute expectation
-        project: Tensor = self.project.to(dtype=x.dtype, device=x.device)  # type: ignore[assignment]
-        x = F.linear(x, project.view(1, -1)).squeeze(-1)
+        if self.project.dtype != x.dtype:
+            self.project = self.project.to(dtype=x.dtype)
+        x = F.linear(x, self.project.view(1, -1)).squeeze(-1)
 
         # Reshape back to (..., 4) if input was 4*(reg_max+1)
         if original_shape[-1] == 4 * (self.reg_max + 1):
