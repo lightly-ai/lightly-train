@@ -304,7 +304,7 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
         # Metrics
-        self.train_metrics.update_loss({"loss": loss.detach()}, weight=B)
+        self.train_metrics.update_with_losses({"loss": loss.detach()}, weight=B)
         if self.metric_args.train:
             with torch.no_grad():
                 mask_logits = mask_logits_per_layer[-1].detach()
@@ -323,7 +323,9 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
                     ignore_class_id=self.model.internal_ignore_class_id,
                     void_color=self.train_metrics.metrics["pq"].void_color,  # type: ignore
                 )
-                self.train_metrics.update(preds=masks, target=target_masks)
+                self.train_metrics.update_with_predictions(
+                    preds=masks, target=target_masks
+                )
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -406,7 +408,7 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
         # Metrics
-        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
+        self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
         # Final layer only
         resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
         class_logits_last_layer = class_logits_per_layer[-1]
@@ -443,7 +445,7 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
                 ignore_class_id=self.model.internal_ignore_class_id,
                 void_color=self.val_metrics.metrics["pq"].void_color,  # type: ignore
             )
-            self.val_metrics.update(
+            self.val_metrics.update_with_predictions(
                 preds=masks.unsqueeze(0),  # (1, H, W, 2)
                 target=target_masks.unsqueeze(0),  # (1, H, W, 2)
             )
