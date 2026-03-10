@@ -1563,7 +1563,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 logger.info("Validating...")
                 train_model.eval()
 
-                agg_val_metric_values: AggregatedMetricValues | None = None
+                val_agg_metric_values: AggregatedMetricValues | None = None
 
                 # Reset GPU memory tracking before val phase.
                 timer.reset_gpu_max_memory("val")
@@ -1593,13 +1593,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     timer.record_gpu_stats("val")
 
                     if is_last_val_step:
-                        agg_val_metric_values = (
+                        val_agg_metric_values = (
                             val_result.metrics.compute_aggregated_values()
                         )
                         val_result.metrics.reset()
                         best_agg_metric_values = helpers.get_best_metrics(
                             best_agg_metric_values=best_agg_metric_values,
-                            last_agg_metric_values=agg_val_metric_values,
+                            last_agg_metric_values=val_agg_metric_values,
                             step=step,
                             metric_args=config.metric_args,
                         )
@@ -1610,7 +1610,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
-                            agg_metric_values=agg_val_metric_values,
+                            agg_metric_values=val_agg_metric_values,
                             task=config.task,
                             timer_agg=timer_agg,
                             global_batch_size=config.batch_size,
@@ -1625,7 +1625,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         helpers.log_fabric(
                             fabric=fabric,
                             log_dict=val_result.log_dict,
-                            agg_metric_values=agg_val_metric_values,
+                            agg_metric_values=val_agg_metric_values,
                             step=step,
                         )
 
@@ -1656,7 +1656,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         helpers.log_training_summary(
                             timer_agg=timer_agg,
                             fabric=fabric,
-                            last_val_agg_metric_values=agg_val_metric_values,
+                            last_val_agg_metric_values=val_agg_metric_values,
                             best_val_agg_metric_values=best_agg_metric_values,
                             step=step,
                             global_batch_size=config.batch_size,
