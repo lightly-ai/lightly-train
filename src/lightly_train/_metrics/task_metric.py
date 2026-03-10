@@ -22,10 +22,10 @@ from lightly_train._metrics.metric_args import MetricArgs
 # The metrics system has three layers:
 #
 # 1. **MetricArgs** (Pydantic)
-#   Stores configuration for one type of torchmetrics Metric. For example, AccuracyArgs
+#   Stores configuration for one type of torchmetrics.Metric. For example, AccuracyArgs
 #   for torchmetrics.Accuracy, F1Args for torchmetrics.F1 etc. The sole purpose of
 #   these classes is validation of user input through Pydantic and instantiation of
-#   the actual torchmetrics Metric instances.
+#   the actual torchmetrics.Metric instances.
 #
 # 2. **TaskMetricArgs** (Pydantic)
 #   Stores configuration for all metrics of a task. For example, ClassificationTaskMetricArgs
@@ -34,7 +34,7 @@ from lightly_train._metrics.metric_args import MetricArgs
 #   commands.
 #
 # 3. **TaskMetric** (PyTorch Module)
-#   Is initialized from TaskMetricArgs and stores all torchmetrics Metric instances
+#   Is initialized from TaskMetricArgs and stores all torchmetrics.Metric instances
 #   for a task and provides a unified interface for keeping track of metrics during
 #   training and validation.
 #
