@@ -11,6 +11,7 @@ import logging
 from typing import Any
 
 import numpy as np
+import torch
 from albumentations import (
     BasicTransform,
     ColorJitter,
@@ -32,6 +33,7 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.task_transform import (
+    TaskCollateFunction,
     TaskTransform,
     TaskTransformArgs,
     TaskTransformInput,
@@ -50,6 +52,8 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import (
     ImageSizeTuple,
+    MaskPanopticSegmentationBatch,
+    MaskPanopticSegmentationDatasetItem,
     NDArrayImage,
     NDArrayMask,
 )
@@ -258,3 +262,23 @@ class PanopticSegmentationTransform(TaskTransform):
             "image": transformed["image"],
             "mask": transformed["mask"],
         }
+
+
+class MaskPanopticSegmentationCollateFunction(TaskCollateFunction):
+    def __call__(
+        self, batch: list[MaskPanopticSegmentationDatasetItem]
+    ) -> MaskPanopticSegmentationBatch:
+        # Prepare the batch without any stacking.
+        images = [item["image"] for item in batch]
+        masks = [item["masks"] for item in batch]
+
+        out: MaskPanopticSegmentationBatch = {
+            "image_path": [item["image_path"] for item in batch],
+            # Stack images during training as they all have the same shape.
+            # During validation every image can have a different shape.
+            "image": torch.stack(images) if self.split == "train" else images,
+            "masks": torch.stack(masks) if self.split == "train" else masks,
+            "binary_masks": [item["binary_masks"] for item in batch],
+        }
+
+        return out
