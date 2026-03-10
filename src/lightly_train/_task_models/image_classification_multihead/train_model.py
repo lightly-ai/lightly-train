@@ -261,9 +261,11 @@ class ImageClassificationMultiheadTrain(TrainModel):
             loss = self.criterion(logits, targets)
             losses.append(loss)
 
-            head_metrics = self.train_metrics.head_metrics[head_name]
-            head_metrics.update_with_predictions(logits, targets.int())  # type: ignore
-            head_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))  # type: ignore
+            head_metrics: ClassificationTaskMetric = self.train_metrics.head_metrics[  # type: ignore
+                head_name
+            ]
+            head_metrics.update_with_predictions(logits, targets.int())
+            head_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
         loss = torch.stack(losses).sum()
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
@@ -292,9 +294,11 @@ class ImageClassificationMultiheadTrain(TrainModel):
             loss = self.criterion(logits, targets)
             losses.append(loss)
 
-            head_metrics = self.val_metrics.head_metrics[head_name]
-            head_metrics.update_with_predictions(logits, targets.int())  # type: ignore
-            head_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))  # type: ignore
+            head_metrics: ClassificationTaskMetric = self.val_metrics.head_metrics[  # type: ignore
+                head_name
+            ]
+            head_metrics.update_with_predictions(logits, targets.int())
+            head_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
         loss = torch.stack(losses).sum()
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.val_metrics)

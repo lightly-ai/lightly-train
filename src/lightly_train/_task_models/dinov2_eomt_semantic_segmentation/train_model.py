@@ -278,7 +278,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         # Update metrics
         self.train_metrics.update_with_losses(
             {"loss": loss.detach()}, weight=len(images)
-        )  # type: ignore
+        )
         if self.metric_args.train:
             with torch.no_grad():
                 # Calculate metrics for the last block's predictions.
@@ -382,11 +382,11 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 for pred, targ in zip(logits, masks):
                     self.val_metrics.update_with_predictions(
                         pred[None, ...], targ[None, ...]
-                    )  # type: ignore
+                    )
 
         # Compute the total loss.
         loss = self.criterion.loss_total(losses_all_layers=losses)
-        self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))  # type: ignore
+        self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
         return TaskStepResult(
             loss=loss,
