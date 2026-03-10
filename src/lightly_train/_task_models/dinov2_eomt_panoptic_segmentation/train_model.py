@@ -323,7 +323,9 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
                     ignore_class_id=self.model.internal_ignore_class_id,
                     void_color=self.train_metrics.metrics["pq"].void_color,  # type: ignore
                 )
-                self.train_metrics.update(preds=masks, target=target_masks)  # type: ignore[operator]
+                self.train_metrics.update_with_predictions(
+                    preds=masks, target=target_masks
+                )
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -443,7 +445,7 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
                 ignore_class_id=self.model.internal_ignore_class_id,
                 void_color=self.val_metrics.metrics["pq"].void_color,  # type: ignore
             )
-            self.val_metrics.update(  # type: ignore[operator]
+            self.val_metrics.update_with_predictions(
                 preds=masks.unsqueeze(0),  # (1, H, W, 2)
                 target=target_masks.unsqueeze(0),  # (1, H, W, 2)
             )
