@@ -20,7 +20,6 @@ from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
-from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_object_detection_dataset import (
@@ -212,9 +211,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss_names=["loss", "loss_vfl", "loss_giou", "loss_dfl"],
         )
 
-        self.map_metric = MeanAveragePrecision()
-        self.map_metric.warn_on_many_detections = False
-
     def set_train_mode(self) -> None:
         super().set_train_mode()
         if self.model_args.backbone_freeze:
@@ -385,7 +381,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         )
         total_loss = o2o_loss + 0.5 * dense_loss
 
-        boxes_xyxy, cls_logits = self.model._decode_o2o_predictions(
+        boxes_xyxy, cls_logits = ema_model._decode_o2o_predictions(
             cls_scores_list=o2o_cls_scores,
             bbox_preds_list=o2o_bbox_preds,
             image_size=(img_h, img_w),
@@ -394,11 +390,11 @@ class PicoDetObjectDetectionTrain(TrainModel):
         cls_labels = cls_logits.argmax(dim=-1)
         cls_scores = cls_logits.gather(2, cls_labels.unsqueeze(-1)).squeeze(-1)
         scores = torch.sigmoid(cls_scores)
-        cls_labels = self.model.internal_class_to_class[cls_labels]
+        cls_labels = ema_model.internal_class_to_class[cls_labels]
 
         preds = []
         targets = []
-        max_detections = int(self.model.postprocessor.max_detections)
+        max_detections = int(ema_model.postprocessor.max_detections)
 
         for i in range(batch_size):
             pred_boxes = boxes_xyxy[i].detach()
