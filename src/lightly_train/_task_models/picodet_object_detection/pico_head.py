@@ -76,6 +76,7 @@ class Integral(nn.Module):
     def __init__(self, reg_max: int = 7) -> None:
         super().__init__()
         self.reg_max = reg_max
+        self.project: Tensor
         # Register project as buffer (values 0 to reg_max)
         self.register_buffer(
             "project", torch.linspace(0, reg_max, reg_max + 1), persistent=False
