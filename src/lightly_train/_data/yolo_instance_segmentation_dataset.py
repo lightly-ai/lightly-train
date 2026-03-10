@@ -18,19 +18,17 @@ from pydantic import Field
 
 from lightly_train._data import file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.file_helpers import ImageMode
-from lightly_train._data.task_batch_collation import (
-    BaseCollateFunction,
-    InstanceSegmentationCollateFunction,
-)
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._transforms.instance_segmentation_transform import (
+    InstanceSegmentationCollateFunction,
     InstanceSegmentationTransform,
     InstanceSegmentationTransformArgs,
     InstanceSegmentationTransformInput,
     InstanceSegmentationTransformOutput,
 )
+from lightly_train._transforms.task_transform import TaskCollateFunction
 from lightly_train.types import (
     BinaryMasksDict,
     InstanceSegmentationDatasetItem,
@@ -45,7 +43,7 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
     # Narrow the type of dataset_args.
     dataset_args: YOLOInstanceSegmentationDatasetArgs
 
-    batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
+    batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
         InstanceSegmentationCollateFunction
     )
 

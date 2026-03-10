@@ -25,7 +25,7 @@ from lightly_train._metrics.detection.task_metric import (
 
 
 class TestObjectDetectionTaskMetric:
-    def test_update(self) -> None:
+    def test_update__default(self) -> None:
         metric = ObjectDetectionTaskMetric(
             task_metric_args=ObjectDetectionTaskMetricArgs(),
             split="val",
@@ -33,7 +33,7 @@ class TestObjectDetectionTaskMetric:
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
         )
-        metric.update(
+        metric.update_with_predictions(
             preds=[
                 {
                     "boxes": torch.tensor([[10.0, 20.0, 30.0, 40.0]]),
@@ -48,7 +48,7 @@ class TestObjectDetectionTaskMetric:
                 }
             ],
         )
-        metric.update_loss(
+        metric.update_with_losses(
             {
                 "loss": torch.tensor(0.5),
                 "loss_vfl": torch.tensor(0.1),
@@ -57,9 +57,9 @@ class TestObjectDetectionTaskMetric:
             },
             weight=1,
         )
-        result = metric.compute()
-        assert result.metrics["val_loss"] == 0.5
-        assert result.metrics.keys() == {
+        result = metric.compute_aggregated_values()
+        assert result.metric_values["val_loss"] == 0.5
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_loss/loss_vfl",
             "val_loss/loss_bbox",
@@ -86,7 +86,7 @@ class TestObjectDetectionTaskMetric:
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
         )
-        metric.update(
+        metric.update_with_predictions(
             preds=[
                 {
                     "boxes": torch.tensor([[10.0, 20.0, 30.0, 40.0]]),
@@ -101,7 +101,7 @@ class TestObjectDetectionTaskMetric:
                 }
             ],
         )
-        metric.update_loss(
+        metric.update_with_losses(
             {
                 "loss": torch.tensor(0.5),
                 "loss_vfl": torch.tensor(0.1),
@@ -110,10 +110,9 @@ class TestObjectDetectionTaskMetric:
             },
             weight=1,
         )
-        result = metric.compute()
-        assert result.metrics["val_loss"] == 0.5
-        print(result.metrics.keys())
-        assert result.metrics.keys() == {
+        result = metric.compute_aggregated_values()
+        assert result.metric_values["val_loss"] == 0.5
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_loss/loss_vfl",
             "val_loss/loss_bbox",

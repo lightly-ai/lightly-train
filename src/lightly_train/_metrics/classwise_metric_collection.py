@@ -9,10 +9,18 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from torchmetrics import ClasswiseWrapper, Metric, MetricCollection
+from torchmetrics import (
+    ClasswiseWrapper as TorchmetricsClasswiseWrapper,
+)
+from torchmetrics import (
+    Metric as TorchmetricsMetric,
+)
+from torchmetrics import (
+    MetricCollection as TorchmetricsMetricCollection,
+)
 
 
-class ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
+class ClasswiseMetricCollection(TorchmetricsMetricCollection):  # type: ignore[misc]
     """Helper class to compute classwise metrics for a collection of metrics.
 
     This class mostly fixes some prefix/suffix issues when using ClasswiseWrapper inside
@@ -27,7 +35,7 @@ class ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
 
     def __init__(
         self,
-        metrics: Mapping[str, Metric] | MetricCollection,
+        metrics: Mapping[str, TorchmetricsMetric] | TorchmetricsMetricCollection,
         class_names: Sequence[str],
         prefix: str | None = None,
         postfix: str | None = None,
@@ -38,7 +46,11 @@ class ClasswiseMetricCollection(MetricCollection):  # type: ignore[misc]
         if classwise_prefix is not None:
             wrapper_prefix = f"{classwise_prefix}_{self._SEPARATOR}"
         wrapped_metrics = {
-            name: ClasswiseWrapper(metric, labels=class_names, prefix=wrapper_prefix)  # type: ignore
+            name: TorchmetricsClasswiseWrapper(  # type: ignore[call-arg]
+                metric,  # type: ignore[arg-type]
+                labels=list(class_names),
+                prefix=wrapper_prefix,
+            )
             for name, metric in metrics.items()
         }
         super().__init__(

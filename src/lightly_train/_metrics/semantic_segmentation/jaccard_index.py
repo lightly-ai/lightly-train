@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from torchmetrics import Metric
+from torchmetrics import Metric as TorchmetricsMetric
 
 from lightly_train._metrics.metric_args import MetricArgs
 
@@ -16,13 +16,13 @@ from lightly_train._metrics.metric_args import MetricArgs
 class JaccardIndexArgs(MetricArgs):
     """Jaccard Index (IoU/mIoU) metric for semantic segmentation."""
 
-    def get_metrics(
+    def get_torchmetrics_instances(
         self,
         *,
         classwise: bool,
         num_classes: int,
         ignore_index: int | None,
-    ) -> dict[str, Metric]:
+    ) -> dict[str, TorchmetricsMetric]:
         """Create JaccardIndex metric instance for semantic segmentation.
 
         Args:
@@ -35,14 +35,14 @@ class JaccardIndexArgs(MetricArgs):
         """
         # Type ignore for old torchmetrics versions
         from torchmetrics.classification import (  # type: ignore[attr-defined]
-            MulticlassJaccardIndex,
+            MulticlassJaccardIndex as TorchmetricsMulticlassJaccardIndex,
         )
 
-        metrics: dict[str, Metric] = {}
+        metrics: dict[str, TorchmetricsMetric] = {}
 
         if classwise:
             # Per-class IoU
-            metrics["iou"] = MulticlassJaccardIndex(
+            metrics["iou"] = TorchmetricsMulticlassJaccardIndex(
                 num_classes=num_classes,
                 ignore_index=ignore_index,
                 average="none",
@@ -50,7 +50,7 @@ class JaccardIndexArgs(MetricArgs):
             )
         else:
             # Mean IoU
-            metrics["miou"] = MulticlassJaccardIndex(
+            metrics["miou"] = TorchmetricsMulticlassJaccardIndex(
                 num_classes=num_classes,
                 ignore_index=ignore_index,
                 average="macro",

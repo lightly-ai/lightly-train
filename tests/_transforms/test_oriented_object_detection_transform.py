@@ -17,11 +17,9 @@ import torchvision.tv_tensors as tv_tensors
 from albumentations import BboxParams
 from lightning_utilities.core.imports import RequirementCache
 
-from lightly_train._data.task_batch_collation import (
-    OrientedObjectDetectionCollateFunction,
-)
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.oriented_object_detection_transform import (
+    OrientedObjectDetectionCollateFunction,
     OrientedObjectDetectionTransform,
     OrientedObjectDetectionTransformArgs,
     OrientedObjectDetectionTransformInput,
