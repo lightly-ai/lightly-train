@@ -272,7 +272,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
 
         total_loss = o2o_loss + 0.5 * dense_loss
 
-        self.train_metrics.update_loss(
+        self.train_metrics.update_with_losses(
             {
                 "loss": total_loss.detach(),
                 "loss_vfl": loss_vfl.detach(),
@@ -317,7 +317,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                         "labels": gt_labels_i,
                     }
                 )
-            self.train_metrics.update(preds, targets)
+            self.train_metrics.update_with_predictions(preds, targets)
 
         return TaskStepResult(
             loss=total_loss,
@@ -425,7 +425,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
                 }
             )
 
-        self.val_metrics.update_loss(
+        self.val_metrics.update_with_losses(
             {
                 "loss": total_loss.detach(),
                 "loss_vfl": loss_vfl.detach(),
@@ -434,7 +434,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             },
             weight=images.shape[0],
         )
-        self.val_metrics.update(preds, targets)
+        self.val_metrics.update_with_predictions(preds, targets)
 
         return TaskStepResult(
             loss=total_loss,

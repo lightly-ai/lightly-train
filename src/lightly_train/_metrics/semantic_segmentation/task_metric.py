@@ -12,17 +12,17 @@ from collections.abc import Mapping, Sequence
 
 from pydantic import Field
 from torch import Tensor
-from torchmetrics import MetricCollection
+from torchmetrics import MetricCollection as TorchmetricsMetricCollection
 
 from lightly_train._metrics.classwise_metric_collection import (
     ClasswiseMetricCollection,
 )
-from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.loss_metric_collection import LossMetricCollection
 from lightly_train._metrics.semantic_segmentation.jaccard_index import (
     JaccardIndexArgs,
 )
 from lightly_train._metrics.task_metric import (
-    MetricComputeResult,
+    AggregatedMetricValues,
     TaskMetric,
     TaskMetricArgs,
     get_watch_metric_mode,
@@ -75,13 +75,13 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         metrics = {}
         if init_metrics and task_metric_args.miou is not None:
             metrics.update(
-                task_metric_args.miou.get_metrics(
+                task_metric_args.miou.get_torchmetrics_instances(
                     classwise=False,
                     num_classes=len(class_names),
                     ignore_index=ignore_index,
                 )
             )
-        self.metrics = MetricCollection(metrics, prefix=f"{split}_metric/")  # type: ignore
+        self.metrics = TorchmetricsMetricCollection(metrics, prefix=f"{split}_metric/")  # type: ignore
 
         metrics_classwise = {}
         if (
@@ -89,7 +89,7 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             and task_metric_args.classwise
             and task_metric_args.miou is not None
         ):
-            metrics_classwise = task_metric_args.miou.get_metrics(
+            metrics_classwise = task_metric_args.miou.get_torchmetrics_instances(
                 classwise=True,
                 num_classes=len(class_names),
                 ignore_index=ignore_index,
@@ -100,9 +100,9 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             prefix=f"{split}_metric_classwise/",
             classwise_prefix="iou",
         )
-        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
+        self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
 
-    def update(self, preds: Tensor, target: Tensor) -> None:
+    def update_with_predictions(self, preds: Tensor, target: Tensor) -> None:
         """Update all metrics
 
         Args:
@@ -112,20 +112,20 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         self.metrics.update(preds, target)  # type: ignore[operator]
         self.metrics_classwise.update(preds, target)  # type: ignore[operator]
 
-    def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
+    def update_with_losses(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)  # type: ignore[operator]
 
-    def compute(self) -> MetricComputeResult:
+    def compute_aggregated_values(self) -> AggregatedMetricValues:
         result = self.loss_metrics.compute()  # type: ignore[operator]
         result.update(self.metrics.compute())
         result.update(self.metrics_classwise.compute())
         result = {name: float(value) for name, value in result.items()}
         best_val = result.get(self.watch_metric)
-        return MetricComputeResult(
-            metrics=result,
+        return AggregatedMetricValues(
+            metric_values=result,
             watch_metric=self.watch_metric if best_val is not None else None,
             watch_metric_value=float(best_val) if best_val is not None else None,
             watch_metric_mode=self.watch_metric_mode if best_val is not None else None,
             best_head_name=None,
-            best_head_metrics=None,
+            best_head_metric_values=None,
         )

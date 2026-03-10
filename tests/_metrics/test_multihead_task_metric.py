@@ -48,17 +48,17 @@ class TestMultiheadTaskMetric:
         wrapper = MultiheadTaskMetric(
             head_metrics=head_metrics,  # type: ignore[arg-type]
         )
-        wrapper.head_metrics["lr0_001"].update(  # type: ignore[operator]
+        wrapper.head_metrics["lr0_001"].update_with_predictions(  # type: ignore[operator]
             torch.zeros(2, 10, 10, dtype=torch.long),
             torch.randint(0, 3, (2, 10, 10)),
         )
-        wrapper.head_metrics["lr0_01"].update(  # type: ignore[operator]
+        wrapper.head_metrics["lr0_01"].update_with_predictions(  # type: ignore[operator]
             torch.zeros(2, 10, 10, dtype=torch.long),
             torch.zeros(2, 10, 10, dtype=torch.long),
         )
-        result = wrapper.compute()
-        assert "val_metric_head/miou_lr0_001" in result.metrics
-        assert "val_metric_head/miou_lr0_01" in result.metrics
+        result = wrapper.compute_aggregated_values()
+        assert "val_metric_head/miou_lr0_001" in result.metric_values
+        assert "val_metric_head/miou_lr0_01" in result.metric_values
         assert result.watch_metric == "val_metric/miou"
         assert result.best_head_name == "lr0_01"
 
@@ -70,15 +70,15 @@ class TestMultiheadTaskMetric:
         torch.manual_seed(0)
         preds = torch.randint(0, 3, (2, 10, 10))
         target = torch.randint(0, 3, (2, 10, 10))
-        wrapper.head_metrics["lr0_001"].update(preds, target)  # type: ignore[operator]
-        result_before = wrapper.compute()
+        wrapper.head_metrics["lr0_001"].update_with_predictions(preds, target)  # type: ignore[operator]
+        result_before = wrapper.compute_aggregated_values()
         wrapper.reset()
         torch.manual_seed(1)
         preds2 = torch.randint(0, 3, (2, 10, 10))
         target2 = torch.randint(0, 3, (2, 10, 10))
-        wrapper.head_metrics["lr0_001"].update(preds2, target2)  # type: ignore[operator]
-        result_after = wrapper.compute()
-        assert result_after.metrics != result_before.metrics
+        wrapper.head_metrics["lr0_001"].update_with_predictions(preds2, target2)  # type: ignore[operator]
+        result_after = wrapper.compute_aggregated_values()
+        assert result_after.metric_values != result_before.metric_values
 
 
 @pytest.mark.parametrize(
