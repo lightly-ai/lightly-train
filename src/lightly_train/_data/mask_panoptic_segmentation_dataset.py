@@ -23,17 +23,15 @@ from typing_extensions import Literal
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._data.file_helpers import ImageMode
-from lightly_train._data.task_batch_collation import (
-    BaseCollateFunction,
-    MaskPanopticSegmentationCollateFunction,
-)
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
 from lightly_train._transforms.panoptic_segmentation_transform import (
+    MaskPanopticSegmentationCollateFunction,
     PanopticSegmentationTransform,
     PanopticSegmentationTransformArgs,
 )
+from lightly_train._transforms.task_transform import TaskCollateFunction
 from lightly_train.types import (
     MaskPanopticSegmentationDatasetItem,
     PanopticBinaryMasksDict,
@@ -54,7 +52,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
     # Narrow the type of dataset_args.
     dataset_args: MaskPanopticSegmentationDatasetArgs
 
-    batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
+    batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
         MaskPanopticSegmentationCollateFunction
     )
 

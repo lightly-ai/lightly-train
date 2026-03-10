@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 from pydantic import ConfigDict
 
@@ -50,3 +50,11 @@ class TaskTransform:
 
     def __call__(self, input: Any) -> Any:
         raise NotImplementedError()
+
+
+class TaskCollateFunction:
+    def __init__(
+        self, split: Literal["train", "val"], transform_args: TaskTransformArgs
+    ):
+        self.split = split
+        self.transform_args = transform_args
