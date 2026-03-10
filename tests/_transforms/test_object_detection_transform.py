@@ -16,9 +16,9 @@ import torch
 from albumentations import BboxParams
 from numpy.typing import NDArray
 
-from lightly_train._data.task_batch_collation import ObjectDetectionCollateFunction
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.object_detection_transform import (
+    ObjectDetectionCollateFunction,
     ObjectDetectionTransform,
     ObjectDetectionTransformArgs,
     ObjectDetectionTransformInput,

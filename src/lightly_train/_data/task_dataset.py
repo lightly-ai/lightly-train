@@ -13,8 +13,7 @@ from typing import ClassVar
 from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data.task_batch_collation import BaseCollateFunction
-from lightly_train._transforms.task_transform import TaskTransform
+from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
 from lightly_train.types import TaskDatasetItem
 
 
@@ -28,7 +27,7 @@ class TaskDatasetArgs(PydanticConfig):
 
 
 class TaskDataset(Dataset[TaskDatasetItem]):
-    batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = BaseCollateFunction
+    batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = TaskCollateFunction
 
     def __init__(
         self,

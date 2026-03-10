@@ -11,6 +11,7 @@ import logging
 from typing import Any
 
 import cv2
+import torch
 from albumentations import (
     BasicTransform,
     CenterCrop,
@@ -32,6 +33,7 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.task_transform import (
+    TaskCollateFunction,
     TaskTransform,
     TaskTransformArgs,
     TaskTransformInput,
@@ -47,6 +49,8 @@ from lightly_train._transforms.transform import (
     RandomRotationArgs,
 )
 from lightly_train.types import (
+    ImageClassificationBatch,
+    ImageClassificationDatasetItem,
     ImageSizeTuple,
     NDArrayImage,
 )
@@ -257,3 +261,16 @@ def _get_RandomResizedCrop(
         scale=(min_scale, max_scale),
         interpolation=cv2.INTER_AREA,
     )
+
+
+class ImageClassificationCollateFunction(TaskCollateFunction):
+    def __call__(
+        self, batch: list[ImageClassificationDatasetItem]
+    ) -> ImageClassificationBatch:
+        images = [item["image"] for item in batch]
+        out: ImageClassificationBatch = {
+            "image_path": [item["image_path"] for item in batch],
+            "image": torch.stack(images),
+            "classes": [item["classes"] for item in batch],
+        }
+        return out

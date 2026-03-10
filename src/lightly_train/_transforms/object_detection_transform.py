@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import numpy as np
+import torch
 from albumentations import (
     BboxParams,
     Compose,
@@ -34,7 +35,9 @@ from lightly_train._transforms.random_photometric_distort import (
     RandomPhotometricDistort,
 )
 from lightly_train._transforms.random_zoom_out import RandomZoomOut
+from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.task_transform import (
+    TaskCollateFunction,
     TaskTransform,
     TaskTransformArgs,
     TaskTransformInput,
@@ -53,7 +56,12 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
     StopPolicyArgs,
 )
-from lightly_train.types import ImageSizeTuple, NDArrayImage
+from lightly_train.types import (
+    ImageSizeTuple,
+    NDArrayImage,
+    ObjectDetectionBatch,
+    ObjectDetectionDatasetItem,
+)
 
 
 class ObjectDetectionTransformInput(TaskTransformInput):
@@ -93,6 +101,21 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     def resolve_incompatible(self) -> None:
         # TODO: Lionel (09/25): Add checks for incompatible args.
         pass
+
+    def get_scale_range(self) -> tuple[float, float] | None:
+        if self.scale_jitter is not None:
+            if (
+                self.scale_jitter.min_scale is None
+                or self.scale_jitter.max_scale is None
+            ):
+                return None
+            else:
+                return (
+                    self.scale_jitter.min_scale,
+                    self.scale_jitter.max_scale,
+                )
+        else:
+            return None
 
 
 class ObjectDetectionTransform(TaskTransform):
@@ -250,3 +273,101 @@ class ObjectDetectionTransform(TaskTransform):
             "bboxes": transformed["bboxes"],
             "class_labels": transformed["class_labels"],
         }
+
+
+class ObjectDetectionCollateFunction(TaskCollateFunction):
+    def __init__(
+        self, split: Literal["train", "val"], transform_args: TaskTransformArgs
+    ):
+        super().__init__(split, transform_args)
+        assert isinstance(transform_args, ObjectDetectionTransformArgs)
+        self.scale_jitter: Compose | None = None
+        if transform_args.scale_jitter is not None:
+            scale_range = transform_args.get_scale_range()
+            self.scale_jitter = Compose(
+                [
+                    ScaleJitter(
+                        sizes=transform_args.scale_jitter.sizes,
+                        target_size=(
+                            no_auto(transform_args.image_size)
+                            if transform_args.scale_jitter.sizes is None
+                            else None
+                        ),
+                        scale_range=scale_range,
+                        num_scales=transform_args.scale_jitter.num_scales,
+                        divisible_by=transform_args.scale_jitter.divisible_by,
+                        p=transform_args.scale_jitter.prob,
+                        step_seeding=transform_args.scale_jitter.step_seeding,
+                        seed_offset=transform_args.scale_jitter.seed_offset,
+                    )
+                ],
+                bbox_params=transform_args.bbox_params,
+            )
+        else:
+            self.scale_jitter = None
+
+    def __call__(self, batch: list[ObjectDetectionDatasetItem]) -> ObjectDetectionBatch:
+        if self.scale_jitter is not None:
+            # Turn into numpy again.
+            batch_np = [
+                {
+                    "image_path": item["image_path"],
+                    "image": item["image"].permute(1, 2, 0).numpy(),
+                    "bboxes": item["bboxes"].numpy(),
+                    "classes": item["classes"].numpy(),
+                    "original_size": item["original_size"],
+                }
+                for item in batch
+            ]
+
+            # Apply transform.
+            seed = np.random.randint(0, 1_000_000)
+            images = []
+            bboxes = []
+            classes = []
+            for item in batch_np:
+                self.scale_jitter.step = seed
+                out = self.scale_jitter(
+                    image=item["image"],
+                    bboxes=item["bboxes"],
+                    class_labels=item["classes"],
+                )
+                images.append(out["image"])
+                bboxes.append(out["bboxes"])
+                classes.append(out["class_labels"])
+
+            # Old versions of albumentations return classes/boxes as a list.
+            bboxes = [
+                bbox if isinstance(bbox, np.ndarray) else np.array(bbox)
+                for bbox in bboxes
+            ]
+            classes = [
+                cls_ if isinstance(cls_, np.ndarray) else np.array(cls_)
+                for cls_ in classes
+            ]
+
+            # Turn back into torch tensors.
+            images = [
+                torch.from_numpy(img).permute(2, 0, 1).to(torch.float32)
+                for img in images
+            ]
+            bboxes = [torch.from_numpy(bbox).to(torch.float32) for bbox in bboxes]
+            classes = [torch.from_numpy(cls).to(torch.int64) for cls in classes]
+
+            out_: ObjectDetectionBatch = {
+                "image_path": [item["image_path"] for item in batch],
+                "image": torch.stack(images),
+                "bboxes": bboxes,
+                "classes": classes,
+                "original_size": [item["original_size"] for item in batch],
+            }
+            return out_
+        else:
+            out_ = {
+                "image_path": [item["image_path"] for item in batch],
+                "image": torch.stack([item["image"] for item in batch]),
+                "bboxes": [item["bboxes"] for item in batch],
+                "classes": [item["classes"] for item in batch],
+                "original_size": [item["original_size"] for item in batch],
+            }
+            return out_
