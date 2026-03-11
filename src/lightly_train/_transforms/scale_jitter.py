@@ -66,8 +66,6 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
         num_scales: int | None = None,
         divisible_by: int | None = None,
         p: float = 1.0,
-        step_seeding: bool = False,
-        seed_offset: int = 0,
     ):
         super().__init__(p=1.0)
         self.sizes = sizes
@@ -75,10 +73,6 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
         self.scale_range = scale_range
         self.divisible_by = divisible_by
         self.p = p
-        self.seed_offset = seed_offset
-        self.step_seeding = step_seeding
-
-        self._step = 0
 
         self.heights, self.widths = zip(
             *generate_discrete_sizes(
@@ -94,22 +88,9 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
             Resize(height=h, width=w) for h, w in zip(self.heights, self.widths)
         ]
 
-    @property
-    def step(self) -> int:
-        return self._step
-
-    @step.setter
-    def step(self, step: int) -> None:
-        self._step = step
-
-    def get_params(self) -> dict[str, Any]:
-        if self.step_seeding:
-            rng = np.random.default_rng(self.step + self.seed_offset)
-            idx = int(rng.integers(0, len(self.transforms)))
-            return {"idx": idx}
-        else:
-            idx = int(np.random.randint(0, len(self.transforms)))
-            return {"idx": idx}
+    def get_params(self) -> dict[str, int]:
+        idx = self.py_random.randint(0, len(self.transforms) - 1)
+        return {"idx": idx}
 
     def apply(self, img: NDArrayImage, idx: int, **params: Any) -> NDArrayImage:
         return self.transforms[idx].apply(img=img, **params)  # type: ignore[no-any-return]

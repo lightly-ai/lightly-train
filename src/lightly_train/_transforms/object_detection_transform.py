@@ -16,6 +16,7 @@ from albumentations import (
     Compose,
     HorizontalFlip,
     RandomRotate90,
+    ReplayCompose,
     Resize,
     Rotate,
     ToFloat,
@@ -28,6 +29,7 @@ from torch import Tensor
 from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
+from lightly_train._transforms import albumentations_helpers
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.random_iou_crop import RandomIoUCrop
@@ -235,10 +237,6 @@ class ObjectDetectionTransform(TaskTransform):
                 )
             ]
 
-        self.individual_transforms += [
-            ToTensorV2(),
-        ]
-
         self.transform = Compose(
             self.individual_transforms,
             bbox_params=transform_args.bbox_params,
@@ -277,15 +275,17 @@ class ObjectDetectionTransform(TaskTransform):
 
 class ObjectDetectionCollateFunction(TaskCollateFunction):
     def __init__(
-        self, split: Literal["train", "val"], transform_args: TaskTransformArgs
+        self,
+        split: Literal["train", "val"],
+        transform_args: ObjectDetectionTransformArgs,
     ):
         super().__init__(split, transform_args)
-        assert isinstance(transform_args, ObjectDetectionTransformArgs)
-        self.scale_jitter: Compose | None = None
+        self.scale_jitter: ReplayCompose | None = None
+
         if transform_args.scale_jitter is not None:
             scale_range = transform_args.get_scale_range()
-            self.scale_jitter = Compose(
-                [
+            self.scale_jitter = ReplayCompose(
+                transforms=[
                     ScaleJitter(
                         sizes=transform_args.scale_jitter.sizes,
                         target_size=(
@@ -297,77 +297,55 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
                         num_scales=transform_args.scale_jitter.num_scales,
                         divisible_by=transform_args.scale_jitter.divisible_by,
                         p=transform_args.scale_jitter.prob,
-                        step_seeding=transform_args.scale_jitter.step_seeding,
-                        seed_offset=transform_args.scale_jitter.seed_offset,
                     )
                 ],
                 bbox_params=transform_args.bbox_params,
             )
-        else:
-            self.scale_jitter = None
+
+        self.to_tensor = Compose(
+            transforms=[ToTensorV2()],
+        )
 
     def __call__(self, batch: list[ObjectDetectionDatasetItem]) -> ObjectDetectionBatch:
+        augment_batch = [
+            {
+                "image": item["image"],
+                "bboxes": item["bboxes"],
+                "class_labels": item["classes"],
+            }
+            for item in batch
+        ]
+
         if self.scale_jitter is not None:
-            # Turn into numpy again.
-            batch_np = [
-                {
-                    "image_path": item["image_path"],
-                    "image": item["image"].permute(1, 2, 0).numpy(),
-                    "bboxes": item["bboxes"].numpy(),
-                    "classes": item["classes"].numpy(),
-                    "original_size": item["original_size"],
-                }
-                for item in batch
-            ]
+            augment_batch = albumentations_helpers.transform_replay_batch(
+                self.scale_jitter, batch=augment_batch
+            )
 
-            # Apply transform.
-            seed = np.random.randint(0, 1_000_000)
-            images = []
-            bboxes = []
-            classes = []
-            for item in batch_np:
-                self.scale_jitter.step = seed
-                out = self.scale_jitter(
-                    image=item["image"],
-                    bboxes=item["bboxes"],
-                    class_labels=item["classes"],
-                )
-                images.append(out["image"])
-                bboxes.append(out["bboxes"])
-                classes.append(out["class_labels"])
+        augment_batch = albumentations_helpers.transform_batch(
+            self.to_tensor, batch=augment_batch
+        )
 
-            # Old versions of albumentations return classes/boxes as a list.
-            bboxes = [
-                bbox if isinstance(bbox, np.ndarray) else np.array(bbox)
-                for bbox in bboxes
-            ]
-            classes = [
-                cls_ if isinstance(cls_, np.ndarray) else np.array(cls_)
-                for cls_ in classes
-            ]
+        for i in range(len(augment_batch)):
+            item = augment_batch[i]
+            # Some albumentations versions return lists of tuples instead of arrays.
+            if isinstance(item["bboxes"], list):
+                item["bboxes"] = np.array(item["bboxes"])
+            if isinstance(item["class_labels"], list):
+                item["class_labels"] = np.array(item["class_labels"])
 
-            # Turn back into torch tensors.
-            images = [
-                torch.from_numpy(img).permute(2, 0, 1).to(torch.float32)
-                for img in images
-            ]
-            bboxes = [torch.from_numpy(bbox).to(torch.float32) for bbox in bboxes]
-            classes = [torch.from_numpy(cls).to(torch.int64) for cls in classes]
+        image = torch.stack([item["image"] for item in augment_batch])
+        # Albumentations ToTensorV2 only converts images/masks to tensors. We have to
+        # convert the remaining items manually.
+        bboxes = [torch.from_numpy(item["bboxes"]).float() for item in augment_batch]
+        classes = [
+            torch.from_numpy(item["class_labels"]).long() for item in augment_batch
+        ]
 
-            out_: ObjectDetectionBatch = {
-                "image_path": [item["image_path"] for item in batch],
-                "image": torch.stack(images),
-                "bboxes": bboxes,
-                "classes": classes,
-                "original_size": [item["original_size"] for item in batch],
-            }
-            return out_
-        else:
-            out_ = {
-                "image_path": [item["image_path"] for item in batch],
-                "image": torch.stack([item["image"] for item in batch]),
-                "bboxes": [item["bboxes"] for item in batch],
-                "classes": [item["classes"] for item in batch],
-                "original_size": [item["original_size"] for item in batch],
-            }
-            return out_
+        out = ObjectDetectionBatch(
+            image_path=[item["image_path"] for item in batch],
+            image=image,
+            bboxes=bboxes,
+            classes=classes,
+            original_size=[item["original_size"] for item in batch],
+        )
+        return out
