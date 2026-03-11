@@ -16,6 +16,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add support for DINOv2
   [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)
   inference and fine-tuning.
+- Add option to freeze the backbone for all EoMT models during training with the
+  `model_args={"backbone_freeze": True}` argument.
 
 ### Changed
 
