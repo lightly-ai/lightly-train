@@ -18,13 +18,15 @@ if RequirementCache("torchmetrics<1.5"):
     pytest.skip("Old torchmetrics version", allow_module_level=True)
 
 
-from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.loss_metric_collection import LossMetricCollection
 
 
-class TestLossMetrics:
+class TestLossMetricCollection:
     def test_compute__train_split(self) -> None:
         # RunningMean(window=2) keeps only the last two values.
-        metric = LossMetrics(split="train", loss_names=["loss"], running_mean_window=2)
+        metric = LossMetricCollection(
+            split="train", loss_names=["loss"], running_mean_window=2
+        )
         metric.update({"loss": torch.tensor(1.0)}, weight=1)
         metric.update({"loss": torch.tensor(3.0)}, weight=1)
         metric.update({"loss": torch.tensor(5.0)}, weight=1)
@@ -33,7 +35,7 @@ class TestLossMetrics:
 
     def test_compute__val_split(self) -> None:
         # MeanMetric accumulates a weighted mean across batches.
-        metric = LossMetrics(split="val", loss_names=["loss"])
+        metric = LossMetricCollection(split="val", loss_names=["loss"])
         metric.update({"loss": torch.tensor(1.0)}, weight=1)
         metric.update({"loss": torch.tensor(3.0)}, weight=1)
         result = metric.compute()
@@ -41,7 +43,7 @@ class TestLossMetrics:
 
     def test_compute__multiple_losses(self) -> None:
         # "loss" and other names coexist with different key formats.
-        metric = LossMetrics(split="val", loss_names=["loss", "loss_vfl"])
+        metric = LossMetricCollection(split="val", loss_names=["loss", "loss_vfl"])
         metric.update(
             {"loss": torch.tensor(1.0), "loss_vfl": torch.tensor(2.0)}, weight=1
         )
@@ -51,11 +53,11 @@ class TestLossMetrics:
         }
 
     def test_update__mismatched_keys(self) -> None:
-        metric = LossMetrics(split="val", loss_names=["loss"])
+        metric = LossMetricCollection(split="val", loss_names=["loss"])
         with pytest.raises(ValueError):
             metric.update({"wrong_key": torch.tensor(1.0)}, weight=1)
 
     def test_update__missing_keys(self) -> None:
-        metric = LossMetrics(split="val", loss_names=["loss", "loss_vfl"])
+        metric = LossMetricCollection(split="val", loss_names=["loss", "loss_vfl"])
         with pytest.raises(ValueError):
             metric.update({"loss": torch.tensor(1.0)}, weight=1)

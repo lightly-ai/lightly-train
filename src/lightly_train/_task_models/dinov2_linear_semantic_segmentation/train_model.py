@@ -156,9 +156,11 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             logits = logits[:, :-1]  # Drop logits for the ignored class.
         loss = self.criterion(logits, masks)
 
-        self.train_metrics.update_loss({"loss": loss.detach()}, weight=images.shape[0])
+        self.train_metrics.update_with_losses(
+            {"loss": loss.detach()}, weight=images.shape[0]
+        )
         if self.metric_args.train:
-            self.train_metrics.update(logits.argmax(dim=1), masks)
+            self.train_metrics.update_with_predictions(logits.argmax(dim=1), masks)
 
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
 
@@ -187,10 +189,12 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             image_logits = image_logits.unsqueeze(0)  # Add batch dimension.
             image_mask = image_mask.unsqueeze(0)  # Add batch dimension.
             loss += self.criterion(image_logits, image_mask)
-            self.val_metrics.update(image_logits.argmax(dim=1), image_mask)
+            self.val_metrics.update_with_predictions(
+                image_logits.argmax(dim=1), image_mask
+            )
         loss /= len(images)
 
-        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
+        self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.val_metrics)
 

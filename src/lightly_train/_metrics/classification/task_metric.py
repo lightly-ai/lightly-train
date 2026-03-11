@@ -13,7 +13,12 @@ from typing import Literal, Union
 
 from pydantic import Field
 from torch import Tensor
-from torchmetrics import Metric, MetricCollection
+from torchmetrics import (
+    Metric as TorchmetricsMetric,
+)
+from torchmetrics import (
+    MetricCollection as TorchmetricsMetricCollection,
+)
 from typing_extensions import Annotated
 
 from lightly_train._metrics.classification.metric_args import ClassificationMetricArgs
@@ -35,9 +40,9 @@ from lightly_train._metrics.classification.multilabel_metric import (
 from lightly_train._metrics.classwise_metric_collection import (
     ClasswiseMetricCollection,
 )
-from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.loss_metric_collection import LossMetricCollection
 from lightly_train._metrics.task_metric import (
-    MetricComputeResult,
+    AggregatedMetricValues,
     TaskMetric,
     TaskMetricArgs,
     get_watch_metric_mode,
@@ -121,21 +126,21 @@ class ClassificationTaskMetric(TaskMetric):
         if init_metrics is None:
             init_metrics = task_metric_args.train if split == "train" else True
 
-        self.metrics = self.build_metric_collection(
+        self.metrics = self.build_torchmetrics_metric_collection(
             prefix=f"{self.split}_metric/",
             classwise=False,
             num_classes=len(class_names),
             init_metrics=init_metrics,
         )
-        self.metrics_classwise = self.build_classwise_metric_collection(
+        self.metrics_classwise = self.build_classwise_torchmetrics_metric_collection(
             classwise=task_metric_args.classwise,
             prefix=f"{self.split}_metric_classwise/",
             class_names=class_names,
             init_metrics=init_metrics,
         )
-        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
+        self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
 
-    def update(self, preds: Tensor, target: Tensor) -> None:
+    def update_with_predictions(self, preds: Tensor, target: Tensor) -> None:
         """Update all quality metrics with inputs.
 
         Args:
@@ -146,7 +151,7 @@ class ClassificationTaskMetric(TaskMetric):
         if self.metrics_classwise is not None:
             self.metrics_classwise.update(preds, target)
 
-    def update_loss(
+    def update_with_losses(
         self,
         loss_dict: Mapping[str, Tensor],
         weight: int,
@@ -163,11 +168,11 @@ class ClassificationTaskMetric(TaskMetric):
         """
         self.loss_metrics.update(loss_dict, weight=weight)  # type: ignore[operator]
 
-    def compute(self) -> MetricComputeResult:
+    def compute_aggregated_values(self) -> AggregatedMetricValues:
         """Compute all metrics and return combined results.
 
         Returns:
-            MetricComputeResult with metrics dict, watch_metric, and watch_metric_value
+            AggregatedMetricValues with metric_values dict, watch_metric, and watch_metric_value
         """
         result = self.loss_metrics.compute()
         result.update(self.metrics.compute())
@@ -175,23 +180,23 @@ class ClassificationTaskMetric(TaskMetric):
             result.update(self.metrics_classwise.compute())
         result = {name: float(value) for name, value in result.items()}
         best_val = result.get(self.watch_metric)
-        return MetricComputeResult(
-            metrics=result,
+        return AggregatedMetricValues(
+            metric_values=result,
             watch_metric=self.watch_metric if best_val is not None else None,
             watch_metric_value=float(best_val) if best_val is not None else None,
             watch_metric_mode=self.watch_metric_mode if best_val is not None else None,
             best_head_name=None,
-            best_head_metrics=None,
+            best_head_metric_values=None,
         )
 
-    def build_metric_collection(
+    def build_torchmetrics_metric_collection(
         self,
         *,
         prefix: str,
         classwise: bool,
         num_classes: int,
         init_metrics: bool,
-    ) -> MetricCollection:
+    ) -> TorchmetricsMetricCollection:
         """Build a flat dictionary of metric instances from TaskMetricArgs and then
         wrap them in a MetricCollection instance.
 
@@ -202,7 +207,7 @@ class ClassificationTaskMetric(TaskMetric):
         """
         task_metric_args = self.task_metric_args
 
-        all_metrics: dict[str, Metric] = {}
+        all_metrics: dict[str, TorchmetricsMetric] = {}
         if init_metrics:
             for field_name in task_metric_args.__class__.model_fields:
                 metric_args = getattr(task_metric_args, field_name)
@@ -211,25 +216,25 @@ class ClassificationTaskMetric(TaskMetric):
                 if classwise and not metric_args.supports_classwise():
                     continue
                 all_metrics.update(
-                    metric_args.get_metrics(
+                    metric_args.get_torchmetrics_instances(
                         classwise=classwise, num_classes=num_classes
                     )
                 )
 
-        return MetricCollection(all_metrics, prefix=prefix)  # type: ignore[arg-type]
+        return TorchmetricsMetricCollection(all_metrics, prefix=prefix)  # type: ignore[arg-type]
 
-    def build_classwise_metric_collection(
+    def build_classwise_torchmetrics_metric_collection(
         self,
         *,
         classwise: bool,
         prefix: str,
         class_names: Sequence[str],
         init_metrics: bool,
-    ) -> MetricCollection | None:
+    ) -> TorchmetricsMetricCollection | None:
         """Build a classwise MetricCollection if classwise is True."""
         if not classwise:
             return None
-        metrics = self.build_metric_collection(
+        metrics = self.build_torchmetrics_metric_collection(
             prefix="",
             classwise=True,
             num_classes=len(class_names),

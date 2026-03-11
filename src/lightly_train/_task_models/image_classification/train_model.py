@@ -191,8 +191,10 @@ class ImageClassificationTrain(TrainModel):
                 f"Unsupported classification task: {self.model.classification_task}"
             )
 
-        self.train_metrics.update(logits, targets)
-        self.train_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
+        self.train_metrics.update_with_predictions(logits, targets)
+        self.train_metrics.update_with_losses(
+            {"loss": loss.detach()}, weight=len(images)
+        )
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
 
     def validation_step(
@@ -214,8 +216,8 @@ class ImageClassificationTrain(TrainModel):
             raise ValueError(
                 f"Unsupported classification task: {self.model.classification_task}"
             )
-        self.val_metrics.update(logits, targets)
-        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
+        self.val_metrics.update_with_predictions(logits, targets)
+        self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.val_metrics)
 
     def get_optimizer(

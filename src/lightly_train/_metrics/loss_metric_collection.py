@@ -14,22 +14,26 @@ from torch import Tensor
 from torch.nn import Module, ModuleDict
 
 
-class LossMetrics(Module):
+class LossMetricCollection(Module):
     """Tracks a collection of loss metrics, one for each loss name."""
 
     def __init__(
         self, split: str, loss_names: Sequence[str], running_mean_window: int = 20
     ) -> None:
-        from torchmetrics import MeanMetric
+        from torchmetrics import MeanMetric as TorchmetricsMeanMetric
 
         try:
             # Type ignore for old torchmetrics versions
-            from torchmetrics import RunningMean  # type: ignore[attr-defined]
+            from torchmetrics import (  # type: ignore[attr-defined]
+                RunningMean as TorchmetricsRunningMean,
+            )
 
-            running_mean_cls = partial(RunningMean, window=running_mean_window)
+            running_mean_cls = partial(
+                TorchmetricsRunningMean, window=running_mean_window
+            )
         except ImportError:
             # Fall back to MeanMetric for old torchmetrics versions
-            running_mean_cls = MeanMetric  # type: ignore
+            running_mean_cls = TorchmetricsMeanMetric  # type: ignore
 
         super().__init__()
         self.split = split
@@ -37,7 +41,7 @@ class LossMetrics(Module):
         # up-to-date estimate of the current loss. We do not only track the last loss
         # value because of gradient accumulation which can cause the loss to fluctuate
         # a lot from accumulation step to accumulation step.
-        metric_cls = running_mean_cls if split == "train" else MeanMetric
+        metric_cls = running_mean_cls if split == "train" else TorchmetricsMeanMetric
         self.metrics = ModuleDict({loss_name: metric_cls() for loss_name in loss_names})
 
     def update(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:

@@ -24,7 +24,7 @@ from lightly_train._metrics.panoptic_segmentation.task_metric import (
 
 
 class TestPanopticSegmentationTaskMetric:
-    def test_update(self) -> None:
+    def test_update_with_predictions__default(self) -> None:
         metric = PanopticSegmentationTaskMetric(
             task_metric_args=PanopticSegmentationTaskMetricArgs(),
             split="val",
@@ -36,16 +36,16 @@ class TestPanopticSegmentationTaskMetric:
         )
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
         target = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
-        metric.update(preds, target)
-        result = metric.compute()
-        assert result.metrics.keys() == {
+        metric.update_with_predictions(preds, target)
+        result = metric.compute_aggregated_values()
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_metric/pq",
             "val_metric/sq",
             "val_metric/rq",
         }
 
-    def test_update__classwise(self) -> None:
+    def test_update_with_predictions__classwise(self) -> None:
         metric = PanopticSegmentationTaskMetric(
             task_metric_args=PanopticSegmentationTaskMetricArgs(classwise=True),
             split="val",
@@ -57,9 +57,9 @@ class TestPanopticSegmentationTaskMetric:
         )
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
         target = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
-        metric.update(preds, target)
-        result = metric.compute()
-        assert result.metrics.keys() == {
+        metric.update_with_predictions(preds, target)
+        result = metric.compute_aggregated_values()
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_metric/pq",
             "val_metric/sq",

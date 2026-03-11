@@ -132,7 +132,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         self.loss_fn = CrossEntropyLoss(ignore_index=data_args.ignore_index)
 
         # Create per-head metrics using MultiheadTaskMetric.
-        # Loss tracking is embedded inside each head's TaskMetric via update_loss().
+        # Loss tracking is embedded inside each head's TaskMetric via update_with_losses().
         # Always pass ignore_index: the dataset maps padded/unknown pixels to
         # data_args.ignore_index (-100) regardless of whether ignore_classes is set.
         ignore_index = data_args.ignore_index
@@ -248,9 +248,13 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             losses.append(loss)
 
             # Update per-head quality metrics and loss (scalar, no accumulation).
-            head_metrics = self.train_metrics.head_metrics[head_name]
-            head_metrics.update(logits, masks)  # type: ignore[operator]
-            head_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore[operator]
+            head_metrics: SemanticSegmentationTaskMetric = (
+                self.train_metrics.head_metrics[  # type: ignore
+                    head_name
+                ]
+            )
+            head_metrics.update_with_predictions(logits, masks)
+            head_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
         # Sum losses for backprop.
         loss_sum = torch.stack(losses).sum()
@@ -284,7 +288,11 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
             )
 
             # Compute loss and update metrics per image.
-            head_metrics = self.val_metrics.head_metrics[head_name]
+            head_metrics: SemanticSegmentationTaskMetric = (
+                self.val_metrics.head_metrics[  # type: ignore
+                    head_name
+                ]
+            )
             head_loss = torch.tensor(
                 0.0, device=crop_logits.device, dtype=crop_logits.dtype
             )
@@ -293,12 +301,14 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
                 image_mask = image_mask.unsqueeze(0)  # Add batch dimension.
                 loss = self.loss_fn(image_logits, image_mask)
                 head_loss += loss
-                head_metrics.update(image_logits, image_mask)  # type: ignore[operator]
+                head_metrics.update_with_predictions(image_logits, image_mask)
             head_loss /= len(images)
             losses.append(head_loss)
 
             # Accumulate loss in the head's TaskMetric (weighted by batch size).
-            head_metrics.update_loss({"loss": head_loss.detach()}, weight=len(images))  # type: ignore[operator]
+            head_metrics.update_with_losses(
+                {"loss": head_loss.detach()}, weight=len(images)
+            )
 
         # Use sum of losses for consistency with training_step.
         loss_sum = torch.stack(losses).sum()

@@ -41,7 +41,7 @@ from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._loggers.wandb import WandbLogger
 from lightly_train._metrics.task_metric import (
-    MetricComputeResult,
+    AggregatedMetricValues,
     TaskMetricArgs,
 )
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
@@ -771,7 +771,7 @@ def log_step(
     split: Literal["train", "val"],
     step: int,
     max_steps: int,
-    metrics: MetricComputeResult | None,
+    agg_metric_values: AggregatedMetricValues | None,
     task: str,
     timer_agg: TimerAggregateMetrics,
     global_batch_size: int,
@@ -790,11 +790,11 @@ def log_step(
         f"{split_cap} Step {step + 1:>{width}}/{max_steps:>{width}}",
     ]
 
-    # TODO(Guarin, 02/26): Loss name should be part of MetricComputeResult and not
+    # TODO(Guarin, 02/26): Loss name should be part of AggregatedMetricValues and not
     # be redefined here.
-    if metrics is not None:
+    if agg_metric_values is not None:
         loss_name = f"{split}_loss"
-        loss = metrics.metrics.get(loss_name)
+        loss = agg_metric_values.metric_values.get(loss_name)
         if loss is not None:
             parts.append(f"{loss_name}: {loss:4.4f}")
 
@@ -848,11 +848,11 @@ def log_step(
 def log_fabric(
     fabric: Fabric,
     log_dict: dict[str, float],
-    metrics: MetricComputeResult,
+    agg_metric_values: AggregatedMetricValues,
     step: int,
 ) -> None:
     final_dict = {}
-    final_dict.update(metrics.metrics)
+    final_dict.update(agg_metric_values.metric_values)
     final_dict.update(log_dict)
     fabric.log_dict(final_dict, step=step)
 
@@ -860,8 +860,8 @@ def log_fabric(
 def log_training_summary(
     timer_agg: TimerAggregateMetrics,
     fabric: Fabric,
-    last_val_metrics: MetricComputeResult,
-    best_val_metrics: BestMetric,
+    last_val_agg_metric_values: AggregatedMetricValues,
+    best_val_agg_metric_values: BestAggregatedMetricValues,
     step: int,
     global_batch_size: int,
     gradient_accumulation_steps: int,
@@ -878,9 +878,9 @@ def log_training_summary(
         gradient_accumulation_steps: Number of gradient accumulation steps. Used to
             compute the effective global batch size for train throughput.
     """
-    max_len = max(len(name) for name in last_val_metrics.metrics.keys())
-    best_metrics = best_val_metrics.metrics
-    best_step = best_val_metrics.step
+    max_len = max(len(name) for name in last_val_agg_metric_values.metric_values.keys())
+    best_metrics = best_val_agg_metric_values.agg_metric_values
+    best_step = best_val_agg_metric_values.step
 
     # All metrics
     logger.info("")
@@ -889,28 +889,29 @@ def log_training_summary(
     logger.info(f"  | {'Name':<{max_len}} | {'Best':^{col}} | {'Last':^{col}} |")
     logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
     logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
-    for metric_name in sorted(last_val_metrics.metrics.keys()):
-        last_value = last_val_metrics.metrics[metric_name]
-        best_value = best_metrics.metrics.get(metric_name, float("nan"))
+    for metric_name in sorted(last_val_agg_metric_values.metric_values.keys()):
+        last_value = last_val_agg_metric_values.metric_values[metric_name]
+        best_value = best_metrics.metric_values.get(metric_name, float("nan"))
         logger.info(
             f"  | {metric_name:<{max_len}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
         )
     logger.info("")
 
     # Best head metrics
-    if last_val_metrics.best_head_metrics is not None:
+    if last_val_agg_metric_values.best_head_metric_values is not None:
         best_head_metrics = (
-            best_metrics.best_head_metrics
-            if best_metrics.best_head_metrics is not None
-            else last_val_metrics.best_head_metrics
+            best_metrics.best_head_metric_values
+            if best_metrics.best_head_metric_values is not None
+            else last_val_agg_metric_values.best_head_metric_values
         )
 
         logger.info(
-            f"Validation Metrics - Best Head: {last_val_metrics.best_head_name}"
+            f"Validation Metrics - Best Head: {last_val_agg_metric_values.best_head_name}"
         )
         col = 8
         max_len_head = max(
-            len(name) for name in last_val_metrics.best_head_metrics.keys()
+            len(name)
+            for name in last_val_agg_metric_values.best_head_metric_values.keys()
         )
 
         logger.info(
@@ -921,8 +922,10 @@ def log_training_summary(
             f"  | {'step':<{max_len_head}} | {best_step:>{col}} | {step:>{col}} |"
         )
 
-        for metric_name in sorted(last_val_metrics.best_head_metrics.keys()):
-            last_value = last_val_metrics.best_head_metrics[metric_name]
+        for metric_name in sorted(
+            last_val_agg_metric_values.best_head_metric_values.keys()
+        ):
+            last_value = last_val_agg_metric_values.best_head_metric_values[metric_name]
             best_value = best_head_metrics.get(metric_name, float("nan"))
             logger.info(
                 f"  | {metric_name:<{max_len_head}} | {best_value:>{col}.4f} | {last_value:>{col}.4f} |"
@@ -937,7 +940,7 @@ def log_training_summary(
         logger.info(f"  |:{'-' * max_len}-|:{'-' * col}:|:{'-' * col}:|")
         logger.info(f"  | {'step':<{max_len}} | {best_step:>{col}} | {step:>{col}} |")
         logger.info(
-            f"  | {best_metrics.watch_metric:<{max_len}} | {best_metrics.watch_metric_value:>{col}.4f} | {last_val_metrics.watch_metric_value:>{col}.4f} |"
+            f"  | {best_metrics.watch_metric:<{max_len}} | {best_metrics.watch_metric_value:>{col}.4f} | {last_val_agg_metric_values.watch_metric_value:>{col}.4f} |"
         )
         logger.info("")
 
@@ -1100,56 +1103,62 @@ def add_timer_logs(
 
 
 @dataclass
-class BestMetric:
-    metrics: MetricComputeResult
+class BestAggregatedMetricValues:
+    agg_metric_values: AggregatedMetricValues
     step: int
 
 
 def get_best_metrics(
-    best_metrics: BestMetric | None,
-    last_metrics: MetricComputeResult,
+    best_agg_metric_values: BestAggregatedMetricValues | None,
+    last_agg_metric_values: AggregatedMetricValues,
     step: int,
     metric_args: TaskMetricArgs,
-) -> BestMetric:
-    if last_metrics.watch_metric is None:
+) -> BestAggregatedMetricValues:
+    if last_agg_metric_values.watch_metric is None:
         logger.warning(
             f"Unknown watch metric: '{metric_args.watch_metric}'! No metric will be "
             "tracked as best metric and the last checkpoint will be saved as best "
             f"checkpoint. Set `metric_args={{'watch_metric': '<metric name>'}}` to a "
             f"valid metric to enable best checkpoint tracking. Valid metrics are: "
-            f"{list(last_metrics.metrics.keys())}"
+            f"{list(last_agg_metric_values.metric_values.keys())}"
         )
 
     if (
-        best_metrics is None
-        or best_metrics.metrics.watch_metric is None
-        or best_metrics.metrics.watch_metric_value is None
-        or best_metrics.metrics.watch_metric_mode is None
+        best_agg_metric_values is None
+        or best_agg_metric_values.agg_metric_values.watch_metric is None
+        or best_agg_metric_values.agg_metric_values.watch_metric_value is None
+        or best_agg_metric_values.agg_metric_values.watch_metric_mode is None
     ):
-        return BestMetric(
-            metrics=last_metrics,
+        return BestAggregatedMetricValues(
+            agg_metric_values=last_agg_metric_values,
             step=step,
         )
 
-    if last_metrics.watch_metric is None or last_metrics.watch_metric_value is None:
-        return best_metrics
+    if (
+        last_agg_metric_values.watch_metric is None
+        or last_agg_metric_values.watch_metric_value is None
+    ):
+        return best_agg_metric_values
 
-    if best_metrics.metrics.watch_metric != last_metrics.watch_metric:
-        return best_metrics  # Shouldn't happen, but safe to assume we want best metrics
+    if (
+        best_agg_metric_values.agg_metric_values.watch_metric
+        != last_agg_metric_values.watch_metric
+    ):
+        return best_agg_metric_values  # Shouldn't happen, but safe to assume we want best metrics
 
-    best_metric_value = best_metrics.metrics.watch_metric_value
-    last_metric_value = last_metrics.watch_metric_value
-    mode = best_metrics.metrics.watch_metric_mode
+    best_metric_value = best_agg_metric_values.agg_metric_values.watch_metric_value
+    last_metric_value = last_agg_metric_values.watch_metric_value
+    mode = best_agg_metric_values.agg_metric_values.watch_metric_mode
 
     if (mode == "max" and last_metric_value > best_metric_value) or (
         mode == "min" and last_metric_value < best_metric_value
     ):
-        return BestMetric(
-            metrics=last_metrics,
+        return BestAggregatedMetricValues(
+            agg_metric_values=last_agg_metric_values,
             step=step,
         )
     else:
-        return best_metrics
+        return best_agg_metric_values
 
 
 def get_save_checkpoint_args(

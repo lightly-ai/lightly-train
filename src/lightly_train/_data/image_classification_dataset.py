@@ -17,20 +17,19 @@ from pydantic import Field
 from torch import Tensor
 
 from lightly_train._data import file_helpers, label_helpers
-from lightly_train._data.task_batch_collation import (
-    BaseCollateFunction,
-    ImageClassificationCollateFunction,
-)
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
-from lightly_train._transforms.task_transform import TaskTransform
+from lightly_train._transforms.image_classification_transform import (
+    ImageClassificationCollateFunction,
+)
+from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
 from lightly_train.types import ImageClassificationDatasetItem, PathLike
 
 
 class ImageClassificationDataset(TaskDataset):
     # Narrow the type of dataset_args.
     dataset_args: ImageClassificationDatasetArgs  # type: ignore[assignment]
-    batch_collate_fn_cls: ClassVar[type[BaseCollateFunction]] = (
+    batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
         ImageClassificationCollateFunction
     )
 

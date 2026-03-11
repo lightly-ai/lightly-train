@@ -13,14 +13,14 @@ from typing import Any
 
 from pydantic import Field
 from torch import Tensor
-from torchmetrics import MetricCollection
+from torchmetrics import MetricCollection as TorchmetricsMetricCollection
 
-from lightly_train._metrics.loss_metrics import LossMetrics
+from lightly_train._metrics.loss_metric_collection import LossMetricCollection
 from lightly_train._metrics.mean_average_precision import (
     MeanAveragePrecisionArgs,
 )
 from lightly_train._metrics.task_metric import (
-    MetricComputeResult,
+    AggregatedMetricValues,
     TaskMetric,
     TaskMetricArgs,
     get_watch_metric_mode,
@@ -73,7 +73,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         metrics = {}
         if init_metrics and task_metric_args.map is not None:
             metrics.update(
-                task_metric_args.map.get_metrics(
+                task_metric_args.map.get_torchmetrics_instances(
                     classwise=task_metric_args.classwise,
                     prefix=f"{split}_metric",
                     class_names=class_names,
@@ -81,10 +81,10 @@ class InstanceSegmentationTaskMetric(TaskMetric):
                     box_format="xyxy",
                 )
             )
-        self.metrics = MetricCollection(metrics)  # type: ignore
-        self.loss_metrics = LossMetrics(split=split, loss_names=loss_names)
+        self.metrics = TorchmetricsMetricCollection(metrics)  # type: ignore
+        self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
 
-    def update(
+    def update_with_predictions(
         self,
         preds: Sequence[Mapping[str, Any]],
         target: Sequence[Mapping[str, Any]],
@@ -97,20 +97,20 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         """
         self.metrics.update(preds, target)
 
-    def update_loss(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
+    def update_with_losses(self, loss_dict: Mapping[str, Tensor], weight: int) -> None:
         self.loss_metrics.update(loss_dict=loss_dict, weight=weight)
 
-    def compute(self) -> MetricComputeResult:
+    def compute_aggregated_values(self) -> AggregatedMetricValues:
         """Compute all metrics and return combined results."""
         result = self.loss_metrics.compute()
         result.update(self.metrics.compute())
         result = {name: float(value) for name, value in result.items()}
         best_val = result.get(self.watch_metric)
-        return MetricComputeResult(
-            metrics=result,
+        return AggregatedMetricValues(
+            metric_values=result,
             watch_metric=self.watch_metric if best_val is not None else None,
             watch_metric_value=float(best_val) if best_val is not None else None,
             watch_metric_mode=self.watch_metric_mode if best_val is not None else None,
             best_head_name=None,
-            best_head_metrics=None,
+            best_head_metric_values=None,
         )

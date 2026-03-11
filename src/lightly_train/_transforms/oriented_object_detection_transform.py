@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from typing import Literal
+
 import torch
 import torchvision.tv_tensors as tv_tensors
 from torch import Tensor
@@ -19,10 +21,17 @@ from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.random_rotate_90 import RandomRotate90
+from lightly_train._transforms.scale_jitter import TorchVisionScaleJitter
 from lightly_train._transforms.task_transform import (
+    TaskCollateFunction,
     TaskTransform,
+    TaskTransformArgs,
     TaskTransformInput,
     TaskTransformOutput,
+)
+from lightly_train.types import (
+    OrientedObjectDetectionBatch,
+    OrientedObjectDetectionDatasetItem,
 )
 
 
@@ -182,3 +191,41 @@ class OrientedObjectDetectionTransform(TaskTransform):
             "bboxes": transformed_bboxes,
             "class_labels": class_labels,
         }
+
+
+class OrientedObjectDetectionCollateFunction(TaskCollateFunction):
+    def __init__(
+        self, split: Literal["train", "val"], transform_args: TaskTransformArgs
+    ):
+        super().__init__(split, transform_args)
+        assert isinstance(transform_args, OrientedObjectDetectionTransformArgs)
+        self.scale_jitter: TorchVisionScaleJitter | None = None
+        if transform_args.scale_jitter is not None:
+            scale_range = transform_args.get_scale_range()
+
+            self.scale_jitter = TorchVisionScaleJitter(
+                sizes=transform_args.scale_jitter.sizes,
+                target_size=no_auto(transform_args.image_size)
+                if transform_args.scale_jitter.sizes is None
+                else None,
+                num_scales=transform_args.scale_jitter.num_scales,
+                divisible_by=transform_args.scale_jitter.divisible_by,
+                scale_range=scale_range,
+            )
+
+    def __call__(
+        self, batch: list[OrientedObjectDetectionDatasetItem]
+    ) -> OrientedObjectDetectionBatch:
+        if self.scale_jitter is not None:
+            batch = self.scale_jitter(batch)
+
+        out_ = OrientedObjectDetectionBatch(
+            {
+                "image_path": [item["image_path"] for item in batch],
+                "image": torch.stack([item["image"] for item in batch]),
+                "bboxes": [item["bboxes"] for item in batch],
+                "classes": [item["classes"] for item in batch],
+                "original_size": [item["original_size"] for item in batch],
+            }
+        )
+        return out_

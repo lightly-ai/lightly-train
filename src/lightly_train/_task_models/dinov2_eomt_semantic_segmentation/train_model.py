@@ -278,7 +278,9 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
         # Update metrics
-        self.train_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore
+        self.train_metrics.update_with_losses(
+            {"loss": loss.detach()}, weight=len(images)
+        )
         if self.metric_args.train:
             with torch.no_grad():
                 # Calculate metrics for the last block's predictions.
@@ -290,7 +292,9 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 )
                 logits = logits[:, :-1]  # Drop ignore class logits.
                 for pred, targ in zip(logits, masks):
-                    self.train_metrics.update(pred[None, ...], targ[None, ...])  # type: ignore
+                    self.train_metrics.update_with_predictions(
+                        pred[None, ...], targ[None, ...]
+                    )  # type: ignore
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -378,11 +382,13 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                     crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
                 )
                 for pred, targ in zip(logits, masks):
-                    self.val_metrics.update(pred[None, ...], targ[None, ...])  # type: ignore
+                    self.val_metrics.update_with_predictions(
+                        pred[None, ...], targ[None, ...]
+                    )
 
         # Compute the total loss.
         loss = self.criterion.loss_total(losses_all_layers=losses)
-        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore
+        self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
         return TaskStepResult(
             loss=loss,
@@ -419,7 +425,9 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         metrics: ModuleList,
     ) -> None:
         for i in range(len(preds)):
-            metrics[block_idx].update(preds[i][None, ...], targets[i][None, ...])  # type: ignore
+            metrics[block_idx].update_with_predictions(
+                preds[i][None, ...], targets[i][None, ...]
+            )  # type: ignore
 
     def get_optimizer(
         self,

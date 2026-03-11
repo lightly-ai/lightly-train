@@ -34,6 +34,7 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.task_transform import (
+    TaskCollateFunction,
     TaskTransform,
     TaskTransformArgs,
     TaskTransformInput,
@@ -52,6 +53,8 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import (
     ImageSizeTuple,
+    InstanceSegmentationBatch,
+    InstanceSegmentationDatasetItem,
     NDArrayBBoxes,
     NDArrayBinaryMasksInt,
     NDArrayClasses,
@@ -314,3 +317,23 @@ class InstanceSegmentationTransform(TaskTransform):
             "bboxes": transformed["bboxes"],
             "class_labels": transformed["class_labels"],
         }
+
+
+class InstanceSegmentationCollateFunction(TaskCollateFunction):
+    def __call__(
+        self, batch: list[InstanceSegmentationDatasetItem]
+    ) -> InstanceSegmentationBatch:
+        # Prepare the batch without any stacking.
+        images = [item["image"] for item in batch]
+
+        out: InstanceSegmentationBatch = {
+            "image_path": [item["image_path"] for item in batch],
+            # Stack images during training as they all have the same shape.
+            # During validation every image can have a different shape.
+            "image": torch.stack(images) if self.split == "train" else images,
+            "binary_masks": [item["binary_masks"] for item in batch],
+            "bboxes": [item["bboxes"] for item in batch],
+            "classes": [item["classes"] for item in batch],
+        }
+
+        return out
