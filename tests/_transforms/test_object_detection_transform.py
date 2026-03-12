@@ -12,9 +12,9 @@ import itertools
 
 import numpy as np
 import pytest
-import torch
 from albumentations import BboxParams
 from numpy.typing import NDArray
+from torch import Tensor
 
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.object_detection_transform import (
@@ -205,14 +205,13 @@ class TestObjectDetectionTransform:
             "class_labels": class_labels,
         }
         tr_output = transform(tr_input)
-        assert isinstance(tr_output, dict)
-        out_img = tr_output["image"]
-        assert isinstance(out_img, torch.Tensor)
-        assert out_img.dtype == torch.float32
-        assert "bboxes" in tr_output
-        assert "class_labels" in tr_output
+        assert tr_output["image"].dtype == np.float32
+        assert tr_output["bboxes"].dtype == np.float64
+        assert tr_output["class_labels"].dtype == np.int64
 
-    def test__collation(self) -> None:
+
+class TestObjectDetectionCollateFunction:
+    def test__call__(self) -> None:
         transform_args = ObjectDetectionTransformArgs(
             channel_drop=_get_channel_drop_args(),
             num_channels=3,
@@ -236,19 +235,25 @@ class TestObjectDetectionTransform:
 
         sample1: ObjectDetectionDatasetItem = {
             "image_path": "img1.png",
-            "image": torch.randn(3, 128, 128),
-            "bboxes": torch.tensor([[10.0, 10.0, 50.0, 50.0]]),
-            "classes": torch.tensor([1]),
+            "image": np.random.randint(0, 256, (128, 128, 3), dtype=np.uint8),
+            "bboxes": np.array([[10.0, 10.0, 50.0, 50.0]]),
+            "classes": np.array([1], dtype=np.int64),
             "original_size": (128, 128),
         }
         sample2: ObjectDetectionDatasetItem = {
             "image_path": "img2.png",
-            "image": torch.randn(3, 64, 64),
-            "bboxes": torch.tensor([[20.0, 20.0, 40.0, 40.0]]),
-            "classes": torch.tensor([2]),
+            "image": np.random.randint(0, 256, (64, 64, 3), dtype=np.uint8),
+            "bboxes": np.array([[20.0, 20.0, 40.0, 40.0]]),
+            "classes": np.array([2], dtype=np.int64),
             "original_size": (64, 64),
         }
         batch = [sample1, sample2]
 
         out = collate_fn(batch)
-        assert isinstance(out, dict)
+        assert isinstance(out["image"], Tensor)
+        assert isinstance(out["bboxes"], list)
+        assert isinstance(out["classes"], list)
+        assert isinstance(out["original_size"], list)
+        assert all(isinstance(bbox, Tensor) for bbox in out["bboxes"])
+        assert all(isinstance(classes, Tensor) for classes in out["classes"])
+        assert out["original_size"] == [(128, 128), (64, 64)]

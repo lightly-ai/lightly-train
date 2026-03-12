@@ -16,20 +16,17 @@ from albumentations import (
     Compose,
     HorizontalFlip,
     RandomRotate90,
-    ReplayCompose,
     Resize,
     Rotate,
     ToFloat,
     VerticalFlip,
 )
 from albumentations.pytorch.transforms import ToTensorV2
-from numpy.typing import NDArray
 from pydantic import ConfigDict
-from torch import Tensor
 from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
-from lightly_train._transforms import albumentations_helpers
+from lightly_train._transforms.batch_transform import BatchReplayCompose, BatchTransform
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.random_iou_crop import RandomIoUCrop
@@ -60,6 +57,8 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import (
     ImageSizeTuple,
+    NDArrayBBoxes,
+    NDArrayClasses,
     NDArrayImage,
     ObjectDetectionBatch,
     ObjectDetectionDatasetItem,
@@ -68,14 +67,14 @@ from lightly_train.types import (
 
 class ObjectDetectionTransformInput(TaskTransformInput):
     image: NDArrayImage
-    bboxes: NotRequired[NDArray[np.float64]]
-    class_labels: NotRequired[NDArray[np.int64]]
+    bboxes: NotRequired[NDArrayBBoxes]
+    class_labels: NotRequired[NDArrayClasses]
 
 
 class ObjectDetectionTransformOutput(TaskTransformOutput):
-    image: Tensor
-    bboxes: NotRequired[Tensor]
-    class_labels: NotRequired[Tensor]
+    image: NDArrayImage
+    bboxes: NotRequired[NDArrayBBoxes]
+    class_labels: NotRequired[NDArrayClasses]
 
 
 class ObjectDetectionTransformArgs(TaskTransformArgs):
@@ -103,21 +102,6 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     def resolve_incompatible(self) -> None:
         # TODO: Lionel (09/25): Add checks for incompatible args.
         pass
-
-    def get_scale_range(self) -> tuple[float, float] | None:
-        if self.scale_jitter is not None:
-            if (
-                self.scale_jitter.min_scale is None
-                or self.scale_jitter.max_scale is None
-            ):
-                return None
-            else:
-                return (
-                    self.scale_jitter.min_scale,
-                    self.scale_jitter.max_scale,
-                )
-        else:
-            return None
 
 
 class ObjectDetectionTransform(TaskTransform):
@@ -280,11 +264,10 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
         transform_args: ObjectDetectionTransformArgs,
     ):
         super().__init__(split, transform_args)
-        self.scale_jitter: ReplayCompose | None = None
+        self.scale_jitter: BatchReplayCompose | None = None
 
         if transform_args.scale_jitter is not None:
-            scale_range = transform_args.get_scale_range()
-            self.scale_jitter = ReplayCompose(
+            self.scale_jitter = BatchReplayCompose(
                 transforms=[
                     ScaleJitter(
                         sizes=transform_args.scale_jitter.sizes,
@@ -293,7 +276,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
                             if transform_args.scale_jitter.sizes is None
                             else None
                         ),
-                        scale_range=scale_range,
+                        scale_range=transform_args.scale_jitter.scale_range,
                         num_scales=transform_args.scale_jitter.num_scales,
                         divisible_by=transform_args.scale_jitter.divisible_by,
                         p=transform_args.scale_jitter.prob,
@@ -302,8 +285,10 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
                 bbox_params=transform_args.bbox_params,
             )
 
-        self.to_tensor = Compose(
-            transforms=[ToTensorV2()],
+        self.to_tensor = BatchTransform(
+            Compose(
+                transforms=[ToTensorV2()],
+            )
         )
 
     def __call__(self, batch: list[ObjectDetectionDatasetItem]) -> ObjectDetectionBatch:
@@ -317,13 +302,9 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
         ]
 
         if self.scale_jitter is not None:
-            augment_batch = albumentations_helpers.transform_replay_batch(
-                self.scale_jitter, batch=augment_batch
-            )
+            augment_batch = self.scale_jitter(batch=augment_batch)
 
-        augment_batch = albumentations_helpers.transform_batch(
-            self.to_tensor, batch=augment_batch
-        )
+        augment_batch = self.to_tensor(augment_batch)
 
         for i in range(len(augment_batch)):
             item = augment_batch[i]
@@ -333,7 +314,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             if isinstance(item["class_labels"], list):
                 item["class_labels"] = np.array(item["class_labels"])
 
-        image = torch.stack([item["image"] for item in augment_batch])
+        image = torch.stack([item["image"] for item in augment_batch])  # type: ignore
         # Albumentations ToTensorV2 only converts images/masks to tensors. We have to
         # convert the remaining items manually.
         bboxes = [torch.from_numpy(item["bboxes"]).float() for item in augment_batch]

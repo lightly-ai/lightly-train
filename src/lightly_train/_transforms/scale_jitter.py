@@ -71,6 +71,7 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
         self.sizes = sizes
         self.target_size = target_size
         self.scale_range = scale_range
+        self.num_scales = num_scales
         self.divisible_by = divisible_by
         self.p = p
 

@@ -6,14 +6,27 @@
 # LICENSE file in the root directory of this source tree.
 #
 import numpy as np
+from albumentations import Compose, ToTensorV2
+from torch import Tensor
 
-from lightly_train._transforms.replay_compose import ReplayCompose
+from lightly_train._transforms.batch_transform import BatchReplayCompose, BatchTransform
 from lightly_train._transforms.scale_jitter import ScaleJitter
 
 
-class TestReplayCompose:
-    def test_transform_batch(self) -> None:
-        transform = ReplayCompose(
+class TestBatchTransform:
+    def test__call__(self) -> None:
+        transform = BatchTransform(Compose([ToTensorV2()]))
+        batch = [
+            {"image": np.random.randint(0, 255, size=(8, 8, 3), dtype=np.uint8)},
+            {"image": np.random.randint(0, 255, size=(8, 8, 3), dtype=np.uint8)},
+        ]
+        transformed = transform(batch)
+        assert all(isinstance(item["image"], Tensor) for item in transformed)
+
+
+class TestBatchReplayCompose:
+    def test__call__(self) -> None:
+        transform = BatchReplayCompose(
             transforms=[ScaleJitter(sizes=[(5, 5), (7, 7), (9, 9)])],
         )
 
@@ -30,17 +43,17 @@ class TestReplayCompose:
 
         # Test that transform generates same image sizes for all items in the same batch
         for _ in range(5):
-            transformed = transform.transform_batch(batch)
+            transformed = transform(batch)
             image_shape = transformed[0]["image"].shape
             mask_shape = transformed[0]["mask"].shape
             assert all(item["image"].shape == image_shape for item in transformed)
             assert all(item["mask"].shape == mask_shape for item in transformed)
 
         # Test that transform generates different image sizes for different batches
-        transformed = transform.transform_batch(batch)
+        transformed = transform(batch)
         image_shape = transformed[0]["image"].shape
         for _ in range(100):
-            transformed = transform.transform_batch(batch)
+            transformed = transform(batch)
             if image_shape != transformed[0]["image"].shape:
                 return
         assert False, f"Transformed images has always shape {image_shape}"

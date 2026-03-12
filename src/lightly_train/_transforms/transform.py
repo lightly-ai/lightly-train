@@ -188,6 +188,12 @@ class ScaleJitterArgs(PydanticConfig):
     step_seeding: bool
     seed_offset: int
 
+    @property
+    def scale_range(self) -> tuple[float, float] | None:
+        if self.min_scale is not None and self.max_scale is not None:
+            return self.min_scale, self.max_scale
+        return None
+
 
 class StopPolicyArgs(PydanticConfig):
     stop_step: int
