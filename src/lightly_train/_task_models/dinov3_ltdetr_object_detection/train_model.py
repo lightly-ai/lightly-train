@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import copy
 import math
+from pathlib import Path
 from typing import Any, ClassVar
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from lightning_fabric import Fabric
+from matplotlib.patches import Rectangle
 from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
@@ -188,6 +192,12 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         )
 
         self.clip_max_norm = model_args.gradient_clip_val
+
+        self._normalize_mean: list[float] | None = None
+        self._normalize_std: list[float] | None = None
+        if normalize_dict is not None:
+            self._normalize_mean = normalize_dict["mean"]
+            self._normalize_std = normalize_dict["std"]
 
         class_names = list(data_args.included_classes.values())
         self.loss_names = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]
@@ -492,6 +502,144 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
     def get_task_model(self) -> TaskModel:
         return self.model
+
+    def save_labeled_images(
+        self,
+        *,
+        batch: ObjectDetectionBatch,
+        step: int,
+        output_dir: Path,
+        split: str,
+    ) -> None:
+        images = batch["image"]  # (B, C, H, W)
+        bboxes = batch["bboxes"]  # GT boxes, normalized cxcywh.
+        classes = batch["classes"]  # GT class ids.
+
+        # Run inference to get predicted boxes.
+        model_to_use = (
+            self.ema_model.model if self.ema_model is not None else self.model
+        )
+        with torch.no_grad():
+            targets = [
+                {"boxes": gt_boxes, "labels": gt_cls}
+                for gt_boxes, gt_cls in zip(bboxes, classes)
+            ]
+            outputs = model_to_use._forward_train(  # type: ignore[operator]
+                x=images, targets=targets
+            )
+        # Use the model input size so predicted box coordinates align with the
+        # displayed image (img_np), which is the resized model input, not the
+        # original image.
+        input_h, input_w = images.shape[-2:]
+        input_sizes_tensor = torch.tensor(
+            [[input_w, input_h]] * len(images), device=images.device
+        )
+        predictions = self.model.postprocessor(
+            outputs, orig_target_sizes=input_sizes_tensor
+        )
+
+        # Build a stable color palette: one distinct color per class id.
+        class_ids = sorted(self.model.classes.keys())
+        color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        class_colors = {
+            cls_id: color_cycle[idx % len(color_cycle)]
+            for idx, cls_id in enumerate(class_ids)
+        }
+
+        n = min(4, len(images))
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Decode images once for reuse in both figures.
+        imgs_np: list[np.ndarray[Any, Any]] = []
+        for i in range(n):
+            img = images[i].cpu().float()
+            if self._normalize_mean is not None and self._normalize_std is not None:
+                mean = torch.tensor(self._normalize_mean, dtype=torch.float32).view(
+                    -1, 1, 1
+                )
+                std = torch.tensor(self._normalize_std, dtype=torch.float32).view(
+                    -1, 1, 1
+                )
+                img = img * std + mean
+            imgs_np.append(img.clamp(0, 1).permute(1, 2, 0).numpy())
+
+        # --- GT label figure ---
+        fig_gt, axes_gt = plt.subplots(2, 2, figsize=(12, 12))
+        for i in range(4):
+            ax = axes_gt[i // 2][i % 2]
+            if i < n:
+                img_np = imgs_np[i]
+                h, w = img_np.shape[:2]
+                ax.imshow(img_np)
+                for box, cls_id in zip(bboxes[i], classes[i]):
+                    cx, cy, bw, bh = box.tolist()
+                    x1 = (cx - bw / 2) * w
+                    y1 = (cy - bh / 2) * h
+                    cls_id_int = int(cls_id.item())
+                    color = class_colors.get(cls_id_int, color_cycle[0])
+                    rect = Rectangle(
+                        xy=(x1, y1),
+                        width=bw * w,
+                        height=bh * h,
+                        linewidth=2,
+                        edgecolor=color,
+                        facecolor="none",
+                    )
+                    ax.add_patch(rect)
+                    cls_name = self.model.classes.get(cls_id_int, str(cls_id_int))
+                    ax.text(
+                        x1,
+                        y1 - 2,
+                        cls_name,
+                        color=color,
+                        fontsize=8,
+                        verticalalignment="bottom",
+                    )
+            ax.axis("off")
+        fig_gt.savefig(
+            output_dir / f"{split}_label{step}.jpg", bbox_inches="tight", dpi=150
+        )
+        plt.close(fig_gt)
+
+        # --- Prediction figure ---
+        fig_pred, axes_pred = plt.subplots(2, 2, figsize=(12, 12))
+        for i in range(4):
+            ax = axes_pred[i // 2][i % 2]
+            if i < n:
+                img_np = imgs_np[i]
+                ax.imshow(img_np)
+                pred = predictions[i]
+                for box, cls_id, score in zip(
+                    pred["boxes"], pred["labels"], pred["scores"]
+                ):
+                    if score < 0.5:
+                        continue
+                    x1, y1, x2, y2 = box.tolist()
+                    cls_id_int = int(cls_id.item())
+                    color = class_colors.get(cls_id_int, color_cycle[0])
+                    rect = Rectangle(
+                        xy=(x1, y1),
+                        width=x2 - x1,
+                        height=y2 - y1,
+                        linewidth=2,
+                        edgecolor=color,
+                        facecolor="none",
+                    )
+                    ax.add_patch(rect)
+                    cls_name = self.model.classes.get(cls_id_int, str(cls_id_int))
+                    ax.text(
+                        x1,
+                        y1 - 2,
+                        f"{cls_name} {score.item():.2f}",
+                        color=color,
+                        fontsize=8,
+                        verticalalignment="bottom",
+                    )
+            ax.axis("off")
+        fig_pred.savefig(
+            output_dir / f"{split}_predict{step}.jpg", bbox_inches="tight", dpi=150
+        )
+        plt.close(fig_pred)
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         if self.clip_max_norm > 0:

@@ -115,6 +115,11 @@ class TrainModel(Module):
     def on_train_batch_end(self) -> None:
         pass
 
+    def save_labeled_images(
+        self, *, batch: Any, step: int, output_dir: Any, split: str
+    ) -> None:
+        pass
+
 
 @dataclass
 class TaskStepResult:

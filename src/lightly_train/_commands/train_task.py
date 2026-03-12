@@ -1481,6 +1481,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 batch = next(infinite_train_dataloader)
                 timer.end_step("train_dataload")
 
+                if acc_step == 0 and step < 3:
+                    train_model.save_labeled_images(
+                        batch=batch,
+                        step=step,
+                        output_dir=out_dir / "debug_images",
+                        split="train",
+                    )
+
                 # Type ignore is needed because `train_model` is not recognized as an
                 # instance of `_FabricModule`
                 with fabric.no_backward_sync(train_model, enabled=is_accumulating):  # type: ignore[arg-type]
@@ -1584,6 +1592,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     timer.start_step("val_dataload")
                     val_batch = next(val_dataloader_iter)
                     timer.end_step("val_dataload")
+
+                    if val_step < 3:
+                        train_model.save_labeled_images(
+                            batch=val_batch,
+                            step=val_step,
+                            output_dir=out_dir / "debug_images",
+                            split="val",
+                        )
 
                     # Validation forward pass.
                     with torch.no_grad():
