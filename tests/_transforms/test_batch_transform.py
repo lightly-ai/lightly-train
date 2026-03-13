@@ -51,6 +51,7 @@ class TestBatchReplayCompose:
             mask_shape = transformed[0]["mask"].shape
             assert all(item["image"].shape == image_shape for item in transformed)
             assert all(item["mask"].shape == mask_shape for item in transformed)
+            assert all("replay" not in item for item in transformed)
 
         # Test that transform generates different image sizes for different batches
         transformed = transform(batch)

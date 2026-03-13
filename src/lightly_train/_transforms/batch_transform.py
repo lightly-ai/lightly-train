@@ -58,5 +58,7 @@ class BatchReplayCompose:
         # Transform remaining items with the same transform parameters
         result = [transformed]
         for item in batch[1:]:
-            result.append(ReplayCompose.replay(replay, **item))
+            transformed = ReplayCompose.replay(replay, **item)
+            transformed.pop(self.transform.save_key, None)
+            result.append(transformed)
         return result
