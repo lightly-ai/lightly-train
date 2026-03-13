@@ -89,8 +89,6 @@ class DINOv3LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     num_scales: int | None = None
     prob: float = 1.0
     divisible_by: int | None = None
-    step_seeding: bool = False  # unused
-    seed_offset: int = 0  # unused
 
 
 class DINOv3LTDETRObjectDetectionResizeArgs(ResizeArgs):
