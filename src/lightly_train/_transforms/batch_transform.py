@@ -53,7 +53,7 @@ class BatchReplayCompose:
 
         # Transform first item and record replay
         transformed = self.transform(**batch[0])
-        replay = transformed.pop("replay")
+        replay = transformed.pop(self.transform.save_key)
 
         # Transform remaining items with the same transform parameters
         result = [transformed]
