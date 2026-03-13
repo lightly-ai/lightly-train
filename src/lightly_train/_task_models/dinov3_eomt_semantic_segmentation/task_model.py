@@ -135,7 +135,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             # backbone_url as the former is the new standard.
             backbone_model_args["weights"] = backbone_url
         if backbone_weights is not None:
-            backbone_model_args["weights"] = backbone_weights
+            backbone_model_args["weights"] = str(backbone_weights)
 
         # Get the backbone.
         backbone = DINOV3_PACKAGE.get_model(

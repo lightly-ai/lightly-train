@@ -150,7 +150,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         if backbone_weights is not None:
-            backbone_model_args["weights"] = backbone_weights
+            backbone_model_args["weights"] = str(backbone_weights)
 
         # Get the backbone.
         backbone = DINOV3_PACKAGE.get_model(

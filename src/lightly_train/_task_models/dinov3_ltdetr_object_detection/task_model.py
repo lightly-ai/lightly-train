@@ -484,7 +484,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         if backbone_weights is not None:
-            backbone_model_args["weights"] = backbone_weights
+            backbone_model_args["weights"] = str(backbone_weights)
 
         get_model_kwargs = {}
         if self.image_normalize is not None:
