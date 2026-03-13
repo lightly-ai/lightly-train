@@ -59,4 +59,4 @@ class TestBatchReplayCompose:
             transformed = transform(batch)
             if image_shape != transformed[0]["image"].shape:
                 return
-        assert False, f"Transformed images has always shape {image_shape}"
+        assert False, f"Transformed images always have shape {image_shape}"
