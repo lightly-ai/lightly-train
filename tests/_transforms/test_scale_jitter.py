@@ -183,7 +183,7 @@ class TestRandomScaleJitter:
             new_shape = transform(image=img)["image"].shape
             if shape != new_shape:
                 return
-        assert False, f"Transformed images has always shape {shape}"
+        assert False, f"Transformed images always have shape {shape}"
 
 
 @pytest.fixture
