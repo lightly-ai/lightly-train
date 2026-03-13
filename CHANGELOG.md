@@ -28,6 +28,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix a bug when loading DINOv3 LTDETR checkpoints that were not pretrained on COCO
+  which resulted in backbone weights not being loaded.
+
 ### Security
 
 ## [0.14.2] - 2026-02-24
