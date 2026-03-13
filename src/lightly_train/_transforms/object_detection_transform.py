@@ -315,8 +315,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
 
         augment_batch = self.to_tensor(augment_batch)
 
-        for i in range(len(augment_batch)):
-            item = augment_batch[i]
+        for item in augment_batch:
             # Some albumentations versions return lists of tuples instead of arrays.
             if isinstance(item["bboxes"], list):
                 item["bboxes"] = np.array(item["bboxes"])
