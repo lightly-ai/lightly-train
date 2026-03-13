@@ -77,7 +77,7 @@ class ConvBNAct(nn.Module):
         padding: int | None = None,
         groups: int = 1,
         bias: bool = False,
-        act: Literal["hardswish", "relu", "none"] = "hardswish",
+        act: Literal["relu", "none"] = "relu",
     ) -> None:
         super().__init__()
         if padding is None:
@@ -93,10 +93,8 @@ class ConvBNAct(nn.Module):
         )
         self.bn = nn.BatchNorm2d(out_channels)
 
-        if act == "hardswish":
-            self.act: nn.Module = nn.Hardswish(inplace=True)
-        elif act == "relu":
-            self.act = nn.ReLU(inplace=True)
+        if act == "relu":
+            self.act: nn.Module = nn.ReLU(inplace=True)
         else:
             self.act = nn.Identity()
 
@@ -122,7 +120,7 @@ class SEModule(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         scale = F.adaptive_avg_pool2d(x, 1)
         scale = F.relu(self.fc1(scale), inplace=True)
-        scale = F.hardsigmoid(self.fc2(scale), inplace=True)
+        scale = torch.sigmoid(self.fc2(scale))
         return x * scale
 
 
@@ -149,7 +147,7 @@ class EnhancedInvertedResidual(nn.Module):
         super().__init__()
 
         self.conv_pw = ConvBNAct(
-            in_channels // 2, mid_channels // 2, kernel_size=1, act="hardswish"
+            in_channels // 2, mid_channels // 2, kernel_size=1, act="relu"
         )
         self.conv_dw = ConvBNAct(
             mid_channels // 2,
@@ -160,7 +158,7 @@ class EnhancedInvertedResidual(nn.Module):
         )
         self.se = SEModule(se_channels, reduction=4)
         self.conv_linear = ConvBNAct(
-            mid_channels, out_channels // 2, kernel_size=1, act="hardswish"
+            mid_channels, out_channels // 2, kernel_size=1, act="relu"
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -208,11 +206,11 @@ class EnhancedInvertedResidualDS(nn.Module):
             act="none",
         )
         self.conv_linear_1 = ConvBNAct(
-            in_channels, out_channels // 2, kernel_size=1, act="hardswish"
+            in_channels, out_channels // 2, kernel_size=1, act="relu"
         )
 
         self.conv_pw_2 = ConvBNAct(
-            in_channels, mid_channels // 2, kernel_size=1, act="hardswish"
+            in_channels, mid_channels // 2, kernel_size=1, act="relu"
         )
         self.conv_dw_2 = ConvBNAct(
             mid_channels // 2,
@@ -224,7 +222,7 @@ class EnhancedInvertedResidualDS(nn.Module):
         )
         self.se = SEModule(se_channels, reduction=4)
         self.conv_linear_2 = ConvBNAct(
-            mid_channels // 2, out_channels // 2, kernel_size=1, act="hardswish"
+            mid_channels // 2, out_channels // 2, kernel_size=1, act="relu"
         )
 
         self.conv_dw_mv1 = ConvBNAct(
@@ -232,10 +230,10 @@ class EnhancedInvertedResidualDS(nn.Module):
             out_channels,
             kernel_size=3,
             groups=out_channels,
-            act="hardswish",
+            act="relu",
         )
         self.conv_pw_mv1 = ConvBNAct(
-            out_channels, out_channels, kernel_size=1, act="hardswish"
+            out_channels, out_channels, kernel_size=1, act="relu"
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -374,7 +372,7 @@ class ESNet(nn.Module):
         ]
 
         self.conv1 = ConvBNAct(
-            in_channels, stage_out_channels[0], kernel_size=3, stride=2, act="hardswish"
+            in_channels, stage_out_channels[0], kernel_size=3, stride=2, act="relu"
         )
         self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 

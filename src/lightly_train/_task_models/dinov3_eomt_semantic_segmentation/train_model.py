@@ -64,6 +64,7 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     default_steps: ClassVar[int] = 40_000
 
     # Model args
+    backbone_freeze: bool = False
     backbone_weights: PathLike | None = None
     # Deprecated. Weights are now automatically loaded based on model name.
     backbone_url: str | None = None
@@ -227,6 +228,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             image_normalize=normalize.model_dump(),
             num_queries=num_queries,
             num_joint_blocks=num_joint_blocks,
+            backbone_freeze=self.model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
             backbone_args=backbone_args,
@@ -302,7 +304,9 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
         # Update metrics
-        self.train_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore
+        self.train_metrics.update_with_losses(
+            {"loss": loss.detach()}, weight=len(images)
+        )
         if self.metric_args.train:
             with torch.no_grad():
                 # Calculate metrics for the last block's predictions.
@@ -314,7 +318,9 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                 )
                 logits = logits[:, :-1]  # Drop ignore class logits.
                 for pred, targ in zip(logits, masks):
-                    self.train_metrics.update(pred[None, ...], targ[None, ...])  # type: ignore
+                    self.train_metrics.update_with_predictions(
+                        pred[None, ...], targ[None, ...]
+                    )
 
         mask_prob_dict = {}
         if self.model_args.metric_log_debug:
@@ -401,11 +407,13 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                     crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
                 )
                 for pred, targ in zip(logits, masks):
-                    self.val_metrics.update(pred[None, ...], targ[None, ...])  # type: ignore
+                    self.val_metrics.update_with_predictions(
+                        pred[None, ...], targ[None, ...]
+                    )
 
         # Compute the total loss.
         loss = self.criterion.loss_total(losses_all_layers=losses)
-        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))  # type: ignore
+        self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
         return TaskStepResult(
             loss=loss,
@@ -453,6 +461,8 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         )
 
         for name, param in reversed(list(self.named_parameters())):
+            if not param.requires_grad:
+                continue
             param_lr = lr
             if param in backbone_params:
                 name_list = name.split(".")
@@ -545,6 +555,8 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         self.train()
+        if self.model_args.backbone_freeze:
+            self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         fabric.clip_gradients(

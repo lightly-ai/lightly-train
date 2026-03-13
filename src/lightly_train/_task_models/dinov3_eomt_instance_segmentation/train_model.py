@@ -58,6 +58,7 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
     default_steps: ClassVar[int] = 90_000
 
     # Model args
+    backbone_freeze: bool = False
     backbone_weights: PathLike | None = None
     num_queries: int | Literal["auto"] = "auto"
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
@@ -200,6 +201,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             image_normalize=normalize.model_dump(),
             num_queries=num_queries,
             num_joint_blocks=num_joint_blocks,
+            backbone_freeze=self.model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             load_weights=load_weights,
         )
@@ -268,7 +270,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
         # Metrics
-        self.train_metrics.update_loss({"loss": loss.detach()}, weight=B)
+        self.train_metrics.update_with_losses({"loss": loss.detach()}, weight=B)
         if self.metric_args.train:
             with torch.no_grad():
                 mask_logits = mask_logits_per_layer[-1]
@@ -278,7 +280,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 labels, masks, scores = self.model.get_labels_masks_scores(
                     mask_logits=mask_logits, class_logits=class_logits
                 )
-            self.train_metrics.update(
+            self.train_metrics.update_with_predictions(
                 preds=[
                     {
                         "labels": labels[i],
@@ -364,7 +366,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
 
         # Metrics
-        self.val_metrics.update_loss({"loss": loss.detach()}, weight=len(images))
+        self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
         # Final layer only
         resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
         class_logits_last_layer = class_logits_per_layer[-1]
@@ -397,7 +399,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 }
             )
 
-        self.val_metrics.update(
+        self.val_metrics.update_with_predictions(
             preds=predictions,
             target=binary_masks,
         )
@@ -449,6 +451,8 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         )
 
         for name, param in reversed(list(self.named_parameters())):
+            if not param.requires_grad:
+                continue
             param_lr = lr
             if param in backbone_params:
                 name_list = name.split(".")
@@ -554,6 +558,8 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         self.train()
+        if self.model_args.backbone_freeze:
+            self.model.freeze_backbone()
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         fabric.clip_gradients(

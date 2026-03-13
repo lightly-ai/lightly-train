@@ -35,11 +35,11 @@ class TestClassificationTaskMetric:
         )
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([0, 1])
-        metric.update(preds, target)
-        metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
-        result = metric.compute()
-        assert result.metrics["val_loss"] == 0.5
-        assert result.metrics.keys() == {
+        metric.update_with_predictions(preds, target)
+        metric.update_with_losses({"loss": torch.tensor(0.5)}, weight=1)
+        result = metric.compute_aggregated_values()
+        assert result.metric_values["val_loss"] == 0.5
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_metric/top1_acc_micro",
             "val_metric/f1_macro",
@@ -56,11 +56,11 @@ class TestClassificationTaskMetric:
         )
         preds = torch.tensor([[0.8, 0.5, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([[1, 1, 0], [0, 1, 1]])
-        metric.update(preds, target)
-        metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
-        result = metric.compute()
-        assert result.metrics["val_loss"] == 0.5
-        assert result.metrics.keys() == {
+        metric.update_with_predictions(preds, target)
+        metric.update_with_losses({"loss": torch.tensor(0.5)}, weight=1)
+        result = metric.compute_aggregated_values()
+        assert result.metric_values["val_loss"] == 0.5
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_metric/accuracy_micro",
             "val_metric/auroc_macro",
@@ -69,7 +69,7 @@ class TestClassificationTaskMetric:
             "val_metric/hamming_distance",
         }
 
-    def test_reset(self) -> None:
+    def test_update__reset(self) -> None:
         metric = ClassificationTaskMetric(
             task_metric_args=MulticlassClassificationTaskMetricArgs(),
             split="val",
@@ -78,13 +78,13 @@ class TestClassificationTaskMetric:
         )
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([0, 1])
-        metric.update(preds, target)
-        metric.update_loss({"loss": torch.tensor(1.0)}, weight=1)
-        result1 = metric.compute()
+        metric.update_with_predictions(preds, target)
+        metric.update_with_losses({"loss": torch.tensor(1.0)}, weight=1)
+        result1 = metric.compute_aggregated_values()
         metric.reset()
-        metric.update(preds, target)
-        metric.update_loss({"loss": torch.tensor(0.1)}, weight=1)
-        result2 = metric.compute()
+        metric.update_with_predictions(preds, target)
+        metric.update_with_losses({"loss": torch.tensor(0.1)}, weight=1)
+        result2 = metric.compute_aggregated_values()
         assert result1 != result2
 
     def test_update__classwise(self) -> None:
@@ -96,11 +96,11 @@ class TestClassificationTaskMetric:
         )
         preds = torch.tensor([[0.8, 0.1], [0.1, 0.7]])
         target = torch.tensor([0, 1])
-        metric.update(preds, target)
-        metric.update_loss({"loss": torch.tensor(0.5)}, weight=1)
-        result = metric.compute()
-        assert result.metrics["val_loss"] == 0.5
-        assert result.metrics.keys() == {
+        metric.update_with_predictions(preds, target)
+        metric.update_with_losses({"loss": torch.tensor(0.5)}, weight=1)
+        result = metric.compute_aggregated_values()
+        assert result.metric_values["val_loss"] == 0.5
+        assert result.metric_values.keys() == {
             "val_loss",
             "val_metric/top1_acc_micro",
             "val_metric/f1_macro",

@@ -53,7 +53,7 @@ class DepthwiseSeparableConv(nn.Module):
         )
         self.pointwise = nn.Conv2d(in_channels, out_channels, 1, bias=False)
         self.bn = nn.BatchNorm2d(out_channels)
-        self.act = nn.Hardswish(inplace=True)
+        self.act = nn.ReLU(inplace=True)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.depthwise(x)
@@ -76,6 +76,7 @@ class Integral(nn.Module):
     def __init__(self, reg_max: int = 7) -> None:
         super().__init__()
         self.reg_max = reg_max
+        self.project: Tensor
         # Register project as buffer (values 0 to reg_max)
         self.register_buffer(
             "project", torch.linspace(0, reg_max, reg_max + 1), persistent=False
@@ -99,8 +100,9 @@ class Integral(nn.Module):
         x = F.softmax(x, dim=-1)
 
         # Compute expectation
-        project: Tensor = self.project  # type: ignore[assignment]
-        x = F.linear(x, project.view(1, -1)).squeeze(-1)
+        if self.project.dtype != x.dtype:
+            self.project = self.project.to(dtype=x.dtype)
+        x = F.linear(x, self.project.view(1, -1)).squeeze(-1)
 
         # Reshape back to (..., 4) if input was 4*(reg_max+1)
         if original_shape[-1] == 4 * (self.reg_max + 1):
@@ -246,7 +248,7 @@ class PicoHead(nn.Module):
                                 bias=False,
                             ),
                             nn.BatchNorm2d(feat_channels),
-                            nn.Hardswish(inplace=True),
+                            nn.ReLU(inplace=True),
                         )
                     )
             self.cls_convs.append(cls_convs)
@@ -270,7 +272,7 @@ class PicoHead(nn.Module):
                                     bias=False,
                                 ),
                                 nn.BatchNorm2d(feat_channels),
-                                nn.Hardswish(inplace=True),
+                                nn.ReLU(inplace=True),
                             )
                         )
                 self.reg_convs.append(reg_convs)
