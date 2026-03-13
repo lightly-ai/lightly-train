@@ -58,6 +58,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
@@ -127,6 +128,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     task_model_cls = DINOv3LTDETRObjectDetection
     train_transform_cls = DINOv3LTDETRObjectDetectionTrainTransform
     val_transform_cls = DINOv3LTDETRObjectDetectionValTransform
+    torch_compile_args_cls = TorchCompileArgs
 
     def __init__(
         self,
