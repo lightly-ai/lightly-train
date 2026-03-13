@@ -103,21 +103,6 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
         # TODO: Lionel (09/25): Add checks for incompatible args.
         pass
 
-    def get_scale_range(self) -> tuple[float, float] | None:
-        if self.scale_jitter is not None:
-            if (
-                self.scale_jitter.min_scale is None
-                or self.scale_jitter.max_scale is None
-            ):
-                return None
-            else:
-                return (
-                    self.scale_jitter.min_scale,
-                    self.scale_jitter.max_scale,
-                )
-        else:
-            return None
-
 
 class ObjectDetectionTransform(TaskTransform):
     transform_args_cls: type[ObjectDetectionTransformArgs] = (
