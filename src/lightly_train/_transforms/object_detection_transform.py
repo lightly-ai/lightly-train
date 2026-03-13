@@ -250,10 +250,18 @@ class ObjectDetectionTransform(TaskTransform):
             class_labels=input["class_labels"],
         )
 
+        # Some albumentations versions return lists of tuples instead of arrays.
+        bboxes = transformed["bboxes"]
+        class_labels = transformed["class_labels"]
+        if isinstance(bboxes, list):
+            bboxes = np.array(bboxes)
+        if isinstance(class_labels, list):
+            class_labels = np.array(class_labels)
+
         return {
             "image": transformed["image"],
-            "bboxes": transformed["bboxes"],
-            "class_labels": transformed["class_labels"],
+            "bboxes": bboxes,
+            "class_labels": class_labels,
         }
 
 
@@ -288,6 +296,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
         self.to_tensor = BatchTransform(
             Compose(
                 transforms=[ToTensorV2()],
+                bbox_params=transform_args.bbox_params,
             )
         )
 

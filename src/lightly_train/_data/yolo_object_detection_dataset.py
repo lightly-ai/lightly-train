@@ -99,12 +99,6 @@ class YOLOObjectDetectionDataset(TaskDataset):
             }
         )
 
-        # Some albumentations versions return lists of tuples instead of arrays.
-        if isinstance(transformed["bboxes"], list):
-            transformed["bboxes"] = np.array(transformed["bboxes"])
-        if isinstance(transformed["class_labels"], list):
-            transformed["class_labels"] = np.array(transformed["class_labels"])
-
         return ObjectDetectionDatasetItem(
             image_path=str(image_path),
             image=transformed["image"],
