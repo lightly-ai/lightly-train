@@ -56,6 +56,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         image_normalize: dict[str, tuple[float, ...]],
         num_queries: int,
         num_joint_blocks: int,
+        backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -82,6 +83,10 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             num_joint_blocks:
                 The number of blocks that process the query tokens and image tokens
                 jointly.
+            backbone_freeze:
+                Whether to freeze the backbone during training. This freezes the
+                backbone layers until the last num_joint_blocks blocks which are left
+                unfrozen.
             backbone_weights:
                 The path to the DINOv3 backbone weights. The weights must be exported
                 using LightlyTrain.
@@ -96,6 +101,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         self.classes = classes
         self.image_size = image_size
         self.image_normalize = image_normalize
+        self.backbone_freeze = backbone_freeze
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -180,6 +186,9 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         _torch_helpers.register_load_state_dict_pre_hook(
             self, hooks.class_head_reuse_or_reinit_hook
         )
+
+        if self.backbone_freeze:
+            self.freeze_backbone()
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -593,6 +602,52 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                 name = name[len("model.") :]
                 new_state_dict[name] = param
         self.load_state_dict(new_state_dict, strict=True)
+
+    def freeze_backbone(self) -> None:
+        num_backbone_blocks = self.backbone.n_blocks
+        num_joint_blocks = self.num_joint_blocks
+
+        # Freeze parameters until the first joint block.
+        frozen_params = set()
+        for name, param in self.backbone.named_parameters():
+            name_parts = name.split(".")
+            for i, key in enumerate(name_parts):
+                if key == "blocks":
+                    block_idx = int(name_parts[i + 1])
+                    is_joint_block = block_idx >= (
+                        num_backbone_blocks - num_joint_blocks
+                    )
+                    if is_joint_block:
+                        break
+            else:
+                param.requires_grad_(False)
+                frozen_params.add(id(param))
+                continue
+            break
+
+        # Iterate over leaf modules, set to eval until first non-frozen param.
+        frozen_modules = set()
+        for module in self.backbone.modules():
+            if next(module.children(), None) is not None:
+                continue
+            module_params = set(id(p) for p in module.parameters(recurse=False))
+            if module_params.issubset(frozen_params):
+                module.eval()
+                frozen_modules.add(id(module))
+            else:
+                break
+
+        # Iterate over non-leaf modules, set to eval if all children are frozen.
+        # Iterating in reverse order ensures that child modules are processed before
+        # their parents.
+        all_modules = list(self.backbone.modules())
+        for module in reversed(all_modules):
+            if next(module.children(), None) is None:
+                continue  # Skip leaf modules, already handled in pass 1.
+            children = list(module.children())
+            if all(id(child) in frozen_modules for child in children):
+                module.eval()
+                frozen_modules.add(id(module))
 
     @torch.no_grad()
     def export_onnx(
