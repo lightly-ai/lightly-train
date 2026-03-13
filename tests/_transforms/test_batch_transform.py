@@ -5,8 +5,11 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 import numpy as np
-from albumentations import Compose, ToTensorV2
+from albumentations import Compose
+from albumentations.pytorch.transforms import ToTensorV2
 from torch import Tensor
 
 from lightly_train._transforms.batch_transform import BatchReplayCompose, BatchTransform
