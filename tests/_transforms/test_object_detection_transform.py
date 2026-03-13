@@ -204,7 +204,9 @@ class TestObjectDetectionTransform:
         }
         tr_output = transform(tr_input)
         assert tr_output["image"].dtype == np.float32
+        assert "bboxes" in tr_output
         assert tr_output["bboxes"].dtype == np.float64
+        assert "class_labels" in tr_output
         assert tr_output["class_labels"].dtype == np.int64
 
 
