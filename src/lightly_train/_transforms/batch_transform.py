@@ -15,6 +15,11 @@ from albumentations.core.composition import TransformsSeqType
 
 
 class BatchTransform:
+    """Applies a given albumentations transform to a batch of items.
+
+    Useful to apply transforms in the collate function.
+    """
+
     def __init__(self, transform: BaseCompose):
         self.transform = transform
 
