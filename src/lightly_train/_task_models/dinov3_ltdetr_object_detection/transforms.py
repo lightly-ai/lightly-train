@@ -125,6 +125,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
         default_factory=lambda: BboxParams(
             format="yolo",
             label_fields=["class_labels"],
+            min_area=1.0,  # Bbox must be have an area of at least 1 pixel.
             min_width=0.0,
             min_height=0.0,
             **(
