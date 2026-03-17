@@ -24,6 +24,7 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.io import ImageReadMode
 from torchvision.transforms.v2 import functional as F
+import tiffile
 
 from lightly_train.types import (
     ImageDtypes,
@@ -211,7 +212,11 @@ def open_image_numpy(
             image_np = _open_image_numpy__with_torch(image_path=image_path, mode=mode)
         except RuntimeError:
             # RuntimeError can happen for truncated images. Fall back to PIL.
-            image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
+            raw = tifffile.imread(image_path)
+            if raw.ndim == 3 and raw.shape[0] <= 8 and raw.shape[2] > 8:
+                raw = np.transpose(raw, (1, 2, 0))
+            image_np = raw.astype(np.float32)
+            # image_np = _open_image_numpy__with_pil(image_path=image_path, mode=mode)
     # DICOM images. ImageMode is not relevant here. It will always be loaded as is.
     # NOTE: We do not support loading DICOM images as segmentation masks.
     elif suffix == ".dcm":

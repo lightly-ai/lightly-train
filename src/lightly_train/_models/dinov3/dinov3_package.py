@@ -112,12 +112,12 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         local_path="dinov3_vit7b16_lvd1689m.pth",
     ),
     # SAT-493M ViT models
-    "vitl16-sat493m": _DINOv3ModelInfo(
+    "vitl16sat493m": _DINOv3ModelInfo(
         builder=functools.partial(backbones.dinov3_vitl16, is_sat493m_weights=True),
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitl16_sat493m.pth",
         local_path="dinov3_vitl16_sat493m.pth",
     ),
-    "vit7b16-sat493m": _DINOv3ModelInfo(
+    "vit7b16sat493m": _DINOv3ModelInfo(
         builder=backbones.dinov3_vit7b16,
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vit7b16_sat493.pth",
         local_path="dinov3_vit7b16_sat493m.pth",

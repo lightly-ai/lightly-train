@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 class DINOv3EoMTPanopticSegmentation(TaskModel):
-    model_suffix = "eomt"
+    model_suffix = "eomt-panoptic"
 
     def __init__(
         self,
