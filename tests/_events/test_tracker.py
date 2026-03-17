@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import uuid
 from pathlib import Path
 
 import pytest
@@ -182,6 +183,32 @@ def test__load_user_id__reads_existing_file(lightly_train_cache_dir: Path) -> No
     user_id = tracker._load_user_id()
 
     assert user_id == expected_id
+
+
+def test__load_user_id__empty_file_regenerates(lightly_train_cache_dir: Path) -> None:
+    """Test that _load_user_id regenerates a UUID when userid.txt is empty or whitespace."""
+    userid_path = lightly_train_cache_dir / "userid.txt"
+    userid_path.write_text("   \n", encoding="utf-8")
+
+    user_id = tracker._load_user_id()
+
+    uuid.UUID(user_id)  # Raises ValueError if not a valid UUID.
+    # The file should be overwritten with the new valid UUID.
+    assert userid_path.read_text(encoding="utf-8").strip() == user_id
+
+
+def test__load_user_id__invalid_content_regenerates(
+    lightly_train_cache_dir: Path,
+) -> None:
+    """Test that _load_user_id regenerates a UUID when userid.txt contains invalid content."""
+    userid_path = lightly_train_cache_dir / "userid.txt"
+    userid_path.write_text("not-a-uuid", encoding="utf-8")
+
+    user_id = tracker._load_user_id()
+
+    uuid.UUID(user_id)  # Raises ValueError if not a valid UUID.
+    # The file should be overwritten with the new valid UUID.
+    assert userid_path.read_text(encoding="utf-8").strip() == user_id
 
 
 def test__load_user_id__read_error_fallback(

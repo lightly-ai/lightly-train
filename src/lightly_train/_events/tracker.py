@@ -42,14 +42,19 @@ def _load_user_id() -> str:
     """
     userid_path = Env.LIGHTLY_TRAIN_CACHE_DIR.value / "userid.txt"
     try:
-        return userid_path.read_text(encoding="utf-8").strip()
+        existing_id = userid_path.read_text(encoding="utf-8").strip()
+        uuid.UUID(existing_id)  # Raises ValueError if not a valid UUID.
+        return existing_id
     except FileNotFoundError:
+        pass
+    except (ValueError, AttributeError):
+        # File exists but contains invalid content — treat as corrupt and regenerate.
         pass
     except Exception:
         logger.debug("Failed to read userid.txt, falling back to temporary user ID.")
         return str(uuid.uuid4())
 
-    # File does not exist. Generate a new UUID and write it atomically.
+    # File does not exist or is corrupt. Generate a new UUID and write it atomically.
     new_id = str(uuid.uuid4())
     tmp_path = userid_path.parent / new_id
     try:
@@ -67,7 +72,9 @@ def _load_user_id() -> str:
 
     # Read back to get the winner in case of a race condition.
     try:
-        return userid_path.read_text(encoding="utf-8").strip()
+        read_back = userid_path.read_text(encoding="utf-8").strip()
+        uuid.UUID(read_back)  # Raises ValueError if not a valid UUID.
+        return read_back
     except Exception:
         return new_id
 
