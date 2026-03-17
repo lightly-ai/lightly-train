@@ -143,15 +143,15 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     if not _distributed.is_global_rank_zero():
         return
 
-    global _last_flush, _user_id
-    if _user_id is None:
-        _user_id = _load_user_id()
-
     current_time = time.time()
     if Env.LIGHTLY_TRAIN_EVENTS_DISABLED.value or (
         current_time - _last_event_time.get(event_name, -100.0) < _RATE_LIMIT_SECONDS
     ):
         return
+
+    global _last_flush, _user_id
+    if _user_id is None:
+        _user_id = _load_user_id()
 
     if len(_events) >= _MAX_QUEUE_SIZE:
         return

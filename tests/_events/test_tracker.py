@@ -94,6 +94,22 @@ def test_track_event__disabled(mock_events_disabled: None) -> None:
     assert "test_event" not in tracker._last_event_time
 
 
+def test_track_event__disabled_does_not_load_user_id(
+    mock_events_disabled: None, mocker: MockerFixture
+) -> None:
+    """Test that _load_user_id is not called when events are disabled.
+
+    Users who opt out of analytics should not have userid.txt created or read.
+    """
+    mock_load = mocker.patch("lightly_train._events.tracker._load_user_id")
+    mocker.patch("lightly_train._distributed.is_global_rank_zero", return_value=True)
+
+    tracker.track_event(event_name="test_event", properties={"key": "value"})
+
+    mock_load.assert_not_called()
+    assert tracker._user_id is None
+
+
 def test_track_event__queue_size_limit(
     mock_events_enabled: None, mocker: MockerFixture
 ) -> None:
