@@ -93,14 +93,13 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
             Resize(height=h, width=w) for h, w in zip(self.heights, self.widths)
         ]
 
-        # For compatibility with old Albumentations versions (1.3.1).
-        if not hasattr(self, "py_random"):
-            import random
-
-            self.py_random = random.Random()
-
     def get_params(self) -> dict[str, int]:
-        idx = self.py_random.randint(0, len(self.transforms) - 1)
+        # Use py_random if set by Albumentations (>= 1.4.x), otherwise fall back to
+        # NumPy's global RNG so that the legacy path respects seeded runs.
+        if hasattr(self, "py_random"):
+            idx = self.py_random.randint(0, len(self.transforms) - 1)
+        else:
+            idx = int(np.random.randint(0, len(self.transforms)))
         return {"idx": idx}
 
     def apply(self, img: NDArrayImage, idx: int, **params: Any) -> NDArrayImage:
