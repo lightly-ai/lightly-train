@@ -177,7 +177,7 @@ def test__load_user_id__creates_file(lightly_train_cache_dir: Path) -> None:
 def test__load_user_id__reads_existing_file(lightly_train_cache_dir: Path) -> None:
     """Test that _load_user_id reads an existing userid.txt without creating a new one."""
     userid_path = lightly_train_cache_dir / "userid.txt"
-    expected_id = "test-user-id-12345"
+    expected_id = str(uuid.uuid4())
     userid_path.write_text(expected_id, encoding="utf-8")
 
     user_id = tracker._load_user_id()
