@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import platform
 import threading
 import time
@@ -20,6 +22,8 @@ import torch
 from lightly_train import _distributed
 from lightly_train._env import Env
 
+logger = logging.getLogger(__name__)
+
 _RATE_LIMIT_SECONDS: float = 30.0
 _MAX_QUEUE_SIZE: int = 100
 
@@ -27,7 +31,45 @@ _events: List[Dict[str, Any]] = []
 _last_event_time: Dict[str, float] = {}
 _last_flush: float = 0.0
 _system_info: Optional[Dict[str, Any]] = None
-_session_id: str = str(uuid.uuid4())
+_user_id: str | None = None
+
+
+def _load_user_id() -> str:
+    """Load or create a persistent user ID from the cache directory.
+
+    Returns:
+        A UUID string identifying this installation.
+    """
+    userid_path = Env.LIGHTLY_TRAIN_CACHE_DIR.value / "userid.txt"
+    try:
+        return userid_path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        pass
+    except Exception:
+        logger.debug("Failed to read userid.txt, falling back to temporary user ID.")
+        return str(uuid.uuid4())
+
+    # File does not exist. Generate a new UUID and write it atomically.
+    new_id = str(uuid.uuid4())
+    tmp_path = userid_path.parent / new_id
+    try:
+        userid_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path.write_text(new_id, encoding="utf-8")
+        os.replace(tmp_path, userid_path)
+    except Exception:
+        logger.debug("Failed to write userid.txt, falling back to temporary user ID.")
+        # Clean up temp file if it was created.
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return new_id
+
+    # Read back to get the winner in case of a race condition.
+    try:
+        return userid_path.read_text(encoding="utf-8").strip()
+    except Exception:
+        return new_id
 
 
 def _flush() -> None:
@@ -101,7 +143,9 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     if not _distributed.is_global_rank_zero():
         return
 
-    global _last_flush
+    global _last_flush, _user_id
+    if _user_id is None:
+        _user_id = _load_user_id()
 
     current_time = time.time()
     if Env.LIGHTLY_TRAIN_EVENTS_DISABLED.value or (
@@ -117,7 +161,7 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     event_data = {
         "api_key": Env.LIGHTLY_TRAIN_POSTHOG_KEY.value,
         "event": event_name,
-        "distinct_id": _session_id,
+        "distinct_id": _user_id,
         "properties": {**properties, **_get_system_info()},
     }
     _events.append(event_data)
