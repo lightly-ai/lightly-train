@@ -114,8 +114,6 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_lr_factor: float = 1e-2
     backbone_weight_decay: float | None = None  # Use default if None
 
-    detector_weight_decay: float = 0.0
-
     # Scheduler configuration
     scheduler_start_factor: float = 0.01
     lr_warmup_steps: int = Field(
@@ -409,7 +407,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             if self.model_args.backbone_weight_decay is not None
             else self.model_args.weight_decay
         )
-        detector_weight_decay = self.model_args.detector_weight_decay
 
         backbone = self.model.backbone
         if isinstance(backbone, DINOv2STAs):
@@ -458,7 +455,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 {
                     "name": "detector",
                     "params": detector_params_wd,
-                    "weight_decay": detector_weight_decay,
                 }
             )
         if detector_params_no_wd:
