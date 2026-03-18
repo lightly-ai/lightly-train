@@ -43,15 +43,6 @@ jobs:
       matrix:
         python: ["3.8", "3.13"]
     steps:
-      - name: Setup cmake
-        # TODO(04/25, Guarin): Check if this is still needed on GitHub hosted runners.
-        # TODO(04/04, Yutong): cmake executable is installed as a requirement for RFDETR support
-        # this setup is included only as a last resort because
-        # including cmake in the dependencies does not add cmake exec to PATH
-        # We should remove it once RFDETR improves their dependency spec since it causes a lot of overhead on the CI.
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: '3.31'
       - name: Checkout Code
         uses: actions/checkout@v4
       - name: Set Up uv
