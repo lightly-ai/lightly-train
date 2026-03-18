@@ -43,6 +43,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
@@ -86,6 +87,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
     task_model_cls = DINOv2LinearSemanticSegmentation
     train_transform_cls = DINOv2LinearSemanticSegmentationTrainTransform
     val_transform_cls = DINOv2LinearSemanticSegmentationValTransform
+    torch_compile_args_cls = TorchCompileArgs
 
     def __init__(
         self,

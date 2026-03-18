@@ -44,6 +44,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train.types import ImageClassificationBatch, PathLike
 
 
@@ -93,6 +94,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
     task_model_cls = ImageClassificationMultihead
     train_transform_cls = ImageClassificationMultiheadTrainTransform
     val_transform_cls = ImageClassificationMultiheadValTransform
+    torch_compile_args_cls = TorchCompileArgs
 
     def __init__(
         self,
