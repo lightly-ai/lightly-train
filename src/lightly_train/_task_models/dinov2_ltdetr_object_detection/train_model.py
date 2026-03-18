@@ -466,26 +466,12 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 }
             )
 
-        # Default group for all remaining parameters.
-        used_params = set(backbone_params + detector_params)
-        default_params = [p for p in self.model.parameters() if p not in used_params]
-        default_params_wd = [p for p in default_params if p not in params_no_wd]
-        default_params_no_wd = [p for p in default_params if p in params_no_wd]
-        if default_params_wd:
-            param_groups.append(
-                {
-                    "name": "default",
-                    "params": default_params_wd,
-                }
-            )
-        if default_params_no_wd:
-            param_groups.append(
-                {
-                    "name": "default_no_wd",
-                    "params": default_params_no_wd,
-                    "weight_decay": 0.0,
-                }
-            )
+        optimizer_params = set(p for group in param_groups for p in group["params"])
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and param not in optimizer_params:
+                raise RuntimeError(
+                    f"Parameter '{name}' was not included in any param group."
+                )
 
         optim = AdamW(
             param_groups,
