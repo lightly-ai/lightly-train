@@ -1410,6 +1410,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             total_steps=config.steps,
             global_batch_size=effective_global_batch_size,
         )
+
+        # Only compile model.forward since compiling the whole model will also compile
+        # training_step and validation_step which are hard to compile because of metrics
+        # and other non-compile-friendly code.
+        # See this discussion for more information: https://github.com/Lightning-AI/pytorch-lightning/discussions/21569
         train_model.forward = _torch_compile.try_compile(
             train_model.forward,
             "model",

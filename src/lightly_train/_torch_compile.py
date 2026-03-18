@@ -53,6 +53,7 @@ def disable_compile(fn: _T, recursive: bool = True) -> _T:
 # filenames which triggers a recompilation for every new filename. Metrics don't support
 # compilation either and are also called inside the train/val steps. Therefore it is
 # easier to move all the compilable code to the forward method and call it there.
+# See this discussion for more details: https://github.com/Lightning-AI/pytorch-lightning/discussions/21569
 
 
 class TorchCompileArgs(PydanticConfig):
