@@ -13,7 +13,13 @@ import numpy as np
 from PIL import Image, ImageDraw
 from typing_extensions import Literal
 
-from lightly_train.types import NDArrayBinaryMask, NDArrayBinaryMasks, NDArrayPolygon
+from lightly_train.types import (
+    NDArray4Corners,
+    NDArrayBinaryMask,
+    NDArrayBinaryMasks,
+    NDArrayOBBoxes,
+    NDArrayPolygon,
+)
 
 
 def get_image_and_labels_dirs(
@@ -131,3 +137,71 @@ def binary_masks_from_polygons(
         return np.stack(binary_masks)
     else:
         return np.zeros((0, height, width), dtype=np.bool_)
+
+
+def oriented_bbox_from_corners(corners: NDArray4Corners) -> NDArrayOBBoxes:
+    """Convert 4-corner format to (cx, cy, w, h, angle) format.
+
+    Uses PCA to find the principal orientation of the box, then computes
+    the minimum bounding rectangle.
+
+    Args:
+        corners:
+            Array of shape (n_boxes, 8) with coordinates
+            (x1, y1, x2, y2, x3, y3, x4, y4) in normalized [0, 1] coordinates.
+
+    Returns:
+        Array of shape (n_boxes, 5) with (cx, cy, w, h, angle) in normalized
+        coordinates. Angle is in radians, where 0 means aligned with x-axis
+        and positive values indicate counter-clockwise rotation.
+    """
+    if corners.shape[0] == 0:
+        return np.zeros((0, 5), dtype=np.float64)
+
+    result = np.zeros((corners.shape[0], 5), dtype=np.float64)
+
+    for i, bbox_corners in enumerate(corners):
+        # Extract x and y coordinates
+        xs = np.array(
+            [bbox_corners[0], bbox_corners[2], bbox_corners[4], bbox_corners[6]]
+        )
+        ys = np.array(
+            [bbox_corners[1], bbox_corners[3], bbox_corners[5], bbox_corners[7]]
+        )
+
+        # Compute centroid
+        cx = np.mean(xs)
+        cy = np.mean(ys)
+
+        # Center the points
+        centered_xs = xs - cx
+        centered_ys = ys - cy
+
+        # Compute covariance matrix
+        cov = np.array(
+            [
+                [np.mean(centered_xs**2), np.mean(centered_xs * centered_ys)],
+                [np.mean(centered_xs * centered_ys), np.mean(centered_ys**2)],
+            ]
+        )
+
+        # Compute eigenvalues and eigenvectors
+        eigenvalues, eigenvectors = np.linalg.eigh(cov)
+
+        # Principal eigenvector (largest eigenvalue)
+        principal_axis = eigenvectors[:, 1]
+        angle = np.arctan2(principal_axis[1], principal_axis[0])
+
+        # Rotate points to align with principal axis
+        cos_angle = np.cos(-angle)
+        sin_angle = np.sin(-angle)
+        rotated_xs = cos_angle * centered_xs - sin_angle * centered_ys
+        rotated_ys = sin_angle * centered_xs + cos_angle * centered_ys
+
+        # Compute width and height from rotated extents
+        width = np.max(rotated_xs) - np.min(rotated_xs)
+        height = np.max(rotated_ys) - np.min(rotated_ys)
+
+        result[i] = [cx, cy, width, height, angle]
+
+    return result
