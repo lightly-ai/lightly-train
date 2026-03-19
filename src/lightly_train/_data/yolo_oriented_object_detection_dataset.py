@@ -108,7 +108,7 @@ class YOLOOrientedObjectDetectionDataset(TaskDataset):
 
         # Bboxes: normalized (cx, cy, w, h, angle) with canvas size (h, w)
         if bboxes_np.shape[0] > 0:
-            tv_bboxes = tv_tensors.BoundingBoxes(
+            tv_bboxes = tv_tensors.BoundingBoxes(  # type: ignore[call-arg]
                 torch.from_numpy(bboxes_np),
                 format=tv_tensors.BoundingBoxFormat.CXCYWHR,
                 canvas_size=(h, w),
