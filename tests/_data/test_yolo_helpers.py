@@ -86,9 +86,9 @@ def test_oriented_bbox_from_corners__axis_aligned() -> None:
     # Width and height should be 0.5
     assert np.isclose(result[0, 2], 0.5)
     assert np.isclose(result[0, 3], 0.5)
-    # Angle should be approximately 0 or π/2 for axis-aligned (due to PCA symmetry)
+    # Angle should be approximately 0 for axis-aligned
     angle = abs(result[0, 4])
-    assert np.isclose(angle, 0.0, atol=1e-6) or np.isclose(angle, np.pi / 2, atol=1e-6)
+    assert np.isclose(angle, 0.0, atol=1e-6)
 
 
 def test_oriented_bbox_from_corners__rotated() -> None:
