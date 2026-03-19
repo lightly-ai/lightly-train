@@ -142,66 +142,58 @@ def binary_masks_from_polygons(
 def oriented_bbox_from_corners(corners: NDArray4Corners) -> NDArrayOBBoxes:
     """Convert 4-corner format to (cx, cy, w, h, angle) format.
 
-    Uses PCA to find the principal orientation of the box, then computes
-    the minimum bounding rectangle.
+    Uses the mmrotate geometric approach: the center is the midpoint of opposite
+    corners, width/height are the longer/shorter edge lengths, and the angle is
+    derived from the longer edge direction.
 
     Args:
         corners:
             Array of shape (n_boxes, 8) with coordinates
-            (x1, y1, x2, y2, x3, y3, x4, y4) in normalized [0, 1] coordinates.
+            (x0, y0, x1, y1, x2, y2, x3, y3) in normalized [0, 1] coordinates.
+            Corners should be in clockwise or counter-clockwise order.
 
     Returns:
         Array of shape (n_boxes, 5) with (cx, cy, w, h, angle) in normalized
-        coordinates. Angle is in radians, where 0 means aligned with x-axis
-        and positive values indicate counter-clockwise rotation.
+        coordinates. Angle is in radians, in the range (-pi/2, 0].
     """
     if corners.shape[0] == 0:
         return np.zeros((0, 5), dtype=np.float64)
 
-    result = np.zeros((corners.shape[0], 5), dtype=np.float64)
+    # Reshape to (n_boxes, 4, 2) where last dim is (x, y)
+    pts = corners.reshape(-1, 4, 2)
 
-    for i, bbox_corners in enumerate(corners):
-        # Extract x and y coordinates
-        xs = np.array(
-            [bbox_corners[0], bbox_corners[2], bbox_corners[4], bbox_corners[6]]
-        )
-        ys = np.array(
-            [bbox_corners[1], bbox_corners[3], bbox_corners[5], bbox_corners[7]]
-        )
+    # Center: midpoint of opposite corners (p0 and p2)
+    cx = (pts[:, 0, 0] + pts[:, 2, 0]) / 2
+    cy = (pts[:, 0, 1] + pts[:, 2, 1]) / 2
 
-        # Compute centroid
-        cx = np.mean(xs)
-        cy = np.mean(ys)
+    # Edge lengths from p0 to its two adjacent corners (p1 and p3)
+    edge1_sq = (pts[:, 1, 0] - pts[:, 0, 0]) ** 2 + (pts[:, 1, 1] - pts[:, 0, 1]) ** 2
+    edge2_sq = (pts[:, 3, 0] - pts[:, 0, 0]) ** 2 + (pts[:, 3, 1] - pts[:, 0, 1]) ** 2
+    edge1_len = np.sqrt(edge1_sq)
+    edge2_len = np.sqrt(edge2_sq)
 
-        # Center the points
-        centered_xs = xs - cx
-        centered_ys = ys - cy
+    # Width is the longer edge, height is the shorter
+    long_edge = np.maximum(edge1_len, edge2_len)
+    short_edge = np.minimum(edge1_len, edge2_len)
 
-        # Compute covariance matrix
-        cov = np.array(
-            [
-                [np.mean(centered_xs**2), np.mean(centered_xs * centered_ys)],
-                [np.mean(centered_xs * centered_ys), np.mean(centered_ys**2)],
-            ]
-        )
+    # Angle of each edge
+    edge1_dx = pts[:, 1, 0] - pts[:, 0, 0]
+    edge1_dy = pts[:, 1, 1] - pts[:, 0, 1]
+    edge2_dx = pts[:, 3, 0] - pts[:, 0, 0]
+    edge2_dy = pts[:, 3, 1] - pts[:, 0, 1]
 
-        # Compute eigenvalues and eigenvectors
-        eigenvalues, eigenvectors = np.linalg.eigh(cov)
+    angle1 = np.arctan2(edge1_dy, edge1_dx)
+    angle2 = np.arctan2(edge2_dy, edge2_dx)
 
-        # Principal eigenvector (largest eigenvalue)
-        principal_axis = eigenvectors[:, 1]
-        angle = np.arctan2(principal_axis[1], principal_axis[0])
+    # Use the longer edge's angle
+    use_edge1 = edge1_len >= edge2_len
+    angle = np.where(use_edge1, angle1, angle2)
 
-        # Rotate points to align with principal axis
-        cos_angle = np.cos(-angle)
-        sin_angle = np.sin(-angle)
-        rotated_xs = cos_angle * centered_xs - sin_angle * centered_ys
-        rotated_ys = sin_angle * centered_xs + cos_angle * centered_ys
+    # Normalize to (-pi/2, 0]: if angle > 0, subtract pi/2 and swap w/h.
+    # After this, width >= height always holds.
+    needs_swap = angle > 0
+    angle = np.where(needs_swap, angle - np.pi / 2, angle)
+    width = np.where(needs_swap, short_edge, long_edge)
+    height = np.where(needs_swap, long_edge, short_edge)
 
-        # Compute width and height from rotated extents
-        width = np.max(rotated_xs) - np.min(rotated_xs)
-        height = np.max(rotated_ys) - np.min(rotated_ys)
-
-        result[i] = [cx, cy, width, height, angle]
-
-    return result
+    return np.stack([cx, cy, width, height, angle], axis=1)
