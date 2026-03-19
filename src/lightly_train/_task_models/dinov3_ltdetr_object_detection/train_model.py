@@ -111,7 +111,6 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
 
     # Per-parameter-group overrides
     backbone_lr_factor: float = 1e-2
-    backbone_weight_decay: float | None = None  # Use default if None
 
     # Scheduler configuration
     scheduler_start_factor: float = 0.01
@@ -404,11 +403,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             global_batch_size / self.model_args.default_batch_size
         )
         backbone_lr = lr * self.model_args.backbone_lr_factor
-        backbone_weight_decay = (
-            self.model_args.backbone_weight_decay
-            if self.model_args.backbone_weight_decay is not None
-            else self.model_args.weight_decay
-        )
 
         backbone = self.model.backbone
         if isinstance(backbone, DINOv3STAs):
@@ -432,7 +426,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                     "name": "backbone",
                     "params": backbone_params_wd,
                     "lr": backbone_lr,
-                    "weight_decay": backbone_weight_decay,
                 }
             )
         if backbone_params_no_wd:
