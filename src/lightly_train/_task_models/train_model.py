@@ -20,6 +20,7 @@ from lightly_train._configs.config import PydanticConfig
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._metrics.task_metric import TaskMetric, TaskMetricArgs
 from lightly_train._task_models.task_model import TaskModel
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._transforms.task_transform import TaskTransform
 
 
@@ -53,6 +54,7 @@ class TrainModel(Module):
     task_model_cls: ClassVar[type[TaskModel]]
     train_transform_cls: ClassVar[type[TaskTransform]]
     val_transform_cls: ClassVar[type[TaskTransform]]
+    torch_compile_args_cls: ClassVar[type[TorchCompileArgs]]
 
     # NOTE(Guarin, 07/25): We use the same method names as for LightningModule as
     # those methods are automatically handled by Fabric. Methods with different
