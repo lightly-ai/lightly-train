@@ -110,6 +110,12 @@ def test_oriented_bbox_from_corners__rotated() -> None:
     )
     result = yolo_helpers.oriented_bbox_from_corners(corners)
 
+    # asserting is 45deg
+    x1, y1, x2, y2 = corners[0, [0, 1, 2, 3]]
+    delta_x = x2 - x1
+    delta_y = y2 - y1
+    assert np.isclose(delta_x, delta_y)
+
     # Centroid should be at (0.5, 0.5)
     assert np.isclose(result[0, 0], 0.5)
     assert np.isclose(result[0, 1], 0.5)
