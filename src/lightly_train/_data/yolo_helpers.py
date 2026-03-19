@@ -142,19 +142,15 @@ def binary_masks_from_polygons(
 def oriented_bbox_from_corners(corners: NDArray4Corners) -> NDArrayOBBoxes:
     """Convert 4-corner format to (cx, cy, w, h, angle) format.
 
-    Uses geometric approach: the center is the midpoint of opposite
-    corners, width/height are the longer/shorter edge lengths, and the angle is
-    derived from the longer edge direction.
-
     Args:
         corners:
             Array of shape (n_boxes, 8) with coordinates
-            (x0, y0, x1, y1, x2, y2, x3, y3) in normalized [0, 1] coordinates.
+            (x0, y0, x1, y1, x2, y2, x3, y3)
             Corners should be in clockwise or counter-clockwise order.
 
     Returns:
-        Array of shape (n_boxes, 5) with (cx, cy, w, h, angle) in normalized
-        coordinates. Angle is in radians, in the range (-pi/2, 0].
+        Array of shape (n_boxes, 5) with (cx, cy, w, h, angle)
+        coordinates. Angle is in radians, in the range (-pi/2, pi/2).
     """
     if corners.shape[0] == 0:
         return np.zeros((0, 5), dtype=np.float64)
@@ -164,28 +160,14 @@ def oriented_bbox_from_corners(corners: NDArray4Corners) -> NDArrayOBBoxes:
     cx = (pts[:, 0, 0] + pts[:, 2, 0]) / 2
     cy = (pts[:, 0, 1] + pts[:, 2, 1]) / 2
 
-    edge1_sq = (pts[:, 1, 0] - pts[:, 0, 0]) ** 2 + (pts[:, 1, 1] - pts[:, 0, 1]) ** 2
-    edge2_sq = (pts[:, 3, 0] - pts[:, 0, 0]) ** 2 + (pts[:, 3, 1] - pts[:, 0, 1]) ** 2
-    edge1_len = np.sqrt(edge1_sq)
-    edge2_len = np.sqrt(edge2_sq)
+    width = np.linalg.norm(pts[:, 0] - pts[:, 1], axis=1)
+    height = np.linalg.norm(pts[:, 1] - pts[:, 2], axis=1)
+    angle = np.arctan2(pts[:, 1, 1] - pts[:, 0, 1], pts[:, 1, 0] - pts[:, 0, 0])
 
-    long_edge = np.maximum(edge1_len, edge2_len)
-    short_edge = np.minimum(edge1_len, edge2_len)
+    angle_over = angle > np.pi / 2
+    angle_under = angle < -np.pi / 2
 
-    edge1_dx = pts[:, 1, 0] - pts[:, 0, 0]
-    edge1_dy = pts[:, 1, 1] - pts[:, 0, 1]
-    edge2_dx = pts[:, 3, 0] - pts[:, 0, 0]
-    edge2_dy = pts[:, 3, 1] - pts[:, 0, 1]
-
-    angle1 = np.arctan2(edge1_dy, edge1_dx)
-    angle2 = np.arctan2(edge2_dy, edge2_dx)
-
-    use_edge1 = edge1_len >= edge2_len
-    angle = np.where(use_edge1, angle1, angle2)
-
-    needs_swap = angle > 0
-    angle = np.where(needs_swap, angle - np.pi / 2, angle)
-    width = np.where(needs_swap, short_edge, long_edge)
-    height = np.where(needs_swap, long_edge, short_edge)
+    angle[angle_over] -= np.pi
+    angle[angle_under] += np.pi
 
     return np.stack([cx, cy, width, height, angle], axis=1)

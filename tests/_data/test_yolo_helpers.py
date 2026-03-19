@@ -152,3 +152,35 @@ def test_oriented_bbox_from_corners__empty() -> None:
 
     assert result.shape == (0, 5)
     assert result.dtype == np.float64
+
+
+def test_oriented_bbox_from_corners__angle_bounds() -> None:
+    height, width = 0.2, 0.4
+
+    base_corners = np.array(
+        [
+            [-width / 2, -height / 2],
+            [width / 2, -height / 2],
+            [width / 2, height / 2],
+            [-width / 2, height / 2],
+        ]
+    )
+
+    degrees = np.linspace(0, 360, num=8, endpoint=False)
+
+    for deg in degrees:
+        angle_rad = np.deg2rad(deg)
+        rotation_matrix = np.array(
+            [
+                [np.cos(angle_rad), -np.sin(angle_rad)],
+                [np.sin(angle_rad), np.cos(angle_rad)],
+            ]
+        )
+        rotated_corners = base_corners @ rotation_matrix.T + 0.5
+        corners_flat = rotated_corners.flatten()
+        result = yolo_helpers.oriented_bbox_from_corners(corners_flat[None, :])
+        assert result.shape == (1, 5)
+        assert -np.pi / 2 <= result[0, 4]
+        assert result[0, 4] <= np.pi / 2
+        assert np.isclose(result[0, 2], width)
+        assert np.isclose(result[0, 3], height)
