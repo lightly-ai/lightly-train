@@ -23,9 +23,8 @@ from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._transforms.oriented_object_detection_transform import (
     OrientedObjectDetectionCollateFunction,
     OrientedObjectDetectionTransform,
-    OrientedObjectDetectionTransformArgs,
 )
-from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
+from lightly_train._transforms.task_transform import TaskCollateFunction
 from lightly_train.types import OrientedObjectDetectionDatasetItem, PathLike
 
 
