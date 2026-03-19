@@ -47,7 +47,7 @@ def _load_user_id() -> str:
         return existing_id
     except FileNotFoundError:
         pass
-    except (ValueError, AttributeError):
+    except ValueError:
         # File exists but contains invalid content — treat as corrupt and regenerate.
         pass
     except Exception:
