@@ -22,7 +22,7 @@ please refer to the [](pretrain-settings) page.
 | [`overwrite`](#overwrite)                       | `bool`                        | `False`        | If `True`, overwrite the `out` directory if it already exists.                                                                                                      |
 | [`accelerator`](#accelerator)                   | `str`                         | `"auto"`       | Hardware backend: `"cpu"`, `"gpu"`, `"mps"`, or `"auto"` to pick the best available.                                                                                |
 | [`strategy`](#strategy)                         | `str`                         | `"auto"`       | Distributed training strategy (e.g. `"ddp"`). `"auto"` selects a suitable default.                                                                                  |
-| [`seed`](#seed)                                 | `int`<br>`None`               | `0`            | Random seed for reproducibility. Set to `None` to disable seeding.                                                                                                  |
+| [`seed`](#seed)                                 | `int`                         | `0`            | Random seed for reproducibility.                                                                                                                                    |
 | [`logger_args`](#logger_args)                   | `dict`                        | `None`         | Logger configuration dict. `None` uses defaults; keys configure or disable individual loggers.                                                                      |
 | [`transform_args`](#transform_args)             | `dict`                        | `None`         | Data transform configuration (e.g. image size, normalization).                                                                                                      |
 | [`metric_args`](#metric_args)                   | `dict`                        | `None`         | Metric configuration dict. `None` uses defaults; keys configure or disable individual metrics.                                                                      |
@@ -221,7 +221,7 @@ Training precision setting. Must be one of the following strings:
 ### `seed`
 
 Controls reproducibility for data order, augmentation randomness, and initialization.
-Set to `None` to use a random seed on each run. Default is `0`.
+Default is `0`.
 
 (train-settings-hardware)=
 
