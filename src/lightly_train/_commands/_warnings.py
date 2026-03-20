@@ -129,3 +129,14 @@ def filter_warnings() -> None:
         "ignore",
         message="Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected",
     )
+
+    # Albumentations
+    # Ignore warnings for compatibility with old Albumentations versions (1.3.1).
+    warnings.filterwarnings(
+        "ignore",
+        message="Argument(s) 'always_apply' are not valid for transform BasicTransform",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message="Got processor for bboxes, but no transform to process it.",
+    )
