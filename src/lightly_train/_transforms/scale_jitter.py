@@ -65,20 +65,19 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
         scale_range: tuple[float, float] | None = None,
         num_scales: int | None = None,
         divisible_by: int | None = None,
+        always_apply: bool = False,
         p: float = 1.0,
-        step_seeding: bool = False,
-        seed_offset: int = 0,
     ):
-        super().__init__(p=1.0)
+        self._init_arg_names = tuple(
+            key for key in locals().keys() if key not in {"self", "__class__"}
+        )
+
+        super().__init__(always_apply=always_apply, p=p)
         self.sizes = sizes
         self.target_size = target_size
         self.scale_range = scale_range
+        self.num_scales = num_scales
         self.divisible_by = divisible_by
-        self.p = p
-        self.seed_offset = seed_offset
-        self.step_seeding = step_seeding
-
-        self._step = 0
 
         self.heights, self.widths = zip(
             *generate_discrete_sizes(
@@ -94,22 +93,14 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
             Resize(height=h, width=w) for h, w in zip(self.heights, self.widths)
         ]
 
-    @property
-    def step(self) -> int:
-        return self._step
-
-    @step.setter
-    def step(self, step: int) -> None:
-        self._step = step
-
-    def get_params(self) -> dict[str, Any]:
-        if self.step_seeding:
-            rng = np.random.default_rng(self.step + self.seed_offset)
-            idx = int(rng.integers(0, len(self.transforms)))
-            return {"idx": idx}
+    def get_params(self) -> dict[str, int]:
+        # Use py_random if set by Albumentations (>= 1.4.x), otherwise fall back to
+        # NumPy's global RNG so that the legacy path respects seeded runs.
+        if hasattr(self, "py_random"):
+            idx = self.py_random.randint(0, len(self.transforms) - 1)
         else:
             idx = int(np.random.randint(0, len(self.transforms)))
-            return {"idx": idx}
+        return {"idx": idx}
 
     def apply(self, img: NDArrayImage, idx: int, **params: Any) -> NDArrayImage:
         return self.transforms[idx].apply(img=img, **params)  # type: ignore[no-any-return]
@@ -121,6 +112,10 @@ class ScaleJitter(DualTransform):  # type: ignore[misc]
 
     def apply_to_mask(self, mask: NDArrayMask, idx: int, **params: Any) -> NDArrayMask:
         return self.transforms[idx].apply_to_mask(mask, **params)  # type: ignore[no-any-return]
+
+    # For compatibility with old Albumentations versions (1.3.1).
+    def get_transform_init_args_names(self) -> tuple[str, ...]:
+        return self._init_arg_names
 
 
 class TorchVisionScaleJitter(v2.Transform):  # type: ignore
