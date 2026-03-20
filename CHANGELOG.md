@@ -13,6 +13,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   metrics used for validation and best model checkpointing. See the
   [documentation](https://docs.lightly.ai/train/stable/settings/train_settings.html#metric-args)
   for details.
+- Add torch.compile support for image classification fine-tuning. Set
+  `torch_compile_args={"disable": True}` to disable it if you encounter any issues.
 - Add support for DINOv2
   [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)
   inference and fine-tuning.

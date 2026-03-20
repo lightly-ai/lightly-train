@@ -42,6 +42,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train.types import (
     ImageClassificationBatch,
     PathLike,
@@ -91,6 +92,10 @@ class ImageClassificationTrainArgs(TrainModelArgs):
                 self.gradient_clip_val = 3.0
 
 
+class ImageClassificationTorchCompileArgs(TorchCompileArgs):
+    disable: bool = False
+
+
 class ImageClassificationTrain(TrainModel):
     task = "image_classification"
     train_model_args_cls = ImageClassificationTrainArgs
@@ -101,6 +106,7 @@ class ImageClassificationTrain(TrainModel):
     task_model_cls = ImageClassification
     train_transform_cls = ImageClassificationTrainTransform
     val_transform_cls = ImageClassificationValTransform
+    torch_compile_args_cls = ImageClassificationTorchCompileArgs
 
     def __init__(
         self,
@@ -162,12 +168,15 @@ class ImageClassificationTrain(TrainModel):
     def get_task_model(self) -> ImageClassification:
         return self.model
 
+    def forward(self, images: Tensor) -> Tensor:
+        return self.model.forward_train(images)
+
     def training_step(
         self, fabric: Fabric, batch: ImageClassificationBatch, step: int
     ) -> TaskStepResult:
         images = batch["image"]
         classes = batch["classes"]
-        logits = self.model.forward_train(images)
+        logits = self(images)
         if self.model.classification_task == "multiclass":
             targets = torch.concatenate(classes)
             loss = self.criterion(logits, targets)
@@ -193,7 +202,7 @@ class ImageClassificationTrain(TrainModel):
     ) -> TaskStepResult:
         images = batch["image"]
         classes = batch["classes"]
-        logits = self.model.forward_train(images)
+        logits = self(images)
         if self.model.classification_task == "multiclass":
             targets = torch.concatenate(classes)
             loss = self.criterion(logits, targets)

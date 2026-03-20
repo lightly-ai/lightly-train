@@ -48,6 +48,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train.types import InstanceSegmentationBatch, PathLike
 
 
@@ -163,6 +164,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
     task_model_cls = DINOv3EoMTInstanceSegmentation
     train_transform_cls = DINOv3EoMTInstanceSegmentationTrainTransform
     val_transform_cls = DINOv3EoMTInstanceSegmentationValTransform
+    torch_compile_args_cls = TorchCompileArgs
 
     def __init__(
         self,
