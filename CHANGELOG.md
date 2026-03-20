@@ -30,6 +30,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Removed
 
+- It is no longer possible to set `seed=None`. Instead, an integer seed must be provided
+  for reproducibility. This fixes a bug where recent PyTorch Lightning versions (>=2.2)
+  no longer generate random seeds when `seed=None` is set.
+
 ### Fixed
 
 ### Security
