@@ -519,4 +519,5 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 self.model,
                 optimizer=optimizer,
                 max_norm=self.clip_max_norm,
+                error_if_nonfinite=False,
             )
