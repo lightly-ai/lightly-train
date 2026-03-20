@@ -25,7 +25,7 @@ in LightlyTrain. For task-specific fine-tuning options, see the [](train-setting
 | [`strategy`](#strategy)                                 | `str`                         | `"auto"`         | Distributed training strategy (e.g. `ddp`). `"auto"` selects a suitable default.                  |
 | [`precision`](#precision)                               | `str`                         | `"auto"`         | Numeric precision mode (e.g. `bf16-mixed`, `16-mixed`).                                           |
 | [`float32_matmul_precision`](#float32_matmul_precision) | `str`                         | `"auto"`         | Precision for float32 matrix multiplication.                                                      |
-| [`seed`](#seed)                                         | `int`<br>`None`               | `0`              | Random seed for reproducibility. Set to `None` to disable seeding.                                |
+| [`seed`](#seed)                                         | `int`                         | `0`              | Random seed for reproducibility.                                                                  |
 | [`loggers`](#loggers)                                   | `dict`                        | `None`           | Logger configuration dict. `None` uses defaults; keys configure or disable individual loggers.    |
 | [`callbacks`](#callbacks)                               | `dict`                        | `None`           | Callback configuration dict. `None` enables the recommended defaults.                             |
 | [`optim`](#optim)                                       | `str`                         | `"auto"`         | Optimizer selection (`"auto"`, `"adamw"`, `"lars"`, `"sgd"`).                                     |
@@ -178,7 +178,7 @@ want to trade precision for speed.
 ### `seed`
 
 Controls reproducibility for data order, augmentation randomness, and initialization.
-Set to `None` to use a random seed on each run. Default is `0`.
+Default is `0`.
 
 (pretrain-settings-hardware)=
 
