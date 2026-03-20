@@ -14,6 +14,9 @@ import pytest
 from lightning_utilities.core.imports import RequirementCache
 from pytest import LogCaptureFixture
 
+if RequirementCache("albumentations<=1.4"):
+    # Skip test if albumentations version is too old. This can happen on Python 3.8.
+    pytest.skip("Old albumentations version", allow_module_level=True)
 if RequirementCache("torchmetrics<1.5"):
     # Skip test if torchmetrics version is too old. This can happen if SuperGradients
     # is installed which requires torchmetrics==0.8
