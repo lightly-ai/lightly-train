@@ -201,8 +201,6 @@ class OrientedObjectDetectionCollateFunction(TaskCollateFunction):
         assert isinstance(transform_args, OrientedObjectDetectionTransformArgs)
         self.scale_jitter: TorchVisionScaleJitter | None = None
         if transform_args.scale_jitter is not None:
-            scale_range = transform_args.get_scale_range()
-
             self.scale_jitter = TorchVisionScaleJitter(
                 sizes=transform_args.scale_jitter.sizes,
                 target_size=no_auto(transform_args.image_size)
@@ -210,7 +208,7 @@ class OrientedObjectDetectionCollateFunction(TaskCollateFunction):
                 else None,
                 num_scales=transform_args.scale_jitter.num_scales,
                 divisible_by=transform_args.scale_jitter.divisible_by,
-                scale_range=scale_range,
+                scale_range=transform_args.scale_jitter.scale_range,
             )
 
     def __call__(

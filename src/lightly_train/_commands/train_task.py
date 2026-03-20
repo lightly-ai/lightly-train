@@ -21,7 +21,13 @@ from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
 
-from lightly_train import _float32_matmul_precision, _logging, _system, _torch_helpers
+from lightly_train import (
+    _float32_matmul_precision,
+    _logging,
+    _system,
+    _torch_compile,
+    _torch_helpers,
+)
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._commands.train_task_helpers import BestAggregatedMetricValues
@@ -52,6 +58,7 @@ from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._train_task_state import (
     TrainTaskState,
 )
@@ -80,13 +87,14 @@ def train_image_classification(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an image classification model.
@@ -199,6 +207,11 @@ def train_image_classification(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -249,13 +262,14 @@ def train_image_classification_multihead(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an image classification model with multiple classification heads.
@@ -336,7 +350,13 @@ def train_image_classification_multihead(
         loader_args:
             Arguments for the PyTorch DataLoader.
         save_checkpoint_args:
-            Arguments to configure the saving of checkpoints.
+            Arguments to configure the saving of checkpoints. The checkpoint frequency
+            can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -386,13 +406,14 @@ def train_instance_segmentation(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an instance segmentation model.
@@ -503,6 +524,11 @@ def train_instance_segmentation(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -539,13 +565,14 @@ def train_object_detection(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train an object detection model.
@@ -656,6 +683,11 @@ def train_object_detection(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -692,13 +724,14 @@ def train_panoptic_segmentation(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train a panoptic segmentation model.
@@ -810,6 +843,11 @@ def train_panoptic_segmentation(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -846,13 +884,14 @@ def train_semantic_segmentation(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train a semantic segmentation model.
@@ -963,6 +1002,11 @@ def train_semantic_segmentation(
         save_checkpoint_args:
             Arguments to configure the saving of checkpoints. The checkpoint frequency
             can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -998,13 +1042,14 @@ def train_semantic_segmentation_multihead(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     """Train a multi-head semantic segmentation model.
@@ -1079,7 +1124,13 @@ def train_semantic_segmentation_multihead(
         loader_args:
             Arguments for the PyTorch DataLoader.
         save_checkpoint_args:
-            Arguments to configure the saving of checkpoints.
+            Arguments to configure the saving of checkpoints. The checkpoint frequency
+            can be set with ``save_checkpoint_args={"save_every_num_steps": 100}``.
+        torch_compile_args:
+            Arguments to configure model compilation with torch.compile. The arguments
+            are directly passed to torch.compile. Model compilation is disabled for most
+            models by default. Set ``torch_compile_args={"disable": True}`` to disable
+            it if you encounter any issues.
         gradient_accumulation_steps:
             Number of gradient accumulation steps. 'auto' automatically enables
             gradient accumulation when batch_size is smaller than the model's default
@@ -1119,13 +1170,14 @@ def _train_task(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
     metric_args: dict[str, Any] | None = None,
     loader_args: dict[str, Any] | None = None,
     save_checkpoint_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
 ) -> None:
     kwargs = locals()
@@ -1135,7 +1187,6 @@ def _train_task(
 
 
 def _train_task_from_config(config: TrainTaskConfig) -> None:
-    config = validate.pydantic_model_validate(TrainTaskConfig, dict(config))
     initial_config = config.model_dump()
     # NOTE(Guarin, 07/25): We add callbacks and loggers later to fabric because we first
     # have to initialize the output directory and some other things. Fabric doesn't
@@ -1303,6 +1354,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             metric_args=config.metric_args,
             data_args=config.data,
         )
+        config.torch_compile_args = helpers.get_torch_compile_args(
+            train_model_cls=train_model_cls,
+            torch_compile_args=config.torch_compile_args,
+        )
 
         # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
         train_dataloader = helpers.get_train_dataloader(
@@ -1354,6 +1409,17 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             total_steps=config.steps,
             global_batch_size=effective_global_batch_size,
         )
+
+        # Only compile model.forward since compiling the whole model will also compile
+        # training_step and validation_step which are hard to compile because of metrics
+        # and other non-compile-friendly code.
+        # See this discussion for more information: https://github.com/Lightning-AI/pytorch-lightning/discussions/21569
+        train_model.forward = _torch_compile.try_compile(
+            train_model.forward,
+            "model",
+            torch_compile_args=config.torch_compile_args,
+        )
+
         # NOTE(Guarin, 07/25): Fabric returns wrapped versions of the model and
         # optimizer but for all practical purposes we can treat them as the original
         # objects.
@@ -1710,13 +1776,14 @@ class TrainTaskConfig(PydanticConfig):
     strategy: str | Strategy = "auto"
     precision: _PRECISION_INPUT = "bf16-mixed"
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
-    seed: int | None = 0
+    seed: int = 0
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
     model_args: dict[str, Any] | TrainModelArgs | None = None
     transform_args: dict[str, Any] | None = None
     metric_args: dict[str, Any] | TaskMetricArgs | None = None
     loader_args: dict[str, Any] | None = None
     save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
+    torch_compile_args: dict[str, Any] | TorchCompileArgs | None = None
     gradient_accumulation_steps: int | Literal["auto"] = "auto"
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
