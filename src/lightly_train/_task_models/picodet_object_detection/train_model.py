@@ -67,6 +67,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
@@ -130,6 +131,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
     task_model_cls = PicoDetObjectDetection
     train_transform_cls = PicoDetObjectDetectionTrainTransform
     val_transform_cls = PicoDetObjectDetectionValTransform
+    torch_compile_args_cls = TorchCompileArgs
 
     def __init__(
         self,

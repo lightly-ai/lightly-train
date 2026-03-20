@@ -90,6 +90,7 @@ from lightly_train._task_models.train_model import (
     TrainModel,
     TrainModelArgs,
 )
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._torch_helpers import _torch_weights_only_false
 from lightly_train._train_task_state import (
     CheckpointDict,
@@ -1435,3 +1436,16 @@ def log_param_and_module_info(
             f"parameter group: {optimizer_missing_params}. Please raise an issue "
             "if you encounter this error: https://github.com/lightly-ai/lightly-train/issues"
         )
+
+
+def get_torch_compile_args(
+    train_model_cls: type[TrainModel],
+    torch_compile_args: dict[str, Any] | TorchCompileArgs | None,
+) -> TorchCompileArgs:
+    if isinstance(torch_compile_args, TorchCompileArgs):
+        return torch_compile_args
+    torch_compile_args = {} if torch_compile_args is None else torch_compile_args
+    args = validate.pydantic_model_validate(
+        train_model_cls.torch_compile_args_cls, torch_compile_args
+    )
+    return args
