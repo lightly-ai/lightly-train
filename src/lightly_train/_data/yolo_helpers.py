@@ -150,7 +150,7 @@ def oriented_bbox_from_corners(corners: NDArray4Corners) -> NDArrayOBBoxes:
 
     Returns:
         Array of shape (n_boxes, 5) with (cx, cy, w, h, angle)
-        coordinates. Angle is in radians, in the range (-pi/2, pi/2).
+        coordinates. Angle is in radians, in the range [-pi/2, pi/2].
     """
     if corners.shape[0] == 0:
         return np.zeros((0, 5), dtype=np.float64)
