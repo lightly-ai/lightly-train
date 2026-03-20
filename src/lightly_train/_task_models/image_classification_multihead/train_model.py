@@ -316,6 +316,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 module=self,
                 optimizer=optimizer,
                 max_norm=self.model_args.gradient_clip_val,
+                error_if_nonfinite=False,
             )
 
 
