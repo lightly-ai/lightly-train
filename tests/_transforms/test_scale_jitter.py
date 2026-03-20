@@ -163,14 +163,9 @@ class TestRandomScaleJitter:
         # With scale >=2.0 the bbox has to change in Pascal VOC format.
         assert not np.array_equal(out["bboxes"], bboxes)
 
-    def test__step_seeding__deterministic(self) -> None:
+    def test__call__different_sizes(self) -> None:
         img_size = (8, 8)
         img = np.random.randint(0, 255, size=(*img_size, 3), dtype=np.uint8)
-        mask = np.random.randint(0, 255, size=img_size, dtype=np.uint8)
-        bboxes = np.array([[1, 1, 2, 2]], dtype=np.float32)
-        classes = np.array([1], dtype=np.int32)
-        bbox_params = BboxParams(format="pascal_voc", label_fields=["class_labels"])
-
         transform = Compose(
             [
                 ScaleJitter(
@@ -179,73 +174,16 @@ class TestRandomScaleJitter:
                     scale_range=(1.0, 10.0),
                     num_scales=10,
                     p=1.0,
-                    step_seeding=True,
-                    seed_offset=42,
                 )
             ],
-            bbox_params=bbox_params,
         )
-        # Set step and get deterministic idx
-        transform.transforms[0].step = 5
-        out1 = transform(
-            image=img,
-            mask=mask,
-            bboxes=bboxes,
-            class_labels=classes,
-        )
-        out2 = transform(
-            image=img,
-            mask=mask,
-            bboxes=bboxes,
-            class_labels=classes,
-        )
-        assert np.array_equal(out1["image"], out2["image"])
-        assert np.array_equal(out1["mask"], out2["mask"])
-        assert np.array_equal(out1["bboxes"], out2["bboxes"])
-        assert np.array_equal(out1["class_labels"], out2["class_labels"])
 
-    def test__step_seeding__different_steps(self) -> None:
-        img_size = (8, 8)
-        img = np.random.randint(0, 255, size=(*img_size, 3), dtype=np.uint8)
-        mask = np.random.randint(0, 255, size=img_size, dtype=np.uint8)
-        bboxes = np.array([[1, 1, 2, 2]], dtype=np.float64)
-        classes = np.array([1], dtype=np.int64)
-        bbox_params = BboxParams(format="pascal_voc", label_fields=["class_labels"])
-
-        transform = Compose(
-            [
-                ScaleJitter(
-                    sizes=None,
-                    target_size=img_size,
-                    scale_range=(1.0, 10.0),
-                    num_scales=10,
-                    p=1.0,
-                    step_seeding=True,
-                    seed_offset=42,
-                )
-            ],
-            bbox_params=bbox_params,
-        )
-        # Set step and get deterministic idx for first transform
-        transform.transforms[0].step = 5
-        out1 = transform(
-            image=img,
-            mask=mask,
-            bboxes=bboxes,
-            class_labels=classes,
-        )
-        # Change step and get deterministic idx for second transform
-        transform.transforms[0].step = 6
-        out2 = transform(
-            image=img,
-            mask=mask,
-            bboxes=bboxes,
-            class_labels=classes,
-        )
-        assert not np.array_equal(out1["image"], out2["image"])
-        assert not np.array_equal(out1["mask"], out2["mask"])
-        assert not np.array_equal(out1["bboxes"], out2["bboxes"])
-        assert np.array_equal(out1["class_labels"], out2["class_labels"])
+        shape = transform(image=img)["image"].shape
+        for _ in range(100):
+            new_shape = transform(image=img)["image"].shape
+            if shape != new_shape:
+                return
+        assert False, f"Transformed images always have shape {shape}"
 
 
 @pytest.fixture
