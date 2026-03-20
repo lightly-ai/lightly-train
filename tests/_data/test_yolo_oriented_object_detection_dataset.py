@@ -230,10 +230,10 @@ class TestYoloOrientedObjectDetectionDataset:
         )
 
         # Should handle missing label file without error
-        sample = train_dataset[1]
+        sample = train_dataset[0]
         assert sample["image"].dtype == torch.float32
-        assert sample["bboxes"].shape == (1, 5)
-        assert sample["classes"].shape == (1,)
+        assert sample["bboxes"].shape == (0, 5)
+        assert sample["classes"].shape == (0,)
 
     def test__getitem__empty_label_file(self, tmp_path: Path) -> None:
         create_yolo_oriented_object_detection_dataset(
