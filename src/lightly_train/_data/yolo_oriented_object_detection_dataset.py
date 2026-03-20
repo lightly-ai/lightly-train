@@ -25,7 +25,31 @@ from lightly_train._transforms.oriented_object_detection_transform import (
     OrientedObjectDetectionTransform,
 )
 from lightly_train._transforms.task_transform import TaskCollateFunction
-from lightly_train.types import OrientedObjectDetectionDatasetItem, PathLike
+from lightly_train.types import (
+    NDArray4Corners,
+    OrientedObjectDetectionDatasetItem,
+    PathLike,
+)
+
+
+def normalized_4corners_to_canvas_4corners(
+    normalized_corners: NDArray4Corners, canvas_size: tuple[int, int]
+) -> NDArray4Corners:
+    """Converts normalized 4-corner coordinates to canvas 4-corner coordinates.
+
+    Args:
+        normalized_corners: (N, 8) array of normalized 4-corner coordinates in
+            (x1, y1, x2, y2, x3, y3, x4, y4) format.
+        canvas_size: Tuple of (height, width) of the canvas.
+
+    Returns:
+        corners: (N, 8) array of 4-corner coordinates in canvas pixel space.
+    """
+    h, w = canvas_size
+    corners = normalized_corners.copy()
+    corners[:, [0, 2, 4, 6]] *= w
+    corners[:, [1, 3, 5, 7]] *= h
+    return corners
 
 
 class YOLOOrientedObjectDetectionDataset(TaskDataset):
@@ -67,11 +91,11 @@ class YOLOOrientedObjectDetectionDataset(TaskDataset):
         h, w, _ = image_np.shape
 
         if label_path.exists():
-            corners_np, class_labels_np = (
+            normalized_corners_np, class_labels_np = (
                 file_helpers.open_yolo_oriented_object_detection_label_numpy(label_path)
             )
         else:
-            corners_np = np.zeros((0, 8), dtype=np.float64)
+            normalized_corners_np = np.zeros((0, 8), dtype=np.float64)
             class_labels_np = np.zeros((0,), dtype=np.int64)
 
         # Remove instances with class IDs that are not in the included classes.
@@ -82,7 +106,7 @@ class YOLOOrientedObjectDetectionDataset(TaskDataset):
             ],
             dtype=np.bool_,
         )
-        corners_np = corners_np[keep]
+        normalized_corners_np = normalized_corners_np[keep]
         class_labels_np = class_labels_np[keep]
 
         # Map class IDs to internal class IDs.
@@ -94,17 +118,21 @@ class YOLOOrientedObjectDetectionDataset(TaskDataset):
             dtype=np.int_,
         )
 
+        # Convert numpy arrays to tv_tensors for torchvision transforms.
+        # Image: (H, W, C) -> (C, H, W) for tv_tensors.Image
+        image_tensor = torch.from_numpy(image_np).permute(2, 0, 1)
+        tv_image = tv_tensors.Image(image_tensor)
+
+        corners_np = normalized_4corners_to_canvas_4corners(
+            normalized_corners_np, canvas_size=(h, w)
+        )
+
         # Convert from 4-corner format (x1,y1,x2,y2,x3,y3,x4,y4) to
         # (cx, cy, w, h, angle) format.
         if corners_np.shape[0] > 0:
             bboxes_np = yolo_helpers.oriented_bbox_from_corners(corners_np)
         else:
             bboxes_np = np.zeros((0, 5), dtype=np.float64)
-
-        # Convert numpy arrays to tv_tensors for torchvision transforms.
-        # Image: (H, W, C) -> (C, H, W) for tv_tensors.Image
-        image_tensor = torch.from_numpy(image_np).permute(2, 0, 1)
-        tv_image = tv_tensors.Image(image_tensor)
 
         # Bboxes: normalized (cx, cy, w, h, angle) with canvas size (h, w)
         if bboxes_np.shape[0] > 0:
