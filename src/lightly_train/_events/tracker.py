@@ -182,7 +182,7 @@ def _is_container() -> bool:
                 or "containerd" in cgroup_content
             ):
                 return True
-    except Exception:
+    except (FileNotFoundError, PermissionError, OSError):
         pass
 
     return False
