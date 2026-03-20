@@ -185,8 +185,12 @@ class ScaleJitterArgs(PydanticConfig):
     num_scales: int | None
     prob: float = Field(ge=0.0, le=1.0)
     divisible_by: int | None
-    step_seeding: bool
-    seed_offset: int
+
+    @property
+    def scale_range(self) -> tuple[float, float] | None:
+        if self.min_scale is not None and self.max_scale is not None:
+            return self.min_scale, self.max_scale
+        return None
 
 
 class StopPolicyArgs(PydanticConfig):

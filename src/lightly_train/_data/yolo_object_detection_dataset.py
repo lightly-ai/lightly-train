@@ -13,7 +13,6 @@ from typing import ClassVar
 
 import numpy as np
 import pydantic
-import torch
 from pydantic import Field
 
 from lightly_train._data import file_helpers, label_helpers, yolo_helpers
@@ -100,24 +99,13 @@ class YOLOObjectDetectionDataset(TaskDataset):
             }
         )
 
-        image = transformed["image"]
-        # Some albumentations versions return lists of tuples instead of arrays.
-        if isinstance(transformed["bboxes"], list):
-            transformed["bboxes"] = np.array(transformed["bboxes"])
-        if isinstance(transformed["class_labels"], list):
-            transformed["class_labels"] = np.array(transformed["class_labels"])
-        bboxes = torch.from_numpy(transformed["bboxes"]).float()
-        internal_class_labels = torch.from_numpy(transformed["class_labels"]).long()
-
         return ObjectDetectionDatasetItem(
             image_path=str(image_path),
-            image=image,
-            bboxes=bboxes,
-            classes=internal_class_labels,
-            original_size=(
-                w,
-                h,
-            ),  # TODO (Thomas, 10/25): Switch to (h, w) for consistency.
+            image=transformed["image"],
+            bboxes=transformed["bboxes"],
+            classes=transformed["class_labels"],
+            # TODO (Thomas, 10/25): Switch to (h, w) for consistency.
+            original_size=(w, h),
         )
 
 
