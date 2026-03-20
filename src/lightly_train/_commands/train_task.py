@@ -87,7 +87,7 @@ def train_image_classification(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -262,7 +262,7 @@ def train_image_classification_multihead(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -406,7 +406,7 @@ def train_instance_segmentation(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -565,7 +565,7 @@ def train_object_detection(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -724,7 +724,7 @@ def train_panoptic_segmentation(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -884,7 +884,7 @@ def train_semantic_segmentation(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -1042,7 +1042,7 @@ def train_semantic_segmentation_multihead(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -1170,7 +1170,7 @@ def _train_task(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -1777,7 +1777,7 @@ class TrainTaskConfig(PydanticConfig):
     strategy: str | Strategy = "auto"
     precision: _PRECISION_INPUT = "bf16-mixed"
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
-    seed: int | None = 0
+    seed: int = 0
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
     model_args: dict[str, Any] | TrainModelArgs | None = None
     transform_args: dict[str, Any] | None = None
