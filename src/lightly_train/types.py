@@ -125,9 +125,9 @@ class MaskSemanticSegmentationBatch(TypedDict):
 
 class ObjectDetectionDatasetItem(TypedDict):
     image_path: ImageFilename
-    image: Tensor
-    bboxes: Tensor  # Of shape (n_boxes, 4) with (x_center, y_center, w, h) coordinates.
-    classes: Tensor  # Of shape (n_boxes,) with class labels.
+    image: NDArrayImage
+    bboxes: NDArrayBBoxes  # Of shape (n_boxes, 4) with (x_center, y_center, w, h) coordinates.
+    classes: NDArrayClasses  # Of shape (n_boxes,) with class labels.
     original_size: tuple[int, int]  # (width, height) of the original image.
 
 
