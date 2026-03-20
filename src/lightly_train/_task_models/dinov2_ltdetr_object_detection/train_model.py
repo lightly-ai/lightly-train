@@ -32,6 +32,9 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
+from lightly_train._task_models.dinov2_ltdetr_object_detection.dinov2_vit_wrapper import (
+    DINOv2STAs,
+)
 from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
     DINOv2LTDETRObjectDetection,
 )
@@ -410,7 +413,20 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         )
         detector_weight_decay = self.model_args.detector_weight_decay
 
-        backbone_params = list(self.model.backbone.parameters())
+        backbone = self.model.backbone
+        if isinstance(backbone, DINOv2STAs):
+            # Only the pretrained ViT gets the low backbone LR.
+            backbone_params = list(backbone.dinov2.parameters())
+            # The connector modules (sta, convs, norms) are randomly initialized and
+            # are merged into the detector group to train at the full LR.
+            vit_params_ids = {id(p) for p in backbone_params}
+            connector_params = [
+                p for p in backbone.parameters() if id(p) not in vit_params_ids
+            ]
+        else:
+            backbone_params = list(backbone.parameters())
+            connector_params = []
+
         backbone_params_wd = [p for p in backbone_params if p not in params_no_wd]
         backbone_params_no_wd = [p for p in backbone_params if p in params_no_wd]
         if backbone_params_wd:
@@ -432,8 +448,10 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 }
             )
 
-        detector_params = list(self.model.encoder.parameters()) + list(
-            self.model.decoder.parameters()
+        detector_params = (
+            connector_params
+            + list(self.model.encoder.parameters())
+            + list(self.model.decoder.parameters())
         )
         detector_params_wd = [p for p in detector_params if p not in params_no_wd]
         detector_params_no_wd = [p for p in detector_params if p in params_no_wd]
