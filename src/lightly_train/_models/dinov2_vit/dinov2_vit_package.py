@@ -163,7 +163,7 @@ class DINOv2ViTPackage(Package):
                 "import torch",
                 "",
                 "# Load the pretrained model",
-                "model = DINOv2ViTPackage.get_model('dinov2/<vitXX>') # Replace with the model name used in train",
+                "model = DINOv2ViTPackage.get_model('<vitXX>') # Replace with the model name used in train. E.g. 'vits14'",
                 f"model.load_state_dict(torch.load('{out}', weights_only=True))",
                 "",
                 "# Finetune or evaluate the model",

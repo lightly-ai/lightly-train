@@ -36,6 +36,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fixed incorrect model name format in `export_model()` log example for DINOv2 and
+  DINOv3 packages. The example now shows the correct format (without prefix) that
+  works with `get_model()`.
+
 ### Security
 
 ## [0.14.2] - 2026-02-24
