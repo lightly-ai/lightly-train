@@ -521,8 +521,9 @@ LightlyTrain supports the following model and workflow combinations.
 ## Usage Events
 
 LightlyTrain collects anonymous usage events to help us improve the product. We only
-track training method, model architecture, and system information (OS, GPU). To opt-out,
-set the environment variable: `export LIGHTLY_TRAIN_EVENTS_DISABLED=1`
+track training method, model architecture, and system information (OS, GPU, CI,
+Container). To opt-out, set the environment variable:
+`export LIGHTLY_TRAIN_EVENTS_DISABLED=1`
 
 ## License
 

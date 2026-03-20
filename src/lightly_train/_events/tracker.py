@@ -110,6 +110,8 @@ def _get_system_info() -> Dict[str, Any]:
         _system_info = {
             "os": platform.system(),
             "gpu_name": gpu_name,
+            "is_ci": _is_ci(),
+            "is_container": _is_container(),
         }
     return _system_info
 
@@ -139,6 +141,51 @@ def _get_device_count(devices: int | str | list[int]) -> int:
     elif isinstance(devices, list):
         return len(devices)
     return 1
+
+
+def _is_ci() -> bool:
+    """Check if running in a CI environment.
+
+    Returns:
+        True if the CI environment variable is set, False otherwise.
+    """
+    return os.environ.get("CI") is not None
+
+
+def _is_container() -> bool:
+    """Check if running in a container environment.
+
+    Returns:
+        True if any container runtime is detected, False otherwise.
+    """
+    # Check for Docker.
+    if os.path.isfile(path="/.dockerenv"):
+        return True
+
+    # Check for Podman.
+    if os.path.isfile(path="/run/.containerenv"):
+        return True
+
+    # Check for Singularity/Apptainer.
+    if os.environ.get("SINGULARITY_CONTAINER") is not None:
+        return True
+    if os.environ.get("APPTAINER_CONTAINER") is not None:
+        return True
+
+    # Check for Docker-in-K8s or containerd via cgroup.
+    try:
+        with open("/proc/1/cgroup", encoding="utf-8") as f:
+            cgroup_content = f.read()
+            if (
+                "docker" in cgroup_content
+                or "kubepods" in cgroup_content
+                or "containerd" in cgroup_content
+            ):
+                return True
+    except (FileNotFoundError, PermissionError, OSError):
+        pass
+
+    return False
 
 
 def track_event(event_name: str, properties: Dict[str, Any]) -> None:
