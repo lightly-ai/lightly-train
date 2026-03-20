@@ -516,7 +516,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         if self.clip_max_norm > 0:
             fabric.clip_gradients(
-                self.model,
+                module=self.model,
                 optimizer=optimizer,
                 max_norm=self.clip_max_norm,
                 error_if_nonfinite=False,
