@@ -361,7 +361,7 @@ def test__is_ci__true(mocker: MockerFixture) -> None:
 
 def test__is_ci__false(mocker: MockerFixture) -> None:
     """Test that _is_ci returns False when CI environment variable is not set."""
-    mocker.patch.dict(os.environ, {}, clear=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
     # Ensure CI is not set by deleting it if it exists.
     if "CI" in os.environ:
         del os.environ["CI"]
@@ -405,7 +405,7 @@ def test__is_container__apptainer(mocker: MockerFixture) -> None:
 def test__is_container__cgroup_docker(mocker: MockerFixture) -> None:
     """Test that _is_container returns True when /proc/1/cgroup contains docker."""
     mocker.patch("os.path.isfile", return_value=False)
-    mocker.patch.dict(os.environ, {}, clear=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
     mock_open = mocker.patch(
         "builtins.open",
         mocker.mock_open(read_data="9:cpuset:/docker/abc123def456\n"),
@@ -418,7 +418,7 @@ def test__is_container__cgroup_docker(mocker: MockerFixture) -> None:
 def test__is_container__cgroup_kubepods(mocker: MockerFixture) -> None:
     """Test that _is_container returns True when /proc/1/cgroup contains kubepods."""
     mocker.patch("os.path.isfile", return_value=False)
-    mocker.patch.dict(os.environ, {}, clear=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
     mock_open = mocker.patch(
         "builtins.open",
         mocker.mock_open(read_data="9:cpuset:/kubepods/abc12345\n"),
@@ -431,7 +431,7 @@ def test__is_container__cgroup_kubepods(mocker: MockerFixture) -> None:
 def test__is_container__cgroup_containerd(mocker: MockerFixture) -> None:
     """Test that _is_container returns True when /proc/1/cgroup contains containerd."""
     mocker.patch("os.path.isfile", return_value=False)
-    mocker.patch.dict(os.environ, {}, clear=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
     mock_open = mocker.patch(
         "builtins.open",
         mocker.mock_open(read_data="9:cpuset:/containerd/abc12345def\n"),
@@ -444,7 +444,7 @@ def test__is_container__cgroup_containerd(mocker: MockerFixture) -> None:
 def test__is_container__false(mocker: MockerFixture) -> None:
     """Test that _is_container returns False when no container is detected."""
     mocker.patch("os.path.isfile", return_value=False)
-    mocker.patch.dict(os.environ, {}, clear=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
     mock_open = mocker.patch(
         "builtins.open",
         mocker.mock_open(read_data="9:cpuset:/system.slice/user.slice\n"),
