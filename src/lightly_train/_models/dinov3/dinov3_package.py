@@ -288,7 +288,7 @@ class DINOv3Package(Package):
                 "import torch",
                 "",
                 "# Load the pretrained model",
-                "model = DINOv3Package.get_model('dinov3/<XYZ>') # Replace with the model name used in train. E.g. 'dinov3/vitb16'",
+                "model = DINOv3Package.get_model('<XYZ>') # Replace with the model name used in train. E.g. 'vitb16'",
                 f"model.load_state_dict(torch.load('{out}', weights_only=True))",
                 "",
                 "# Finetune or evaluate the model",
