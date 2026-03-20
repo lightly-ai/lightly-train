@@ -177,10 +177,14 @@ def test_oriented_bbox_from_corners__angle_bounds() -> None:
             ]
         )
         rotated_corners = base_corners @ rotation_matrix.T + 0.5
-        corners_flat = rotated_corners.flatten()
-        result = yolo_helpers.oriented_bbox_from_corners(corners_flat[None, :])
-        assert result.shape == (1, 5)
-        assert -np.pi / 2 <= result[0, 4]
-        assert result[0, 4] <= np.pi / 2
-        assert np.isclose(result[0, 2], width)
-        assert np.isclose(result[0, 3], height)
+        for corners_flat in [
+            rotated_corners.flatten(),  # counter-clockwise
+            rotated_corners[::-1].flatten(),  # clockwise
+        ]:
+            corners_flat = rotated_corners.flatten()
+            result = yolo_helpers.oriented_bbox_from_corners(corners_flat[None, :])
+            assert result.shape == (1, 5)
+            assert -np.pi / 2 <= result[0, 4]
+            assert result[0, 4] <= np.pi / 2
+            assert np.isclose(result[0, 2], width)
+            assert np.isclose(result[0, 3], height)
