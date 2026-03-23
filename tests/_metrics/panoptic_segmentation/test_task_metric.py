@@ -33,6 +33,7 @@ class TestPanopticSegmentationTaskMetric:
             thing_class_names=["cat", "dog"],
             stuff_class_names=["road"],
             loss_names=["loss"],
+            train_loss_running_mean_window=1,
         )
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
         target = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
@@ -54,6 +55,7 @@ class TestPanopticSegmentationTaskMetric:
             thing_class_names=["cat", "dog"],
             stuff_class_names=["road", "ignore"],
             loss_names=["loss"],
+            train_loss_running_mean_window=1,
         )
         preds = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)
         target = torch.randint(0, 3, (1, 10, 10, 2), dtype=torch.int32)

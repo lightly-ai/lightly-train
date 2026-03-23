@@ -140,5 +140,6 @@ def _create_train_model(
         val_transform_args=val_transform_args,
         load_weights=False,
         metric_args=ObjectDetectionTaskMetricArgs(),
+        gradient_accumulation_steps=1,
     )
     return train_model
