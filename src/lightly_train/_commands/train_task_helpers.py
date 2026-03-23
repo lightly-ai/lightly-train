@@ -763,9 +763,18 @@ def get_current_learning_rate(optimizer: Optimizer, scheduler: LRScheduler) -> f
     This is essentially the learning rate that was passed to the Optimizer at
     construction time multiplied by the scheduler value at the current step.
     """
-    scheduler_factor: float = scheduler.get_last_lr()[0] / scheduler.base_lrs[0]
+    last_lr_float = _scheduler_scalar_to_float(scheduler.get_last_lr()[0])
+    base_lr_float = _scheduler_scalar_to_float(scheduler.base_lrs[0])
+    scheduler_factor: float = last_lr_float / base_lr_float
     lr: float = optimizer.defaults["lr"] * scheduler_factor
     return lr
+
+
+# For compatibility with older versions of PyTorch where `get_last_lr` returns `list[float]` only.
+def _scheduler_scalar_to_float(value: Any) -> float:
+    if isinstance(value, torch.Tensor):
+        return float(value.item())
+    return float(value)
 
 
 def log_step(
