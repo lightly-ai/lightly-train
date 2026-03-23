@@ -25,6 +25,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - PicoDet switched to O2O NMS-free inference/export, updated L preset to
   `picodet/l-640`, and improved ONNX/TensorRT export robustness.
+- LTDETR no longer supports the `detector_weight_decay` and `backbone_weight_decay`
+  arguments. Instead use the general `weight_decay` argument.
 
 ### Deprecated
 
@@ -35,6 +37,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   no longer generate random seeds when `seed=None` is set.
 
 ### Fixed
+
+- Fix a bug when loading DINOv3 LTDETR checkpoints that were not pretrained on COCO
+  which resulted in backbone weights not being loaded.
 
 ### Security
 

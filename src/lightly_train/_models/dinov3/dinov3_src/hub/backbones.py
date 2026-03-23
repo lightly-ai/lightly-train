@@ -9,6 +9,7 @@
 # - Add small test models
 from __future__ import annotations
 
+import logging
 import os
 from enum import Enum
 from pathlib import Path
@@ -18,6 +19,8 @@ from urllib.parse import urlparse
 import torch
 
 from .utils import DINOV3_BASE_URL
+
+logger = logging.getLogger(__name__)
 
 
 class Weights(Enum):
@@ -148,9 +151,15 @@ def _make_dinov3_vit(
             )
         else:
             url = convert_path_or_url_to_url(weights)
-        state_dict = torch.hub.load_state_dict_from_url(
-            url, map_location="cpu", check_hash=check_hash
-        )
+
+        if isinstance(weights, (str, Path)) and Path(weights).is_file():
+            logger.info(f"Loading DINOv3 checkpoint from '{weights}'")
+            state_dict = torch.load(weights, map_location="cpu", weights_only=False)
+        else:
+            logger.info(f"Loading DINOv3 checkpoint from '{url}'")
+            state_dict = torch.hub.load_state_dict_from_url(
+                url, map_location="cpu", check_hash=check_hash
+            )
 
         # Re-sample the projection weights before loading the statedict.
         key = "patch_embed.proj.weight"
@@ -220,7 +229,14 @@ def _make_dinov3_convnext(
             )
         else:
             url = convert_path_or_url_to_url(weights)
-        state_dict = torch.hub.load_state_dict_from_url(url, map_location="cpu")
+
+        if isinstance(weights, (str, Path)) and Path(weights).is_file():
+            logger.info(f"Loading DINOv3 checkpoint from '{weights}'")
+            state_dict = torch.load(weights, map_location="cpu", weights_only=False)
+        else:
+            logger.info(f"Loading DINOv3 checkpoint from '{url}'")
+            state_dict = torch.hub.load_state_dict_from_url(url, map_location="cpu")
+
         model.load_state_dict(state_dict, strict=True)
     return model
 

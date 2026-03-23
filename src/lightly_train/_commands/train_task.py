@@ -1187,7 +1187,6 @@ def _train_task(
 
 
 def _train_task_from_config(config: TrainTaskConfig) -> None:
-    config = validate.pydantic_model_validate(TrainTaskConfig, dict(config))
     initial_config = config.model_dump()
     # NOTE(Guarin, 07/25): We add callbacks and loggers later to fabric because we first
     # have to initialize the output directory and some other things. Fabric doesn't
@@ -1493,10 +1492,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         cuda_utilization = CUDAUtilization(device=fabric.device)
         timer = TrainingStepTimer(cuda_utilization=cuda_utilization)
 
-        for name, param in train_model.named_parameters():
-            logger.debug(f"grad={param.requires_grad} {name}")
-        for name, module in train_model.named_modules():
-            logger.debug(f"train={module.training} {name}")
+        helpers.log_param_and_module_info(model=train_model, optimizer=optimizer)
 
         start_step = state["step"] + 1
         if start_step > 0:
