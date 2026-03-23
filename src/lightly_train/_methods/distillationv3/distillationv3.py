@@ -27,9 +27,6 @@ from lightly_train._methods.distillationv3.distillationv3_transform import (
 from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
-from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
-from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
-from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
@@ -47,20 +44,19 @@ logger = logging.getLogger(__name__)
 
 
 def get_teacher(
-    teacher_name: str,
+    teacher: str | Module | ModelWrapper | Any,
     num_input_channels: int,
-    teacher_weights: str | Path | None = None,
-) -> Module:
+    teacher_weights: str | Path | None,
+    teacher_args: dict[str, Any] | None,
+) -> ModelWrapper:
     wrapped_model = package_helpers.get_wrapped_model(
-        model=teacher_name,
+        model=teacher,
         num_input_channels=num_input_channels,
+        model_args=teacher_args,
+        load_weights=True,
     )
-    assert isinstance(
-        wrapped_model,
-        (DINOv2ViTModelWrapper, DINOv3ViTModelWrapper, DINOv3VConvNeXtModelWrapper),
-    )
-    wrapped_model.make_teacher()
-    teacher_embedding_model = wrapped_model.get_model()
+    if hasattr(wrapped_model, "make_teacher"):
+        wrapped_model.make_teacher()
 
     # If a path to the teacher weights is provided, load them.
     if teacher_weights is not None:
@@ -68,18 +64,18 @@ def get_teacher(
             raise FileNotFoundError(
                 f"Teacher weights file {teacher_weights} does not exist."
             )
-        device = next(teacher_embedding_model.parameters()).device
+        device = next(wrapped_model.parameters()).device
         state_dict = torch.load(teacher_weights, weights_only=True, map_location=device)
-        teacher_embedding_model.load_state_dict(state_dict)
+        wrapped_model.get_model().load_state_dict(state_dict)
         logger.info(f"Loaded teacher weights from {teacher_weights}.")
 
-    teacher_embedding_model.eval()
+    wrapped_model.eval()
 
     # Freeze the teacher parameters.
-    for p in teacher_embedding_model.parameters():
+    for p in wrapped_model.parameters():
         p.requires_grad_(False)
 
-    return teacher_embedding_model
+    return wrapped_model
 
 
 class DistillationV3Args(MethodArgs):
@@ -96,7 +92,9 @@ class DistillationV3Args(MethodArgs):
     temperature_local: float = 0.07
 
     # Default teacher.
-    teacher: str = "dinov3/vitb16"
+    teacher: str | Module | ModelWrapper | Any = "dinov3/vitb16"
+
+    teacher_args: dict[str, Any] | None = None
 
     # Optional teacher weight path.
     teacher_weights: str | Path | None = None
@@ -174,18 +172,21 @@ class DistillationV3(Method):
         )
         # Get the teacher model.
         self.teacher_embedding_model = get_teacher(
-            method_args.teacher,
+            teacher=method_args.teacher,
             num_input_channels=num_input_channels,
             teacher_weights=method_args.teacher_weights,
+            teacher_args=method_args.teacher_args,
         )
 
         # Store the student model.
         self.student_embedding_model = embedding_model
         self.flatten = Flatten(start_dim=1)
 
-        # Instantiate linear projection heads that performs the mapping from the student embedding space to the teacher embedding space.
+        # Instantiate linear projection heads that performs the mapping from the student
+        # embedding space to the teacher embedding space.
+
         self.teacher_embedding_dim: int = (
-            method_args.n_teacher_blocks * self.teacher_embedding_model.embed_dim  # type: ignore
+            method_args.n_teacher_blocks * self.teacher_embedding_model.feature_dim()
         )
         self.student_projection_head_global = Linear(
             embedding_model.embed_dim,
@@ -280,42 +281,26 @@ class DistillationV3(Method):
     def _forward_teacher(self, x: Tensor) -> tuple[Tensor, Tensor, tuple[int, int]]:
         """Forward the images through the teacher model and return them in the
         (B, H * W, n_teacher_blocks * D) format.
+
+        Concatenation of intermediate layers is delegated to forward_features.
         """
-        # List with n_teacher_blocks tensors with shape (B, D, H, W)
-        x_list = list(
-            self.teacher_embedding_model.get_intermediate_layers(  # type: ignore[operator]
-                x,
-                n=self.method_args.n_teacher_blocks,
-                reshape=True,
-                return_class_token=True,
-            )
-        )
+        n = self.method_args.n_teacher_blocks
+        if n > 1:
+            # Only wrappers that support multi-block output (DINOv2/DINOv3) should be used here.
+            output = self.teacher_embedding_model.forward_features(x, n_blocks=n)  # type: ignore[call-arg]
+        else:
+            output = self.teacher_embedding_model.forward_features(x)
 
-        # Make sure all feature maps have the same spatial size as the last layer.
-        # For ViTs this is always the case. But ConvNeXts return feature maps of
-        # different sizes. E.g. 14x14 and 7x7.
-        teacher_features_h, teacher_features_w = x_list[-1][0].shape[-2:]
-        x_list_global = []
-        x_list_local = []
-        for x_local, x_global in x_list:
-            h, w = x_local.shape[-2:]
-            if (h != teacher_features_h) or (w != teacher_features_w):
-                x_local = F.interpolate(
-                    x_local,
-                    size=(teacher_features_h, teacher_features_w),
-                    mode="bilinear",
-                    align_corners=False,
-                )
-            x_list_global.append(x_global)
-            x_list_local.append(x_local)
+        # (B, n * D, H, W)
+        x_local = output["features"]
+        # (B, n * D) — forward_pool is equivalent to cls_token for ViTs, avg-pool for ConvNeXt.
+        x_global = self.teacher_embedding_model.forward_pool(output)[
+            "pooled_features"
+        ].flatten(1)
 
-        # Concat along the feature dimension.
-        # (B, n_teacher_blocks * D, H, W)
-        x_local = torch.cat(x_list_local, dim=1)
-        # (B, n_teacher_blocks * D)
-        x_global = torch.cat(x_list_global, dim=1)
+        teacher_features_h, teacher_features_w = x_local.shape[-2:]
 
-        # (B, n_teacher_blocks * D, H, W) -> (B, H * W, n_teacher_blocks * D)
+        # (B, n * D, H, W) -> (B, H * W, n * D)
         x_local = x_local.permute(0, 2, 3, 1).flatten(start_dim=1, end_dim=2)
 
         # L2-normalize the features.

@@ -11,12 +11,13 @@
 #
 # Modifications Copyright 2025 Lightly AG:
 # - added type hints for return values of the functions vit_small, vit_base, vit_large, and vit_giant2
+# - added overloads for get_intermediate_layers to specify the return type based on the input type
 
 import logging
 import math
 import os
 from functools import partial
-from typing import Callable, Sequence, Tuple, Union
+from typing import Callable, Literal, Sequence, Tuple, Union, overload
 
 import torch
 import torch.nn as nn
@@ -378,14 +379,34 @@ class DinoVisionTransformer(nn.Module):
         )
         return output
 
+    @overload
+    def get_intermediate_layers(
+        self,
+        x: torch.Tensor,
+        n: Union[int, Sequence] = ...,
+        reshape: bool = ...,
+        return_class_token: Literal[False] = ...,
+        norm: bool = ...,
+    ) -> Tuple[torch.Tensor, ...]: ...
+
+    @overload
+    def get_intermediate_layers(
+        self,
+        x: torch.Tensor,
+        n: Union[int, Sequence] = ...,
+        reshape: bool = ...,
+        return_class_token: Literal[True] = ...,
+        norm: bool = ...,
+    ) -> Tuple[Tuple[torch.Tensor, torch.Tensor], ...]: ...
+
     def get_intermediate_layers(
         self,
         x: torch.Tensor,
         n: Union[int, Sequence] = 1,  # Layers or n last layers to take
         reshape: bool = False,
         return_class_token: bool = False,
-        norm=True,
-    ) -> Tuple[Union[torch.Tensor, Tuple[torch.Tensor]]]:
+        norm: bool = True,
+    ) -> Union[Tuple[torch.Tensor, ...], Tuple[Tuple[torch.Tensor, torch.Tensor], ...]]:
         if self.chunked_blocks:
             outputs = self._get_intermediate_layers_chunked(x, n)
         else:
