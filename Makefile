@@ -233,17 +233,20 @@ endif
 # 
 # This problem is fixed in pywinpty>2.0.14 but these versions are not compatible with
 # Python 3.8.
-EXTRAS_PY38 := [dev,dicom,mlflow,onnx,super-gradients,tensorboard,timm,ultralytics,wandb]
+#
+# SuperGradients is excluded as it is outdated and causes issues in CI.
+EXTRAS_PY38 := [dev,dicom,mlflow,onnx,tensorboard,timm,ultralytics,wandb]
 
-# SuperGradients is not compatible with Python>=3.10. It is also not easy to install
-# on MacOS. Therefore we exclude it from the default extras.
 # RFDETR has installation issues because of onnxsim dependency on CI with Python 3.13.
 # Onnx dependencies in RFDETR should become optional in RFDETR >1.1.0.
+#
+# SuperGradients is excluded as it is not compatible with Python>=3.10.
 EXTRAS_PY313 := [dev,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
-# default development dependencies. And SuperGradients is not compatible with
-# Python>=3.10, therefore we also remove it from the default development dependencies.
+# default development dependencies.
+
+# SuperGradients is excluded as it is not compatible with Python>=3.10.
 EXTRAS_DEV := [dev,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
@@ -334,10 +337,10 @@ install-minimal-extras:
 # version available at EXCLUDE_NEWER_DATE. This keeps CI stable if new versions of
 # dependencies are released.
 #
-# We have to differentiate between Python versions because SuperGradients is not
-# compatible with Python>=3.10, while RFDETR is not compatible with Python<3.9 and also
-# installing it on Python>=3.12 can produce issues with cmake.
-# For Python 3.8 we install the package with SuperGradients and without RFDETR.
+# We have to differentiate between Python versions because RFDETR is not compatible
+# with Python<3.9 and also installing it on Python>=3.12 can produce issues with cmake.
+# 
+# SuperGradients is excluded as it is outdated and causes issues in CI.
 # Torch and TorchVision are pinned to specific versions to avoid issues with the
 # CUDA/driver version on the CI machine.
 .PHONY: install-pinned-3.8
