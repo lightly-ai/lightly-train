@@ -389,6 +389,24 @@ def _open_mask_numpy__with_pil(
     return mask_np
 
 
+def safe_open_yolo_oriented_object_detection_label_numpy(
+    label_path: Path,
+) -> tuple[NDArray4Corners, NDArrayClasses]:
+    """Open a YOLO label file and return the oriented bounding boxes and classes as numpy arrays.
+
+    Handles the case where the label file may not exist or is empty.
+
+    Returns:
+        (bboxes, classes) tuple. All values are in normalized coordinates
+        between [0, 1]. Bboxes are formatted as (x1, y1, x2, y2, x3, y3, x4, y4).
+    """
+    try:
+        return open_yolo_oriented_object_detection_label_numpy(label_path=label_path)
+    except FileNotFoundError:
+        logger.warning(f"Label file '{label_path}' not found. Returning empty labels.")
+        return np.zeros((0, 8), dtype=np.float64), np.zeros((0,), dtype=np.int64)
+
+
 def open_yolo_oriented_object_detection_label_numpy(
     label_path: Path,
 ) -> tuple[NDArray4Corners, NDArrayClasses]:
@@ -422,6 +440,24 @@ def open_yolo_oriented_object_detection_label_numpy(
     )
     classes_np = np.array(classes, dtype=np.int64)
     return oriented_bboxes_np, classes_np
+
+
+def safe_open_yolo_object_detection_label_numpy(
+    label_path: Path,
+) -> tuple[NDArrayBBoxes, NDArrayClasses]:
+    """Open a YOLO label file and return the bounding boxes and classes as numpy arrays.
+
+    Handles the case where the label file may not exist or is empty.
+
+    Returns:
+        (bboxes, classes) tuple. All values are in normalized coordinates
+        between [0, 1]. Bboxes are formatted as (x_center, y_center, width, height).
+    """
+    try:
+        return open_yolo_object_detection_label_numpy(label_path=label_path)
+    except FileNotFoundError:
+        logger.warning(f"Label file '{label_path}' not found. Returning empty labels.")
+        return np.zeros((0, 4), dtype=np.float64), np.zeros((0,), dtype=np.int64)
 
 
 def open_yolo_object_detection_label_numpy(

@@ -147,6 +147,7 @@ def oriented_bbox_from_corners(corners: NDArray4Corners) -> NDArrayOBBoxes:
             Array of shape (n_boxes, 8) with coordinates
             (x0, y0, x1, y1, x2, y2, x3, y3)
             Corners should be in clockwise or counter-clockwise order.
+            Handles the n_boxes == 0 case.
 
     Returns:
         Array of shape (n_boxes, 5) with (cx, cy, w, h, angle)

@@ -90,13 +90,11 @@ class YOLOOrientedObjectDetectionDataset(TaskDataset):
         image_np = file_helpers.open_image_numpy(image_path)
         h, w, _ = image_np.shape
 
-        if label_path.exists():
-            normalized_corners_np, class_labels_np = (
-                file_helpers.open_yolo_oriented_object_detection_label_numpy(label_path)
+        normalized_corners_np, class_labels_np = (
+            file_helpers.safe_open_yolo_oriented_object_detection_label_numpy(
+                label_path
             )
-        else:
-            normalized_corners_np = np.zeros((0, 8), dtype=np.float64)
-            class_labels_np = np.zeros((0,), dtype=np.int64)
+        )
 
         # Remove instances with class IDs that are not in the included classes.
         keep = np.array(
@@ -118,8 +116,6 @@ class YOLOOrientedObjectDetectionDataset(TaskDataset):
             dtype=np.int_,
         )
 
-        # Convert numpy arrays to tv_tensors for torchvision transforms.
-        # Image: (H, W, C) -> (C, H, W) for tv_tensors.Image
         image_tensor = torch.from_numpy(image_np).permute(2, 0, 1)
         tv_image = tv_tensors.Image(image_tensor)
 
@@ -127,26 +123,13 @@ class YOLOOrientedObjectDetectionDataset(TaskDataset):
             normalized_corners_np, canvas_size=(h, w)
         )
 
-        # Convert from 4-corner format (x1,y1,x2,y2,x3,y3,x4,y4) to
-        # (cx, cy, w, h, angle) format.
-        if corners_np.shape[0] > 0:
-            bboxes_np = yolo_helpers.oriented_bbox_from_corners(corners_np)
-        else:
-            bboxes_np = np.zeros((0, 5), dtype=np.float64)
+        bboxes_np = yolo_helpers.oriented_bbox_from_corners(corners_np)
 
-        # Bboxes: normalized (cx, cy, w, h, angle) with canvas size (h, w)
-        if bboxes_np.shape[0] > 0:
-            tv_bboxes = tv_tensors.BoundingBoxes(  # type: ignore[call-arg]
-                torch.from_numpy(bboxes_np),
-                format=tv_tensors.BoundingBoxFormat.CXCYWHR,
-                canvas_size=(h, w),
-            )
-        else:
-            tv_bboxes = tv_tensors.BoundingBoxes(
-                torch.zeros((0, 5), dtype=torch.float64),
-                format=tv_tensors.BoundingBoxFormat.CXCYWHR,
-                canvas_size=(h, w),
-            )
+        tv_bboxes = tv_tensors.BoundingBoxes(  # type: ignore[call-arg]
+            torch.from_numpy(bboxes_np),
+            format=tv_tensors.BoundingBoxFormat.CXCYWHR,
+            canvas_size=(h, w),
+        )
 
         transform_input = {
             "image": tv_image,
