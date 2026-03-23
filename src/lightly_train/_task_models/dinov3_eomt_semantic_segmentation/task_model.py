@@ -10,7 +10,6 @@ from __future__ import annotations
 import copy
 import logging
 import math
-from pathlib import Path
 from typing import Any, Literal
 
 import torch
@@ -134,17 +133,20 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {
-            "in_chans": len(self.image_normalize["mean"]),
-        }
-        if load_weights and backbone_url is not None:
-            backbone_model_args["weights"] = backbone_url
+        backbone_model_args: dict[str, Any] = {}
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
+        if backbone_url is not None:
+            # For backwards compatibility. We prioritize backbone_weights over
+            # backbone_url as the former is the new standard.
+            backbone_model_args["weights"] = backbone_url
+        if backbone_weights is not None:
+            backbone_model_args["weights"] = str(backbone_weights)
 
         # Get the backbone.
         backbone = DINOV3_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
+            num_input_channels=len(self.image_normalize["mean"]),
             model_args=backbone_model_args,
             load_weights=load_weights,
         )
@@ -157,11 +159,6 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # Should we drop them from the model? We disable grads here for DDP to work
         # without find_unused_parameters=True.
         self.backbone.mask_token.requires_grad = False
-
-        # Load the backbone weights if a path is provided.
-        # TODO(Thomas,07/2026): this should be done in the package.
-        if backbone_weights is not None:
-            self.load_backbone_weights(backbone_weights)
 
         if len(self.backbone.blocks) < num_joint_blocks:
             raise ValueError(
@@ -605,32 +602,6 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         x = module.proj(x)
         x = module.proj_drop(x)
         return x
-
-    def load_backbone_weights(self, path: PathLike) -> None:
-        """
-        Load backbone weights from a checkpoint file.
-
-        Args:
-            path: path to a .pt file, e.g., exported_last.pt.
-        """
-        path = Path(path).resolve()
-        if not path.exists():
-            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
-
-        # Load the checkpoint.
-        state_dict = torch.load(path, map_location="cpu", weights_only=False)
-
-        # Load the state dict into the backbone.
-        missing, unexpected = self.backbone.load_state_dict(state_dict, strict=False)
-
-        # Log missing and unexpected keys.
-        if missing or unexpected:
-            if missing:
-                logger.warning(f"Missing keys when loading backbone: {missing}")
-            if unexpected:
-                logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
-        else:
-            logger.info(f"Backbone weights loaded from '{path}'")
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""
