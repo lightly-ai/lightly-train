@@ -22,6 +22,7 @@ from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
 from pydantic import TypeAdapter
+from torch.nn import Module
 from torch.optim import Optimizer  # type: ignore[attr-defined]
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
@@ -1394,6 +1395,46 @@ def finetune_from_checkpoint(
         logger.warning(
             "Unexpected keys after loading checkpoint: %s",
             incompatible.unexpected_keys,
+        )
+
+
+def log_param_and_module_info(
+    model: Module,
+    optimizer: Optimizer,
+) -> None:
+    # Log requires grad of all parameters
+    for name, param in model.named_parameters():
+        logger.debug(f"grad={param.requires_grad} {name}")
+
+    # Log training state of all modules
+    for name, module in model.named_modules():
+        logger.debug(f"train={module.training} {name}")
+
+    # Log optimizer parameter groups
+    param_id_to_name = {id(param): name for name, param in model.named_parameters()}
+    logger.debug("Optimizer parameter groups")
+    for group in optimizer.param_groups:
+        group_info = group.copy()
+        group_info.pop("params", None)
+        logger.debug(f"  {group_info}")
+        for param in group["params"]:
+            param_name = param_id_to_name[id(param)]
+            logger.debug(f"    {param_name}")
+
+    # Raise an error if a parameter requires grad but is not in any optimizer parameter
+    # group.
+    optimizer_params = {
+        param for group in optimizer.param_groups for param in group["params"]
+    }
+    optimizer_missing_params = []
+    for name, param in model.named_parameters():
+        if param.requires_grad and param not in optimizer_params:
+            optimizer_missing_params.append(name)
+    if optimizer_missing_params:
+        raise RuntimeError(
+            f"The following parameters require grad but are not in any optimizer "
+            f"parameter group: {optimizer_missing_params}. Please raise an issue "
+            "if you encounter this error: https://github.com/lightly-ai/lightly-train/issues"
         )
 
 
