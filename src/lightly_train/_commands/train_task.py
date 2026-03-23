@@ -87,7 +87,7 @@ def train_image_classification(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -262,7 +262,7 @@ def train_image_classification_multihead(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -406,7 +406,7 @@ def train_instance_segmentation(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -565,7 +565,7 @@ def train_object_detection(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -724,7 +724,7 @@ def train_panoptic_segmentation(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -884,7 +884,7 @@ def train_semantic_segmentation(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -1042,7 +1042,7 @@ def train_semantic_segmentation_multihead(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -1170,7 +1170,7 @@ def _train_task(
     strategy: str = "auto",
     precision: _PRECISION_INPUT = "bf16-mixed",
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto",
-    seed: int | None = 0,
+    seed: int = 0,
     logger_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
     transform_args: dict[str, Any] | None = None,
@@ -1187,7 +1187,6 @@ def _train_task(
 
 
 def _train_task_from_config(config: TrainTaskConfig) -> None:
-    config = validate.pydantic_model_validate(TrainTaskConfig, dict(config))
     initial_config = config.model_dump()
     # NOTE(Guarin, 07/25): We add callbacks and loggers later to fabric because we first
     # have to initialize the output directory and some other things. Fabric doesn't
@@ -1493,10 +1492,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         cuda_utilization = CUDAUtilization(device=fabric.device)
         timer = TrainingStepTimer(cuda_utilization=cuda_utilization)
 
-        for name, param in train_model.named_parameters():
-            logger.debug(f"grad={param.requires_grad} {name}")
-        for name, module in train_model.named_modules():
-            logger.debug(f"train={module.training} {name}")
+        helpers.log_param_and_module_info(model=train_model, optimizer=optimizer)
 
         start_step = state["step"] + 1
         if start_step > 0:
@@ -1777,7 +1773,7 @@ class TrainTaskConfig(PydanticConfig):
     strategy: str | Strategy = "auto"
     precision: _PRECISION_INPUT = "bf16-mixed"
     float32_matmul_precision: Literal["auto", "highest", "high", "medium"] = "auto"
-    seed: int | None = 0
+    seed: int = 0
     logger_args: dict[str, Any] | TaskLoggerArgs | None = None
     model_args: dict[str, Any] | TrainModelArgs | None = None
     transform_args: dict[str, Any] | None = None

@@ -32,6 +32,9 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
+from lightly_train._task_models.dinov2_ltdetr_object_detection.dinov2_vit_wrapper import (
+    DINOv2STAs,
+)
 from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
     DINOv2LTDETRObjectDetection,
 )
@@ -110,9 +113,6 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
 
     # Per-parameter-group overrides
     backbone_lr_factor: float = 1e-2
-    backbone_weight_decay: float | None = None  # Use default if None
-
-    detector_weight_decay: float = 0.0
 
     # Scheduler configuration
     scheduler_start_factor: float = 0.01
@@ -189,8 +189,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             gamma=model_args.loss_gamma,
             num_classes=len(data_args.included_classes),
         )
-
-        self.clip_max_norm = model_args.gradient_clip_val
 
         class_names = list(data_args.included_classes.values())
         self.loss_names = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]
@@ -403,14 +401,21 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             global_batch_size / self.model_args.default_batch_size
         )
         backbone_lr = lr * self.model_args.backbone_lr_factor
-        backbone_weight_decay = (
-            self.model_args.backbone_weight_decay
-            if self.model_args.backbone_weight_decay is not None
-            else self.model_args.weight_decay
-        )
-        detector_weight_decay = self.model_args.detector_weight_decay
 
-        backbone_params = list(self.model.backbone.parameters())
+        backbone = self.model.backbone
+        if isinstance(backbone, DINOv2STAs):
+            # Only the pretrained ViT gets the low backbone LR.
+            backbone_params = list(backbone.dinov2.parameters())
+            # The connector modules (sta, convs, norms) are randomly initialized and
+            # are merged into the detector group to train at the full LR.
+            vit_params_ids = {id(p) for p in backbone_params}
+            connector_params = [
+                p for p in backbone.parameters() if id(p) not in vit_params_ids
+            ]
+        else:
+            backbone_params = list(backbone.parameters())
+            connector_params = []
+
         backbone_params_wd = [p for p in backbone_params if p not in params_no_wd]
         backbone_params_no_wd = [p for p in backbone_params if p in params_no_wd]
         if backbone_params_wd:
@@ -419,7 +424,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                     "name": "backbone",
                     "params": backbone_params_wd,
                     "lr": backbone_lr,
-                    "weight_decay": backbone_weight_decay,
                 }
             )
         if backbone_params_no_wd:
@@ -432,8 +436,10 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 }
             )
 
-        detector_params = list(self.model.encoder.parameters()) + list(
-            self.model.decoder.parameters()
+        detector_params = (
+            connector_params
+            + list(self.model.encoder.parameters())
+            + list(self.model.decoder.parameters())
         )
         detector_params_wd = [p for p in detector_params if p not in params_no_wd]
         detector_params_no_wd = [p for p in detector_params if p in params_no_wd]
@@ -442,7 +448,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 {
                     "name": "detector",
                     "params": detector_params_wd,
-                    "weight_decay": detector_weight_decay,
                 }
             )
         if detector_params_no_wd:
@@ -450,27 +455,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 {
                     "name": "detector_no_wd",
                     "params": detector_params_no_wd,
-                    "weight_decay": 0.0,
-                }
-            )
-
-        # Default group for all remaining parameters.
-        used_params = set(backbone_params + detector_params)
-        default_params = [p for p in self.model.parameters() if p not in used_params]
-        default_params_wd = [p for p in default_params if p not in params_no_wd]
-        default_params_no_wd = [p for p in default_params if p in params_no_wd]
-        if default_params_wd:
-            param_groups.append(
-                {
-                    "name": "default",
-                    "params": default_params_wd,
-                }
-            )
-        if default_params_no_wd:
-            param_groups.append(
-                {
-                    "name": "default_no_wd",
-                    "params": default_params_no_wd,
                     "weight_decay": 0.0,
                 }
             )
@@ -493,9 +477,10 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         return self.model
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if self.clip_max_norm > 0:
+        if self.model_args.gradient_clip_val > 0:
             fabric.clip_gradients(
-                self.model,
+                module=self,
                 optimizer=optimizer,
-                max_norm=self.clip_max_norm,
+                max_norm=self.model_args.gradient_clip_val,
+                error_if_nonfinite=False,
             )

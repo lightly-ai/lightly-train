@@ -55,8 +55,6 @@ class DINOv2EoMTInstanceSegmentationScaleJitterArgs(ScaleJitterArgs):
     prob: float = 1.0
     # TODO: Lionel(09/25): This is currently not used.
     divisible_by: int | None = None
-    step_seeding: bool = False
-    seed_offset: int = 0
 
 
 class DINOv2EoMTInstanceSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
