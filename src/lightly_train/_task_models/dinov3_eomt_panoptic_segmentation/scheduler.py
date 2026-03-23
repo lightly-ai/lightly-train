@@ -27,7 +27,7 @@ class TwoStageWarmupPolySchedule(LRScheduler):
         self.poly_power = poly_power
         super().__init__(optimizer, last_epoch)
 
-    def get_lr(self) -> list[float]:
+    def get_lr(self) -> list[float]:  # type: ignore[override]
         step = self.last_epoch
         lrs = []
         non_vit_warmup, vit_warmup = self.warmup_steps
@@ -49,4 +49,4 @@ class TwoStageWarmupPolySchedule(LRScheduler):
                     max_steps = max(1, self.total_steps - non_vit_warmup - vit_warmup)
                     lr = base_lr * (1 - (adjusted / max_steps)) ** self.poly_power
             lrs.append(lr)
-        return lrs
+        return lrs  # type: ignore[return-value]
