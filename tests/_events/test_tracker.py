@@ -138,6 +138,8 @@ def test__get_system_info__structure() -> None:
 
     assert "os" in info
     assert "gpu_name" in info
+    assert "is_ci" in info
+    assert "is_container" in info
     assert isinstance(info["os"], str)
 
 
@@ -348,3 +350,127 @@ def test_track_inference_started__without_batch_size(
     assert props["task_type"] == "embedding"
     assert props["model_name"] == "EmbeddingModel"
     assert "batch_size" not in props
+
+
+def test__is_ci__true(mocker: MockerFixture) -> None:
+    """Test that _is_ci returns True when CI environment variable is set."""
+    mocker.patch.dict(os.environ, {"CI": "true"})
+
+    assert tracker._is_ci() is True
+
+
+def test__is_ci__empty_string(mocker: MockerFixture) -> None:
+    """Test that _is_ci returns True when CI is set to empty string."""
+    mocker.patch.dict(os.environ, {"CI": ""})
+
+    assert tracker._is_ci() is True
+
+
+def test__is_ci__false(mocker: MockerFixture) -> None:
+    """Test that _is_ci returns False when CI environment variable is not set."""
+    mocker.patch.dict(os.environ, {}, clear=True)
+
+    assert tracker._is_ci() is False
+
+
+def test__is_container__dockerenv(mocker: MockerFixture) -> None:
+    """Test that _is_container returns True when /.dockerenv exists."""
+    mocker.patch("os.path.isfile", side_effect=lambda path: path == "/.dockerenv")
+
+    assert tracker._is_container() is True
+
+
+def test__is_container__containerenv(mocker: MockerFixture) -> None:
+    """Test that _is_container returns True when /run/.containerenv exists."""
+    mocker.patch(
+        "os.path.isfile",
+        side_effect=lambda path: path == "/run/.containerenv",
+    )
+
+    assert tracker._is_container() is True
+
+
+def test__is_container__singularity(mocker: MockerFixture) -> None:
+    """Test that _is_container returns True when SINGULARITY_CONTAINER is set."""
+    mocker.patch("os.path.isfile", return_value=False)
+    mocker.patch.dict(os.environ, {"SINGULARITY_CONTAINER": "1"}, clear=True)
+
+    assert tracker._is_container() is True
+
+
+def test__is_container__apptainer(mocker: MockerFixture) -> None:
+    """Test that _is_container returns True when APPTAINER_CONTAINER is set."""
+    mocker.patch("os.path.isfile", return_value=False)
+    mocker.patch.dict(os.environ, {"APPTAINER_CONTAINER": "1"}, clear=True)
+
+    assert tracker._is_container() is True
+
+
+def test__is_container__cgroup_docker(mocker: MockerFixture) -> None:
+    """Test that _is_container returns True when /proc/1/cgroup contains docker."""
+    mocker.patch("os.path.isfile", return_value=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
+    mock_open = mocker.patch(
+        "builtins.open",
+        mocker.mock_open(read_data="9:cpuset:/docker/abc123def456\n"),
+    )
+
+    assert tracker._is_container() is True
+    mock_open.assert_called_with("/proc/self/cgroup", encoding="utf-8")
+
+
+def test__is_container__cgroup_kubepods(mocker: MockerFixture) -> None:
+    """Test that _is_container returns True when /proc/self/cgroup contains kubepods."""
+    mocker.patch("os.path.isfile", return_value=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
+    mock_open = mocker.patch(
+        "builtins.open",
+        mocker.mock_open(read_data="9:cpuset:/kubepods/abc12345\n"),
+    )
+
+    assert tracker._is_container() is True
+    mock_open.assert_called_with("/proc/self/cgroup", encoding="utf-8")
+
+
+def test__is_container__cgroup_containerd(mocker: MockerFixture) -> None:
+    """Test that _is_container returns True when /proc/self/cgroup contains containerd."""
+    mocker.patch("os.path.isfile", return_value=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
+    mock_open = mocker.patch(
+        "builtins.open",
+        mocker.mock_open(read_data="9:cpuset:/containerd/abc12345def\n"),
+    )
+
+    assert tracker._is_container() is True
+    mock_open.assert_called_with("/proc/self/cgroup", encoding="utf-8")
+
+
+def test__is_container__false(mocker: MockerFixture) -> None:
+    """Test that _is_container returns False when no container is detected."""
+    mocker.patch("os.path.isfile", return_value=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
+    mock_open = mocker.patch(
+        "builtins.open",
+        mocker.mock_open(read_data="9:cpuset:/system.slice/user.slice\n"),
+    )
+
+    assert tracker._is_container() is False
+    mock_open.assert_called_with("/proc/self/cgroup", encoding="utf-8")
+
+
+def test__is_container__cgroup_file_not_found(mocker: MockerFixture) -> None:
+    """Test that _is_container returns False when /proc/self/cgroup doesn't exist."""
+    mocker.patch("os.path.isfile", return_value=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
+    mocker.patch("builtins.open", side_effect=FileNotFoundError)
+
+    assert tracker._is_container() is False
+
+
+def test__is_container__cgroup_permission_error(mocker: MockerFixture) -> None:
+    """Test that _is_container returns False when /proc/self/cgroup is unreadable."""
+    mocker.patch("os.path.isfile", return_value=False)
+    mocker.patch.dict(os.environ, {}, clear=True)
+    mocker.patch("builtins.open", side_effect=PermissionError)
+
+    assert tracker._is_container() is False
