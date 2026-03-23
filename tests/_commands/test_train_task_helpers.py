@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import pytest
 from pytest import LogCaptureFixture
 
 from lightly_train._commands.train_task_helpers import (
@@ -175,3 +176,34 @@ def test_get_best_metrics__missing_watch_metric(caplog: LogCaptureFixture) -> No
     assert "Unknown watch metric" in caplog.text
     assert result.agg_metric_values is last
     assert result.step == 1
+
+
+def test_get_best_metrics__different_watch_metric_raises() -> None:
+    prev = AggregatedMetricValues(
+        metric_values={"val_metric/acc": 0.9},
+        watch_metric="val_metric/acc",
+        watch_metric_value=0.9,
+        watch_metric_mode="max",
+        best_head_name=None,
+        best_head_metric_values=None,
+    )
+    best = BestAggregatedMetricValues(agg_metric_values=prev, step=0)
+    last = AggregatedMetricValues(
+        metric_values={"val_loss": 0.1},
+        watch_metric="val_loss",
+        watch_metric_value=0.1,
+        watch_metric_mode="min",
+        best_head_name=None,
+        best_head_metric_values=None,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Best and last aggregated metrics use different watch metrics",
+    ):
+        get_best_metrics(
+            best_agg_metric_values=best,
+            last_agg_metric_values=last,
+            step=1,
+            metric_args=TaskMetricArgs(watch_metric="val_metric/acc"),
+        )
