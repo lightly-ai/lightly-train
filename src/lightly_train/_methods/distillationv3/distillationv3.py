@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Literal, Mapping, cast
+from typing import Any, ClassVar, Literal, Mapping, cast
 
 import torch
 import torch.nn.functional as F
+from pydantic import ConfigDict
 from torch import Tensor
 from torch.nn import Flatten, Linear, Module, init
 from torch.nn.modules.module import _IncompatibleKeys
@@ -105,6 +106,11 @@ class DistillationV3Args(MethodArgs):
 
     # Loss weighting.
     loss_local_weight: float = 1.0
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        **MethodArgs.model_config,
+        arbitrary_types_allowed=True,
+    )
 
     def resolve_auto(
         self,
