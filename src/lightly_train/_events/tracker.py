@@ -174,7 +174,7 @@ def _is_container() -> bool:
 
     # Check for Docker-in-K8s or containerd via cgroup.
     try:
-        with open("/proc/1/cgroup", encoding="utf-8") as f:
+        with open("/proc/self/cgroup", encoding="utf-8") as f:
             cgroup_content = f.read()
             if (
                 "docker" in cgroup_content
