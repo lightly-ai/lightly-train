@@ -1145,7 +1145,11 @@ def get_best_metrics(
         best_agg_metric_values.agg_metric_values.watch_metric
         != last_agg_metric_values.watch_metric
     ):
-        return best_agg_metric_values  # Shouldn't happen, but safe to assume we want best metrics
+        raise RuntimeError(
+            "Best and last aggregated metrics use different watch metrics: "
+            f"{best_agg_metric_values.agg_metric_values.watch_metric!r} != "
+            f"{last_agg_metric_values.watch_metric!r}"
+        )
 
     best_metric_value = best_agg_metric_values.agg_metric_values.watch_metric_value
     last_metric_value = last_agg_metric_values.watch_metric_value
