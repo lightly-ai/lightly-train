@@ -189,8 +189,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             num_classes=len(data_args.included_classes),
         )
 
-        self.clip_max_norm = model_args.gradient_clip_val
-
         class_names = list(data_args.included_classes.values())
         self.loss_names = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]
         self.metric_args = metric_args
@@ -482,10 +480,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         return self.model
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if self.clip_max_norm > 0:
+        if self.model_args.gradient_clip_val > 0:
             fabric.clip_gradients(
-                module=self.model,
+                module=self,
                 optimizer=optimizer,
-                max_norm=self.clip_max_norm,
+                max_norm=self.model_args.gradient_clip_val,
                 error_if_nonfinite=False,
             )
