@@ -14,6 +14,8 @@ transformer and YOLO models on detection and segmentation tasks for edge deploym
 
 [Contact us](https://www.lightly.ai/contact) to request a license for commercial use.
 
+Check out also [LightlyStudio](https://github.com/lightly-ai/lightly-studio) to easily visualise your annotations and predictions.
+
 ## News
 
 - \[[0.14.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-14-0)\] -
