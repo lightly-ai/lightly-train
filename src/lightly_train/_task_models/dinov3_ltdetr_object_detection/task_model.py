@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from copy import deepcopy
 from typing import Any, Literal
 
@@ -479,24 +478,26 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         self.image_normalize = image_normalize
 
-        # Set backbone args.
-        backbone_args = {} if backbone_args is None else backbone_args
-        backbone_args.update({"pretrained": False})
+        # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
+        # set by DINOv3.
+        backbone_model_args: dict[str, Any] = {}
+        if backbone_args is not None:
+            backbone_model_args.update(backbone_args)
         if backbone_weights is not None:
-            if os.path.exists(backbone_weights):
-                backbone_args["pretrained"] = True
-                backbone_args["weights"] = backbone_weights
-            else:
-                # Warn the user that the provided backbone weights are incorrect.
-                logger.error(f"Checkpoint file not found: {backbone_weights}.")
+            backbone_model_args["weights"] = str(backbone_weights)
 
-        # Instantiate the backbone.
-        dinov3 = DINOV3_PACKAGE.get_model(
-            parsed_name["backbone_name"],
-            model_args=backbone_args,
+        get_model_kwargs = {}
+        if self.image_normalize is not None:
+            get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
+
+        # Get the backbone.
+        backbone = DINOV3_PACKAGE.get_model(
+            model_name=parsed_name["backbone_name"],
+            model_args=backbone_model_args,
             load_weights=load_weights,
+            **get_model_kwargs,
         )
-        assert isinstance(dinov3, (ConvNeXt, DinoVisionTransformer))
+        assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
 
         config_mapping = {
             "vitt16": (_DINOv3LTDETRObjectDetectionViTTConfig, DINOv3STAs),
@@ -528,17 +529,17 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         if hasattr(config, "backbone_wrapper"):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
-            dinov3.mask_token.requires_grad = False  # type: ignore
+            backbone.mask_token.requires_grad = False  # type: ignore
 
             # ViT models.
             self.backbone = wrapper_cls(
-                model=dinov3,
+                model=backbone,
                 **config.backbone_wrapper.model_dump(),
             )
 
         else:
             # ConvNext models.
-            self.backbone = wrapper_cls(model=dinov3)
+            self.backbone = wrapper_cls(model=backbone)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()

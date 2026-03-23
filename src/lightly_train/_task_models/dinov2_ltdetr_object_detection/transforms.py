@@ -77,6 +77,25 @@ class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
         (588, 588),
         (616, 616),
         (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
         (672, 672),
         (700, 700),
         (728, 728),
@@ -89,8 +108,6 @@ class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     num_scales: int | None = None
     prob: float = 1.0
     divisible_by: int | None = None
-    step_seeding: bool = True
-    seed_offset: int = 0
 
 
 class DINOv2LTDETRObjectDetectionResizeArgs(ResizeArgs):
@@ -127,6 +144,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
         default_factory=lambda: BboxParams(
             format="yolo",
             label_fields=["class_labels"],
+            min_area=1.0,  # Bbox must have an area of at least 1 pixel.
             min_width=0.0,
             min_height=0.0,
             **(

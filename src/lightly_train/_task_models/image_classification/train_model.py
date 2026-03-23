@@ -262,6 +262,7 @@ class ImageClassificationTrain(TrainModel):
                 module=self,
                 optimizer=optimizer,
                 max_norm=no_auto(self.model_args.gradient_clip_val),
+                error_if_nonfinite=False,
             )
 
 

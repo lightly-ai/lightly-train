@@ -246,6 +246,8 @@ class DINOv3Package(Package):
         if not load_weights:
             args["weights"] = None
             args["pretrained"] = False
+        if load_weights and args.get("weights") is not None:
+            args["pretrained"] = True
         model = model_builder(**args)
         assert isinstance(model, (DinoVisionTransformer, ConvNeXt))
         return model
