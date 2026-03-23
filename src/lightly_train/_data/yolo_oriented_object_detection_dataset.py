@@ -90,11 +90,14 @@ class YOLOOrientedObjectDetectionDataset(TaskDataset):
         image_np = file_helpers.open_image_numpy(image_path)
         h, w, _ = image_np.shape
 
-        normalized_corners_np, class_labels_np = (
-            file_helpers.safe_open_yolo_oriented_object_detection_label_numpy(
-                label_path
+        if label_path.exists():
+            normalized_corners_np, class_labels_np = (
+                file_helpers.open_yolo_oriented_object_detection_label_numpy(label_path)
             )
-        )
+        else:
+            # If the label file does not exist, use empty arrays for corners and class labels.
+            normalized_corners_np = np.zeros((0, 8), dtype=np.float32)
+            class_labels_np = np.zeros((0,), dtype=np.int_)
 
         # Remove instances with class IDs that are not in the included classes.
         keep = np.array(

@@ -63,9 +63,13 @@ class YOLOObjectDetectionDataset(TaskDataset):
         image_np = file_helpers.open_image_numpy(image_path)
         h, w, _ = image_np.shape
 
-        bboxes_np, class_labels_np = (
-            file_helpers.safe_open_yolo_object_detection_label_numpy(label_path)
-        )
+        if label_path.exists():
+            bboxes_np, class_labels_np = (
+                file_helpers.open_yolo_object_detection_label_numpy(label_path)
+            )
+        else:
+            bboxes_np = np.zeros((0, 4), dtype=np.float32)
+            class_labels_np = np.zeros((0,), dtype=np.int_)
 
         # Remove instances with class IDs that are not in the included classes.
         keep = np.array(
