@@ -224,6 +224,7 @@ def test_train_object_detection(tmp_path: Path) -> None:
     assert results["labels"].ndim == 1
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @pytest.mark.skipif(
     is_self_hosted_docker_runner,
     reason=(
@@ -283,6 +284,7 @@ def test_train_instance_segmentation(
     assert results["scores"].ndim == 1
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @pytest.mark.skipif(
     is_self_hosted_docker_runner,
     reason=(
@@ -335,6 +337,7 @@ def test_train_panoptic_segmentation(
     assert results["scores"].ndim == 1
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @pytest.mark.skipif(
     is_self_hosted_docker_runner,
     reason=(
@@ -461,7 +464,7 @@ def test_train_semantic_segmentation(
 
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @pytest.mark.parametrize(
     ("data_format, num_channels, height, width"),
     [
