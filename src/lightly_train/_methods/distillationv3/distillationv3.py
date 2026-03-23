@@ -57,6 +57,7 @@ def get_teacher(
         load_weights=True,
     )
     if hasattr(wrapped_model, "make_teacher"):
+        logger.debug("Calling make_teacher to prepare the teacher model.")
         wrapped_model.make_teacher()
 
     # If a path to the teacher weights is provided, load them.
