@@ -416,30 +416,13 @@ def open_yolo_oriented_object_detection_label_numpy(
         (bboxes, classes) tuple. All values are in normalized coordinates
         between [0, 1]. Bboxes are formatted as (x1, y1, x2, y2, x3, y3, x4, y4).
     """
-    oriented_bboxes = []
-    classes = []
-    for line in _iter_yolo_label_lines(label_path=label_path):
-        parts = [float(x) for x in line.split()]
-        class_id = parts[0]
-        x1 = parts[1]
-        y1 = parts[2]
-        x2 = parts[3]
-        y2 = parts[4]
-        x3 = parts[5]
-        y3 = parts[6]
-        x4 = parts[7]
-        y4 = parts[8]
-        bbox_4_corners = np.array([x1, y1, x2, y2, x3, y3, x4, y4], dtype=np.float64)
-        oriented_bboxes.append(bbox_4_corners)
-        classes.append(int(class_id))
+    data = np.loadtxt(label_path, ndmin=2)
+    if data.size == 0:
+        return np.zeros((0, 8), dtype=np.float64), np.zeros((0,), dtype=np.int64)
 
-    oriented_bboxes_np = (
-        np.array(oriented_bboxes)
-        if oriented_bboxes
-        else np.zeros((0, 8), dtype=np.float64)
-    )
-    classes_np = np.array(classes, dtype=np.int64)
-    return oriented_bboxes_np, classes_np
+    class_labels = data[:, 0].astype(np.int64)
+    bboxes = data[:, 1:].astype(np.float64)
+    return bboxes, class_labels
 
 
 def safe_open_yolo_object_detection_label_numpy(
@@ -469,20 +452,13 @@ def open_yolo_object_detection_label_numpy(
         (bboxes, classes) tuple. All values are in normalized coordinates
         between [0, 1]. Bboxes are formatted as (x_center, y_center, width, height).
     """
-    bboxes = []
-    classes = []
-    for line in _iter_yolo_label_lines(label_path=label_path):
-        parts = [float(x) for x in line.split()]
-        class_id = parts[0]
-        x_center = parts[1]
-        y_center = parts[2]
-        width = parts[3]
-        height = parts[4]
-        bboxes.append([x_center, y_center, width, height])
-        classes.append(int(class_id))
-    bboxes_np = np.array(bboxes) if bboxes else np.zeros((0, 4), dtype=np.float64)
-    classes_np = np.array(classes, dtype=np.int64)
-    return bboxes_np, classes_np
+    data = np.loadtxt(label_path, ndmin=2)
+    if data.size == 0:
+        return np.zeros((0, 4), dtype=np.float64), np.zeros((0,), dtype=np.int64)
+
+    class_labels = data[:, 0].astype(np.int64)
+    bboxes = data[:, 1:].astype(np.float64)
+    return bboxes, class_labels
 
 
 def open_yolo_instance_segmentation_label_numpy(
