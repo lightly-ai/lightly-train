@@ -36,18 +36,26 @@ class LossMetricCollection(Module):
         """
         from torchmetrics import MeanMetric as TorchmetricsMeanMetric
         from torchmetrics import Metric as TorchmetricsMetric
-        from torchmetrics.wrappers import Running as TorchmetricsRunning
 
         super().__init__()
         self.split = split
 
         metric_cls: Callable[[], TorchmetricsMetric]
         if split == "train":
-
-            def metric_cls() -> TorchmetricsRunning:
-                return TorchmetricsRunning(
-                    TorchmetricsMeanMetric(), window=train_loss_running_mean_window
+            try:
+                from torchmetrics.wrappers import (
+                    Running as TorchmetricsRunning,  # type: ignore[attr-defined]
                 )
+
+                def metric_cls() -> TorchmetricsMetric:
+                    return TorchmetricsRunning(
+                        TorchmetricsMeanMetric(),
+                        window=train_loss_running_mean_window,
+                    )
+
+            except ImportError:
+                # Fallback for torchmetrics<1.0, which does not have the Running wrapper
+                metric_cls = TorchmetricsMeanMetric
         else:
             metric_cls = TorchmetricsMeanMetric
 
