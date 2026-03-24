@@ -13,7 +13,13 @@ import numpy as np
 from PIL import Image, ImageDraw
 from typing_extensions import Literal
 
-from lightly_train.types import NDArrayBinaryMask, NDArrayBinaryMasks, NDArrayPolygon
+from lightly_train.types import (
+    NDArray4Corners,
+    NDArrayBinaryMask,
+    NDArrayBinaryMasks,
+    NDArrayOBBoxes,
+    NDArrayPolygon,
+)
 
 
 def get_image_and_labels_dirs(
@@ -131,3 +137,38 @@ def binary_masks_from_polygons(
         return np.stack(binary_masks)
     else:
         return np.zeros((0, height, width), dtype=np.bool_)
+
+
+def oriented_bbox_from_corners(corners: NDArray4Corners) -> NDArrayOBBoxes:
+    """Convert 4-corner format to (cx, cy, w, h, angle) format.
+
+    Args:
+        corners:
+            Array of shape (n_boxes, 8) with coordinates
+            (x0, y0, x1, y1, x2, y2, x3, y3)
+            Corners should be in clockwise or counter-clockwise order.
+            Handles the n_boxes == 0 case.
+
+    Returns:
+        Array of shape (n_boxes, 5) with (cx, cy, w, h, angle)
+        coordinates. Angle is in radians, in the range [-pi/2, pi/2].
+    """
+    if corners.shape[0] == 0:
+        return np.zeros((0, 5), dtype=np.float64)
+
+    pts = corners.reshape(-1, 4, 2)
+
+    cx = (pts[:, 0, 0] + pts[:, 2, 0]) / 2
+    cy = (pts[:, 0, 1] + pts[:, 2, 1]) / 2
+
+    width = np.linalg.norm(pts[:, 0] - pts[:, 1], axis=1)
+    height = np.linalg.norm(pts[:, 1] - pts[:, 2], axis=1)
+    angle = np.arctan2(pts[:, 1, 1] - pts[:, 0, 1], pts[:, 1, 0] - pts[:, 0, 0])
+
+    angle_over = angle > np.pi / 2
+    angle_under = angle < -np.pi / 2
+
+    angle[angle_over] -= np.pi
+    angle[angle_under] += np.pi
+
+    return np.stack([cx, cy, width, height, angle], axis=1)
