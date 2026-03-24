@@ -5,6 +5,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+import logging
 from pathlib import Path
 
 import pytest
@@ -141,3 +142,17 @@ class TestDINOv2ViTPackage:
         out_path = tmp_path / "model.pt"
         with pytest.raises(ValueError):
             DINOv2ViTPackage.export_model(model=model, out=out_path)
+
+    def test_export_model__log_example_format(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test that the log example shows the correct model name format (without prefix)."""
+        model = DINOv2ViTPackage.get_model("_vittest14")
+        out_path = tmp_path / "model.pt"
+        with caplog.at_level(logging.INFO):
+            DINOv2ViTPackage.export_model(model=model, out=out_path, log_example=True)
+
+        log_output = caplog.text
+        # The log should show a format without the 'dinov2/' prefix
+        assert "get_model('<vitXX>')" in log_output
+        assert "get_model('dinov2/" not in log_output
