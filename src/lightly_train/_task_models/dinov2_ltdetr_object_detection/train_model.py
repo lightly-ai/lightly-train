@@ -208,7 +208,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             class_names=class_names,
             box_format="xyxy",
             loss_names=self.loss_names,
-            train_loss_running_mean_window=gradient_accumulation_steps,
         )
 
     def load_train_state_dict(

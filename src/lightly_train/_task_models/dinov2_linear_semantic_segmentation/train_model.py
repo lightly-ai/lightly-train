@@ -140,7 +140,6 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             class_names=class_names,
             ignore_index=data_args.ignore_index,
             loss_names=["loss"],
-            train_loss_running_mean_window=gradient_accumulation_steps,
         )
 
     def get_task_model(self) -> DINOv2LinearSemanticSegmentation:

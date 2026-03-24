@@ -32,7 +32,6 @@ class TestClassificationTaskMetric:
             split="val",
             class_names=["cat", "dog", "bird"],
             loss_names=["loss"],
-            train_loss_running_mean_window=1,
         )
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([0, 1])
@@ -54,7 +53,6 @@ class TestClassificationTaskMetric:
             split="val",
             class_names=["cat", "dog", "bird"],
             loss_names=["loss"],
-            train_loss_running_mean_window=1,
         )
         preds = torch.tensor([[0.8, 0.5, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([[1, 1, 0], [0, 1, 1]])
@@ -77,7 +75,6 @@ class TestClassificationTaskMetric:
             split="val",
             class_names=["cat", "dog", "bird"],
             loss_names=["loss"],
-            train_loss_running_mean_window=1,
         )
         preds = torch.tensor([[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]])
         target = torch.tensor([0, 1])
