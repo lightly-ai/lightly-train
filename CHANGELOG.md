@@ -40,6 +40,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fixed incorrect model name format in `export_model()` log example for DINOv2 and
+  DINOv3 packages. The example now shows the correct format (without prefix) that works
+  with `get_model()`.
 - Fix the wrong config of ScaleJitter sizes of LT-DETR.
 - Fix a bug when loading DINOv3 LTDETR checkpoints that were not pretrained on COCO
   which resulted in backbone weights not being loaded.
