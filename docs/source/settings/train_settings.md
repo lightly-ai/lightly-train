@@ -775,22 +775,74 @@ Dictionary to configure metric computation and logging behavior.
 
 | Key                             | Type   | Description                                                              |
 | ------------------------------- | ------ | ------------------------------------------------------------------------ |
-| [`train`](#train)               | `bool` | Enable train metrics. If `False`, only validation metrics are logged.    |
 | [`classwise`](#classwise)       | `bool` | Enable classwise metrics. If `False`, only aggregate metrics are logged. |
+| [`train`](#train)               | `bool` | Enable train metrics. If `False`, only validation metrics are logged.    |
 | [`watch_metric`](#watch_metric) | `str`  | Validation metric name monitored when selecting the best checkpoint.     |
 
-#### `train`
+Check the `train.log` file for all available metrics for your task and model. For
+example, for classification the default metrics configuration looks like this:
 
-If set to `True`, metrics are also computed and logged for the train set. By default,
-only metrics for the validation set are logged to reduce overhead.
+```
+"metric_args": {
+    "accuracy": {
+        "average": [
+            "micro"
+        ],
+        "topk": [
+            1,
+            5
+        ]
+    },
+    "classwise": false,
+    "f1": {
+        "average": [
+            "macro"
+        ]
+    },
+    "precision": {
+        "average": [
+            "macro"
+        ]
+    },
+    "recall": {
+        "average": [
+            "macro"
+        ]
+    },
+    "train": false,
+    "watch_metric": "val_metric/top1_acc_micro"
+},
+```
+
+To customize the metrics configuration, set the `metric_args` dictionary with the
+desired values. For example, to calculate top-3 accuracy set:
 
 ```python
 import lightly_train
 
-lightly_train.train_object_detection(
+lightly_train.train_image_classification(
     ...,
     metric_args={
-        "train": True,  # Also log metrics on training data.
+        "accuracy": {
+            "topk": [1, 3],  # Calculate top-1 and top-3 accuracy.
+        },
+    },
+)
+
+```
+
+All values that are lists, for example the `topk` or `average` parameters, can contain
+multiple entries as shown above.
+
+To disable a metric, set its value to `None`:
+
+```python
+import lightly_train
+
+lightly_train.train_image_classification(
+    ...,
+    metric_args={
+        "accuracy": None, # Disable accuracy metric.
     },
 )
 ```
@@ -811,6 +863,22 @@ lightly_train.train_object_detection(
 )
 ```
 
+#### `train`
+
+If set to `True`, metrics are also computed and logged for the train set. By default,
+only metrics for the validation set are logged to reduce overhead.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    metric_args={
+        "train": True,  # Also log metrics on training data.
+    },
+)
+```
+
 #### `watch_metric`
 
 Validation metric used to determine the best checkpoint when [`save_best`](#save_best)
@@ -825,7 +893,7 @@ Default metrics:
 - Image Classification (multiclass): `"val_metric/top1_acc_micro"` (Top-1 Accuracy)
 - Image Classification (multilabel): `"val_metric/f1_macro"` (AUROC)
 
-Check the logs for all available validation metrics for your task and model.
+Check the `train.log` file for all available validation metrics for your task and model.
 
 ```python
 import lightly_train
