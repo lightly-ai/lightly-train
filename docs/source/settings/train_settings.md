@@ -779,39 +779,38 @@ Dictionary to configure metric computation and logging behavior.
 | [`train`](#train)               | `bool` | Enable train metrics. If `False`, only validation metrics are logged.    |
 | [`watch_metric`](#watch_metric) | `str`  | Validation metric name monitored when selecting the best checkpoint.     |
 
+In addition to these global options, any metric name (for example `accuracy`, `f1`,
+`precision`, `recall`, or task-specific metrics such as mAP/mIoU variants) can also be
+used as a key in `metric_args`. Such per-metric keys accept a configuration dictionary
+as their value, or `None` to disable computation of that metric.
+
 Check the `train.log` file for all available metrics for your task and model. For
 example, for classification the default metrics configuration looks like this:
 
-```
-"metric_args": {
-    "accuracy": {
-        "average": [
-            "micro"
-        ],
-        "topk": [
-            1,
-            5
-        ]
+```python
+import lightly_train
+
+lightly_train.train_image_classification(
+    ...,
+    metric_args={
+        "accuracy": {
+            "average": ["micro"],
+            "topk": [1, 5],
+        },
+        "f1": {
+            "average": ["macro"],
+        },
+        "precision": {
+            "average": ["macro"],
+        },
+        "recall": {
+            "average": ["macro"],
+        },
+        "classwise": False,
+        "train": False,
+        "watch_metric": "val_metric/top1_acc_micro",
     },
-    "classwise": false,
-    "f1": {
-        "average": [
-            "macro"
-        ]
-    },
-    "precision": {
-        "average": [
-            "macro"
-        ]
-    },
-    "recall": {
-        "average": [
-            "macro"
-        ]
-    },
-    "train": false,
-    "watch_metric": "val_metric/top1_acc_micro"
-},
+)
 ```
 
 To customize the metrics configuration, set the `metric_args` dictionary with the
