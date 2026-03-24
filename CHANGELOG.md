@@ -20,6 +20,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   inference and fine-tuning.
 - Add option to freeze the backbone for all EoMT models during training with the
   `model_args={"backbone_freeze": True}` argument.
+- Add `YOLOOrientedObjectDetectionDataset` for loading YOLO oriented object detection
+  datasets with (cx, cy, w, h, angle) bounding boxes.
 
 ### Changed
 
