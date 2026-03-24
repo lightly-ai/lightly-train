@@ -31,6 +31,7 @@ class TestInstanceSegmentationTaskMetric:
             split="val",
             class_names=["cat", "dog"],
             loss_names=["loss"],
+            train_loss_running_mean_window=1,
         )
         metric.update_with_predictions(
             preds=[
@@ -72,6 +73,7 @@ class TestInstanceSegmentationTaskMetric:
             split="val",
             class_names=["cat", "dog"],
             loss_names=["loss"],
+            train_loss_running_mean_window=1,
         )
         metric.update_with_predictions(
             preds=[

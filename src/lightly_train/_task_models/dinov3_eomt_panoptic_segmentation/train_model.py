@@ -195,6 +195,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         val_transform_args: DINOv3EoMTPanopticSegmentationValTransformArgs,
         load_weights: bool,
         metric_args: PanopticSegmentationTaskMetricArgs,
+        gradient_accumulation_steps: int,
     ) -> None:
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependency.
@@ -262,6 +263,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             thing_class_names=list(data_args.thing_classes.values()),
             stuff_class_names=list(data_args.stuff_classes.values()) + ["ignore"],
             loss_names=["loss"],
+            train_loss_running_mean_window=gradient_accumulation_steps,
         )
         self.val_metrics = PanopticSegmentationTaskMetric(
             task_metric_args=metric_args,
@@ -271,6 +273,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             thing_class_names=list(data_args.thing_classes.values()),
             stuff_class_names=list(data_args.stuff_classes.values()) + ["ignore"],
             loss_names=["loss"],
+            train_loss_running_mean_window=gradient_accumulation_steps,
         )
 
         _torch_helpers.register_load_state_dict_pre_hook(

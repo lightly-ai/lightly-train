@@ -118,6 +118,7 @@ class ImageClassificationTrain(TrainModel):
         val_transform_args: ImageClassificationValTransformArgs,
         load_weights: bool,
         metric_args: ClassificationTaskMetricArgs,
+        gradient_accumulation_steps: int,
     ) -> None:
         # Import here because old torchmetrics versions (0.8.0) don't support the
         # metrics we use. But we need old torchmetrics support for SuperGradients.
@@ -157,12 +158,14 @@ class ImageClassificationTrain(TrainModel):
             split="val",
             class_names=list(data_args.included_classes.values()),
             loss_names=["loss"],
+            train_loss_running_mean_window=gradient_accumulation_steps,
         )
         self.train_metrics = ClassificationTaskMetric(
             task_metric_args=metric_args,
             split="train",
             class_names=list(data_args.included_classes.values()),
             loss_names=["loss"],
+            train_loss_running_mean_window=gradient_accumulation_steps,
         )
 
     def get_task_model(self) -> ImageClassification:

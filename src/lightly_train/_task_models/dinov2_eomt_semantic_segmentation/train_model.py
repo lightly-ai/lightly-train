@@ -178,6 +178,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         val_transform_args: DINOv2EoMTSemanticSegmentationValTransformArgs,
         load_weights: bool,
         metric_args: SemanticSegmentationTaskMetricArgs,
+        gradient_accumulation_steps: int,
     ) -> None:
         super().__init__()
 
@@ -230,6 +231,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             class_names=list(data_args.included_classes.values()),
             ignore_index=data_args.ignore_index,
             loss_names=["loss"],
+            train_loss_running_mean_window=gradient_accumulation_steps,
         )
         self.val_metrics = SemanticSegmentationTaskMetric(
             task_metric_args=metric_args,
@@ -237,6 +239,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             class_names=list(data_args.included_classes.values()),
             ignore_index=data_args.ignore_index,
             loss_names=["loss"],
+            train_loss_running_mean_window=gradient_accumulation_steps,
         )
 
         _torch_helpers.register_load_state_dict_pre_hook(

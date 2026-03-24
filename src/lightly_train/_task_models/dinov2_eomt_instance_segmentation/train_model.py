@@ -171,6 +171,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         val_transform_args: DINOv2EoMTInstanceSegmentationValTransformArgs,
         load_weights: bool,
         metric_args: InstanceSegmentationTaskMetricArgs,
+        gradient_accumulation_steps: int,
     ) -> None:
         # Lazy import because MaskClassificationLoss depends on optional transformers
         # dependency.
@@ -218,6 +219,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
             split="val",
             class_names=list(data_args.included_classes.values()),
             loss_names=["loss"],
+            train_loss_running_mean_window=gradient_accumulation_steps,
         )
 
         self.train_metrics = InstanceSegmentationTaskMetric(
@@ -225,6 +227,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
             split="train",
             class_names=list(data_args.included_classes.values()),
             loss_names=["loss"],
+            train_loss_running_mean_window=gradient_accumulation_steps,
         )
 
         _torch_helpers.register_load_state_dict_pre_hook(

@@ -47,16 +47,19 @@ class SemanticSegmentationTaskMetric(TaskMetric):
         class_names: Sequence[str],
         ignore_index: int | None,
         loss_names: Sequence[str],
+        train_loss_running_mean_window: int,
         init_metrics: bool | None = None,
     ) -> None:
         """Initialize semantic segmentation metrics container.
 
         Args:
-            metric_args: Metrics configuration
+            task_metric_args: Metrics configuration
             split: Split name (e.g., "val", "train")
-            num_classes: Number of classes
+            class_names: Class names for all metrics
             ignore_index: Class index to ignore in computation
             loss_names: Names of losses to track
+            train_loss_running_mean_window:
+                Window size for the running mean of training losses.
             init_metrics:
                 Whether to initialize metrics. If None, uses task_metric_args.train
                 for the train split and True for other splits.
@@ -100,7 +103,11 @@ class SemanticSegmentationTaskMetric(TaskMetric):
             prefix=f"{split}_metric_classwise/",
             classwise_prefix="iou",
         )
-        self.loss_metrics = LossMetricCollection(split=split, loss_names=loss_names)
+        self.loss_metrics = LossMetricCollection(
+            split=split,
+            loss_names=loss_names,
+            train_loss_running_mean_window=train_loss_running_mean_window,
+        )
 
     def update_with_predictions(self, preds: Tensor, target: Tensor) -> None:
         """Update all metrics

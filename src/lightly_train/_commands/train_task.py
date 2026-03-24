@@ -1398,6 +1398,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             "val_transform_args": val_transform_args,
             "load_weights": (checkpoint is None) and (checkpoint_path is None),
             "metric_args": config.metric_args,
+            "gradient_accumulation_steps": config.gradient_accumulation_steps,
         }
 
         train_model = train_model_cls(**train_model_init_kwargs)
