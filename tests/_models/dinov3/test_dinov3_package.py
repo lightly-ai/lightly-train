@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -143,3 +144,17 @@ class TestDINOv3Package:
         out_path = tmp_path / "model.pt"
         with pytest.raises(ValueError):
             DINOv3Package.export_model(model=model, out=out_path)
+
+    def test_export_model__log_example_format(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test that the log example shows the correct model name format (without prefix)."""
+        model = DINOv3Package.get_model("_vittest16")
+        out_path = tmp_path / "model.pt"
+        with caplog.at_level(logging.INFO):
+            DINOv3Package.export_model(model=model, out=out_path, log_example=True)
+
+        log_output = caplog.text
+        # The log should show a format without the 'dinov3/' prefix
+        assert "get_model('<XYZ>')" in log_output
+        assert "get_model('dinov3/" not in log_output
