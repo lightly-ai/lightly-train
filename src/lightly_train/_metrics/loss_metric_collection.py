@@ -17,7 +17,10 @@ class LossMetricCollection(Module):
     """Tracks a collection of loss metrics, one for each loss name."""
 
     def __init__(
-        self, split: str, loss_names: Sequence[str], train_loss_running_mean_window: int
+        self,
+        split: str,
+        loss_names: Sequence[str],
+        train_loss_running_mean_window: int | None = None,
     ) -> None:
         """Create a LossMetricCollection.
 
@@ -33,6 +36,7 @@ class LossMetricCollection(Module):
                 This is used to smooth the training loss metric. You want to set this to
                 the same value as the gradient_accumulation_steps to get a stable training
                 loss metric that reflects the actual optimization steps.
+                Required when split == "train", ignored for other splits.
         """
         from torchmetrics import MeanMetric as TorchmetricsMeanMetric
         from torchmetrics import Metric as TorchmetricsMetric
@@ -42,6 +46,10 @@ class LossMetricCollection(Module):
 
         metric_cls: Callable[[], TorchmetricsMetric]
         if split == "train":
+            if train_loss_running_mean_window is None:
+                raise ValueError(
+                    "train_loss_running_mean_window must be specified for train split"
+                )
             try:
                 from torchmetrics.wrappers import (
                     Running as TorchmetricsRunning,  # type: ignore[attr-defined]

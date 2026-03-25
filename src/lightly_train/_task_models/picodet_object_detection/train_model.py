@@ -213,7 +213,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
             class_names=class_names,
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_giou", "loss_dfl"],
-            train_loss_running_mean_window=gradient_accumulation_steps,
         )
 
     def set_train_mode(self) -> None:

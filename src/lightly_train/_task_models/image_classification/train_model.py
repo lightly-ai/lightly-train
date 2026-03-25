@@ -158,7 +158,6 @@ class ImageClassificationTrain(TrainModel):
             split="val",
             class_names=list(data_args.included_classes.values()),
             loss_names=["loss"],
-            train_loss_running_mean_window=gradient_accumulation_steps,
         )
         self.train_metrics = ClassificationTaskMetric(
             task_metric_args=metric_args,

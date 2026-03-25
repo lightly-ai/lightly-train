@@ -170,7 +170,6 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 split="val",
                 class_names=class_names,
                 loss_names=["loss"],
-                train_loss_running_mean_window=gradient_accumulation_steps,
             )
         self.val_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
             head_metrics=val_head_metrics,
