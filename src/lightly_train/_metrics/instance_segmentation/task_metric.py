@@ -46,7 +46,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
         split: str,
         class_names: Sequence[str],
         loss_names: Sequence[str],
-        train_loss_running_mean_window: int,
+        train_loss_running_mean_window: int | None = None,
         init_metrics: bool | None = None,
     ) -> None:
         """Initialize instance segmentation metrics container.
@@ -58,6 +58,7 @@ class InstanceSegmentationTaskMetric(TaskMetric):
             loss_names: Names of losses to track
             train_loss_running_mean_window:
                 Window size for the running mean of training losses.
+                Required when split == "train", ignored for other splits.
             init_metrics:
                 Whether to initialize metrics. If None, uses task_metric_args.train
                 for the train split and True for other splits.

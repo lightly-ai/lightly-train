@@ -32,7 +32,6 @@ class TestObjectDetectionTaskMetric:
             class_names=["cat", "dog"],
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
-            train_loss_running_mean_window=1,
         )
         metric.update_with_predictions(
             preds=[
@@ -86,7 +85,6 @@ class TestObjectDetectionTaskMetric:
             class_names=["cat", "dog"],
             box_format="xyxy",
             loss_names=["loss", "loss_vfl", "loss_bbox", "loss_giou"],
-            train_loss_running_mean_window=1,
         )
         metric.update_with_predictions(
             preds=[

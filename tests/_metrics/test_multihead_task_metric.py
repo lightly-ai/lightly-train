@@ -35,7 +35,7 @@ def _make_head_metric(split: str = "val") -> SemanticSegmentationTaskMetric:
         class_names=["cat", "dog", "bird"],
         ignore_index=None,
         loss_names=["loss"],
-        train_loss_running_mean_window=1,
+        train_loss_running_mean_window=1 if split == "train" else None,
     )
 
 

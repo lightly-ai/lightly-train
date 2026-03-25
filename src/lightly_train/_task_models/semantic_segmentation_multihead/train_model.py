@@ -156,7 +156,6 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
                 class_names=class_names,
                 ignore_index=ignore_index,
                 loss_names=["loss"],
-                train_loss_running_mean_window=gradient_accumulation_steps,
             )
         self.train_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
             head_metrics=train_head_metrics,

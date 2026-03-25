@@ -35,9 +35,7 @@ class TestLossMetricCollection:
 
     def test_compute__val_split(self) -> None:
         # MeanMetric accumulates a weighted mean across batches.
-        metric = LossMetricCollection(
-            split="val", loss_names=["loss"], train_loss_running_mean_window=1
-        )
+        metric = LossMetricCollection(split="val", loss_names=["loss"])
         metric.update({"loss": torch.tensor(1.0)}, weight=1)
         metric.update({"loss": torch.tensor(3.0)}, weight=1)
         result = metric.compute()
@@ -48,7 +46,6 @@ class TestLossMetricCollection:
         metric = LossMetricCollection(
             split="val",
             loss_names=["loss", "loss_vfl"],
-            train_loss_running_mean_window=1,
         )
         metric.update(
             {"loss": torch.tensor(1.0), "loss_vfl": torch.tensor(2.0)}, weight=1
@@ -59,9 +56,7 @@ class TestLossMetricCollection:
         }
 
     def test_update__mismatched_keys(self) -> None:
-        metric = LossMetricCollection(
-            split="val", loss_names=["loss"], train_loss_running_mean_window=1
-        )
+        metric = LossMetricCollection(split="val", loss_names=["loss"])
         with pytest.raises(ValueError):
             metric.update({"wrong_key": torch.tensor(1.0)}, weight=1)
 
@@ -69,7 +64,16 @@ class TestLossMetricCollection:
         metric = LossMetricCollection(
             split="val",
             loss_names=["loss", "loss_vfl"],
-            train_loss_running_mean_window=1,
         )
         with pytest.raises(ValueError):
             metric.update({"loss": torch.tensor(1.0)}, weight=1)
+
+    def test_init__train_split_without_window(self) -> None:
+        # Should raise ValueError when train split without train_loss_running_mean_window
+        with pytest.raises(
+            ValueError, match="train_loss_running_mean_window must be specified"
+        ):
+            LossMetricCollection(
+                split="train",
+                loss_names=["loss"],
+            )

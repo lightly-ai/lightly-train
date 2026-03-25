@@ -273,7 +273,6 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             thing_class_names=list(data_args.thing_classes.values()),
             stuff_class_names=list(data_args.stuff_classes.values()) + ["ignore"],
             loss_names=["loss"],
-            train_loss_running_mean_window=gradient_accumulation_steps,
         )
 
         _torch_helpers.register_load_state_dict_pre_hook(
