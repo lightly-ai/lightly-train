@@ -322,7 +322,7 @@ def test_pretrain__distillation_different_teachers(
     if torch.cuda.device_count() < devices:
         pytest.skip("Test requires more GPUs than available.")
 
-    teacher_: str | Any
+    teacher_: str | Any = teacher
     if teacher == "resnet18IN1K" and not method == "distillationv3":
         pytest.skip("Arbitrary teacher is only supported for distillationv3 method.")
     elif teacher == "resnet18IN1K":
