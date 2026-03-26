@@ -318,6 +318,10 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
             "distillationv3",
             lambda: models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1),
         ),
+        (
+            "distillationv3",
+            lambda: DummyCustomModel(),
+        ),
     ],
 )
 @pytest.mark.parametrize(
