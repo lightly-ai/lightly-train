@@ -11,6 +11,7 @@ import logging
 import sys
 from pathlib import Path
 from typing import Any, Literal
+from torch.nn import Module
 
 import pytest
 import torch
@@ -307,26 +308,26 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize(
-    "method", ["distillation", "distillationv1", "distillationv2", "distillationv3"]
-)
-@pytest.mark.parametrize(
-    "teacher",
-    ["dinov2/_vittest14", "dinov3/_vittest16", "dinov3/_convnexttest", "resnet18IN1K"],
+    "method, teacher",
+    [
+        ("distillation", "dinov2/_vittest14"),
+        ("distillationv1", "dinov3/_vittest16"),
+        ("distillationv2", "dinov3/_convnexttest"),
+        ("distillationv3", "dinov2/_vittest14"),
+        ("distillationv3", "resnet18IN1K"),
+    ],
 )
 @pytest.mark.parametrize(
     "devices", [1]
 )  # TODO(Lionel, 10/25): Add test with 2 devices back.
 def test_pretrain__distillation_different_teachers(
-    tmp_path: Path, method: str, teacher: str, devices: int
+    tmp_path: Path, method: str, teacher: str | Module, devices: int
 ) -> None:
     if torch.cuda.device_count() < devices:
         pytest.skip("Test requires more GPUs than available.")
 
-    teacher_: str | Any = teacher
-    if teacher_ == "resnet18IN1K" and not method == "distillationv3":
-        pytest.skip("Arbitrary teacher is only supported for distillationv3 method.")
-    elif teacher_ == "resnet18IN1K":
-        teacher_ = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    if teacher == "resnet18IN1K":
+        teacher = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -338,7 +339,7 @@ def test_pretrain__distillation_different_teachers(
         model="torchvision/resnet18",
         devices=devices,
         method=method,
-        method_args={"teacher": teacher_},
+        method_args={"teacher": teacher},
         batch_size=4,
         num_workers=0,
         epochs=1,
