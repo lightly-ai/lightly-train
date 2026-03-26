@@ -323,9 +323,9 @@ def test_pretrain__distillation_different_teachers(
         pytest.skip("Test requires more GPUs than available.")
 
     teacher_: str | Any = teacher
-    if teacher == "resnet18IN1K" and not method == "distillationv3":
+    if teacher_ == "resnet18IN1K" and not method == "distillationv3":
         pytest.skip("Arbitrary teacher is only supported for distillationv3 method.")
-    elif teacher == "resnet18IN1K":
+    elif teacher_ == "resnet18IN1K":
         teacher_ = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 
     out = tmp_path / "out"
