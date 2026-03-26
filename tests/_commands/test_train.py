@@ -19,6 +19,7 @@ from omegaconf import OmegaConf
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
+from torchvision import models
 
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._commands import train
@@ -305,9 +306,12 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
-@pytest.mark.parametrize("method", ["distillation", "distillationv1", "distillationv2"])
 @pytest.mark.parametrize(
-    "teacher", ["dinov2/_vittest14", "dinov3/_vittest16", "dinov3/_convnexttest"]
+    "method", ["distillation", "distillationv1", "distillationv2", "distillationv3"]
+)
+@pytest.mark.parametrize(
+    "teacher",
+    ["dinov2/_vittest14", "dinov3/_vittest16", "dinov3/_convnexttest", "resnet18IN1K"],
 )
 @pytest.mark.parametrize(
     "devices", [1]
@@ -317,6 +321,11 @@ def test_pretrain__distillation_different_teachers(
 ) -> None:
     if torch.cuda.device_count() < devices:
         pytest.skip("Test requires more GPUs than available.")
+
+    if teacher == "resnet18IN1K" and not method == "distillationv3":
+        pytest.skip("Arbitrary teacher is only supported for distillationv3 method.")
+    elif teacher == "resnet18IN1K":
+        teacher = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 
     out = tmp_path / "out"
     data = tmp_path / "data"
