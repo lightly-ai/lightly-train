@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 import pytest
 import torch
@@ -19,6 +19,7 @@ from omegaconf import OmegaConf
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
+from torch.nn import Module
 from torchvision import models
 
 from lightly_train._checkpoint import Checkpoint
@@ -310,32 +311,33 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
     "method", ["distillation", "distillationv1", "distillationv2", "distillationv3"]
 )
 @pytest.mark.parametrize(
-    "teacher",
+    "method, teacher",
     [
-        # "dinov2/_vittest14",
-        # "dinov3/_vittest16",
-        # "dinov3/_convnexttest",
-        # "resnet18IN1K",
-        "customdummy",
+        ("distillation", "dinov2/_vittest14"),
+        ("distillationv1", "dinov3/_vittest16"),
+        ("distillationv2", "dinov3/_convnexttest"),
+        ("distillationv3", "dinov2/_vittest14"),
+        (
+            "distillationv3",
+            lambda: models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1),
+        ),
+        (
+            "distillationv3",
+            lambda: DummyCustomModel(),
+        ),
     ],
 )
 @pytest.mark.parametrize(
     "devices", [1]
 )  # TODO(Lionel, 10/25): Add test with 2 devices back.
 def test_pretrain__distillation_different_teachers(
-    tmp_path: Path, method: str, teacher: str, devices: int
+    tmp_path: Path, method: str, teacher: str | Callable[[], Module], devices: int
 ) -> None:
     if torch.cuda.device_count() < devices:
         pytest.skip("Test requires more GPUs than available.")
 
-    teacher_: str | Any = teacher
-    if teacher_ in {"resnet18IN1K", "customdummy"} and not method == "distillationv3":
-        pytest.skip("Arbitrary teacher is only supported for distillationv3 method.")
-
-    if teacher_ == "resnet18IN1K":
-        teacher_ = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-    elif teacher_ == "customdummy":
-        teacher_ = DummyCustomModel()
+    if callable(teacher):
+        teacher = teacher()
 
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -347,7 +349,7 @@ def test_pretrain__distillation_different_teachers(
         model="torchvision/resnet18",
         devices=devices,
         method=method,
-        method_args={"teacher": teacher_},
+        method_args={"teacher": teacher},
         batch_size=4,
         num_workers=0,
         epochs=1,
