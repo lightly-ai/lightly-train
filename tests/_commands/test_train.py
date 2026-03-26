@@ -322,10 +322,11 @@ def test_pretrain__distillation_different_teachers(
     if torch.cuda.device_count() < devices:
         pytest.skip("Test requires more GPUs than available.")
 
+    teacher_: str | Any
     if teacher == "resnet18IN1K" and not method == "distillationv3":
         pytest.skip("Arbitrary teacher is only supported for distillationv3 method.")
     elif teacher == "resnet18IN1K":
-        teacher = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+        teacher_ = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -337,7 +338,7 @@ def test_pretrain__distillation_different_teachers(
         model="torchvision/resnet18",
         devices=devices,
         method=method,
-        method_args={"teacher": teacher},
+        method_args={"teacher": teacher_},
         batch_size=4,
         num_workers=0,
         epochs=1,

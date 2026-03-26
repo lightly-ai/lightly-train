@@ -263,7 +263,9 @@ def sanitize_config_dict(args: dict[str, Any]) -> dict[str, Any]:
     model = args.get("model")
     if model is not None and not isinstance(model, str):
         args["model"] = model.__class__.__name__
-    teacher_model = args.get("method_args", {}).get("teacher")
+    if args.get("method_args") is None:
+        args["method_args"] = {}
+    teacher_model = args["method_args"].get("teacher")
     if teacher_model is not None and not isinstance(teacher_model, str):
         args["method_args"]["teacher"] = teacher_model.__class__.__name__
     if isinstance(args.get("accelerator"), Accelerator):
