@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 import pytest
 import torch
@@ -316,7 +316,7 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
         ("distillationv3", "dinov2/_vittest14"),
         (
             "distillationv3",
-            models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1),
+            lambda: models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1),
         ),
     ],
 )
@@ -324,10 +324,13 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
     "devices", [1]
 )  # TODO(Lionel, 10/25): Add test with 2 devices back.
 def test_pretrain__distillation_different_teachers(
-    tmp_path: Path, method: str, teacher: str | Module, devices: int
+    tmp_path: Path, method: str, teacher: str | Callable[[], Module], devices: int
 ) -> None:
     if torch.cuda.device_count() < devices:
         pytest.skip("Test requires more GPUs than available.")
+
+    if callable(teacher):
+        teacher = teacher()
 
     out = tmp_path / "out"
     data = tmp_path / "data"
