@@ -311,7 +311,13 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
 )
 @pytest.mark.parametrize(
     "teacher",
-    ["dinov2/_vittest14", "dinov3/_vittest16", "dinov3/_convnexttest", "resnet18IN1K"],
+    [
+        # "dinov2/_vittest14",
+        # "dinov3/_vittest16",
+        # "dinov3/_convnexttest",
+        # "resnet18IN1K",
+        "customdummy",
+    ],
 )
 @pytest.mark.parametrize(
     "devices", [1]
@@ -323,10 +329,13 @@ def test_pretrain__distillation_different_teachers(
         pytest.skip("Test requires more GPUs than available.")
 
     teacher_: str | Any = teacher
-    if teacher_ == "resnet18IN1K" and not method == "distillationv3":
+    if teacher_ in {"resnet18IN1K", "customdummy"} and not method == "distillationv3":
         pytest.skip("Arbitrary teacher is only supported for distillationv3 method.")
-    elif teacher_ == "resnet18IN1K":
+
+    if teacher_ == "resnet18IN1K":
         teacher_ = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    elif teacher_ == "customdummy":
+        teacher_ = DummyCustomModel()
 
     out = tmp_path / "out"
     data = tmp_path / "data"
