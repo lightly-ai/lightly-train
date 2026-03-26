@@ -20,7 +20,7 @@ from typing import (
 import typing_extensions
 from torch import Tensor
 from torch.nn import Module, Parameter
-from typing_extensions import NotRequired, Required, TypedDict, TypeVar
+from typing_extensions import NotRequired, Required, Self, TypedDict, TypeVar
 
 from lightly_train.types import PackageModel
 
@@ -107,6 +107,8 @@ class NNModule(Protocol):
     def load_state_dict(
         self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False
     ) -> None: ...
+
+    def eval(self) -> Self: ...
 
 
 @runtime_checkable
