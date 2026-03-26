@@ -202,20 +202,20 @@ class DINOv2STAs(Module):
         num_scales = len(all_layers) - 2
         for i, sem_feat in enumerate(all_layers):
             feat, _ = sem_feat  # type: ignore[misc]
-            sem_feat = (
+            sem_feat_ = (
                 feat.transpose(1, 2).view(bs, -1, H_c, W_c).contiguous()
             )  # [B, D, H, W]
             resize_H, resize_W = (
                 int(H_c * 2 ** (num_scales - i)),
                 int(W_c * 2 ** (num_scales - i)),
             )
-            sem_feat = F.interpolate(
-                sem_feat,
+            sem_feat_ = F.interpolate(
+                sem_feat_,
                 size=[resize_H, resize_W],
                 mode="bilinear",
                 align_corners=False,
             )
-            sem_feats.append(sem_feat)
+            sem_feats.append(sem_feat_)
 
         # Normalize sem feats type to tensors.
         # If feat is a Tensor it is the spatial tokens
@@ -229,8 +229,8 @@ class DINOv2STAs(Module):
         fused_feats = []
         if self.use_sta:
             detail_feats = self.sta(x)
-            for sem_feat, detail_feat in zip(sem_feats_t, detail_feats):
-                fused_feats.append(torch.cat([sem_feat, detail_feat], dim=1))
+            for sem_feat_, detail_feat in zip(sem_feats_t, detail_feats):
+                fused_feats.append(torch.cat([sem_feat_, detail_feat], dim=1))
         else:
             fused_feats = sem_feats_t
 

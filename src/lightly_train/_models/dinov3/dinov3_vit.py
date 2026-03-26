@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import torch
 from torch import Tensor
 from torch.nn import Identity, Module, ModuleList
 
@@ -33,8 +34,19 @@ class DINOv3ViTModelWrapper(Module, ModelWrapper):
         return self._feature_dim
 
     def forward_features(
-        self, x: Tensor, masks: Tensor | None = None
+        self, x: Tensor, masks: Tensor | None = None, n_blocks: int = 1
     ) -> ForwardFeaturesOutput:
+        if n_blocks > 1:
+            # ViT blocks all produce the same spatial resolution — no interpolation needed.
+            x_list = list(
+                self._model.get_intermediate_layers(
+                    x, n=n_blocks, reshape=True, return_class_token=True
+                )
+            )
+            features = torch.cat([feat for feat, _ in x_list], dim=1)  # (B, n*D, H, W)
+            cls_token = torch.cat([cls for _, cls in x_list], dim=1)  # (B, n*D)
+            return {"features": features, "cls_token": cls_token}
+
         rt = self._model(x, masks, is_training=True)  # forcing to return all patches
         if rt["x_norm_patchtokens"].dim() == 3:
             x_norm_patchtokens = rt["x_norm_patchtokens"]
