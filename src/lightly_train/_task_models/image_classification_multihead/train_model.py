@@ -107,6 +107,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
         load_weights: bool,
         metric_args: MulticlassClassificationTaskMetricArgs
         | MultilabelClassificationTaskMetricArgs,
+        gradient_accumulation_steps: int,
     ) -> None:
         super().__init__()
         image_size = no_auto(val_transform_args.image_size)
@@ -155,6 +156,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 split="train",
                 class_names=class_names,
                 loss_names=["loss"],
+                train_loss_running_mean_window=gradient_accumulation_steps,
             )
         self.train_metrics: MultiheadTaskMetric = MultiheadTaskMetric(
             head_metrics=train_head_metrics,

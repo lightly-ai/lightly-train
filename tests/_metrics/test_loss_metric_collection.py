@@ -25,7 +25,7 @@ class TestLossMetricCollection:
     def test_compute__train_split(self) -> None:
         # RunningMean(window=2) keeps only the last two values.
         metric = LossMetricCollection(
-            split="train", loss_names=["loss"], running_mean_window=2
+            split="train", loss_names=["loss"], train_loss_running_mean_window=2
         )
         metric.update({"loss": torch.tensor(1.0)}, weight=1)
         metric.update({"loss": torch.tensor(3.0)}, weight=1)
@@ -43,7 +43,10 @@ class TestLossMetricCollection:
 
     def test_compute__multiple_losses(self) -> None:
         # "loss" and other names coexist with different key formats.
-        metric = LossMetricCollection(split="val", loss_names=["loss", "loss_vfl"])
+        metric = LossMetricCollection(
+            split="val",
+            loss_names=["loss", "loss_vfl"],
+        )
         metric.update(
             {"loss": torch.tensor(1.0), "loss_vfl": torch.tensor(2.0)}, weight=1
         )
@@ -58,6 +61,19 @@ class TestLossMetricCollection:
             metric.update({"wrong_key": torch.tensor(1.0)}, weight=1)
 
     def test_update__missing_keys(self) -> None:
-        metric = LossMetricCollection(split="val", loss_names=["loss", "loss_vfl"])
+        metric = LossMetricCollection(
+            split="val",
+            loss_names=["loss", "loss_vfl"],
+        )
         with pytest.raises(ValueError):
             metric.update({"loss": torch.tensor(1.0)}, weight=1)
+
+    def test_init__train_split_without_window(self) -> None:
+        # Should raise ValueError when train split without train_loss_running_mean_window
+        with pytest.raises(
+            ValueError, match="train_loss_running_mean_window must be specified"
+        ):
+            LossMetricCollection(
+                split="train",
+                loss_names=["loss"],
+            )

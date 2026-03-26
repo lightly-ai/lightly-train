@@ -140,6 +140,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         val_transform_args: DINOv3LTDETRObjectDetectionValTransformArgs,
         load_weights: bool,
         metric_args: ObjectDetectionTaskMetricArgs,
+        gradient_accumulation_steps: int,
     ) -> None:
         super().__init__()
 
@@ -198,6 +199,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             class_names=class_names,
             box_format="xyxy",
             loss_names=self.loss_names,
+            train_loss_running_mean_window=gradient_accumulation_steps,
         )
         self.val_metrics = ObjectDetectionTaskMetric(
             task_metric_args=metric_args,

@@ -512,6 +512,37 @@ def create_normalized_yolo_instance_segmentation_labels(
                 )
 
 
+def create_normalized_yolo_oriented_object_detection_labels(
+    labels_dir: Path,
+    image_paths: list[Path],
+    missing_label_indices: list[int] | None = None,
+    empty_label_indices: list[int] | None = None,
+) -> None:
+    """Create YOLO oriented object detection label files with 4-corner format.
+
+    Format: class_id x1 y1 x2 y2 x3 y3 x4 y4
+    """
+    if missing_label_indices is None:
+        missing_label_indices = []
+    if empty_label_indices is None:
+        empty_label_indices = []
+
+    # Sort image paths to ensure consistent ordering
+    image_paths = sorted(image_paths, key=lambda p: p.name)
+
+    for idx, image_path in enumerate(image_paths):
+        # Skip creating label file for missing label indices.
+        if idx in missing_label_indices:
+            continue
+
+        label_path = labels_dir / f"{image_path.stem}.txt"
+        with open(label_path, "w") as f:
+            # Write empty file for empty label indices.
+            if idx not in empty_label_indices:
+                # 4 corners: top-left, top-right, bottom-right, bottom-left
+                f.write("0 0.25 0.25 0.75 0.25 0.75 0.75 0.25 0.75\n")
+
+
 def create_yolo_object_detection_dataset(
     tmp_path: Path,
     split_first: bool,
@@ -617,6 +648,62 @@ def create_yolo_instance_segmentation_dataset(
         empty_label_indices=empty_label_indices,
     )
     create_normalized_yolo_instance_segmentation_labels(
+        labels_dir=val_labels,
+        image_paths=list(val_images.glob("*.png")),
+        missing_label_indices=missing_label_indices,
+        empty_label_indices=empty_label_indices,
+    )
+
+
+def create_yolo_oriented_object_detection_dataset(
+    tmp_path: Path,
+    split_first: bool,
+    num_files: int = 2,
+    height: int = 128,
+    width: int = 128,
+    missing_label_indices: list[int] | None = None,
+    empty_label_indices: list[int] | None = None,
+) -> None:
+    """Create a minimal YOLO oriented object detection dataset.
+
+    Args:
+        split_first: If set to True, the dataset will have the "train" and "val"
+            directories at the top level, and the "images" and "labels" directories
+            will be nested within them. If set to False, "images" and "labels" will be
+            at the top.
+        missing_label_indices: List of indices of images that should not have a
+            corresponding label file.
+        empty_label_indices: List of indices of images that should have an empty
+            label file.
+    """
+    # Define directories.
+    if split_first:
+        train_images = tmp_path / "train" / "images"
+        val_images = tmp_path / "val" / "images"
+        train_labels = tmp_path / "train" / "labels"
+        val_labels = tmp_path / "val" / "labels"
+    else:
+        train_images = tmp_path / "images" / "train"
+        val_images = tmp_path / "images" / "val"
+        train_labels = tmp_path / "labels" / "train"
+        val_labels = tmp_path / "labels" / "val"
+
+    # Create directories.
+    for dir in [train_images, val_images, train_labels, val_labels]:
+        dir.mkdir(parents=True, exist_ok=True)
+
+    # Create images.
+    create_images(image_dir=train_images, files=num_files, height=height, width=width)
+    create_images(image_dir=val_images, files=num_files, height=height, width=width)
+
+    # Create labels.
+    create_normalized_yolo_oriented_object_detection_labels(
+        labels_dir=train_labels,
+        image_paths=list(train_images.glob("*.png")),
+        missing_label_indices=missing_label_indices,
+        empty_label_indices=empty_label_indices,
+    )
+    create_normalized_yolo_oriented_object_detection_labels(
         labels_dir=val_labels,
         image_paths=list(val_images.glob("*.png")),
         missing_label_indices=missing_label_indices,

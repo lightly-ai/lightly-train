@@ -100,6 +100,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         val_transform_args: SemanticSegmentationMultiheadValTransformArgs,
         load_weights: bool,
         metric_args: SemanticSegmentationTaskMetricArgs,
+        gradient_accumulation_steps: int,
     ) -> None:
         super().__init__()
 
@@ -147,6 +148,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
                 class_names=class_names,
                 ignore_index=ignore_index,
                 loss_names=["loss"],
+                train_loss_running_mean_window=gradient_accumulation_steps,
             )
             val_head_metrics[head_name] = SemanticSegmentationTaskMetric(
                 task_metric_args=metric_args,
