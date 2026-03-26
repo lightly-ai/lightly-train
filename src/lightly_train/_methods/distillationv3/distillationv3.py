@@ -54,7 +54,7 @@ def get_teacher(
         model=teacher,
         num_input_channels=num_input_channels,
         model_args=teacher_args,
-        load_weights=True,
+        load_weights=True if teacher_weights is None else False,
     )
     if hasattr(wrapped_model, "make_teacher"):
         logger.debug("Calling make_teacher to prepare the teacher model.")
@@ -83,8 +83,7 @@ def get_teacher(
 class DistillationV3Args(MethodArgs):
     """Args for DistillationV3 method for dataset."""
 
-    # Number of teacher blocks from the teacher model to use.
-    n_teacher_blocks: int = 1
+    # TODO (Lionel, 3/26): Consider adding n_teacher_blocks again.
 
     # Default number of teacher embeddings to store in the queue to serve as pseudo classification weights.
     queue_size: int | Literal["auto"] = "auto"
@@ -109,7 +108,6 @@ class DistillationV3Args(MethodArgs):
     loss_local_weight: float = 1.0
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
-        **MethodArgs.model_config,
         arbitrary_types_allowed=True,
     )
 
@@ -192,9 +190,7 @@ class DistillationV3(Method):
         # Instantiate linear projection heads that performs the mapping from the student
         # embedding space to the teacher embedding space.
 
-        self.teacher_embedding_dim: int = (
-            method_args.n_teacher_blocks * self.teacher_embedding_model.feature_dim()
-        )
+        self.teacher_embedding_dim: int = self.teacher_embedding_model.feature_dim()
         self.student_projection_head_global = Linear(
             embedding_model.embed_dim,
             self.teacher_embedding_dim,  # type: ignore
@@ -287,16 +283,12 @@ class DistillationV3(Method):
     @torch.no_grad()
     def _forward_teacher(self, x: Tensor) -> tuple[Tensor, Tensor, tuple[int, int]]:
         """Forward the images through the teacher model and return them in the
-        (B, H * W, n_teacher_blocks * D) format.
+        (B, H * W, D) format.
 
         Concatenation of intermediate layers is delegated to forward_features.
         """
-        n = self.method_args.n_teacher_blocks
-        if n > 1:
-            # Only wrappers that support multi-block output (DINOv2/DINOv3) should be used here.
-            output = self.teacher_embedding_model.forward_features(x, n_blocks=n)  # type: ignore[call-arg]
-        else:
-            output = self.teacher_embedding_model.forward_features(x)
+
+        output = self.teacher_embedding_model.forward_features(x)
 
         # (B, n * D, H, W)
         x_local = output["features"]
