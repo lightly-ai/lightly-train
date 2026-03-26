@@ -21,8 +21,6 @@ from pytest_mock import MockerFixture
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
 from torch.nn import Module
 from torchvision import models
-from torch.nn import Module
-from torchvision import models
 
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._commands import train
