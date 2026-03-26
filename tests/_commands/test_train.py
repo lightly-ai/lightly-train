@@ -21,6 +21,8 @@ from pytest_mock import MockerFixture
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
 from torch.nn import Module
 from torchvision import models
+from torch.nn import Module
+from torchvision import models
 
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._commands import train
@@ -307,9 +309,6 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
-@pytest.mark.parametrize(
-    "method", ["distillation", "distillationv1", "distillationv2", "distillationv3"]
-)
 @pytest.mark.parametrize(
     "method, teacher",
     [
