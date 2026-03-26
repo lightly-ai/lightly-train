@@ -153,9 +153,8 @@ class DINOLoss(nn.Module):
                 self.reduce_handle.wait()
             _t = self.async_batch_center / (self.len_teacher_output * world_size)
 
-            self.center = self.center * self.center_momentum + _t * (
-                1 - self.center_momentum
-            )
+            self.center.mul_(self.center_momentum)
+            self.center.add_(_t, alpha=1 - self.center_momentum)
 
             self.updated = True
 
@@ -290,8 +289,7 @@ class IBOTPatchLoss(nn.Module):
                 self.reduce_handle.wait()
             _t = self.async_batch_center / (self.len_teacher_patch_tokens * world_size)
 
-            self.center = self.center * self.center_momentum + _t * (
-                1 - self.center_momentum
-            )
+            self.center.mul_(self.center_momentum)
+            self.center.add_(_t, alpha=1 - self.center_momentum)
 
             self.updated = True

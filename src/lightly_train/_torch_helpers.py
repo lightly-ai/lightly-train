@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import contextlib
 import os
+from collections import defaultdict
 from typing import Any, Callable, Generator
 
 import torch
+from torch import Tensor
 from torch.nn import Module
 
 
@@ -68,3 +70,36 @@ def set_warn_on_accumulate_grad_stream_mismatch(value: bool) -> None:
     # suppress this warning.
     if hasattr(torch.autograd.graph, "set_warn_on_accumulate_grad_stream_mismatch"):
         torch.autograd.graph.set_warn_on_accumulate_grad_stream_mismatch(value)  # type: ignore
+
+
+@torch.no_grad()
+def update_ema_tensors(
+    ema_tensors: list[Tensor],
+    tensors: list[Tensor],
+    decay: float,
+) -> None:
+    """Updates tensors with an exponential moving average using foreach ops."""
+    if not ema_tensors:
+        return
+
+    grouped_ema_tensors = defaultdict(list)
+    grouped_tensors = defaultdict(list)
+    for ema_tensor, tensor in zip(ema_tensors, tensors):
+        key = (ema_tensor.device.type, ema_tensor.device.index, ema_tensor.dtype)
+        grouped_ema_tensors[key].append(ema_tensor)
+        grouped_tensors[key].append(tensor)
+
+    for key, grouped_ema in grouped_ema_tensors.items():
+        grouped_tensor = grouped_tensors[key]
+        torch._foreach_mul_(grouped_ema, decay)
+        torch._foreach_add_(grouped_ema, grouped_tensor, alpha=1.0 - decay)
+
+
+@torch.no_grad()
+def update_momentum(model: Module, model_ema: Module, m: float) -> None:
+    """Updates parameters of `model_ema` with the EMA of `model`."""
+    update_ema_tensors(
+        ema_tensors=list(model_ema.parameters()),
+        tensors=list(model.parameters()),
+        decay=m,
+    )

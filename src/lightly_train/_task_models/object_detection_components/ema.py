@@ -19,6 +19,8 @@ import torch
 import torch.nn as nn
 from torch.nn import Module
 
+from lightly_train._torch_helpers import update_ema_tensors
+
 
 class ModelEMA(Module):
     """
@@ -59,10 +61,17 @@ class ModelEMA(Module):
                 decay=self.decay, warmup_steps=self.warmups, step=self.updates
             )
             msd = model.state_dict()
-            for k, v in self.model.state_dict().items():
-                if v.dtype.is_floating_point:
-                    v *= d
-                    v += (1 - d) * msd[k].detach()
+            ema_tensors = []
+            model_tensors = []
+            for key, value in self.model.state_dict().items():
+                if value.dtype.is_floating_point:
+                    ema_tensors.append(value)
+                    model_tensors.append(msd[key].detach())
+            update_ema_tensors(
+                ema_tensors=ema_tensors,
+                tensors=model_tensors,
+                decay=d,
+            )
 
     def forward(
         self,

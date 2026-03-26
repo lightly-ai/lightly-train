@@ -12,6 +12,7 @@ from pathlib import Path
 
 import torch
 from lightning_fabric import Fabric
+from torch import nn
 
 from lightly_train import _torch_helpers
 
@@ -31,3 +32,38 @@ def test__torch_weights_only_false(tmp_path: Path) -> None:
         torch.load(ckpt_path)
         fabric.load(ckpt_path)
     assert os.environ.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD") is None
+
+
+def test_update_momentum() -> None:
+    model = nn.Linear(2, 2, bias=False)
+    model_ema = nn.Linear(2, 2, bias=False)
+    with torch.no_grad():
+        model.weight.copy_(torch.tensor([[3.0, 4.0], [5.0, 6.0]]))
+        model_ema.weight.copy_(torch.tensor([[1.0, 2.0], [3.0, 4.0]]))
+
+    ema_weight_ptr = model_ema.weight.data_ptr()
+    _torch_helpers.update_momentum(model=model, model_ema=model_ema, m=0.25)
+
+    expected = torch.tensor([[2.5, 3.5], [4.5, 5.5]])
+    assert model_ema.weight.data_ptr() == ema_weight_ptr
+    assert torch.equal(model_ema.weight, expected)
+
+
+def test_update_ema_tensors__groups_by_dtype() -> None:
+    ema_tensors = [
+        torch.tensor([1.0, 2.0], dtype=torch.float32),
+        torch.tensor([3.0, 4.0], dtype=torch.float64),
+    ]
+    tensors = [
+        torch.tensor([5.0, 6.0], dtype=torch.float32),
+        torch.tensor([7.0, 8.0], dtype=torch.float64),
+    ]
+
+    _torch_helpers.update_ema_tensors(
+        ema_tensors=ema_tensors,
+        tensors=tensors,
+        decay=0.5,
+    )
+
+    assert torch.equal(ema_tensors[0], torch.tensor([3.0, 4.0], dtype=torch.float32))
+    assert torch.equal(ema_tensors[1], torch.tensor([5.0, 6.0], dtype=torch.float64))
