@@ -314,8 +314,7 @@ def test_verify_out_dir_equal_on_all_local_ranks__no_rank0(
         (
             {"model": Module(), "method_args": {"teacher": Module()}},
             {"model": "Module", "method_args": {"teacher": "Module"}},
-
-        )
+        ),
     ],
 )
 def test_sanitize_config_dict(
