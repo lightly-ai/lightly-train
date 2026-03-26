@@ -11,7 +11,6 @@ import logging
 import sys
 from pathlib import Path
 from typing import Any, Literal
-from torch.nn import Module
 
 import pytest
 import torch
@@ -20,6 +19,7 @@ from omegaconf import OmegaConf
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
+from torch.nn import Module
 from torchvision import models
 
 from lightly_train._checkpoint import Checkpoint
@@ -314,7 +314,10 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
         ("distillationv1", "dinov3/_vittest16"),
         ("distillationv2", "dinov3/_convnexttest"),
         ("distillationv3", "dinov2/_vittest14"),
-        ("distillationv3", "resnet18IN1K"),
+        (
+            "distillationv3",
+            models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1),
+        ),
     ],
 )
 @pytest.mark.parametrize(
@@ -325,9 +328,6 @@ def test_pretrain__distillation_different_teachers(
 ) -> None:
     if torch.cuda.device_count() < devices:
         pytest.skip("Test requires more GPUs than available.")
-
-    if teacher == "resnet18IN1K":
-        teacher = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 
     out = tmp_path / "out"
     data = tmp_path / "data"
