@@ -68,9 +68,9 @@ class ModelEMA(Module):
                     ema_tensors.append(value)
                     model_tensors.append(msd[key].detach())
             update_ema_tensors(
-                ema_tensors=ema_tensors,
                 tensors=model_tensors,
-                decay=d,
+                tensors_ema=ema_tensors,
+                m=d,
             )
 
     def forward(

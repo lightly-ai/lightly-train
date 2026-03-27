@@ -49,7 +49,7 @@ def test_update_momentum() -> None:
     assert torch.equal(model_ema.weight, expected)
 
 
-def test_update_ema_tensors__groups_by_dtype() -> None:
+def test_update_ema_tensors() -> None:
     ema_tensors = [
         torch.tensor([1.0, 2.0], dtype=torch.float32),
         torch.tensor([3.0, 4.0], dtype=torch.float64),
@@ -58,12 +58,14 @@ def test_update_ema_tensors__groups_by_dtype() -> None:
         torch.tensor([5.0, 6.0], dtype=torch.float32),
         torch.tensor([7.0, 8.0], dtype=torch.float64),
     ]
+    ema_tensor_ptrs = [tensor.data_ptr() for tensor in ema_tensors]
 
     _torch_helpers.update_ema_tensors(
-        ema_tensors=ema_tensors,
         tensors=tensors,
-        decay=0.5,
+        tensors_ema=ema_tensors,
+        m=0.5,
     )
 
+    assert [tensor.data_ptr() for tensor in ema_tensors] == ema_tensor_ptrs
     assert torch.equal(ema_tensors[0], torch.tensor([3.0, 4.0], dtype=torch.float32))
     assert torch.equal(ema_tensors[1], torch.tensor([5.0, 6.0], dtype=torch.float64))
