@@ -13,8 +13,30 @@ from pytest import LogCaptureFixture
 from lightly_train._commands.train_task_helpers import (
     BestAggregatedMetricValues,
     get_best_metrics,
+    get_training_epoch,
 )
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
+
+
+def test_get_training_epoch() -> None:
+    assert get_training_epoch(step=0, train_num_batches=4) == 0
+    assert get_training_epoch(step=3, train_num_batches=4) == 0
+    assert get_training_epoch(step=4, train_num_batches=4) == 1
+    assert (
+        get_training_epoch(step=1, train_num_batches=4, gradient_accumulation_steps=2)
+        == 0
+    )
+    assert (
+        get_training_epoch(step=2, train_num_batches=4, gradient_accumulation_steps=2)
+        == 1
+    )
+
+
+def test_get_training_epoch__invalid_inputs() -> None:
+    with pytest.raises(ValueError, match="train_num_batches must be >= 1"):
+        get_training_epoch(step=0, train_num_batches=0)
+    with pytest.raises(ValueError, match="gradient_accumulation_steps must be >= 1"):
+        get_training_epoch(step=0, train_num_batches=4, gradient_accumulation_steps=0)
 
 
 def test_get_best_metrics__no_previous_best() -> None:
