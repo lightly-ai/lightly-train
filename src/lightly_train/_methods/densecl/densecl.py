@@ -44,6 +44,7 @@ from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.sgd_args import SGDArgs
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import ScalingInfo
+from lightly_train._torch_helpers import update_momentum
 from lightly_train._transforms.transform import (
     MethodTransform,
 )
@@ -193,8 +194,10 @@ class DenseCL(Method):
             start_value=self.method_args.momentum_start,
             end_value=self.method_args.momentum_end,
         )
-        utils.update_momentum(
-            model=self.query_encoder, model_ema=self.key_encoder, m=momentum
+        update_momentum(
+            model=self.query_encoder,
+            model_ema=self.key_encoder,
+            m=momentum,
         )
         views = batch["views"]
         query_features, query_global, query_local, _ = self.query_encoder(views[0])
