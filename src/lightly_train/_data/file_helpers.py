@@ -392,7 +392,7 @@ def _open_mask_numpy__with_pil(
 def open_yolo_oriented_object_detection_label_numpy(
     label_path: Path,
 ) -> tuple[NDArray4Corners, NDArrayClasses]:
-    """Open a YOLO label file and return oriented bounding boxes and classes.
+    """Open a YOLO label file and return the oriented bounding boxes and classes as numpy arrays.
 
     Returns:
         (bboxes, classes):
@@ -417,7 +417,7 @@ def open_yolo_oriented_object_detection_label_numpy(
 def open_yolo_object_detection_label_numpy(
     label_path: Path,
 ) -> tuple[NDArrayBBoxes, NDArrayClasses]:
-    """Open a YOLO label file and return bounding boxes and classes.
+    """Open a YOLO label file and return the bounding boxes and classes as numpy arrays.
 
     Returns:
         (bboxes, classes):
