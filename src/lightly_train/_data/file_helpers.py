@@ -424,10 +424,10 @@ def open_yolo_oriented_object_detection_label_numpy(
     return oriented_bboxes_np, classes_np
 
 
-def open_yolo_object_detection_label_numpy(
+def open_yolo_object_detection_label(
     label_path: Path,
-) -> tuple[NDArrayBBoxes, NDArrayClasses]:
-    """Open a YOLO label file and return the bounding boxes and classes as numpy arrays.
+) -> tuple[list[list[float]], list[int]]:
+    """Open a YOLO label file and return the bounding boxes and classes.
 
     Returns:
         (bboxes, classes) tuple. All values are in normalized coordinates
@@ -444,9 +444,7 @@ def open_yolo_object_detection_label_numpy(
         height = parts[4]
         bboxes.append([x_center, y_center, width, height])
         classes.append(int(class_id))
-    bboxes_np = np.array(bboxes) if bboxes else np.zeros((0, 4), dtype=np.float64)
-    classes_np = np.array(classes, dtype=np.int64)
-    return bboxes_np, classes_np
+    return bboxes, classes
 
 
 def open_yolo_instance_segmentation_label_numpy(
