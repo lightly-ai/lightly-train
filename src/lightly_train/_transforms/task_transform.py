@@ -48,6 +48,15 @@ class TaskTransform:
             )
         self.transform_args = transform_args
 
+    def set_step(self, step: int) -> None:
+        pass
+
+    def uses_step_dependent_worker_state(self) -> bool:
+        return False
+
+    def requires_dataloader_reinitialization(self) -> bool:
+        return False
+
     def __call__(self, input: Any) -> Any:
         raise NotImplementedError()
 
@@ -58,3 +67,12 @@ class TaskCollateFunction:
     ):
         self.split = split
         self.transform_args = transform_args
+
+    def set_step(self, step: int) -> None:
+        pass
+
+    def uses_step_dependent_worker_state(self) -> bool:
+        return False
+
+    def requires_dataloader_reinitialization(self) -> bool:
+        return False

@@ -68,6 +68,7 @@ class DINOv2LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
 
 
 class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
+    stop_step: int | None = None
     # Sizes must be multiples of patch size * 2
     sizes: Sequence[tuple[int, int]] | None = [
         (476, 476),
@@ -136,7 +137,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
     resize: ResizeArgs | None = None
-    scale_jitter: ScaleJitterArgs | None = Field(
+    scale_jitter: DINOv2LTDETRObjectDetectionScaleJitterArgs | None = Field(
         default_factory=DINOv2LTDETRObjectDetectionScaleJitterArgs
     )
     # We use the YOLO format internally for now.
