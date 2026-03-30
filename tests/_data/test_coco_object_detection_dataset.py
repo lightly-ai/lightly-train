@@ -1,0 +1,59 @@
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from lightly_train._data.coco_object_detection_dataset import (
+    COCOObjectDetectionDataArgs,
+)
+
+from ..helpers import create_coco_object_detection_dataset
+
+
+class TestCOCOObjectDetectionDatasetArgs:
+    def test_list_image_info(self, tmp_path: Path) -> None:
+        create_coco_object_detection_dataset(
+            tmp_path=tmp_path,
+            num_files=3,
+            classes={3: "cat", 7: "dog"},
+            annotations_per_image=[
+                [],
+                [{"category_id": 3, "bbox": [16, 16, 32, 32]}],
+                [
+                    {"category_id": 3, "bbox": [16, 16, 32, 32]},
+                    {"category_id": 7, "bbox": [80, 32, 32, 64]},
+                ],
+            ],
+        )
+
+        args = COCOObjectDetectionDataArgs(
+            train_labels=tmp_path / "train.json",
+            train_data_dir=Path("train"),
+            val_labels=tmp_path / "val.json",
+            val_data_dir=Path("val"),
+        )
+
+        # class 3 -> internal 0, class 7 -> internal 1
+        for split, dataset_args in [
+            ("train", args.get_train_args()),
+            ("val", args.get_val_args()),
+        ]:
+            image_info = list(dataset_args.list_image_info())
+            assert len(image_info) == 3
+            assert all(f"/{split}/" in info["image_path"] for info in image_info)
+            assert json.loads(image_info[0]["bboxes"]) == []
+            assert json.loads(image_info[0]["class_labels"]) == []
+            assert json.loads(image_info[1]["bboxes"]) == [[0.25, 0.25, 0.25, 0.25]]
+            assert json.loads(image_info[1]["class_labels"]) == [0]
+            assert json.loads(image_info[2]["bboxes"]) == [
+                [0.25, 0.25, 0.25, 0.25],
+                [0.75, 0.5, 0.25, 0.5],
+            ]
+            assert json.loads(image_info[2]["class_labels"]) == [0, 1]
