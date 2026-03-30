@@ -186,6 +186,10 @@ class ScaleJitterArgs(PydanticConfig):
     prob: float = Field(ge=0.0, le=1.0)
     divisible_by: int | None
 
+    # stopping step for scale jittering in LTDETR object detection
+    # None means scale jitter is always on.
+    step_stop: int | None = None
+
     @property
     def scale_range(self) -> tuple[float, float] | None:
         if self.min_scale is not None and self.max_scale is not None:
