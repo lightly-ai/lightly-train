@@ -7,7 +7,9 @@
 #
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import itertools
+import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import ClassVar
 
@@ -21,7 +23,7 @@ from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionCollateFunction,
 )
-from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
+from lightly_train._transforms.task_transform import TaskCollateFunction
 from lightly_train.types import ObjectDetectionDatasetItem, PathLike
 
 
@@ -33,29 +35,10 @@ class YOLOObjectDetectionDataset(TaskDataset):
         ObjectDetectionCollateFunction
     )
 
-    def __init__(
-        self,
-        dataset_args: YOLOObjectDetectionDatasetArgs,
-        image_info: Sequence[dict[str, str]],
-        transform: TaskTransform,
-    ) -> None:
-        super().__init__(
-            transform=transform, dataset_args=dataset_args, image_info=image_info
-        )
-
-        # Get the class mapping.
-        self.class_id_to_internal_class_id = (
-            label_helpers.get_class_id_to_internal_class_id_mapping(
-                class_ids=self.dataset_args.classes.keys(),
-                ignore_classes=self.dataset_args.ignore_classes,
-            )
-        )
-
     def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
         # Load the image.
         image_info = self.image_info[index]
         image_path = Path(image_info["image_path"])
-        label_path = Path(image_info["label_path"]).with_suffix(".txt")
 
         if not image_path.exists():
             raise FileNotFoundError(f"Image file {image_path} does not exist.")
@@ -63,39 +46,19 @@ class YOLOObjectDetectionDataset(TaskDataset):
         image_np = file_helpers.open_image_numpy(image_path)
         h, w, _ = image_np.shape
 
-        if label_path.exists():
-            bboxes_np, class_labels_np = (
-                file_helpers.open_yolo_object_detection_label_numpy(label_path)
-            )
-        else:
-            bboxes_np = np.zeros((0, 4), dtype=np.float64)
-            class_labels_np = np.zeros((0,), dtype=np.int64)
+        bboxes = json.loads(image_info["bboxes"])
+        class_labels = json.loads(image_info["class_labels"])
+        # TODO (simon, 03/26) do we need this assert?
+        assert len(bboxes) == len(class_labels)
 
-        # Remove instances with class IDs that are not in the included classes.
-        keep = np.array(
-            [
-                int(class_id) in self.class_id_to_internal_class_id
-                for class_id in class_labels_np
-            ],
-            dtype=np.bool_,
-        )
-        bboxes_np = bboxes_np[keep]
-        class_labels_np = class_labels_np[keep]
-
-        # Map class IDs to internal class IDs.
-        internal_class_labels_np = np.array(
-            [
-                self.class_id_to_internal_class_id[int(class_id)]
-                for class_id in class_labels_np
-            ],
-            dtype=np.int_,
-        )
+        bboxes_np = np.array(bboxes, dtype=np.float64).reshape(len(bboxes), 4)
+        class_labels_np = np.array(class_labels, dtype=np.int64)
 
         transformed = self.transform(
             {
                 "image": image_np,
                 "bboxes": bboxes_np,  # Shape (n_boxes, 4)
-                "class_labels": internal_class_labels_np,  # Shape (n_boxes,)
+                "class_labels": class_labels_np,  # Shape (n_boxes,)
             }
         )
 
@@ -189,20 +152,46 @@ class YOLOObjectDetectionDatasetArgs(TaskDatasetArgs):
     skip_if_label_file_missing: bool
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
+
+        class_id_to_internal_class_id = (
+            label_helpers.get_class_id_to_internal_class_id_mapping(
+                class_ids=self.classes.keys(),
+                ignore_classes=self.ignore_classes,
+            )
+        )
+
         for image_filename in file_helpers.list_image_filenames_from_dir(
             image_dir=self.image_dir
         ):
-            image_filepath = self.image_dir / Path(image_filename)
-            label_filepath = self.label_dir / Path(image_filename).with_suffix(".txt")
+            image_filepath = self.image_dir / image_filename
+            label_filepath = (self.label_dir / image_filename).with_suffix(".txt")
 
-            # TODO (Thomas, 10/25): Log warning if label file does not exist.
-            # And keep track of how many files are missing labels.
-            if self.skip_if_label_file_missing and not label_filepath.exists():
-                continue
+            if label_filepath.exists():
+                bboxes, class_labels = file_helpers.open_yolo_object_detection_label(
+                    label_filepath
+                )
+            else:
+                # TODO (Thomas, 10/25): Log warning if label file does not exist.
+                #   And keep track of how many files are missing labels.
+                if self.skip_if_label_file_missing:
+                    continue
+                bboxes = []
+                class_labels = []
+
+            # Remove instances with class IDs that are not in the included classes
+            keep = [label in class_id_to_internal_class_id for label in class_labels]
+            bboxes = list(itertools.compress(bboxes, keep))
+            class_labels = list(itertools.compress(class_labels, keep))
+
+            # Map class IDs to internal class IDs.
+            class_labels = [
+                class_id_to_internal_class_id[label] for label in class_labels
+            ]
 
             yield {
                 "image_path": str(image_filepath),
-                "label_path": str(label_filepath),
+                "bboxes": json.dumps(bboxes),
+                "class_labels": json.dumps(class_labels),
             }
 
     @staticmethod
