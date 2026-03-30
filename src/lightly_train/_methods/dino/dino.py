@@ -14,7 +14,7 @@ from typing import Any, Literal
 import torch
 from lightly.loss import DINOLoss
 from lightly.models.modules.heads import DINOProjectionHead
-from lightly.models.utils import get_weight_decay_parameters, update_momentum
+from lightly.models.utils import get_weight_decay_parameters
 from lightly.utils import optim
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
@@ -37,6 +37,7 @@ from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.sgd_args import SGDArgs
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
+from lightly_train._torch_helpers import update_momentum
 from lightly_train._transforms.transform import (
     MethodTransform,
 )

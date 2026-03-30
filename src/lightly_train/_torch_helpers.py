@@ -12,6 +12,7 @@ import os
 from typing import Any, Callable, Generator
 
 import torch
+from torch import Tensor
 from torch.nn import Module
 
 
@@ -68,3 +69,27 @@ def set_warn_on_accumulate_grad_stream_mismatch(value: bool) -> None:
     # suppress this warning.
     if hasattr(torch.autograd.graph, "set_warn_on_accumulate_grad_stream_mismatch"):
         torch.autograd.graph.set_warn_on_accumulate_grad_stream_mismatch(value)  # type: ignore
+
+
+@torch.no_grad()
+def update_ema_tensors(
+    tensors: list[Tensor],
+    tensors_ema: list[Tensor],
+    m: float,
+) -> None:
+    """Updates tensors with an exponential moving average using foreach ops."""
+    if not tensors_ema:
+        return
+
+    torch._foreach_mul_(tensors_ema, m)
+    torch._foreach_add_(tensors_ema, tensors, alpha=1.0 - m)
+
+
+@torch.no_grad()
+def update_momentum(model: Module, model_ema: Module, m: float) -> None:
+    """Updates parameters of `model_ema` with the EMA of `model`."""
+    update_ema_tensors(
+        tensors=list(model.parameters()),
+        tensors_ema=list(model_ema.parameters()),
+        m=m,
+    )

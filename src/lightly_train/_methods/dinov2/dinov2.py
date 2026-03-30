@@ -17,7 +17,6 @@ import torch
 from lightly.loss import (
     KoLeoLoss,
 )  # we use LightlySSL's KoLeoLoss for better numerical stability
-from lightly.models.utils import update_momentum
 from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
 from pydantic import Field
@@ -55,6 +54,7 @@ from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import ScalingInfo
+from lightly_train._torch_helpers import update_momentum
 from lightly_train.types import Batch
 
 logger = logging.getLogger(__name__)
