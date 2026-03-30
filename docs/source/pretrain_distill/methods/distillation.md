@@ -11,9 +11,10 @@ between state-of-the-art large-scale vision models and smaller, more computation
 efficient models suitable for practical applications.
 
 ```{note}
-Starting from **LightlyTrain 0.7.0**, `method="distillation"` uses a new, improved `v2` implementation
-that achieves higher accuracy and trains up to 3x faster. The previous version is still available via
-`method="distillationv1"` for backward compatibility.
+Starting from **LightlyTrain 0.15.0**, `method="distillation"` uses a new, improved `v3`
+implementation that performs equally well on dense tasks (such as semantic segmentation) 
+and global tasks (such as image classification). The previous versions are still available 
+via `method="distillationv1"` or `method="distillationv2"` for backward compatibility.
 ```
 
 ## Use Distillation in LightlyTrain
