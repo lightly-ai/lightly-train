@@ -656,9 +656,10 @@ def get_train_dataloader(
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
-        # Ignore batch_size from loader_args. It is already handled in
-        # get_global_batch_size.
+        # Ignore batch_size and num_workers from loader_args. They are already
+        # handled through dedicated function arguments.
         loader_args.pop("batch_size", None)
+        loader_args.pop("num_workers", None)
         dataloader_kwargs.update(**loader_args)
     if requires_worker_refresh and num_workers > 0:
         persistent_workers = bool(dataloader_kwargs.get("persistent_workers", False))
@@ -701,9 +702,10 @@ def get_val_dataloader(
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
-        # Ignore batch_size from loader_args. It is already handled in
-        # get_global_batch_size.
+        # Ignore batch_size and num_workers from loader_args. They are already
+        # handled through dedicated function arguments.
         loader_args.pop("batch_size", None)
+        loader_args.pop("num_workers", None)
         dataloader_kwargs.update(**loader_args)
     dataloader = DataLoader(**dataloader_kwargs)
     return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
