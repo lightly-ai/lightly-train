@@ -1489,10 +1489,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
-        train_transform = train_dataset.transform
         # DataLoader erases the concrete TaskCollateFunction type of collate_fn.
-        train_collate_fn = train_dataloader.collate_fn
-        assert isinstance(train_collate_fn, TaskCollateFunction)  # for mypy
+        train_collate_fn: TaskCollateFunction = train_dataloader.collate_fn  # type: ignore
 
         infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
@@ -1551,9 +1549,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 or train_collate_fn.requires_dataloader_reinitialization()
             )
             if config.num_workers > 0 and needs_reinit:
-                timer.start_step("train_dataloader_restart")
                 infinite_train_dataloader.reset()
-                timer.end_step("train_dataloader_restart")
 
             # Training data loading, forward passes, and gradient accumulation.
             for acc_step in range(config.gradient_accumulation_steps):

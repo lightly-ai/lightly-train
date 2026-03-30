@@ -269,7 +269,7 @@ class TestObjectDetectionCollateFunction:
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
             scale_jitter=DINOv3LTDETRObjectDetectionScaleJitterArgs(
-                stop_step=3,
+                step_stop=3,
                 sizes=[(32, 32)],
                 min_scale=None,
                 max_scale=None,

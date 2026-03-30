@@ -49,12 +49,15 @@ class TaskTransform:
         self.transform_args = transform_args
 
     def set_step(self, step: int) -> None:
+        """Update the current training step for step-aware augmentation logic."""
         pass
 
     def uses_step_dependent_worker_state(self) -> bool:
+        """Report whether worker-side behavior changes with the training step."""
         return False
 
     def requires_dataloader_reinitialization(self) -> bool:
+        """Signal when worker-visible state changed and the loader iterator must reset."""
         return False
 
     def __call__(self, input: Any) -> Any:
@@ -69,10 +72,13 @@ class TaskCollateFunction:
         self.transform_args = transform_args
 
     def set_step(self, step: int) -> None:
+        """Update the current training step for step-aware batch processing logic."""
         pass
 
     def uses_step_dependent_worker_state(self) -> bool:
+        """Report whether worker-side collate behavior changes with the training step."""
         return False
 
     def requires_dataloader_reinitialization(self) -> bool:
+        """Signal when worker-visible collate state changed and the loader must reset."""
         return False

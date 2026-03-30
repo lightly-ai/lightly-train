@@ -11,7 +11,6 @@ import contextlib
 import hashlib
 import json
 import logging
-import warnings
 from dataclasses import dataclass
 from json import JSONEncoder
 from pathlib import Path
@@ -670,10 +669,6 @@ def get_train_dataloader(
                 "persistent_workers=True."
             )
             logger.warning(warning_message)
-            warnings.warn(
-                warning_message,
-                stacklevel=2,
-            )
         dataloader_kwargs["persistent_workers"] = False
     dataloader = DataLoader(**dataloader_kwargs)
     return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]

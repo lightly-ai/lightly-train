@@ -22,7 +22,7 @@ class InfiniteCycleIterator(Generic[_T]):
         self._iter: Iterator[_T] | None = None
 
     def reset(self) -> None:
-        self._iter = iter(self.iterable)
+        self._iter = None
 
     def __iter__(self) -> Self:
         return self

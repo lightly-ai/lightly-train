@@ -275,10 +275,10 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
         self.scale_jitter: BatchReplayCompose | None = None
 
         # step-based augmentation with scale jitter
-        self._scale_jitter_stop_step: int | None = None
+        self._scale_jitter_step_stop: int | None = None
         if transform_args.scale_jitter is not None:
-            self._scale_jitter_stop_step = getattr(
-                transform_args.scale_jitter, "stop_step", None
+            self._scale_jitter_step_stop = getattr(
+                transform_args.scale_jitter, "step_stop", None
             )
             self.scale_jitter = BatchReplayCompose(
                 transforms=[
@@ -316,12 +316,12 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
     def _is_scale_jitter_applied_at_step(self, step: int) -> bool:
         if self.scale_jitter is None:
             return False
-        if self._scale_jitter_stop_step is None:
+        if self._scale_jitter_step_stop is None:
             return True
-        return step < self._scale_jitter_stop_step
+        return step < self._scale_jitter_step_stop
 
     def uses_step_dependent_worker_state(self) -> bool:
-        return self._scale_jitter_stop_step is not None
+        return self._scale_jitter_step_stop is not None
 
     def requires_dataloader_reinitialization(self) -> bool:
         is_scale_jitter_applied_at_step = self._is_scale_jitter_applied_at_step(
