@@ -7,61 +7,21 @@
 #
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Literal
-
-import numpy as np
-from albumentations import BboxParams
 
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
-    YOLOObjectDetectionDataset,
 )
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionTransform,
-    ObjectDetectionTransformArgs,
-)
-from lightly_train._transforms.transform import (
-    ChannelDropArgs,
-    NormalizeArgs,
-    RandomFlipArgs,
-    RandomIoUCropArgs,
-    RandomPhotometricDistortArgs,
-    RandomRotate90Args,
-    RandomRotationArgs,
-    RandomZoomOutArgs,
-    ResizeArgs,
-    ScaleJitterArgs,
-    StopPolicyArgs,
-)
-from lightly_train.types import ImageSizeTuple
 
 from ..helpers import create_yolo_object_detection_dataset
 
 
-class DummyTransformArgs(ObjectDetectionTransformArgs):
-    channel_drop: ChannelDropArgs | None = None
-    num_channels: int | Literal["auto"] = 3
-    photometric_distort: RandomPhotometricDistortArgs | None = None
-    random_zoom_out: RandomZoomOutArgs | None = None
-    random_iou_crop: RandomIoUCropArgs | None = None
-    random_flip: RandomFlipArgs | None = None
-    random_rotate_90: RandomRotate90Args | None = None
-    random_rotate: RandomRotationArgs | None = None
-    image_size: ImageSizeTuple = (32, 32)
-    stop_policy: StopPolicyArgs | None = None
-    scale_jitter: ScaleJitterArgs | None = None
-    resize: ResizeArgs | None = None
-    normalize: NormalizeArgs | Literal["auto"] | None = None
-    bbox_params: BboxParams = BboxParams(
-        format="yolo",
-        label_fields=["class_labels"],
-    )
-
-
-class TestYoloObjectDetectionDataset:
-    def test__split_first(self, tmp_path: Path) -> None:
-        create_yolo_object_detection_dataset(tmp_path=tmp_path, split_first=True)
+class TestYOLOObjectDetectionDatasetArgs:
+    def test_list_image_info__split_first(self, tmp_path: Path) -> None:
+        create_yolo_object_detection_dataset(
+            tmp_path=tmp_path, split_first=True, num_files=2
+        )
 
         args = YOLOObjectDetectionDataArgs(
             path=tmp_path,
@@ -70,61 +30,56 @@ class TestYoloObjectDetectionDataset:
             names={0: "class_0", 1: "class_1"},
         )
 
-        train_args = args.get_train_args()
-        val_args = args.get_val_args()
+        train_image_info = list(args.get_train_args().list_image_info())
+        val_image_info = list(args.get_val_args().list_image_info())
 
-        train_dataset = YOLOObjectDetectionDataset(
-            dataset_args=train_args,
-            transform=ObjectDetectionTransform(DummyTransformArgs()),
-            image_info=list(train_args.list_image_info()),
+        assert len(train_image_info) == 2
+        for info in train_image_info:
+            assert Path(info["image_path"]).exists()
+            bboxes = json.loads(info["bboxes"])
+            class_labels = json.loads(info["class_labels"])
+            assert len(bboxes) == 1
+            assert len(class_labels) == 1
+            assert bboxes[0] == [0.375, 0.5, 0.25, 0.5]
+            assert class_labels[0] == 0
+
+        assert len(val_image_info) == 2
+        for info in val_image_info:
+            assert Path(info["image_path"]).exists()
+            bboxes = json.loads(info["bboxes"])
+            class_labels = json.loads(info["class_labels"])
+            assert len(bboxes) == 1
+            assert len(class_labels) == 1
+            assert bboxes[0] == [0.375, 0.5, 0.25, 0.5]
+            assert class_labels[0] == 0
+
+    def test_list_image_info__split_last(self, tmp_path: Path) -> None:
+        create_yolo_object_detection_dataset(
+            tmp_path=tmp_path, split_first=False, num_files=3
         )
-
-        val_dataset = YOLOObjectDetectionDataset(
-            dataset_args=val_args,
-            transform=ObjectDetectionTransform(DummyTransformArgs()),
-            image_info=list(val_args.list_image_info()),
-        )
-
-        sample = train_dataset[0]
-        assert sample["image"].dtype == np.float32
-        assert sample["bboxes"].shape == (1, 4)
-        assert sample["classes"].shape == (1,)
-
-        sample = val_dataset[0]
-        assert sample["image"].dtype == np.float32
-        assert sample["bboxes"].shape == (1, 4)
-        assert sample["classes"].shape == (1,)
-
-    def test__split_last(self, tmp_path: Path) -> None:
-        create_yolo_object_detection_dataset(tmp_path=tmp_path, split_first=False)
 
         args = YOLOObjectDetectionDataArgs(
             path=tmp_path,
             train="images/train",
             val="images/val",
-            names={0: "class_0", 1: "class_1"},
+            names={7: "class_7", 0: "class_0"},
         )
 
-        train_args = args.get_train_args()
-        val_args = args.get_val_args()
+        train_image_info = list(args.get_train_args().list_image_info())
+        val_image_info = list(args.get_val_args().list_image_info())
 
-        train_dataset = YOLOObjectDetectionDataset(
-            dataset_args=train_args,
-            transform=ObjectDetectionTransform(DummyTransformArgs()),
-            image_info=list(train_args.list_image_info()),
-        )
+        assert len(train_image_info) == 3
+        for info in train_image_info:
+            assert Path(info["image_path"]).exists()
+            bboxes = json.loads(info["bboxes"])
+            class_labels = json.loads(info["class_labels"])
+            assert bboxes == [[0.375, 0.5, 0.25, 0.5]]
+            assert class_labels == [1]
 
-        val_dataset = YOLOObjectDetectionDataset(
-            dataset_args=val_args,
-            transform=ObjectDetectionTransform(DummyTransformArgs()),
-            image_info=list(val_args.list_image_info()),
-        )
-
-        sample = train_dataset[0]
-        assert sample["image"].dtype == np.float32
-        assert sample["bboxes"].shape == (1, 4)
-        assert sample["classes"].shape == (1,)
-
-        sample = val_dataset[0]
-        assert sample["image"].dtype == np.float32
-        assert sample["bboxes"].shape == (1, 4)
+        assert len(val_image_info) == 3
+        for info in val_image_info:
+            assert Path(info["image_path"]).exists()
+            bboxes = json.loads(info["bboxes"])
+            class_labels = json.loads(info["class_labels"])
+            assert bboxes == [[0.375, 0.5, 0.25, 0.5]]
+            assert class_labels == [1]

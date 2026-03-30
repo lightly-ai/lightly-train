@@ -472,6 +472,8 @@ def create_normalized_yolo_object_detection_labels(
     missing_label_indices: list[int] | None = None,
     empty_label_indices: list[int] | None = None,
 ) -> None:
+    # TODO (Simon, 03/26): Ideally we would also create test instances with less more more than one bounding box.
+
     if missing_label_indices is None:
         missing_label_indices = []
     if empty_label_indices is None:
@@ -711,6 +713,64 @@ def create_yolo_oriented_object_detection_dataset(
         missing_label_indices=missing_label_indices,
         empty_label_indices=empty_label_indices,
     )
+
+
+def create_coco_object_detection_dataset(
+    tmp_path: Path,
+    num_files: int = 2,
+    height: int = 128,
+    width: int = 128,
+    num_classes: int = 2,
+    classes: dict[int, str] | None = None,
+    annotations_per_image: list[list[dict[str, Any]]] | None = None,
+) -> None:
+    """Create a minimal COCO object detection dataset.
+
+    Args:
+        classes: Mapping from category id to category name. If None, auto-generated
+            from num_classes as {0: "class_0", 1: "class_1", ...}.
+        annotations_per_image: Per-image list of partial annotation dicts (without
+            "id" and "image_id"). Must have length num_files. If None, defaults to
+            one annotation per image with category_id=0 and bbox=[10, 10, 30, 40].
+    """
+    if classes is None:
+        classes = {i: f"class_{i}" for i in range(num_classes)}
+    if annotations_per_image is None:
+        annotations_per_image = [
+            [{"category_id": 0, "bbox": [10, 10, 30, 40]}] for _ in range(num_files)
+        ]
+
+    for split in ["train", "val"]:
+        image_dir = tmp_path / split
+        image_dir.mkdir(parents=True, exist_ok=True)
+        create_images(image_dir=image_dir, files=num_files, height=height, width=width)
+
+        image_paths = sorted(image_dir.glob("*.png"))
+        categories = [{"id": k, "name": v} for k, v in classes.items()]
+        images = []
+        annotations = []
+        ann_id = 0
+        for idx, img_path in enumerate(image_paths):
+            images.append(
+                {
+                    "id": idx,
+                    "file_name": img_path.name,
+                    "width": width,
+                    "height": height,
+                }
+            )
+            for ann in annotations_per_image[idx]:
+                annotations.append({"id": ann_id, "image_id": idx, **ann})
+                ann_id += 1
+
+        coco_dict = {
+            "images": images,
+            "annotations": annotations,
+            "categories": categories,
+        }
+        annotations_path = tmp_path / f"{split}.json"
+        with open(annotations_path, "w") as f:
+            json.dump(coco_dict, f)
 
 
 def create_coco_panoptic_segmentation_dataset(

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Union
 
 import fsspec
 import torch
@@ -18,7 +18,7 @@ from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict, Field, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
 
 from lightly_train import (
@@ -34,6 +34,9 @@ from lightly_train._commands.train_task_helpers import BestAggregatedMetricValue
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
+from lightly_train._data.coco_object_detection_dataset import (
+    COCOObjectDetectionDataArgs,
+)
 from lightly_train._data.image_classification_dataset import (
     ImageClassificationMulticlassDataArgs,
     ImageClassificationMultilabelDataArgs,
@@ -1848,8 +1851,18 @@ class PanopticSegmentationTrainTaskConfig(TrainTaskConfig):
 
 
 class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
-    data: YOLOObjectDetectionDataArgs
+    data: Annotated[
+        Union[YOLOObjectDetectionDataArgs, COCOObjectDetectionDataArgs],
+        Field(discriminator="format"),
+    ]
     task: Literal["object_detection"] = "object_detection"
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def _default_format_to_yolo(cls, v: Any) -> Any:
+        if isinstance(v, dict) and "format" not in v:
+            v = {**v, "format": "yolo"}
+        return v
 
 
 class SemanticSegmentationTrainTaskConfig(TrainTaskConfig):
