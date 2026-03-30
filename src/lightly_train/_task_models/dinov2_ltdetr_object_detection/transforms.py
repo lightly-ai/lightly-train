@@ -136,7 +136,9 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
-    resize: ResizeArgs | None = None
+    resize: ResizeArgs | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionResizeArgs
+    )
     scale_jitter: DINOv2LTDETRObjectDetectionScaleJitterArgs | None = Field(
         default_factory=DINOv2LTDETRObjectDetectionScaleJitterArgs
     )
