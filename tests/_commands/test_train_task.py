@@ -167,7 +167,7 @@ def test_train_image_classification_multihead(
     assert model is not None
 
 
-def test_train_object_detection(tmp_path: Path) -> None:
+def test_train_object_detection_yolo(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     # Create dataset with 4 files, including one without a label file (index 2) and
@@ -192,6 +192,53 @@ def test_train_object_detection(tmp_path: Path) -> None:
                 0: "class_0",
                 1: "class_1",
             },
+        },
+        steps=2,
+        batch_size=2,
+        num_workers=2,
+        devices=1,
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+    )
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()
+
+    # Check that model can be loaded again
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+
+    # Check that only EMA weights are exported
+    exported_state_dict = torch.load(
+        out / "exported_models" / "exported_last.pt", map_location="cpu"
+    )
+    assert all(
+        key.startswith("ema_model.")
+        for key in exported_state_dict["train_model"].keys()
+    )
+
+    # Check forward pass
+    dummy_input = torch.randn(3, 100, 200)
+    results = model.predict(dummy_input)
+    assert results["bboxes"].ndim == 2
+    assert results["bboxes"].shape[1] == 4
+    assert results["scores"].ndim == 1
+    assert results["labels"].ndim == 1
+
+
+def test_train_object_detection_coco(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    data = tmp_path / "data"
+    helpers.create_coco_object_detection_dataset(data, num_files=2)
+
+    # Check training
+    lightly_train.train_object_detection(
+        out=out,
+        model="dinov3/vitt16-notpretrained-ltdetr",
+        data={
+            "format": "coco",
+            "train_labels": data / "train.json",
+            "train_data_dir": Path("train"),
+            "val_labels": data / "val.json",
+            "val_data_dir": Path("val"),
         },
         steps=2,
         batch_size=2,
