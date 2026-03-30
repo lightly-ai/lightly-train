@@ -140,7 +140,9 @@ class DummyCustomModel(Module, ModelWrapper):
     def __init__(self, feature_dim: int = 2):
         super().__init__()
         self._feature_dim = feature_dim
-        self.conv = Conv2d(in_channels=3, out_channels=feature_dim, kernel_size=2)
+        self.conv = Conv2d(
+            in_channels=3, out_channels=feature_dim, kernel_size=2, stride=16
+        )
         self.global_pool = AdaptiveAvgPool2d(output_size=(1, 1))
 
     def feature_dim(self) -> int:
