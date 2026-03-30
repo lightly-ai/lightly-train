@@ -320,7 +320,7 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
         ),
         (
             "distillationv3",
-            lambda: DummyCustomModel(),
+            lambda: DummyCustomModel(stride=16),
         ),
     ],
 )
