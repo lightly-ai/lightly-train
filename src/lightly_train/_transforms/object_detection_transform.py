@@ -277,9 +277,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
         # step-based augmentation with scale jitter
         self._scale_jitter_step_stop: int | None = None
         if transform_args.scale_jitter is not None:
-            self._scale_jitter_step_stop = getattr(
-                transform_args.scale_jitter, "step_stop", None
-            )
+            self._scale_jitter_step_stop = transform_args.scale_jitter.step_stop
             self.scale_jitter = BatchReplayCompose(
                 transforms=[
                     ScaleJitter(

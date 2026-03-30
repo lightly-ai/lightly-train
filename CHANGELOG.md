@@ -12,8 +12,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 
 - Make `ScaleJitter` in LTDETR step-aware. Now you can stop the augmentation by adding a
-  `stop_step` args like the following
-  `transform_args={"scale_jitter": {"stop_step": 10000}}`
+  `step_stop` args like the following
+  `transform_args={"scale_jitter": {"step_stop": 10000}}`
 
 ### Deprecated
 

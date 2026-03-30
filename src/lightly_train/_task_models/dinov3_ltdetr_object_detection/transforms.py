@@ -69,8 +69,6 @@ class DINOv3LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
 
 
 class DINOv3LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
-    # None means scale jitter is always on.
-    step_stop: int | None = None
     sizes: Sequence[tuple[int, int]] | None = [
         (480, 480),
         (512, 512),

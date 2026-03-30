@@ -68,8 +68,6 @@ class DINOv2LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
 
 
 class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
-    # None means scale jitter is always on.
-    step_stop: int | None = None
     # Sizes must be multiples of patch size * 2
     sizes: Sequence[tuple[int, int]] | None = [
         (476, 476),

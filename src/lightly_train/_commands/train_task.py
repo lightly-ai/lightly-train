@@ -1487,11 +1487,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         # Add license info after loading as it might be missing from the checkpoint.
         state["license_info"] = LICENSE_INFO
 
-        # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
-        # reloading dataloader after every epoch? Is this preferred over persistent workers?
         # DataLoader erases the concrete TaskCollateFunction type of collate_fn.
         train_collate_fn: TaskCollateFunction = train_dataloader.collate_fn  # type: ignore
 
+        # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
+        # reloading dataloader after every epoch? Is this preferred over persistent workers?
         infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
 
         cuda_utilization = CUDAUtilization(device=fabric.device)
