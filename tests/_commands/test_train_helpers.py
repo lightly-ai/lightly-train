@@ -285,7 +285,7 @@ def test_get_optimizer_type(
 
 
 @pytest.mark.parametrize(
-    "optim_type, optim_args, expected",
+    "optim_type, optim_args, wrapped_model, expected",
     [
         (OptimizerType.ADAMW, None, DummyCustomModel(), AdamWArgs()),
         (OptimizerType.ADAMW, {}, DummyCustomModel(), AdamWArgs()),
