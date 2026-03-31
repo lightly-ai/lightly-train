@@ -1354,6 +1354,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             train_model_cls=train_model_cls,
             metric_args=config.metric_args,
             data_args=config.data,
+            train_transform_args=train_transform_args,
         )
         config.torch_compile_args = helpers.get_torch_compile_args(
             train_model_cls=train_model_cls,
@@ -1544,12 +1545,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             train_transform.set_step(step)
             train_collate_fn.set_step(step)
 
+            # We need to reinitiate the dataloader every time a step-aware transform changes its active status
             needs_reinit = (
                 train_transform.requires_dataloader_reinitialization()
                 or train_collate_fn.requires_dataloader_reinitialization()
             )
             if config.num_workers > 0 and needs_reinit:
                 infinite_train_dataloader.reset()
+                train_transform.update_transform_active_status()
+                train_collate_fn.update_transform_active_status()
 
             # Training data loading, forward passes, and gradient accumulation.
             for acc_step in range(config.gradient_accumulation_steps):

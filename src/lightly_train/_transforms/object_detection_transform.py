@@ -28,6 +28,7 @@ from typing_extensions import NotRequired
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.batch_transform import BatchReplayCompose, BatchTransform
 from lightly_train._transforms.channel_drop import ChannelDrop
+from lightly_train._transforms.mixup import MixUp
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.random_iou_crop import RandomIoUCrop
 from lightly_train._transforms.random_photometric_distort import (
@@ -44,6 +45,7 @@ from lightly_train._transforms.task_transform import (
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
+    MixUpArgs,
     NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
@@ -88,6 +90,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     random_rotate: RandomRotationArgs | None
     image_size: ImageSizeTuple | Literal["auto"]
     stop_policy: StopPolicyArgs | None
+    mixup: MixUpArgs | None = None
     scale_jitter: ScaleJitterArgs | None
     resize: ResizeArgs | None
     bbox_params: BboxParams | None
@@ -273,32 +276,35 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
     ):
         super().__init__(split, transform_args)
         self.scale_jitter: BatchReplayCompose | None = None
+        self.mixup: MixUp | None = None
+        self._scale_jitter_args = transform_args.scale_jitter
+        self._mixup_args = transform_args.mixup
 
-        # step-based augmentation with scale jitter
-        self._scale_jitter_step_stop: int | None = None
-        if transform_args.scale_jitter is not None:
-            self._scale_jitter_step_stop = transform_args.scale_jitter.step_stop
+        if self._mixup_args is not None:
+            self.mixup = MixUp(prob=self._mixup_args.prob)
+
+        if self._scale_jitter_args is not None:
             self.scale_jitter = BatchReplayCompose(
                 transforms=[
                     ScaleJitter(
-                        sizes=transform_args.scale_jitter.sizes,
+                        sizes=self._scale_jitter_args.sizes,
                         target_size=(
                             no_auto(transform_args.image_size)
-                            if transform_args.scale_jitter.sizes is None
+                            if self._scale_jitter_args.sizes is None
                             else None
                         ),
-                        scale_range=transform_args.scale_jitter.scale_range,
-                        num_scales=transform_args.scale_jitter.num_scales,
-                        divisible_by=transform_args.scale_jitter.divisible_by,
-                        p=transform_args.scale_jitter.prob,
+                        scale_range=self._scale_jitter_args.scale_range,
+                        num_scales=self._scale_jitter_args.num_scales,
+                        divisible_by=self._scale_jitter_args.divisible_by,
+                        p=self._scale_jitter_args.prob,
                     )
                 ],
                 bbox_params=transform_args.bbox_params,
             )
 
         self._step = 0
-        self._is_scale_jitter_applied_in_workers = (
-            self._is_scale_jitter_applied_at_step(self._step)
+        self._current_transform_active_status = (
+            self._get_transform_active_status_at_step(self._step)
         )
 
         self.to_tensor = BatchTransform(
@@ -308,27 +314,59 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             )
         )
 
+    def _is_mixup_active_at_step(self, step: int) -> bool:
+        if (
+            self.mixup is None
+            or self._mixup_args is None
+            or self._mixup_args.prob <= 0.0
+        ):
+            return False
+        return self._mixup_args.step_start <= step < self._mixup_args.step_stop
+
+    def _is_scale_jitter_active_at_step(self, step: int) -> bool:
+        if (
+            self.scale_jitter is None
+            or self._scale_jitter_args is None
+            or self._scale_jitter_args.prob <= 0.0
+        ):
+            return False
+
+        scale_jitter_step_stop = self._scale_jitter_args.step_stop
+        if scale_jitter_step_stop is None:
+            return True
+        return step < scale_jitter_step_stop
+
+    def _get_transform_active_status_at_step(self, step: int) -> tuple[bool, bool]:
+        return (
+            self._is_scale_jitter_active_at_step(step),
+            self._is_mixup_active_at_step(step),
+        )
+
     def set_step(self, step: int) -> None:
         self._step = step
 
-    def _is_scale_jitter_applied_at_step(self, step: int) -> bool:
-        if self.scale_jitter is None:
-            return False
-        if self._scale_jitter_step_stop is None:
-            return True
-        return step < self._scale_jitter_step_stop
-
     def uses_step_dependent_worker_state(self) -> bool:
-        return self._scale_jitter_step_stop is not None
+        return (
+            self.scale_jitter is not None
+            and self._scale_jitter_args is not None
+            and self._scale_jitter_args.prob > 0.0
+            and self._scale_jitter_args.step_stop is not None
+        ) or (
+            self.mixup is not None
+            and self._mixup_args is not None
+            and self._mixup_args.prob > 0.0
+        )
 
     def requires_dataloader_reinitialization(self) -> bool:
-        is_scale_jitter_applied_at_step = self._is_scale_jitter_applied_at_step(
-            self._step
+        return (
+            self._get_transform_active_status_at_step(self._step)
+            != self._current_transform_active_status
         )
-        if is_scale_jitter_applied_at_step == self._is_scale_jitter_applied_in_workers:
-            return False
-        self._is_scale_jitter_applied_in_workers = is_scale_jitter_applied_at_step
-        return True
+
+    def update_transform_active_status(self) -> None:
+        self._current_transform_active_status = (
+            self._get_transform_active_status_at_step(self._step)
+        )
 
     def __call__(self, batch: list[ObjectDetectionDatasetItem]) -> ObjectDetectionBatch:
         augment_batch = [
@@ -340,7 +378,10 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             for item in batch
         ]
 
-        if self.scale_jitter is not None and self._is_scale_jitter_applied_at_step(
+        if self.mixup is not None and self._is_mixup_active_at_step(self._step):
+            augment_batch = self.mixup(batch=augment_batch)
+
+        if self.scale_jitter is not None and self._is_scale_jitter_active_at_step(
             self._step
         ):
             augment_batch = self.scale_jitter(batch=augment_batch)

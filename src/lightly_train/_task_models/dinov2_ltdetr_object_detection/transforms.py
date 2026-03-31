@@ -18,6 +18,7 @@ from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.transform import (
+    MixUpArgs,
     NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
@@ -110,6 +111,12 @@ class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     divisible_by: int | None = None
 
 
+class DINOv2LTDETRObjectDetectionMixUpArgs(MixUpArgs):
+    prob: float = 0.5
+    step_start: int = 15000
+    step_stop: int = 30000
+
+
 class DINOv2LTDETRObjectDetectionResizeArgs(ResizeArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
@@ -140,6 +147,9 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     )
     scale_jitter: DINOv2LTDETRObjectDetectionScaleJitterArgs | None = Field(
         default_factory=DINOv2LTDETRObjectDetectionScaleJitterArgs
+    )
+    mixup: DINOv2LTDETRObjectDetectionMixUpArgs | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionMixUpArgs
     )
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
