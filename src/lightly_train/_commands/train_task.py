@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Annotated, Any, Literal, Union
+from typing import Any, Literal, Union
 
 import fsspec
 import torch
@@ -19,6 +19,7 @@ from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict, Field, field_validator
+from typing_extensions import Annotated
 from torch.optim import Optimizer  # type: ignore[attr-defined]
 
 from lightly_train import (
