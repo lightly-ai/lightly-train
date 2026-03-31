@@ -287,23 +287,30 @@ def test_get_optimizer_type(
 @pytest.mark.parametrize(
     "optim_type, optim_args, expected",
     [
-        (OptimizerType.ADAMW, None, AdamWArgs()),
-        (OptimizerType.ADAMW, {}, AdamWArgs()),
+        (OptimizerType.ADAMW, None, DummyCustomModel(), AdamWArgs()),
+        (OptimizerType.ADAMW, {}, DummyCustomModel(), AdamWArgs()),
         (
             OptimizerType.ADAMW,
             {"lr": 0.1, "betas": [0.2, 0.3]},
+            DummyCustomModel(),
             AdamWArgs(lr=0.1, betas=(0.2, 0.3)),
         ),
-        (OptimizerType.ADAMW, AdamWArgs(), AdamWArgs()),
-        (OptimizerType.SGD, None, SimCLRSGDArgs()),
+        (OptimizerType.ADAMW, AdamWArgs(), DummyCustomModel(), AdamWArgs()),
+        (OptimizerType.SGD, None, DummyCustomModel(), SimCLRSGDArgs()),
     ],
 )
 def test_get_optimizer_args(
-    optim_type: OptimizerType, optim_args: dict[str, Any] | None, expected: AdamWArgs
+    optim_type: OptimizerType,
+    optim_args: dict[str, Any] | None,
+    wrapped_model: ModelWrapper,
+    expected: AdamWArgs,
 ) -> None:
     assert (
         train_helpers.get_optimizer_args(
-            optim_type=optim_type, optim_args=optim_args, method_cls=SimCLR
+            optim_type=optim_type,
+            optim_args=optim_args,
+            method_cls=SimCLR,
+            wrapped_model=wrapped_model,
         )
         == expected
     )

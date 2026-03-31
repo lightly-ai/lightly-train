@@ -110,6 +110,8 @@ class NNModule(Protocol):
 
     def eval(self) -> Self: ...
 
+    def modules(self) -> Iterator[Module]: ...
+
 
 @runtime_checkable
 class ModelWrapper(

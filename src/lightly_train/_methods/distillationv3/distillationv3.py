@@ -107,6 +107,9 @@ class DistillationV3Args(MethodArgs):
     # Loss weighting.
     loss_local_weight: float = 1.0
 
+    # Whether student is convolutional or Transformer-based. Used for weight decay.
+    student_is_conv: bool | Literal["auto"] = "auto"
+
     model_config: ClassVar[ConfigDict] = ConfigDict(
         arbitrary_types_allowed=True,
     )
@@ -143,6 +146,58 @@ class DistillationV3Args(MethodArgs):
                 f"The specified queue size ({self.queue_size}) cannot be larger than the dataset size ({scaling_info.dataset_size})."
             )
 
+        if self.student_is_conv == "auto":
+            self.student_is_conv = _is_probably_conv(wrapped_model=wrapped_model)
+
+
+def _is_probably_conv(wrapped_model: ModelWrapper) -> bool:
+    """Heuristic to determine whether the student model is convolutional or
+    transformer-based. This is used to determine the default weight decay.
+
+    Returns True for traditional CNNs (ResNet, ShuffleNet, YOLO, …) and False
+    for Transformer-based models (ViT, Swin, …) and ConvNeXt-style models that
+    use LayerNorm and therefore benefit from a transformer training recipe.
+
+    Decision logic (in order of priority):
+    1. Any ``attention`` module → Transformer → False
+    2. Any ``layernorm`` module → ConvNeXt-style → False
+    3. Any ``conv`` module → traditional CNN → True
+    4. Otherwise → fall back to False and emit a warning
+    """
+    # TODO (Lionel, 03/26): I think this should be implemented by each individual
+    # model package (or the ModelWrapper) instead of this global heuristic.
+    # Only for custom models the heuristic should be used.
+    has_attention = False
+    has_layernorm = False
+    has_convolution = False
+
+    for module in wrapped_model.modules():
+        module_name = module.__class__.__name__.lower()
+        if "attention" in module_name:
+            has_attention = True
+        if "layernorm" in module_name:
+            has_layernorm = True
+        if "conv" in module_name:
+            has_convolution = True
+
+    # Transformers have explicit attention modules.
+    if has_attention:
+        return False
+    # ConvNeXt-style models use LayerNorm instead of BatchNorm. They have no
+    # attention but follow a transformer-style training recipe (larger weight decay).
+    if has_layernorm:
+        return False
+    # Traditional CNNs (ResNet, ShuffleNet, YOLO, …) use convolutions and BatchNorm.
+    if has_convolution:
+        return True
+    # Nothing detected – log a warning and default to non-convolutional.
+    logger.warning(
+        "Could not determine whether the student model is convolutional or "
+        "transformer-based. Defaulting to non-convolutional (transformer-style "
+        "training recipe). Set `student_is_conv` explicitly to suppress this warning."
+    )
+    return False
+
 
 class DistillationV3LARSArgs(LARSArgs):
     lr: float = 1.8  # 1.8 = 0.3 * 1536 / 256
@@ -153,10 +208,19 @@ class DistillationV3LARSArgs(LARSArgs):
     trust_coefficient: float = 0.001
     eps: float = 1e-8
 
+    def resolve_auto(self, wrapped_model: ModelWrapper) -> None:
+        pass
+
 
 class DistillationV3AdamWArgs(AdamWArgs):
     lr: float = 0.0005
     weight_decay: float = 0.04
+
+    def resolve_auto(self, wrapped_model: ModelWrapper) -> None:
+        if _is_probably_conv(wrapped_model=wrapped_model):
+            # Use a smaller weight decay for convolutional models, which typically
+            # benefit from a more regularized training recipe.
+            self.weight_decay = 1e-6
 
 
 class DistillationV3(Method):

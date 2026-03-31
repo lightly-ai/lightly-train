@@ -289,13 +289,16 @@ def get_optimizer_args(
     optim_type: OptimizerType | Literal["auto"],
     optim_args: dict[str, Any] | OptimizerArgs | None,
     method_cls: type[Method],
+    wrapped_model: ModelWrapper,
 ) -> OptimizerArgs:
     if isinstance(optim_args, OptimizerArgs):
         return optim_args
     optim_args = {} if optim_args is None else optim_args
     optim_args_cls = method_cls.optimizer_args_cls(optim_type=optim_type)
     logger.debug(f"Using optimizer '{optim_args_cls.type()}'.")
-    return validate.pydantic_model_validate(optim_args_cls, optim_args)
+    args = validate.pydantic_model_validate(optim_args_cls, optim_args)
+    args.resolve_auto(wrapped_model=wrapped_model)
+    return args
 
 
 def get_dataset_size(

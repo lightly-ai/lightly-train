@@ -1,0 +1,52 @@
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
+from __future__ import annotations
+
+import pytest
+
+from lightly_train._methods.distillationv3.distillationv3 import _is_probably_conv
+from lightly_train._models import package_helpers
+from lightly_train._models.model_wrapper import ModelWrapper
+
+from ...helpers import (
+    DummyCustomModel,
+    dummy_dinov2_vit_model,
+    dummy_dinov3_convnext_model,
+    dummy_dinov3_vit_model,
+)
+
+
+@pytest.mark.parametrize(
+    "model, expected",
+    [
+        # Traditional CNNs: True
+        (lambda: DummyCustomModel(), True),
+        ("torchvision/resnet18", True),
+        ("torchvision/resnet50", True),
+        ("torchvision/shufflenet_v2_x0_5", True),
+        ("torchvision/shufflenet_v2_x1_0", True),
+        ("ultralytics/yolov8n.pt", True),
+        ("timm/resnet18", True),
+        ("timm/resnet50", True),
+        # Transformers: False
+        (dummy_dinov2_vit_model, False),
+        (dummy_dinov3_vit_model, False),
+        ("timm/vit_tiny_patch16_224", False),
+        # ConvNeXt-style (LayerNorm, transformer training recipe): False
+        (dummy_dinov3_convnext_model, False),
+        ("torchvision/convnext_tiny", False),
+        ("torchvision/convnext_small", False),
+        ("timm/convnext_tiny", False),
+    ],
+)
+def test_is_probably_conv(model: str | ModelWrapper, expected: bool) -> None:
+    if callable(model):
+        model = model()
+    elif isinstance(model, str):
+        model = package_helpers.get_wrapped_model(model=model, num_input_channels=3)
+    assert _is_probably_conv(wrapped_model=model) is expected
