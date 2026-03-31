@@ -51,12 +51,12 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
             return {c["id"]: c["name"] for c in json.load(f).get("categories", [])}
 
     def train_imgs_path(self) -> Path:
-        # TODO (simon 03/26): We currently only need this to calculate a hash for the mmmap file for the dataset.
+        # TODO (simon 03/26): We currently only need this to calculate a hash for the mmap file for the dataset.
         #  This might not be the best idea as the contents of the file might change.
         return self.train_labels.resolve()
 
     def val_imgs_path(self) -> Path:
-        # TODO (simon 03/26): We currently only need this to calculate a hash for the mmmap file for the dataset.
+        # TODO (simon 03/26): We currently only need this to calculate a hash for the mmap file for the dataset.
         #  This might not be the best idea as the contents of the file might change.
         return self.val_labels.resolve()
 

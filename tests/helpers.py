@@ -472,7 +472,7 @@ def create_normalized_yolo_object_detection_labels(
     missing_label_indices: list[int] | None = None,
     empty_label_indices: list[int] | None = None,
 ) -> None:
-    # TODO (Simon, 03/26): Ideally we would also create test instances with less more more than one bounding box.
+    # TODO (Simon, 03/26): Ideally we would also create test instances with less or more more than one bounding box.
 
     if missing_label_indices is None:
         missing_label_indices = []
