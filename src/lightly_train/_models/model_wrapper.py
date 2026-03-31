@@ -11,6 +11,7 @@ from typing import (
     Any,
     Dict,
     Iterator,
+    Literal,
     Mapping,
     Protocol,
     overload,
@@ -36,6 +37,13 @@ class ForwardPoolOutput(TypedDict, total=False):
     """Output of the forward_pool method."""
 
     pooled_features: Required[Tensor]
+
+
+class ArchitectureInfo(TypedDict):
+    """Architecture information for the model wrapper."""
+
+    model_type: Literal["convolutional", "transformer", "hybrid"]
+    norm_type: Literal["batchnorm", "layernorm"]
 
 
 @runtime_checkable
@@ -87,6 +95,13 @@ class ModelGetter(Protocol):
 
 
 @runtime_checkable
+class ArchitectureInfoGettable(Protocol):
+    def architecture_info(self) -> ArchitectureInfo:
+        """Returns architecture information for the model wrapper."""
+        ...
+
+
+@runtime_checkable
 class NNModule(Protocol):
     """Method definitions for nn.Module, directly copied from torch.nn.Module."""
 
@@ -115,7 +130,12 @@ class NNModule(Protocol):
 
 @runtime_checkable
 class ModelWrapper(
-    ForwardFeatures, ForwardPool, FeatureDim, ModelGetter, NNModule, Protocol
+    ForwardFeatures,
+    ForwardPool,
+    FeatureDim,
+    ModelGetter,
+    NNModule,
+    Protocol,
 ): ...
 
 

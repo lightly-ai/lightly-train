@@ -12,6 +12,8 @@ from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
 
 from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
+    ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
@@ -20,7 +22,7 @@ from lightly_train._models.model_wrapper import (
 logger = logging.getLogger(__name__)
 
 
-class TIMMModelWrapper(Module, ModelWrapper):
+class TIMMModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
     def __init__(self, model: Module) -> None:
         if not hasattr(model, "forward_features"):
             raise ValueError("Model must have a 'forward_features' method")
@@ -52,6 +54,9 @@ class TIMMModelWrapper(Module, ModelWrapper):
 
     def get_model(self) -> Module:
         return self._model
+
+    def architecture_info(self) -> ArchitectureInfo:
+        raise NotImplementedError()
 
 
 def _get_forward_features_fn(model: Module) -> Callable[[Module, Tensor], Tensor]:

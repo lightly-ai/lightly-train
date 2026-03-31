@@ -11,6 +11,7 @@ from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
 
 from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
 )
@@ -65,3 +66,6 @@ class SegmentationModuleModelWrapper(Module, SuperGradientsModelWrapper):
 
     def get_model(self) -> Module:
         return self._model[0]
+
+    def architecture_info(self) -> ArchitectureInfo:
+        raise NotImplementedError()

@@ -11,13 +11,15 @@ from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
 
 from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
+    ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
 )
 
 
-class RTDETRModelWrapper(Module, ModelWrapper):
+class RTDETRModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
     def __init__(self, model: Module):
         super().__init__()
         self._model = [model]
@@ -38,3 +40,6 @@ class RTDETRModelWrapper(Module, ModelWrapper):
         feat_dim = self._backbone.out_channels[-1]  # type: ignore
         assert isinstance(feat_dim, int)
         return feat_dim
+
+    def architecture_info(self) -> ArchitectureInfo:
+        return {"model_type": "convolutional", "norm_type": "batchnorm"}

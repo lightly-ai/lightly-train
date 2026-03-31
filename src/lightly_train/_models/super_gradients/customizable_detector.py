@@ -11,6 +11,8 @@ from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
 
 from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
+    ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
 )
@@ -26,7 +28,9 @@ except ImportError:
     CustomizableDetector = None
 
 
-class CustomizableDetectorModelWrapper(Module, SuperGradientsModelWrapper):
+class CustomizableDetectorModelWrapper(
+    Module, SuperGradientsModelWrapper, ArchitectureInfoGettable
+):
     _SUPPORTED_MODEL_CLASSES = (
         (CustomizableDetector,) if CustomizableDetector is not None else tuple()
     )
@@ -63,3 +67,6 @@ class CustomizableDetectorModelWrapper(Module, SuperGradientsModelWrapper):
 
     def get_model(self) -> Module:
         return self._model[0]
+
+    def architecture_info(self) -> ArchitectureInfo:
+        raise NotImplementedError()
