@@ -107,9 +107,6 @@ class DistillationV3Args(MethodArgs):
     # Loss weighting.
     loss_local_weight: float = 1.0
 
-    # Whether student is convolutional or Transformer-based. Used for weight decay.
-    student_is_conv: bool | Literal["auto"] = "auto"
-
     model_config: ClassVar[ConfigDict] = ConfigDict(
         arbitrary_types_allowed=True,
     )
@@ -145,9 +142,6 @@ class DistillationV3Args(MethodArgs):
             raise ValueError(
                 f"The specified queue size ({self.queue_size}) cannot be larger than the dataset size ({scaling_info.dataset_size})."
             )
-
-        if self.student_is_conv == "auto":
-            self.student_is_conv = _is_probably_conv(wrapped_model=wrapped_model)
 
 
 def _is_probably_conv(wrapped_model: ModelWrapper) -> bool:
@@ -187,6 +181,29 @@ def _is_probably_conv(wrapped_model: ModelWrapper) -> bool:
     return False
 
 
+def _get_student_is_conv(wrapped_model: ModelWrapper) -> bool:
+    """Determine whether the student model uses a convolutional (batchnorm-based) training
+    recipe. Uses ArchitectureInfoGettable when available for accurate detection, otherwise
+    falls back to the module-inspection heuristic.
+    """
+    if isinstance(wrapped_model, ArchitectureInfoGettable):
+        arch_info = wrapped_model.architecture_info()
+        model_type = arch_info["model_type"]
+        norm_type = arch_info["norm_type"]
+        if model_type in ("transformer", "hybrid"):
+            return False
+        if model_type == "convolutional" and norm_type == "layernorm":
+            # ConvNeXt-style: convolutional ops but transformer training recipe.
+            return False
+        if model_type == "convolutional" and norm_type == "batchnorm":
+            return True
+        raise ValueError(
+            f"Unrecognized architecture info: model_type={model_type!r}, "
+            f"norm_type={norm_type!r}. Set `student_is_conv` explicitly."
+        )
+    return _is_probably_conv(wrapped_model=wrapped_model)
+
+
 class DistillationV3LARSArgs(LARSArgs):
     lr: float = 1.8  # 1.8 = 0.3 * 1536 / 256
     momentum: float = 0.9
@@ -203,34 +220,12 @@ class DistillationV3LARSArgs(LARSArgs):
 class DistillationV3AdamWArgs(AdamWArgs):
     lr: float = 0.0005
     weight_decay: float = 0.04
+    _student_is_conv: bool | Literal["auto"] = "auto"
 
     def resolve_auto(self, wrapped_model: ModelWrapper) -> None:
-        if isinstance(wrapped_model, ArchitectureInfoGettable):
-            arch_info = wrapped_model.architecture_info()
-            model_type = arch_info["model_type"]
-            norm_type = arch_info["norm_type"]
-            if model_type in ("transformer", "hybrid"):
-                self.weight_decay = 0.04
-            elif model_type == "convolutional" and norm_type == "batchnorm":
-                # Traditional CNNs benefit from stronger regularization.
-                self.weight_decay = 1e-6
-            elif model_type == "convolutional" and norm_type == "layernorm":
-                # ConvNeXt-style: convolutional ops but transformer training recipe.
-                self.weight_decay = 0.04
-            else:
-                raise ValueError(
-                    f"Unrecognized architecture info: model_type={model_type!r}, "
-                    f"norm_type={norm_type!r}. Set `weight_decay` explicitly."
-                )
-        else:
-            # Fallback: custom models that don't implement ArchitectureInfoGettable.
-            is_conv = _is_probably_conv(wrapped_model=wrapped_model)
-            logger.debug(
-                "Could not get architecture info for the student model. Using module "
-                "inspection heuristic to determine weight_decay. Set `weight_decay` "
-                "explicitly to suppress this message."
-            )
-            self.weight_decay = 1e-6 if is_conv else 0.04
+        if self._student_is_conv == "auto":
+            self._student_is_conv = _get_student_is_conv(wrapped_model=wrapped_model)
+        self.weight_decay = 1e-6 if self._student_is_conv else 0.04
 
 
 class DistillationV3(Method):
