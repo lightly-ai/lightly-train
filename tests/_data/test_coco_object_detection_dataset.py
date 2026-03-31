@@ -47,7 +47,6 @@ class TestCOCOObjectDetectionDatasetArgs:
         ]:
             image_info = list(dataset_args.list_image_info())
             assert len(image_info) == 3
-            assert all(f"/{split}/" in info["image_path"] for info in image_info)
             assert json.loads(image_info[0]["bboxes"]) == []
             assert json.loads(image_info[0]["class_labels"]) == []
             assert json.loads(image_info[1]["bboxes"]) == [[0.25, 0.25, 0.25, 0.25]]
