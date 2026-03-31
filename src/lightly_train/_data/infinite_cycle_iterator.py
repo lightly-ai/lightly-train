@@ -21,6 +21,9 @@ class InfiniteCycleIterator(Generic[_T]):
         self.cycles = 0
         self._iter: Iterator[_T] | None = None
 
+    def reset(self) -> None:
+        self._iter = None
+
     def __iter__(self) -> Self:
         return self
 

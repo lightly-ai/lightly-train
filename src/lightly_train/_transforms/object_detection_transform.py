@@ -274,7 +274,10 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
         super().__init__(split, transform_args)
         self.scale_jitter: BatchReplayCompose | None = None
 
+        # step-based augmentation with scale jitter
+        self._scale_jitter_step_stop: int | None = None
         if transform_args.scale_jitter is not None:
+            self._scale_jitter_step_stop = transform_args.scale_jitter.step_stop
             self.scale_jitter = BatchReplayCompose(
                 transforms=[
                     ScaleJitter(
@@ -293,12 +296,39 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
                 bbox_params=transform_args.bbox_params,
             )
 
+        self._step = 0
+        self._is_scale_jitter_applied_in_workers = (
+            self._is_scale_jitter_applied_at_step(self._step)
+        )
+
         self.to_tensor = BatchTransform(
             Compose(
                 transforms=[ToTensorV2()],
                 bbox_params=transform_args.bbox_params,
             )
         )
+
+    def set_step(self, step: int) -> None:
+        self._step = step
+
+    def _is_scale_jitter_applied_at_step(self, step: int) -> bool:
+        if self.scale_jitter is None:
+            return False
+        if self._scale_jitter_step_stop is None:
+            return True
+        return step < self._scale_jitter_step_stop
+
+    def uses_step_dependent_worker_state(self) -> bool:
+        return self._scale_jitter_step_stop is not None
+
+    def requires_dataloader_reinitialization(self) -> bool:
+        is_scale_jitter_applied_at_step = self._is_scale_jitter_applied_at_step(
+            self._step
+        )
+        if is_scale_jitter_applied_at_step == self._is_scale_jitter_applied_in_workers:
+            return False
+        self._is_scale_jitter_applied_in_workers = is_scale_jitter_applied_at_step
+        return True
 
     def __call__(self, batch: list[ObjectDetectionDatasetItem]) -> ObjectDetectionBatch:
         augment_batch = [
@@ -310,7 +340,9 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             for item in batch
         ]
 
-        if self.scale_jitter is not None:
+        if self.scale_jitter is not None and self._is_scale_jitter_applied_at_step(
+            self._step
+        ):
             augment_batch = self.scale_jitter(batch=augment_batch)
 
         augment_batch = self.to_tensor(augment_batch)

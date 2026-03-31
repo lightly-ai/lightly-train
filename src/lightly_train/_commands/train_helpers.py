@@ -130,9 +130,10 @@ def get_dataloader(
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
-        # Ignore batch_size from loader_args. It is already handled in
-        # get_global_batch_size.
+        # Ignore batch_size and num_workers from loader_args. They are already
+        # handled through dedicated function arguments.
         loader_args.pop("batch_size", None)
+        loader_args.pop("num_workers", None)
         dataloader_kwargs.update(**loader_args)
     return DataLoader(**dataloader_kwargs)
 
