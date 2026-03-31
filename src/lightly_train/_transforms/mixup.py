@@ -27,9 +27,10 @@ class MixUp:
             return batch
 
         images = np.stack([item["image"] for item in batch], axis=0)
-        beta = round(np.random.uniform(*self.beta_range), 6)
+        beta = np.float32(np.random.uniform(*self.beta_range))
+        one_minus_beta = np.float32(1.0) - beta
 
-        mixed_images = beta * images + (1.0 - beta) * np.roll(images, shift=1, axis=0)
+        mixed_images = beta * images + one_minus_beta * np.roll(images, shift=1, axis=0)
 
         shifted_batch = list(batch[-1:]) + list(batch[:-1])
         mixed_batch: list[dict[str, Any]] = []

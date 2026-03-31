@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import contextlib
-import copy
 import hashlib
 import json
 import logging
@@ -42,7 +41,6 @@ from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._loggers.wandb import WandbLogger
-from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
 from lightly_train._metrics.task_metric import (
     AggregatedMetricValues,
     TaskMetricArgs,
@@ -431,49 +429,23 @@ def get_metric_args(
     train_model_cls: type[TrainModel],
     metric_args: dict[str, Any] | TaskMetricArgs | None,
     data_args: TaskDataArgs,
-    train_transform_args: TaskTransformArgs,
 ) -> TaskMetricArgs:
     if isinstance(metric_args, TaskMetricArgs):
-        effective_metric_args = metric_args
-    else:
-        metric_args_dict: dict[str, Any] = (
-            {} if metric_args is None else dict(metric_args)
-        )
+        return metric_args
+    metric_args_dict: dict[str, Any] = {} if metric_args is None else dict(metric_args)
 
-        # TODO(Guarin, 02/26): This is a bit hacky, we should find a better way. We have to
-        # inject the classification_task here for Pydantic to be able to select the correct
-        # metrics class depending on the classification task (e.g. multiclass vs multilabel).
-        classification_task = getattr(data_args, "classification_task", None)
-        if classification_task is not None:
-            metric_args_dict.setdefault("classification_task", classification_task)
-        # Needs type adapter because TaskMetricArgs can be a union type. For example:
-        # task_metric_args_cls = Union[ClassificationTaskMetricArgs, ClassificationMultiheadTaskMetricArgs]
-        adapter: TypeAdapter[TaskMetricArgs] = TypeAdapter(
-            train_model_cls.task_metric_args_cls  # type: ignore[type-abstract]
-        )
-        effective_metric_args = validate.pydantic_model_validate(
-            adapter, metric_args_dict
-        )
-
-    if train_model_cls not in (
-        DINOv2LTDETRObjectDetectionTrain,
-        DINOv3LTDETRObjectDetectionTrain,
-    ):
-        return effective_metric_args
-
-    if not isinstance(effective_metric_args, ObjectDetectionTaskMetricArgs):
-        return effective_metric_args
-
-    mixup_args = getattr(train_transform_args, "mixup", None)
-    if not effective_metric_args.train or mixup_args is None or mixup_args.prob <= 0.0:
-        return effective_metric_args
-
-    logger.warning(
-        "Disabling LT-DETR train prediction metrics because mixup is enabled."
+    # TODO(Guarin, 02/26): This is a bit hacky, we should find a better way. We have to
+    # inject the classification_task here for Pydantic to be able to select the correct
+    # metrics class depending on the classification task (e.g. multiclass vs multilabel).
+    classification_task = getattr(data_args, "classification_task", None)
+    if classification_task is not None:
+        metric_args_dict.setdefault("classification_task", classification_task)
+    # Needs type adapter because TaskMetricArgs can be a union type. For example:
+    # task_metric_args_cls = Union[ClassificationTaskMetricArgs, ClassificationMultiheadTaskMetricArgs]
+    adapter: TypeAdapter[TaskMetricArgs] = TypeAdapter(
+        train_model_cls.task_metric_args_cls  # type: ignore[type-abstract]
     )
-    sanitized_metric_args = copy.deepcopy(effective_metric_args)
-    sanitized_metric_args.train = False
-    return sanitized_metric_args
+    return validate.pydantic_model_validate(adapter, metric_args_dict)
 
 
 def get_val_transform(

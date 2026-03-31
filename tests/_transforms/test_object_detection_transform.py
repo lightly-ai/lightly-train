@@ -296,15 +296,15 @@ class TestObjectDetectionCollateFunction:
         collate_fn.set_step(1)
         assert collate_fn.requires_dataloader_reinitialization() is True
         assert collate_fn.requires_dataloader_reinitialization() is True
-        collate_fn.update_transform_active_status()
+        collate_fn.sync_after_dataloader_reinitialization()
         assert collate_fn.requires_dataloader_reinitialization() is False
 
         collate_fn.set_step(2)
         assert collate_fn.requires_dataloader_reinitialization() is True
-        collate_fn.update_transform_active_status()
+        collate_fn.sync_after_dataloader_reinitialization()
         assert collate_fn.requires_dataloader_reinitialization() is False
 
         collate_fn.set_step(3)
         assert collate_fn.requires_dataloader_reinitialization() is True
-        collate_fn.update_transform_active_status()
+        collate_fn.sync_after_dataloader_reinitialization()
         assert collate_fn.requires_dataloader_reinitialization() is False
