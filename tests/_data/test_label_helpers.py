@@ -7,8 +7,6 @@
 #
 from __future__ import annotations
 
-import pytest
-
 from lightly_train._data.label_helpers import get_class_id_to_internal_class_id_mapping
 
 
@@ -39,11 +37,15 @@ class TestGetClassIdToInternalClassIdMapping:
         ) == {0: 0, 1: 1}
 
     def test__all_ignored(self) -> None:
-        assert get_class_id_to_internal_class_id_mapping(
-            class_ids=[0, 1], ignore_classes={0, 1}
-        ) == {}
+        assert (
+            get_class_id_to_internal_class_id_mapping(
+                class_ids=[0, 1], ignore_classes={0, 1}
+            )
+            == {}
+        )
 
     def test__empty_class_ids(self) -> None:
-        assert get_class_id_to_internal_class_id_mapping(
-            class_ids=[], ignore_classes=None
-        ) == {}
+        assert (
+            get_class_id_to_internal_class_id_mapping(class_ids=[], ignore_classes=None)
+            == {}
+        )
