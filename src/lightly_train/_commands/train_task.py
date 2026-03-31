@@ -1818,14 +1818,9 @@ class TrainTaskConfig(PydanticConfig):
         if isinstance(v, (str, Path)):
             with fsspec.open(v, "r") as file:
                 v = yaml.safe_load(file)
-            try:
-                # Ignore all fields in YAML file that are not part of the Pydantic model.
-                data_attributes = cls.model_fields["data"].annotation.model_fields  # type: ignore
-                v = {
-                    name: value for name, value in v.items() if name in data_attributes
-                }
-            except AttributeError:
-                pass  # Union/Annotated types don't have model_fields; Pydantic validates instead.
+            # Ignore all fields in YAML file that are not part of the Pydantic model.
+            data_attributes = cls.model_fields["data"].annotation.model_fields  # type: ignore
+            v = {name: value for name, value in v.items() if name in data_attributes}
         return v
 
 
