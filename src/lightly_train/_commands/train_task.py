@@ -20,7 +20,7 @@ from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-def
 from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict, Field, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
-from typing_extensions import Annotated
+from typing_extensions import Annotated, get_args, get_origin
 
 from lightly_train import (
     _float32_matmul_precision,
@@ -1814,9 +1814,20 @@ class TrainTaskConfig(PydanticConfig):
         if isinstance(v, (str, Path)):
             with fsspec.open(v, "r") as file:
                 v = yaml.safe_load(file)
-            # Ignore all fields in YAML file that are not part of the Pydantic model.
-            data_attributes = cls.model_fields["data"].annotation.model_fields  # type: ignore
-            v = {name: value for name, value in v.items() if name in data_attributes}
+            # Collect valid field names from the data annotation. Handles plain Pydantic
+            # models, Annotated[T, ...], and Union[A, B, ...] (discriminated unions).
+            annotation = cls.model_fields["data"].annotation
+            if get_origin(annotation) is Annotated:
+                annotation = get_args(annotation)[0]
+            data_field_names: set[str] = set()
+            if get_origin(annotation) is Union:
+                for member in get_args(annotation):
+                    if hasattr(member, "model_fields"):
+                        data_field_names.update(member.model_fields)
+            elif hasattr(annotation, "model_fields"):
+                data_field_names = set(annotation.model_fields)
+            if data_field_names:
+                v = {name: value for name, value in v.items() if name in data_field_names}
         return v
 
 

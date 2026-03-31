@@ -60,7 +60,7 @@ class DummyTransformArgs(ObjectDetectionTransformArgs):
     )
 
 
-def test_ObjectDetectionDataset(tmp_path: Path) -> None:
+def test_object_detection_dataset(tmp_path: Path) -> None:
     image_dir = tmp_path / "images"
     create_images(image_dir=image_dir, files=3)
     image_paths = sorted(image_dir.glob("*.png"))
