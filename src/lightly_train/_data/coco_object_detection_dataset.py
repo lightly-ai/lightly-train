@@ -119,10 +119,10 @@ class COCOObjectDetectionDatasetArgs(TaskDatasetArgs):
         with open(self.labels) as f:
             labels_dict = json.load(f)
 
-        annotations_dict = labels_dict.get("annotations", [])
+        annotations = labels_dict.get("annotations", [])
 
         annotations_by_image_id = defaultdict(list)
-        for annotation in annotations_dict:
+        for annotation in annotations:
             annotations_by_image_id[annotation["image_id"]].append(annotation)
 
         image_dir = self.labels.resolve().parent
