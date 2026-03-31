@@ -640,6 +640,10 @@ def get_train_dataloader(
     collate_fn = dataset.batch_collate_fn_cls(
         split="train", transform_args=transform_args
     )
+    requires_worker_refresh = (
+        dataset.transform.uses_step_dependent_worker_state()
+        or collate_fn.uses_step_dependent_worker_state()
+    )
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
         batch_size=batch_size // fabric.world_size,
@@ -651,10 +655,21 @@ def get_train_dataloader(
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
-        # Ignore batch_size from loader_args. It is already handled in
-        # get_global_batch_size.
+        # Ignore batch_size and num_workers from loader_args. They are already
+        # handled through dedicated function arguments.
         loader_args.pop("batch_size", None)
+        loader_args.pop("num_workers", None)
         dataloader_kwargs.update(**loader_args)
+    if requires_worker_refresh and num_workers > 0:
+        persistent_workers = bool(dataloader_kwargs.get("persistent_workers", False))
+        if persistent_workers:
+            warning_message = (
+                "Step-aware transform/collate requires "
+                "persistent_workers=False. Overriding user-provided "
+                "persistent_workers=True."
+            )
+            logger.warning(warning_message)
+        dataloader_kwargs["persistent_workers"] = False
     dataloader = DataLoader(**dataloader_kwargs)
     return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
 
@@ -682,9 +697,10 @@ def get_val_dataloader(
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
-        # Ignore batch_size from loader_args. It is already handled in
-        # get_global_batch_size.
+        # Ignore batch_size and num_workers from loader_args. They are already
+        # handled through dedicated function arguments.
         loader_args.pop("batch_size", None)
+        loader_args.pop("num_workers", None)
         dataloader_kwargs.update(**loader_args)
     dataloader = DataLoader(**dataloader_kwargs)
     return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]

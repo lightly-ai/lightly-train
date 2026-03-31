@@ -16,6 +16,10 @@ from albumentations import BboxParams
 from numpy.typing import NDArray
 from torch import Tensor
 
+from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
+    DINOv3LTDETRObjectDetectionScaleJitterArgs,
+    DINOv3LTDETRObjectDetectionTrainTransformArgs,
+)
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionCollateFunction,
@@ -257,3 +261,39 @@ class TestObjectDetectionCollateFunction:
         assert all(isinstance(bbox, Tensor) for bbox in out["bboxes"])
         assert all(isinstance(classes, Tensor) for classes in out["classes"])
         assert out["original_size"] == [(128, 128), (64, 64)]
+
+    def test_requires_dataloader_reinitialization__scale_jitter_step_window(
+        self,
+    ) -> None:
+        transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs(
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+            scale_jitter=DINOv3LTDETRObjectDetectionScaleJitterArgs(
+                step_stop=3,
+                sizes=[(32, 32)],
+                min_scale=None,
+                max_scale=None,
+                num_scales=None,
+                prob=1.0,
+                divisible_by=None,
+            ),
+        )
+        transform_args.resolve_auto(model_init_args={})
+
+        collate_fn = ObjectDetectionCollateFunction(
+            split="train",
+            transform_args=transform_args,
+        )
+
+        assert collate_fn.requires_dataloader_reinitialization() is False
+
+        collate_fn.set_step(1)
+        assert collate_fn.requires_dataloader_reinitialization() is False
+        assert collate_fn.requires_dataloader_reinitialization() is False
+
+        collate_fn.set_step(2)
+        assert collate_fn.requires_dataloader_reinitialization() is False
+
+        collate_fn.set_step(3)
+        assert collate_fn.requires_dataloader_reinitialization() is True
+        assert collate_fn.requires_dataloader_reinitialization() is False

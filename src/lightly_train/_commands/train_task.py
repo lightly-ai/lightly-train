@@ -63,6 +63,7 @@ from lightly_train._train_task_state import (
     TrainTaskState,
 )
 from lightly_train._training_step_timer import CUDAUtilization, TrainingStepTimer
+from lightly_train._transforms.task_transform import TaskCollateFunction
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -1486,6 +1487,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         # Add license info after loading as it might be missing from the checkpoint.
         state["license_info"] = LICENSE_INFO
 
+        # DataLoader erases the concrete TaskCollateFunction type of collate_fn.
+        train_collate_fn: TaskCollateFunction = train_dataloader.collate_fn  # type: ignore
+
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
         infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
@@ -1536,6 +1540,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             ) == 0
 
             timer.start_step("train_step")
+
+            train_transform.set_step(step)
+            train_collate_fn.set_step(step)
+
+            needs_reinit = (
+                train_transform.requires_dataloader_reinitialization()
+                or train_collate_fn.requires_dataloader_reinitialization()
+            )
+            if config.num_workers > 0 and needs_reinit:
+                infinite_train_dataloader.reset()
 
             # Training data loading, forward passes, and gradient accumulation.
             for acc_step in range(config.gradient_accumulation_steps):
