@@ -153,39 +153,27 @@ class DistillationV3Args(MethodArgs):
 def _is_probably_conv(wrapped_model: ModelWrapper) -> bool:
     """Heuristic to determine whether the student model is convolutional or
     transformer-based. This is used to determine the default weight decay.
-
-    Returns True for traditional CNNs (ResNet, ShuffleNet, YOLO, …) and False
-    for Transformer-based models (ViT, Swin, …) and ConvNeXt-style models that
-    use LayerNorm and therefore benefit from a transformer training recipe.
-
-    Decision logic (in order of priority):
-    1. Any ``attention`` module → Transformer → False
-    2. Any ``layernorm`` module → ConvNeXt-style → False
-    3. Any ``conv`` module → traditional CNN → True
-    4. Otherwise → fall back to False and emit a warning
     """
-    # TODO (Lionel, 03/26): I think this should be implemented by each individual
-    # model package (or the ModelWrapper) instead of this global heuristic.
-    # Only for custom models the heuristic should be used.
     has_attention = False
     has_layernorm = False
     has_convolution = False
 
     for module in wrapped_model.modules():
         module_name = module.__class__.__name__.lower()
-        if "attention" in module_name:
+        if "attention" in module_name or "attn" in module_name:
+            # Attention modules are often custom and may not include "attention".
             has_attention = True
         if "layernorm" in module_name:
             has_layernorm = True
         if "conv" in module_name:
             has_convolution = True
 
-    # Transformers have explicit attention modules.
-    if has_attention:
+    # Transformers use attention and layer norm.
+    if has_attention and has_layernorm:
         return False
     # ConvNeXt-style models use LayerNorm instead of BatchNorm. They have no
     # attention but follow a transformer-style training recipe (larger weight decay).
-    if has_layernorm:
+    if has_layernorm and has_convolution:
         return False
     # Traditional CNNs (ResNet, ShuffleNet, YOLO, …) use convolutions and BatchNorm.
     if has_convolution:
