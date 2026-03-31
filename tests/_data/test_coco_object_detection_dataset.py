@@ -22,13 +22,15 @@ class TestCOCOObjectDetectionDatasetArgs:
         create_coco_object_detection_dataset(
             tmp_path=tmp_path,
             num_files=3,
+            height=128,
+            width=128,
             classes={3: "cat", 7: "dog"},
             annotations_per_image=[
                 [],
-                [{"category_id": 3, "bbox": [16, 16, 32, 32]}],
+                [{"category_id": 3, "bbox": [0, 32, 64, 64]}],
                 [
-                    {"category_id": 3, "bbox": [16, 16, 32, 32]},
-                    {"category_id": 7, "bbox": [80, 32, 32, 64]},
+                    {"category_id": 3, "bbox": [0, 64, 64, 64]},
+                    {"category_id": 7, "bbox": [16, 0, 0, 128]},
                 ],
             ],
         )
@@ -49,10 +51,10 @@ class TestCOCOObjectDetectionDatasetArgs:
             assert len(image_info) == 3
             assert json.loads(image_info[0]["bboxes"]) == []
             assert json.loads(image_info[0]["class_labels"]) == []
-            assert json.loads(image_info[1]["bboxes"]) == [[0.25, 0.25, 0.25, 0.25]]
+            assert json.loads(image_info[1]["bboxes"]) == [[0.25, 0.5, 0.5, 0.5]]
             assert json.loads(image_info[1]["class_labels"]) == [0]
             assert json.loads(image_info[2]["bboxes"]) == [
-                [0.25, 0.25, 0.25, 0.25],
-                [0.75, 0.5, 0.25, 0.5],
+                [0.25, 0.75, 0.5, 0.5],
+                [0.125, 0.5, 0.0, 1.0],
             ]
             assert json.loads(image_info[2]["class_labels"]) == [0, 1]
