@@ -29,7 +29,7 @@ from lightly_train._methods.method import Method, TrainingStepResult
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.model_wrapper import ArchitectureInfoGettable, ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
@@ -217,10 +217,32 @@ class DistillationV3AdamWArgs(AdamWArgs):
     weight_decay: float = 0.04
 
     def resolve_auto(self, wrapped_model: ModelWrapper) -> None:
-        if _is_probably_conv(wrapped_model=wrapped_model):
-            # Use a smaller weight decay for convolutional models, which typically
-            # benefit from a more regularized training recipe.
-            self.weight_decay = 1e-6
+        if isinstance(wrapped_model, ArchitectureInfoGettable):
+            arch_info = wrapped_model.architecture_info()
+            model_type = arch_info["model_type"]
+            norm_type = arch_info["norm_type"]
+            if model_type in ("transformer", "hybrid"):
+                self.weight_decay = 0.04
+            elif model_type == "convolutional" and norm_type == "batchnorm":
+                # Traditional CNNs benefit from stronger regularization.
+                self.weight_decay = 1e-6
+            elif model_type == "convolutional" and norm_type == "layernorm":
+                # ConvNeXt-style: convolutional ops but transformer training recipe.
+                self.weight_decay = 0.04
+            else:
+                raise ValueError(
+                    f"Unrecognized architecture info: model_type={model_type!r}, "
+                    f"norm_type={norm_type!r}. Set `weight_decay` explicitly."
+                )
+        else:
+            # Fallback: custom models that don't implement ArchitectureInfoGettable.
+            is_conv = _is_probably_conv(wrapped_model=wrapped_model)
+            logger.debug(
+                "Could not get architecture info for the student model. Using module "
+                "inspection heuristic to determine weight_decay. Set `weight_decay` "
+                "explicitly to suppress this message."
+            )
+            self.weight_decay = 1e-6 if is_conv else 0.04
 
 
 class DistillationV3(Method):

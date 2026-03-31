@@ -7,14 +7,20 @@
 #
 from __future__ import annotations
 
+from typing import Callable
+
 import pytest
 
-from lightly_train._methods.distillationv3.distillationv3 import _is_probably_conv
+from lightly_train._methods.distillationv3.distillationv3 import (
+    DistillationV3AdamWArgs,
+    _is_probably_conv,
+)
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
 
 from ...helpers import (
     DummyCustomModel,
+    DummyCustomModelWithArchInfo,
     dummy_dinov2_vit_model,
     dummy_dinov3_convnext_model,
     dummy_dinov3_vit_model,
@@ -50,3 +56,45 @@ def test_is_probably_conv(model: str | ModelWrapper, expected: bool) -> None:
     elif isinstance(model, str):
         model = package_helpers.get_wrapped_model(model=model, num_input_channels=3)
     assert _is_probably_conv(wrapped_model=model) is expected
+
+
+@pytest.mark.parametrize(
+    "make_model, expected_weight_decay",
+    [
+        # ArchitectureInfoGettable models: exact weight_decay from arch_info
+        (
+            lambda: DummyCustomModelWithArchInfo(
+                {"model_type": "transformer", "norm_type": "layernorm"}
+            ),
+            0.04,
+        ),
+        (
+            lambda: DummyCustomModelWithArchInfo(
+                {"model_type": "hybrid", "norm_type": "layernorm"}
+            ),
+            0.04,
+        ),
+        (
+            lambda: DummyCustomModelWithArchInfo(
+                {"model_type": "convolutional", "norm_type": "batchnorm"}
+            ),
+            1e-6,
+        ),
+        (
+            lambda: DummyCustomModelWithArchInfo(
+                {"model_type": "convolutional", "norm_type": "layernorm"}
+            ),
+            0.04,
+        ),
+        # Non-ArchitectureInfoGettable model: heuristic fallback.
+        # DummyCustomModel has a Conv2d and no attention/layernorm → is_conv=True → 1e-6.
+        (lambda: DummyCustomModel(), 1e-6),
+    ],
+)
+def test_distillationv3_adamw_args__resolve_auto(
+    make_model: Callable[[], ModelWrapper], expected_weight_decay: float
+) -> None:
+    model = make_model()
+    args = DistillationV3AdamWArgs()
+    args.resolve_auto(wrapped_model=model)
+    assert args.weight_decay == pytest.approx(expected_weight_decay)

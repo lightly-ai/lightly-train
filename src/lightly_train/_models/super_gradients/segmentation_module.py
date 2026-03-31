@@ -12,6 +12,7 @@ from torch.nn import AdaptiveAvgPool2d, Module
 
 from lightly_train._models.model_wrapper import (
     ArchitectureInfo,
+    ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
 )
@@ -27,7 +28,9 @@ except ImportError:
     PPLiteSegBase = None
 
 
-class SegmentationModuleModelWrapper(Module, SuperGradientsModelWrapper):
+class SegmentationModuleModelWrapper(
+    Module, SuperGradientsModelWrapper, ArchitectureInfoGettable
+):
     _SUPPORTED_MODEL_CLASSES = (
         (PPLiteSegBase,) if PPLiteSegBase is not None else tuple()
     )
@@ -68,4 +71,4 @@ class SegmentationModuleModelWrapper(Module, SuperGradientsModelWrapper):
         return self._model[0]
 
     def architecture_info(self) -> ArchitectureInfo:
-        raise NotImplementedError()
+        return {"model_type": "convolutional", "norm_type": "batchnorm"}

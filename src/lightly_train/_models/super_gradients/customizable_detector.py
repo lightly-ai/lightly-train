@@ -69,4 +69,4 @@ class CustomizableDetectorModelWrapper(
         return self._model[0]
 
     def architecture_info(self) -> ArchitectureInfo:
-        raise NotImplementedError()
+        return {"model_type": "convolutional", "norm_type": "batchnorm"}
