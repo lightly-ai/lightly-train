@@ -19,8 +19,8 @@ from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict, Field, field_validator
-from typing_extensions import Annotated
 from torch.optim import Optimizer  # type: ignore[attr-defined]
+from typing_extensions import Annotated
 
 from lightly_train import (
     _float32_matmul_precision,
