@@ -1544,12 +1544,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             train_transform.set_step(step)
             train_collate_fn.set_step(step)
 
+            # We need to reinitiate the dataloader every time a step-aware transform changes its active status
             needs_reinit = (
                 train_transform.requires_dataloader_reinitialization()
                 or train_collate_fn.requires_dataloader_reinitialization()
             )
             if config.num_workers > 0 and needs_reinit:
                 infinite_train_dataloader.reset()
+                train_transform.mark_dataloader_as_reinitialized()
+                train_collate_fn.mark_dataloader_as_reinitialized()
 
             # Training data loading, forward passes, and gradient accumulation.
             for acc_step in range(config.gradient_accumulation_steps):

@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add `MixUp` augmentation for LT-DETR object detection training.
+
 ### Changed
 
 - Make `ScaleJitter` in LTDETR step-aware. Now you can stop the augmentation by adding a
@@ -20,6 +22,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 ### Fixed
+
+- Disable LT-DETR train prediction metrics automatically when MixUp is enabled to avoid
+  reporting invalid train metrics.
 
 ### Security
 

@@ -17,6 +17,7 @@ from numpy.typing import NDArray
 from torch import Tensor
 
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
+    DINOv3LTDETRObjectDetectionMixUpArgs,
     DINOv3LTDETRObjectDetectionScaleJitterArgs,
     DINOv3LTDETRObjectDetectionTrainTransformArgs,
 )
@@ -268,6 +269,11 @@ class TestObjectDetectionCollateFunction:
         transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs(
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
+            mixup=DINOv3LTDETRObjectDetectionMixUpArgs(
+                prob=1.0,
+                step_start=1,
+                step_stop=2,
+            ),
             scale_jitter=DINOv3LTDETRObjectDetectionScaleJitterArgs(
                 step_stop=3,
                 sizes=[(32, 32)],
@@ -288,12 +294,17 @@ class TestObjectDetectionCollateFunction:
         assert collate_fn.requires_dataloader_reinitialization() is False
 
         collate_fn.set_step(1)
-        assert collate_fn.requires_dataloader_reinitialization() is False
+        assert collate_fn.requires_dataloader_reinitialization() is True
+        assert collate_fn.requires_dataloader_reinitialization() is True
+        collate_fn.mark_dataloader_as_reinitialized()
         assert collate_fn.requires_dataloader_reinitialization() is False
 
         collate_fn.set_step(2)
+        assert collate_fn.requires_dataloader_reinitialization() is True
+        collate_fn.mark_dataloader_as_reinitialized()
         assert collate_fn.requires_dataloader_reinitialization() is False
 
         collate_fn.set_step(3)
         assert collate_fn.requires_dataloader_reinitialization() is True
+        collate_fn.mark_dataloader_as_reinitialized()
         assert collate_fn.requires_dataloader_reinitialization() is False
