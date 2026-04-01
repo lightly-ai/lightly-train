@@ -113,8 +113,10 @@ class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
 
 class DINOv2LTDETRObjectDetectionMixUpArgs(MixUpArgs):
     prob: float = 0.5
-    step_start: int = 15000
-    step_stop: int = 30000
+    # Corresponds to the 4th epoch of the total training run.
+    step_start: int = 25_000  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    # Corresponds to the 4 + total_epochs // 2 epoch of the total training run.
+    step_stop: int = 250_000  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
 
 
 class DINOv2LTDETRObjectDetectionResizeArgs(ResizeArgs):
