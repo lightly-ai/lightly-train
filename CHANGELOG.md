@@ -9,9 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Add `MixUp` augmentation for LT-DETR object detection training. This is done by adding
-  `mixup` train transform args to DINOv2 and DINOv3 LT-DETR object detection models with
-  defaults `prob=0.5`, `step_start=15000`, and `step_stop=30000`.
+- Add `MixUp` augmentation for LT-DETR object detection training.
 
 ### Changed
 

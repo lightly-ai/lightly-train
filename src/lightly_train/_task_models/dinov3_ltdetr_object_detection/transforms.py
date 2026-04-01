@@ -148,9 +148,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     scale_jitter: DINOv3LTDETRObjectDetectionScaleJitterArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionScaleJitterArgs
     )
-    mixup: DINOv3LTDETRObjectDetectionMixUpArgs | None = Field(
-        default_factory=DINOv3LTDETRObjectDetectionMixUpArgs
-    )
+    mixup: DINOv3LTDETRObjectDetectionMixUpArgs | None = None
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
