@@ -60,7 +60,7 @@ class TaskTransform:
         """Signal when worker-visible state changed and the loader iterator must reset."""
         return False
 
-    def sync_after_dataloader_reinitialization(self) -> None:
+    def mark_dataloader_as_reinitialized(self) -> None:
         """Update internal active-status state for step-aware transforms after a dataloader refresh."""
         pass
 
@@ -87,6 +87,6 @@ class TaskCollateFunction:
         """Signal when worker-visible collate state changed and the loader must reset."""
         return False
 
-    def sync_after_dataloader_reinitialization(self) -> None:
+    def mark_dataloader_as_reinitialized(self) -> None:
         """Update internal active-status state for step-aware transforms after a dataloader refresh."""
         pass

@@ -367,7 +367,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             != self._current_transform_active_status
         )
 
-    def sync_after_dataloader_reinitialization(self) -> None:
+    def mark_dataloader_as_reinitialized(self) -> None:
         self._current_transform_active_status = (
             self._get_transform_active_status_at_step(self._step)
         )
