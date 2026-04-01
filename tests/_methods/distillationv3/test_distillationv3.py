@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Callable
 
 import pytest
+from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._methods.distillationv3.distillationv3 import (
     DistillationV3AdamWArgs,
@@ -26,7 +27,14 @@ from ...helpers import (
     dummy_dinov3_vit_model,
 )
 
+_TIMM_AVAILABLE = RequirementCache("timm")
+_ULTRALYTICS_AVAILABLE = RequirementCache("ultralytics")
 
+
+@pytest.mark.skipif(
+    not _TIMM_AVAILABLE or not _ULTRALYTICS_AVAILABLE,
+    reason="timm and ultralytics must be installed",
+)
 @pytest.mark.parametrize(
     "model, expected",
     [
