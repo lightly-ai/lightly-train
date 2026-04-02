@@ -9,6 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add logging of 1-based `epoch` to the console and the loggers.
 - Add `MixUp` augmentation for LT-DETR object detection training.
 
 ### Changed

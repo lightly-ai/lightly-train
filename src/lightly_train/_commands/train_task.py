@@ -1520,6 +1520,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         log_every_num_steps = no_auto(config.logger_args.log_every_num_steps)
         val_log_every_num_steps = no_auto(config.logger_args.val_log_every_num_steps)
+        train_num_batches = len(train_dataloader)
         # Always log the first few steps and then log at a regular interval.
         log_steps = {
             step for step in [1, 2, 5, 10, 50, 100] if step < log_every_num_steps
@@ -1530,6 +1531,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         for step in range(start_step, config.steps):
             state["step"] = step
+            current_epoch = helpers.get_training_epoch(
+                step=step,
+                train_num_batches=train_num_batches,
+                gradient_accumulation_steps=config.gradient_accumulation_steps,
+            )
             is_last_step = step + 1 == config.steps
             is_log_step = step + 1 in log_steps or (step + 1) % log_every_num_steps == 0
             is_val_step = (step + 1) % no_auto(
@@ -1601,6 +1607,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     split="train",
                     step=step,
                     max_steps=config.steps,
+                    epoch=current_epoch,
                     agg_metric_values=train_agg_metric_values,
                     task=config.task,
                     timer_agg=timer_agg,
@@ -1620,6 +1627,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     log_dict=train_log_dict,
                     agg_metric_values=train_agg_metric_values,
                     step=step,
+                    epoch=current_epoch,
                 )
 
             if config.save_checkpoint_args.save_last and (
@@ -1693,6 +1701,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
+                            epoch=current_epoch,
                             agg_metric_values=val_agg_metric_values,
                             task=config.task,
                             timer_agg=timer_agg,
@@ -1710,6 +1719,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             log_dict=val_result.log_dict,
                             agg_metric_values=val_agg_metric_values,
                             step=step,
+                            epoch=current_epoch,
                         )
 
                         if (
@@ -1754,6 +1764,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
+                            epoch=current_epoch,
                             agg_metric_values=None,
                             task=config.task,
                             timer_agg=timer_agg,
