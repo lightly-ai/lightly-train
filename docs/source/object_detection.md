@@ -313,10 +313,11 @@ import lightly_train
 lightly_train.train_object_detection(
     ...,
     data={
-        "format": ...,          # either "yolo" or "coco"
-        "ignore_classes": [...] # optional list of class IDs that should be skipped during training
-        ...                     # format specific options
-    }
+        "format": ...,           # either "yolo" or "coco"
+        "ignore_classes": [...], # optional list of class IDs that should be skipped during training
+         # format specific options
+    },
+)
 ```
 
 If you would like to skip specific classes during training, add their IDs to the
@@ -519,7 +520,7 @@ lightly_train.train_object_detection(
         "format": "coco",
         "train_labels": "train_labels.json",
         "train_data_dir": "train_images/",
-        "val_labels": "train_labels.json",
+        "val_labels": "val_labels.json",
         "val_data_dir": "val_images/",
         "skip_if_annotations_missing": True, # Skip images without bounding boxes
     }
@@ -531,12 +532,9 @@ file
 
 ```json
 {
-    "images": [
-        {
-            "id": 1,
-            "file_name": "train_images/image1.jpg"
-        },
-[...]
+    "id": 1,
+    "file_name": "train_images/image1.jpg"
+}
 ```
 
 we could also omit `train_data_dir`.
