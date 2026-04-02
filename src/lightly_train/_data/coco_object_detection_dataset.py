@@ -17,26 +17,30 @@ from typing import Literal
 
 from pydantic import Field
 
+from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import label_helpers
 from lightly_train._data.object_detection_dataset import ObjectDetectionDataset
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDatasetArgs
+from lightly_train.types import PathLike
+
+
+class SplitArgs(PydanticConfig):
+    annotations: PathLike
+    images: PathLike | None = None
 
 
 class COCOObjectDetectionDataArgs(TaskDataArgs):
     """Data arguments for a COCO-format object detection dataset.
 
     The labels files are COCO JSON annotation files. Images are resolved relative
-    to the annotation file's parent directory, optionally under ``train_data_dir``
-    or ``val_data_dir``.
+    to the annotation file's parent directory, optionally under ``images``.
     """
 
     # TODO: (Lionel, 08/25): Handle test set.
     format: Literal["coco"] = "coco"
-    train_labels: Path
-    train_data_dir: Path | None = None
-    val_labels: Path
-    val_data_dir: Path | None = None
+    train: SplitArgs
+    val: SplitArgs
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_annotations_missing: bool = False
 
@@ -47,26 +51,26 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
         Always uses the training labels so that train and validation share the same
         class-to-internal-id mapping.
         """
-        with open(self.train_labels) as f:
+        with open(self.train.annotations) as f:
             return {c["id"]: c["name"] for c in json.load(f).get("categories", [])}
 
     def train_imgs_path(self) -> Path:
         # TODO (simon 03/26): We currently only need this to calculate a hash for the mmap file for the dataset.
         #  This might not be the best idea as the contents of the file might change.
-        return self.train_labels.resolve()
+        return Path(self.train.annotations).resolve()
 
     def val_imgs_path(self) -> Path:
         # TODO (simon 03/26): We currently only need this to calculate a hash for the mmap file for the dataset.
         #  This might not be the best idea as the contents of the file might change.
-        return self.val_labels.resolve()
+        return Path(self.val.annotations).resolve()
 
     def get_train_args(
         self,
     ) -> COCOObjectDetectionDatasetArgs:
         """Returns dataset args for the training split."""
         return COCOObjectDetectionDatasetArgs(
-            labels=self.train_labels,
-            data_dir=self.train_data_dir,
+            labels=self.train.annotations,
+            data_dir=self.train.images,
             classes=self._classes,
             ignore_classes=self.ignore_classes,
             skip_if_annotations_missing=self.skip_if_annotations_missing,
@@ -75,8 +79,8 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
     def get_val_args(self) -> COCOObjectDetectionDatasetArgs:
         """Returns dataset args for the validation split."""
         return COCOObjectDetectionDatasetArgs(
-            labels=self.val_labels,
-            data_dir=self.val_data_dir,
+            labels=self.val.annotations,
+            data_dir=self.val.images,
             classes=self._classes,
             ignore_classes=self.ignore_classes,
             skip_if_annotations_missing=self.skip_if_annotations_missing,

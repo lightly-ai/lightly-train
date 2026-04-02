@@ -36,10 +36,8 @@ class TestCOCOObjectDetectionDatasetArgs:
         )
 
         args = COCOObjectDetectionDataArgs(
-            train_labels=tmp_path / "train.json",
-            train_data_dir=Path("train"),
-            val_labels=tmp_path / "val.json",
-            val_data_dir=Path("val"),
+            train={"annotations": tmp_path / "train.json", "images": Path("train")},
+            val={"annotations": tmp_path / "val.json", "images": Path("val")},
         )
 
         # class 3 -> internal 0, class 7 -> internal 1
