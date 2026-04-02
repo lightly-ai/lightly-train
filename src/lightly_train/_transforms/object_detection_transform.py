@@ -28,6 +28,7 @@ from typing_extensions import NotRequired
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.batch_transform import BatchReplayCompose, BatchTransform
 from lightly_train._transforms.channel_drop import ChannelDrop
+from lightly_train._transforms.copyblend import CopyBlend
 from lightly_train._transforms.mixup import MixUp
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.random_iou_crop import RandomIoUCrop
@@ -45,6 +46,7 @@ from lightly_train._transforms.task_transform import (
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
+    CopyBlendArgs,
     MixUpArgs,
     NormalizeArgs,
     RandomFlipArgs,
@@ -91,6 +93,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     image_size: ImageSizeTuple | Literal["auto"]
     stop_policy: StopPolicyArgs | None
     mixup: MixUpArgs | None = None
+    copyblend: CopyBlendArgs | None = None
     scale_jitter: ScaleJitterArgs | None
     resize: ResizeArgs | None
     bbox_params: BboxParams | None
@@ -279,9 +282,17 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
 
         self.scale_jitter: BatchReplayCompose | None = None
         self.mixup: MixUp | None = None
+        self.copyblend: CopyBlend | None = None
 
         if self.transform_args.mixup is not None:
-            self.mixup = MixUp(prob=self.transform_args.mixup.prob)
+            self.mixup = MixUp()
+
+        if self.transform_args.copyblend is not None:
+            self.copyblend = CopyBlend(
+                area_threshold=self.transform_args.copyblend.area_threshold,
+                num_objects=self.transform_args.copyblend.num_objects,
+                expand_ratios=self.transform_args.copyblend.expand_ratios,
+            )
 
         if self.transform_args.scale_jitter is not None:
             self.scale_jitter = BatchReplayCompose(
@@ -327,11 +338,25 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             < self.transform_args.mixup.step_stop
         )
 
+    def _is_copyblend_active_at_step(self, step: int) -> bool:
+        if (
+            self.copyblend is None
+            or self.transform_args.copyblend is None
+            or self.transform_args.copyblend.prob <= 0.0
+        ):
+            return False
+        return (
+            self.transform_args.copyblend.step_start
+            <= step
+            < self.transform_args.copyblend.step_stop
+        )
+
     def _is_scale_jitter_active_at_step(self, step: int) -> bool:
         if (
             self.scale_jitter is None
             or self.transform_args.scale_jitter is None
-            or self.transform_args.scale_jitter.prob <= 0.0
+            or self.transform_args.scale_jitter.prob
+            <= 0.0  # TODO (Yutong, 04/26): there is never a scale jitter prob used in LTDETR. Remove it.
         ):
             return False
 
@@ -340,10 +365,27 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             return True
         return step < scale_jitter_step_stop
 
-    def _get_transform_active_status_at_step(self, step: int) -> tuple[bool, bool]:
+    def _should_apply_mixup(self) -> bool:
+        return (
+            self.transform_args.mixup is not None
+            and self._is_mixup_active_at_step(self._step)
+            and np.random.random() < self.transform_args.mixup.prob
+        )
+
+    def _should_apply_copyblend(self) -> bool:
+        return (
+            self.transform_args.copyblend is not None
+            and self._is_copyblend_active_at_step(self._step)
+            and np.random.random() < self.transform_args.copyblend.prob
+        )
+
+    def _get_transform_active_status_at_step(
+        self, step: int
+    ) -> tuple[bool, bool, bool]:
         return (
             self._is_scale_jitter_active_at_step(step),
             self._is_mixup_active_at_step(step),
+            self._is_copyblend_active_at_step(step),
         )
 
     def set_step(self, step: int) -> None:
@@ -351,14 +393,23 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
 
     def uses_step_dependent_worker_state(self) -> bool:
         return (
-            self.scale_jitter is not None
-            and self.transform_args.scale_jitter is not None
-            and self.transform_args.scale_jitter.prob > 0.0
-            and self.transform_args.scale_jitter.step_stop is not None
-        ) or (
-            self.mixup is not None
-            and self.transform_args.mixup is not None
-            and self.transform_args.mixup.prob > 0.0
+            (
+                self.scale_jitter is not None
+                and self.transform_args.scale_jitter is not None
+                and self.transform_args.scale_jitter.prob
+                > 0.0  # TODO (Yutong, 04/26): there is never a scale jitter prob used in LTDETR. Remove it.
+                and self.transform_args.scale_jitter.step_stop is not None
+            )
+            or (
+                self.mixup is not None
+                and self.transform_args.mixup is not None
+                and self.transform_args.mixup.prob > 0.0
+            )
+            or (
+                self.copyblend is not None
+                and self.transform_args.copyblend is not None
+                and self.transform_args.copyblend.prob > 0.0
+            )
         )
 
     def requires_dataloader_reinitialization(self) -> bool:
@@ -382,8 +433,10 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             for item in batch
         ]
 
-        if self.mixup is not None and self._is_mixup_active_at_step(self._step):
+        if self.mixup is not None and self._should_apply_mixup():
             augment_batch = self.mixup(batch=augment_batch)
+        elif self.copyblend is not None and self._should_apply_copyblend():
+            augment_batch = self.copyblend(batch=augment_batch)
 
         if self.scale_jitter is not None and self._is_scale_jitter_active_at_step(
             self._step
