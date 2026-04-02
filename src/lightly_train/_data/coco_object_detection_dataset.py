@@ -69,8 +69,8 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
     ) -> COCOObjectDetectionDatasetArgs:
         """Returns dataset args for the training split."""
         return COCOObjectDetectionDatasetArgs(
-            labels=self.train.annotations,
-            data_dir=self.train.images,
+            labels=Path(self.train.annotations),
+            data_dir=Path(self.train.images) if self.train.images is not None else None,
             classes=self._classes,
             ignore_classes=self.ignore_classes,
             skip_if_annotations_missing=self.skip_if_annotations_missing,
@@ -79,8 +79,8 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
     def get_val_args(self) -> COCOObjectDetectionDatasetArgs:
         """Returns dataset args for the validation split."""
         return COCOObjectDetectionDatasetArgs(
-            labels=self.val.annotations,
-            data_dir=self.val.images,
+            labels=Path(self.val.annotations),
+            data_dir=Path(self.val.images) if self.val.images is not None else None,
             classes=self._classes,
             ignore_classes=self.ignore_classes,
             skip_if_annotations_missing=self.skip_if_annotations_missing,
