@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Literal, Union
+from typing import Any, Literal, Union, get_args, get_origin
 
 import fsspec
 import torch
@@ -1831,7 +1831,18 @@ class TrainTaskConfig(PydanticConfig):
             with fsspec.open(v, "r") as file:
                 v = yaml.safe_load(file)
             # Ignore all fields in YAML file that are not part of the Pydantic model.
-            data_attributes = cls.model_fields["data"].annotation.model_fields  # type: ignore
+            # As data can be a Union, it would be impossible to figure out which fields to exclude, so in that
+            # case we include the fields of all union members.
+            annotation = cls.model_fields["data"].annotation
+            if get_origin(annotation) is Union:
+                members = get_args(annotation)
+            else:
+                members = (annotation,)
+            data_attributes = {
+                name
+                for m in members
+                for name in m.model_fields  # type: ignore
+            }
             v = {name: value for name, value in v.items() if name in data_attributes}
         return v
 
