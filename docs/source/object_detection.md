@@ -55,6 +55,7 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="dinov3/vitt16-ltdetr-coco",
         data={
+            "format": "yolo",
             "path": "my_data_dir",
             "train": "images/train2017",
             "val": "images/val2017",
@@ -131,6 +132,7 @@ if __name__ == "__main__":
             "backbone_weights": "out/my_pretrain_experiment/exported_models/exported_best.pt",
         },
         data={
+            "format": "yolo",
             "path": "my_data_dir",
             "train": "images/train2012",
             "val": "images/val2012",
@@ -297,33 +299,44 @@ and checkpoints organized.
 ## Data
 
 Lightly**Train** supports training object detection models with images and bounding
-boxes. Every image must have a corresponding annotation file (in
-[YOLO format](https://labelformat.com/formats/object-detection/yolov5/)) that contains
-for every object in the image a line with the class ID and 4 normalized bounding box
-coordinates (x_center, y_center, width, height). The file should have the `.txt`
-extension and an example annotation file for an image with two objects could look like
-this:
+boxes. We support inputs in either the [YOLO](#object-detection-data-yolo) or
+[COCO](#object-detection-data-coco) object detection formats.
+
+For more details on LightlyTrain's support for data input, please check the
+[Data Input](#data-input) page.
+
+We specify the training data with a `data` dictionary:
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    data={
+        "format": ...,          # either "yolo" or "coco"
+        "ignore_classes": [...] # optional list of class IDs that should be skipped during training
+        ...                     # format specific options
+    }
+```
+
+If you would like to skip specific classes during training, add their IDs to the
+optional `ignore_classes` list. The trainer omits these classes from loss computation
+and the exported model does not predict them.
+
+(object-detection-data-yolo)=
+
+### YOLO format
+
+For the [YOLO](https://labelformat.com/formats/object-detection/yolov5/) format we have
+for every image a corresponding label file that has for every object in the image a line
+with the class ID and 4 normalized bounding box coordinates (x_center, y_center, width,
+height). The file should have the `.txt` extension and an example annotation file for an
+image with two objects could look like this:
 
 ```text
 0 0.716797 0.395833 0.216406 0.147222
 1 0.687500 0.379167 0.255208 0.175000
 ```
-
-The following image formats are supported:
-
-- jpg
-- jpeg
-- png
-- ppm
-- bmp
-- pgm
-- tif
-- tiff
-- webp
-- dcm (DICOM)
-
-For more details on LightlyTrain's support for data input, please check the
-[Data Input](#data-input) page.
 
 Your dataset directory should be organized like this:
 
@@ -376,12 +389,9 @@ my_data_dir/
 Each class in the dataset must be listed in the `names` dictionary. The keys are the
 class IDs used inside the YOLO annotations and the values are the human-readable class
 names. All class IDs that appear in the label files must be present in the dictionary;
-otherwise Lightly**Train** raises an error when it encounters an unknown class ID. If
-you would like to skip specific classes during training, add their IDs to the optional
-`ignore_classes` list. The trainer omits these classes from loss computation and the
-exported model does not predict them.
+otherwise Lightly**Train** raises an error when it encounters an unknown class ID.
 
-### Missing Labels
+#### Missing Labels
 
 There are three cases in which an image may not have any corresponding labels:
 
@@ -397,12 +407,15 @@ If you would like to exclude images without label files from training, you can s
 images without a label file (case 1) but still includes cases 2 and 3 as negative
 samples.
 
+#### Example
+
 ```python
 import lightly_train
 
 lightly_train.train_object_detection(
     ...,
     data={
+        "format": "yolo",
         "path": "my_data_dir",
         "train": "images/train",
         "val": "images/val",
@@ -411,6 +424,137 @@ lightly_train.train_object_detection(
     }
 )
 ```
+
+(object-detection-data-coco)=
+
+### COCO format
+
+For the [COCO](https://labelformat.com/formats/object-detection/coco/) we have for every
+split a separate labels JSON file that specifies which images and classes belong to the
+split and also contain the bounding boxes. The structure of such a file is as follows:
+
+```json
+{
+    "images": [
+        {
+            "id": 1,
+            "file_name": "image1.jpg"
+        },
+        {
+            "id": 2,
+            "file_name": "image2.jpg"
+        }
+    ],
+    "categories": [
+        {
+            "id": 0,
+            "name": "cat"
+        },
+        {
+            "id": 1,
+            "name": "dog"
+        }
+    ],
+    "annotations": [
+        {
+            "id": 1,
+            "image_id": 1,
+            "category_id": 0,
+            "bbox": [10, 20, 100, 80]
+        },
+        {
+            "id": 2,
+            "image_id": 1,
+            "category_id": 1,
+            "bbox": [150, 30, 200, 120]
+        },
+        {
+            "id": 3,
+            "image_id": 2,
+            "category_id": 0,
+            "bbox": [5, 10, 90, 70]
+        }
+    ]
+}
+```
+
+The `file_name` field can also be an absolute or relative path to an image. One can
+optionally specify the location of an image directory so that the paths are resolved
+relaltively to that directory. If it is ommited the paths are resolved realively to the
+labels file. Furthermore, the path to the image directory itself is resolved relatively
+to the labels file.
+
+It is good practice to have the same categories for all splits but in order to guarantee
+consistency, we always take them from the train split.
+
+The bounding boxes `bbox` are specified in absolute coordinates (pixels) as follows:
+
+```python
+[x, y, width, height]
+```
+
+#### Missing Labels
+
+There are two cases in which an image may not have any corresponding labels:
+
+1. There are no bounding boxes specified for an image in the label file.
+1. The label file only contains annotations for classes that are in `ignore_classes`.
+
+LightlyTrain treats both cases as "negative" samples and includes the images in training
+with an empty list of bounding boxes.
+
+If you would like to exclude images without bounding boxes from training, you can set
+the `skip_if_annotations_missing` argument in the `data` configuration. This only
+excludes images without bounding boxes (case 1) but still includes case 2 as negative
+samples.
+
+#### Example
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    data={
+        "format": "coco",
+        "train_labels": "train_labels.json",
+        "train_data_dir": "train_images/",
+        "val_labels": "train_labels.json",
+        "val_data_dir": "val_images/",
+        "skip_if_annotations_missing": True, # Skip images without bounding boxes
+    }
+)
+```
+
+If in this particular example we specified `file_name` like this in the train annotation
+file
+
+```json
+{
+    "images": [
+        {
+            "id": 1,
+            "file_name": "train_images/image1.jpg"
+        },
+[...]
+```
+
+we could also omit `train_data_dir`.
+
+### Image Formats
+
+The following image formats are supported:
+
+- jpg
+- jpeg
+- png
+- ppm
+- bmp
+- pgm
+- tif
+- tiff
+- webp
+- dcm (DICOM)
 
 (object-detection-model)=
 
