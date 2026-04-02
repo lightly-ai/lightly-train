@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+import lightly_train
 from lightly_train import _distributed
 from lightly_train._env import Env
 
@@ -216,6 +217,7 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
         "api_key": Env.LIGHTLY_TRAIN_POSTHOG_KEY.value,
         "event": event_name,
         "distinct_id": _user_id,
+        "version": lightly_train.__version__,
         "properties": {**properties, **_get_system_info()},
     }
     _events.append(event_data)
