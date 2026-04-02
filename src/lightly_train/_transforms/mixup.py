@@ -16,14 +16,12 @@ class MixUp:
     def __init__(
         self,
         *,
-        prob: float,
         beta_range: tuple[float, float] = (0.45, 0.55),
     ) -> None:
-        self.prob = prob
         self.beta_range = beta_range
 
     def __call__(self, batch: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        if len(batch) < 2 or np.random.random() >= self.prob:
+        if len(batch) < 2:
             return batch
 
         images = np.stack([item["image"] for item in batch], axis=0)

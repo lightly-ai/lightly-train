@@ -185,9 +185,6 @@ class ScaleJitterArgs(PydanticConfig):
     num_scales: int | None
     prob: float = Field(ge=0.0, le=1.0)
     divisible_by: int | None
-
-    # stopping step for scale jittering in LTDETR object detection
-    # None means scale jitter is always on.
     step_stop: int | None = None
 
     @property
@@ -206,6 +203,21 @@ class MixUpArgs(PydanticConfig):
     def validate_step_window(self) -> MixUpArgs:
         if self.step_start >= self.step_stop:
             raise ValueError("mixup requires step_start < step_stop.")
+        return self
+
+
+class CopyBlendArgs(PydanticConfig):
+    prob: float = Field(ge=0.0, le=1.0)
+    step_start: int = Field(ge=0)
+    step_stop: int = Field(gt=0)
+    area_threshold: int = Field(ge=0)
+    num_objects: int = Field(gt=0)
+    expand_ratios: tuple[float, float] = Field(strict=False)
+
+    @model_validator(mode="after")
+    def validate_step_window(self) -> CopyBlendArgs:
+        if self.step_start >= self.step_stop:
+            raise ValueError("copyblend requires step_start < step_stop.")
         return self
 
 
