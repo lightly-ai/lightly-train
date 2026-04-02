@@ -12,6 +12,7 @@ from pathlib import Path
 
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
+    SplitArgs,
 )
 
 from ..helpers import create_coco_object_detection_dataset
@@ -36,8 +37,8 @@ class TestCOCOObjectDetectionDatasetArgs:
         )
 
         args = COCOObjectDetectionDataArgs(
-            train={"annotations": tmp_path / "train.json", "images": Path("train")},
-            val={"annotations": tmp_path / "val.json", "images": Path("val")},
+            train=SplitArgs(annotations=tmp_path / "train.json", images=Path("train")),
+            val=SplitArgs(annotations=tmp_path / "val.json", images=Path("val")),
         )
 
         # class 3 -> internal 0, class 7 -> internal 1
