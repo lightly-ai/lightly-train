@@ -42,10 +42,7 @@ class TestCOCOObjectDetectionDatasetArgs:
         )
 
         # class 3 -> internal 0, class 7 -> internal 1
-        for split, dataset_args in [
-            ("train", args.get_train_args()),
-            ("val", args.get_val_args()),
-        ]:
+        for dataset_args in [args.get_train_args(), args.get_val_args()]:
             image_info = list(dataset_args.list_image_info())
             assert len(image_info) == 3
             assert json.loads(image_info[0]["bboxes"]) == []
