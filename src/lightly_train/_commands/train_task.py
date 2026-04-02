@@ -708,6 +708,7 @@ def train_object_detection(
         devices=devices,
         steps=steps,
     )
+    # TODO (simon, 03/26): Either figure out a way to handle this with a validator or make format mandatory.
     # This is just here as the format field was recently introduced so that we don't break existing code.
     # It is easier to set this here than to use a Pydantic validator as that one creates issues with YAML parsing.
     if isinstance(data, dict) and "format" not in data:
