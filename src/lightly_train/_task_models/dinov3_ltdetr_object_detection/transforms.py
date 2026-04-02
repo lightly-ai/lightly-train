@@ -19,6 +19,7 @@ from lightly_train._transforms.object_detection_transform import (
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
+    CopyBlendArgs,
     MixUpArgs,
     NormalizeArgs,
     RandomFlipArgs,
@@ -107,6 +108,11 @@ class DINOv3LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     num_scales: int | None = None
     prob: float = 1.0
     divisible_by: int | None = None
+    # stopping step for scale jittering in LTDETR object detection
+    # None means scale jitter is always on.
+    step_stop: int | None = (
+        None  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    )
 
 
 class DINOv3LTDETRObjectDetectionMixUpArgs(MixUpArgs):
@@ -115,6 +121,17 @@ class DINOv3LTDETRObjectDetectionMixUpArgs(MixUpArgs):
     step_start: int = 25_000  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
     # Corresponds to the 4 + total_epochs // 2 epoch of the total training run.
     step_stop: int = 250_000  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+
+
+class DINOv3LTDETRObjectDetectionCopyBlendArgs(CopyBlendArgs):
+    prob: float = 0.5
+    # TODO(Yutong, 04/2026): Update step_start and step_stop based on the actual number of training steps.
+    step_start: int = 25_000
+    # TODO(Yutong, 04/2026): Update step_start and step_stop based on the actual number of training steps.
+    step_stop: int = 375_000
+    area_threshold: int = 100
+    num_objects: int = 3
+    expand_ratios: tuple[float, float] = (0.1, 0.25)
 
 
 class DINOv3LTDETRObjectDetectionResizeArgs(ResizeArgs):
@@ -149,6 +166,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
         default_factory=DINOv3LTDETRObjectDetectionScaleJitterArgs
     )
     mixup: DINOv3LTDETRObjectDetectionMixUpArgs | None = None
+    copyblend: DINOv3LTDETRObjectDetectionCopyBlendArgs | None = None
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
