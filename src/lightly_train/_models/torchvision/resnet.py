@@ -10,13 +10,15 @@ from torchvision.models import ResNet
 from torchvision.models._utils import IntermediateLayerGetter
 
 from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
+    ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
 )
 from lightly_train._models.torchvision.torchvision import TorchvisionModelWrapper
 
 
-class ResNetModelWrapper(TorchvisionModelWrapper):
+class ResNetModelWrapper(TorchvisionModelWrapper, ArchitectureInfoGettable):
     _torchvision_models = [ResNet]
     _torchvision_model_name_pattern = r"resnet.*"
 
@@ -40,3 +42,6 @@ class ResNetModelWrapper(TorchvisionModelWrapper):
 
     def get_model(self) -> ResNet:
         return self._model[0]
+
+    def architecture_info(self) -> ArchitectureInfo:
+        return {"model_type": "convolutional", "norm_type": "batchnorm"}

@@ -6,9 +6,11 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train.types import ParamsT
 
@@ -32,3 +34,7 @@ class OptimizerArgs(PydanticConfig):
                 optimizer.
         """
         raise NotImplementedError
+
+    def resolve_auto(self, wrapped_model: ModelWrapper) -> None:
+        """Resolves all fields with the value 'auto' to their actual value."""
+        pass
