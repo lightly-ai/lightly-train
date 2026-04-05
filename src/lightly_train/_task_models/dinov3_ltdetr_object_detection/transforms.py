@@ -234,6 +234,8 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
         default_factory=DINOv3LTDETRObjectDetectionResizeArgs
     )
     scale_jitter: ScaleJitterArgs | None = None
+    mixup: DINOv3LTDETRObjectDetectionMixUpArgs | None = None
+    copyblend: DINOv3LTDETRObjectDetectionCopyBlendArgs | None = None
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
             format="yolo",
