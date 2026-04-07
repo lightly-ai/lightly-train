@@ -43,6 +43,7 @@ with DINOv3 teacher models. The new method also supports using
 - Add `MixUp` augmentation for LTDETR object detection training.
 - Add logging of completed `epoch`s to the console and the loggers.
 - Add support for COCO object detection dataset format.
+- Add support for COCO instance segmentation dataset format.
 - Semantic segmentation now allows one to specify classes from a JSON file.
 
 ### Changed
