@@ -9,8 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add `CopyBlend` augmentation for LTDETR object detection training.
 - Add logging of 1-based `epoch` to the console and the loggers.
-- Add `MixUp` augmentation for LT-DETR object detection training.
+- Add `MixUp` augmentation for LTDETR object detection training.
 
 ### Changed
 
@@ -23,9 +24,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 ### Fixed
-
-- Disable LT-DETR train prediction metrics automatically when MixUp is enabled to avoid
-  reporting invalid train metrics.
 
 ### Security
 
