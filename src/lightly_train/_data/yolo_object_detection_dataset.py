@@ -11,69 +11,21 @@ import itertools
 import json
 from collections.abc import Iterable
 from pathlib import Path
-from typing import ClassVar
+from typing import Literal
 
-import numpy as np
 import pydantic
 from pydantic import Field
 
 from lightly_train._data import file_helpers, label_helpers, yolo_helpers
+from lightly_train._data.object_detection_dataset import ObjectDetectionDataset
 from lightly_train._data.task_data_args import TaskDataArgs
-from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionCollateFunction,
-)
-from lightly_train._transforms.task_transform import TaskCollateFunction
-from lightly_train.types import ObjectDetectionDatasetItem, PathLike
-
-
-class YOLOObjectDetectionDataset(TaskDataset):
-    # Narrow the type of dataset_args.
-    dataset_args: YOLOObjectDetectionDatasetArgs  # type: ignore[assignment]
-
-    batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
-        ObjectDetectionCollateFunction
-    )
-
-    def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
-        # Load the image.
-        image_info = self.image_info[index]
-        image_path = Path(image_info["image_path"])
-
-        if not image_path.exists():
-            raise FileNotFoundError(f"Image file {image_path} does not exist.")
-
-        image_np = file_helpers.open_image_numpy(image_path)
-        h, w, _ = image_np.shape
-
-        bboxes = json.loads(image_info["bboxes"])
-        class_labels = json.loads(image_info["class_labels"])
-        # TODO (simon, 03/26) do we need this assert?
-        assert len(bboxes) == len(class_labels)
-
-        bboxes_np = np.array(bboxes, dtype=np.float64).reshape(len(bboxes), 4)
-        class_labels_np = np.array(class_labels, dtype=np.int64)
-
-        transformed = self.transform(
-            {
-                "image": image_np,
-                "bboxes": bboxes_np,  # Shape (n_boxes, 4)
-                "class_labels": class_labels_np,  # Shape (n_boxes,)
-            }
-        )
-
-        return ObjectDetectionDatasetItem(
-            image_path=str(image_path),
-            image=transformed["image"],
-            bboxes=transformed["bboxes"],
-            classes=transformed["class_labels"],
-            # TODO (Thomas, 10/25): Switch to (h, w) for consistency.
-            original_size=(w, h),
-        )
+from lightly_train._data.task_dataset import TaskDatasetArgs
+from lightly_train.types import PathLike
 
 
 class YOLOObjectDetectionDataArgs(TaskDataArgs):
     # TODO: (Lionel, 08/25): Handle test set.
+    format: Literal["yolo"] = "yolo"
     path: PathLike
     train: PathLike
     val: PathLike
@@ -195,5 +147,5 @@ class YOLOObjectDetectionDatasetArgs(TaskDatasetArgs):
             }
 
     @staticmethod
-    def get_dataset_cls() -> type[YOLOObjectDetectionDataset]:
-        return YOLOObjectDetectionDataset
+    def get_dataset_cls() -> type[ObjectDetectionDataset]:
+        return ObjectDetectionDataset
