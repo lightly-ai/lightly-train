@@ -7,17 +7,20 @@
 #
 from __future__ import annotations
 
+import functools
 import itertools
 import json
+from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
-from typing import ClassVar, Sequence
+from typing import Any, ClassVar, Literal, Sequence
 
 import numpy as np
 import pydantic
 import torch
 from pydantic import Field
 
+from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
@@ -40,7 +43,9 @@ from lightly_train.types import (
 
 class InstanceSegmentationDataset(TaskDataset):
     # Narrow the type of dataset_args.
-    dataset_args: YOLOInstanceSegmentationDatasetArgs
+    dataset_args: (
+        COCOInstanceSegmentationDatasetArgs | YOLOInstanceSegmentationDatasetArgs
+    )
 
     batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
         InstanceSegmentationCollateFunction
@@ -135,6 +140,7 @@ class InstanceSegmentationDataset(TaskDataset):
 
 
 class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
+    format: Literal["yolo"] = "yolo"
     ignore_index: ClassVar[int | None] = None
     path: PathLike
     train: PathLike
@@ -250,6 +256,192 @@ class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                 class_labels = []
 
             # Remove instances with class IDs that are not in the included classes
+            keep = [label in class_id_to_internal_class_id for label in class_labels]
+            polygons = list(itertools.compress(polygons, keep))
+            bboxes = list(itertools.compress(bboxes, keep))
+            class_labels = list(itertools.compress(class_labels, keep))
+
+            # Map class IDs to internal class IDs.
+            class_labels = [
+                class_id_to_internal_class_id[label] for label in class_labels
+            ]
+
+            yield {
+                "image_path": str(image_filepath),
+                "polygons": json.dumps(polygons),
+                "bboxes": json.dumps(bboxes),
+                "class_labels": json.dumps(class_labels),
+            }
+
+    @staticmethod
+    def get_dataset_cls() -> type[InstanceSegmentationDataset]:
+        return InstanceSegmentationDataset
+
+
+class COCOSplitArgs(PydanticConfig):
+    annotations: PathLike
+    images: PathLike | None = None
+
+
+class COCOInstanceSegmentationDataArgs(TaskDataArgs):
+    """Data arguments for a COCO-format instance segmentation dataset.
+
+    The labels files are COCO JSON annotation files. Images are resolved relative
+    to the annotation file's parent directory, optionally under ``images``.
+    """
+
+    format: Literal["coco"] = "coco"
+    train: COCOSplitArgs
+    val: COCOSplitArgs
+    ignore_classes: set[int] | None = Field(default=None, strict=False)
+    skip_if_annotations_missing: bool = False
+
+    @functools.cached_property
+    def _classes(self) -> dict[int, str]:
+        """Reads and caches the class mapping from the train labels file.
+
+        Always uses the training labels so that train and validation share the same
+        class-to-internal-id mapping.
+        """
+        with open(self.train.annotations) as f:
+            return {c["id"]: c["name"] for c in json.load(f).get("categories", [])}
+
+    def train_imgs_path(self) -> Path:
+        # TODO (simon 03/26): We currently only need this to calculate a hash for the mmap file for the dataset.
+        #  This might not be the best idea as the contents of the file might change.
+        return Path(self.train.annotations).resolve()
+
+    def val_imgs_path(self) -> Path:
+        # TODO (simon 03/26): We currently only need this to calculate a hash for the mmap file for the dataset.
+        #  This might not be the best idea as the contents of the file might change.
+        return Path(self.val.annotations).resolve()
+
+    def get_train_args(self) -> COCOInstanceSegmentationDatasetArgs:
+        """Returns dataset args for the training split."""
+        return COCOInstanceSegmentationDatasetArgs(
+            labels=Path(self.train.annotations),
+            data_dir=Path(self.train.images) if self.train.images is not None else None,
+            classes=self._classes,
+            ignore_classes=self.ignore_classes,
+            skip_if_annotations_missing=self.skip_if_annotations_missing,
+        )
+
+    def get_val_args(self) -> COCOInstanceSegmentationDatasetArgs:
+        """Returns dataset args for the validation split."""
+        return COCOInstanceSegmentationDatasetArgs(
+            labels=Path(self.val.annotations),
+            data_dir=Path(self.val.images) if self.val.images is not None else None,
+            classes=self._classes,
+            ignore_classes=self.ignore_classes,
+            skip_if_annotations_missing=self.skip_if_annotations_missing,
+        )
+
+    @property
+    def included_classes(self) -> dict[int, str]:
+        """Returns included classes."""
+        ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+        return {
+            class_id: class_name
+            for class_id, class_name in self._classes.items()
+            if class_id not in ignore_classes
+        }
+
+    @property
+    def num_included_classes(self) -> int:
+        return len(self.included_classes)
+
+
+class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
+    """Dataset arguments for a single split of a COCO-format instance segmentation dataset."""
+
+    labels: Path
+    data_dir: Path | None
+    classes: dict[int, str]
+    ignore_classes: set[int] | None
+    skip_if_annotations_missing: bool
+
+    def list_image_info(self) -> Iterable[dict[str, str]]:
+        """Yields image info dicts for each image in the COCO annotation file.
+
+        Polygons are converted from COCO format (pixel coordinates) to normalized
+        [0, 1] coordinates. Bounding boxes are converted from COCO format
+        (x, y, width, height in pixels) to normalized (x_center, y_center, width,
+        height) format. For annotations with multiple polygon segments, the largest
+        segment is used. Images with no annotations are included unless
+        ``skip_if_annotations_missing`` is True.
+        """
+        class_id_to_internal_class_id = (
+            label_helpers.get_class_id_to_internal_class_id_mapping(
+                class_ids=self.classes.keys(),
+                ignore_classes=self.ignore_classes,
+            )
+        )
+
+        with open(self.labels) as f:
+            labels_dict = json.load(f)
+
+        annotations_by_image_id: defaultdict[int, list[dict[str, Any]]] = defaultdict(
+            list
+        )
+        for annotation in labels_dict.get("annotations", []):
+            annotations_by_image_id[annotation["image_id"]].append(annotation)
+
+        image_dir = self.labels.resolve().parent
+        if self.data_dir is not None:
+            image_dir /= self.data_dir
+
+        for image in labels_dict["images"]:
+            image_width_pixel = image["width"]
+            image_height_pixel = image["height"]
+            image_id = image["id"]
+            image_filepath = image_dir / image["file_name"]
+
+            polygons = []
+            bboxes = []
+            class_labels = []
+            if image_id in annotations_by_image_id:
+                for annotation in annotations_by_image_id[image_id]:
+                    segmentation = annotation.get("segmentation", [])
+                    if not segmentation or not isinstance(segmentation, list):
+                        continue
+                    # Take the largest polygon segment.
+                    polygon_px = max(segmentation, key=len)
+                    # Normalize polygon coordinates to [0, 1].
+                    polygon_norm = [
+                        coord / image_width_pixel
+                        if i % 2 == 0
+                        else coord / image_height_pixel
+                        for i, coord in enumerate(polygon_px)
+                    ]
+                    # Convert bbox from [x, y, w, h] pixels to normalized
+                    # [x_center, y_center, w, h]. If bbox is missing, derive it
+                    # from the polygon's axis-aligned bounding box.
+                    if "bbox" in annotation:
+                        left_pixel, top_pixel, width_pixel, height_pixel = annotation[
+                            "bbox"
+                        ]
+                    else:
+                        xs = polygon_px[0::2]
+                        ys = polygon_px[1::2]
+                        left_pixel = min(xs)
+                        top_pixel = min(ys)
+                        width_pixel = max(xs) - left_pixel
+                        height_pixel = max(ys) - top_pixel
+                    x_center = (left_pixel + width_pixel / 2.0) / image_width_pixel
+                    y_center = (top_pixel + height_pixel / 2.0) / image_height_pixel
+                    width = width_pixel / image_width_pixel
+                    height = height_pixel / image_height_pixel
+
+                    polygons.append(polygon_norm)
+                    bboxes.append([x_center, y_center, width, height])
+                    class_labels.append(annotation["category_id"])
+            else:
+                # TODO (Simon, 04/26): Log warning if annotations do not exist for an image.
+                #   And keep track of how many images are missing annotations.
+                if self.skip_if_annotations_missing:
+                    continue
+
+            # Remove instances with class IDs that are not in the included classes.
             keep = [label in class_id_to_internal_class_id for label in class_labels]
             polygons = list(itertools.compress(polygons, keep))
             bboxes = list(itertools.compress(bboxes, keep))
