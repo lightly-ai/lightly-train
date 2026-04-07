@@ -29,11 +29,9 @@ from lightly_train.types import (
     ImageDtypes,
     ImageFilename,
     NDArray4Corners,
-    NDArrayBBoxes,
     NDArrayClasses,
     NDArrayImage,
     NDArrayMask,
-    NDArrayPolygon,
     PathLike,
 )
 
@@ -447,16 +445,15 @@ def open_yolo_object_detection_label(
     return bboxes, classes
 
 
-def open_yolo_instance_segmentation_label_numpy(
+def open_yolo_instance_segmentation_label(
     label_path: Path,
-) -> tuple[list[NDArrayPolygon], NDArrayBBoxes, NDArrayClasses]:
-    """Open a YOLO label file and return the polygons, bboxes, and classes as numpy
-    arrays.
+) -> tuple[list[list[float]], list[list[float]], list[int]]:
+    """Open a YOLO label file and return the polygons, bboxes, and classes.
 
     Returns:
         (polygons, bboxes, classes) tuple. All values are in normalized coordinates
-        between [0, 1]. Polygons are list of numpy arrays of shape (n_points*2,) and
-        each array is a sequence of x0, y0, x1, y1, ... coordinates.
+        between [0, 1]. Polygons are list of lists of floats, each being a sequence
+        of x0, y0, x1, y1, ... coordinates.
         Bboxes are formatted as (x_center, y_center, width, height).
     """
     classes = []
@@ -465,28 +462,25 @@ def open_yolo_instance_segmentation_label_numpy(
     for line in _iter_yolo_label_lines(label_path=label_path):
         parts = [float(x) for x in line.split()]
         class_id = parts[0]
-        polygon = np.array(parts[1:], dtype=np.float64)
+        polygon = parts[1:]
         classes.append(int(class_id))
         polygons.append(polygon)
         bboxes.append(_bbox_from_polygon(polygon))
-    classes_np = np.array(classes, dtype=np.int64)
-    bboxes_np = np.stack(bboxes) if bboxes else np.zeros((0, 4), dtype=np.float64)
-    return polygons, bboxes_np, classes_np
+    return polygons, bboxes, classes
 
 
-def _bbox_from_polygon(polygon: NDArrayPolygon) -> NDArrayBBoxes:
+def _bbox_from_polygon(polygon: list[float]) -> list[float]:
     xs = polygon[0::2]
     ys = polygon[1::2]
-    x_min = np.min(xs)
-    x_max = np.max(xs)
-    y_min = np.min(ys)
-    y_max = np.max(ys)
+    x_min = min(xs)
+    x_max = max(xs)
+    y_min = min(ys)
+    y_max = max(ys)
     x_center = (x_min + x_max) / 2.0
     y_center = (y_min + y_max) / 2.0
     width = x_max - x_min
     height = y_max - y_min
-    bbox = np.array([x_center, y_center, width, height], dtype=np.float64)
-    return bbox
+    return [x_center, y_center, width, height]
 
 
 def _iter_yolo_label_lines(label_path: Path) -> Iterable[str]:
