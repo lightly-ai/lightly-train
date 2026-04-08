@@ -144,66 +144,6 @@ class DistillationV3Args(MethodArgs):
             )
 
 
-def _is_probably_conv(wrapped_model: ModelWrapper) -> bool:
-    """Heuristic to determine whether the student model is convolutional or
-    transformer-based. This is used to determine the default weight decay.
-    """
-    has_attention = False
-    has_layernorm = False
-    has_convolution = False
-
-    for module in wrapped_model.modules():
-        module_name = module.__class__.__name__.lower()
-        if "attention" in module_name or "attn" in module_name:
-            # Attention modules are often custom and may not include "attention".
-            has_attention = True
-        if "layernorm" in module_name:
-            has_layernorm = True
-        if "conv" in module_name:
-            has_convolution = True
-
-    # Transformers use attention and layer norm.
-    if has_attention and has_layernorm:
-        return False
-    # ConvNeXt-style models use LayerNorm instead of BatchNorm. They have no
-    # attention but follow a transformer-style training recipe (larger weight decay).
-    if has_layernorm and has_convolution:
-        return False
-    # Traditional CNNs (ResNet, ShuffleNet, YOLO, …) use convolutions and BatchNorm.
-    if has_convolution:
-        return True
-    # Nothing detected – log a warning and default to non-convolutional.
-    logger.warning(
-        "Could not determine whether the student model is convolutional or "
-        "transformer-based. Defaulting to non-convolutional (transformer-style "
-        "training recipe). Set `student_is_conv` explicitly to suppress this warning."
-    )
-    return False
-
-
-def _get_student_is_conv(wrapped_model: ModelWrapper) -> bool:
-    """Determine whether the student model uses a convolutional (batchnorm-based) training
-    recipe. Uses ArchitectureInfoGettable when available for accurate detection, otherwise
-    falls back to the module-inspection heuristic.
-    """
-    if isinstance(wrapped_model, ArchitectureInfoGettable):
-        arch_info = wrapped_model.architecture_info()
-        model_type = arch_info["model_type"]
-        norm_type = arch_info["norm_type"]
-        if model_type in ("transformer", "hybrid"):
-            return False
-        if model_type == "convolutional" and norm_type == "layernorm":
-            # ConvNeXt-style: convolutional ops but transformer training recipe.
-            return False
-        if model_type == "convolutional" and norm_type == "batchnorm":
-            return True
-        raise ValueError(
-            f"Unrecognized architecture info: model_type={model_type!r}, "
-            f"norm_type={norm_type!r}. Set `student_is_conv` explicitly."
-        )
-    return _is_probably_conv(wrapped_model=wrapped_model)
-
-
 class DistillationV3LARSArgs(LARSArgs):
     lr: float = 1.8  # 1.8 = 0.3 * 1536 / 256
     momentum: float = 0.9
@@ -219,13 +159,13 @@ class DistillationV3LARSArgs(LARSArgs):
 
 class DistillationV3AdamWArgs(AdamWArgs):
     lr: float = 0.0005
-    weight_decay: float = 0.04
-    _student_is_conv: bool | Literal["auto"] = "auto"
+    weight_decay: float | Literal["auto"] = "auto"
 
     def resolve_auto(self, wrapped_model: ModelWrapper) -> None:
-        if self._student_is_conv == "auto":
-            self._student_is_conv = _get_student_is_conv(wrapped_model=wrapped_model)
-        self.weight_decay = 1e-6 if self._student_is_conv else 0.04
+        if self.weight_decay == "auto":
+            self.weight_decay = (
+                1e-6 if _use_conv_weight_decay(wrapped_model=wrapped_model) else 0.04
+            )
 
 
 class DistillationV3(Method):
@@ -515,3 +455,63 @@ class DistillationV3(Method):
                 f"Missing keys in state_dict: {missing_keys}"
             )
         return incompatible_keys
+
+
+def _is_probably_conv(wrapped_model: ModelWrapper) -> bool:
+    """Heuristic to determine whether the student model is convolutional or
+    transformer-based. This is used to determine the default weight decay.
+    """
+    has_attention = False
+    has_layernorm = False
+    has_convolution = False
+
+    for module in wrapped_model.modules():
+        module_name = module.__class__.__name__.lower()
+        if "attention" in module_name or "attn" in module_name:
+            # Attention modules are often custom and may not include "attention".
+            has_attention = True
+        if "layernorm" in module_name:
+            has_layernorm = True
+        if "conv" in module_name:
+            has_convolution = True
+
+    # Transformers use attention and layer norm.
+    if has_attention and has_layernorm:
+        return False
+    # ConvNeXt-style models use LayerNorm instead of BatchNorm. They have no
+    # attention but follow a transformer-style training recipe (larger weight decay).
+    if has_layernorm and has_convolution:
+        return False
+    # Traditional CNNs (ResNet, ShuffleNet, YOLO, …) use convolutions and BatchNorm.
+    if has_convolution:
+        return True
+    # Nothing detected – log a warning and default to non-convolutional.
+    logger.warning(
+        "Could not determine whether the student model is convolutional or "
+        "transformer-based. Defaulting to non-convolutional (transformer-style "
+        "training recipe). Set `student_is_conv` explicitly to suppress this warning."
+    )
+    return False
+
+
+def _use_conv_weight_decay(wrapped_model: ModelWrapper) -> bool:
+    """Determine whether the student model uses a convolutional (batchnorm-based) training
+    recipe. Uses ArchitectureInfoGettable when available for accurate detection, otherwise
+    falls back to the module-inspection heuristic.
+    """
+    if isinstance(wrapped_model, ArchitectureInfoGettable):
+        arch_info = wrapped_model.architecture_info()
+        model_type = arch_info["model_type"]
+        norm_type = arch_info["norm_type"]
+        if model_type in ("transformer", "hybrid"):
+            return False
+        if model_type == "convolutional" and norm_type == "layernorm":
+            # ConvNeXt-style: convolutional ops but transformer training recipe.
+            return False
+        if model_type == "convolutional" and norm_type == "batchnorm":
+            return True
+        raise ValueError(
+            f"Unrecognized architecture info: model_type={model_type!r}, "
+            f"norm_type={norm_type!r}. Set `student_is_conv` explicitly."
+        )
+    return _is_probably_conv(wrapped_model=wrapped_model)
