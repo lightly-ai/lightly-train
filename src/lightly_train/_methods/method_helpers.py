@@ -62,6 +62,6 @@ def _method_name_to_cls() -> dict[str, type[Method]]:
             SimCLR,
         ]
     }
-    mapping["distillation"] = DistillationV2
+    mapping["distillation"] = DistillationV3
     mapping["distillationv1"] = Distillation
     return mapping
