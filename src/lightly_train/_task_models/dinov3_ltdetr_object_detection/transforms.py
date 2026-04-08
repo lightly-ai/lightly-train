@@ -19,6 +19,8 @@ from lightly_train._transforms.object_detection_transform import (
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
+    CopyBlendArgs,
+    MixUpArgs,
     NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
@@ -106,6 +108,30 @@ class DINOv3LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     num_scales: int | None = None
     prob: float = 1.0
     divisible_by: int | None = None
+    # stopping step for scale jittering in LTDETR object detection
+    # None means scale jitter is always on.
+    step_stop: int | None = (
+        None  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    )
+
+
+class DINOv3LTDETRObjectDetectionMixUpArgs(MixUpArgs):
+    prob: float = 0.5
+    # Corresponds to the 4th epoch of the total training run.
+    step_start: int = 25_000  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    # Corresponds to the 4 + total_epochs // 2 epoch of the total training run.
+    step_stop: int = 250_000  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+
+
+class DINOv3LTDETRObjectDetectionCopyBlendArgs(CopyBlendArgs):
+    prob: float = 0.5
+    # TODO(Yutong, 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_start: int = 25_000
+    # TODO(Yutong, 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_stop: int = 375_000
+    area_threshold: int = 100
+    num_objects: int = 3
+    expand_ratios: tuple[float, float] = (0.1, 0.25)
 
 
 class DINOv3LTDETRObjectDetectionResizeArgs(ResizeArgs):
@@ -133,10 +159,14 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
     # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
     stop_policy: StopPolicyArgs | None = None
-    resize: ResizeArgs | None = None
-    scale_jitter: ScaleJitterArgs | None = Field(
+    resize: ResizeArgs | None = Field(
+        default_factory=DINOv3LTDETRObjectDetectionResizeArgs
+    )
+    scale_jitter: DINOv3LTDETRObjectDetectionScaleJitterArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionScaleJitterArgs
     )
+    mixup: DINOv3LTDETRObjectDetectionMixUpArgs | None = None
+    copyblend: DINOv3LTDETRObjectDetectionCopyBlendArgs | None = None
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
@@ -204,6 +234,8 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
         default_factory=DINOv3LTDETRObjectDetectionResizeArgs
     )
     scale_jitter: ScaleJitterArgs | None = None
+    mixup: DINOv3LTDETRObjectDetectionMixUpArgs | None = None
+    copyblend: DINOv3LTDETRObjectDetectionCopyBlendArgs | None = None
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
             format="yolo",

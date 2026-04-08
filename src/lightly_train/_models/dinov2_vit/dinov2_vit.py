@@ -16,13 +16,15 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
     DinoVisionTransformer,
 )
 from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
+    ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
 )
 
 
-class DINOv2ViTModelWrapper(Module, ModelWrapper):
+class DINOv2ViTModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
     def __init__(self, model: DinoVisionTransformer) -> None:
         super().__init__()
         self._model = model
@@ -74,6 +76,9 @@ class DINOv2ViTModelWrapper(Module, ModelWrapper):
                 update_blocks_student_to_teacher(chunked_blocks)  # type: ignore[arg-type]
         else:
             update_blocks_student_to_teacher(self._model.blocks)
+
+    def architecture_info(self) -> ArchitectureInfo:
+        return {"model_type": "transformer", "norm_type": "layernorm"}
 
 
 def update_blocks_student_to_teacher(blocks: ModuleList) -> None:

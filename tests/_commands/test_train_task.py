@@ -14,6 +14,10 @@ import pytest
 from lightning_utilities.core.imports import RequirementCache
 from pytest import LogCaptureFixture
 
+from lightly_train._data.coco_object_detection_dataset import (
+    COCOObjectDetectionDataArgs,
+)
+
 if RequirementCache("albumentations<1.4.0"):
     # Skip test if albumentations version is too old. This can happen on Python 3.8.
     pytest.skip("Old albumentations version", allow_module_level=True)
@@ -29,8 +33,10 @@ import os
 import sys
 
 import torch
+import yaml
 
 import lightly_train
+from lightly_train._commands.train_task import ObjectDetectionTrainTaskConfig
 
 from .. import helpers
 
@@ -167,7 +173,7 @@ def test_train_image_classification_multihead(
     assert model is not None
 
 
-def test_train_object_detection(tmp_path: Path) -> None:
+def test_train_object_detection_yolo(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     # Create dataset with 4 files, including one without a label file (index 2) and
@@ -888,3 +894,29 @@ def test_train_semantic_segmentation_multihead__integration__runs_with_multiple_
         assert prediction.shape == (224, 224)  # Each prediction should be (H, W)
         assert prediction.min() >= 0
         assert prediction.max() <= 1  # Should be class indices 0 or 1
+
+
+@pytest.mark.parametrize("path_type", [str, Path])
+def test_create_object_detection_train_task_config__data_is_yaml(
+    tmp_path: Path, path_type: type
+) -> None:
+    data_yaml = tmp_path / "data.yaml"
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "format": "coco",
+                "train": {"annotations": "train.json"},
+                "val": {"annotations": "val.json"},
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+    config = ObjectDetectionTrainTaskConfig(
+        out="out",
+        model="some/model",
+        task="object_detection",
+        data=path_type(data_yaml),
+    )
+    assert isinstance(config.data, COCOObjectDetectionDataArgs)
+    assert config.data.train.annotations == "train.json"
+    assert config.data.val.annotations == "val.json"

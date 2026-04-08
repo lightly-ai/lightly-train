@@ -21,7 +21,7 @@ import cv2
 import pydantic
 from albumentations import BasicTransform
 from lightly.transforms.utils import IMAGENET_NORMALIZE
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 from torchvision.transforms import v2
 
 from lightly_train._configs.config import PydanticConfig
@@ -185,12 +185,40 @@ class ScaleJitterArgs(PydanticConfig):
     num_scales: int | None
     prob: float = Field(ge=0.0, le=1.0)
     divisible_by: int | None
+    step_stop: int | None = None
 
     @property
     def scale_range(self) -> tuple[float, float] | None:
         if self.min_scale is not None and self.max_scale is not None:
             return self.min_scale, self.max_scale
         return None
+
+
+class MixUpArgs(PydanticConfig):
+    prob: float = Field(ge=0.0, le=1.0)
+    step_start: int = Field(ge=0)
+    step_stop: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_step_window(self) -> MixUpArgs:
+        if self.step_start >= self.step_stop:
+            raise ValueError("mixup requires step_start < step_stop.")
+        return self
+
+
+class CopyBlendArgs(PydanticConfig):
+    prob: float = Field(ge=0.0, le=1.0)
+    step_start: int = Field(ge=0)
+    step_stop: int = Field(gt=0)
+    area_threshold: int = Field(ge=0)
+    num_objects: int = Field(gt=0)
+    expand_ratios: tuple[float, float] = Field(strict=False)
+
+    @model_validator(mode="after")
+    def validate_step_window(self) -> CopyBlendArgs:
+        if self.step_start >= self.step_stop:
+            raise ValueError("copyblend requires step_start < step_stop.")
+        return self
 
 
 class StopPolicyArgs(PydanticConfig):
