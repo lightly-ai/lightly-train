@@ -786,6 +786,20 @@ def get_current_learning_rate(optimizer: Optimizer, scheduler: LRScheduler) -> f
     return lr
 
 
+def get_training_epoch(
+    step: int,
+    train_num_batches: int,
+    gradient_accumulation_steps: int = 1,
+) -> int:
+    """Returns the current 1-based training epoch for logging."""
+    if train_num_batches < 1:
+        raise ValueError("train_num_batches must be >= 1.")
+    if gradient_accumulation_steps < 1:
+        raise ValueError("gradient_accumulation_steps must be >= 1.")
+    completed_batches = (step + 1) * gradient_accumulation_steps
+    return (completed_batches - 1) // train_num_batches + 1
+
+
 # For compatibility with older versions of PyTorch where `get_last_lr` returns `list[float]` only.
 def _scheduler_scalar_to_float(value: Any) -> float:
     if isinstance(value, torch.Tensor):
@@ -797,6 +811,7 @@ def log_step(
     split: Literal["train", "val"],
     step: int,
     max_steps: int,
+    epoch: int,
     agg_metric_values: AggregatedMetricValues | None,
     task: str,
     timer_agg: TimerAggregateMetrics,
@@ -814,6 +829,7 @@ def log_step(
     width = len(str(max_steps))
     parts = [
         f"{split_cap} Step {step + 1:>{width}}/{max_steps:>{width}}",
+        f"Epoch {epoch}",
     ]
 
     # TODO(Guarin, 02/26): Loss name should be part of AggregatedMetricValues and not
@@ -876,10 +892,12 @@ def log_fabric(
     log_dict: dict[str, float],
     agg_metric_values: AggregatedMetricValues,
     step: int,
+    epoch: int,
 ) -> None:
     final_dict = {}
     final_dict.update(agg_metric_values.metric_values)
     final_dict.update(log_dict)
+    final_dict["epoch"] = epoch
     fabric.log_dict(final_dict, step=step)
 
 

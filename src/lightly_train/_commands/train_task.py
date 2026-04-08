@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Union, get_args, get_origin
 
 import fsspec
 import torch
@@ -18,8 +18,9 @@ from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict, Field, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
+from typing_extensions import Annotated
 
 from lightly_train import (
     _float32_matmul_precision,
@@ -34,6 +35,9 @@ from lightly_train._commands.train_task_helpers import BestAggregatedMetricValue
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
+from lightly_train._data.coco_object_detection_dataset import (
+    COCOObjectDetectionDataArgs,
+)
 from lightly_train._data.image_classification_dataset import (
     ImageClassificationMulticlassDataArgs,
     ImageClassificationMultilabelDataArgs,
@@ -1520,6 +1524,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         log_every_num_steps = no_auto(config.logger_args.log_every_num_steps)
         val_log_every_num_steps = no_auto(config.logger_args.val_log_every_num_steps)
+        train_num_batches = len(train_dataloader)
         # Always log the first few steps and then log at a regular interval.
         log_steps = {
             step for step in [1, 2, 5, 10, 50, 100] if step < log_every_num_steps
@@ -1530,6 +1535,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         for step in range(start_step, config.steps):
             state["step"] = step
+            current_epoch = helpers.get_training_epoch(
+                step=step,
+                train_num_batches=train_num_batches,
+                gradient_accumulation_steps=config.gradient_accumulation_steps,
+            )
             is_last_step = step + 1 == config.steps
             is_log_step = step + 1 in log_steps or (step + 1) % log_every_num_steps == 0
             is_val_step = (step + 1) % no_auto(
@@ -1544,12 +1554,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             train_transform.set_step(step)
             train_collate_fn.set_step(step)
 
+            # We need to reinitiate the dataloader every time a step-aware transform changes its active status
             needs_reinit = (
                 train_transform.requires_dataloader_reinitialization()
                 or train_collate_fn.requires_dataloader_reinitialization()
             )
             if config.num_workers > 0 and needs_reinit:
                 infinite_train_dataloader.reset()
+                train_transform.mark_dataloader_as_reinitialized()
+                train_collate_fn.mark_dataloader_as_reinitialized()
 
             # Training data loading, forward passes, and gradient accumulation.
             for acc_step in range(config.gradient_accumulation_steps):
@@ -1598,6 +1611,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     split="train",
                     step=step,
                     max_steps=config.steps,
+                    epoch=current_epoch,
                     agg_metric_values=train_agg_metric_values,
                     task=config.task,
                     timer_agg=timer_agg,
@@ -1617,6 +1631,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     log_dict=train_log_dict,
                     agg_metric_values=train_agg_metric_values,
                     step=step,
+                    epoch=current_epoch,
                 )
 
             if config.save_checkpoint_args.save_last and (
@@ -1690,6 +1705,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
+                            epoch=current_epoch,
                             agg_metric_values=val_agg_metric_values,
                             task=config.task,
                             timer_agg=timer_agg,
@@ -1707,6 +1723,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             log_dict=val_result.log_dict,
                             agg_metric_values=val_agg_metric_values,
                             step=step,
+                            epoch=current_epoch,
                         )
 
                         if (
@@ -1751,6 +1768,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             split="val",
                             step=val_step,
                             max_steps=len(val_dataloader),
+                            epoch=current_epoch,
                             agg_metric_values=None,
                             task=config.task,
                             timer_agg=timer_agg,
@@ -1808,7 +1826,18 @@ class TrainTaskConfig(PydanticConfig):
             with fsspec.open(v, "r") as file:
                 v = yaml.safe_load(file)
             # Ignore all fields in YAML file that are not part of the Pydantic model.
-            data_attributes = cls.model_fields["data"].annotation.model_fields  # type: ignore
+            # As data can be a Union, it would be impossible to figure out which fields to exclude, so in that
+            # case we include the fields of all union members.
+            annotation = cls.model_fields["data"].annotation
+            if get_origin(annotation) is Union:
+                members = get_args(annotation)
+            else:
+                members = (annotation,)
+            data_attributes = {
+                name
+                for m in members
+                for name in m.model_fields  # type: ignore
+            }
             v = {name: value for name, value in v.items() if name in data_attributes}
         return v
 
@@ -1834,8 +1863,18 @@ class PanopticSegmentationTrainTaskConfig(TrainTaskConfig):
 
 
 class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
-    data: YOLOObjectDetectionDataArgs
+    data: Annotated[
+        Union[YOLOObjectDetectionDataArgs, COCOObjectDetectionDataArgs],
+        Field(discriminator="format"),
+    ]
     task: Literal["object_detection"] = "object_detection"
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def _set_default_format(cls, v: Any) -> Any:
+        if isinstance(v, dict) and "format" not in v:
+            v = {**v, "format": "yolo"}
+        return v
 
 
 class SemanticSegmentationTrainTaskConfig(TrainTaskConfig):

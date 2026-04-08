@@ -194,6 +194,8 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
     Events are buffered so flushes can send them in batches. This limits how many
     threads we spawn and ensures no events are dropped while a flush runs.
     """
+    import lightly_train
+
     if not _distributed.is_global_rank_zero():
         return
 
@@ -211,12 +213,12 @@ def track_event(event_name: str, properties: Dict[str, Any]) -> None:
         return
 
     _last_event_time[event_name] = current_time
-
+    version = getattr(lightly_train, "__version__", "unknown")
     event_data = {
         "api_key": Env.LIGHTLY_TRAIN_POSTHOG_KEY.value,
         "event": event_name,
         "distinct_id": _user_id,
-        "properties": {**properties, **_get_system_info()},
+        "properties": {**properties, **_get_system_info(), "version": version},
     }
     _events.append(event_data)
 

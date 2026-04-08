@@ -65,6 +65,7 @@ def test_track_event__structure(
     assert "prop1" in event_data["properties"]
     assert event_data["properties"]["prop1"] == "value1"
     assert "os" in event_data["properties"]
+    assert "version" in event_data["properties"]
 
 
 def test_track_event__rate_limited(

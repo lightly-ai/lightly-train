@@ -650,6 +650,10 @@ def test_decrement_and_cleanup__reuse(tmp_path: Path, mocker: MockerFixture) -> 
     assert mmap_file.exists()
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 9),
+    reason="Flaky on Python 3.8 due to filelock race condition with concurrent processes.",
+)
 @pytest.mark.parametrize(
     "num_increments,skip_windows",
     [

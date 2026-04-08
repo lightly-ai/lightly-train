@@ -17,6 +17,8 @@ from numpy.typing import NDArray
 from torch import Tensor
 
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
+    DINOv3LTDETRObjectDetectionCopyBlendArgs,
+    DINOv3LTDETRObjectDetectionMixUpArgs,
     DINOv3LTDETRObjectDetectionScaleJitterArgs,
     DINOv3LTDETRObjectDetectionTrainTransformArgs,
 )
@@ -262,12 +264,23 @@ class TestObjectDetectionCollateFunction:
         assert all(isinstance(classes, Tensor) for classes in out["classes"])
         assert out["original_size"] == [(128, 128), (64, 64)]
 
-    def test_requires_dataloader_reinitialization__scale_jitter_step_window(
-        self,
-    ) -> None:
+    def test_requires_dataloader_reinitialization(self) -> None:
         transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs(
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
+            mixup=DINOv3LTDETRObjectDetectionMixUpArgs(
+                prob=1.0,
+                step_start=1,
+                step_stop=2,
+            ),
+            copyblend=DINOv3LTDETRObjectDetectionCopyBlendArgs(
+                prob=1.0,
+                step_start=2,
+                step_stop=4,
+                area_threshold=1,
+                num_objects=1,
+                expand_ratios=(0.1, 0.25),
+            ),
             scale_jitter=DINOv3LTDETRObjectDetectionScaleJitterArgs(
                 step_stop=3,
                 sizes=[(32, 32)],
@@ -288,12 +301,22 @@ class TestObjectDetectionCollateFunction:
         assert collate_fn.requires_dataloader_reinitialization() is False
 
         collate_fn.set_step(1)
-        assert collate_fn.requires_dataloader_reinitialization() is False
+        assert collate_fn.requires_dataloader_reinitialization() is True
+        assert collate_fn.requires_dataloader_reinitialization() is True
+        collate_fn.mark_dataloader_as_reinitialized()
         assert collate_fn.requires_dataloader_reinitialization() is False
 
         collate_fn.set_step(2)
+        assert collate_fn.requires_dataloader_reinitialization() is True
+        collate_fn.mark_dataloader_as_reinitialized()
         assert collate_fn.requires_dataloader_reinitialization() is False
 
         collate_fn.set_step(3)
         assert collate_fn.requires_dataloader_reinitialization() is True
+        collate_fn.mark_dataloader_as_reinitialized()
+        assert collate_fn.requires_dataloader_reinitialization() is False
+
+        collate_fn.set_step(4)
+        assert collate_fn.requires_dataloader_reinitialization() is True
+        collate_fn.mark_dataloader_as_reinitialized()
         assert collate_fn.requires_dataloader_reinitialization() is False
