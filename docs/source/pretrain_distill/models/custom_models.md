@@ -28,7 +28,17 @@ subclass of `torch.nn.Module` and implement the following methods:
   Dimension of output features (channels) of the features returned by `forward_features`
   and `forward_pool`.
 
-The methods are described in more detail in the template below:
+The methods are described in more detail in the template below.
+
+Additionally, the following method is **optional but recommended**:
+
+- `architecture_info(self) -> Dict[str, Any]`
+
+  Returns architecture information so that methods like distillation can select the
+  correct training recipe without relying on heuristics. Should return a dict with:
+
+  - `"model_type"`: `"convolutional"`, `"transformer"`, or `"hybrid"`
+  - `"norm_type"`: `"batchnorm"` or `"layernorm"`
 
 ```python
 from typing import Any, Dict
@@ -94,6 +104,16 @@ class MyModelWrapper(Module):
         and forward_pool methods.
         """
         return 2048
+
+    def architecture_info(self) -> Dict[str, Any]:
+        """Optional. Return architecture info to avoid heuristic detection.
+
+        Returns:
+            Dict with:
+              - "model_type": "convolutional", "transformer", or "hybrid"
+              - "norm_type": "batchnorm" or "layernorm"
+        """
+        return {"model_type": "convolutional", "norm_type": "batchnorm"}
 
 if __name__ == "__main__":
     model = ... # Instatiate the model you want to pretrain
@@ -170,6 +190,9 @@ class MyModelWrapper(Module):
     def feature_dim(self) -> int:
         # ResNet-18 has 512 output features after the last convolutional layer.
         return 512
+
+    def architecture_info(self) -> Dict[str, Any]:
+        return {"model_type": "convolutional", "norm_type": "batchnorm"}
 
 
 if __name__ == "__main__":
