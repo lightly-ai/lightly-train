@@ -31,6 +31,7 @@ from lightly_train._transforms.object_detection_transform import (
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
+    MosaicArgs,
     NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
@@ -133,6 +134,22 @@ def _get_normalize_args() -> NormalizeArgs:
     return NormalizeArgs()
 
 
+def _get_mosaic_args() -> MosaicArgs:
+    return MosaicArgs(
+        prob=1.0,
+        step_start=0,
+        step_stop=100,
+        output_size=32,
+        max_size=None,
+        rotation_range=10.0,
+        translation_range=(0.1, 0.1),
+        scaling_range=(0.5, 1.5),
+        fill_value=0,
+        max_cached_images=50,
+        random_pop=True,
+    )
+
+
 def _get_image_size() -> tuple[int, int]:
     return (64, 64)
 
@@ -149,6 +166,7 @@ PossibleArgsTuple = (
     [None, _get_scale_jitter_args()],
     [None, _get_resize_args()],
     [None, _get_normalize_args()],
+    [None, _get_mosaic_args()],
 )
 
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
@@ -156,7 +174,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, random_rotate_90, random_rotate, scale_jitter, resize, normalize",
+        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, random_rotate_90, random_rotate, scale_jitter, resize, normalize, mosaic",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -171,9 +189,19 @@ class TestObjectDetectionTransform:
         resize: ResizeArgs | None,
         random_iou_crop: RandomIoUCropArgs | None,
         normalize: NormalizeArgs | None,
+        mosaic: MosaicArgs | None,
     ) -> None:
         image_size = _get_image_size()
-        bbox_params = _get_bbox_params()
+        # MosaicTransform expects YOLO normalized bboxes (matching production configs).
+        if mosaic is not None:
+            bbox_params = BboxParams(
+                format="yolo",
+                label_fields=["class_labels"],
+                min_area=0,
+                min_visibility=0.0,
+            )
+        else:
+            bbox_params = _get_bbox_params()
         stop_policy = None  # TODO: Lionel (09/25) Pass as function argument.
         transform_args = ObjectDetectionTransformArgs(
             channel_drop=channel_drop,
@@ -190,6 +218,7 @@ class TestObjectDetectionTransform:
             resize=resize,
             scale_jitter=scale_jitter,
             normalize=normalize,
+            mosaic=mosaic,
         )
         transform_args.resolve_auto(model_init_args={})
         transform = ObjectDetectionTransform(transform_args)
@@ -200,7 +229,11 @@ class TestObjectDetectionTransform:
         img: NDArray[np.uint8] = np.random.randint(
             0, 256, (128, 128, num_channels), dtype=np.uint8
         )
-        bboxes = np.array([[10, 10, 50, 50]], dtype=np.float64)
+        if mosaic is not None:
+            # YOLO normalized format: (cx, cy, w, h) in [0, 1].
+            bboxes = np.array([[0.234, 0.234, 0.3125, 0.3125]], dtype=np.float64)
+        else:
+            bboxes = np.array([[10, 10, 50, 50]], dtype=np.float64)
         class_labels = np.array([1], dtype=np.int64)
 
         tr_input: ObjectDetectionTransformInput = {
@@ -214,6 +247,58 @@ class TestObjectDetectionTransform:
         assert tr_output["bboxes"].dtype == np.float64
         assert "class_labels" in tr_output
         assert tr_output["class_labels"].dtype == np.int64
+
+    def test_requires_dataloader_reinitialization(self) -> None:
+        transform_args = ObjectDetectionTransformArgs(
+            channel_drop=None,
+            num_channels=3,
+            photometric_distort=None,
+            random_zoom_out=_get_random_zoom_out_args(),
+            random_iou_crop=_get_random_iou_crop_args(),
+            random_flip=_get_random_flip_args(),
+            random_rotate_90=None,
+            random_rotate=None,
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+            stop_policy=None,
+            resize=_get_resize_args(),
+            scale_jitter=None,
+            normalize=None,
+            mosaic=MosaicArgs(
+                prob=0.5,
+                step_start=2,
+                step_stop=5,
+                output_size=320,
+                max_size=None,
+                rotation_range=10.0,
+                translation_range=(0.1, 0.1),
+                scaling_range=(0.5, 1.5),
+                fill_value=0,
+                max_cached_images=50,
+                random_pop=True,
+            ),
+        )
+        transform_args.resolve_auto(model_init_args={})
+        transform = ObjectDetectionTransform(transform_args)
+
+        # step 0: no reinit needed
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 2: mosaic activates -> reinit True, mark, then False
+        transform.set_step(2)
+        assert transform.requires_dataloader_reinitialization() is True
+        transform.mark_dataloader_as_reinitialized()
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 4: still active -> no reinit
+        transform.set_step(4)
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 5: mosaic deactivates -> reinit True, mark, then False
+        transform.set_step(5)
+        assert transform.requires_dataloader_reinitialization() is True
+        transform.mark_dataloader_as_reinitialized()
+        assert transform.requires_dataloader_reinitialization() is False
 
 
 class TestObjectDetectionCollateFunction:
