@@ -20,6 +20,7 @@ from lightly_train._transforms.object_detection_transform import (
 from lightly_train._transforms.transform import (
     CopyBlendArgs,
     MixUpArgs,
+    MosaicArgs,
     NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
@@ -136,6 +137,24 @@ class DINOv2LTDETRObjectDetectionCopyBlendArgs(CopyBlendArgs):
     expand_ratios: tuple[float, float] = (0.1, 0.25)
 
 
+class DINOv2LTDETRObjectDetectionMosaicArgs(MosaicArgs):
+    prob: float = 0.5
+
+    output_size: int = 320
+    max_size: int | None = None
+    rotation_range: float = 10.0
+    translation_range: tuple[float, float] = (0.1, 0.1)
+    scaling_range: tuple[float, float] = (0.5, 1.5)
+    fill_value: int | float = 0
+    max_cached_images: int = 50
+    random_pop: bool = True
+
+    # TODO(Yutong, 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_start: int = 15_000
+    # TODO(Yutong, 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_stop: int = 150_000
+
+
 class DINOv2LTDETRObjectDetectionResizeArgs(ResizeArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
@@ -167,6 +186,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     scale_jitter: DINOv2LTDETRObjectDetectionScaleJitterArgs | None = Field(
         default_factory=DINOv2LTDETRObjectDetectionScaleJitterArgs
     )
+    mosaic: DINOv2LTDETRObjectDetectionMosaicArgs | None = None
     mixup: DINOv2LTDETRObjectDetectionMixUpArgs | None = None
     copyblend: DINOv2LTDETRObjectDetectionCopyBlendArgs | None = None
     # We use the YOLO format internally for now.
@@ -236,6 +256,7 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
         default_factory=DINOv2LTDETRObjectDetectionResizeArgs
     )
     scale_jitter: ScaleJitterArgs | None = None
+    mosaic: DINOv2LTDETRObjectDetectionMosaicArgs | None = None
     mixup: DINOv2LTDETRObjectDetectionMixUpArgs | None = None
     copyblend: DINOv2LTDETRObjectDetectionCopyBlendArgs | None = None
     bbox_params: BboxParams = Field(
