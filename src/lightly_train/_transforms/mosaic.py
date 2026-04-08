@@ -9,15 +9,19 @@ from __future__ import annotations
 
 import math
 import random
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 from PIL import Image
+from torchvision.transforms import InterpolationMode
+from torchvision.transforms.v2 import functional as transforms_functional
+from typing_extensions import TypeAlias
 
 from lightly_train.types import NDArrayBBoxes, NDArrayClasses, NDArrayImage
 
-NDArrayXYXYBBoxes = NDArray[np.float32]
+NDArrayXYXYBBoxes: TypeAlias = NDArray[np.float32]
 
 
 class _MosaicCacheItem(TypedDict):
@@ -33,7 +37,7 @@ class MosaicTransform:
     Replicates the mosaic behavior from LT-DETR.
 
     Input/output format:
-        - image: numpy RGB array (H, W, 3), uint8
+        - image: supported numpy image array (H, W, 3) with dtype uint8 or float32
         - bboxes: numpy array (N, 4) in YOLO normalized format (cx, cy, w, h)
         - class_labels: numpy array (N,) of int class labels
     """
@@ -110,7 +114,7 @@ class MosaicTransform:
         max_h = max(s["img"].shape[0] for s in samples)
         max_w = max(s["img"].shape[1] for s in samples)
 
-        canvas = np.zeros((2 * max_h, 2 * max_w, 3), dtype=np.uint8)
+        canvas = np.zeros((2 * max_h, 2 * max_w, 3), dtype=resized_img.dtype)
 
         offsets = [
             (0, 0),
@@ -161,7 +165,7 @@ class MosaicTransform:
             scale=scale,
         )
 
-        # Convert PIL -> numpy, xyxy absolute -> YOLO normalized.
+        # Convert xyxy absolute -> YOLO normalized.
         out_h, out_w = out_img_np.shape[:2]
         out_bboxes = _xyxy_to_yolo(out_boxes_xyxy, out_w, out_h)
         out_labels = mosaic_labels
@@ -176,12 +180,12 @@ def _sample_affine_params(
     translation_range: tuple[float, float],
     scaling_range: tuple[float, float],
 ) -> tuple[float, tuple[int, int], float]:
-    angle = random.uniform(-rotation_range, rotation_range)
+    angle = torch.empty(1).uniform_(-rotation_range, rotation_range).item()
     max_dx = translation_range[0] * canvas_width
     max_dy = translation_range[1] * canvas_height
-    tx = int(round(random.uniform(-max_dx, max_dx)))
-    ty = int(round(random.uniform(-max_dy, max_dy)))
-    scale = random.uniform(scaling_range[0], scaling_range[1])
+    tx = int(round(torch.empty(1).uniform_(-max_dx, max_dx).item()))
+    ty = int(round(torch.empty(1).uniform_(-max_dy, max_dy).item()))
+    scale = torch.empty(1).uniform_(scaling_range[0], scaling_range[1]).item()
     return angle, (tx, ty), scale
 
 
@@ -192,17 +196,12 @@ def _resize_image_and_boxes(
     max_size: int | None,
 ) -> tuple[NDArrayImage, NDArrayXYXYBBoxes]:
     height, width = image.shape[:2]
-    new_height, new_width = _compute_resized_shape(
-        height=height,
-        width=width,
+    resized_image = _resize_image_with_torchvision(
+        image=image,
         output_size=output_size,
         max_size=max_size,
     )
-    resized_image = np.array(
-        Image.fromarray(image).resize(
-            (new_width, new_height), resample=Image.Resampling.BILINEAR
-        )
-    )
+    new_height, new_width = resized_image.shape[:2]
     if boxes.size == 0:
         return resized_image, boxes.astype(np.float32, copy=True)
 
@@ -215,21 +214,39 @@ def _resize_image_and_boxes(
         ],
         dtype=np.float32,
     )
-    resized_boxes = boxes * scale_factors
+    resized_boxes = (boxes * scale_factors).astype(np.float32, copy=False)
     return resized_image, resized_boxes
 
 
-def _compute_resized_shape(
-    height: int, width: int, output_size: int, max_size: int | None
-) -> tuple[int, int]:
-    short_edge = min(height, width)
-    long_edge = max(height, width)
-    scale = output_size / short_edge
-    if max_size is not None and scale * long_edge > max_size:
-        scale = max_size / long_edge
-    # Match torchvision Resize(size=int, max_size=...) shape computation, which
-    # truncates the scaled dimensions instead of rounding them.
-    return int(height * scale), int(width * scale)
+def _resize_image_with_torchvision(
+    image: NDArrayImage,
+    output_size: int,
+    max_size: int | None,
+) -> NDArrayImage:
+    if image.dtype == np.uint8:
+        resized_image = transforms_functional.resize(
+            Image.fromarray(image),
+            size=[output_size],
+            max_size=max_size,
+            interpolation=InterpolationMode.BILINEAR,
+            antialias=True,
+        )
+        return np.asarray(resized_image)
+    if image.dtype == np.float32:
+        image_tensor = torch.from_numpy(np.ascontiguousarray(image)).permute(2, 0, 1)
+        resized_image_tensor = transforms_functional.resize(
+            image_tensor,
+            size=[output_size],
+            max_size=max_size,
+            interpolation=InterpolationMode.BILINEAR,
+            antialias=True,
+        )
+        return _ensure_supported_image_dtype(
+            resized_image_tensor.permute(1, 2, 0).cpu().numpy()
+        )
+    raise ValueError(
+        f"Unsupported image dtype {image.dtype}. Only uint8 and float32 are supported."
+    )
 
 
 def _apply_affine_to_image(
@@ -239,22 +256,48 @@ def _apply_affine_to_image(
     scale: float,
     fill_value: int,
 ) -> NDArrayImage:
-    height, width = image.shape[:2]
-    inverse_affine_matrix = _get_affine_matrix(
-        center=(width * 0.5, height * 0.5),
-        angle=angle,
-        translate=translate,
-        scale=scale,
-        inverted=True,
+    if image.dtype == np.uint8:
+        transformed_image = transforms_functional.affine(
+            Image.fromarray(image),
+            angle=angle,
+            translate=list(translate),
+            scale=scale,
+            shear=[0.0, 0.0],
+            interpolation=InterpolationMode.NEAREST,
+            fill=fill_value,
+            center=None,
+        )
+        return np.asarray(transformed_image)
+    if image.dtype == np.float32:
+        image_tensor = torch.from_numpy(np.ascontiguousarray(image)).permute(2, 0, 1)
+        transformed_image_tensor = transforms_functional.affine(
+            image_tensor,
+            angle=angle,
+            translate=list(translate),
+            scale=scale,
+            shear=[0.0, 0.0],
+            interpolation=InterpolationMode.NEAREST,
+            fill=[float(fill_value)] * image.shape[2],
+            center=None,
+        )
+        return _ensure_supported_image_dtype(
+            transformed_image_tensor.permute(1, 2, 0).cpu().numpy()
+        )
+    raise ValueError(
+        f"Unsupported image dtype {image.dtype}. Only uint8 and float32 are supported."
     )
-    transformed_image = Image.fromarray(image).transform(
-        size=(width, height),
-        method=Image.Transform.AFFINE,
-        data=inverse_affine_matrix,
-        resample=Image.Resampling.NEAREST,
-        fillcolor=(fill_value, fill_value, fill_value),
+
+
+def _ensure_supported_image_dtype(image: Any) -> NDArrayImage:
+    if not isinstance(image, np.ndarray):
+        raise ValueError(f"Expected numpy.ndarray, got {type(image)}.")
+    if image.dtype == np.uint8:
+        return image.astype(np.uint8, copy=False)
+    if image.dtype == np.float32:
+        return image.astype(np.float32, copy=False)
+    raise ValueError(
+        f"Unsupported image dtype {image.dtype}. Only uint8 and float32 are supported."
     )
-    return np.array(transformed_image)
 
 
 def _apply_affine_to_boxes(
@@ -299,7 +342,10 @@ def _apply_affine_to_boxes(
     transformed_boxes[:, [1, 3]] = np.clip(
         transformed_boxes[:, [1, 3]], a_min=0.0, a_max=canvas_height
     )
-    return transformed_boxes.astype(np.float32, copy=False)
+    transformed_boxes_float32: NDArrayXYXYBBoxes = transformed_boxes.astype(
+        np.float32, copy=False
+    )
+    return transformed_boxes_float32
 
 
 def _get_affine_matrix(
@@ -350,7 +396,10 @@ def _yolo_to_xyxy(bboxes: NDArrayBBoxes, w: int, h: int) -> NDArrayXYXYBBoxes:
     y1 = (cy - bh / 2) * h
     x2 = (cx + bw / 2) * w
     y2 = (cy + bh / 2) * h
-    return np.stack([x1, y1, x2, y2], axis=1).astype(np.float32, copy=False)
+    boxes_xyxy: NDArrayXYXYBBoxes = np.stack([x1, y1, x2, y2], axis=1).astype(
+        np.float32, copy=False
+    )
+    return boxes_xyxy
 
 
 def _xyxy_to_yolo(boxes: NDArrayXYXYBBoxes, w: int, h: int) -> NDArrayBBoxes:
@@ -362,4 +411,7 @@ def _xyxy_to_yolo(boxes: NDArrayXYXYBBoxes, w: int, h: int) -> NDArrayBBoxes:
     cy = (y1 + y2) / 2 / h
     bw = (x2 - x1) / w
     bh = (y2 - y1) / h
-    return np.stack([cx, cy, bw, bh], axis=1).astype(np.float64, copy=False)
+    boxes_yolo: NDArrayBBoxes = np.stack([cx, cy, bw, bh], axis=1).astype(
+        np.float64, copy=False
+    )
+    return boxes_yolo
