@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+import itertools
+import json
 from collections.abc import Iterable
 from pathlib import Path
 from typing import ClassVar, Sequence
@@ -32,14 +34,11 @@ from lightly_train._transforms.task_transform import TaskCollateFunction
 from lightly_train.types import (
     BinaryMasksDict,
     InstanceSegmentationDatasetItem,
-    NDArrayBBoxes,
-    NDArrayClasses,
-    NDArrayPolygon,
     PathLike,
 )
 
 
-class YOLOInstanceSegmentationDataset(TaskDataset):
+class InstanceSegmentationDataset(TaskDataset):
     # Narrow the type of dataset_args.
     dataset_args: YOLOInstanceSegmentationDatasetArgs
 
@@ -55,13 +54,6 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
     ) -> None:
         super().__init__(
             transform=transform, dataset_args=dataset_args, image_info=image_info
-        )
-        # Get the class mapping.
-        self.class_id_to_internal_class_id = (
-            label_helpers.get_class_id_to_internal_class_id_mapping(
-                class_ids=self.dataset_args.classes.keys(),
-                ignore_classes=self.dataset_args.ignore_classes,
-            )
         )
 
         transform_args = transform.transform_args
@@ -90,31 +82,18 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
         # Load the image.
         image_info = self.image_info[index]
         image_path = Path(image_info["image_path"])
-        label_path = Path(image_info["label_path"]).with_suffix(".txt")
+        polygons = json.loads(image_info["polygons"])
+        bboxes = json.loads(image_info["bboxes"])
+        class_labels = json.loads(image_info["class_labels"])
 
         if not image_path.exists():
             raise FileNotFoundError(f"Image file '{image_path}' does not exist.")
 
         image_np = file_helpers.open_image_numpy(image_path)
+        polygons_np = [np.array(polygon, dtype=np.float64) for polygon in polygons]
+        bboxes_np = np.array(bboxes, dtype=np.float64).reshape(len(bboxes), 4)
+        class_labels_np = np.array(class_labels, dtype=np.int64)
 
-        if label_path.exists():
-            polygons_np, bboxes_np, class_labels_np = (
-                file_helpers.open_yolo_instance_segmentation_label_numpy(
-                    label_path=label_path
-                )
-            )
-        else:
-            polygons_np = []
-            bboxes_np = np.empty((0, 4), dtype=np.float64)
-            class_labels_np = np.empty((0,), dtype=np.int64)
-
-        polygons_np, bboxes_np, class_labels_np = (
-            self.map_class_ids_to_internal_class_ids(
-                polygons=polygons_np,
-                bboxes=bboxes_np,
-                class_ids=class_labels_np,
-            )
-        )
         binary_masks_np = yolo_helpers.binary_masks_from_polygons(
             polygons=polygons_np, height=image_np.shape[0], width=image_np.shape[1]
         )
@@ -153,33 +132,6 @@ class YOLOInstanceSegmentationDataset(TaskDataset):
             bboxes=bboxes,
             classes=class_labels,
         )
-
-    def map_class_ids_to_internal_class_ids(
-        self,
-        polygons: list[NDArrayPolygon],
-        bboxes: NDArrayBBoxes,
-        class_ids: NDArrayClasses,
-    ) -> tuple[list[NDArrayPolygon], NDArrayBBoxes, NDArrayClasses]:
-        """Maps class ids to internal class indices using self.class_mapping.
-
-        Ignores all polygons, bboxes, and class ids that are not in self.class_mapping.
-        """
-        polygons_mapped = []
-        bboxes_mapped = []
-        class_ids_mapped = []
-        for polygon, bbox, class_id in zip(polygons, bboxes, class_ids):
-            if class_id in self.class_id_to_internal_class_id:
-                polygons_mapped.append(polygon)
-                bboxes_mapped.append(bbox)
-                class_ids_mapped.append(self.class_id_to_internal_class_id[class_id])
-
-        bboxes_mapped_np = (
-            np.array(bboxes_mapped, dtype=bboxes.dtype)
-            if bboxes_mapped
-            else np.empty((0, 4), dtype=bboxes.dtype)
-        )
-        class_ids_mapped_np = np.array(class_ids_mapped, dtype=class_ids.dtype)
-        return polygons_mapped, bboxes_mapped_np, class_ids_mapped_np
 
 
 class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
@@ -268,19 +220,53 @@ class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
     skip_if_label_file_missing: bool
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
+
+        class_id_to_internal_class_id = (
+            label_helpers.get_class_id_to_internal_class_id_mapping(
+                class_ids=self.classes.keys(),
+                ignore_classes=self.ignore_classes,
+            )
+        )
+
         for image_filename in file_helpers.list_image_filenames_from_dir(
             image_dir=self.image_dir
         ):
             image_filepath = self.image_dir / Path(image_filename)
             label_filepath = self.label_dir / Path(image_filename).with_suffix(".txt")
-            if self.skip_if_label_file_missing and not label_filepath.exists():
-                continue
+
+            if label_filepath.exists():
+                polygons, bboxes, class_labels = (
+                    file_helpers.open_yolo_instance_segmentation_label(
+                        label_path=label_filepath
+                    )
+                )
+            else:
+                # TODO (Thomas, 10/25): Log warning if label file does not exist.
+                #   And keep track of how many files are missing labels.
+                if self.skip_if_label_file_missing:
+                    continue
+                polygons = []
+                bboxes = []
+                class_labels = []
+
+            # Remove instances with class IDs that are not in the included classes
+            keep = [label in class_id_to_internal_class_id for label in class_labels]
+            polygons = list(itertools.compress(polygons, keep))
+            bboxes = list(itertools.compress(bboxes, keep))
+            class_labels = list(itertools.compress(class_labels, keep))
+
+            # Map class IDs to internal class IDs.
+            class_labels = [
+                class_id_to_internal_class_id[label] for label in class_labels
+            ]
 
             yield {
                 "image_path": str(image_filepath),
-                "label_path": str(label_filepath),
+                "polygons": json.dumps(polygons),
+                "bboxes": json.dumps(bboxes),
+                "class_labels": json.dumps(class_labels),
             }
 
     @staticmethod
-    def get_dataset_cls() -> type[YOLOInstanceSegmentationDataset]:
-        return YOLOInstanceSegmentationDataset
+    def get_dataset_cls() -> type[InstanceSegmentationDataset]:
+        return InstanceSegmentationDataset
