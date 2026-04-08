@@ -773,6 +773,68 @@ def create_coco_object_detection_dataset(
             json.dump(coco_dict, f)
 
 
+def create_coco_instance_segmentation_dataset(
+    tmp_path: Path,
+    num_files: int = 2,
+    height: int = 128,
+    width: int = 128,
+    num_classes: int = 2,
+    annotations_per_image: list[list[dict[str, Any]]] | None = None,
+) -> None:
+    """Create a minimal COCO instance segmentation dataset.
+
+    Args:
+        annotations_per_image: Per-image list of partial annotation dicts (without
+            "id" and "image_id"). Must have length num_files. If None, defaults to
+            one annotation per image with category_id=0, a bbox, and a polygon.
+    """
+    if annotations_per_image is None:
+        annotations_per_image = [
+            [
+                {
+                    "category_id": 0,
+                    "bbox": [10, 10, 30, 40],
+                    "segmentation": [[10.0, 10.0, 40.0, 10.0, 40.0, 50.0, 10.0, 50.0]],
+                }
+            ]
+            for _ in range(num_files)
+        ]
+
+    classes = {i: f"class_{i}" for i in range(num_classes)}
+
+    for split in ["train", "val"]:
+        image_dir = tmp_path / split
+        image_dir.mkdir(parents=True, exist_ok=True)
+        create_images(image_dir=image_dir, files=num_files, height=height, width=width)
+
+        image_paths = sorted(image_dir.glob("*.png"))
+        categories = [{"id": k, "name": v} for k, v in classes.items()]
+        images = []
+        annotations = []
+        ann_id = 0
+        for idx, img_path in enumerate(image_paths):
+            images.append(
+                {
+                    "id": idx,
+                    "file_name": img_path.name,
+                    "width": width,
+                    "height": height,
+                }
+            )
+            for ann in annotations_per_image[idx]:
+                annotations.append({"id": ann_id, "image_id": idx, **ann})
+                ann_id += 1
+
+        coco_dict = {
+            "images": images,
+            "annotations": annotations,
+            "categories": categories,
+        }
+        annotations_path = tmp_path / f"{split}.json"
+        with open(annotations_path, "w") as f:
+            json.dump(coco_dict, f)
+
+
 def create_coco_panoptic_segmentation_dataset(
     tmp_path: Path,
     num_files: int = 2,
