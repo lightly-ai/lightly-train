@@ -13,12 +13,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add logging of 1-based `epoch` to the console and the loggers.
 - Add `MixUp` augmentation for LTDETR object detection training.
 - Add support for COCO object detection dataset format.
+- Add distillation v3 method for dense as well as global feature distillation.
+- Add support for custom teacher models with distillation v3.
 
 ### Changed
 
 - Make `ScaleJitter` in LTDETR step-aware. Now you can stop the augmentation by adding a
   `step_stop` args like the following
   `transform_args={"scale_jitter": {"step_stop": 10000}}`
+- Default distillation method is now v3 (previously v2), with a DINOv3 teacher instead
+  of a DINOv2 teacher. Previous default still available with `method="distillationv2"`.
 
 ### Deprecated
 
