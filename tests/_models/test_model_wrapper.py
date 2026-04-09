@@ -36,6 +36,7 @@ def test_missing_model_wrapper_attrs(exclude_module_attrs: bool) -> None:
                 "feature_dim",
                 "forward_pool",
                 "load_state_dict",
+                "modules",
                 "parameters",
                 "state_dict",
             ],

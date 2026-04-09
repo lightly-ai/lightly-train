@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 from torch.optim.adamw import AdamW
 from torch.optim.optimizer import Optimizer as TorchOptimizer
@@ -22,7 +24,7 @@ class AdamWArgs(OptimizerArgs):
     # CLI. Setting strict to False allows Pydantic to convert lists to tuples.
     betas: tuple[float, float] = Field(default=(0.9, 0.999), strict=False)
     eps: float = 1e-8
-    weight_decay: float = 0.01
+    weight_decay: float | Literal["auto"] = 0.01
 
     @staticmethod
     def type() -> OptimizerType:

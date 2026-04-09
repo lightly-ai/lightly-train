@@ -22,6 +22,8 @@ except ImportError:
 from typing import Any, cast
 
 from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
+    ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
@@ -38,7 +40,7 @@ def state_dict(rfdetr_model: Any, *args: Any, **kwargs: Any) -> Any:
     return rfdetr_model.model.model.state_dict(*args, **kwargs)
 
 
-class RFDETRModelWrapper(Module, ModelWrapper):
+class RFDETRModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
     def __init__(self, model: RFDETR) -> None:
         super().__init__()
         from rfdetr.models.backbone import Backbone
@@ -83,3 +85,6 @@ class RFDETRModelWrapper(Module, ModelWrapper):
 
     def get_model(self) -> RFDETR:
         return self._model[0]
+
+    def architecture_info(self) -> ArchitectureInfo:
+        return {"model_type": "transformer", "norm_type": "layernorm"}
