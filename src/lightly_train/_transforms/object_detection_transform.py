@@ -237,6 +237,8 @@ class ObjectDetectionTransform(TaskTransform):
         )
 
         # Mosaic setup.
+        self.individual_transforms_skip_zoomout_ioucrop: list[Any] = []
+        self.transform_skip_zoomout_ioucrop: Compose | None = None
         self.mosaic: MosaicTransform | None = None
         if transform_args.mosaic is not None:
             self.mosaic = MosaicTransform(
@@ -333,6 +335,7 @@ class ObjectDetectionTransform(TaskTransform):
 
         if self._should_apply_mosaic():
             assert self.mosaic is not None
+            assert self.transform_skip_zoomout_ioucrop is not None
             image, bboxes, class_labels = self.mosaic(image, bboxes, class_labels)
             # MosaicTransform clips boxes to the canvas but keeps degenerate boxes
             # (zero width/height). Filter them before passing to albumentations.

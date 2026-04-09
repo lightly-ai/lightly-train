@@ -192,7 +192,7 @@ class TestObjectDetectionTransform:
         mosaic: MosaicArgs | None,
     ) -> None:
         image_size = _get_image_size()
-        # MosaicTransform expects YOLO normalized bboxes (matching production configs).
+        # MosaicTransform expects YOLO normalized bboxes.
         if mosaic is not None:
             bbox_params = BboxParams(
                 format="yolo",
