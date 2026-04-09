@@ -21,7 +21,7 @@ from typing_extensions import TypeAlias
 
 from lightly_train.types import NDArrayBBoxes, NDArrayClasses, NDArrayImage
 
-NDArrayXYXYBBoxes: TypeAlias = NDArray[np.float32]
+NDArrayXYXYBBoxes: TypeAlias = NDArray[np.float64]
 
 
 class _MosaicCacheItem(TypedDict):
@@ -124,7 +124,7 @@ class MosaicTransform:
         ]
 
         total_boxes = sum(sample["boxes"].shape[0] for sample in samples)
-        mosaic_boxes = np.empty((total_boxes, 4), dtype=np.float32)
+        mosaic_boxes = np.empty((total_boxes, 4), dtype=np.float64)
         mosaic_labels = np.empty((total_boxes,), dtype=resized_labels.dtype)
         box_start = 0
 
@@ -203,7 +203,7 @@ def _resize_image_and_boxes(
     )
     new_height, new_width = resized_image.shape[:2]
     if boxes.size == 0:
-        return resized_image, boxes.astype(np.float32, copy=True)
+        return resized_image, boxes.astype(np.float64, copy=True)
 
     scale_factors = np.array(
         [
@@ -212,9 +212,9 @@ def _resize_image_and_boxes(
             new_width / width,
             new_height / height,
         ],
-        dtype=np.float32,
+        dtype=np.float64,
     )
-    resized_boxes = (boxes * scale_factors).astype(np.float32, copy=False)
+    resized_boxes = (boxes * scale_factors).astype(np.float64, copy=False)
     return resized_image, resized_boxes
 
 
@@ -308,7 +308,7 @@ def _apply_affine_to_boxes(
     scale: float,
 ) -> NDArrayXYXYBBoxes:
     if boxes.size == 0:
-        return boxes.astype(np.float32, copy=True)
+        return boxes.astype(np.float64, copy=True)
 
     canvas_height, canvas_width = canvas_size
     affine_matrix = (
@@ -320,7 +320,7 @@ def _apply_affine_to_boxes(
                 scale=scale,
                 inverted=False,
             ),
-            dtype=np.float32,
+            dtype=np.float64,
         )
         .reshape(2, 3)
         .T
@@ -328,7 +328,7 @@ def _apply_affine_to_boxes(
 
     corners = boxes[:, [[0, 1], [2, 1], [2, 3], [0, 3]]].reshape(-1, 2)
     points = np.concatenate(
-        [corners, np.ones((corners.shape[0], 1), dtype=np.float32)], axis=1
+        [corners, np.ones((corners.shape[0], 1), dtype=np.float64)], axis=1
     )
     transformed_points = points @ affine_matrix
     transformed_points = transformed_points.reshape(-1, 4, 2)
@@ -342,10 +342,10 @@ def _apply_affine_to_boxes(
     transformed_boxes[:, [1, 3]] = np.clip(
         transformed_boxes[:, [1, 3]], a_min=0.0, a_max=canvas_height
     )
-    transformed_boxes_float32: NDArrayXYXYBBoxes = transformed_boxes.astype(
-        np.float32, copy=False
+    transformed_boxes_float64: NDArrayXYXYBBoxes = transformed_boxes.astype(
+        np.float64, copy=False
     )
-    return transformed_boxes_float32
+    return transformed_boxes_float64
 
 
 def _get_affine_matrix(
@@ -389,15 +389,15 @@ def _get_affine_matrix(
 def _yolo_to_xyxy(bboxes: NDArrayBBoxes, w: int, h: int) -> NDArrayXYXYBBoxes:
     """Convert YOLO normalized (cx, cy, bw, bh) to xyxy absolute coordinates."""
     if len(bboxes) == 0:
-        return np.zeros((0, 4), dtype=np.float32)
-    bboxes_t = bboxes.astype(np.float32, copy=False)
+        return np.zeros((0, 4), dtype=np.float64)
+    bboxes_t = bboxes.astype(np.float64, copy=False)
     cx, cy, bw, bh = bboxes_t[:, 0], bboxes_t[:, 1], bboxes_t[:, 2], bboxes_t[:, 3]
     x1 = (cx - bw / 2) * w
     y1 = (cy - bh / 2) * h
     x2 = (cx + bw / 2) * w
     y2 = (cy + bh / 2) * h
     boxes_xyxy: NDArrayXYXYBBoxes = np.stack([x1, y1, x2, y2], axis=1).astype(
-        np.float32, copy=False
+        np.float64, copy=False
     )
     return boxes_xyxy
 
