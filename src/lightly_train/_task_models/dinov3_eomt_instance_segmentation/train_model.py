@@ -21,10 +21,10 @@ from torch.optim.optimizer import Optimizer
 
 from lightly_train import _torch_helpers
 from lightly_train._configs.validate import no_auto
-from lightly_train._data.task_data_args import TaskDataArgs
-from lightly_train._data.yolo_instance_segmentation_dataset import (
+from lightly_train._data.instance_segmentation_dataset import (
     YOLOInstanceSegmentationDataArgs,
 )
+from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._metrics.instance_segmentation.task_metric import (
     InstanceSegmentationTaskMetric,
     InstanceSegmentationTaskMetricArgs,

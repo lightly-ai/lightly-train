@@ -43,6 +43,9 @@ from lightly_train._data.image_classification_dataset import (
     ImageClassificationMultilabelDataArgs,
 )
 from lightly_train._data.infinite_cycle_iterator import InfiniteCycleIterator
+from lightly_train._data.instance_segmentation_dataset import (
+    YOLOInstanceSegmentationDataArgs,
+)
 from lightly_train._data.mask_panoptic_segmentation_dataset import (
     MaskPanopticSegmentationDataArgs,
 )
@@ -51,9 +54,6 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 )
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset
-from lightly_train._data.yolo_instance_segmentation_dataset import (
-    YOLOInstanceSegmentationDataArgs,
-)
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
