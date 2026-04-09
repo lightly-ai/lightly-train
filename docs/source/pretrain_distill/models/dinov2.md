@@ -63,7 +63,9 @@ instructions and example code:
 
 ## Supported Models
 
-The following DINOv2 models are supported. All models are
+### Pretrained Models
+
+The following models are
 [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models)
 and loaded automatically when used.
 
@@ -71,3 +73,14 @@ and loaded automatically when used.
 - `dinov2/vitb14`
 - `dinov2/vitl14`
 - `dinov2/vitg14`
+
+### Not Pretrained Models
+
+The following models start from random initialization and are useful when pretraining
+from scratch with the [DINOv2 method](#methods-dinov2) on a custom dataset without
+starting from Meta's weights.
+
+- `dinov2/vits14-notpretrained`
+- `dinov2/vitb14-notpretrained`
+- `dinov2/vitl14-notpretrained`
+- `dinov2/vitg14-notpretrained`

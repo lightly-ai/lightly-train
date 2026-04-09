@@ -76,19 +76,31 @@ argument. Refer to the following pages for fine-tuning instructions and example 
 
 ### ViT Models
 
-The following ViT models are supported. The LVD-1689M models are
+The following ViT models are supported. The LVD-1689M and SAT-493M models are
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
-The ViT-T/16 models (`vitt16`, `vitt16plus`) are trained by Lightly using knowledge
-distillation from DINOv3 ViT-L/16.
+The ViT-T/16 models are trained by Lightly using knowledge distillation from DINOv3
+ViT-L/16.
 
-- `dinov3/vitt16` (Lightly)
-- `dinov3/vitt16plus` (Lightly)
-- `dinov3/vits16` (Meta, LVD-1689M)
-- `dinov3/vits16plus` (Meta, LVD-1689M)
-- `dinov3/vitb16` (Meta, LVD-1689M)
-- `dinov3/vitl16` (Meta, LVD-1689M)
-- `dinov3/vith16plus` (Meta, LVD-1689M)
-- `dinov3/vit7b16` (Meta, LVD-1689M)
+- ViT-T (Lightly, LVD-1689M distillation)
+  - `dinov3/vitt16`
+  - `dinov3/vitt16plus`
+  - `dinov3/vitt16-distillationv1`
+  - `dinov3/vitt16plus-distillationv1`
+  - `dinov3/vitt16-notpretrained`
+  - `dinov3/vitt16plus-notpretrained`
+- ViT-S (Meta, LVD-1689M)
+  - `dinov3/vits16`
+  - `dinov3/vits16plus`
+- ViT-B (Meta, LVD-1689M)
+  - `dinov3/vitb16`
+- ViT-L (Meta)
+  - `dinov3/vitl16` (LVD-1689M)
+  - `dinov3/vitl16-sat493m` (SAT-493M)
+- ViT-H (Meta, LVD-1689M)
+  - `dinov3/vith16plus`
+- ViT-7B (Meta)
+  - `dinov3/vit7b16` (LVD-1689M)
+  - `dinov3/vit7b16-sat493m` (SAT-493M)
 
 ### ConvNeXt Models
 
