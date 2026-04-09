@@ -24,9 +24,14 @@ Three distillation versions are available. Choose based on your downstream task:
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/distillation.ipynb)
 
-Follow the code below to distill the knowledge of the default DINOv2 ViT-B/14 teacher
+Follow the code below to distill the knowledge of the default DINOv3 ViT-B/16 teacher
 model into your model architecture. The example uses a `torchvision/resnet18` model as
 the student:
+
+```{note}
+DINOv3 models are released under the [DINOv3 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md). 
+Use DINOv2 models instead for a more permissive Apache 2.0 license.
+```
 
 ````{tab} Python
 ```python
@@ -34,7 +39,7 @@ import lightly_train
 
 if __name__ == "__main__":
     lightly_train.pretrain(
-        out="out/my_experiment", 
+        out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet18",
         method="distillation",
@@ -48,41 +53,13 @@ lightly-train pretrain out=out/my_experiment data=my_data_dir model="torchvision
 ```
 ````
 
-(methods-distillation-dinov3)=
-
-### 🔥 Distill from DINOv3 🔥
-
-To distill from DINOv3 you have to set the `teacher` argument in `method_args` to one of
-the [supported models](#methods-distillation-supported-models).
-
-```{note}
-DINOv3 models are released under the [DINOv3 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md).
-```
-
-````{tab} Python
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.pretrain(
-        out="out/my_experiment", 
-        data="my_data_dir",
-        model="torchvision/resnet18",
-        method="distillationv1",
-        method_args={
-            "teacher": "dinov3/vitb16",
-        }
-    )
-```
-````
-
 (methods-distillation-custom-models)=
 
 ### Custom Teacher and Student Models
 
 Besides the built-in support for many popular models, distillation v1 and v2 also
-support using custom teacher and student models, by implementing the interface specified
-on the [Custom Models](#custom-models) page.
+support using custom student models, by implementing the interface specified on the
+[Custom Models](#custom-models) page.
 
 With distillation v3, LightlyTrain now also supports custom teacher models, by
 implementing the same interface for the teacher.
@@ -98,7 +75,7 @@ if __name__ == "__main__":
         out="out/my_experiment",
         data="my_data_dir",
         model="timm/resnet18",           # student as string
-        model_args={"drop_path_rate": 0.1},  # optional student constructor args
+        model_args={"num_classes": 120}, # optional student constructor args
         method="distillationv3",
         method_args={
             "teacher": "timm/vit_base_patch16_224",  # any supported model string
