@@ -489,7 +489,8 @@ def _is_probably_conv(wrapped_model: ModelWrapper) -> bool:
     logger.warning(
         "Could not determine whether the student model is convolutional or "
         "transformer-based. Defaulting to non-convolutional (transformer-style "
-        "training recipe). Set `student_is_conv` explicitly to suppress this warning."
+        "training recipe). Implement the `architecture_info` method in your wrapper "
+        "around the student model for accurate detection and better defaults."
     )
     return False
 
