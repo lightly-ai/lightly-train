@@ -87,8 +87,8 @@ ViT-L/16.
   - `dinov3/vitt16plus` — distillationv2 weights; recommended for dense tasks
   - `dinov3/vitt16-distillationv1` — distillationv1 weights; recommended for global
     tasks (image classification)
-  - `dinov3/vitt16plus-distillationv1` — distillationv1 weights; recommended for
-    global tasks
+  - `dinov3/vitt16plus-distillationv1` — distillationv1 weights; recommended for global
+    tasks
   - `dinov3/vitt16-notpretrained` — random initialization; for training from scratch
   - `dinov3/vitt16plus-notpretrained` — random initialization; for training from scratch
 - ViT-S (Meta, LVD-1689M)
