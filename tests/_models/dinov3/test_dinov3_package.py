@@ -29,17 +29,26 @@ class TestDINOv3Package:
     @pytest.mark.parametrize(
         "model_name, listed",
         [
-            ("dinov3/_vittest16", True),
-            ("dinov3/_convnexttest", True),
+            # Test models are not listed.
+            ("dinov3/_vittest16", False),
+            ("dinov3/_convnexttest", False),
+            # Tiny models (Lightly).
             ("dinov3/vitt16", True),
             ("dinov3/vitt16plus", True),
+            ("dinov3/vitt16-distillationv1", True),
+            ("dinov3/vitt16plus-distillationv1", True),
+            ("dinov3/vitt16-notpretrained", True),
+            ("dinov3/vitt16plus-notpretrained", True),
+            # ViT models (Meta).
             ("dinov3/vits16", True),
             ("dinov3/vits16plus", True),
             ("dinov3/vitb16", True),
             ("dinov3/vitl16", True),
             ("dinov3/vitl16-sat493m", True),
+            ("dinov3/vith16plus", True),
             ("dinov3/vit7b16", True),
             ("dinov3/vit7b16-sat493m", True),
+            # ConvNeXt models (Meta).
             ("dinov3/convnext-tiny", True),
             ("dinov3/convnext-small", True),
             ("dinov3/convnext-base", True),

@@ -22,9 +22,9 @@ Use [DINOv2](#models-dinov2) models instead for a more permissive Apache 2.0 lic
 
 DINOv3 ViT-T/16 models (`dinov3/vitt16` and `dinov3/vitt16plus`) are efficient tiny
 models trained by Lightly using the [distillation method](#methods-distillation) with
-DINOv3 ViT-L/16 as the teacher. They are not part of Meta's official DINOv3 release but
-follow the same architecture. The ViT-T architecture is based on the design proposed in
-[Touvron et al., 2022](https://arxiv.org/abs/2207.10666).
+DINOv3 ViT-L/16 as the teacher on ImageNet-1K. They are not part of Meta's official
+DINOv3 release but follow the same architecture. The ViT-T architecture is based on the
+design proposed in [Touvron et al., 2022](https://arxiv.org/abs/2207.10666).
 
 You can distill your own DINOv3 ViT-T/16 model from DINOv3 ViT-L/16 on your custom
 dataset as follows:
@@ -81,13 +81,16 @@ The following ViT models are supported. The LVD-1689M and SAT-493M models are
 The ViT-T/16 models are trained by Lightly using knowledge distillation from DINOv3
 ViT-L/16.
 
-- ViT-T (Lightly, LVD-1689M distillation)
-  - `dinov3/vitt16`
-  - `dinov3/vitt16plus`
-  - `dinov3/vitt16-distillationv1`
-  - `dinov3/vitt16plus-distillationv1`
-  - `dinov3/vitt16-notpretrained`
-  - `dinov3/vitt16plus-notpretrained`
+- ViT-T (Lightly, distilled from DINOv3 ViT-L/16 on ImageNet-1K)
+  - `dinov3/vitt16` — distillationv2 weights; recommended for dense tasks (object
+    detection, segmentation)
+  - `dinov3/vitt16plus` — distillationv2 weights; recommended for dense tasks
+  - `dinov3/vitt16-distillationv1` — distillationv1 weights; recommended for global
+    tasks (image classification)
+  - `dinov3/vitt16plus-distillationv1` — distillationv1 weights; recommended for
+    global tasks
+  - `dinov3/vitt16-notpretrained` — random initialization; for training from scratch
+  - `dinov3/vitt16plus-notpretrained` — random initialization; for training from scratch
 - ViT-S (Meta, LVD-1689M)
   - `dinov3/vits16`
   - `dinov3/vits16plus`
