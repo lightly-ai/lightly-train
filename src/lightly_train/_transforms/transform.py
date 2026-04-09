@@ -221,6 +221,37 @@ class CopyBlendArgs(PydanticConfig):
         return self
 
 
+class MosaicArgs(PydanticConfig):
+    prob: float = Field(ge=0.0, le=1.0)
+
+    output_size: int = Field(gt=0)
+    max_size: int | None = Field(gt=0)
+    rotation_range: float
+    translation_range: tuple[float, float] = Field(strict=False)
+    scaling_range: tuple[float, float] = Field(strict=False)
+    fill_value: int | float
+    max_cached_images: int = Field(gt=0)
+    random_pop: bool
+
+    step_start: int = Field(ge=0)
+    step_stop: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> MosaicArgs:
+        if self.step_start >= self.step_stop:
+            raise ValueError("mosaic requires step_start < step_stop.")
+        if (
+            self.scaling_range[0] <= 0.0
+            or self.scaling_range[1] < self.scaling_range[0]
+        ):
+            raise ValueError(
+                "mosaic scaling_range must be positive with scaling_range[0] <= scaling_range[1]."
+            )
+        if any(v < 0.0 for v in self.translation_range):
+            raise ValueError("mosaic translation_range values must be non-negative.")
+        return self
+
+
 class StopPolicyArgs(PydanticConfig):
     stop_step: int
     ops: Set[type[BasicTransform] | type[v2.Transform]]
