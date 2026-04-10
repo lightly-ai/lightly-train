@@ -98,7 +98,7 @@ def _get_random_iou_crop_args() -> RandomIoUCropArgs:
 
 def _get_bbox_params() -> BboxParams:
     return BboxParams(
-        format="pascal_voc",
+        format="yolo",
         label_fields=["class_labels"],
         min_area=0,
         min_visibility=0.0,
@@ -192,16 +192,8 @@ class TestObjectDetectionTransform:
         mosaic: MosaicArgs | None,
     ) -> None:
         image_size = _get_image_size()
-        # MosaicTransform expects YOLO normalized bboxes.
-        if mosaic is not None:
-            bbox_params = BboxParams(
-                format="yolo",
-                label_fields=["class_labels"],
-                min_area=0,
-                min_visibility=0.0,
-            )
-        else:
-            bbox_params = _get_bbox_params()
+        bbox_params = _get_bbox_params()
+
         stop_policy = None  # TODO: Lionel (09/25) Pass as function argument.
         transform_args = ObjectDetectionTransformArgs(
             channel_drop=channel_drop,
@@ -229,11 +221,8 @@ class TestObjectDetectionTransform:
         img: NDArray[np.uint8] = np.random.randint(
             0, 256, (128, 128, num_channels), dtype=np.uint8
         )
-        if mosaic is not None:
-            # YOLO normalized format: (cx, cy, w, h) in [0, 1].
-            bboxes = np.array([[0.234, 0.234, 0.3125, 0.3125]], dtype=np.float64)
-        else:
-            bboxes = np.array([[10, 10, 50, 50]], dtype=np.float64)
+        # YOLO normalized format: (cx, cy, w, h) in [0, 1].
+        bboxes = np.array([[0.234375, 0.234375, 0.3125, 0.3125]], dtype=np.float64)
         class_labels = np.array([1], dtype=np.int64)
 
         tr_input: ObjectDetectionTransformInput = {
@@ -327,14 +316,14 @@ class TestObjectDetectionCollateFunction:
         sample1: ObjectDetectionDatasetItem = {
             "image_path": "img1.png",
             "image": np.random.randint(0, 256, (128, 128, 3), dtype=np.uint8),
-            "bboxes": np.array([[10.0, 10.0, 50.0, 50.0]]),
+            "bboxes": np.array([[0.234375, 0.234375, 0.3125, 0.3125]]),
             "classes": np.array([1], dtype=np.int64),
             "original_size": (128, 128),
         }
         sample2: ObjectDetectionDatasetItem = {
             "image_path": "img2.png",
             "image": np.random.randint(0, 256, (64, 64, 3), dtype=np.uint8),
-            "bboxes": np.array([[20.0, 20.0, 40.0, 40.0]]),
+            "bboxes": np.array([[0.46875, 0.46875, 0.3125, 0.3125]]),
             "classes": np.array([2], dtype=np.int64),
             "original_size": (64, 64),
         }
