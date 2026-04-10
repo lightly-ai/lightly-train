@@ -11,7 +11,7 @@ repos:
       description: "Avoid committing large files."
       args: ["--maxkb=2000", "--enforce-all"]
  - repo: https://github.com/fastai/nbdev
-   rev: 3.0.10
+   rev: 3.0.14
    hooks:
     - id: nbdev-clean
       args: [--fname=examples]
