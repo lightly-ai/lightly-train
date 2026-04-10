@@ -31,7 +31,6 @@ from lightly_train._transforms.transform import (
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
-    StopPolicyArgs,
 )
 from lightly_train.types import ImageSizeTuple
 
@@ -42,20 +41,40 @@ ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2
 class DINOv3LTDETRObjectDetectionRandomPhotometricDistortArgs(
     RandomPhotometricDistortArgs
 ):
+    prob: float = 0.5
+
     brightness: tuple[float, float] = (0.875, 1.125)
     contrast: tuple[float, float] = (0.5, 1.5)
     saturation: tuple[float, float] = (0.5, 1.5)
     hue: tuple[float, float] = (-0.05, 0.05)
-    prob: float = 0.5
+
+    # Corresponds to the 4th epoch of the total training run.
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_start: int = 25_000
+    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # None means photometric distort is always on.
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_stop: int | None = 375_000
 
 
 class DINOv3LTDETRObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
     prob: float = 0.5
+
     fill: float = 0.0
     side_range: tuple[float, float] = (1.0, 4.0)
 
+    # Corresponds to the 4th epoch of the total training run.
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_start: int = 25_000
+    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # None means random zoom out is always on.
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_stop: int | None = 375_000
+
 
 class DINOv3LTDETRObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
+    prob: float = 0.8
+
     min_scale: float = 0.3
     max_scale: float = 1.0
     min_aspect_ratio: float = 0.5
@@ -63,7 +82,14 @@ class DINOv3LTDETRObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
     sampler_options: Sequence[float] | None = None
     crop_trials: int = 40
     iou_trials: int = 1000
-    prob: float = 0.8
+
+    # Corresponds to the 4th epoch of the total training run.
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_start: int = 25_000
+    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # None means random IoU crop is always on.
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_stop: int | None = 375_000
 
 
 class DINOv3LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
@@ -109,30 +135,39 @@ class DINOv3LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     num_scales: int | None = None
     prob: float = 1.0
     divisible_by: int | None = None
-    # stopping step for scale jittering in LTDETR object detection
+
+    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
     # None means scale jitter is always on.
-    step_stop: int | None = (
-        None  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    )
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_stop: int | None = 375_000
 
 
 class DINOv3LTDETRObjectDetectionMixUpArgs(MixUpArgs):
     prob: float = 0.5
+
     # Corresponds to the 4th epoch of the total training run.
-    step_start: int = 25_000  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_start: int = 25_000
     # Corresponds to the 4 + total_epochs // 2 epoch of the total training run.
-    step_stop: int = 250_000  # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    # None means mixup is always on.
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_stop: int | None = 250_000
 
 
 class DINOv3LTDETRObjectDetectionCopyBlendArgs(CopyBlendArgs):
     prob: float = 0.5
-    # TODO(Yutong, 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_start: int = 25_000
-    # TODO(Yutong, 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_stop: int = 375_000
+
     area_threshold: int = 100
     num_objects: int = 3
     expand_ratios: tuple[float, float] = (0.1, 0.25)
+
+    # Corresponds to the 4th epoch of the total training run.
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_start: int = 25_000
+    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # None means copyblend is always on.
+    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
+    step_stop: int | None = 375_000
 
 
 class DINOv3LTDETRObjectDetectionMosaicArgs(MosaicArgs):
@@ -147,10 +182,13 @@ class DINOv3LTDETRObjectDetectionMosaicArgs(MosaicArgs):
     max_cached_images: int = 50
     random_pop: bool = True
 
+    # Corresponds to the 4th epoch of the total training run.
     # TODO(Yutong, 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_start: int = 15_000
+    step_start: int = 25_000
+    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # None means mosaic is always on.
     # TODO(Yutong, 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_stop: int = 150_000
+    step_stop: int | None = 250_000
 
 
 class DINOv3LTDETRObjectDetectionResizeArgs(ResizeArgs):
@@ -176,17 +214,21 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
-    # TODO: Lionel (09/25): Remove None, once the stop policy is implemented.
-    stop_policy: StopPolicyArgs | None = None
     resize: ResizeArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionResizeArgs
     )
     scale_jitter: DINOv3LTDETRObjectDetectionScaleJitterArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionScaleJitterArgs
     )
-    mosaic: DINOv3LTDETRObjectDetectionMosaicArgs | None = None
-    mixup: DINOv3LTDETRObjectDetectionMixUpArgs | None = None
-    copyblend: DINOv3LTDETRObjectDetectionCopyBlendArgs | None = None
+    mosaic: DINOv3LTDETRObjectDetectionMosaicArgs | None = Field(
+        default_factory=DINOv3LTDETRObjectDetectionMosaicArgs
+    )
+    mixup: DINOv3LTDETRObjectDetectionMixUpArgs | None = Field(
+        default_factory=DINOv3LTDETRObjectDetectionMixUpArgs
+    )
+    copyblend: DINOv3LTDETRObjectDetectionCopyBlendArgs | None = Field(
+        default_factory=DINOv3LTDETRObjectDetectionCopyBlendArgs
+    )
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
@@ -249,7 +291,6 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
-    stop_policy: None = None
     resize: ResizeArgs | None = Field(
         default_factory=DINOv3LTDETRObjectDetectionResizeArgs
     )
