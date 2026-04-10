@@ -30,6 +30,7 @@ from lightly_train._transforms.batch_transform import BatchReplayCompose, BatchT
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.copyblend import CopyBlend
 from lightly_train._transforms.mixup import MixUp
+from lightly_train._transforms.mosaic import MosaicTransform
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.random_iou_crop import RandomIoUCrop
 from lightly_train._transforms.random_photometric_distort import (
@@ -116,6 +117,7 @@ class ObjectDetectionTransform(TaskTransform):
     transform_args_cls: type[ObjectDetectionTransformArgs] = (
         ObjectDetectionTransformArgs
     )
+    _MOSAIC_SKIP_TYPES = (RandomZoomOut, RandomIoUCrop)
 
     def __init__(
         self,
@@ -234,6 +236,80 @@ class ObjectDetectionTransform(TaskTransform):
             bbox_params=transform_args.bbox_params,
         )
 
+        # Mosaic setup.
+        self.individual_transforms_skip_zoomout_ioucrop: list[Any] = []
+        self.transform_skip_zoomout_ioucrop: Compose | None = None
+        self.mosaic: MosaicTransform | None = None
+        if transform_args.mosaic is not None:
+            self.mosaic = MosaicTransform(
+                output_size=transform_args.mosaic.output_size,
+                max_size=transform_args.mosaic.max_size,
+                rotation_range=transform_args.mosaic.rotation_range,
+                translation_range=transform_args.mosaic.translation_range,
+                scaling_range=transform_args.mosaic.scaling_range,
+                fill_value=int(transform_args.mosaic.fill_value),
+                max_cached_images=transform_args.mosaic.max_cached_images,
+                random_pop=transform_args.mosaic.random_pop,
+            )
+
+        # Build skip pipeline (without RandomZoomOut and RandomIoUCrop) for mosaic.
+        self._build_skip_pipeline()
+
+        # Step-aware state for mosaic scheduling.
+        self._step = 0
+        self._current_mosaic_active_status = self._is_mosaic_active_at_step(0)
+
+    def _build_skip_pipeline(self) -> None:
+        """Build the skip pipeline (without RandomZoomOut and RandomIoUCrop) for mosaic."""
+        if self.mosaic is not None:
+            self.individual_transforms_skip_zoomout_ioucrop = [
+                t
+                for t in self.individual_transforms
+                if not isinstance(t, self._MOSAIC_SKIP_TYPES)
+            ]
+            self.transform_skip_zoomout_ioucrop = Compose(
+                self.individual_transforms_skip_zoomout_ioucrop,
+                bbox_params=self.transform_args.bbox_params,
+            )
+
+    def _is_mosaic_active_at_step(self, step: int) -> bool:
+        if (
+            self.mosaic is None
+            or self.transform_args.mosaic is None
+            or self.transform_args.mosaic.prob <= 0.0
+        ):
+            return False
+        return (
+            self.transform_args.mosaic.step_start
+            <= step
+            < self.transform_args.mosaic.step_stop
+        )
+
+    def _should_apply_mosaic(self) -> bool:
+        return (
+            self._is_mosaic_active_at_step(self._step)
+            and np.random.random() < self.transform_args.mosaic.prob  # type: ignore[union-attr]
+        )
+
+    def set_step(self, step: int) -> None:
+        self._step = step
+
+    def uses_step_dependent_worker_state(self) -> bool:
+        return (
+            self.mosaic is not None
+            and self.transform_args.mosaic is not None
+            and self.transform_args.mosaic.prob > 0.0
+        )
+
+    def requires_dataloader_reinitialization(self) -> bool:
+        return (
+            self._is_mosaic_active_at_step(self._step)
+            != self._current_mosaic_active_status
+        )
+
+    def mark_dataloader_as_reinitialized(self) -> None:
+        self._current_mosaic_active_status = self._is_mosaic_active_at_step(self._step)
+
     def __call__(
         self, input: ObjectDetectionTransformInput
     ) -> ObjectDetectionTransformOutput:
@@ -250,13 +326,30 @@ class ObjectDetectionTransform(TaskTransform):
                 self.individual_transforms,
                 bbox_params=self.transform_args.bbox_params,
             )
+            self._build_skip_pipeline()
             self.past_stop = True
 
-        transformed = self.transform(
-            image=input["image"],
-            bboxes=input["bboxes"],
-            class_labels=input["class_labels"],
-        )
+        image = input["image"]
+        bboxes = input["bboxes"]
+        class_labels = input["class_labels"]
+
+        if self._should_apply_mosaic():
+            assert self.mosaic is not None
+            assert self.transform_skip_zoomout_ioucrop is not None
+            image, bboxes, class_labels = self.mosaic(image, bboxes, class_labels)
+            # MosaicTransform clips boxes to the canvas but keeps degenerate boxes
+            # (zero width/height). Filter them before passing to albumentations.
+            if len(bboxes) > 0:
+                valid = (bboxes[:, 2] > 0) & (bboxes[:, 3] > 0)
+                bboxes = bboxes[valid]
+                class_labels = class_labels[valid]
+            transformed = self.transform_skip_zoomout_ioucrop(
+                image=image, bboxes=bboxes, class_labels=class_labels
+            )
+        else:
+            transformed = self.transform(
+                image=image, bboxes=bboxes, class_labels=class_labels
+            )
 
         # Some albumentations versions return lists of tuples instead of arrays.
         bboxes = transformed["bboxes"]

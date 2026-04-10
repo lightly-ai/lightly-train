@@ -85,7 +85,7 @@ def _get_random_iou_crop_args() -> RandomIoUCropArgs | None:
 
 def _get_bbox_params() -> BboxParams:
     return BboxParams(
-        format="pascal_voc",
+        format="yolo",
         label_fields=["class_labels"],
         min_area=0,
         min_visibility=0.0,
@@ -193,7 +193,7 @@ class TestOrientedObjectDetectionTransform:
             torch.randint(0, 256, (num_channels, 128, 128), dtype=torch.uint8)
         )
         bboxes = tv_tensors.BoundingBoxes(
-            torch.tensor([[10, 10, 50, 50, 45]], dtype=torch.float64),
+            torch.tensor([[10.0, 10.0, 50.0, 50.0, 45]], dtype=torch.float64),
             format=tv_tensors.BoundingBoxFormat.CXCYWHR,
             canvas_size=(128, 128),
         )
