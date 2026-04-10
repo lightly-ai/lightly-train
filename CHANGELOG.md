@@ -14,12 +14,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add logging of 1-based `epoch` to the console and the loggers.
 - Add `MixUp` augmentation for LTDETR object detection training.
 - Add support for COCO object detection dataset format.
+- Add distillation v3 method for dense as well as global feature distillation.
+- Add support for custom teacher models with distillation v3.
 
 ### Changed
 
 - Make `ScaleJitter` in LTDETR step-aware. Now you can stop the augmentation by adding a
   `step_stop` args like the following
   `transform_args={"scale_jitter": {"step_stop": 10000}}`
+- Default distillation method is now v3 (previously v2), with a DINOv3 teacher instead
+  of a DINOv2 teacher. Previous default still available with `method="distillationv2"`.
 
 ### Deprecated
 
@@ -415,7 +419,7 @@ models for
 ## [0.11.0] - 2025-08-15
 
 🚀 **New DINOv3 Support:** Pretrain your own model with
-[distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3)
+[distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation)
 from DINOv3 weights. Or fine-tune our SOTA
 [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3)
 with a DINOv3 backbone! 🚀
@@ -423,7 +427,7 @@ with a DINOv3 backbone! 🚀
 ### Added
 
 - Distillation now supports
-  [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3)
+  [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation)
   as teacher.
 - Semantic Segmentation now supports
   [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3)

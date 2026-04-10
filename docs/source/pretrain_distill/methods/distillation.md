@@ -11,18 +11,27 @@ between state-of-the-art large-scale vision models and smaller, more computation
 efficient models suitable for practical applications.
 
 ```{note}
-Starting from **LightlyTrain 0.7.0**, `method="distillation"` uses a new, improved `v2` implementation
-that achieves higher accuracy and trains up to 3x faster. The previous version is still available via
-`method="distillationv1"` for backward compatibility.
+Three distillation versions are available. Choose based on your downstream task:
+
+- **`distillation`** (alias for `distillationv3`, default from **LightlyTrain 0.15.0**): Best compromise — strong
+  on both global tasks (e.g., classification) and dense tasks (e.g., detection,
+  segmentation). Recommended for most use cases.
+- **`distillationv1`**: Best for purely global tasks (e.g., image classification).
+- **`distillationv2`**: Best for purely dense tasks (e.g., object detection, segmentation).
 ```
 
 ## Use Distillation in LightlyTrain
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/distillation.ipynb)
 
-Follow the code below to distill the knowledge of the default DINOv2 ViT-B/14 teacher
+Follow the code below to distill the knowledge of the default DINOv3 ViT-B/16 teacher
 model into your model architecture. The example uses a `torchvision/resnet18` model as
 the student:
+
+```{note}
+DINOv3 models are released under the [DINOv3 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md). 
+Use DINOv2 models instead for a more permissive Apache 2.0 license.
+```
 
 ````{tab} Python
 ```python
@@ -30,7 +39,7 @@ import lightly_train
 
 if __name__ == "__main__":
     lightly_train.pretrain(
-        out="out/my_experiment", 
+        out="out/my_experiment",
         data="my_data_dir",
         model="torchvision/resnet18",
         method="distillation",
@@ -44,33 +53,60 @@ lightly-train pretrain out=out/my_experiment data=my_data_dir model="torchvision
 ```
 ````
 
-(methods-distillation-dinov3)=
+(methods-distillation-custom-models)=
 
-### 🔥 Distill from DINOv3 🔥
+### Custom Teacher and Student Models
 
-To distill from DINOv3 you have to set the `teacher` argument in `method_args` to one of
-the [supported models](#methods-distillation-supported-models).
+Besides the built-in support for many popular models, distillation v1 and v2 also
+support using custom student models, by implementing the interface specified on the
+[Custom Models](#custom-models) page.
 
-```{note}
-DINOv3 models are released under the [DINOv3 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md).
-```
+With distillation v3, LightlyTrain now also supports custom teacher models, by
+implementing the same interface for the teacher.
 
-````{tab} Python
+**Option A: String-based** — use any supported model string with optional constructor
+args:
+
 ```python
 import lightly_train
 
 if __name__ == "__main__":
     lightly_train.pretrain(
-        out="out/my_experiment", 
+        out="out/my_experiment",
         data="my_data_dir",
-        model="torchvision/resnet18",
-        method="distillationv1",
+        model="timm/resnet18",           # student as string
+        model_args={"num_classes": 120}, # optional student constructor args
+        method="distillationv3",
         method_args={
-            "teacher": "dinov3/vitb16",
+            "teacher": "timm/vit_base_patch16_224",  # any supported model string
+            "teacher_args": {"pretrained": True},    # optional teacher constructor args
         }
     )
 ```
-````
+
+**Option B: Pre-instantiated wrapper** — implement the interface on the
+[Custom Models](#custom-models) page and pass an instance of your wrapper directly to
+the `model` (for student) and `teacher` (for teacher) arguments:
+
+```python
+import lightly_train
+from my_module import MyStudentWrapper, MyTeacherWrapper
+
+if __name__ == "__main__":
+    student = MyStudentWrapper(my_student_model)
+    teacher = MyTeacherWrapper(my_teacher_model)
+
+    lightly_train.pretrain(
+        out="out/my_experiment",
+        data="my_data_dir",
+        model=student,
+        method="distillationv3",
+        method_args={"teacher": teacher},
+    )
+```
+
+When passing pre-instantiated wrappers, `model_args` and `teacher_args` are ignored
+since the models are already constructed.
 
 (methods-distillation-dinov2-pretrain)=
 
@@ -118,7 +154,7 @@ if __name__ == "__main__":
 
 ### Supported Teacher Models
 
-The following models for `teacher` are supported:
+For distillation v1/v2, the following models for `teacher` are supported:
 
 - DINOv3
   - `dinov3/vits16`
@@ -136,15 +172,26 @@ The following models for `teacher` are supported:
   - `dinov2/vitl14`
   - `dinov2/vitg14`
 
+For distillation v3, any model supported by LightlyTrain can be used (including custom
+models). You can find the full list of supported models on the [Models](#models) page.
+
 ## What's under the Hood
 
-Our distillation method directly applies a mean squared error (MSE) loss between the
-features of the student and teacher networks when processing the same image. We use a
-ViT-B/14 backbone from [DINOv2](https://arxiv.org/pdf/2304.07193) as the teacher model.
-Inspired by
-[*Knowledge Distillation: A Good Teacher is Patient and Consistent*](https://arxiv.org/abs/2106.05237),
-we apply strong, identical augmentations to both teacher and student inputs to ensure
-consistency of the objective.
+All versions apply a loss between the features of the student and teacher networks when
+processing the same image, using strong identical augmentations on both inputs for
+consistency. The different versions draw heavy inspiration from:
+
+- [*Knowledge Distillation: A Good Teacher is Patient and Consistent*](https://arxiv.org/abs/2106.05237).
+- The [*AM-RADIO*](https://arxiv.org/pdf/2304.07193) series of papers.
+
+The versions differ in how the loss is computed:
+
+- **v1** uses a queue of teacher embeddings to compute pseudo labels (global loss). Best
+  for global tasks such as classification or distilling your own embedding model.
+- **v2** directly applies MSE loss on the token-level features (dense loss). Best for
+  dense tasks such as detection and segmentation.
+- **v3** combines both the queue-based pseudo label loss and the token-level MSE loss,
+  making it a strong general-purpose choice.
 
 ## Lightly Recommendations
 
@@ -162,8 +209,18 @@ consistency of the objective.
 The following are the default method arguments for distillation. To learn how you can
 override these settings, see {ref}`method-args`.
 
-````{dropdown} Default Method Arguments
+````{dropdown} distillation (v3)
 ```{include} _auto/distillation_method_args.md
+```
+````
+
+````{dropdown} distillationv1
+```{include} _auto/distillationv1_method_args.md
+```
+````
+
+````{dropdown} distillationv2
+```{include} _auto/distillationv2_method_args.md
 ```
 ````
 

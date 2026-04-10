@@ -40,6 +40,10 @@ visualize your annotations and predictions.
 
 ## News
 
+- \[[0.15.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-15-0)\] -
+  2026-04-14: 🔎 **Distillation v3:** Better generalizing distillation method that
+  performs equally well across dense and global tasks and across all models, from ViTs
+  to hybrids to CNNs (+support for custom teachers!). 🔎
 - \[[0.14.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-14-0)\] -
   2026-01-19: 🐣 **PicoDet, Tiny Models, and ONNX/TensorRT FP16 Support:** PicoDet object
   detection models for low-power embedded devices! All tasks now support tiny DINOv3
@@ -54,7 +58,7 @@ visualize your annotations and predictions.
   [object detection](https://docs.lightly.ai/train/stable/object_detection.html)! 💡
 - \[[0.11.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-11-0)\] -
   2025-08-15: 🚀 **New DINOv3 Support:** Pretrain your own model with
-  [distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3)
+  [distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation)
   from DINOv3 weights. Or fine-tune our SOTA
   [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3)
   with a DINOv3 backbone! 🚀

@@ -79,22 +79,22 @@ MODELS: dict[str, _Model] = {
     "vits14-notpretrained": _Model(
         url="",
         config="train/vits14_reg4",
-        list=False,
+        list=True,
     ),
     "vitb14-notpretrained": _Model(
         url="",
         config="train/vitb14_reg4",
-        list=False,
+        list=True,
     ),
     "vitl14-notpretrained": _Model(
         url="",
         config="train/vitl14_reg4",
-        list=False,
+        list=True,
     ),
     "vitg14-notpretrained": _Model(
         url="",
         config="train/vitg14_reg4",
-        list=False,
+        list=True,
     ),
     "vits14-noreg-notpretrained": _Model(
         url="",

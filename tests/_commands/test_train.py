@@ -584,14 +584,23 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
 @pytest.mark.parametrize(
-    "model, method, method_args",
+    "model, model_args, method, method_args",
     [
-        ("dinov2/_vittest14", "dinov2", {}),
-        ("timm/resnet18", "distillation", {"teacher": "dinov2/_vittest14"}),
+        ("dinov2/_vittest14", None, "dinov2", {}),
+        (
+            "timm/resnet18",
+            {"num_classes": 64},
+            "distillation",
+            {"teacher": "dinov2/_vittest14"},
+        ),
     ],
 )
 def test_pretrain__multichannel(
-    tmp_path: Path, model: str, method: str, method_args: dict[str, Any]
+    tmp_path: Path,
+    model: str,
+    model_args: dict[str, Any] | None,
+    method: str,
+    method_args: dict[str, Any],
 ) -> None:
     if model.startswith("timm") and not RequirementCache("timm"):
         pytest.skip("timm is not installed")
@@ -604,13 +613,13 @@ def test_pretrain__multichannel(
         out=out,
         data=data,
         model=model,
+        model_args=model_args,
         method=method,
         method_args=method_args,
         batch_size=4,
         num_workers=0,
         epochs=1,
         devices=1,
-        embed_dim=64,
     )
 
 
