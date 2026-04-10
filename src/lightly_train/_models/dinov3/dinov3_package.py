@@ -143,6 +143,42 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_large_lvd1689m.pth",
         local_path="dinov3_convnext_large_lvd1689m.pth",
     ),
+    # EUPE models
+    "vitt16-eupe": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitt16,
+        default_weights="https://huggingface.co/facebook/EUPE-ViT-T/resolve/main/EUPE-ViT-T.pt?download=true",
+        local_path="dinov3_vitt16_eupe_lvd1689.pth",
+    ),
+    "vits16-eupe": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vits16,
+        default_weights="https://huggingface.co/facebook/EUPE-ViT-S/resolve/main/EUPE-ViT-S.pt?download=true",
+        local_path="dinov3_vits16_eupe_lvd1689.pth",
+    ),
+    "vitb16-eupe": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitb16,
+        default_weights="https://huggingface.co/facebook/EUPE-ViT-B/resolve/main/EUPE-ViT-B.pt?download=true",
+        local_path="dinov3_vitb16_eupe_lvd1689.pth",
+    ),
+    "vitl16-eupe": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitl16,
+        default_weights="https://huggingface.co/facebook/EUPE-ViT-L/resolve/main/EUPE-ViT-L.pt?download=true",
+        local_path="dinov3_vitl16_eupe_lvd1689.pth",
+    ),
+    "convnext-small-eupe": _DINOv3ModelInfo(
+        builder=backbones.dinov3_convnext_small,
+        default_weights="https://huggingface.co/facebook/EUPE-ConvNeXt-S/resolve/main/EUPE-ConvNeXt-S.pt?download=true",
+        local_path="dinov3_convnext_small_eupe_lvd1689.pth",
+    ),
+    "convnext-base-eupe": _DINOv3ModelInfo(
+        builder=backbones.dinov3_convnext_base,
+        default_weights="https://huggingface.co/facebook/EUPE-ConvNeXt-B/resolve/main/EUPE-ConvNeXt-B.pt?download=true",
+        local_path="dinov3_convnext_base_eupe_lvd1689.pth",
+    ),
+    "convnext-large-eupe": _DINOv3ModelInfo(
+        builder=backbones.dinov3_convnext_large,
+        default_weights="https://huggingface.co/facebook/EUPE-ConvNeXt-L/resolve/main/EUPE-ConvNeXt-L.pt?download=true",
+        local_path="dinov3_convnext_large_eupe_lvd1689.pth",
+    ),
 }
 
 

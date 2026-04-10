@@ -169,6 +169,13 @@ def _make_dinov3_vit(
                 original_conv_weight, patch_size
             )
             state_dict[key] = new_conv_weight
+
+        state_dict = {
+            key: value
+            for key, value in state_dict.items()
+            if "projectors.heads.dinov3radio"
+            not in key  # remove EUPE-specific projector weights
+        }
         model.load_state_dict(state_dict, strict=True)
     else:
         model.init_weights()
@@ -237,6 +244,12 @@ def _make_dinov3_convnext(
             logger.info(f"Loading DINOv3 checkpoint from '{url}'")
             state_dict = torch.hub.load_state_dict_from_url(url, map_location="cpu")
 
+        state_dict = {
+            key: value
+            for key, value in state_dict.items()
+            if "projectors.heads.dinov3radio"
+            not in key  # remove EUPE-specific projector weights
+        }
         model.load_state_dict(state_dict, strict=True)
     return model
 
