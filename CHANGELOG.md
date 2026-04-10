@@ -9,6 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add `Mosaic` augmentation for LTDETR object detection training.
 - Add `CopyBlend` augmentation for LTDETR object detection training.
 - Add logging of 1-based `epoch` to the console and the loggers.
 - Add `MixUp` augmentation for LTDETR object detection training.
