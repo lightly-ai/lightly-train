@@ -460,6 +460,7 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             optim_type=train_helpers.get_optimizer_type(optim_type=config.optim),
             optim_args=config.optim_args,
             method_cls=method_cls,
+            wrapped_model=wrapped_model,
         )
         config.optim = config.optim_args.type().value
         config.method_args = train_helpers.get_method_args(

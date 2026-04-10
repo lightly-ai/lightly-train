@@ -48,6 +48,7 @@ from lightly_train._transforms.transform import (
     ChannelDropArgs,
     CopyBlendArgs,
     MixUpArgs,
+    MosaicArgs,
     NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
@@ -94,6 +95,7 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     stop_policy: StopPolicyArgs | None
     mixup: MixUpArgs | None = None
     copyblend: CopyBlendArgs | None = None
+    mosaic: MosaicArgs | None = None
     scale_jitter: ScaleJitterArgs | None
     resize: ResizeArgs | None
     bbox_params: BboxParams | None
