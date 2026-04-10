@@ -66,15 +66,6 @@ class OrientedObjectDetectionTransform(TaskTransform):
 
         self.transform_args: OrientedObjectDetectionTransformArgs = transform_args
 
-        self.stop_step = (
-            transform_args.stop_policy.stop_step if transform_args.stop_policy else None
-        )
-        self.global_step = 0
-        self.stop_ops = (
-            transform_args.stop_policy.ops if transform_args.stop_policy else set()
-        )
-        self.past_stop = False
-
         transforms_list: list[v2.Transform] = []
 
         if transform_args.channel_drop is not None:
@@ -163,28 +154,16 @@ class OrientedObjectDetectionTransform(TaskTransform):
                 )
             )
 
-        self.transform_list = transforms_list
         self.transform = v2.Compose(transforms_list)
 
     def __call__(
         self, input: OrientedObjectDetectionTransformInput
     ) -> OrientedObjectDetectionTransformOutput:
-        transform = self.transform
-
-        if (
-            self.stop_step is not None
-            and self.global_step >= self.stop_step
-            and not self.past_stop
-        ):
-            transform = v2.Compose(
-                [t for t in self.transform_list if type(t) not in self.stop_ops]
-            )
-
         image = input["image"]
         bboxes = input["bboxes"]
         class_labels = input["class_labels"]
 
-        transformed_image, transformed_bboxes = transform(image, bboxes)
+        transformed_image, transformed_bboxes = self.transform(image, bboxes)
 
         return {
             "image": transformed_image,

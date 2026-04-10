@@ -34,7 +34,6 @@ from lightly_train._transforms.transform import (
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
-    StopPolicyArgs,
 )
 from lightly_train.types import ImageSizeTuple
 
@@ -57,7 +56,6 @@ class DummyTransformArgs(OrientedObjectDetectionTransformArgs):
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple = (32, 32)
-    stop_policy: StopPolicyArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
     resize: ResizeArgs | None = None
     normalize: NormalizeArgs | Literal["auto"] | None = None
