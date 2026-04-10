@@ -173,8 +173,8 @@ def _make_dinov3_vit(
         state_dict = {
             key: value
             for key, value in state_dict.items()
-            if "projectors.heads.dinov3radio"
-            not in key  # remove EUPE-specific projector weights
+            # remove EUPE-specific projector weights
+            if "projectors.heads.dinov3radio" not in key
         }
         model.load_state_dict(state_dict, strict=True)
     else:
@@ -247,8 +247,8 @@ def _make_dinov3_convnext(
         state_dict = {
             key: value
             for key, value in state_dict.items()
-            if "projectors.heads.dinov3radio"
-            not in key  # remove EUPE-specific projector weights
+            # remove EUPE-specific projector weights
+            if "projectors.heads.dinov3radio" not in key
         }
         model.load_state_dict(state_dict, strict=True)
     return model
