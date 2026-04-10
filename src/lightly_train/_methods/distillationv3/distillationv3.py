@@ -200,12 +200,13 @@ class DistillationV3(Method):
         # embedding space to the teacher embedding space.
 
         self.teacher_embedding_dim: int = self.teacher_embedding_model.feature_dim()
+        student_feature_dim = embedding_model.wrapped_model.feature_dim()
         self.student_projection_head_global = Linear(
-            embedding_model.embed_dim,
+            student_feature_dim,
             self.teacher_embedding_dim,  # type: ignore
         )
         self.student_projection_head_local = Linear(
-            embedding_model.embed_dim,
+            student_feature_dim,
             self.teacher_embedding_dim,  # type: ignore
         )
 

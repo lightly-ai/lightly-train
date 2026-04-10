@@ -116,7 +116,7 @@ class MyModelWrapper(Module):
         return {"model_type": "convolutional", "norm_type": "batchnorm"}
 
 if __name__ == "__main__":
-    model = ... # Instatiate the model you want to pretrain
+    model = ... # Instantiate the model you want to pretrain
     wrapped_model = MyModelWrapper(model) # Wrap the model
 
     lightly_train.pretrain(
