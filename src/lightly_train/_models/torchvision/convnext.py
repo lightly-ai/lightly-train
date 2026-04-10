@@ -9,13 +9,15 @@ from torch import Tensor
 from torchvision.models import ConvNeXt
 
 from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
+    ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
 )
 from lightly_train._models.torchvision.torchvision import TorchvisionModelWrapper
 
 
-class ConvNeXtModelWrapper(TorchvisionModelWrapper):
+class ConvNeXtModelWrapper(TorchvisionModelWrapper, ArchitectureInfoGettable):
     _torchvision_models = [ConvNeXt]
     _torchvision_model_name_pattern = r"convnext.*"
 
@@ -40,3 +42,6 @@ class ConvNeXtModelWrapper(TorchvisionModelWrapper):
 
     def get_model(self) -> ConvNeXt:
         return self._model[0]
+
+    def architecture_info(self) -> ArchitectureInfo:
+        return {"model_type": "convolutional", "norm_type": "layernorm"}

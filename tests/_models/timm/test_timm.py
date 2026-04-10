@@ -170,3 +170,21 @@ def test__to_nchw(shape: tuple[int, ...], expected: tuple[int, ...]) -> None:
     x = torch.rand(shape)
     y = timm_feature_extractor._to_nchw(x)
     assert y.shape == expected
+
+
+def test_architecture_info__all_timm_model_names_match_prefix() -> None:
+    """Verify that every timm model name matches at least one known prefix.
+
+    This test does not instantiate any models, so it is fast. It ensures no
+    model family has been forgotten in _TIMM_ARCH_NAME_PREFIXES.
+    """
+    prefixes = [prefix for prefix, _ in timm_feature_extractor._TIMM_ARCH_NAME_PREFIXES]
+    unmatched = [
+        name
+        for name in timm.list_models()
+        if not any(name.startswith(prefix) for prefix in prefixes)
+    ]
+    assert not unmatched, (
+        f"{len(unmatched)} timm model(s) have no matching prefix in "
+        f"_TIMM_ARCH_NAME_PREFIXES: {unmatched}"
+    )

@@ -16,6 +16,8 @@ from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Identity, Module, Sequential, Upsample
 
 from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
+    ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
@@ -50,7 +52,7 @@ YOLOV11_AVAILABLE = RequirementCache("ultralytics>=8.3.0")
 RTDETR_ULTRALYTICS_AVAILABLE = RequirementCache("ultralytics>=8.0.140")
 
 
-class UltralyticsModelWrapper(Module, ModelWrapper):
+class UltralyticsModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
     def __init__(self, model: YOLO | RTDETR) -> None:
         super().__init__()
         _enable_gradients(model=model)
@@ -72,6 +74,9 @@ class UltralyticsModelWrapper(Module, ModelWrapper):
 
     def get_model(self) -> YOLO | RTDETR:
         return self._model[0]
+
+    def architecture_info(self) -> ArchitectureInfo:
+        return {"model_type": "convolutional", "norm_type": "batchnorm"}
 
 
 def _get_backbone(model: YOLO | RTDETR) -> tuple[Sequential, int]:

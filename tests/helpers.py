@@ -49,6 +49,8 @@ from lightly_train._models.dinov3.dinov3_src.hub.backbones import (
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
+    ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
@@ -159,6 +161,17 @@ class DummyCustomModel(Module, ModelWrapper):
 
     def get_model(self) -> Module:
         return self.conv
+
+
+class DummyCustomModelWithArchInfo(DummyCustomModel, ArchitectureInfoGettable):
+    """DummyCustomModel that also implements ArchitectureInfoGettable for testing."""
+
+    def __init__(self, arch_info: ArchitectureInfo, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._arch_info = arch_info
+
+    def architecture_info(self) -> ArchitectureInfo:
+        return self._arch_info
 
 
 class DummyMethodTransform(MethodTransform):
