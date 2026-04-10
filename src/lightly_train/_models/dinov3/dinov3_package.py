@@ -159,11 +159,6 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         default_weights="https://huggingface.co/facebook/EUPE-ViT-B/resolve/main/EUPE-ViT-B.pt?download=true",
         local_path="dinov3_vitb16_eupe_lvd1689.pth",
     ),
-    "vitl16-eupe": _DINOv3ModelInfo(
-        builder=backbones.dinov3_vitl16,
-        default_weights="https://huggingface.co/facebook/EUPE-ViT-L/resolve/main/EUPE-ViT-L.pt?download=true",
-        local_path="dinov3_vitl16_eupe_lvd1689.pth",
-    ),
     "convnext-small-eupe": _DINOv3ModelInfo(
         builder=backbones.dinov3_convnext_small,
         default_weights="https://huggingface.co/facebook/EUPE-ConvNeXt-S/resolve/main/EUPE-ConvNeXt-S.pt?download=true",
@@ -173,11 +168,6 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         builder=backbones.dinov3_convnext_base,
         default_weights="https://huggingface.co/facebook/EUPE-ConvNeXt-B/resolve/main/EUPE-ConvNeXt-B.pt?download=true",
         local_path="dinov3_convnext_base_eupe_lvd1689.pth",
-    ),
-    "convnext-large-eupe": _DINOv3ModelInfo(
-        builder=backbones.dinov3_convnext_large,
-        default_weights="https://huggingface.co/facebook/EUPE-ConvNeXt-L/resolve/main/EUPE-ConvNeXt-L.pt?download=true",
-        local_path="dinov3_convnext_large_eupe_lvd1689.pth",
     ),
 }
 
