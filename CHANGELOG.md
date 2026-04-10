@@ -25,6 +25,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Removed
 
+- Remove `StopPolicy` and use `ActivationPolicy` instead for more fine-grained control
+  over the step-aware augmentations.
+
 ### Fixed
 
 ### Security
