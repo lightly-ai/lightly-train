@@ -7,13 +7,14 @@
 #
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Dict, Iterable, Union
 
 import numpy as np
 import torch
-from pydantic import AliasChoices, Field, TypeAdapter, field_validator
+from pydantic import AliasChoices, Field, TypeAdapter, field_validator, model_validator
 from torch import Tensor
 
 from lightly_train._configs.config import PydanticConfig
@@ -306,8 +307,23 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ignore_index: ClassVar[int] = -100
     train: SplitArgs
     val: SplitArgs
-    classes: dict[int, ClassInfo]
+    classes: dict[int, ClassInfo] | None = None
+    classes_json: PathLike | None = None
     ignore_classes: set[int] | None = Field(default=None, strict=False)
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_classes_xor_classes_json(cls, values: Any) -> Any:
+        has_classes = values.get("classes") is not None
+        has_classes_json = values.get("classes_json") is not None
+        if has_classes == has_classes_json:
+            raise ValueError("Exactly one of 'classes' or 'classes_json' must be set.")
+        if has_classes_json:
+            path = Path(values["classes_json"])
+            with open(path) as f:
+                data: dict[str, str] = json.load(f)
+            values["classes"] = {int(k): v for k, v in data.items()}
+        return values
 
     def train_imgs_path(self) -> Path:
         return Path(self.train.images)

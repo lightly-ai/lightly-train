@@ -441,8 +441,9 @@ We support two mask formats:
 - Single-channel integer masks, where each integer value determines a label
 - Multi-channel masks (e.g., RGB masks), where each pixel value determines a label
 
-Use the `classes` dict in the `data` dict to map class IDs to labels. In this document,
-a **class ID** is a key in the `classes` dictionary and a **label** is its value.
+Use either `classes` or `classes_json` in the `data` dict to map class IDs to labels —
+exactly one of them must be set. In this document, a **class ID** is a key in the
+`classes` dictionary and a **label** is its value.
 
 #### Using Integer Masks
 
@@ -499,6 +500,49 @@ These pixel values are converted to class IDs internally during training. Predic
 are single-channel masks with those class IDs. Again, each label can map to only **one**
 class ID, and you cannot mix integer and tuple-valued labels in a single `classes`
 dictionary.
+
+#### Loading Classes from a JSON File
+
+Instead of specifying `classes` inline, you can load a simple class mapping from a JSON
+file using `classes_json`. The JSON file must map integer class IDs (as strings) to
+class names:
+
+```json
+{
+  "0": "background",
+  "1": "airplane",
+  "2": "car",
+  "3": "bicycle"
+}
+```
+
+Pass the path to this file via `classes_json`:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt",
+        data={
+            "train": {
+                "images": "my_data_dir/train/images",
+                "masks": "my_data_dir/train/masks",
+            },
+            "val": {
+                "images": "my_data_dir/val/images",
+                "masks": "my_data_dir/val/masks",
+            },
+            "classes_json": "my_data_dir/classes.json",  # Path to the JSON class mapping file
+            "ignore_classes": [0],
+        },
+    )
+```
+
+`classes_json` only supports the simple string-value format (equivalent to
+`{class_id: "class_name"}`). For advanced mappings that merge multiple labels into one
+class or use multi-channel pixel values, use `classes` instead.
 
 (semantic-segmentation-model)=
 

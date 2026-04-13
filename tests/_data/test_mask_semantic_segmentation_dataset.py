@@ -336,6 +336,52 @@ class TestMaskSemanticSegmentationDataArgs:
 
         assert dataset_args.included_classes == expected_included
 
+    def test_classes_json(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        json_file = tmp_path / "classes.json"
+        json_file.write_text('{"0": "background", "1": "airplane", "2": "car"}')
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes_json=json_file,
+        )
+
+        assert dataset_args.included_classes == {
+            0: "background",
+            1: "airplane",
+            2: "car",
+        }
+
+    def test_classes_and_classes_json_both_set_raises(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        json_file = tmp_path / "classes.json"
+        json_file.write_text('{"0": "background"}')
+
+        with pytest.raises(
+            ValueError, match="Exactly one of 'classes' or 'classes_json' must be set."
+        ):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images=image_dir, masks=mask_dir),
+                val=SplitArgs(images=image_dir, masks=mask_dir),
+                classes={0: "background"},
+                classes_json=json_file,
+            )
+
+    def test_neither_classes_nor_classes_json_raises(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+
+        with pytest.raises(
+            ValueError, match="Exactly one of 'classes' or 'classes_json' must be set."
+        ):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images=image_dir, masks=mask_dir),
+                val=SplitArgs(images=image_dir, masks=mask_dir),
+            )
+
 
 class TestMaskSemanticSegmentationDatasetArgs:
     def test_mask_dir_or_file__filename_template_string(self, tmp_path: Path) -> None:
