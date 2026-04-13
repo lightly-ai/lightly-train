@@ -106,6 +106,10 @@ class InstanceSegmentationDataset(TaskDataset):
             image_path=image_path, mode=self.image_mode
         )
         polygons_np = [np.array(polygon, dtype=np.float64) for polygon in polygons]
+        polygons_np = [
+            [np.array(segment, dtype=np.float64) for segment in polygon_group]
+            for polygon_group in polygons
+        ]
         bboxes_np = np.array(bboxes, dtype=np.float64).reshape(len(bboxes), 4)
         class_labels_np = np.array(class_labels, dtype=np.int64)
 
@@ -374,10 +378,10 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
         """Yields image info dicts for each image in the COCO annotation file.
 
         Polygons are converted from COCO format (pixel coordinates) to normalized
-        [0, 1] coordinates. Bounding boxes are converted from COCO format
+        [0, 1] coordinates. Each annotation's polygon segments are stored as a list
+        of polygons. Bounding boxes are converted from COCO format
         (x, y, width, height in pixels) to normalized (x_center, y_center, width,
-        height) format. For annotations with multiple polygon segments, the largest
-        segment is used. Images with no annotations are included unless
+        height) format. Images with no annotations are included unless
         ``skip_if_annotations_missing`` is True.
         """
         class_id_to_internal_class_id = (
@@ -414,25 +418,35 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                     segmentation = annotation.get("segmentation", [])
                     if not segmentation or not isinstance(segmentation, list):
                         continue
-                    # Take the largest polygon segment.
-                    polygon_px = max(segmentation, key=len)
-                    # Normalize polygon coordinates to [0, 1].
-                    polygon_norm = [
-                        coord / image_width_pixel
-                        if i % 2 == 0
-                        else coord / image_height_pixel
-                        for i, coord in enumerate(polygon_px)
+                    # Normalize each polygon segment to [0, 1].
+                    polygon_group_norm = [
+                        [
+                            coord / image_width_pixel
+                            if i % 2 == 0
+                            else coord / image_height_pixel
+                            for i, coord in enumerate(segment)
+                        ]
+                        for segment in segmentation
+                        if isinstance(segment, list)
                     ]
+                    if not polygon_group_norm:
+                        continue
                     # Convert bbox from [x, y, w, h] pixels to normalized
                     # [x_center, y_center, w, h]. If bbox is missing, derive it
-                    # from the polygon's axis-aligned bounding box.
+                    # from the axis-aligned bounding box of all segments.
                     if "bbox" in annotation:
                         left_pixel, top_pixel, width_pixel, height_pixel = annotation[
                             "bbox"
                         ]
                     else:
-                        xs = polygon_px[0::2]
-                        ys = polygon_px[1::2]
+                        all_px = [
+                            coord
+                            for segment in segmentation
+                            if isinstance(segment, list)
+                            for coord in segment
+                        ]
+                        xs = all_px[0::2]
+                        ys = all_px[1::2]
                         left_pixel = min(xs)
                         top_pixel = min(ys)
                         width_pixel = max(xs) - left_pixel
@@ -442,7 +456,7 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                     width = width_pixel / image_width_pixel
                     height = height_pixel / image_height_pixel
 
-                    polygons.append(polygon_norm)
+                    polygons.append(polygon_group_norm)
                     bboxes.append([x_center, y_center, width, height])
                     class_labels.append(annotation["category_id"])
             else:

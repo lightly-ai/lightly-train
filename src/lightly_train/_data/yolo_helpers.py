@@ -60,62 +60,47 @@ def get_image_and_labels_dirs(
         raise ValueError(f"Unknown mode: {mode}")
 
 
-def binary_mask_from_polygon(
-    polygon: NDArrayPolygon, height: int, width: int
-) -> NDArrayBinaryMask:
-    """Convert a YOLO polygon to a binary mask.
+def split_yolo_polygon(polygon: list[float]) -> list[list[float]]:
+    """Split a flat YOLO polygon coordinate list into individual polygon segments.
+
+    A single YOLO polygon line can encode multiple disconnected polygons by
+    closing each sub-polygon with a repeated first point before starting the next.
+    See https://github.com/ultralytics/yolov5/issues/11476#issuecomment-1537281864
 
     Args:
         polygon:
-            Numpy array of shape (n_points*2,) containing the polygon points
-            in normalized coordinates [0, 1].
-        height:
-            Height of the image.
-        width:
-            Width of the image.
+            Flat list of normalized [0, 1] coordinates: [x0, y0, x1, y1, ...].
 
     Returns:
-        Binary mask with shape (H, W) where all points inside the polygon are 1.
+        List of flat coordinate lists, one per sub-polygon.
     """
-    mask = Image.new("1", (width, height), 0)
-    points = [(x * width, y * height) for x, y in zip(polygon[0::2], polygon[1::2])]
-
-    # Split the points into multiple polygons if necessary. A single YOLO polygon line
-    # can contain multiple polygons connected by linking the last point of one polygon
-    # to the first point of the next polygon with a line.
-    # See https://github.com/ultralytics/yolov5/issues/11476#issuecomment-1537281864
-    # for details.
-    polygons = []
-    current_polygon: list[tuple[float, float]] = []
-    prev_point = None
+    points = list(zip(polygon[0::2], polygon[1::2]))
+    segments: list[list[float]] = []
+    current: list[tuple[float, float]] = []
+    prev: tuple[float, float] | None = None
     for point in points:
-        if prev_point == point:
-            # Skip duplicate points
+        if prev == point:
+            # Skip duplicate points.
             continue
-        if len(current_polygon) >= 3 and current_polygon[0] == point:
-            # Polygon is closed if current point matches the first point.
-            # Start a new polygon.
-            current_polygon.append(point)
-            if len(current_polygon) >= 4:
-                polygons.append(current_polygon)
-            current_polygon = []
+        if len(current) >= 3 and current[0] == point:
+            # Current point closes the polygon; start a new one.
+            current.append(point)
+            if len(current) >= 4:
+                segments.append([c for pt in current for c in pt])
+            current = []
         else:
-            current_polygon.append(point)
-        prev_point = point
-
-    # Add last polygon. Only 3 points required as it might not be closed.
-    if len(current_polygon) >= 3:
-        polygons.append(current_polygon)
-
-    for poly in polygons:
-        ImageDraw.Draw(mask).polygon(poly, outline=1, fill=1)
-    return np.array(mask, dtype=np.bool_)
+            current.append(point)
+        prev = point
+    # Add the last (possibly unclosed) polygon.
+    if len(current) >= 3:
+        segments.append([c for pt in current for c in pt])
+    return segments if segments else [polygon]
 
 
-def binary_masks_from_polygons(
+def binary_mask_from_polygon(
     polygons: list[NDArrayPolygon], height: int, width: int
-) -> NDArrayBinaryMasks:
-    """Convert a list of YOLO polygons to a stack of binary masks.
+) -> NDArrayBinaryMask:
+    """Convert a list of polygons for a single instance to a binary mask.
 
     Args:
         polygons:
@@ -127,11 +112,37 @@ def binary_masks_from_polygons(
             Width of the image.
 
     Returns:
-        Stack of binary masks with shape (n_polygons, H, W) where all points
-        inside each polygon are 1.
+        Binary mask with shape (H, W) where all points inside any polygon are 1.
+    """
+    mask = Image.new("1", (width, height), 0)
+    draw = ImageDraw.Draw(mask)
+    for polygon in polygons:
+        points = [(x * width, y * height) for x, y in zip(polygon[0::2], polygon[1::2])]
+        if len(points) >= 3:
+            draw.polygon(points, outline=1, fill=1)
+    return np.array(mask, dtype=np.bool_)
+
+
+def binary_masks_from_polygons(
+    polygons: list[list[NDArrayPolygon]], height: int, width: int
+) -> NDArrayBinaryMasks:
+    """Convert a list of per-instance polygon groups to a stack of binary masks.
+
+    Args:
+        polygons:
+            List of polygon groups, one per instance. Each group is a list of
+            numpy arrays of shape (n_points*2,) in normalized coordinates [0, 1].
+        height:
+            Height of the image.
+        width:
+            Width of the image.
+
+    Returns:
+        Stack of binary masks with shape (n_instances, H, W).
     """
     binary_masks = [
-        binary_mask_from_polygon(polygon, height, width) for polygon in polygons
+        binary_mask_from_polygon(polygon_group, height, width)
+        for polygon_group in polygons
     ]
     if binary_masks:
         return np.stack(binary_masks)
