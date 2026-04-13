@@ -46,6 +46,7 @@ from lightly_train._transforms.task_transform import (
     TaskTransformOutput,
 )
 from lightly_train._transforms.transform import (
+    ActivationPolicyArgs,
     ChannelDropArgs,
     CopyBlendArgs,
     MixUpArgs,
@@ -59,7 +60,6 @@ from lightly_train._transforms.transform import (
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
-    StopPolicyArgs,
 )
 from lightly_train.types import (
     ImageSizeTuple,
@@ -93,16 +93,15 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     random_rotate_90: RandomRotate90Args | None
     random_rotate: RandomRotationArgs | None
     image_size: ImageSizeTuple | Literal["auto"]
-    stop_policy: StopPolicyArgs | None
     mixup: MixUpArgs | None = None
     copyblend: CopyBlendArgs | None = None
     mosaic: MosaicArgs | None = None
-    scale_jitter: ScaleJitterArgs | None
+    scale_jitter: ScaleJitterArgs | None = None
     resize: ResizeArgs | None
     bbox_params: BboxParams | None
     normalize: NormalizeArgs | Literal["auto"] | None
 
-    # Necessary for the StopPolicyArgs, which are not serializable by pydantic.
+    # Necessary for BboxParams, which are not serializable by pydantic.
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
@@ -117,7 +116,6 @@ class ObjectDetectionTransform(TaskTransform):
     transform_args_cls: type[ObjectDetectionTransformArgs] = (
         ObjectDetectionTransformArgs
     )
-    _MOSAIC_SKIP_TYPES = (RandomZoomOut, RandomIoUCrop)
 
     def __init__(
         self,
@@ -126,119 +124,88 @@ class ObjectDetectionTransform(TaskTransform):
         super().__init__(transform_args=transform_args)
 
         self.transform_args: ObjectDetectionTransformArgs = transform_args
-        self.stop_step = (
-            transform_args.stop_policy.stop_step if transform_args.stop_policy else None
-        )
-
-        # TODO: Lionel (09/25): Implement stopping of certain augmentations after some steps.
-        if self.stop_step is not None:
-            raise NotImplementedError(
-                "Stopping certain augmentations after some steps is not implemented yet."
-            )
-        self.global_step = 0  # Currently hardcoded, will be set from outside.
-        self.stop_ops = (
-            transform_args.stop_policy.ops if transform_args.stop_policy else set()
-        )
-        self.past_stop = False
-
-        self.individual_transforms = []
-
+        self._step = 0
+        self.channel_drop: ChannelDrop | None = None
         if transform_args.channel_drop is not None:
-            self.individual_transforms += [
-                ChannelDrop(
-                    num_channels_keep=transform_args.channel_drop.num_channels_keep,
-                    weight_drop=transform_args.channel_drop.weight_drop,
-                )
-            ]
+            self.channel_drop = ChannelDrop(
+                num_channels_keep=transform_args.channel_drop.num_channels_keep,
+                weight_drop=transform_args.channel_drop.weight_drop,
+            )
 
+        self.photometric_distort: RandomPhotometricDistort | None = None
         if transform_args.photometric_distort is not None:
-            self.individual_transforms += [
-                RandomPhotometricDistort(
-                    brightness=transform_args.photometric_distort.brightness,
-                    contrast=transform_args.photometric_distort.contrast,
-                    saturation=transform_args.photometric_distort.saturation,
-                    hue=transform_args.photometric_distort.hue,
-                    p=transform_args.photometric_distort.prob,
-                )
-            ]
+            self.photometric_distort = RandomPhotometricDistort(
+                brightness=transform_args.photometric_distort.brightness,
+                contrast=transform_args.photometric_distort.contrast,
+                saturation=transform_args.photometric_distort.saturation,
+                hue=transform_args.photometric_distort.hue,
+                p=transform_args.photometric_distort.prob,
+            )
 
+        self.random_zoom_out: RandomZoomOut | None = None
         if transform_args.random_zoom_out is not None:
-            self.individual_transforms += [
-                RandomZoomOut(
-                    fill=transform_args.random_zoom_out.fill,
-                    side_range=transform_args.random_zoom_out.side_range,
-                    p=transform_args.random_zoom_out.prob,
-                )
-            ]
+            self.random_zoom_out = RandomZoomOut(
+                fill=transform_args.random_zoom_out.fill,
+                side_range=transform_args.random_zoom_out.side_range,
+                p=transform_args.random_zoom_out.prob,
+            )
 
+        self.random_iou_crop: RandomIoUCrop | None = None
         if transform_args.random_iou_crop is not None:
-            self.individual_transforms += [
-                RandomIoUCrop(
-                    min_scale=transform_args.random_iou_crop.min_scale,
-                    max_scale=transform_args.random_iou_crop.max_scale,
-                    min_aspect_ratio=transform_args.random_iou_crop.min_aspect_ratio,
-                    max_aspect_ratio=transform_args.random_iou_crop.max_aspect_ratio,
-                    sampler_options=transform_args.random_iou_crop.sampler_options,
-                    crop_trials=transform_args.random_iou_crop.crop_trials,
-                    iou_trials=transform_args.random_iou_crop.iou_trials,
-                    p=transform_args.random_iou_crop.prob,
-                )
-            ]
+            self.random_iou_crop = RandomIoUCrop(
+                min_scale=transform_args.random_iou_crop.min_scale,
+                max_scale=transform_args.random_iou_crop.max_scale,
+                min_aspect_ratio=transform_args.random_iou_crop.min_aspect_ratio,
+                max_aspect_ratio=transform_args.random_iou_crop.max_aspect_ratio,
+                sampler_options=transform_args.random_iou_crop.sampler_options,
+                crop_trials=transform_args.random_iou_crop.crop_trials,
+                iou_trials=transform_args.random_iou_crop.iou_trials,
+                p=transform_args.random_iou_crop.prob,
+            )
 
+        self.horizontal_flip: HorizontalFlip | None = None
+        self.vertical_flip: VerticalFlip | None = None
         if transform_args.random_flip is not None:
             if transform_args.random_flip.horizontal_prob > 0.0:
-                self.individual_transforms += [
-                    HorizontalFlip(p=transform_args.random_flip.horizontal_prob)
-                ]
+                self.horizontal_flip = HorizontalFlip(
+                    p=transform_args.random_flip.horizontal_prob
+                )
             if transform_args.random_flip.vertical_prob > 0.0:
-                self.individual_transforms += [
-                    VerticalFlip(p=transform_args.random_flip.vertical_prob)
-                ]
+                self.vertical_flip = VerticalFlip(
+                    p=transform_args.random_flip.vertical_prob
+                )
 
+        self.random_rotate_90: RandomRotate90 | None = None
         if transform_args.random_rotate_90 is not None:
-            self.individual_transforms += [
-                RandomRotate90(p=transform_args.random_rotate_90.prob)
-            ]
+            self.random_rotate_90 = RandomRotate90(
+                p=transform_args.random_rotate_90.prob
+            )
+
+        self.random_rotate: Rotate | None = None
         if transform_args.random_rotate is not None:
-            self.individual_transforms += [
-                Rotate(
-                    limit=transform_args.random_rotate.degrees,
-                    interpolation=transform_args.random_rotate.interpolation,
-                    p=transform_args.random_rotate.prob,
-                )
-            ]
+            self.random_rotate = Rotate(
+                limit=transform_args.random_rotate.degrees,
+                interpolation=transform_args.random_rotate.interpolation,
+                p=transform_args.random_rotate.prob,
+            )
 
+        self.resize: Resize | None = None
         if transform_args.resize is not None:
-            self.individual_transforms += [
-                Resize(
-                    height=no_auto(transform_args.resize.height),
-                    width=no_auto(transform_args.resize.width),
-                )
-            ]
+            self.resize = Resize(
+                height=no_auto(transform_args.resize.height),
+                width=no_auto(transform_args.resize.width),
+            )
 
-        # Scale to [0, 1].
-        self.individual_transforms += [
-            ToFloat(max_value=255.0),
-        ]
+        self.to_float = ToFloat(max_value=255.0)
 
-        # Only used with ViT-S/16, ViT-T/16+ and ViT-T/16.
+        self.normalize: Normalize | None = None
         if transform_args.normalize is not None:
-            self.individual_transforms += [
-                Normalize(
-                    mean=no_auto(transform_args.normalize).mean,
-                    std=no_auto(transform_args.normalize).std,
-                    max_pixel_value=1.0,  # Already scaled.
-                )
-            ]
+            self.normalize = Normalize(
+                mean=no_auto(transform_args.normalize).mean,
+                std=no_auto(transform_args.normalize).std,
+                max_pixel_value=1.0,  # Already scaled.
+            )
 
-        self.transform = Compose(
-            self.individual_transforms,
-            bbox_params=transform_args.bbox_params,
-        )
-
-        # Mosaic setup.
-        self.individual_transforms_skip_zoomout_ioucrop: list[Any] = []
-        self.transform_skip_zoomout_ioucrop: Compose | None = None
         self.mosaic: MosaicTransform | None = None
         if transform_args.mosaic is not None:
             self.mosaic = MosaicTransform(
@@ -252,25 +219,37 @@ class ObjectDetectionTransform(TaskTransform):
                 random_pop=transform_args.mosaic.random_pop,
             )
 
-        # Build skip pipeline (without RandomZoomOut and RandomIoUCrop) for mosaic.
-        self._build_skip_pipeline()
+        # Rebuilding an albumentations Compose for every sample is unnecessary
+        # because these step-aware sample transforms only change at a few step
+        # boundaries. Cache the effective pipelines and reuse them per worker.
+        self._compose_cache: dict[tuple[bool, bool, bool], Compose] = {}
+        self._current_transform_active_status = (
+            self._get_transform_active_status_at_step(self._step)
+        )
 
-        # Step-aware state for mosaic scheduling.
-        self._step = 0
-        self._current_mosaic_active_status = self._is_mosaic_active_at_step(0)
+    def _is_photometric_distort_active_at_step(self, step: int) -> bool:
+        return (
+            self.photometric_distort is not None
+            and self.transform_args.photometric_distort is not None
+            and self.transform_args.photometric_distort.prob > 0.0
+            and self.transform_args.photometric_distort.is_active(step)
+        )
 
-    def _build_skip_pipeline(self) -> None:
-        """Build the skip pipeline (without RandomZoomOut and RandomIoUCrop) for mosaic."""
-        if self.mosaic is not None:
-            self.individual_transforms_skip_zoomout_ioucrop = [
-                t
-                for t in self.individual_transforms
-                if not isinstance(t, self._MOSAIC_SKIP_TYPES)
-            ]
-            self.transform_skip_zoomout_ioucrop = Compose(
-                self.individual_transforms_skip_zoomout_ioucrop,
-                bbox_params=self.transform_args.bbox_params,
-            )
+    def _is_random_zoom_out_active_at_step(self, step: int) -> bool:
+        return (
+            self.random_zoom_out is not None
+            and self.transform_args.random_zoom_out is not None
+            and self.transform_args.random_zoom_out.prob > 0.0
+            and self.transform_args.random_zoom_out.is_active(step)
+        )
+
+    def _is_random_iou_crop_active_at_step(self, step: int) -> bool:
+        return (
+            self.random_iou_crop is not None
+            and self.transform_args.random_iou_crop is not None
+            and self.transform_args.random_iou_crop.prob > 0.0
+            and self.transform_args.random_iou_crop.is_active(step)
+        )
 
     def _is_mosaic_active_at_step(self, step: int) -> bool:
         if (
@@ -279,11 +258,7 @@ class ObjectDetectionTransform(TaskTransform):
             or self.transform_args.mosaic.prob <= 0.0
         ):
             return False
-        return (
-            self.transform_args.mosaic.step_start
-            <= step
-            < self.transform_args.mosaic.step_stop
-        )
+        return self.transform_args.mosaic.is_active(step)
 
     def _should_apply_mosaic(self) -> bool:
         return (
@@ -291,65 +266,148 @@ class ObjectDetectionTransform(TaskTransform):
             and np.random.random() < self.transform_args.mosaic.prob  # type: ignore[union-attr]
         )
 
+    def _get_transform_active_status_at_step(
+        self, step: int
+    ) -> tuple[bool, bool, bool, bool]:
+        return (
+            self._is_photometric_distort_active_at_step(step),
+            self._is_random_zoom_out_active_at_step(step),
+            self._is_random_iou_crop_active_at_step(step),
+            self._is_mosaic_active_at_step(step),
+        )
+
+    def _is_step_start_or_stop_configured(
+        self, activation_policy: ActivationPolicyArgs | None
+    ) -> bool:
+        if activation_policy is None:
+            return False
+        return (
+            activation_policy.step_start != 0 or activation_policy.step_stop is not None
+        )
+
+    def _get_transform_cache_key(
+        self, *, step: int, skip_zoomout_ioucrop: bool
+    ) -> tuple[bool, bool, bool]:
+        return (
+            self._is_photometric_distort_active_at_step(step),
+            (
+                self._is_random_zoom_out_active_at_step(step)
+                and not skip_zoomout_ioucrop
+            ),
+            (
+                self._is_random_iou_crop_active_at_step(step)
+                and not skip_zoomout_ioucrop
+            ),
+        )
+
+    def _build_transform(self, key: tuple[bool, bool, bool]) -> Compose:
+        photometric_distort_active, random_zoom_out_active, random_iou_crop_active = key
+        transforms: list[Any] = []
+
+        if self.channel_drop is not None:
+            transforms.append(self.channel_drop)
+        if photometric_distort_active:
+            transforms.append(self.photometric_distort)  # type: ignore[arg-type]
+        if random_zoom_out_active:
+            transforms.append(self.random_zoom_out)  # type: ignore[arg-type]
+        if random_iou_crop_active:
+            transforms.append(self.random_iou_crop)  # type: ignore[arg-type]
+        if self.horizontal_flip is not None:
+            transforms.append(self.horizontal_flip)
+        if self.vertical_flip is not None:
+            transforms.append(self.vertical_flip)
+        if self.random_rotate_90 is not None:
+            transforms.append(self.random_rotate_90)
+        if self.random_rotate is not None:
+            transforms.append(self.random_rotate)
+        if self.resize is not None:
+            transforms.append(self.resize)
+        transforms.append(self.to_float)
+        if self.normalize is not None:
+            transforms.append(self.normalize)
+
+        return Compose(
+            transforms,
+            bbox_params=self.transform_args.bbox_params,
+        )
+
+    def _get_transform_from_cache(self, *, skip_zoomout_ioucrop: bool) -> Compose:
+        cache_key = self._get_transform_cache_key(
+            step=self._step,
+            skip_zoomout_ioucrop=skip_zoomout_ioucrop,
+        )
+        if cache_key not in self._compose_cache:
+            # Mosaic samples need the current active pipeline without
+            # RandomZoomOut/RandomIoUCrop, so keep that variant cached too.
+            self._compose_cache[cache_key] = self._build_transform(cache_key)
+        return self._compose_cache[cache_key]
+
     def set_step(self, step: int) -> None:
         self._step = step
 
     def uses_step_dependent_worker_state(self) -> bool:
         return (
-            self.mosaic is not None
-            and self.transform_args.mosaic is not None
-            and self.transform_args.mosaic.prob > 0.0
+            (
+                self.transform_args.photometric_distort is not None
+                and self.transform_args.photometric_distort.prob > 0.0
+                and self._is_step_start_or_stop_configured(
+                    self.transform_args.photometric_distort
+                )
+            )
+            or (
+                self.transform_args.random_zoom_out is not None
+                and self.transform_args.random_zoom_out.prob > 0.0
+                and self._is_step_start_or_stop_configured(
+                    self.transform_args.random_zoom_out
+                )
+            )
+            or (
+                self.transform_args.random_iou_crop is not None
+                and self.transform_args.random_iou_crop.prob > 0.0
+                and self._is_step_start_or_stop_configured(
+                    self.transform_args.random_iou_crop
+                )
+            )
+            or (
+                self.transform_args.mosaic is not None
+                and self.transform_args.mosaic.prob > 0.0
+                and self._is_step_start_or_stop_configured(self.transform_args.mosaic)
+            )
         )
 
     def requires_dataloader_reinitialization(self) -> bool:
         return (
-            self._is_mosaic_active_at_step(self._step)
-            != self._current_mosaic_active_status
+            self._get_transform_active_status_at_step(self._step)
+            != self._current_transform_active_status
         )
 
     def mark_dataloader_as_reinitialized(self) -> None:
-        self._current_mosaic_active_status = self._is_mosaic_active_at_step(self._step)
+        self._current_transform_active_status = (
+            self._get_transform_active_status_at_step(self._step)
+        )
 
     def __call__(
         self, input: ObjectDetectionTransformInput
     ) -> ObjectDetectionTransformOutput:
-        # Adjust transform after stop_step is reached.
-        if (
-            self.stop_step is not None
-            and self.global_step >= self.stop_step
-            and not self.past_stop
-        ):
-            self.individual_transforms = [
-                t for t in self.individual_transforms if type(t) not in self.stop_ops
-            ]
-            self.transform = Compose(
-                self.individual_transforms,
-                bbox_params=self.transform_args.bbox_params,
-            )
-            self._build_skip_pipeline()
-            self.past_stop = True
-
         image = input["image"]
         bboxes = input["bboxes"]
         class_labels = input["class_labels"]
 
         if self._should_apply_mosaic():
-            assert self.mosaic is not None
-            assert self.transform_skip_zoomout_ioucrop is not None
-            image, bboxes, class_labels = self.mosaic(image, bboxes, class_labels)
+            image, bboxes, class_labels = self.mosaic(image, bboxes, class_labels)  # type: ignore[misc]
+
             # MosaicTransform clips boxes to the canvas but keeps degenerate boxes
             # (zero width/height). Filter them before passing to albumentations.
             if len(bboxes) > 0:
                 valid = (bboxes[:, 2] > 0) & (bboxes[:, 3] > 0)
                 bboxes = bboxes[valid]
                 class_labels = class_labels[valid]
-            transformed = self.transform_skip_zoomout_ioucrop(
-                image=image, bboxes=bboxes, class_labels=class_labels
-            )
+
+            transform = self._get_transform_from_cache(skip_zoomout_ioucrop=True)
         else:
-            transformed = self.transform(
-                image=image, bboxes=bboxes, class_labels=class_labels
-            )
+            transform = self._get_transform_from_cache(skip_zoomout_ioucrop=False)
+
+        transformed = transform(image=image, bboxes=bboxes, class_labels=class_labels)
 
         # Some albumentations versions return lists of tuples instead of arrays.
         bboxes = transformed["bboxes"]
@@ -427,11 +485,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             or self.transform_args.mixup.prob <= 0.0
         ):
             return False
-        return (
-            self.transform_args.mixup.step_start
-            <= step
-            < self.transform_args.mixup.step_stop
-        )
+        return self.transform_args.mixup.is_active(step)
 
     def _is_copyblend_active_at_step(self, step: int) -> bool:
         if (
@@ -440,11 +494,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             or self.transform_args.copyblend.prob <= 0.0
         ):
             return False
-        return (
-            self.transform_args.copyblend.step_start
-            <= step
-            < self.transform_args.copyblend.step_stop
-        )
+        return self.transform_args.copyblend.is_active(step)
 
     def _is_scale_jitter_active_at_step(self, step: int) -> bool:
         if (
@@ -454,11 +504,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             <= 0.0  # TODO (Yutong, 04/26): there is never a scale jitter prob used in LTDETR. Remove it.
         ):
             return False
-
-        scale_jitter_step_stop = self.transform_args.scale_jitter.step_stop
-        if scale_jitter_step_stop is None:
-            return True
-        return step < scale_jitter_step_stop
+        return self.transform_args.scale_jitter.is_active(step)
 
     def _should_apply_mixup(self) -> bool:
         return (
@@ -499,11 +545,19 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
                 self.mixup is not None
                 and self.transform_args.mixup is not None
                 and self.transform_args.mixup.prob > 0.0
+                and (
+                    self.transform_args.mixup.step_start != 0
+                    or self.transform_args.mixup.step_stop is not None
+                )
             )
             or (
                 self.copyblend is not None
                 and self.transform_args.copyblend is not None
                 and self.transform_args.copyblend.prob > 0.0
+                and (
+                    self.transform_args.copyblend.step_start != 0
+                    or self.transform_args.copyblend.step_stop is not None
+                )
             )
         )
 
