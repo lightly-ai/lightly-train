@@ -56,10 +56,11 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="dinov3/vitl16-eomt-inst-coco", 
         data={
+            "format": "yolo",           # either "yolo" or "coco"
             "path": "my_data_dir",      # Path to dataset directory
             "train": "images/train",    # Path to training images
             "val": "images/val",        # Path to validation images
-            "names": {                  # Classes in the dataset                    
+            "names": {                  # Classes in the dataset
                 0: "background",
                 1: "car",
                 2: "bicycle",
@@ -173,29 +174,45 @@ fig.show()
 
 ## Data
 
-Lightly**Train** supports instance segmentation datasets in YOLO format. Every image
-must have a corresponding annotation file that contains for every object in the image a
-line with the class ID and (x1, y1, x2, y2, ...) polygon coordinates in normalized
-format.
+Lightly**Train** supports training instance segmentation models with images and polygon
+masks. We support inputs in either the [YOLO](#instance-segmentation-data-yolo) or
+[COCO](#instance-segmentation-data-coco) instance segmentation formats.
+
+We specify the training data with a `data` dictionary:
+
+```python
+import lightly_train
+
+lightly_train.train_instance_segmentation(
+    ...,
+    data={
+        "format": ...,           # either "yolo" or "coco"
+        "ignore_classes": [...], # optional list of class IDs that should be skipped during training
+         # format specific options
+    },
+)
+```
+
+If you would like to skip specific classes during training, add their IDs to the
+optional `ignore_classes` list. The trainer omits these classes from loss computation
+and the exported model does not predict them.
+
+(instance-segmentation-data-yolo)=
+
+### YOLO format
+
+For the [YOLO](https://labelformat.com/formats/instance-segmentation/yolov8/) format,
+every image has a corresponding label file with the `.txt` extension. Each line in the
+label file represents one object and contains the class ID followed by normalized
+polygon coordinates `(x1, y1, x2, y2, ...)`. An example annotation file for an image
+with two objects looks like this:
 
 ```text
 0 0.782016 0.986521 0.937078 0.874167 0.957297 0.782021 0.950562 0.739333
 1 0.557859 0.143813 0.487078 0.0314583 0.859547 0.00897917 0.985953 0.130333 0.984266 0.184271
 ```
 
-The following image formats are supported:
-
-- jpg
-- jpeg
-- png
-- ppm
-- bmp
-- pgm
-- tif
-- tiff
-- webp
-
-Your dataset directory must be organized like this:
+Your dataset directory should be organized like this:
 
 ```text
 my_data_dir/
@@ -219,7 +236,7 @@ my_data_dir/
         └── ...
 ```
 
-Alternatively, the train/val splits can also be at the top level:
+Alternatively, the splits can also be at the top level:
 
 ```text
 my_data_dir/
@@ -243,32 +260,12 @@ my_data_dir/
         └── ...
 ```
 
-The `data` argument in `train_instance_segmentation` must point to the dataset directory
-and specify the paths to the training and validation images relative to the dataset
-directory. For example:
+Each class in the dataset must be listed in the `names` dictionary. The keys are the
+class IDs used inside the YOLO annotations and the values are the human-readable class
+names. Any class IDs that appear in the label files but are not present in the
+dictionary are silently ignored.
 
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
-        out="out/my_experiment",
-        model="dinov3/vitl16-eomt-inst-coco", 
-        data={
-            "path": "my_data_dir",      # Path to dataset directory
-            "train": "images/train",    # Path to training images
-            "val": "images/val",        # Path to validation images
-            "names": {                  # Classes in the dataset                    
-                0: "background",        # Classes must match those in the annotation files
-                1: "car",
-                2: "bicycle",
-                # ...
-            },
-        },
-    )
-```
-
-### Missing Labels
+#### Missing Labels
 
 There are three cases in which an image may not have any corresponding labels:
 
@@ -284,21 +281,165 @@ If you would like to exclude images without label files from training, you can s
 images without a label file (case 1) but still includes cases 2 and 3 as negative
 samples.
 
+#### Example
+
 ```python
 import lightly_train
 
-if __name__ == "__main__":
-    lightly_train.train_instance_segmentation(
-        ...,
-        data={
-            "path": "my_data_dir",
-            "train": "images/train",
-            "val": "images/val",
-            "names": {...},
-            "skip_if_label_file_missing": True, # Skip images without label files.
-        }
-    )
+lightly_train.train_instance_segmentation(
+    ...,
+    data={
+        "format": "yolo",
+        "path": "my_data_dir",
+        "train": "images/train",
+        "val": "images/val",
+        "names": {...},
+        "skip_if_label_file_missing": True, # Skip images without label files.
+    }
+)
 ```
+
+(instance-segmentation-data-coco)=
+
+### COCO format
+
+For the [COCO](https://labelformat.com/formats/instance-segmentation/coco/) format,
+every split has a separate annotations JSON file. It specifies which images and classes
+belong to the split and contains the polygon masks. The structure of such a file is as
+follows:
+
+```json
+{
+    "images": [
+        {
+            "id": 1,
+            "file_name": "image1.jpg",
+            "width": 640,
+            "height": 480
+        },
+        {
+            "id": 2,
+            "file_name": "image2.jpg",
+            "width": 640,
+            "height": 480
+        }
+    ],
+    "categories": [
+        {
+            "id": 0,
+            "name": "cat"
+        },
+        {
+            "id": 1,
+            "name": "dog"
+        }
+    ],
+    "annotations": [
+        {
+            "id": 1,
+            "image_id": 1,
+            "category_id": 0,
+            "segmentation": [[10, 20, 30, 20, 30, 40, 10, 40]],
+            "bbox": [10, 20, 20, 20]
+        },
+        {
+            "id": 2,
+            "image_id": 1,
+            "category_id": 1,
+            "segmentation": [
+                [150, 30, 200, 30, 200, 80, 150, 80],
+                [210, 30, 260, 30, 260, 80, 210, 80]
+            ],
+            "bbox": [150, 30, 110, 50]
+        },
+        {
+            "id": 3,
+            "image_id": 2,
+            "category_id": 0,
+            "segmentation": [[5, 10, 90, 10, 90, 70, 5, 70]],
+            "bbox": [5, 10, 85, 60]
+        }
+    ]
+}
+```
+
+The `file_name` field can also be an absolute or relative path to an image. One can
+optionally specify the `images` directory so that the paths are resolved relatively to
+that directory. If it is omitted, the paths are resolved relatively to the annotations
+file. Furthermore, the `images` path itself is resolved relatively to the annotations
+file.
+
+It is good practice to have the same categories for all splits but in order to guarantee
+consistency, we always take them from the train split.
+
+The `segmentation` field contains a list of polygon coordinate lists, each being a flat
+sequence of absolute pixel coordinates `[x1, y1, x2, y2, ...]`. Multiple polygon lists
+represent disconnected parts of the same object. The optional `bbox` field specifies the
+bounding box as `[x, y, width, height]` in absolute pixel coordinates; if omitted it is
+derived from the polygon coordinates.
+
+#### Missing Labels
+
+There are two cases in which an image may not have any corresponding labels:
+
+1. There are no polygon masks specified for an image in the annotations file.
+1. The annotations file only contains annotations for classes that are in
+   `ignore_classes`.
+
+LightlyTrain treats both cases as "negative" samples and includes the images in training
+with an empty list of segmentation masks.
+
+If you would like to exclude images without polygon masks from training, you can set the
+`skip_if_annotations_missing` argument in the `data` configuration. This only excludes
+images without polygon masks (case 1) but still includes case 2 as negative samples.
+
+#### Example
+
+```python
+import lightly_train
+
+lightly_train.train_instance_segmentation(
+    ...,
+    data={
+        "format": "coco",
+        "train": {
+            "annotations": "train_labels.json",
+            "images": "train_images/",
+        },
+        "val": {
+            "annotations": "val_labels.json",
+            "images": "val_images/",
+        },
+        "skip_if_annotations_missing": True, # Skip images without polygon masks.
+    }
+)
+```
+
+If in this particular example we specified `file_name` like this in the train annotation
+file
+
+```json
+{
+    "id": 1,
+    "file_name": "train_images/image1.jpg"
+}
+```
+
+we could also omit `images`.
+
+### Image Formats
+
+The following image formats are supported:
+
+- jpg
+- jpeg
+- png
+- ppm
+- bmp
+- pgm
+- tif
+- tiff
+- webp
 
 (instance-segmentation-model)=
 
