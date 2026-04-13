@@ -107,7 +107,7 @@ class TestYOLOInstanceSegmentationDatasetArgs:
         assert len(image_info) == 2
         for info in image_info:
             assert Path(info["image_path"]).exists()
-            assert json.loads(info["polygons"]) == [_POLYGON]
+            assert json.loads(info["polygons"]) == [[_POLYGON]]
             assert json.loads(info["bboxes"]) == [_BBOX]
             assert json.loads(info["class_labels"]) == [0]
 
@@ -131,7 +131,7 @@ class TestYOLOInstanceSegmentationDatasetArgs:
         assert len(image_info) == 3
         for info in image_info:
             assert Path(info["image_path"]).exists()
-            assert json.loads(info["polygons"]) == [_POLYGON]
+            assert json.loads(info["polygons"]) == [[_POLYGON]]
             assert json.loads(info["bboxes"]) == [_BBOX]
             assert json.loads(info["class_labels"]) == [0]
 
@@ -208,7 +208,7 @@ class TestCOCOInstanceSegmentationDatasetArgs:
         assert len(image_info) == 3
         for info in image_info:
             assert Path(info["image_path"]).exists()
-            assert json.loads(info["polygons"]) == [_COCO_POLYGON_NORM]
+            assert json.loads(info["polygons"]) == [[_COCO_POLYGON_NORM]]
             assert json.loads(info["bboxes"]) == [_COCO_BBOX]
             assert json.loads(info["class_labels"]) == [0]
 
