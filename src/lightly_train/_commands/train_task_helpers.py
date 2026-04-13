@@ -791,13 +791,13 @@ def get_training_epoch(
     train_num_batches: int,
     gradient_accumulation_steps: int = 1,
 ) -> int:
-    """Returns the current 1-based training epoch for logging."""
+    """Returns the number of completed training epochs for logging."""
     if train_num_batches < 1:
         raise ValueError("train_num_batches must be >= 1.")
     if gradient_accumulation_steps < 1:
         raise ValueError("gradient_accumulation_steps must be >= 1.")
     completed_batches = (step + 1) * gradient_accumulation_steps
-    return (completed_batches - 1) // train_num_batches + 1
+    return completed_batches // train_num_batches
 
 
 # For compatibility with older versions of PyTorch where `get_last_lr` returns `list[float]` only.
