@@ -200,6 +200,8 @@ class ScaleJitterArgs(PydanticConfig):
     num_scales: int | None
     prob: float = Field(ge=0.0, le=1.0)
     divisible_by: int | None
+
+    # ScaleJitter does not have `step_start`, only `step_stop`.
     step_stop: int | None = Field(default=None, gt=0)
 
     @property

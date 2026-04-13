@@ -222,15 +222,9 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     scale_jitter: DINOv2LTDETRObjectDetectionScaleJitterArgs | None = Field(
         default_factory=DINOv2LTDETRObjectDetectionScaleJitterArgs
     )
-    mosaic: DINOv2LTDETRObjectDetectionMosaicArgs | None = Field(
-        default_factory=DINOv2LTDETRObjectDetectionMosaicArgs
-    )
-    mixup: DINOv2LTDETRObjectDetectionMixUpArgs | None = Field(
-        default_factory=DINOv2LTDETRObjectDetectionMixUpArgs
-    )
-    copyblend: DINOv2LTDETRObjectDetectionCopyBlendArgs | None = Field(
-        default_factory=DINOv2LTDETRObjectDetectionCopyBlendArgs
-    )
+    mosaic: DINOv2LTDETRObjectDetectionMosaicArgs | None = None
+    mixup: DINOv2LTDETRObjectDetectionMixUpArgs | None = None
+    copyblend: DINOv2LTDETRObjectDetectionCopyBlendArgs | None = None
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
