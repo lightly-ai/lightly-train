@@ -503,8 +503,10 @@ dictionary.
 #### Loading Classes from a JSON File
 
 Instead of specifying `classes` inline, you can pass a path to a `.json` file directly
-as the `classes` value. The JSON file must map integer class IDs (as strings) to class
-names:
+as the `classes` value. The JSON file supports the same formats as the inline `classes`
+dict.
+
+**Simple format** — maps each class ID to a name (label defaults to the class ID):
 
 ```json
 {
@@ -512,6 +514,24 @@ names:
   "1": "airplane",
   "2": "car",
   "3": "bicycle"
+}
+```
+
+**Single-channel with explicit labels** — merges multiple mask labels into one class:
+
+```json
+{
+  "0": {"name": "background", "labels": [0, 1]},
+  "1": {"name": "vehicle", "labels": [2, 3]}
+}
+```
+
+**Multi-channel** — maps RGB (or other multi-channel) pixel tuples to class IDs:
+
+```json
+{
+  "0": {"name": "background", "labels": [[0, 0, 0], [255, 255, 255]]},
+  "1": {"name": "road", "labels": [[128, 128, 128]]}
 }
 ```
 
@@ -538,10 +558,6 @@ if __name__ == "__main__":
         },
     )
 ```
-
-Loading from a JSON file only supports the simple string-value format (equivalent to
-`{class_id: "class_name"}`). For advanced mappings that merge multiple labels into one
-class or use multi-channel pixel values, use an inline `classes` dict instead.
 
 (semantic-segmentation-model)=
 

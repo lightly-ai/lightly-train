@@ -121,7 +121,6 @@ class TestMaskSemanticSegmentationDataArgs:
         )
 
         # Check that all inputs were converted to ClassInfo objects
-        assert isinstance(dataset_args.classes, dict)
         assert set(dataset_args.classes.keys()) == set(expected_checks.keys()), (
             "Class IDs don't match"
         )
@@ -176,7 +175,6 @@ class TestMaskSemanticSegmentationDataArgs:
         )
 
         # Check that all inputs were converted to ClassInfo objects
-        assert isinstance(dataset_args.classes, dict)
         assert set(dataset_args.classes.keys()) == set(expected_checks.keys()), (
             "Class IDs don't match"
         )
@@ -347,7 +345,7 @@ class TestMaskSemanticSegmentationDataArgs:
         dataset_args = MaskSemanticSegmentationDataArgs(
             train=SplitArgs(images=image_dir, masks=mask_dir),
             val=SplitArgs(images=image_dir, masks=mask_dir),
-            classes=json_file,
+            classes=json_file,  # type: ignore[arg-type]
         )
 
         assert dataset_args.included_classes == {
@@ -355,6 +353,61 @@ class TestMaskSemanticSegmentationDataArgs:
             1: "airplane",
             2: "car",
         }
+
+    def test_classes_json_single_channel_with_explicit_labels(
+        self, tmp_path: Path
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        json_file = tmp_path / "classes.json"
+        json_file.write_text(
+            '{"0": {"name": "background", "labels": [0, 1]}, "1": {"name": "vehicle", "labels": [2, 3]}}'
+        )
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes=json_file,  # type: ignore[arg-type]
+        )
+
+        assert isinstance(dataset_args.classes[0], SingleChannelClassInfo)
+        assert dataset_args.classes[0].name == "background"
+        assert dataset_args.classes[0].labels == {0, 1}
+        assert dataset_args.classes[1].name == "vehicle"
+        assert dataset_args.classes[1].labels == {2, 3}
+
+    def test_classes_json_multi_channel(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        json_file = tmp_path / "classes.json"
+        json_file.write_text(
+            '{"0": {"name": "background", "labels": [[0, 0, 0], [255, 255, 255]]}, "1": {"name": "road", "labels": [[128, 128, 128]]}}'
+        )
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes=json_file,  # type: ignore[arg-type]
+        )
+
+        assert isinstance(dataset_args.classes[0], MultiChannelClassInfo)
+        assert dataset_args.classes[0].name == "background"
+        assert dataset_args.classes[0].labels == {(0, 0, 0), (255, 255, 255)}
+        assert dataset_args.classes[1].name == "road"
+        assert dataset_args.classes[1].labels == {(128, 128, 128)}
+
+    def test_classes_json_not_a_mapping_raises(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        json_file = tmp_path / "classes.json"
+        json_file.write_text("[0, 1, 2]")
+
+        with pytest.raises(ValueError, match="Expected '.*' to contain a JSON object"):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images=image_dir, masks=mask_dir),
+                val=SplitArgs(images=image_dir, masks=mask_dir),
+                classes=json_file,  # type: ignore[arg-type]
+            )
 
     def test_classes_json_wrong_extension_raises(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
@@ -365,7 +418,7 @@ class TestMaskSemanticSegmentationDataArgs:
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=txt_file,
+                classes=txt_file,  # type: ignore[arg-type]
             )
 
 

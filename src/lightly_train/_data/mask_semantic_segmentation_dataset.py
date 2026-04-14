@@ -14,7 +14,7 @@ from typing import Any, ClassVar, Dict, Iterable, Union
 
 import numpy as np
 import torch
-from pydantic import AliasChoices, Field, TypeAdapter, field_validator, model_validator
+from pydantic import AliasChoices, Field, TypeAdapter, field_validator
 from torch import Tensor
 
 from lightly_train._configs.config import PydanticConfig
@@ -307,21 +307,8 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ignore_index: ClassVar[int] = -100
     train: SplitArgs
     val: SplitArgs
-    classes: dict[int, ClassInfo] | PathLike
+    classes: dict[int, ClassInfo]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
-
-    @model_validator(mode="before")
-    @classmethod
-    def load_classes_from_path(cls, values: Any) -> Any:
-        classes = values.get("classes")
-        if isinstance(classes, (str, Path)):
-            path = Path(classes)
-            if path.suffix != ".json":
-                raise ValueError(f"'classes' path must be a .json file, got: '{path}'")
-            with open(path) as f:
-                data: dict[str, str] = json.load(f)
-            values["classes"] = {int(k): v for k, v in data.items()}
-        return values
 
     def train_imgs_path(self) -> Path:
         return Path(self.train.images)
@@ -331,12 +318,26 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
 
     @field_validator("classes", mode="before")
     @classmethod
-    def validate_classes(
-        cls, classes: dict[int, str | dict[str, Any]]
-    ) -> dict[int, ClassInfo]:
+    def validate_classes(cls, classes: Any) -> dict[int, ClassInfo]:
+        if isinstance(classes, (str, Path)):
+            path = Path(classes)
+            if path.suffix != ".json":
+                raise ValueError(f"'classes' path must be a .json file, got: '{path}'")
+            try:
+                with path.open(encoding="utf-8") as f:
+                    data = json.load(f)
+            except OSError as e:
+                raise ValueError(f"Failed to read classes file '{path}': {e}") from e
+            if not isinstance(data, dict):
+                raise ValueError(
+                    f"Expected '{path}' to contain a JSON object ({{...}}), "
+                    f"got {type(data).__name__}."
+                )
+            classes = {int(k): v for k, v in data.items()}
+
         classes_validated = TypeAdapter(
             Dict[int, Union[str, SingleChannelClassInfo, MultiChannelClassInfo]]
-        ).validate_python(classes)
+        ).validate_python(classes, strict=False)
 
         # Convert to ClassInfo objects and perform consistency checks.
         class_infos: dict[int, ClassInfo] = {}
@@ -416,7 +417,6 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def included_classes(self) -> dict[int, str]:
         """Returns classes (AFTER mapping) that are not ignored with the name."""
         ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
-        assert isinstance(self.classes, dict)  # mypy
 
         result = {}
         for class_id, class_info in self.classes.items():
@@ -435,7 +435,6 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def get_train_args(
         self,
     ) -> MaskSemanticSegmentationDatasetArgs:
-        assert isinstance(self.classes, dict)  # mypy
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
             mask_dir_or_file=str(self.train.masks),
@@ -447,7 +446,6 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def get_val_args(
         self,
     ) -> MaskSemanticSegmentationDatasetArgs:
-        assert isinstance(self.classes, dict)  # mypy
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.val.images),
             mask_dir_or_file=str(self.val.masks),
