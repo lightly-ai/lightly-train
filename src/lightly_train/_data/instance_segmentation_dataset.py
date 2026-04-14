@@ -418,6 +418,17 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                     segmentation = annotation.get("segmentation", [])
                     if not segmentation or not isinstance(segmentation, list):
                         continue
+                    # Filter to valid polygon segments (list with >= 6
+                    # even-length coordinates, i.e. at least 3 points).
+                    valid_segments = [
+                        segment
+                        for segment in segmentation
+                        if isinstance(segment, list)
+                        and len(segment) >= 6
+                        and len(segment) % 2 == 0
+                    ]
+                    if not valid_segments:
+                        continue
                     # Normalize each polygon segment to [0, 1].
                     polygon_group_norm = [
                         [
@@ -426,11 +437,8 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                             else coord / image_height_pixel
                             for i, coord in enumerate(segment)
                         ]
-                        for segment in segmentation
-                        if isinstance(segment, list)
+                        for segment in valid_segments
                     ]
-                    if not polygon_group_norm:
-                        continue
                     # Convert bbox from [x, y, w, h] pixels to normalized
                     # [x_center, y_center, w, h]. If bbox is missing, derive it
                     # from the axis-aligned bounding box of all segments.
@@ -440,10 +448,7 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                         ]
                     else:
                         all_px = [
-                            coord
-                            for segment in segmentation
-                            if isinstance(segment, list)
-                            for coord in segment
+                            coord for segment in valid_segments for coord in segment
                         ]
                         xs = all_px[0::2]
                         ys = all_px[1::2]
