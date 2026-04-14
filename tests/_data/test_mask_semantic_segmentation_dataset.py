@@ -121,6 +121,7 @@ class TestMaskSemanticSegmentationDataArgs:
         )
 
         # Check that all inputs were converted to ClassInfo objects
+        assert isinstance(dataset_args.classes, dict)
         assert set(dataset_args.classes.keys()) == set(expected_checks.keys()), (
             "Class IDs don't match"
         )
@@ -175,6 +176,7 @@ class TestMaskSemanticSegmentationDataArgs:
         )
 
         # Check that all inputs were converted to ClassInfo objects
+        assert isinstance(dataset_args.classes, dict)
         assert set(dataset_args.classes.keys()) == set(expected_checks.keys()), (
             "Class IDs don't match"
         )
@@ -345,7 +347,7 @@ class TestMaskSemanticSegmentationDataArgs:
         dataset_args = MaskSemanticSegmentationDataArgs(
             train=SplitArgs(images=image_dir, masks=mask_dir),
             val=SplitArgs(images=image_dir, masks=mask_dir),
-            classes_json=json_file,
+            classes=json_file,
         )
 
         assert dataset_args.included_classes == {
@@ -354,32 +356,16 @@ class TestMaskSemanticSegmentationDataArgs:
             2: "car",
         }
 
-    def test_classes_and_classes_json_both_set_raises(self, tmp_path: Path) -> None:
+    def test_classes_json_wrong_extension_raises(self, tmp_path: Path) -> None:
         image_dir = tmp_path / "images"
         mask_dir = tmp_path / "masks"
-        json_file = tmp_path / "classes.json"
-        json_file.write_text('{"0": "background"}')
+        txt_file = tmp_path / "classes.txt"
 
-        with pytest.raises(
-            ValueError, match="Exactly one of 'classes' or 'classes_json' must be set."
-        ):
+        with pytest.raises(ValueError, match="'classes' path must be a .json file"):
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes={0: "background"},
-                classes_json=json_file,
-            )
-
-    def test_neither_classes_nor_classes_json_raises(self, tmp_path: Path) -> None:
-        image_dir = tmp_path / "images"
-        mask_dir = tmp_path / "masks"
-
-        with pytest.raises(
-            ValueError, match="Exactly one of 'classes' or 'classes_json' must be set."
-        ):
-            MaskSemanticSegmentationDataArgs(
-                train=SplitArgs(images=image_dir, masks=mask_dir),
-                val=SplitArgs(images=image_dir, masks=mask_dir),
+                classes=txt_file,
             )
 
 

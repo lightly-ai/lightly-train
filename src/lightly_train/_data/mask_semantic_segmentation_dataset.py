@@ -307,19 +307,17 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ignore_index: ClassVar[int] = -100
     train: SplitArgs
     val: SplitArgs
-    classes: dict[int, ClassInfo] | None = None
-    classes_json: PathLike | None = None
+    classes: dict[int, ClassInfo] | PathLike
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
     @model_validator(mode="before")
     @classmethod
-    def check_classes_xor_classes_json(cls, values: Any) -> Any:
-        has_classes = values.get("classes") is not None
-        has_classes_json = values.get("classes_json") is not None
-        if has_classes == has_classes_json:
-            raise ValueError("Exactly one of 'classes' or 'classes_json' must be set.")
-        if has_classes_json:
-            path = Path(values["classes_json"])
+    def load_classes_from_path(cls, values: Any) -> Any:
+        classes = values.get("classes")
+        if isinstance(classes, (str, Path)):
+            path = Path(classes)
+            if path.suffix != ".json":
+                raise ValueError(f"'classes' path must be a .json file, got: '{path}'")
             with open(path) as f:
                 data: dict[str, str] = json.load(f)
             values["classes"] = {int(k): v for k, v in data.items()}
@@ -418,6 +416,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def included_classes(self) -> dict[int, str]:
         """Returns classes (AFTER mapping) that are not ignored with the name."""
         ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+        assert isinstance(self.classes, dict)  # mypy
 
         result = {}
         for class_id, class_info in self.classes.items():
@@ -436,6 +435,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def get_train_args(
         self,
     ) -> MaskSemanticSegmentationDatasetArgs:
+        assert isinstance(self.classes, dict)  # mypy
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
             mask_dir_or_file=str(self.train.masks),
@@ -447,6 +447,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def get_val_args(
         self,
     ) -> MaskSemanticSegmentationDatasetArgs:
+        assert isinstance(self.classes, dict)  # mypy
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.val.images),
             mask_dir_or_file=str(self.val.masks),

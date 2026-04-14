@@ -441,9 +441,8 @@ We support two mask formats:
 - Single-channel integer masks, where each integer value determines a label
 - Multi-channel masks (e.g., RGB masks), where each pixel value determines a label
 
-Use either `classes` or `classes_json` in the `data` dict to map class IDs to labels —
-exactly one of them must be set. In this document, a **class ID** is a key in the
-`classes` dictionary and a **label** is its value.
+Use `classes` in the `data` dict to map class IDs to labels. In this document, a **class
+ID** is a key in the `classes` dictionary and a **label** is its value.
 
 #### Using Integer Masks
 
@@ -503,9 +502,9 @@ dictionary.
 
 #### Loading Classes from a JSON File
 
-Instead of specifying `classes` inline, you can load a simple class mapping from a JSON
-file using `classes_json`. The JSON file must map integer class IDs (as strings) to
-class names:
+Instead of specifying `classes` inline, you can pass a path to a `.json` file directly
+as the `classes` value. The JSON file must map integer class IDs (as strings) to class
+names:
 
 ```json
 {
@@ -516,7 +515,7 @@ class names:
 }
 ```
 
-Pass the path to this file via `classes_json`:
+Pass the path to this file as `classes`:
 
 ```python
 import lightly_train
@@ -534,15 +533,15 @@ if __name__ == "__main__":
                 "images": "my_data_dir/val/images",
                 "masks": "my_data_dir/val/masks",
             },
-            "classes_json": "my_data_dir/classes.json",  # Path to the JSON class mapping file
+            "classes": "my_data_dir/classes.json",  # Path to the JSON class mapping file
             "ignore_classes": [0],
         },
     )
 ```
 
-`classes_json` only supports the simple string-value format (equivalent to
+Loading from a JSON file only supports the simple string-value format (equivalent to
 `{class_id: "class_name"}`). For advanced mappings that merge multiple labels into one
-class or use multi-channel pixel values, use `classes` instead.
+class or use multi-channel pixel values, use an inline `classes` dict instead.
 
 (semantic-segmentation-model)=
 
