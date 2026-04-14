@@ -57,6 +57,48 @@ def test_binary_mask_from_polygon__multiple() -> None:
     assert np.all(mask == expected)
 
 
+def test_split_yolo_polygon__single_segment() -> None:
+    """A simple polygon without a closing delimiter stays as one segment."""
+    polygon = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+    result = yolo_helpers.split_yolo_polygon(polygon)
+    assert result == [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]]
+
+
+def test_split_yolo_polygon__two_segments() -> None:
+    """Two disconnected polygons separated by a repeated first-point delimiter."""
+    # First polygon: triangle (0.1,0.1)-(0.2,0.1)-(0.2,0.2), closed by repeating
+    # first point. Second polygon: triangle (0.5,0.5)-(0.6,0.5)-(0.6,0.6).
+    polygon = [
+        0.1,
+        0.1,
+        0.2,
+        0.1,
+        0.2,
+        0.2,
+        0.1,
+        0.1,  # first, closed
+        0.5,
+        0.5,
+        0.6,
+        0.5,
+        0.6,
+        0.6,  # second, unclosed
+    ]
+    result = yolo_helpers.split_yolo_polygon(polygon)
+    assert len(result) == 2
+    # First segment includes closing point.
+    assert result[0] == [0.1, 0.1, 0.2, 0.1, 0.2, 0.2, 0.1, 0.1]
+    # Second segment is the remaining triangle.
+    assert result[1] == [0.5, 0.5, 0.6, 0.5, 0.6, 0.6]
+
+
+def test_split_yolo_polygon__too_few_points() -> None:
+    """A polygon with fewer than 3 points is returned as-is (fallback)."""
+    polygon = [0.1, 0.2, 0.3, 0.4]
+    result = yolo_helpers.split_yolo_polygon(polygon)
+    assert result == [polygon]
+
+
 def test_oriented_bbox_from_corners__axis_aligned() -> None:
     """Test conversion of an axis-aligned rectangle."""
     # Rectangle from (0.25, 0.25) to (0.75, 0.75) - a square
