@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+import logging
+import math
 from typing import Any, Literal
 
 import numpy as np
@@ -110,6 +112,97 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
     def resolve_incompatible(self) -> None:
         # TODO: Lionel (09/25): Add checks for incompatible args.
         pass
+
+
+_logger = logging.getLogger(__name__)
+
+# DEIMv2 training regime: fixed epoch counts that do not scale.
+_WARMUP_EPOCHS = 4
+_NO_AUG_EPOCHS = 12
+
+
+def resolve_ltdetr_step_schedule(
+    args: ObjectDetectionTransformArgs,
+    total_steps: int,
+    train_num_batches: int,
+    gradient_accumulation_steps: int,
+) -> None:
+    """Resolve ``"auto"`` step_start / step_stop on LTDETR augmentation args.
+
+    Epoch-to-step conversion uses the actual dataloader length so that the
+    augmentation windows adapt to different dataset sizes and batch sizes.
+    """
+    steps_per_epoch = train_num_batches / gradient_accumulation_steps
+    total_epochs = total_steps / steps_per_epoch
+
+    auto_start = math.floor(_WARMUP_EPOCHS * steps_per_epoch)
+    # Clamp to >= 1 so the value passes the step_stop > 0 validator.
+    # Invalid windows (stop <= start) are caught and disabled below.
+    auto_aug_step_stop = max(
+        1, math.floor(max(0, total_epochs - _NO_AUG_EPOCHS) * steps_per_epoch)
+    )
+    auto_flat_step_stop = max(
+        1, math.floor((_WARMUP_EPOCHS + int(total_epochs) // 2) * steps_per_epoch)
+    )
+
+    # Resolve each augmentation field. We pre-check the final window before
+    # assigning so that Pydantic's validate_assignment never sees an invalid
+    # step_stop <= step_start pair.
+    _resolve_aug_fields(
+        args=args,
+        field_names=(
+            "photometric_distort",
+            "random_zoom_out",
+            "random_iou_crop",
+            "copyblend",
+        ),
+        auto_start=auto_start,
+        auto_stop=auto_aug_step_stop,
+    )
+    _resolve_aug_fields(
+        args=args,
+        field_names=("mixup", "mosaic"),
+        auto_start=auto_start,
+        auto_stop=auto_flat_step_stop,
+    )
+
+    # Scale jitter: only has step_stop, no step_start.
+    if args.scale_jitter is not None and args.scale_jitter.step_stop == "auto":
+        args.scale_jitter.step_stop = auto_aug_step_stop
+
+
+def _resolve_aug_fields(
+    args: ObjectDetectionTransformArgs,
+    field_names: tuple[str, ...],
+    auto_start: int,
+    auto_stop: int,
+) -> None:
+    for field_name in field_names:
+        aug = getattr(args, field_name, None)
+        if aug is None:
+            continue
+
+        resolved_start = auto_start if aug.step_start == "auto" else aug.step_start
+        resolved_stop = auto_stop if aug.step_stop == "auto" else aug.step_stop
+
+        # Check if the resolved window is valid before assigning.
+        if (
+            isinstance(resolved_start, int)
+            and isinstance(resolved_stop, int)
+            and resolved_stop <= resolved_start
+        ):
+            _logger.warning(
+                f"Auto-derived step window for {field_name} has "
+                f"step_stop ({resolved_stop}) <= step_start ({resolved_start}). "
+                f"Disabling {field_name} for this run."
+            )
+            setattr(args, field_name, None)
+            continue
+
+        if aug.step_start == "auto":
+            aug.step_start = resolved_start
+        if aug.step_stop == "auto":
+            aug.step_stop = resolved_stop
 
 
 class ObjectDetectionTransform(TaskTransform):

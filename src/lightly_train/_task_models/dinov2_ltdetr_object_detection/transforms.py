@@ -16,6 +16,7 @@ from pydantic import Field
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransform,
     ObjectDetectionTransformArgs,
+    resolve_ltdetr_step_schedule,
 )
 from lightly_train._transforms.transform import (
     CopyBlendArgs,
@@ -47,13 +48,11 @@ class DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgs(
     saturation: tuple[float, float] = (0.5, 1.5)
     hue: tuple[float, float] = (-0.05, 0.05)
 
-    # Corresponds to the 4th epoch of the total training run.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_start: int = 25_000
-    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # "auto" corresponds to the 4th epoch of the total training run.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" corresponds to the total_epochs - no_aug_epoch of the total training run.
     # None means photometric distort is always on.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_stop: int | None = 375_000
+    step_stop: int | Literal["auto"] | None = "auto"
 
 
 class DINOv2LTDETRObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
@@ -62,13 +61,11 @@ class DINOv2LTDETRObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
     fill: float = 0.0
     side_range: tuple[float, float] = (1.0, 4.0)
 
-    # Corresponds to the 4th epoch of the total training run.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_start: int = 25_000
-    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # "auto" corresponds to the 4th epoch of the total training run.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" corresponds to the total_epochs - no_aug_epoch of the total training run.
     # None means random zoom out is always on.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_stop: int | None = 375_000
+    step_stop: int | Literal["auto"] | None = "auto"
 
 
 class DINOv2LTDETRObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
@@ -82,13 +79,11 @@ class DINOv2LTDETRObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
     crop_trials: int = 40
     iou_trials: int = 1000
 
-    # Corresponds to the 4th epoch of the total training run.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_start: int = 25_000
-    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # "auto" corresponds to the 4th epoch of the total training run.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" corresponds to the total_epochs - no_aug_epoch of the total training run.
     # None means random IoU crop is always on.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_stop: int | None = 375_000
+    step_stop: int | Literal["auto"] | None = "auto"
 
 
 class DINOv2LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
@@ -138,22 +133,19 @@ class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     prob: float = 1.0
     divisible_by: int | None = None
 
-    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # "auto" corresponds to the total_epochs - no_aug_epoch of the total training run.
     # None means scale jitter is always on.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_stop: int | None = 375_000
+    step_stop: int | Literal["auto"] | None = "auto"
 
 
 class DINOv2LTDETRObjectDetectionMixUpArgs(MixUpArgs):
     prob: float = 0.5
 
-    # Corresponds to the 4th epoch of the total training run.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_start: int = 25_000
-    # Corresponds to the 4 + total_epochs // 2 epoch of the total training run.
+    # "auto" corresponds to the 4th epoch of the total training run.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" corresponds to the 4 + total_epochs // 2 epoch of the total training run.
     # None means mixup is always on.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_stop: int | None = 250_000
+    step_stop: int | Literal["auto"] | None = "auto"
 
 
 class DINOv2LTDETRObjectDetectionCopyBlendArgs(CopyBlendArgs):
@@ -163,13 +155,11 @@ class DINOv2LTDETRObjectDetectionCopyBlendArgs(CopyBlendArgs):
     num_objects: int = 3
     expand_ratios: tuple[float, float] = (0.1, 0.25)
 
-    # Corresponds to the 4th epoch of the total training run.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_start: int = 25_000
-    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
-    # None means copyblend is always on.
-    # TODO (Yutong 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_stop: int | None = 375_000
+    # "auto" corresponds to the 4th epoch of the total training run.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # None means copy blend is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
 
 
 class DINOv2LTDETRObjectDetectionMosaicArgs(MosaicArgs):
@@ -184,13 +174,11 @@ class DINOv2LTDETRObjectDetectionMosaicArgs(MosaicArgs):
     max_cached_images: int = 50
     random_pop: bool = True
 
-    # Corresponds to the 4th epoch of the total training run.
-    # TODO(Yutong, 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_start: int = 25_000
-    # Corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # "auto" corresponds to the 4th epoch of the total training run.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" corresponds to the 4 + total_epochs // 2 epoch of the total training run.
     # None means mosaic is always on.
-    # TODO(Yutong, 04/26): Update step_start and step_stop based on the actual number of training steps.
-    step_stop: int | None = 250_000
+    step_stop: int | Literal["auto"] | None = "auto"
 
 
 class DINOv2LTDETRObjectDetectionResizeArgs(ResizeArgs):
@@ -275,6 +263,26 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
                     self.num_channels = 3
                 else:
                     self.num_channels = len(self.normalize.mean)
+
+    def resolve_step_schedule(
+        self,
+        total_steps: int,
+        train_num_batches: int,
+        gradient_accumulation_steps: int,
+    ) -> None:
+        """Resolve ``"auto"`` step_start / step_stop values.
+
+        Uses fixed epoch counts from the DEIMv2 training regime:
+        - Warmup: 4 epochs (augmentations start here)
+        - No-aug: last 12 epochs (most augmentations stop here)
+        - Mixup/mosaic stop earlier: at epoch ``4 + floor(total_epochs) // 2``
+        """
+        resolve_ltdetr_step_schedule(
+            args=self,
+            total_steps=total_steps,
+            train_num_batches=train_num_batches,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+        )
 
 
 class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
