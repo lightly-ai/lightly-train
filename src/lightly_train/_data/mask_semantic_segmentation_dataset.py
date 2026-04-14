@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Iterable, Union
+from typing import Any, ClassVar, Dict, Iterable, Union, cast
 
 import numpy as np
 import torch
@@ -307,7 +307,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ignore_index: ClassVar[int] = -100
     train: SplitArgs
     val: SplitArgs
-    classes: dict[int, ClassInfo]
+    classes: dict[int, ClassInfo] | PathLike
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
     def train_imgs_path(self) -> Path:
@@ -417,9 +417,10 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def included_classes(self) -> dict[int, str]:
         """Returns classes (AFTER mapping) that are not ignored with the name."""
         ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+        classes = cast(dict[int, ClassInfo], self.classes)
 
         result = {}
-        for class_id, class_info in self.classes.items():
+        for class_id, class_info in classes.items():
             if class_id not in ignore_classes:
                 result[class_id] = class_info.name
 
@@ -438,7 +439,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
             mask_dir_or_file=str(self.train.masks),
-            classes=self.classes,
+            classes=cast(dict[int, ClassInfo], self.classes),
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
         )
@@ -449,7 +450,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.val.images),
             mask_dir_or_file=str(self.val.masks),
-            classes=self.classes,
+            classes=cast(dict[int, ClassInfo], self.classes),
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
         )

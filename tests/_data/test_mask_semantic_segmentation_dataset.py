@@ -121,6 +121,7 @@ class TestMaskSemanticSegmentationDataArgs:
         )
 
         # Check that all inputs were converted to ClassInfo objects
+        assert isinstance(dataset_args.classes, dict)
         assert set(dataset_args.classes.keys()) == set(expected_checks.keys()), (
             "Class IDs don't match"
         )
@@ -175,6 +176,7 @@ class TestMaskSemanticSegmentationDataArgs:
         )
 
         # Check that all inputs were converted to ClassInfo objects
+        assert isinstance(dataset_args.classes, dict)
         assert set(dataset_args.classes.keys()) == set(expected_checks.keys()), (
             "Class IDs don't match"
         )
@@ -345,7 +347,7 @@ class TestMaskSemanticSegmentationDataArgs:
         dataset_args = MaskSemanticSegmentationDataArgs(
             train=SplitArgs(images=image_dir, masks=mask_dir),
             val=SplitArgs(images=image_dir, masks=mask_dir),
-            classes=json_file,  # type: ignore[arg-type]
+            classes=json_file,
         )
 
         assert dataset_args.included_classes == {
@@ -367,9 +369,10 @@ class TestMaskSemanticSegmentationDataArgs:
         dataset_args = MaskSemanticSegmentationDataArgs(
             train=SplitArgs(images=image_dir, masks=mask_dir),
             val=SplitArgs(images=image_dir, masks=mask_dir),
-            classes=json_file,  # type: ignore[arg-type]
+            classes=json_file,
         )
 
+        assert isinstance(dataset_args.classes, dict)
         assert isinstance(dataset_args.classes[0], SingleChannelClassInfo)
         assert dataset_args.classes[0].name == "background"
         assert dataset_args.classes[0].labels == {0, 1}
@@ -387,9 +390,10 @@ class TestMaskSemanticSegmentationDataArgs:
         dataset_args = MaskSemanticSegmentationDataArgs(
             train=SplitArgs(images=image_dir, masks=mask_dir),
             val=SplitArgs(images=image_dir, masks=mask_dir),
-            classes=json_file,  # type: ignore[arg-type]
+            classes=json_file,
         )
 
+        assert isinstance(dataset_args.classes, dict)
         assert isinstance(dataset_args.classes[0], MultiChannelClassInfo)
         assert dataset_args.classes[0].name == "background"
         assert dataset_args.classes[0].labels == {(0, 0, 0), (255, 255, 255)}
@@ -406,7 +410,7 @@ class TestMaskSemanticSegmentationDataArgs:
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=json_file,  # type: ignore[arg-type]
+                classes=json_file,
             )
 
     def test_classes_json_wrong_extension_raises(self, tmp_path: Path) -> None:
@@ -418,7 +422,7 @@ class TestMaskSemanticSegmentationDataArgs:
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
-                classes=txt_file,  # type: ignore[arg-type]
+                classes=txt_file,
             )
 
 
