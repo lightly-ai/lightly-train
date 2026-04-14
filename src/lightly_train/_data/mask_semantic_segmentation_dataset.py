@@ -330,8 +330,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                 raise ValueError(f"Failed to read classes file '{path}': {e}") from e
             if not isinstance(data, dict):
                 raise ValueError(
-                    f"Expected '{path}' to contain a JSON object ({{...}}), "
-                    f"got {type(data).__name__}."
+                    f"Expected '{path}' to contain a JSON dict, got {type(data).__name__}."
                 )
             classes = {int(k): v for k, v in data.items()}
 

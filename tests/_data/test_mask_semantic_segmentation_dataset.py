@@ -406,7 +406,7 @@ class TestMaskSemanticSegmentationDataArgs:
         json_file = tmp_path / "classes.json"
         json_file.write_text("[0, 1, 2]")
 
-        with pytest.raises(ValueError, match="Expected '.*' to contain a JSON object"):
+        with pytest.raises(ValueError, match="Expected '.*' to contain a JSON dict"):
             MaskSemanticSegmentationDataArgs(
                 train=SplitArgs(images=image_dir, masks=mask_dir),
                 val=SplitArgs(images=image_dir, masks=mask_dir),
