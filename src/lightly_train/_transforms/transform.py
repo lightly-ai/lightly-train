@@ -12,17 +12,14 @@ from collections.abc import Iterable, Sequence
 from typing import (
     Any,
     Literal,
-    Set,
     Type,
     TypeVar,
 )
 
 import cv2
 import pydantic
-from albumentations import BasicTransform
 from lightly.transforms.utils import IMAGENET_NORMALIZE
-from pydantic import ConfigDict, Field, field_validator, model_validator
-from torchvision.transforms import v2
+from pydantic import Field, field_validator, model_validator
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
@@ -67,7 +64,25 @@ class RandomFlipArgs(PydanticConfig):
     vertical_prob: float = 0.0
 
 
-class RandomIoUCropArgs(PydanticConfig):
+class ActivationPolicyArgs(PydanticConfig):
+    step_start: int = Field(default=0, ge=0)
+    step_stop: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_step_window(self) -> ActivationPolicyArgs:
+        if self.step_stop is not None and self.step_start >= self.step_stop:
+            raise ValueError("activation policy requires step_start < step_stop.")
+        return self
+
+    def is_active(self, step: int) -> bool:
+        if step < self.step_start:
+            return False
+        if self.step_stop is None:
+            return True
+        return step < self.step_stop
+
+
+class RandomIoUCropArgs(ActivationPolicyArgs):
     min_scale: float
     max_scale: float
     min_aspect_ratio: float
@@ -78,7 +93,7 @@ class RandomIoUCropArgs(PydanticConfig):
     prob: float = Field(ge=0.0, le=1.0)
 
 
-class RandomPhotometricDistortArgs(PydanticConfig):
+class RandomPhotometricDistortArgs(ActivationPolicyArgs):
     brightness: tuple[float, float] = Field(strict=False)
     contrast: tuple[float, float] = Field(strict=False)
     saturation: tuple[float, float] = Field(strict=False)
@@ -104,7 +119,7 @@ class RandomRotationArgs(PydanticConfig):
         return v
 
 
-class RandomZoomOutArgs(PydanticConfig):
+class RandomZoomOutArgs(ActivationPolicyArgs):
     prob: float = Field(ge=0.0, le=1.0)
     fill: float
     side_range: tuple[float, float] = Field(strict=False)
@@ -185,7 +200,9 @@ class ScaleJitterArgs(PydanticConfig):
     num_scales: int | None
     prob: float = Field(ge=0.0, le=1.0)
     divisible_by: int | None
-    step_stop: int | None = None
+
+    # ScaleJitter does not have `step_start`, only `step_stop`.
+    step_stop: int | None = Field(default=None, gt=0)
 
     @property
     def scale_range(self) -> tuple[float, float] | None:
@@ -193,35 +210,24 @@ class ScaleJitterArgs(PydanticConfig):
             return self.min_scale, self.max_scale
         return None
 
+    def is_active(self, step: int) -> bool:
+        if self.step_stop is None:
+            return True
+        return step < self.step_stop
 
-class MixUpArgs(PydanticConfig):
+
+class MixUpArgs(ActivationPolicyArgs):
     prob: float = Field(ge=0.0, le=1.0)
-    step_start: int = Field(ge=0)
-    step_stop: int = Field(gt=0)
-
-    @model_validator(mode="after")
-    def validate_step_window(self) -> MixUpArgs:
-        if self.step_start >= self.step_stop:
-            raise ValueError("mixup requires step_start < step_stop.")
-        return self
 
 
-class CopyBlendArgs(PydanticConfig):
+class CopyBlendArgs(ActivationPolicyArgs):
     prob: float = Field(ge=0.0, le=1.0)
-    step_start: int = Field(ge=0)
-    step_stop: int = Field(gt=0)
     area_threshold: int = Field(ge=0)
     num_objects: int = Field(gt=0)
     expand_ratios: tuple[float, float] = Field(strict=False)
 
-    @model_validator(mode="after")
-    def validate_step_window(self) -> CopyBlendArgs:
-        if self.step_start >= self.step_stop:
-            raise ValueError("copyblend requires step_start < step_stop.")
-        return self
 
-
-class MosaicArgs(PydanticConfig):
+class MosaicArgs(ActivationPolicyArgs):
     prob: float = Field(ge=0.0, le=1.0)
 
     output_size: int = Field(gt=0)
@@ -233,13 +239,8 @@ class MosaicArgs(PydanticConfig):
     max_cached_images: int = Field(gt=0)
     random_pop: bool
 
-    step_start: int = Field(ge=0)
-    step_stop: int = Field(gt=0)
-
     @model_validator(mode="after")
     def validate_ranges(self) -> MosaicArgs:
-        if self.step_start >= self.step_stop:
-            raise ValueError("mosaic requires step_start < step_stop.")
         if (
             self.scaling_range[0] <= 0.0
             or self.scaling_range[1] < self.scaling_range[0]
@@ -250,13 +251,6 @@ class MosaicArgs(PydanticConfig):
         if any(v < 0.0 for v in self.translation_range):
             raise ValueError("mosaic translation_range values must be non-negative.")
         return self
-
-
-class StopPolicyArgs(PydanticConfig):
-    stop_step: int
-    ops: Set[type[BasicTransform] | type[v2.Transform]]
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class SmallestMaxSizeArgs(PydanticConfig):

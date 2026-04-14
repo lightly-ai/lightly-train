@@ -17,7 +17,6 @@ import torchvision.tv_tensors as tv_tensors
 from albumentations import BboxParams
 from lightning_utilities.core.imports import RequirementCache
 
-from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.oriented_object_detection_transform import (
     OrientedObjectDetectionCollateFunction,
     OrientedObjectDetectionTransform,
@@ -35,7 +34,6 @@ from lightly_train._transforms.transform import (
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
-    StopPolicyArgs,
 )
 from lightly_train.types import OrientedObjectDetectionDatasetItem
 
@@ -85,17 +83,10 @@ def _get_random_iou_crop_args() -> RandomIoUCropArgs | None:
 
 def _get_bbox_params() -> BboxParams:
     return BboxParams(
-        format="pascal_voc",
+        format="yolo",
         label_fields=["class_labels"],
         min_area=0,
         min_visibility=0.0,
-    )
-
-
-def _get_stop_policy_args() -> StopPolicyArgs:
-    return StopPolicyArgs(
-        stop_step=500_000,
-        ops={ChannelDrop},
     )
 
 
@@ -133,7 +124,6 @@ PossibleArgsTuple = (
     [None, _get_random_flip_args()],
     [None, _get_random_rotate_90_args()],
     [None, _get_random_rotate_args()],
-    # TODO: Lionel (09/25) Add StopPolicyArgs test cases.
     [None, _get_scale_jitter_args()],
     [None, _get_resize_args()],
     [None, _get_normalize_args()],
@@ -166,7 +156,6 @@ class TestOrientedObjectDetectionTransform:
     ) -> None:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
-        stop_policy = None  # TODO: Lionel (09/25) Pass as function argument.
         transform_args = OrientedObjectDetectionTransformArgs(
             channel_drop=channel_drop,
             num_channels=3,
@@ -178,7 +167,6 @@ class TestOrientedObjectDetectionTransform:
             random_rotate=random_rotate,
             image_size=image_size,
             bbox_params=bbox_params,
-            stop_policy=stop_policy,
             resize=resize,
             scale_jitter=scale_jitter,
             normalize=normalize,
@@ -193,7 +181,7 @@ class TestOrientedObjectDetectionTransform:
             torch.randint(0, 256, (num_channels, 128, 128), dtype=torch.uint8)
         )
         bboxes = tv_tensors.BoundingBoxes(
-            torch.tensor([[10, 10, 50, 50, 45]], dtype=torch.float64),
+            torch.tensor([[10.0, 10.0, 50.0, 50.0, 45]], dtype=torch.float64),
             format=tv_tensors.BoundingBoxFormat.CXCYWHR,
             canvas_size=(128, 128),
         )
@@ -224,7 +212,6 @@ class TestOrientedObjectDetectionTransform:
             random_rotate=_get_random_rotate_args(),
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
-            stop_policy=_get_stop_policy_args(),
             scale_jitter=_get_scale_jitter_args(),
             resize=_get_resize_args(),
             normalize=_get_normalize_args(),

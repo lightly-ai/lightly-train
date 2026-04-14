@@ -22,7 +22,6 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import
     DINOv3LTDETRObjectDetectionScaleJitterArgs,
     DINOv3LTDETRObjectDetectionTrainTransformArgs,
 )
-from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionCollateFunction,
     ObjectDetectionTransform,
@@ -31,6 +30,7 @@ from lightly_train._transforms.object_detection_transform import (
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
+    MosaicArgs,
     NormalizeArgs,
     RandomFlipArgs,
     RandomIoUCropArgs,
@@ -40,7 +40,6 @@ from lightly_train._transforms.transform import (
     RandomZoomOutArgs,
     ResizeArgs,
     ScaleJitterArgs,
-    StopPolicyArgs,
 )
 from lightly_train.types import ObjectDetectionDatasetItem
 
@@ -64,25 +63,41 @@ def _get_random_rotate_args() -> RandomRotationArgs:
     return RandomRotationArgs(prob=0.4, degrees=30.0)
 
 
-def _get_photometric_distort_args() -> RandomPhotometricDistortArgs:
+def _get_photometric_distort_args(
+    *,
+    step_start: int = 0,
+    step_stop: int | None = None,
+) -> RandomPhotometricDistortArgs:
     return RandomPhotometricDistortArgs(
         brightness=(0.8, 1.2),
         contrast=(0.8, 1.2),
         saturation=(0.8, 1.2),
         hue=(-0.1, 0.1),
         prob=0.5,
+        step_start=step_start,
+        step_stop=step_stop,
     )
 
 
-def _get_random_zoom_out_args() -> RandomZoomOutArgs:
+def _get_random_zoom_out_args(
+    *,
+    step_start: int = 0,
+    step_stop: int | None = None,
+) -> RandomZoomOutArgs:
     return RandomZoomOutArgs(
         prob=0.5,
         fill=0.0,
         side_range=(1.0, 1.5),
+        step_start=step_start,
+        step_stop=step_stop,
     )
 
 
-def _get_random_iou_crop_args() -> RandomIoUCropArgs:
+def _get_random_iou_crop_args(
+    *,
+    step_start: int = 0,
+    step_stop: int | None = None,
+) -> RandomIoUCropArgs:
     return RandomIoUCropArgs(
         min_scale=0.3,
         max_scale=1.0,
@@ -92,33 +107,8 @@ def _get_random_iou_crop_args() -> RandomIoUCropArgs:
         crop_trials=40,
         iou_trials=1000,
         prob=1.0,
-    )
-
-
-def _get_bbox_params() -> BboxParams:
-    return BboxParams(
-        format="pascal_voc",
-        label_fields=["class_labels"],
-        min_area=0,
-        min_visibility=0.0,
-    )
-
-
-def _get_stop_policy_args() -> StopPolicyArgs:
-    return StopPolicyArgs(
-        stop_step=500_000,
-        ops={ChannelDrop},
-    )
-
-
-def _get_scale_jitter_args() -> ScaleJitterArgs:
-    return ScaleJitterArgs(
-        sizes=None,
-        min_scale=0.76,
-        max_scale=1.27,
-        num_scales=13,
-        prob=1.0,
-        divisible_by=14,
+        step_start=step_start,
+        step_stop=step_stop,
     )
 
 
@@ -129,12 +119,83 @@ def _get_resize_args() -> ResizeArgs:
     )
 
 
+def _get_scale_jitter_args(
+    *,
+    step_stop: int | None = None,
+) -> DINOv3LTDETRObjectDetectionScaleJitterArgs:
+    return DINOv3LTDETRObjectDetectionScaleJitterArgs(
+        sizes=None,
+        min_scale=0.76,
+        max_scale=1.27,
+        num_scales=13,
+        prob=1.0,
+        divisible_by=14,
+        step_stop=step_stop,
+    )
+
+
+def _get_mosaic_args(
+    *,
+    step_start: int = 0,
+    step_stop: int | None = 100,
+) -> MosaicArgs:
+    return MosaicArgs(
+        prob=1.0,
+        step_start=step_start,
+        step_stop=step_stop,
+        output_size=32,
+        max_size=None,
+        rotation_range=10.0,
+        translation_range=(0.1, 0.1),
+        scaling_range=(0.5, 1.5),
+        fill_value=0,
+        max_cached_images=50,
+        random_pop=True,
+    )
+
+
 def _get_normalize_args() -> NormalizeArgs:
     return NormalizeArgs()
 
 
+def _get_mixup_args(
+    *,
+    step_start: int,
+    step_stop: int,
+) -> DINOv3LTDETRObjectDetectionMixUpArgs:
+    return DINOv3LTDETRObjectDetectionMixUpArgs(
+        prob=1.0,
+        step_start=step_start,
+        step_stop=step_stop,
+    )
+
+
+def _get_copyblend_args(
+    *,
+    step_start: int,
+    step_stop: int,
+) -> DINOv3LTDETRObjectDetectionCopyBlendArgs:
+    return DINOv3LTDETRObjectDetectionCopyBlendArgs(
+        prob=1.0,
+        step_start=step_start,
+        step_stop=step_stop,
+        area_threshold=1,
+        num_objects=1,
+        expand_ratios=(0.1, 0.25),
+    )
+
+
 def _get_image_size() -> tuple[int, int]:
     return (64, 64)
+
+
+def _get_bbox_params() -> BboxParams:
+    return BboxParams(
+        format="yolo",
+        label_fields=["class_labels"],
+        min_area=0,
+        min_visibility=0.0,
+    )
 
 
 PossibleArgsTuple = (
@@ -145,10 +206,10 @@ PossibleArgsTuple = (
     [None, _get_random_flip_args()],
     [None, _get_random_rotate_90_args()],
     [None, _get_random_rotate_args()],
-    # TODO: Lionel (09/25) Add StopPolicyArgs test cases.
-    [None, _get_scale_jitter_args()],
     [None, _get_resize_args()],
     [None, _get_normalize_args()],
+    [None, _get_scale_jitter_args()],
+    [None, _get_mosaic_args()],
 )
 
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
@@ -156,7 +217,7 @@ possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 class TestObjectDetectionTransform:
     @pytest.mark.parametrize(
-        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, random_rotate_90, random_rotate, scale_jitter, resize, normalize",
+        "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, random_rotate_90, random_rotate, resize, normalize, scale_jitter, mosaic",
         possible_tuples,
     )
     def test___all_args_combinations(
@@ -171,10 +232,11 @@ class TestObjectDetectionTransform:
         resize: ResizeArgs | None,
         random_iou_crop: RandomIoUCropArgs | None,
         normalize: NormalizeArgs | None,
+        mosaic: MosaicArgs | None,
     ) -> None:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
-        stop_policy = None  # TODO: Lionel (09/25) Pass as function argument.
+
         transform_args = ObjectDetectionTransformArgs(
             channel_drop=channel_drop,
             num_channels=3,
@@ -186,10 +248,10 @@ class TestObjectDetectionTransform:
             random_rotate=random_rotate,
             image_size=image_size,
             bbox_params=bbox_params,
-            stop_policy=stop_policy,
             resize=resize,
             scale_jitter=scale_jitter,
             normalize=normalize,
+            mosaic=mosaic,
         )
         transform_args.resolve_auto(model_init_args={})
         transform = ObjectDetectionTransform(transform_args)
@@ -200,7 +262,8 @@ class TestObjectDetectionTransform:
         img: NDArray[np.uint8] = np.random.randint(
             0, 256, (128, 128, num_channels), dtype=np.uint8
         )
-        bboxes = np.array([[10, 10, 50, 50]], dtype=np.float64)
+        # YOLO normalized format: (cx, cy, w, h) in [0, 1].
+        bboxes = np.array([[0.234375, 0.234375, 0.3125, 0.3125]], dtype=np.float64)
         class_labels = np.array([1], dtype=np.int64)
 
         tr_input: ObjectDetectionTransformInput = {
@@ -214,6 +277,88 @@ class TestObjectDetectionTransform:
         assert tr_output["bboxes"].dtype == np.float64
         assert "class_labels" in tr_output
         assert tr_output["class_labels"].dtype == np.int64
+
+    def test_requires_dataloader_reinitialization(self) -> None:
+        transform_args = ObjectDetectionTransformArgs(
+            channel_drop=None,
+            num_channels=3,
+            photometric_distort=_get_photometric_distort_args(
+                step_start=1,
+                step_stop=5,
+            ),
+            random_zoom_out=_get_random_zoom_out_args(
+                step_start=2,
+                step_stop=6,
+            ),
+            random_iou_crop=_get_random_iou_crop_args(
+                step_start=3,
+                step_stop=7,
+            ),
+            random_flip=_get_random_flip_args(),
+            random_rotate_90=None,
+            random_rotate=None,
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+            resize=_get_resize_args(),
+            mosaic=_get_mosaic_args(
+                step_start=4,
+                step_stop=8,
+            ),
+            normalize=None,
+        )
+        transform_args.resolve_auto(model_init_args={})
+        transform = ObjectDetectionTransform(transform_args)
+
+        # step 0: no reinit needed
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 1: photometric_distort activates
+        transform.set_step(1)
+        assert transform.requires_dataloader_reinitialization() is True
+        transform.mark_dataloader_as_reinitialized()
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 2: random_zoom_out activates
+        transform.set_step(2)
+        assert transform.requires_dataloader_reinitialization() is True
+        transform.mark_dataloader_as_reinitialized()
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 3: random_iou_crop activates
+        transform.set_step(3)
+        assert transform.requires_dataloader_reinitialization() is True
+        transform.mark_dataloader_as_reinitialized()
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 4: mosaic activates
+        transform.set_step(4)
+        assert transform.requires_dataloader_reinitialization() is True
+        transform.mark_dataloader_as_reinitialized()
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 5: photometric_distort deactivates
+        transform.set_step(5)
+        assert transform.requires_dataloader_reinitialization() is True
+        transform.mark_dataloader_as_reinitialized()
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 6: random_zoom_out deactivates
+        transform.set_step(6)
+        assert transform.requires_dataloader_reinitialization() is True
+        transform.mark_dataloader_as_reinitialized()
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 7: random_iou_crop deactivates
+        transform.set_step(7)
+        assert transform.requires_dataloader_reinitialization() is True
+        transform.mark_dataloader_as_reinitialized()
+        assert transform.requires_dataloader_reinitialization() is False
+
+        # step 8: mosaic deactivates
+        transform.set_step(8)
+        assert transform.requires_dataloader_reinitialization() is True
+        transform.mark_dataloader_as_reinitialized()
+        assert transform.requires_dataloader_reinitialization() is False
 
 
 class TestObjectDetectionCollateFunction:
@@ -229,7 +374,6 @@ class TestObjectDetectionCollateFunction:
             random_rotate=_get_random_rotate_args(),
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
-            stop_policy=_get_stop_policy_args(),
             scale_jitter=_get_scale_jitter_args(),
             resize=_get_resize_args(),
             normalize=_get_normalize_args(),
@@ -242,14 +386,14 @@ class TestObjectDetectionCollateFunction:
         sample1: ObjectDetectionDatasetItem = {
             "image_path": "img1.png",
             "image": np.random.randint(0, 256, (128, 128, 3), dtype=np.uint8),
-            "bboxes": np.array([[10.0, 10.0, 50.0, 50.0]]),
+            "bboxes": np.array([[0.234375, 0.234375, 0.3125, 0.3125]]),
             "classes": np.array([1], dtype=np.int64),
             "original_size": (128, 128),
         }
         sample2: ObjectDetectionDatasetItem = {
             "image_path": "img2.png",
             "image": np.random.randint(0, 256, (64, 64, 3), dtype=np.uint8),
-            "bboxes": np.array([[20.0, 20.0, 40.0, 40.0]]),
+            "bboxes": np.array([[0.46875, 0.46875, 0.3125, 0.3125]]),
             "classes": np.array([2], dtype=np.int64),
             "original_size": (64, 64),
         }
@@ -268,27 +412,16 @@ class TestObjectDetectionCollateFunction:
         transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs(
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
-            mixup=DINOv3LTDETRObjectDetectionMixUpArgs(
-                prob=1.0,
+            mixup=_get_mixup_args(
                 step_start=1,
                 step_stop=2,
             ),
-            copyblend=DINOv3LTDETRObjectDetectionCopyBlendArgs(
-                prob=1.0,
+            copyblend=_get_copyblend_args(
                 step_start=2,
                 step_stop=4,
-                area_threshold=1,
-                num_objects=1,
-                expand_ratios=(0.1, 0.25),
             ),
-            scale_jitter=DINOv3LTDETRObjectDetectionScaleJitterArgs(
+            scale_jitter=_get_scale_jitter_args(
                 step_stop=3,
-                sizes=[(32, 32)],
-                min_scale=None,
-                max_scale=None,
-                num_scales=None,
-                prob=1.0,
-                divisible_by=None,
             ),
         )
         transform_args.resolve_auto(model_init_args={})
