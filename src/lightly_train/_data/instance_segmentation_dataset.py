@@ -43,7 +43,7 @@ from lightly_train.types import (
 
 class InstanceSegmentationDataset(TaskDataset):
     # Narrow the type of dataset_args.
-    dataset_args: (
+    dataset_args: (  # type: ignore[assignment]
         COCOInstanceSegmentationDatasetArgs | YOLOInstanceSegmentationDatasetArgs
     )
 
@@ -53,7 +53,8 @@ class InstanceSegmentationDataset(TaskDataset):
 
     def __init__(
         self,
-        dataset_args: YOLOInstanceSegmentationDatasetArgs,
+        dataset_args: COCOInstanceSegmentationDatasetArgs
+        | YOLOInstanceSegmentationDatasetArgs,
         image_info: Sequence[dict[str, str]],
         transform: InstanceSegmentationTransform | None = None,
     ) -> None:
@@ -105,7 +106,6 @@ class InstanceSegmentationDataset(TaskDataset):
         image_np = file_helpers.open_image_numpy(
             image_path=image_path, mode=self.image_mode
         )
-        polygons_np = [np.array(polygon, dtype=np.float64) for polygon in polygons]
         polygons_np = [
             [np.array(segment, dtype=np.float64) for segment in polygon_group]
             for polygon_group in polygons
