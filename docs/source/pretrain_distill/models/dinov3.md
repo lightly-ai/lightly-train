@@ -77,9 +77,14 @@ argument. Refer to the following pages for fine-tuning instructions and example 
 ### ViT Models
 
 The following ViT models are supported. The LVD-1689M and SAT-493M models are
-[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
-The ViT-T/16 models are trained by Lightly using knowledge distillation from DINOv3
-ViT-L/16.
+[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
+and are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). The
+EUPE models are pretrained by Meta using the
+[EUPE method](https://github.com/facebookresearch/EUPE) and are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+The ViT-T/16 models, except the EUPE one, are trained by Lightly using knowledge
+distillation from DINOv3 ViT-L/16.
 
 - ViT-T (Lightly, distilled from DINOv3 ViT-L/16 on ImageNet-1K)
   - `dinov3/vitt16` — distillationv2 weights; recommended for dense tasks (object
@@ -91,11 +96,15 @@ ViT-L/16.
     tasks
   - `dinov3/vitt16-notpretrained` — random initialization; for training from scratch
   - `dinov3/vitt16plus-notpretrained` — random initialization; for training from scratch
+- ViT-T (Meta, LVD-1689M)
+  - `dinov3/vitt16-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - ViT-S (Meta, LVD-1689M)
   - `dinov3/vits16`
+  - `dinov3/vits16-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
   - `dinov3/vits16plus`
 - ViT-B (Meta, LVD-1689M)
   - `dinov3/vitb16`
+  - `dinov3/vitb16-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - ViT-L (Meta)
   - `dinov3/vitl16` (LVD-1689M)
   - `dinov3/vitl16-sat493m` (SAT-493M)
@@ -109,9 +118,17 @@ ViT-L/16.
 
 The following ConvNeXt models are supported. All are
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
-on the LVD-1689M dataset.
+on the LVD-1689M dataset. The DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). The
+EUPE models are pretrained by Meta using the
+[EUPE method](https://github.com/facebookresearch/EUPE) and are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
 - `dinov3/convnext-tiny`
+- `dinov3/convnext-tiny-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-small`
+- `dinov3/convnext-small-eupe` -
+  [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-base`
+- `dinov3/convnext-base-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-large`

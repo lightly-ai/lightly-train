@@ -9,6 +9,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add support for the new
+  [EUPE models from Meta](https://github.com/facebookresearch/EUPE) for all
+  distillation, pretraining, and fine-tuning tasks. For example, use
+  `dinov3/vits16-eupe` instead of `dinov3/vits16` to load the EUPE pretrained ViT-S/16
+  model. See the
+  [documentation](https://docs.lightly.ai/train/stable/pretrain_distill/models/dinov3.html#supported-models)
+  for all supported models.
 - Add `Mosaic` augmentation for LTDETR object detection training.
 - Add `CopyBlend` augmentation for LTDETR object detection training.
 - Add logging of completed `epoch`s to the console and the loggers.
