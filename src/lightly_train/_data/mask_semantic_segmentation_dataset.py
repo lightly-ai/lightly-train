@@ -417,7 +417,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def included_classes(self) -> dict[int, str]:
         """Returns classes (AFTER mapping) that are not ignored with the name."""
         ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
-        classes = cast(dict[int, ClassInfo], self.classes)
+        classes = cast(Dict[int, ClassInfo], self.classes)
 
         result = {}
         for class_id, class_info in classes.items():
@@ -439,7 +439,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
             mask_dir_or_file=str(self.train.masks),
-            classes=cast(dict[int, ClassInfo], self.classes),
+            classes=cast(Dict[int, ClassInfo], self.classes),
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
         )
@@ -450,7 +450,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.val.images),
             mask_dir_or_file=str(self.val.masks),
-            classes=cast(dict[int, ClassInfo], self.classes),
+            classes=cast(Dict[int, ClassInfo], self.classes),
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
         )
