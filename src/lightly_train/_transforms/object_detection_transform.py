@@ -131,70 +131,71 @@ def resolve_ltdetr_step_schedule(
 ) -> None:
     """Resolve ``"auto"`` step_start / step_stop on LTDETR augmentation args.
 
-    The algorithm converts internal epoch semantics into concrete step
-    boundaries using the actual dataloader length so that augmentation windows
-    adapt to different dataset sizes and batch sizes.
+    The algorithm converts LTDETR's epoch-based schedule into concrete step
+    boundaries using the effective number of optimizer steps per epoch,
+    ``train_num_batches / gradient_accumulation_steps``.
 
-    The calculation works in five stages:
+    The calculation works in four stages:
 
-    1. Compute the effective number of optimizer steps per epoch as
-       ``train_num_batches / gradient_accumulation_steps``.
-    2. Derive the effective training length in epochs as
-       ``total_steps / steps_per_epoch``
-    3. Scale the canonical LTDETR no-augmentation tail from the matched upstream profile
-    (``_REFERENCE_TOTAL_EPOCHS`` / ``_REFERENCE_NO_AUG_EPOCHS``) and scaled
-        proportionally to the actual run length::
-        no_aug_epochs_resolved = max(
-            1,
-            min(
-                _REFERENCE_NO_AUG_EPOCHS,
-                round(total_epochs * _REFERENCE_NO_AUG_EPOCHS / _REFERENCE_TOTAL_EPOCHS),
-            ),
-        )
-    4. Convert the epoch recipe into three epoch boundaries:
-        - epoch_stop_resolved = total_epochs - no_aug_epochs_resolved
-        - short runs with ``total_epochs <= _SHORT_RUN_TOTAL_EPOCHS`` compress to
-            ``epoch_start = min(_WARMUP_EPOCHS, floor(total_epochs / 3))`` and
-            ``epoch_flat = min(epoch_stop, 2 * epoch_start)``
-        - longer runs keep ``epoch_start = _WARMUP_EPOCHS`` and use
-            ``epoch_flat = _WARMUP_EPOCHS + floor(epoch_stop / 2)``
-    5. Convert each epoch boundary back to integer steps with
+    1. Derive the effective training length in epochs as
+       ``total_steps / steps_per_epoch``.
+    2. Scale the canonical LTDETR no-augmentation tail from the matched
+       upstream profile:
+
+           no_aug_epochs_resolved = min(
+               _REFERENCE_NO_AUG_EPOCHS,
+               round(
+                   total_epochs
+                   * _REFERENCE_NO_AUG_EPOCHS
+                   / _REFERENCE_TOTAL_EPOCHS
+               ),
+           )
+
+    3. Convert that recipe into three epoch boundaries:
+       - ``epoch_stop_resolved = total_epochs - no_aug_epochs_resolved``
+       - short runs with ``total_epochs <= _SHORT_RUN_TOTAL_EPOCHS`` compress
+         the warmup to
+         ``floor(total_epochs / (_SHORT_RUN_TOTAL_EPOCHS / _WARMUP_EPOCHS))``
+         and set ``epoch_flat_resolved`` to
+         ``min(epoch_stop_resolved, epoch_start_resolved + floor(total_epochs / 2))``
+       - longer runs keep ``epoch_start_resolved = _WARMUP_EPOCHS`` and use
+         ``epoch_flat_resolved = _WARMUP_EPOCHS + floor(total_epochs / 2)``
+    4. Convert each epoch boundary back to integer steps with
        ``floor(epoch * steps_per_epoch)``.
 
-    The resolved step windows are then assigned as follows:
+    Only fields whose boundary is ``"auto"`` are rewritten:
     - ``photometric_distort``, ``random_zoom_out``, ``random_iou_crop``, and
-      ``copyblend`` use ``[step_start, step_stop)``
-    - ``mixup`` and ``mosaic`` use ``[step_start, step_flat)``
-    - ``scale_jitter`` is stop-only and uses ``[0, step_stop)``
+      ``copyblend`` use [``step_start_resolved``, ``step_stop_resolved``)
+    - ``mixup`` and ``mosaic`` use [``step_start_resolved``, ``step_flat_resolved``)
+    - ``scale_jitter`` only resolves ``step_stop_resolved``
 
-    Collapsed windows are treated as disabling the augmentation instead of causing an error:
-    - ``step_stop <= step_start``: disable photometric_distort,
-      random_zoom_out, random_iou_crop, and copyblend.
-    - ``step_flat <= step_start``: disable mixup and mosaic.
-    - ``step_stop <= 0``: disable scale_jitter.
-    - An empty window is never clamped to ``step_stop = 1``; the
-      augmentation is disabled instead.
+    If an augmentation's final integer window is empty, it is disabled instead
+    of clamped to a minimum length. In practice this means:
+    - ``step_stop <= step_start`` disables the corresponding augmentation field
+    - ``scale_jitter`` is disabled when its resolved auto ``step_stop <= 0``
     """
     steps_per_epoch = train_num_batches / gradient_accumulation_steps
     total_epochs = total_steps / steps_per_epoch
 
     # Resolve no-aug tail from matched upstream profile.
-    no_aug_epochs_resolved = max(
-        1,
-        min(
-            _REFERENCE_NO_AUG_EPOCHS,
-            round(total_epochs * _REFERENCE_NO_AUG_EPOCHS / _REFERENCE_TOTAL_EPOCHS),
-        ),
+    no_aug_epochs_resolved = min(
+        _REFERENCE_NO_AUG_EPOCHS,
+        round(total_epochs * _REFERENCE_NO_AUG_EPOCHS / _REFERENCE_TOTAL_EPOCHS),
     )
     epoch_stop_resolved = total_epochs - no_aug_epochs_resolved
 
     # Compute epoch_start and epoch_flat with short-run compression.
     if total_epochs <= _SHORT_RUN_TOTAL_EPOCHS:
-        epoch_start_resolved = min(_WARMUP_EPOCHS, math.floor(total_epochs / 3))
-        epoch_flat_resolved = min(epoch_stop_resolved, 2 * epoch_start_resolved)
+        epoch_start_resolved = math.floor(
+            total_epochs / (_SHORT_RUN_TOTAL_EPOCHS / _WARMUP_EPOCHS)
+        )
+        epoch_flat_resolved = min(
+            epoch_stop_resolved,
+            epoch_start_resolved + math.floor(total_epochs / 2),
+        )
     else:
         epoch_start_resolved = _WARMUP_EPOCHS
-        epoch_flat_resolved = _WARMUP_EPOCHS + math.floor(epoch_stop_resolved / 2)
+        epoch_flat_resolved = _WARMUP_EPOCHS + math.floor(total_epochs / 2)
 
     # Convert epoch boundaries to steps.
     step_start_resolved = math.floor(epoch_start_resolved * steps_per_epoch)

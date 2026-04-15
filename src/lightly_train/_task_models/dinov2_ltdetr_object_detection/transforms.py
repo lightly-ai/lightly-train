@@ -48,9 +48,11 @@ class DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgs(
     saturation: tuple[float, float] = (0.5, 1.5)
     hue: tuple[float, float] = (-0.05, 0.05)
 
-    # "auto" corresponds to the 4th epoch of the total training run.
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
     step_start: int | Literal["auto"] = "auto"
-    # "auto" corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
     # None means photometric distort is always on.
     step_stop: int | Literal["auto"] | None = "auto"
 
@@ -61,9 +63,11 @@ class DINOv2LTDETRObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
     fill: float = 0.0
     side_range: tuple[float, float] = (1.0, 4.0)
 
-    # "auto" corresponds to the 4th epoch of the total training run.
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
     step_start: int | Literal["auto"] = "auto"
-    # "auto" corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
     # None means random zoom out is always on.
     step_stop: int | Literal["auto"] | None = "auto"
 
@@ -79,9 +83,11 @@ class DINOv2LTDETRObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
     crop_trials: int = 40
     iou_trials: int = 1000
 
-    # "auto" corresponds to the 4th epoch of the total training run.
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
     step_start: int | Literal["auto"] = "auto"
-    # "auto" corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
     # None means random IoU crop is always on.
     step_stop: int | Literal["auto"] | None = "auto"
 
@@ -133,7 +139,8 @@ class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     prob: float = 1.0
     divisible_by: int | None = None
 
-    # "auto" corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
     # None means scale jitter is always on.
     step_stop: int | Literal["auto"] | None = "auto"
 
@@ -141,9 +148,11 @@ class DINOv2LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
 class DINOv2LTDETRObjectDetectionMixUpArgs(MixUpArgs):
     prob: float = 0.5
 
-    # "auto" corresponds to the 4th epoch of the total training run.
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
     step_start: int | Literal["auto"] = "auto"
-    # "auto" corresponds to the 4 + total_epochs // 2 epoch of the total training run.
+    # "auto" uses a compressed short-run schedule for <= 12 epochs and
+    # transitions to the midpoint rule on longer runs.
     # None means mixup is always on.
     step_stop: int | Literal["auto"] | None = "auto"
 
@@ -155,9 +164,11 @@ class DINOv2LTDETRObjectDetectionCopyBlendArgs(CopyBlendArgs):
     num_objects: int = 3
     expand_ratios: tuple[float, float] = (0.1, 0.25)
 
-    # "auto" corresponds to the 4th epoch of the total training run.
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
     step_start: int | Literal["auto"] = "auto"
-    # "auto" corresponds to the total_epochs - no_aug_epoch of the total training run.
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
     # None means copy blend is always on.
     step_stop: int | Literal["auto"] | None = "auto"
 
@@ -174,9 +185,11 @@ class DINOv2LTDETRObjectDetectionMosaicArgs(MosaicArgs):
     max_cached_images: int = 50
     random_pop: bool = True
 
-    # "auto" corresponds to the 4th epoch of the total training run.
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
     step_start: int | Literal["auto"] = "auto"
-    # "auto" corresponds to the 4 + total_epochs // 2 epoch of the total training run.
+    # "auto" uses a compressed short-run schedule for <= 12 epochs and
+    # transitions to the midpoint rule on longer runs.
     # None means mosaic is always on.
     step_stop: int | Literal["auto"] | None = "auto"
 
