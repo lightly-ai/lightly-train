@@ -502,6 +502,23 @@ def vit_giant2(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTran
     return model
 
 
+def vit_so400m(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTransformer:
+    """
+    SoViT-400M model (https://arxiv.org/abs/2305.13035)
+    """
+    model = DinoVisionTransformer(
+        patch_size=patch_size,
+        embed_dim=1152,
+        depth=27,
+        num_heads=16,
+        mlp_ratio=4304 / 1152,
+        block_fn=partial(Block, attn_class=MemEffAttention),
+        num_register_tokens=num_register_tokens,
+        **kwargs,
+    )
+    return model
+
+
 def _vit_test(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTransformer:
     model = DinoVisionTransformer(
         patch_size=patch_size,

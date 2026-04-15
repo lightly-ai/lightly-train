@@ -170,6 +170,27 @@ MODELS: dict[str, _Model] = {
         list=False,
         alias_for="vitg14-noreg",
     ),
+    # TIPS models.
+    "vitb14-tipsv2": _Model(
+        url="https://storage.googleapis.com/tips_data/v2_0/checkpoints/pytorch/tips_v2_oss_b14_vision.npz",
+        config="eval/vitb14_tipsv2_pretrain",
+        list=True,
+    ),
+    "vitl14-tipsv2": _Model(
+        url="https://storage.googleapis.com/tips_data/v2_0/checkpoints/pytorch/tips_v2_oss_l14_vision.npz",
+        config="eval/vitl14_tipsv2_pretrain",
+        list=True,
+    ),
+    "vitso14-tipsv2": _Model(
+        url="https://storage.googleapis.com/tips_data/v2_0/checkpoints/pytorch/tips_v2_oss_so14_vision.npz",
+        config="eval/vitso14_tipsv2_pretrain",
+        list=True,
+    ),
+    "vitg14-tipsv2": _Model(
+        url="https://storage.googleapis.com/tips_data/v2_0/checkpoints/pytorch/tips_v2_oss_g14_vision.npz",
+        config="eval/vitg14_tipsv2_pretrain",
+        list=True,
+    ),
 }
 
 

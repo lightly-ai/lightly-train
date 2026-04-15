@@ -371,6 +371,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         }
         config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
         config_name = config_name.replace("-noreg", "")
+        config_name = config_name.replace("-tipsv2", "")
         config_cls = config_mapping[config_name]
         config = config_cls()
 
