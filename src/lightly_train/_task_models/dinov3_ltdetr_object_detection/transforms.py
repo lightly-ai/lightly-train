@@ -270,10 +270,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     ) -> None:
         """Resolve ``"auto"`` step_start / step_stop values.
 
-        Uses fixed epoch counts from the DEIMv2 training regime:
-        - Warmup: 4 epochs (augmentations start here)
-        - No-aug: last 12 epochs (most augmentations stop here)
-        - Mixup/mosaic stop earlier: at epoch ``4 + floor(total_epochs) // 2``
+        See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
         """
         resolve_ltdetr_step_schedule(
             args=self,

@@ -116,9 +116,11 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
 
 _logger = logging.getLogger(__name__)
 
-# DEIMv2 training regime: fixed epoch counts that do not scale.
+# Matched upstream schedule profile for LTDETR.
 _WARMUP_EPOCHS = 4
-_NO_AUG_EPOCHS = 12
+_SHORT_RUN_TOTAL_EPOCHS = 12
+_REFERENCE_TOTAL_EPOCHS = 72
+_REFERENCE_NO_AUG_EPOCHS = 12
 
 
 def resolve_ltdetr_step_schedule(
@@ -129,23 +131,77 @@ def resolve_ltdetr_step_schedule(
 ) -> None:
     """Resolve ``"auto"`` step_start / step_stop on LTDETR augmentation args.
 
-    Epoch-to-step conversion uses the actual dataloader length so that the
-    augmentation windows adapt to different dataset sizes and batch sizes.
+    The algorithm converts internal epoch semantics into concrete step
+    boundaries using the actual dataloader length so that augmentation windows
+    adapt to different dataset sizes and batch sizes.
+
+    The calculation works in five stages:
+
+    1. Compute the effective number of optimizer steps per epoch as
+       ``train_num_batches / gradient_accumulation_steps``.
+    2. Derive the effective training length in epochs as
+       ``total_steps / steps_per_epoch``
+    3. Scale the canonical LTDETR no-augmentation tail from the matched upstream profile
+    (``_REFERENCE_TOTAL_EPOCHS`` / ``_REFERENCE_NO_AUG_EPOCHS``) and scaled
+        proportionally to the actual run length::
+        no_aug_epochs_resolved = max(
+            1,
+            min(
+                _REFERENCE_NO_AUG_EPOCHS,
+                round(total_epochs * _REFERENCE_NO_AUG_EPOCHS / _REFERENCE_TOTAL_EPOCHS),
+            ),
+        )
+    4. Convert the epoch recipe into three epoch boundaries:
+        - epoch_stop_resolved = total_epochs - no_aug_epochs_resolved
+        - short runs with ``total_epochs <= _SHORT_RUN_TOTAL_EPOCHS`` compress to
+            ``epoch_start = min(_WARMUP_EPOCHS, floor(total_epochs / 3))`` and
+            ``epoch_flat = min(epoch_stop, 2 * epoch_start)``
+        - longer runs keep ``epoch_start = _WARMUP_EPOCHS`` and use
+            ``epoch_flat = _WARMUP_EPOCHS + floor(epoch_stop / 2)``
+    5. Convert each epoch boundary back to integer steps with
+       ``floor(epoch * steps_per_epoch)``.
+
+    The resolved step windows are then assigned as follows:
+    - ``photometric_distort``, ``random_zoom_out``, ``random_iou_crop``, and
+      ``copyblend`` use ``[step_start, step_stop)``
+    - ``mixup`` and ``mosaic`` use ``[step_start, step_flat)``
+    - ``scale_jitter`` is stop-only and uses ``[0, step_stop)``
+
+    Collapsed windows are treated as disabling the augmentation instead of causing an error:
+    - ``step_stop <= step_start``: disable photometric_distort,
+      random_zoom_out, random_iou_crop, and copyblend.
+    - ``step_flat <= step_start``: disable mixup and mosaic.
+    - ``step_stop <= 0``: disable scale_jitter.
+    - An empty window is never clamped to ``step_stop = 1``; the
+      augmentation is disabled instead.
     """
     steps_per_epoch = train_num_batches / gradient_accumulation_steps
     total_epochs = total_steps / steps_per_epoch
 
-    auto_start = math.floor(_WARMUP_EPOCHS * steps_per_epoch)
-    # Clamp to >= 1 so the value passes the step_stop > 0 validator.
-    # Invalid windows (stop <= start) are caught and disabled below.
-    auto_aug_step_stop = max(
-        1, math.floor(max(0, total_epochs - _NO_AUG_EPOCHS) * steps_per_epoch)
+    # Resolve no-aug tail from matched upstream profile.
+    no_aug_epochs_resolved = max(
+        1,
+        min(
+            _REFERENCE_NO_AUG_EPOCHS,
+            round(total_epochs * _REFERENCE_NO_AUG_EPOCHS / _REFERENCE_TOTAL_EPOCHS),
+        ),
     )
-    auto_flat_step_stop = max(
-        1, math.floor((_WARMUP_EPOCHS + int(total_epochs) // 2) * steps_per_epoch)
-    )
+    epoch_stop_resolved = total_epochs - no_aug_epochs_resolved
 
-    # Resolve each augmentation field. We pre-check the final window before
+    # Compute epoch_start and epoch_flat with short-run compression.
+    if total_epochs <= _SHORT_RUN_TOTAL_EPOCHS:
+        epoch_start_resolved = min(_WARMUP_EPOCHS, math.floor(total_epochs / 3))
+        epoch_flat_resolved = min(epoch_stop_resolved, 2 * epoch_start_resolved)
+    else:
+        epoch_start_resolved = _WARMUP_EPOCHS
+        epoch_flat_resolved = _WARMUP_EPOCHS + math.floor(epoch_stop_resolved / 2)
+
+    # Convert epoch boundaries to steps.
+    step_start_resolved = math.floor(epoch_start_resolved * steps_per_epoch)
+    step_stop_resolved = math.floor(epoch_stop_resolved * steps_per_epoch)
+    step_flat_resolved = math.floor(epoch_flat_resolved * steps_per_epoch)
+
+    # Resolve each augmentation field.  We pre-check the final window before
     # assigning so that Pydantic's validate_assignment never sees an invalid
     # step_stop <= step_start pair.
     _resolve_aug_fields(
@@ -156,53 +212,61 @@ def resolve_ltdetr_step_schedule(
             "random_iou_crop",
             "copyblend",
         ),
-        auto_start=auto_start,
-        auto_stop=auto_aug_step_stop,
+        step_start_resolved=step_start_resolved,
+        step_stop_resolved=step_stop_resolved,
     )
     _resolve_aug_fields(
         args=args,
         field_names=("mixup", "mosaic"),
-        auto_start=auto_start,
-        auto_stop=auto_flat_step_stop,
+        step_start_resolved=step_start_resolved,
+        step_stop_resolved=step_flat_resolved,
     )
 
     # Scale jitter: only has step_stop, no step_start.
     if args.scale_jitter is not None and args.scale_jitter.step_stop == "auto":
-        args.scale_jitter.step_stop = auto_aug_step_stop
+        if step_stop_resolved <= 0:
+            _logger.warning(
+                "Auto-derived step window for scale_jitter has "
+                f"step_stop ({step_stop_resolved}) <= 0. "
+                "Disabling scale_jitter for this run."
+            )
+            args.scale_jitter = None
+        else:
+            args.scale_jitter.step_stop = step_stop_resolved
 
 
 def _resolve_aug_fields(
     args: ObjectDetectionTransformArgs,
     field_names: tuple[str, ...],
-    auto_start: int,
-    auto_stop: int,
+    step_start_resolved: int,
+    step_stop_resolved: int,
 ) -> None:
     for field_name in field_names:
         aug = getattr(args, field_name, None)
         if aug is None:
             continue
 
-        resolved_start = auto_start if aug.step_start == "auto" else aug.step_start
-        resolved_stop = auto_stop if aug.step_stop == "auto" else aug.step_stop
+        step_start = step_start_resolved if aug.step_start == "auto" else aug.step_start
+        step_stop = step_stop_resolved if aug.step_stop == "auto" else aug.step_stop
 
         # Check if the resolved window is valid before assigning.
         if (
-            isinstance(resolved_start, int)
-            and isinstance(resolved_stop, int)
-            and resolved_stop <= resolved_start
+            isinstance(step_start, int)
+            and isinstance(step_stop, int)
+            and step_stop <= step_start
         ):
             _logger.warning(
                 f"Auto-derived step window for {field_name} has "
-                f"step_stop ({resolved_stop}) <= step_start ({resolved_start}). "
+                f"step_stop ({step_stop}) <= step_start ({step_start}). "
                 f"Disabling {field_name} for this run."
             )
             setattr(args, field_name, None)
             continue
 
         if aug.step_start == "auto":
-            aug.step_start = resolved_start
+            aug.step_start = step_start
         if aug.step_stop == "auto":
-            aug.step_stop = resolved_stop
+            aug.step_stop = step_stop
 
 
 class ObjectDetectionTransform(TaskTransform):
