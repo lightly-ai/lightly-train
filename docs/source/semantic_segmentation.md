@@ -568,16 +568,40 @@ following models are available:
 
 ### DINOv3 Models
 
+- `dinov3/vitt32-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitt32plus-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vits32-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitb32-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitl32-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitt16-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitt16plus-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vits16-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitb16-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitl16-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vits16-eomt-cityscapes` (fine-tuned on Cityscapes)
+- `dinov3/vitb16-eomt-cityscapes` (fine-tuned on Cityscapes)
+- `dinov3/vitl16-eomt-cityscapes` (fine-tuned on Cityscapes)
+- `dinov3/vitt16-eomt`
+- `dinov3/vitt16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
+- `dinov3/vitt16plus-eomt`
 - `dinov3/vits16-eomt`
+- `dinov3/vits16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vits16plus-eomt`
 - `dinov3/vitb16-eomt`
+- `dinov3/vitb16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitl16-eomt`
 - `dinov3/vitl16plus-eomt`
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
 
-All DINOv3 models are
+Unless noted otherwise, all DINOv3 backbones are initialized from weights
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
+DINOv3 backbone weights instead. Models marked as EUPE use
+[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
+models are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
 ### DINOv2 Models
 

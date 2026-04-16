@@ -17,10 +17,17 @@ with DINOv3 teacher models. The new method also supports using
 
 - Add distillationv3 method for dense as well as global feature distillation.
 - Add support for custom teacher models with distillationv3.
+- Add support for the new
+  [EUPE models from Meta](https://github.com/facebookresearch/EUPE) for all
+  distillation, pretraining, and fine-tuning tasks. For example, use
+  `dinov3/vits16-eupe` instead of `dinov3/vits16` to load the EUPE pretrained ViT-S/16
+  model. See the
+  [documentation](https://docs.lightly.ai/train/stable/pretrain_distill/models/dinov3.html#supported-models)
+  for all supported models.
 - Add `Mosaic` augmentation for LTDETR object detection training.
 - Add `CopyBlend` augmentation for LTDETR object detection training.
-- Add logging of completed `epoch`s to the console and the loggers.
 - Add `MixUp` augmentation for LTDETR object detection training.
+- Add logging of completed `epoch`s to the console and the loggers.
 - Add support for COCO object detection dataset format.
 - Semantic segmentation now allows one to specify classes from a JSON file.
 
@@ -429,7 +436,7 @@ models for
 ## [0.11.0] - 2025-08-15
 
 🚀 **New DINOv3 Support:** Pretrain your own model with
-[distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3)
+[distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation)
 from DINOv3 weights. Or fine-tune our SOTA
 [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3)
 with a DINOv3 backbone! 🚀
@@ -437,7 +444,7 @@ with a DINOv3 backbone! 🚀
 ### Added
 
 - Distillation now supports
-  [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3)
+  [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation)
   as teacher.
 - Semantic Segmentation now supports
   [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3)

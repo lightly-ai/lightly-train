@@ -576,17 +576,32 @@ models are available:
 - `dinov3/convnext-base-ltdetr-coco` (pretrained on COCO)
 - `dinov3/convnext-large-ltdetr-coco` (pretrained on COCO)
 - `dinov3/vitt16-ltdetr`
+- `dinov3/vitt16-eupe-ltdetr` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitt16plus-ltdetr`
 - `dinov3/vits16-ltdetr`
+- `dinov3/vits16-eupe-ltdetr` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitb16-ltdetr`
+- `dinov3/vitb16-eupe-ltdetr` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitl16-ltdetr`
 - `dinov3/convnext-tiny-ltdetr`
+- `dinov3/convnext-tiny-eupe-ltdetr` -
+  [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-small-ltdetr`
+- `dinov3/convnext-small-eupe-ltdetr` -
+  [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-base-ltdetr`
+- `dinov3/convnext-base-eupe-ltdetr` -
+  [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-large-ltdetr`
 
-All models are
+Unless noted otherwise, all DINOv3 backbones are initialized from weights
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
+DINOv3 backbone weights instead. Models marked as EUPE use
+[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
+models are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
 ### LTDETR DINOv2 Models
 

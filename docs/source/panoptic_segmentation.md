@@ -29,7 +29,7 @@ notebook:
 | Implementation                       | Model                                 | Val PQ   | Avg. Latency (ms) | Params (M) | Input Size |
 | ------------------------------------ | ------------------------------------- | -------- | ----------------- | ---------- | ---------- |
 | LightlyTrain                         | dinov3/vitt16-eomt-panoptic-coco      | 38.0     | 13.5              | 6.0        | 640×640    |
-| LightlyTrain                         | dinov3/vittplus16-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
+| LightlyTrain                         | dinov3/vitt16plus-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
 | LightlyTrain                         | dinov3/vits16-eomt-panoptic-coco      | 46.8     | 21.2              | 23.4       | 640×640    |
 | LightlyTrain                         | dinov3/vitb16-eomt-panoptic-coco      | 53.2     | 39.4              | 92.5       | 640×640    |
 | LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco      | 57.0     | 80.1              | 315.1      | 640×640    |
@@ -237,23 +237,33 @@ following models are available:
 
 ### DINOv3 Models
 
+- `dinov3/vitt16-eomt-panoptic-coco` (fine-tuned on COCO)
+- `dinov3/vitt16plus-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vits16-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vitb16-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vitl16-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vitl16-eomt-panoptic-coco-1280` (fine-tuned on COCO with 1280x1280 input size)
 - `dinov3/vitt16-eomt`
+- `dinov3/vitt16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitt16plus-eomt`
 - `dinov3/vits16-eomt`
+- `dinov3/vits16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vits16plus-eomt`
 - `dinov3/vitb16-eomt`
+- `dinov3/vitb16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitl16-eomt`
 - `dinov3/vitl16plus-eomt`
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
 
-All DINOv3 models are
-[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
-and fine-tuned by Lightly, except the `vitt` models which are pretrained by Lightly.
+Unless noted otherwise, all DINOv3 backbones are initialized from weights
+[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
+DINOv3 backbone weights instead. Models marked as EUPE use
+[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
+models are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
 ### DINOv2 Models
 
