@@ -329,8 +329,10 @@ following models are available:
 
 All DINOv3 models are
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
-and fine-tuned by Lightly, except models with `vitt16` and `vitt16plus` backbones, which
-are pretrained by Lightly. DINOv3 models are under the
+and fine-tuned by Lightly, except the non-EUPE models with `vitt16` and
+`vitt16plus` backbones, which are pretrained by Lightly. EUPE variants use
+[EUPE weights](https://github.com/facebookresearch/EUPE) pretrained by Meta. DINOv3
+models are under the
 [DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
 models are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
