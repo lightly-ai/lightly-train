@@ -14,6 +14,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add logging of completed `epoch`s to the console and the loggers.
 - Add `MixUp` augmentation for LTDETR object detection training.
 - Add support for COCO object detection dataset format.
+- Semantic segmentation now allows one to specify classes from a JSON file.
 
 ### Changed
 

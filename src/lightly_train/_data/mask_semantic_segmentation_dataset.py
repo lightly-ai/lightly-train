@@ -7,9 +7,10 @@
 #
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Iterable, Union
+from typing import Any, ClassVar, Dict, Iterable, Union, cast
 
 import numpy as np
 import torch
@@ -306,7 +307,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ignore_index: ClassVar[int] = -100
     train: SplitArgs
     val: SplitArgs
-    classes: dict[int, ClassInfo]
+    classes: dict[int, ClassInfo] | PathLike
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
     def train_imgs_path(self) -> Path:
@@ -317,12 +318,26 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
 
     @field_validator("classes", mode="before")
     @classmethod
-    def validate_classes(
-        cls, classes: dict[int, str | dict[str, Any]]
-    ) -> dict[int, ClassInfo]:
+    def validate_classes(cls, classes: Any) -> dict[int, ClassInfo]:
+        if isinstance(classes, (str, Path)):
+            path = Path(classes)
+            if path.suffix != ".json":
+                raise ValueError(f"'classes' path must be a .json file, got: '{path}'")
+            try:
+                with path.open(encoding="utf-8") as f:
+                    data = json.load(f)
+            except OSError as e:
+                raise ValueError(f"Failed to read classes file '{path}': {e}") from e
+            if not isinstance(data, dict):
+                raise ValueError(
+                    f"Expected '{path}' to contain a JSON dict, got {type(data).__name__}."
+                )
+            classes = {int(k): v for k, v in data.items()}
+
+        # We need strict=False, as otherwise the lists from JSON file cannot be coherced into a MultiChannelClassInfo.
         classes_validated = TypeAdapter(
             Dict[int, Union[str, SingleChannelClassInfo, MultiChannelClassInfo]]
-        ).validate_python(classes)
+        ).validate_python(classes, strict=False)
 
         # Convert to ClassInfo objects and perform consistency checks.
         class_infos: dict[int, ClassInfo] = {}
@@ -402,9 +417,10 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def included_classes(self) -> dict[int, str]:
         """Returns classes (AFTER mapping) that are not ignored with the name."""
         ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+        classes = cast(Dict[int, ClassInfo], self.classes)
 
         result = {}
-        for class_id, class_info in self.classes.items():
+        for class_id, class_info in classes.items():
             if class_id not in ignore_classes:
                 result[class_id] = class_info.name
 
@@ -423,7 +439,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
             mask_dir_or_file=str(self.train.masks),
-            classes=self.classes,
+            classes=cast(Dict[int, ClassInfo], self.classes),
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
         )
@@ -434,7 +450,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.val.images),
             mask_dir_or_file=str(self.val.masks),
-            classes=self.classes,
+            classes=cast(Dict[int, ClassInfo], self.classes),
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
         )

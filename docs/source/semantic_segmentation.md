@@ -441,8 +441,8 @@ We support two mask formats:
 - Single-channel integer masks, where each integer value determines a label
 - Multi-channel masks (e.g., RGB masks), where each pixel value determines a label
 
-Use the `classes` dict in the `data` dict to map class IDs to labels. In this document,
-a **class ID** is a key in the `classes` dictionary and a **label** is its value.
+Use `classes` in the `data` dict to map class IDs to labels. In this document, a **class
+ID** is a key in the `classes` dictionary and a **label** is its value.
 
 #### Using Integer Masks
 
@@ -499,6 +499,65 @@ These pixel values are converted to class IDs internally during training. Predic
 are single-channel masks with those class IDs. Again, each label can map to only **one**
 class ID, and you cannot mix integer and tuple-valued labels in a single `classes`
 dictionary.
+
+#### Loading Classes from a JSON File
+
+Instead of specifying `classes` inline, you can pass a path to a `.json` file directly
+as the `classes` value. The JSON file supports the same formats as the inline `classes`
+dict.
+
+**Simple format** — maps each class ID to a name (label defaults to the class ID):
+
+```json
+{
+  "0": "background",
+  "1": "airplane",
+  "2": "car",
+  "3": "bicycle"
+}
+```
+
+**Single-channel with explicit labels** — merges multiple mask labels into one class:
+
+```json
+{
+  "0": {"name": "background", "labels": [0, 1]},
+  "1": {"name": "vehicle", "labels": [2, 3]}
+}
+```
+
+**Multi-channel** — maps RGB (or other multi-channel) pixel tuples to class IDs:
+
+```json
+{
+  "0": {"name": "background", "labels": [[0, 0, 0], [255, 255, 255]]},
+  "1": {"name": "road", "labels": [[128, 128, 128]]}
+}
+```
+
+Pass the path to this file as `classes`:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt",
+        data={
+            "train": {
+                "images": "my_data_dir/train/images",
+                "masks": "my_data_dir/train/masks",
+            },
+            "val": {
+                "images": "my_data_dir/val/images",
+                "masks": "my_data_dir/val/masks",
+            },
+            "classes": "my_data_dir/classes.json",  # Path to the JSON class mapping file
+            "ignore_classes": [0],
+        },
+    )
+```
 
 (semantic-segmentation-model)=
 
