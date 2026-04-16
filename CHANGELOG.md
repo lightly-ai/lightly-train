@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+**New Distillation Method and Custom Teacher Models:** We release the new
+[Distillationv3](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html)
+method that achieves better generalization across fine-tuning tasks and works better
+with DINOv3 teacher models. The new method also supports using
+[custom teacher models](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-custom-models)
+
 ### Added
 
 - Add distillationv3 method for dense as well as global feature distillation.
