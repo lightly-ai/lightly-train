@@ -187,6 +187,7 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         builder=backbones.dinov3_convnext_tiny,
         default_weights="https://huggingface.co/facebook/EUPE-ConvNeXt-T/resolve/main/EUPE-ConvNeXt-T.pt?download=true",
         local_path="dinov3_convnext_tiny_eupe_lvd1689.pth",
+        list=True,
     ),
     "convnext-small-eupe": _DINOv3ModelInfo(
         builder=backbones.dinov3_convnext_small,
