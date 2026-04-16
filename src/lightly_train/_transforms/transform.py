@@ -65,19 +65,37 @@ class RandomFlipArgs(PydanticConfig):
 
 
 class ActivationPolicyArgs(PydanticConfig):
-    step_start: int = Field(default=0, ge=0)
-    step_stop: int | None = Field(default=None, gt=0)
+    step_start: int | Literal["auto"] = 0
+    step_stop: int | Literal["auto"] | None = None
+
+    @field_validator("step_start")
+    @classmethod
+    def validate_step_start(cls, v: int | str) -> int | str:
+        if isinstance(v, int) and v < 0:
+            raise ValueError("step_start must be >= 0.")
+        return v
+
+    @field_validator("step_stop")
+    @classmethod
+    def validate_step_stop(cls, v: int | str | None) -> int | str | None:
+        if isinstance(v, int) and v <= 0:
+            raise ValueError("step_stop must be > 0.")
+        return v
 
     @model_validator(mode="after")
     def validate_step_window(self) -> ActivationPolicyArgs:
+        if self.step_start == "auto" or self.step_stop == "auto":
+            return self
         if self.step_stop is not None and self.step_start >= self.step_stop:
             raise ValueError("activation policy requires step_start < step_stop.")
         return self
 
     def is_active(self, step: int) -> bool:
+        if self.step_start == "auto":
+            return False
         if step < self.step_start:
             return False
-        if self.step_stop is None:
+        if self.step_stop is None or self.step_stop == "auto":
             return True
         return step < self.step_stop
 
@@ -202,7 +220,14 @@ class ScaleJitterArgs(PydanticConfig):
     divisible_by: int | None
 
     # ScaleJitter does not have `step_start`, only `step_stop`.
-    step_stop: int | None = Field(default=None, gt=0)
+    step_stop: int | Literal["auto"] | None = None
+
+    @field_validator("step_stop")
+    @classmethod
+    def validate_step_stop(cls, v: int | str | None) -> int | str | None:
+        if isinstance(v, int) and v <= 0:
+            raise ValueError("step_stop must be > 0.")
+        return v
 
     @property
     def scale_range(self) -> tuple[float, float] | None:
@@ -211,7 +236,7 @@ class ScaleJitterArgs(PydanticConfig):
         return None
 
     def is_active(self, step: int) -> bool:
-        if self.step_stop is None:
+        if self.step_stop is None or self.step_stop == "auto":
             return True
         return step < self.step_stop
 
