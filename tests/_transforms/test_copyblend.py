@@ -10,15 +10,16 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from lightly_train._transforms.copyblend import CopyBlend
 
 
 def _make_item(
     *,
-    image: np.ndarray,
-    bboxes: np.ndarray,
-    class_labels: np.ndarray,
+    image: NDArray[np.uint8],
+    bboxes: NDArray[np.float64],
+    class_labels: NDArray[np.int64],
 ) -> dict[str, Any]:
     return {"image": image, "bboxes": bboxes, "class_labels": class_labels}
 
