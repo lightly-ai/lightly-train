@@ -7,8 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+**New Distillation Method and Custom Teacher Models:** We release the new
+[Distillationv3](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html)
+method that achieves better generalization across fine-tuning tasks and works better
+with DINOv3 teacher models. The new method also supports using
+[custom teacher models](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-custom-models)
+
 ### Added
 
+- Add distillationv3 method for dense as well as global feature distillation.
+- Add support for custom teacher models with distillationv3.
 - Add `Mosaic` augmentation for LTDETR object detection training.
 - Add `CopyBlend` augmentation for LTDETR object detection training.
 - Add logging of completed `epoch`s to the console and the loggers.
@@ -18,6 +26,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Default distillation method is now v3 (previously v2), with a DINOv3 teacher instead
+  of a DINOv2 teacher. Previous default still available with `method="distillationv2"`.
 - Make `ScaleJitter` in LTDETR step-aware. Now you can stop the augmentation by adding a
   `step_stop` args like the following
   `transform_args={"scale_jitter": {"step_stop": 10000}}`

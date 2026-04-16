@@ -68,6 +68,8 @@ lightly-train list_models
 The following libraries are supported (follow the links to get to the respective docs
 pages):
 
+- [DINOv2](#models-dinov2)
+- [DINOv3](#models-dinov3)
 - [Torchvision](#models-torchvision)
 - [TIMM](#models-timm)
 - [Ultralytics](#models-ultralytics)
@@ -82,6 +84,8 @@ hidden:
 maxdepth: 1
 ---
 Overview <self>
+dinov2
+dinov3
 torchvision
 timm
 ultralytics
