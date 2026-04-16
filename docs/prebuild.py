@@ -139,7 +139,8 @@ def dump_method_args(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     # dump transform args for all methods
     for method in method_helpers.list_methods():
-        if method in {"distillationv1", "distillationv2", "distillationv3"}:
+        if method in {"distillationv3"}:
+            # the default distillation method is already covered by `distillation`
             continue
         method_args = method_helpers.get_method_cls(method).method_args_cls()()
         args = common_helpers.pretty_format_args(method_args.model_dump(), limit=False)
