@@ -169,16 +169,19 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         builder=backbones.dinov3_vitt16,
         default_weights="https://huggingface.co/facebook/EUPE-ViT-T/resolve/main/EUPE-ViT-T.pt?download=true",
         local_path="dinov3_vitt16_eupe_lvd1689.pth",
+        list=True,
     ),
     "vits16-eupe": _DINOv3ModelInfo(
         builder=backbones.dinov3_vits16,
         default_weights="https://huggingface.co/facebook/EUPE-ViT-S/resolve/main/EUPE-ViT-S.pt?download=true",
         local_path="dinov3_vits16_eupe_lvd1689.pth",
+        list=True,
     ),
     "vitb16-eupe": _DINOv3ModelInfo(
         builder=backbones.dinov3_vitb16,
         default_weights="https://huggingface.co/facebook/EUPE-ViT-B/resolve/main/EUPE-ViT-B.pt?download=true",
         local_path="dinov3_vitb16_eupe_lvd1689.pth",
+        list=True,
     ),
     "convnext-tiny-eupe": _DINOv3ModelInfo(
         builder=backbones.dinov3_convnext_tiny,
@@ -189,11 +192,13 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         builder=backbones.dinov3_convnext_small,
         default_weights="https://huggingface.co/facebook/EUPE-ConvNeXt-S/resolve/main/EUPE-ConvNeXt-S.pt?download=true",
         local_path="dinov3_convnext_small_eupe_lvd1689.pth",
+        list=True,
     ),
     "convnext-base-eupe": _DINOv3ModelInfo(
         builder=backbones.dinov3_convnext_base,
         default_weights="https://huggingface.co/facebook/EUPE-ConvNeXt-B/resolve/main/EUPE-ConvNeXt-B.pt?download=true",
         local_path="dinov3_convnext_base_eupe_lvd1689.pth",
+        list=True,
     ),
 }
 

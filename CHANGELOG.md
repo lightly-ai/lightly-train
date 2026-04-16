@@ -7,8 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+**New Distillation Method and Custom Teacher Models:** We release the new
+[Distillationv3](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html)
+method that achieves better generalization across fine-tuning tasks and works better
+with DINOv3 teacher models. The new method also supports using
+[custom teacher models](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-custom-models)
+
 ### Added
 
+- Add distillationv3 method for dense as well as global feature distillation.
+- Add support for custom teacher models with distillationv3.
 - Add support for the new
   [EUPE models from Meta](https://github.com/facebookresearch/EUPE) for all
   distillation, pretraining, and fine-tuning tasks. For example, use
@@ -16,15 +24,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   model. See the
   [documentation](https://docs.lightly.ai/train/stable/pretrain_distill/models/dinov3.html#supported-models)
   for all supported models.
-- Add support for custom teacher models with distillationv3.
 - Add `Mosaic` augmentation for LTDETR object detection training.
 - Add `CopyBlend` augmentation for LTDETR object detection training.
-- Add logging of completed `epoch`s to the console and the loggers.
 - Add `MixUp` augmentation for LTDETR object detection training.
+- Add logging of completed `epoch`s to the console and the loggers.
 - Add support for COCO object detection dataset format.
-- Add support for custom teacher models with distillation v3.
 - Semantic segmentation now allows one to specify classes from a JSON file.
-- Add distillationv3 method for dense as well as global feature distillation.
 
 ### Changed
 
