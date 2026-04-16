@@ -9,13 +9,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add distillationv3 method for dense as well as global feature distillation.
 - Add support for custom teacher models with distillationv3.
 - Add `Mosaic` augmentation for LTDETR object detection training.
 - Add `CopyBlend` augmentation for LTDETR object detection training.
 - Add logging of completed `epoch`s to the console and the loggers.
 - Add `MixUp` augmentation for LTDETR object detection training.
 - Add support for COCO object detection dataset format.
-- Add distillationv3 method for dense as well as global feature distillation.
 
 ### Changed
 
