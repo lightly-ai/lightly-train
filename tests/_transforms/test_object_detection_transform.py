@@ -129,7 +129,6 @@ def _get_scale_jitter_args(
         min_scale=0.76,
         max_scale=1.27,
         num_scales=13,
-        prob=1.0,
         divisible_by=14,
         step_stop=step_stop,
     )
@@ -436,6 +435,9 @@ class TestObjectDetectionCollateFunction:
             scale_jitter=_get_scale_jitter_args(),
             resize=_get_resize_args(),
             normalize=_get_normalize_args(),
+            mosaic=_get_mosaic_args(),
+            mixup=_get_mixup_args(step_start=0, step_stop=100),
+            copyblend=_get_copyblend_args(step_start=0, step_stop=100),
         )
         transform_args.resolve_auto(model_init_args={})
         collate_fn = ObjectDetectionCollateFunction(
@@ -451,7 +453,7 @@ class TestObjectDetectionCollateFunction:
         }
         sample2: ObjectDetectionDatasetItem = {
             "image_path": "img2.png",
-            "image": np.random.randint(0, 256, (64, 64, 3), dtype=np.uint8),
+            "image": np.random.randint(0, 256, (128, 128, 3), dtype=np.uint8),
             "bboxes": np.array([[0.46875, 0.46875, 0.3125, 0.3125]]),
             "classes": np.array([2], dtype=np.int64),
             "original_size": (64, 64),

@@ -658,8 +658,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
         if (
             self.scale_jitter is None
             or self.transform_args.scale_jitter is None
-            or self.transform_args.scale_jitter.prob
-            <= 0.0  # TODO (Yutong, 04/26): there is never a scale jitter prob used in LTDETR. Remove it.
+            or self.transform_args.scale_jitter.prob <= 0.0
         ):
             return False
         return self.transform_args.scale_jitter.is_active(step)
@@ -695,8 +694,7 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
             (
                 self.scale_jitter is not None
                 and self.transform_args.scale_jitter is not None
-                and self.transform_args.scale_jitter.prob
-                > 0.0  # TODO (Yutong, 04/26): there is never a scale jitter prob used in LTDETR. Remove it.
+                and self.transform_args.scale_jitter.prob > 0.0
                 and self.transform_args.scale_jitter.step_stop is not None
             )
             or (
