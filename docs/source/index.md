@@ -41,7 +41,7 @@ visualize your annotations and predictions.
 ## News
 
 - \[[0.15.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-15-0)\] -
-  2026-04-14: 🔎 **Distillation v3:** Better generalizing distillation method that
+  2026-04-14: 🔎 **Distillationv3:** Better generalizing distillation method that
   performs equally well across dense and global tasks and across all models, from ViTs
   to hybrids to CNNs (+support for custom teachers!). 🔎
 - \[[0.14.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-14-0)\] -
