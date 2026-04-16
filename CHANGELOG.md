@@ -11,7 +11,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Add `Mosaic` augmentation for LTDETR object detection training.
 - Add `CopyBlend` augmentation for LTDETR object detection training.
-- Add logging of 1-based `epoch` to the console and the loggers.
+- Add logging of completed `epoch`s to the console and the loggers.
 - Add `MixUp` augmentation for LTDETR object detection training.
 - Add support for COCO object detection dataset format.
 - Add distillation v3 method for dense as well as global feature distillation.
@@ -28,6 +28,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Deprecated
 
 ### Removed
+
+- Remove `StopPolicy` and use `ActivationPolicy` instead for more fine-grained control
+  over the step-aware augmentations.
 
 ### Fixed
 

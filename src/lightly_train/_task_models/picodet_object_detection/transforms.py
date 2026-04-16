@@ -95,7 +95,6 @@ class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
     image_size: tuple[int, int] | Literal["auto"] = "auto"
-    stop_policy: None = None
     resize: ResizeArgs | None = None
     scale_jitter: PicoDetScaleJitterArgs | None = Field(
         default_factory=PicoDetScaleJitterArgs
@@ -201,7 +200,6 @@ class PicoDetObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
     image_size: tuple[int, int] | Literal["auto"] = "auto"
-    stop_policy: None = None
     resize: ResizeArgs | None = Field(
         default_factory=lambda: ResizeArgs(height="auto", width="auto")
     )
