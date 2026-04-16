@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.15.0] - 2026-04-16
+
 **New Distillation Method and Custom Teacher Models:** We release the new
 [Distillationv3](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html)
 method that achieves better generalization across fine-tuning tasks and works better
