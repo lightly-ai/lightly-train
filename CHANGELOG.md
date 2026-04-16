@@ -422,7 +422,7 @@ models for
 ## [0.11.0] - 2025-08-15
 
 🚀 **New DINOv3 Support:** Pretrain your own model with
-[distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation)
+[distillation](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3)
 from DINOv3 weights. Or fine-tune our SOTA
 [EoMT semantic segmentation model](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3)
 with a DINOv3 backbone! 🚀
@@ -430,7 +430,7 @@ with a DINOv3 backbone! 🚀
 ### Added
 
 - Distillation now supports
-  [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation)
+  [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/pretrain_distill/methods/distillation.html#methods-distillation-dinov3)
   as teacher.
 - Semantic Segmentation now supports
   [DINOv3 pretrained weights](https://docs.lightly.ai/train/stable/semantic_segmentation.html#semantic-segmentation-eomt-dinov3)
