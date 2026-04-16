@@ -594,12 +594,14 @@ following models are available:
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
 
-All DINOv3 models are
+The checkpoints listed above are fine-tuned semantic segmentation models. Unless noted
+otherwise, their DINOv3 backbones are initialized from weights
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
-Models with `vitt16` and `vitt16plus` backbones are pretrained by Lightly. DINOv3 models
-are under the
-[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
-models are under the
+The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
+DINOv3 backbone weights instead. Models marked as EUPE use
+[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file).
+EUPE models are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
 ### DINOv2 Models
