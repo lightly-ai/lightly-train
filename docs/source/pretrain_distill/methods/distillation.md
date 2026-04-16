@@ -13,11 +13,13 @@ efficient models suitable for practical applications.
 ```{note}
 Three distillation versions are available. Choose based on your downstream task:
 
-- **`distillation`** (alias for `distillationv3`, default from **LightlyTrain 0.15.0**): Best compromise — strong
-  on both global tasks (e.g., classification) and dense tasks (e.g., detection,
-  segmentation). Recommended for most use cases.
+- **`distillation`** (alias for `distillationv3`, default from **LightlyTrain 0.15.0**):
+    Best compromise — strong on both global tasks (e.g., classification) and dense 
+    tasks (e.g., detection, segmentation). Recommended for most use cases.
 - **`distillationv1`**: Best for purely global tasks (e.g., image classification).
-- **`distillationv2`**: Best for purely dense tasks (e.g., object detection, segmentation).
+- **`distillationv2`**: Best for purely dense tasks (e.g., object detection, 
+    segmentation) and we advise to only use it with DINOv2 teacher models (use 
+    `distillationv3` for DINOv3 teachers instead).
 ```
 
 ## Use Distillation in LightlyTrain
@@ -53,15 +55,17 @@ lightly-train pretrain out=out/my_experiment data=my_data_dir model="torchvision
 ```
 ````
 
+(methods-distillation-dinov3)=
+
 (methods-distillation-custom-models)=
 
 ### Custom Teacher and Student Models
 
-Besides the built-in support for many popular models, distillation v1 and v2 also
+Besides the built-in support for many popular models, all distillation versions also
 support using custom student models, by implementing the interface specified on the
 [Custom Models](#custom-models) page.
 
-With distillation v3, LightlyTrain now also supports custom teacher models, by
+With distillationv3, LightlyTrain now also supports custom teacher models, by
 implementing the same interface for the teacher.
 
 **Option A: String-based** — use any supported model string with optional constructor
@@ -79,7 +83,8 @@ if __name__ == "__main__":
         method="distillationv3",
         method_args={
             "teacher": "timm/vit_base_patch16_224",  # any supported model string
-            "teacher_args": {"pretrained": True},    # optional teacher constructor args
+            "teacher_args": {"pretrained": False},    # optional teacher constructor args
+            "teacher_weights": "path/to/teacher_weights.pt", # optional teacher weights path
         }
     )
 ```
@@ -166,13 +171,17 @@ For distillation v1/v2, the following models for `teacher` are supported:
   - `dinov3/vith16plus`
   - `dinov3/vit7b16`
   - `dinov3/vit7b16-sat493m`
+  - `dinov3/convnext-tiny`
+  - `dinov3/convnext-small`
+  - `dinov3/convnext-base`
+  - `dinov3/convnext-large`
 - DINOv2
   - `dinov2/vits14`
   - `dinov2/vitb14`
   - `dinov2/vitl14`
   - `dinov2/vitg14`
 
-For distillation v3, any model supported by LightlyTrain can be used (including custom
+For distillationv3, any model supported by LightlyTrain can be used (including custom
 models). You can find the full list of supported models on the [Models](#models) page.
 
 ## What's under the Hood
@@ -188,10 +197,10 @@ The versions differ in how the loss is computed:
 
 - **v1** uses a queue of teacher embeddings to compute pseudo labels (global loss). Best
   for global tasks such as classification or distilling your own embedding model.
-- **v2** directly applies MSE loss on the token-level features (dense loss). Best for
-  dense tasks such as detection and segmentation.
-- **v3** combines both the queue-based pseudo label loss and the token-level MSE loss,
-  making it a strong general-purpose choice.
+- **v2** directly applies MSE loss on the spatial features (dense loss). Best for dense
+  tasks such as detection and segmentation.
+- **v3** combines both the queue-based pseudo label loss and loss on the spatial
+  features, making it a strong general-purpose choice.
 
 ## Lightly Recommendations
 
