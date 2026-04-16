@@ -334,6 +334,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
                 )
             classes = {int(k): v for k, v in data.items()}
 
+        # We need strict=False, as otherwise the lists from JSON file cannot be coherced into a MultiChannelClassInfo.
         classes_validated = TypeAdapter(
             Dict[int, Union[str, SingleChannelClassInfo, MultiChannelClassInfo]]
         ).validate_python(classes, strict=False)
