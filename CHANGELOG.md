@@ -23,6 +23,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add support for COCO object detection dataset format.
 - Add distillation v3 method for dense as well as global feature distillation.
 - Add support for custom teacher models with distillation v3.
+- Semantic segmentation now allows one to specify classes from a JSON file.
 
 ### Changed
 
