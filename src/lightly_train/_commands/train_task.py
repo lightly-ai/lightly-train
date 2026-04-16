@@ -1384,16 +1384,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
         # Resolve step-based augmentation schedule now that dataloader length
         # and gradient accumulation steps are known.
-        if hasattr(train_transform_args, "resolve_step_schedule"):
-            train_transform_args.resolve_step_schedule(
-                total_steps=no_auto(config.steps),
-                train_num_batches=len(train_dataloader),
-                gradient_accumulation_steps=no_auto(config.gradient_accumulation_steps),
-            )
-            logger.debug(
-                f"Resolved train transform args after step schedule resolution: "
-                f"{helpers.pretty_format_args(train_transform_args.model_dump())}"
-            )
+        train_transform_args.resolve_step_schedule(
+            total_steps=no_auto(config.steps),
+            train_num_batches=len(train_dataloader),
+            gradient_accumulation_steps=no_auto(config.gradient_accumulation_steps),
+        )
+        logger.debug(
+            f"Resolved train transform args after step schedule resolution: "
+            f"{helpers.pretty_format_args(train_transform_args.model_dump())}"
+        )
 
         config.logger_args = helpers.get_logger_args(
             steps=config.steps,
