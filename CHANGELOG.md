@@ -38,9 +38,9 @@ with DINOv3 teacher models. The new method also supports using
   model. See the
   [documentation](https://docs.lightly.ai/train/stable/pretrain_distill/models/dinov3.html#supported-models)
   for all supported models.
-- Add option for `Mosaic` augmentation for LTDETR object detection training.
-- Add option for `CopyBlend` augmentation for LTDETR object detection training.
-- Add option for `MixUp` augmentation for LTDETR object detection training.
+- Add `Mosaic` augmentation for LTDETR object detection training.
+- Add `CopyBlend` augmentation for LTDETR object detection training.
+- Add `MixUp` augmentation for LTDETR object detection training.
 - Add logging of completed `epoch`s to the console and the loggers.
 - Add support for COCO object detection dataset format.
 - Semantic segmentation now allows one to specify classes from a JSON file.
