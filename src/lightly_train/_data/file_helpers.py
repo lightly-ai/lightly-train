@@ -502,3 +502,10 @@ def _iter_yolo_label_lines(label_path: Path) -> Iterable[str]:
                 continue
             lines.add(line)
             yield line
+
+
+def resolve_coco_images_dir(annotations: Path, images_dir: Path | None) -> Path:
+    result = annotations.resolve().parent
+    if images_dir is not None:
+        result = (result / images_dir).resolve()
+    return result

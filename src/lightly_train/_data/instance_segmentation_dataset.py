@@ -166,11 +166,25 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_label_file_missing: bool = False
 
-    def train_imgs_path(self) -> Path:
-        return Path(self.path) / self.train
+    def train_data_mmap_hash(self) -> str:
+        return str(
+            (
+                (Path(self.path) / self.train).resolve(),
+                self.names,
+                self.ignore_classes,
+                self.skip_if_label_file_missing,
+            )
+        )
 
-    def val_imgs_path(self) -> Path:
-        return Path(self.path) / self.val
+    def val_data_mmap_hash(self) -> str:
+        return str(
+            (
+                (Path(self.path) / self.train).resolve(),
+                self.names,
+                self.ignore_classes,
+                self.skip_if_label_file_missing,
+            )
+        )
 
     @pydantic.field_validator("train", "val", mode="after")
     def validate_paths(cls, v: PathLike) -> Path:

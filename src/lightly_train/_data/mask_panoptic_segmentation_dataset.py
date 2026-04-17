@@ -321,11 +321,23 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
     val: SplitArgs
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
-    def train_imgs_path(self) -> Path:
-        return Path(self.train.images)
+    def train_data_mmap_hash(self) -> str:
+        return str(
+            (
+                Path(self.train.images).resolve(),
+                Path(self.train.masks).resolve(),
+                self.ignore_classes,
+            )
+        )
 
-    def val_imgs_path(self) -> Path:
-        return Path(self.val.images)
+    def val_data_mmap_hash(self) -> str:
+        return str(
+            (
+                Path(self.val.images).resolve(),
+                Path(self.val.masks).resolve(),
+                self.ignore_classes,
+            )
+        )
 
     @cached_property
     def classes(self) -> dict[int, ClassInfo]:

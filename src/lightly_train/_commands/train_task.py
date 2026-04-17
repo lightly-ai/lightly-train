@@ -1275,9 +1275,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         model_init_args["model_name"] = config.model
 
     with helpers.get_dataset_temp_mmap_path(
-        fabric=fabric, data=config.data.train_imgs_path(), out=config.out
+        fabric=fabric, data_hash=config.data.train_data_mmap_hash(), out=config.out
     ) as train_mmap_filepath, helpers.get_dataset_temp_mmap_path(
-        fabric=fabric, data=config.data.val_imgs_path(), out=config.out
+        fabric=fabric, data_hash=config.data.val_data_mmap_hash(), out=config.out
     ) as val_mmap_filepath:
         # Build datasets without a transform first. We need to know
         # `len(train_dataloader)` (which depends only on the dataset + batch
