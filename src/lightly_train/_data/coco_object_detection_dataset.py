@@ -57,9 +57,8 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
 
     def train_data_mmap_hash(self) -> str:
         annotations_path = Path(self.train.annotations).resolve()
-        images_dir = resolve_coco_images_dir(
-            annotations_path, Path(self.train.images) if self.train.images else None
-        )
+        images_dir = resolve_coco_images_dir(annotations_path, self.train.images)
+
         return str(
             (
                 annotations_path,
@@ -71,10 +70,9 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
         )
 
     def val_data_mmap_hash(self) -> str:
-        annotations_path = Path(self.train.annotations).resolve()
-        images_dir = resolve_coco_images_dir(
-            annotations_path, Path(self.train.images) if self.train.images else None
-        )
+        annotations_path = Path(self.val.annotations).resolve()
+        images_dir = resolve_coco_images_dir(annotations_path, self.val.images)
+
         return str(
             (
                 annotations_path,
