@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import json
-import time
+import os
 from pathlib import Path
 
 from lightly_train._data.coco_object_detection_dataset import (
@@ -71,8 +71,7 @@ class TestCOCOObjectDetectionDatasetArgs:
     def test_mmap_hash_changes_when_annotations_modified(self, tmp_path: Path) -> None:
         args = self._make_args(tmp_path)
         hash_before = args.train_data_mmap_hash()
-        # Ensure mtime changes (some filesystems have 1s resolution).
-        time.sleep(1)
         annotations_path = tmp_path / "train.json"
-        annotations_path.write_text(annotations_path.read_text())
+        st = annotations_path.stat()
+        os.utime(annotations_path, (st.st_atime, st.st_mtime + 1))
         assert args.train_data_mmap_hash() != hash_before

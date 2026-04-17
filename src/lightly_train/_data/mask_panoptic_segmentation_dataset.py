@@ -326,7 +326,7 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
             (
                 Path(self.train.images).resolve(),
                 Path(self.train.masks).resolve(),
-                self.ignore_classes,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
             )
         )
 
@@ -335,7 +335,7 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
             (
                 Path(self.val.images).resolve(),
                 Path(self.val.masks).resolve(),
-                self.ignore_classes,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
             )
         )
 

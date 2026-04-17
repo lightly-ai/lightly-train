@@ -117,17 +117,17 @@ class ImageClassificationDataArgs(TaskDataArgs):
                 Path(self.train).resolve(),
                 self.classes,
                 self.label_delimiter,
-                self.ignore_classes,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
             )
         )
 
     def val_data_mmap_hash(self) -> str:
         return str(
             (
-                Path(self.train).resolve(),
+                Path(self.val).resolve(),
                 self.classes,
                 self.label_delimiter,
-                self.ignore_classes,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
             )
         )
 

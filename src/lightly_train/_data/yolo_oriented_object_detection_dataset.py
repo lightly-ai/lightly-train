@@ -173,7 +173,7 @@ class YOLOOrientedObjectDetectionDataArgs(TaskDataArgs):
             (
                 (Path(self.path) / self.train).resolve(),
                 self.names,
-                self.ignore_classes,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
                 self.skip_if_label_file_missing,
             )
         )
@@ -183,7 +183,7 @@ class YOLOOrientedObjectDetectionDataArgs(TaskDataArgs):
             (
                 (Path(self.path) / self.val).resolve(),
                 self.names,
-                self.ignore_classes,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
                 self.skip_if_label_file_missing,
             )
         )

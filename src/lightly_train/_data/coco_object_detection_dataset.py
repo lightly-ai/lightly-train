@@ -18,8 +18,7 @@ from typing import Literal
 from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import label_helpers
-from lightly_train._data.file_helpers import resolve_coco_images_dir
+from lightly_train._data import file_helpers, label_helpers
 from lightly_train._data.object_detection_dataset import ObjectDetectionDataset
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDatasetArgs
@@ -57,28 +56,32 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
 
     def train_data_mmap_hash(self) -> str:
         annotations_path = Path(self.train.annotations).resolve()
-        images_dir = resolve_coco_images_dir(annotations_path, self.train.images)
+        images_dir = file_helpers.resolve_coco_images_dir(
+            annotations_path, self.train.images
+        )
 
         return str(
             (
                 annotations_path,
                 annotations_path.stat().st_mtime,
                 images_dir,
-                self.ignore_classes,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
                 self.skip_if_annotations_missing,
             )
         )
 
     def val_data_mmap_hash(self) -> str:
         annotations_path = Path(self.val.annotations).resolve()
-        images_dir = resolve_coco_images_dir(annotations_path, self.val.images)
+        images_dir = file_helpers.resolve_coco_images_dir(
+            annotations_path, self.val.images
+        )
 
         return str(
             (
                 annotations_path,
                 annotations_path.stat().st_mtime,
                 images_dir,
-                self.ignore_classes,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
                 self.skip_if_annotations_missing,
             )
         )
@@ -148,7 +151,7 @@ class COCOObjectDetectionDatasetArgs(TaskDatasetArgs):
         for annotation in annotations:
             annotations_by_image_id[annotation["image_id"]].append(annotation)
 
-        image_dir = resolve_coco_images_dir(self.labels, self.data_dir)
+        image_dir = file_helpers.resolve_coco_images_dir(self.labels, self.data_dir)
 
         for image in labels_dict["images"]:
             image_width_pixel = image["width"]
