@@ -354,10 +354,11 @@ class TransformerDecoder(nn.Module):
             # hotspot in RTDETR-style decoders, especially with EMA weights
             # that can drift into regions where the MLP output exceeds fp16's
             # ~65K range.
-            with torch.amp.autocast(device_type="cuda", enabled=False):
+            with torch.amp.autocast(device_type=output.device.type, enabled=False):
+                output_fp32 = output.float()
+                bbox_delta = bbox_head[i](output_fp32)
                 inter_ref_bbox = F.sigmoid(
-                    bbox_head[i](output.float())
-                    + inverse_sigmoid(ref_points_detach.float())
+                    bbox_delta + inverse_sigmoid(ref_points_detach.float())
                 )
 
             ref_points = inter_ref_bbox
@@ -367,12 +368,11 @@ class TransformerDecoder(nn.Module):
                 if i == 0:
                     dec_out_bboxes.append(inter_ref_bbox)
                 else:
-                    with torch.amp.autocast(device_type="cuda", enabled=False):
+                    with torch.amp.autocast(
+                        device_type=output.device.type, enabled=False
+                    ):
                         dec_out_bboxes.append(
-                            F.sigmoid(
-                                bbox_head[i](output.float())
-                                + inverse_sigmoid(ref_points.float())
-                            )
+                            F.sigmoid(bbox_delta + inverse_sigmoid(ref_points.float()))
                         )
 
             elif i == self.eval_idx:
