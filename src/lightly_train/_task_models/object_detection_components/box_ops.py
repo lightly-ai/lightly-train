@@ -49,6 +49,23 @@ def box_iou(boxes1: Tensor, boxes2: Tensor):
     return iou, union
 
 
+def _sanitize_boxes_xyxy(boxes: Tensor) -> Tensor:
+    """Sanitize xyxy boxes so that they are non-degenerate and NaN-free.
+
+    Replaces NaN/inf with 0 and enforces ``x1 >= x0`` and ``y1 >= y0`` so that
+    downstream IoU computations do not produce NaN and the degenerate-box
+    assertion in :func:`generalized_box_iou` cannot trip.
+
+    This is a defensive safety net: the upstream code (decoder) should not
+    produce NaN predictions in the first place. When NaN is encountered here,
+    it indicates numerical instability upstream (e.g. fp16 overflow).
+    """
+    boxes = torch.nan_to_num(boxes, nan=0.0, posinf=0.0, neginf=0.0)
+    left_top = boxes[..., :2]
+    right_bottom = torch.max(boxes[..., 2:], left_top)
+    return torch.cat([left_top, right_bottom], dim=-1)
+
+
 def generalized_box_iou(boxes1, boxes2):
     """
     Generalized IoU from https://giou.stanford.edu/
@@ -58,10 +75,12 @@ def generalized_box_iou(boxes1, boxes2):
     Returns a [N, M] pairwise matrix, where N = len(boxes1)
     and M = len(boxes2)
     """
-    # degenerate boxes gives inf / nan results
-    # so do an early check
-    assert (boxes1[:, 2:] >= boxes1[:, :2]).all()
-    assert (boxes2[:, 2:] >= boxes2[:, :2]).all()
+    # Sanitize degenerate/NaN boxes defensively. This replaces the previous
+    # hard asserts so that transient numerical issues (e.g. fp16 overflow in
+    # predictions) don't crash training. Upstream code should still avoid
+    # producing NaN in the first place — this is a safety net, not a fix.
+    boxes1 = _sanitize_boxes_xyxy(boxes1)
+    boxes2 = _sanitize_boxes_xyxy(boxes2)
     iou, union = box_iou(boxes1, boxes2)
 
     lt = torch.min(boxes1[:, None, :2], boxes2[:, :2])

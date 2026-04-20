@@ -348,9 +348,17 @@ class TransformerDecoder(nn.Module):
                 query_pos_embed,
             )
 
-            inter_ref_bbox = F.sigmoid(
-                bbox_head[i](output) + inverse_sigmoid(ref_points_detach)
-            )
+            # Run the bbox refinement in fp32 to avoid fp16 overflow in the
+            # bbox_head MLP output. The addition of bbox_head(output) and
+            # inverse_sigmoid(ref_points) before sigmoid is a known overflow
+            # hotspot in RTDETR-style decoders, especially with EMA weights
+            # that can drift into regions where the MLP output exceeds fp16's
+            # ~65K range.
+            with torch.amp.autocast(device_type="cuda", enabled=False):
+                inter_ref_bbox = F.sigmoid(
+                    bbox_head[i](output.float())
+                    + inverse_sigmoid(ref_points_detach.float())
+                )
 
             ref_points = inter_ref_bbox
 
@@ -359,9 +367,13 @@ class TransformerDecoder(nn.Module):
                 if i == 0:
                     dec_out_bboxes.append(inter_ref_bbox)
                 else:
-                    dec_out_bboxes.append(
-                        F.sigmoid(bbox_head[i](output) + inverse_sigmoid(ref_points))
-                    )
+                    with torch.amp.autocast(device_type="cuda", enabled=False):
+                        dec_out_bboxes.append(
+                            F.sigmoid(
+                                bbox_head[i](output.float())
+                                + inverse_sigmoid(ref_points.float())
+                            )
+                        )
 
             elif i == self.eval_idx:
                 dec_out_logits.append(score_head[i](output))
