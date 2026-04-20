@@ -97,7 +97,9 @@ class InstanceSegmentationDataset(TaskDataset):
         if not image_path.exists():
             raise FileNotFoundError(f"Image file '{image_path}' does not exist.")
 
-        image_np = file_helpers.open_image_numpy(image_path)
+        image_np = file_helpers.open_image_numpy(
+            image_path=image_path, mode=self.image_mode
+        )
         polygons_np = [np.array(polygon, dtype=np.float64) for polygon in polygons]
         bboxes_np = np.array(bboxes, dtype=np.float64).reshape(len(bboxes), 4)
         class_labels_np = np.array(class_labels, dtype=np.int64)
