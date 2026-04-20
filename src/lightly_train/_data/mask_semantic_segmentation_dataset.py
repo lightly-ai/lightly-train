@@ -28,7 +28,7 @@ from lightly_train._transforms.semantic_segmentation_transform import (
     SemanticSegmentationTransform,
     SemanticSegmentationTransformArgs,
 )
-from lightly_train._transforms.task_transform import TaskCollateFunction
+from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
 from lightly_train.types import (
     BinaryMasksDict,
     MaskSemanticSegmentationDatasetItem,
@@ -70,7 +70,7 @@ class MaskSemanticSegmentationDataset(TaskDataset):
         self,
         dataset_args: MaskSemanticSegmentationDatasetArgs,
         image_info: Sequence[dict[str, str]],
-        transform: SemanticSegmentationTransform,
+        transform: SemanticSegmentationTransform | None = None,
     ):
         super().__init__(
             transform=transform, dataset_args=dataset_args, image_info=image_info
@@ -88,6 +88,15 @@ class MaskSemanticSegmentationDataset(TaskDataset):
             list(self.class_id_to_internal_class_id.keys())
         )
 
+        if transform is not None:
+            self._init_image_mode(transform)
+
+    def set_transform(self, transform: TaskTransform) -> None:
+        super().set_transform(transform)
+        assert isinstance(transform, SemanticSegmentationTransform)
+        self._init_image_mode(transform)
+
+    def _init_image_mode(self, transform: SemanticSegmentationTransform) -> None:
         transform_args = transform.transform_args
         assert isinstance(transform_args, SemanticSegmentationTransformArgs)
 

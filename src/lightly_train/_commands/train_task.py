@@ -67,7 +67,6 @@ from lightly_train._train_task_state import (
     TrainTaskState,
 )
 from lightly_train._training_step_timer import CUDAUtilization, TrainingStepTimer
-from lightly_train._transforms.task_transform import TaskCollateFunction
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -1274,37 +1273,23 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
     if "model_name" not in model_init_args:
         model_init_args["model_name"] = config.model
 
-    train_transform_args, val_transform_args = helpers.get_transform_args(
-        train_model_cls=train_model_cls,
-        transform_args=config.transform_args,
-        # TODO (Lionel, 10/25): Handle ignore_index properly for object detection.
-        ignore_index=getattr(config.data, "ignore_index", None),
-        model_init_args=model_init_args,
-    )
-    train_transform = helpers.get_train_transform(
-        train_model_cls=train_model_cls,
-        train_transform_args=train_transform_args,
-    )
-    val_transform = helpers.get_val_transform(
-        train_model_cls=train_model_cls,
-        val_transform_args=val_transform_args,
-    )
-
     with helpers.get_dataset_temp_mmap_path(
         fabric=fabric, data=config.data.train_imgs_path(), out=config.out
     ) as train_mmap_filepath, helpers.get_dataset_temp_mmap_path(
         fabric=fabric, data=config.data.val_imgs_path(), out=config.out
     ) as val_mmap_filepath:
+        # Build datasets without a transform first. We need to know
+        # `len(train_dataloader)` (which depends only on the dataset + batch
+        # size + drop_last) before we can fully resolve transform args. The
+        # transform is installed explicitly on the dataset further below.
         train_dataset: TaskDataset = helpers.get_dataset(
             fabric=fabric,
             dataset_args=config.data.get_train_args(),
-            transform=train_transform,
             mmap_filepath=train_mmap_filepath,
         )
         val_dataset: TaskDataset = helpers.get_dataset(
             fabric=fabric,
             dataset_args=config.data.get_val_args(),
-            transform=val_transform,
             mmap_filepath=val_mmap_filepath,
         )
 
@@ -1365,10 +1350,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
 
         # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
+        # Build dataloaders without a collate function; we install the
+        # fully-resolved collate on the dataloader further below.
         train_dataloader = helpers.get_train_dataloader(
             fabric=fabric,
             dataset=train_dataset,
-            transform_args=train_transform_args,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
             loader_args=config.loader_args,
@@ -1377,23 +1363,53 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         val_dataloader = helpers.get_val_dataloader(
             fabric=fabric,
             dataset=val_dataset,
-            transform_args=val_transform_args,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
             loader_args=config.loader_args,
         )
-        # Resolve step-based augmentation schedule now that dataloader length
-        # and gradient accumulation steps are known.
-        if hasattr(train_transform_args, "resolve_step_schedule"):
-            train_transform_args.resolve_step_schedule(
-                total_steps=no_auto(config.steps),
-                train_num_batches=len(train_dataloader),
-                gradient_accumulation_steps=no_auto(config.gradient_accumulation_steps),
-            )
-            logger.debug(
-                f"Resolved train transform args after step schedule resolution: "
-                f"{helpers.pretty_format_args(train_transform_args.model_dump())}"
-            )
+
+        # Resolve transform args in a single pass now that we know the
+        # dataloader length and gradient accumulation steps (required for
+        # step-scheduled augmentations like LTDETR).
+        train_transform_args, val_transform_args = helpers.get_transform_args(
+            train_model_cls=train_model_cls,
+            transform_args=config.transform_args,
+            # TODO (Lionel, 10/25): Handle ignore_index properly for object detection.
+            ignore_index=getattr(config.data, "ignore_index", None),
+            model_init_args=model_init_args,
+            total_steps=no_auto(config.steps),
+            train_num_batches=len(train_dataloader),
+            gradient_accumulation_steps=no_auto(config.gradient_accumulation_steps),
+        )
+
+        # Build transforms and collate functions from the fully-resolved args
+        # and install them explicitly — no hidden mutation via shared refs.
+        train_transform = helpers.get_train_transform(
+            train_model_cls=train_model_cls,
+            train_transform_args=train_transform_args,
+        )
+        val_transform = helpers.get_val_transform(
+            train_model_cls=train_model_cls,
+            val_transform_args=val_transform_args,
+        )
+        train_collate_fn = train_dataset.batch_collate_fn_cls(
+            split="train", transform_args=train_transform_args
+        )
+        val_collate_fn = val_dataset.batch_collate_fn_cls(
+            split="val", transform_args=val_transform_args
+        )
+        train_dataset.set_transform(train_transform)
+        val_dataset.set_transform(val_transform)
+        train_dataloader.collate_fn = train_collate_fn  # type: ignore[assignment]
+        val_dataloader.collate_fn = val_collate_fn  # type: ignore[assignment]
+        helpers.disable_persistent_workers_for_step_aware_transforms(
+            train_dataloader, train_transform, train_collate_fn
+        )
+        # Wrap dataloaders with fabric *after* installing the collate function.
+        # fabric's _FabricDataLoader snapshots the underlying dataloader; assigning
+        # collate_fn on the wrapper would not reach the iterator.
+        train_dataloader = fabric.setup_dataloaders(train_dataloader)  # type: ignore[assignment]
+        val_dataloader = fabric.setup_dataloaders(val_dataloader)  # type: ignore[assignment]
 
         config.logger_args = helpers.get_logger_args(
             steps=config.steps,
@@ -1503,9 +1519,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
         # Add license info after loading as it might be missing from the checkpoint.
         state["license_info"] = LICENSE_INFO
-
-        # DataLoader erases the concrete TaskCollateFunction type of collate_fn.
-        train_collate_fn: TaskCollateFunction = train_dataloader.collate_fn  # type: ignore
 
         # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
         # reloading dataloader after every epoch? Is this preferred over persistent workers?
