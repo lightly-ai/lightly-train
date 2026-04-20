@@ -33,7 +33,7 @@ class TaskDataset(Dataset[TaskDatasetItem]):
         self,
         dataset_args: TaskDatasetArgs,
         image_info: Sequence[dict[str, str]],
-        transform: TaskTransform,
+        transform: TaskTransform | None = None,
     ) -> None:
         self.dataset_args = dataset_args
         self.image_info = image_info
@@ -41,7 +41,15 @@ class TaskDataset(Dataset[TaskDatasetItem]):
 
     @property
     def transform(self) -> TaskTransform:
+        if self._transform is None:
+            raise RuntimeError(
+                "Transform has not been set on the dataset. Call "
+                "`dataset.set_transform(transform)` before accessing it."
+            )
         return self._transform
+
+    def set_transform(self, transform: TaskTransform) -> None:
+        self._transform = transform
 
     def __len__(self) -> int:
         return len(self.image_info)

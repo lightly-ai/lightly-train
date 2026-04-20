@@ -31,7 +31,7 @@ from lightly_train._transforms.panoptic_segmentation_transform import (
     PanopticSegmentationTransform,
     PanopticSegmentationTransformArgs,
 )
-from lightly_train._transforms.task_transform import TaskCollateFunction
+from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
 from lightly_train.types import (
     MaskPanopticSegmentationDatasetItem,
     PanopticBinaryMasksDict,
@@ -60,7 +60,7 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         self,
         dataset_args: MaskPanopticSegmentationDatasetArgs,
         image_info: Sequence[dict[str, str]],
-        transform: PanopticSegmentationTransform,
+        transform: PanopticSegmentationTransform | None = None,
     ):
         super().__init__(
             transform=transform, dataset_args=dataset_args, image_info=image_info
@@ -88,6 +88,15 @@ class MaskPanopticSegmentationDataset(TaskDataset):
         # NOTE: This must match the implementation in the task model!
         self.internal_ignore_class_id = len(class_id_to_internal_class_id)
 
+        if transform is not None:
+            self._init_image_mode(transform)
+
+    def set_transform(self, transform: TaskTransform) -> None:
+        super().set_transform(transform)
+        assert isinstance(transform, PanopticSegmentationTransform)
+        self._init_image_mode(transform)
+
+    def _init_image_mode(self, transform: PanopticSegmentationTransform) -> None:
         transform_args = transform.transform_args
         assert isinstance(transform_args, PanopticSegmentationTransformArgs)
 

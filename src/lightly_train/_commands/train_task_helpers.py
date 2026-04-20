@@ -98,6 +98,7 @@ from lightly_train._train_task_state import (
 )
 from lightly_train._training_step_timer import TimerAggregateMetrics
 from lightly_train._transforms.task_transform import (
+    TaskCollateFunction,
     TaskTransform,
     TaskTransformArgs,
 )
@@ -356,6 +357,9 @@ def get_transform_args(
     transform_args: dict[str, Any] | None,
     ignore_index: int | None,
     model_init_args: dict[str, Any],
+    total_steps: int,
+    train_num_batches: int,
+    gradient_accumulation_steps: int,
 ) -> tuple[TaskTransformArgs, TaskTransformArgs]:
     if (
         train_model_cls.task
@@ -385,8 +389,11 @@ def get_transform_args(
     train_transform_args = validate.pydantic_model_validate(
         train_transform_args_cls, transform_args
     )
-    train_transform_args.resolve_auto(
-        model_init_args=model_init_args,
+    train_transform_args.resolve_auto(model_init_args=model_init_args)
+    train_transform_args.resolve_step_schedule(
+        total_steps=total_steps,
+        train_num_batches=train_num_batches,
+        gradient_accumulation_steps=gradient_accumulation_steps,
     )
     train_transform_args.resolve_incompatible()
 
@@ -404,8 +411,11 @@ def get_transform_args(
     val_transform_args = validate.pydantic_model_validate(
         val_transform_args_cls, val_args_dict
     )
-    val_transform_args.resolve_auto(
-        model_init_args=model_init_args,
+    val_transform_args.resolve_auto(model_init_args=model_init_args)
+    val_transform_args.resolve_step_schedule(
+        total_steps=total_steps,
+        train_num_batches=train_num_batches,
+        gradient_accumulation_steps=gradient_accumulation_steps,
     )
     val_transform_args.resolve_incompatible()
 
@@ -610,8 +620,8 @@ def get_dataset_mmap_file(
 def get_dataset(
     fabric: Fabric,
     dataset_args: TaskDatasetArgs,
-    transform: TaskTransform,
     mmap_filepath: Path,
+    transform: TaskTransform | None = None,
 ) -> TaskDataset:
     image_info = dataset_args.list_image_info()
 
@@ -630,20 +640,12 @@ def get_dataset(
 def get_train_dataloader(
     fabric: Fabric,
     dataset: TaskDataset,
-    transform_args: TaskTransformArgs,
     batch_size: int,
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
 ) -> DataLoader[TaskDatasetItem]:
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
     # TODO(Guarin, 07/25): Persistent workers by default?
-    collate_fn = dataset.batch_collate_fn_cls(
-        split="train", transform_args=transform_args
-    )
-    requires_worker_refresh = (
-        dataset.transform.uses_step_dependent_worker_state()
-        or collate_fn.uses_step_dependent_worker_state()
-    )
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
         batch_size=batch_size // fabric.world_size,
@@ -651,7 +653,6 @@ def get_train_dataloader(
         num_workers=num_workers,
         drop_last=True,
         timeout=timeout,
-        collate_fn=collate_fn,
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
@@ -660,32 +661,17 @@ def get_train_dataloader(
         loader_args.pop("batch_size", None)
         loader_args.pop("num_workers", None)
         dataloader_kwargs.update(**loader_args)
-    if requires_worker_refresh and num_workers > 0:
-        persistent_workers = bool(dataloader_kwargs.get("persistent_workers", False))
-        if persistent_workers:
-            warning_message = (
-                "Step-aware transform/collate requires "
-                "persistent_workers=False. Overriding user-provided "
-                "persistent_workers=True."
-            )
-            logger.warning(warning_message)
-        dataloader_kwargs["persistent_workers"] = False
-    dataloader = DataLoader(**dataloader_kwargs)
-    return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
+    return DataLoader(**dataloader_kwargs)
 
 
 def get_val_dataloader(
     fabric: Fabric,
     dataset: TaskDataset,
-    transform_args: TaskTransformArgs,
     batch_size: int,
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
 ) -> DataLoader[TaskDatasetItem]:
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
-    collate_fn = dataset.batch_collate_fn_cls(
-        split="val", transform_args=transform_args
-    )
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
         batch_size=batch_size // fabric.world_size,
@@ -693,7 +679,6 @@ def get_val_dataloader(
         num_workers=num_workers,
         drop_last=False,
         timeout=timeout,
-        collate_fn=collate_fn,
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
@@ -702,8 +687,25 @@ def get_val_dataloader(
         loader_args.pop("batch_size", None)
         loader_args.pop("num_workers", None)
         dataloader_kwargs.update(**loader_args)
-    dataloader = DataLoader(**dataloader_kwargs)
-    return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
+    return DataLoader(**dataloader_kwargs)
+
+
+def disable_persistent_workers_for_step_aware_transforms(
+    dataloader: DataLoader[Any],
+    transform: TaskTransform,
+    collate_fn: TaskCollateFunction,
+) -> None:
+    """Force ``persistent_workers=False`` when transform/collate are step-aware."""
+    needs_refresh = (
+        transform.uses_step_dependent_worker_state()
+        or collate_fn.uses_step_dependent_worker_state()
+    )
+    if needs_refresh and dataloader.num_workers > 0 and dataloader.persistent_workers:
+        logger.warning(
+            "Step-aware transform/collate requires persistent_workers=False. "
+            "Overriding user-provided persistent_workers=True."
+        )
+        dataloader.persistent_workers = False
 
 
 def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
