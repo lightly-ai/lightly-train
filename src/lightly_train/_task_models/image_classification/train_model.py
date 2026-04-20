@@ -196,7 +196,11 @@ class ImageClassificationTrain(TrainModel):
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
 
     def validation_step(
-        self, fabric: Fabric, batch: ImageClassificationBatch
+        self,
+        fabric: Fabric,
+        batch: ImageClassificationBatch,
+        val_step: int,
+        train_step: int,
     ) -> TaskStepResult:
         images = batch["image"]
         classes = batch["classes"]

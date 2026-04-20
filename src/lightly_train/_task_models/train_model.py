@@ -74,7 +74,9 @@ class TrainModel(Module):
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
 
-    def validation_step(self, fabric: Fabric, batch) -> TaskStepResult:  # type: ignore[no-untyped-def]
+    def validation_step(  # type: ignore[no-untyped-def]
+        self, fabric: Fabric, batch, val_step: int, train_step: int
+    ) -> TaskStepResult:
         # Forward pass for validation step.
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()

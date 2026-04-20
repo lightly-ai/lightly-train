@@ -1708,7 +1708,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     # Validation forward pass.
                     with torch.no_grad():
                         val_result = train_model.validation_step(
-                            fabric=fabric, batch=val_batch
+                            fabric=fabric,
+                            batch=val_batch,
+                            val_step=val_step,
+                            train_step=step,
                         )
 
                     timer.end_step("val_step")

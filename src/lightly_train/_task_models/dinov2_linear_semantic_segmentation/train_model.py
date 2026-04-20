@@ -167,7 +167,11 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
 
     def validation_step(
-        self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
+        self,
+        fabric: Fabric,
+        batch: MaskSemanticSegmentationBatch,
+        val_step: int,
+        train_step: int,
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"]

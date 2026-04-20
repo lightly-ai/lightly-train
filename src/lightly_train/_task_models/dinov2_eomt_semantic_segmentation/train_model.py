@@ -322,7 +322,11 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
 
     def validation_step(
-        self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
+        self,
+        fabric: Fabric,
+        batch: MaskSemanticSegmentationBatch,
+        val_step: int,
+        train_step: int,
     ) -> TaskStepResult:
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]

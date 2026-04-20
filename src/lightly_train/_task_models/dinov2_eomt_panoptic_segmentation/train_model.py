@@ -355,7 +355,11 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
         )
 
     def validation_step(
-        self, fabric: Fabric, batch: MaskPanopticSegmentationBatch
+        self,
+        fabric: Fabric,
+        batch: MaskPanopticSegmentationBatch,
+        val_step: int,
+        train_step: int,
     ) -> TaskStepResult:
         # NOTE: Crowd regions are included in the validation loss and metrics.
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)

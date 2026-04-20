@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import copy
 import math
+from pathlib import Path
 from typing import Any, ClassVar
 
 import torch
 from lightning_fabric import Fabric
+from PIL import Image
 from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
@@ -62,6 +64,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._visualize import plot_object_detection_comparison
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
@@ -145,10 +148,13 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         super().__init__()
 
         self.model_args = model_args
+        self.data_args = data_args
 
         # Get the normalization.
         normalize = no_auto(val_transform_args.normalize)
         normalize_dict: dict[str, Any] | None
+        self._normalize = normalize
+
         if normalize is None:
             normalize_dict = None
         else:
@@ -307,6 +313,29 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             )
             self.train_metrics.update_with_predictions(results, targets)
 
+        # Visualization of training labels (first 3 steps only)
+        if step < 3 and fabric.global_rank == 0:
+            try:
+                save_fname = f"train_step{step}"
+                orig_target_sizes = batch["original_size"]
+                orig_target_sizes_tensor = torch.tensor(
+                    orig_target_sizes, device=samples.device
+                )
+                results = self.model.postprocessor(
+                    outputs, orig_target_sizes=orig_target_sizes_tensor
+                )
+                self._prepare_visualization_data(
+                    fabric=fabric,
+                    batch=batch,
+                    results=results,
+                    orig_target_sizes=orig_target_sizes,
+                    split="train",
+                    save_fname=save_fname,
+                )
+            except Exception as e:
+                # Log the error but don't interrupt training.
+                print(f"Warning: Failed to prepare visualization data: {e}")
+
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
@@ -321,6 +350,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self,
         fabric: Fabric,
         batch: ObjectDetectionBatch,
+        val_step: int = 0,
+        train_step: int = 0,
     ) -> TaskStepResult:
         samples, boxes, classes, orig_target_sizes = (
             batch["image"],
@@ -383,6 +414,22 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             weight=samples.shape[0],
         )
         self.val_metrics.update_with_predictions(results, targets)
+
+        # Track validation steps within epoch for visualization (first 3 steps only)
+        if val_step < 3:
+            try:
+                save_fname = f"train_step{train_step}_val_step{val_step}.jpg"
+                self._prepare_visualization_data(
+                    fabric=fabric,
+                    batch=batch,
+                    results=results,
+                    orig_target_sizes=orig_target_sizes,
+                    split="val",
+                    save_fname=save_fname,
+                )
+            except Exception as e:
+                # Log the error but don't interrupt validation.
+                print(f"Warning: Failed to prepare visualization data: {e}")
 
         return TaskStepResult(
             loss=total_loss,
@@ -480,6 +527,131 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
     def get_task_model(self) -> TaskModel:
         return self.model
+
+    def _prepare_visualization_data(
+        self,
+        fabric: Fabric,
+        batch: ObjectDetectionBatch,
+        results: Any,
+        orig_target_sizes: list[tuple[int, int]],
+        split: str = "val",
+        save_fname: str | None = None,
+    ) -> list[Image.Image]:
+        """Plot and save images. Images are saved to the logger's output directory.
+
+        Args:
+            fabric: Fabric instance with attached loggers.
+            batch: The validation batch.
+            results: Model predictions from postprocessor.
+            orig_target_sizes: Original image sizes.
+            split: Dataset split (e.g., "val" or "train").
+            save_fname: Filename for saving the images. If None, images are not saved.
+
+        Returns:
+            List of PIL images with labels and predictions.
+        """
+        if fabric.global_rank != 0:
+            return []  # Only prepare visualization on rank 0 to avoid duplication
+
+        # Extract first 4 images for visualization
+        gt_images, gt_bboxes, gt_classes = (
+            batch["image"],
+            batch["bboxes"],
+            batch["classes"],
+        )
+        device = gt_images.device
+        max_images = min(4, gt_images.shape[0])
+
+        # Prepare labels visualization
+        mean = tuple(self._normalize.mean) if self._normalize is not None else None
+        std = tuple(self._normalize.std) if self._normalize is not None else None
+        # Prepare predictions visualization.
+        pred_bboxes = []
+        pred_classes = []
+        pred_scores = []
+
+        for i in range(max_images):
+            if i < len(results):
+                result = results[i]
+                if isinstance(result, dict):
+                    # Assuming result has 'boxes', 'labels', 'scores' keys.
+                    pred_bboxes.append(
+                        result.get("boxes", torch.empty(0, 4, device=device))
+                    )
+                    pred_classes.append(
+                        result.get(
+                            "labels", torch.empty(0, dtype=torch.long, device=device)
+                        )
+                    )
+                    pred_scores.append(
+                        result.get("scores", torch.empty(0, device=device))
+                    )
+                else:
+                    # Fallback: create empty tensors.
+                    pred_bboxes.append(torch.empty(0, 4, device=device))
+                    pred_classes.append(torch.empty(0, dtype=torch.long, device=device))
+                    pred_scores.append(torch.empty(0, device=device))
+            else:
+                # Handle case where batch size is smaller than max_images.
+                pred_bboxes.append(torch.empty(0, 4, device=device))
+                pred_classes.append(torch.empty(0, dtype=torch.long, device=device))
+                pred_scores.append(torch.empty(0, device=device))
+
+        # Scale predicted boxes from original image size to tensor size.
+        _, img_height, img_width = gt_images.shape[1:]
+        scaled_pred_bboxes = []
+        for i in range(max_images):
+            if len(pred_bboxes[i]) > 0:
+                boxes = pred_bboxes[i].clone()
+                orig_width, orig_height = orig_target_sizes[i]
+                # Scale from original image coordinates to tensor coordinates.
+                boxes[:, 0] = boxes[:, 0] * img_width / orig_width
+                boxes[:, 1] = boxes[:, 1] * img_height / orig_height
+                boxes[:, 2] = boxes[:, 2] * img_width / orig_width
+                boxes[:, 3] = boxes[:, 3] * img_height / orig_height
+                scaled_pred_bboxes.append(boxes)
+            else:
+                scaled_pred_bboxes.append(pred_bboxes[i])
+
+        debug_images = plot_object_detection_comparison(
+            images=gt_images,
+            gt_bboxes=gt_bboxes,
+            gt_classes=gt_classes,
+            pred_bboxes=scaled_pred_bboxes,
+            pred_classes=pred_classes,
+            pred_scores=pred_scores,
+            included_classes=self.data_args.included_classes,
+            score_threshold=0.6,
+            max_pred_boxes=32,
+            max_images=max_images,
+            mean=mean,
+            std=std,
+        )
+
+        output_dir = None
+        for logger_instance in fabric.loggers:
+            if (
+                hasattr(logger_instance, "log_dir")
+                and logger_instance.log_dir is not None
+            ):
+                output_dir = Path(logger_instance.log_dir)
+                break
+
+        if output_dir is None:
+            output_dir = Path.cwd()
+
+        # Save predictions
+        try:
+            predictions_dir = output_dir / f"visualizations_{split}"
+            predictions_dir.mkdir(parents=True, exist_ok=True)
+            for idx, pred_image in enumerate(debug_images):
+                pred_output_path = predictions_dir / f"{save_fname}_img{idx}.jpg"
+                pred_image.save(pred_output_path)
+        except Exception as e:
+            # Log the error but don't interrupt training.
+            print(f"Warning: Failed to save visualization images: {e}")
+
+        return debug_images
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         if self.model_args.gradient_clip_val > 0:
