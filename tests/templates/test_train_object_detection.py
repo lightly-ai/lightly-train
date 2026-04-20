@@ -51,6 +51,12 @@ class TestTrainObjectDetectionTemplate:
             num_nodes=2,
             strategy="ddp",
             resume_interrupted=True,
+            model_args={"lr": 0.001},
+            save_checkpoint_args={"save_last": True},
+            logger_args={"tensorboard": {}},
+            transform_args={"image_size": 640},
+            metric_args={"classwise": True},
+            torch_compile_args={"mode": "default"},
         )
         assert 'out="/output"' in result
         assert "overwrite=True" in result
@@ -68,6 +74,12 @@ class TestTrainObjectDetectionTemplate:
         assert "num_nodes=2" in result
         assert 'strategy="ddp"' in result
         assert "resume_interrupted=True" in result
+        assert "model_args={'lr': 0.001}" in result
+        assert "save_checkpoint_args={'save_last': True}" in result
+        assert "logger_args={'tensorboard': {}}" in result
+        assert "transform_args={'image_size': 640}" in result
+        assert "metric_args={'classwise': True}" in result
+        assert "torch_compile_args={'mode': 'default'}" in result
 
     def test_default_values(self) -> None:
         result = _render(
