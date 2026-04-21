@@ -22,6 +22,7 @@ from torch.optim.optimizer import Optimizer
 from lightly_train import _torch_helpers
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.instance_segmentation_dataset import (
+    COCOInstanceSegmentationDataArgs,
     YOLOInstanceSegmentationDataArgs,
 )
 from lightly_train._data.task_data_args import TaskDataArgs
@@ -171,7 +172,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         *,
         model_name: str,
         model_args: DINOv3EoMTInstanceSegmentationTrainArgs,
-        data_args: YOLOInstanceSegmentationDataArgs,
+        data_args: COCOInstanceSegmentationDataArgs | YOLOInstanceSegmentationDataArgs,
         train_transform_args: DINOv3EoMTInstanceSegmentationTrainTransformArgs,
         val_transform_args: DINOv3EoMTInstanceSegmentationValTransformArgs,
         load_weights: bool,

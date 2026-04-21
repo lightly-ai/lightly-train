@@ -25,6 +25,7 @@ from torch import Tensor
 from torchvision.io import ImageReadMode
 from torchvision.transforms.v2 import functional as F
 
+from lightly_train._data import yolo_helpers
 from lightly_train.types import (
     ImageDtypes,
     ImageFilename,
@@ -447,13 +448,13 @@ def open_yolo_object_detection_label(
 
 def open_yolo_instance_segmentation_label(
     label_path: Path,
-) -> tuple[list[list[float]], list[list[float]], list[int]]:
+) -> tuple[list[list[list[float]]], list[list[float]], list[int]]:
     """Open a YOLO label file and return the polygons, bboxes, and classes.
 
     Returns:
         (polygons, bboxes, classes) tuple. All values are in normalized coordinates
-        between [0, 1]. Polygons are list of lists of floats, each being a sequence
-        of x0, y0, x1, y1, ... coordinates.
+        between [0, 1]. Polygons is a list of polygon groups, one per instance; each
+        group is a list of flat coordinate lists [x0, y0, x1, y1, ...].
         Bboxes are formatted as (x_center, y_center, width, height).
     """
     classes = []
@@ -462,10 +463,11 @@ def open_yolo_instance_segmentation_label(
     for line in _iter_yolo_label_lines(label_path=label_path):
         parts = [float(x) for x in line.split()]
         class_id = parts[0]
-        polygon = parts[1:]
+        flat_polygon = parts[1:]
+        polygon_group = yolo_helpers.split_yolo_polygon(flat_polygon)
         classes.append(int(class_id))
-        polygons.append(polygon)
-        bboxes.append(_bbox_from_polygon(polygon))
+        polygons.append(polygon_group)
+        bboxes.append(_bbox_from_polygon(flat_polygon))
     return polygons, bboxes, classes
 
 

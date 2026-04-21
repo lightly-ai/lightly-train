@@ -44,6 +44,7 @@ from lightly_train._data.image_classification_dataset import (
 )
 from lightly_train._data.infinite_cycle_iterator import InfiniteCycleIterator
 from lightly_train._data.instance_segmentation_dataset import (
+    COCOInstanceSegmentationDataArgs,
     YOLOInstanceSegmentationDataArgs,
 )
 from lightly_train._data.mask_panoptic_segmentation_dataset import (
@@ -1879,8 +1880,18 @@ class ImageClassificationMultilabelTrainTaskConfig(TrainTaskConfig):
 
 
 class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):
-    data: YOLOInstanceSegmentationDataArgs
+    data: Annotated[
+        Union[YOLOInstanceSegmentationDataArgs, COCOInstanceSegmentationDataArgs],
+        Field(discriminator="format"),
+    ]
     task: Literal["instance_segmentation"] = "instance_segmentation"
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def _set_default_format(cls, v: Any) -> Any:
+        if isinstance(v, dict) and "format" not in v:
+            v = {**v, "format": "yolo"}
+        return v
 
 
 class PanopticSegmentationTrainTaskConfig(TrainTaskConfig):
