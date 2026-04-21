@@ -45,7 +45,7 @@ lightly_train.train_object_detection(
 
     # Training loop
     ## Total number of training steps. The default is "auto", which selects a model-dependent value.
-    steps={{ steps|default(None) }},
+    steps={% if steps is number %}{{ steps }}{% else %}"{{ steps or 'auto' }}"{% endif %},
 
     ## Floating point precision for training (e.g. "bf16-mixed", "32").
     precision="{{ precision or 'bf16-mixed' }}",
@@ -74,7 +74,7 @@ lightly_train.train_object_detection(
 
     # Transforms
     ## Configuration for data augmentation transforms (e.g. image size, flips, color jitter). None uses defaults.
-    transform_args={{ transform_args or None }},
+    transform_args={{ transform_args|default(None) }},
 
     # Metrics
     ## Configuration for evaluation metrics (e.g. per-class metrics, watch metric). None uses defaults.

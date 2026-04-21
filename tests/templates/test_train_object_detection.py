@@ -97,7 +97,7 @@ class TestTrainObjectDetectionTemplate:
         assert 'num_workers="auto"' in result
         assert 'model="dinov3/vitt16-ltdetr-coco"' in result
         assert "model_args=None" in result
-        assert "steps=None" in result
+        assert 'steps="auto"' in result
         assert 'precision="bf16-mixed"' in result
         assert "seed=0" in result
         assert 'devices="auto"' in result
