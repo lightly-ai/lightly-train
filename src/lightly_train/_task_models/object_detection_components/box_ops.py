@@ -15,9 +15,14 @@
 https://github.com/facebookresearch/detr/blob/main/util/box_ops.py
 """
 
+import logging
+
 import torch
 from torch import Tensor
 from torchvision.ops.boxes import box_area
+
+_logger = logging.getLogger(__name__)
+_invalid_bbox_warning_emitted = False
 
 
 def box_cxcywh_to_xyxy(x: Tensor) -> Tensor:
@@ -30,6 +35,30 @@ def box_xyxy_to_cxcywh(x: Tensor) -> Tensor:
     x0, y0, x1, y1 = x.unbind(-1)
     b = [(x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0), (y1 - y0)]
     return torch.stack(b, dim=-1)
+
+
+def sanitize_boxes_cxcywh_normalized(boxes: Tensor) -> Tensor:
+    """Sanitize normalized ``cxcywh`` boxes predicted by the decoder.
+
+    The RT-DETR matcher and criterion operate on boxes normalized by image
+    size. We therefore map NaN to ``0``, ``-inf`` to ``0``, ``+inf`` to ``1``,
+    and clamp all coordinates to ``[0, 1]`` before downstream L1/IoU/GIoU
+    computations.
+    """
+    global _invalid_bbox_warning_emitted
+
+    if not _invalid_bbox_warning_emitted:
+        invalid_mask = ~torch.isfinite(boxes)
+        if invalid_mask.any():
+            _logger.warning(
+                "Found invalid predicted bbox values (NaN/inf) before "
+                "sanitization. This usually indicates numerical instability "
+                "upstream."
+            )
+            _invalid_bbox_warning_emitted = True
+
+    boxes = torch.nan_to_num(boxes, nan=0.0, posinf=1.0, neginf=0.0)
+    return boxes.clamp(min=0.0, max=1.0)
 
 
 # modified from torchvision to also return the union
@@ -49,23 +78,6 @@ def box_iou(boxes1: Tensor, boxes2: Tensor):
     return iou, union
 
 
-def _sanitize_boxes_xyxy(boxes: Tensor) -> Tensor:
-    """Sanitize xyxy boxes so that they are non-degenerate and NaN-free.
-
-    Replaces NaN/inf with 0 and enforces ``x1 >= x0`` and ``y1 >= y0`` so that
-    downstream IoU computations do not produce NaN and the degenerate-box
-    assertion in :func:`generalized_box_iou` cannot trip.
-
-    This is a defensive safety net: the upstream code (decoder) should not
-    produce NaN predictions in the first place. When NaN is encountered here,
-    it indicates numerical instability upstream (e.g. fp16 overflow).
-    """
-    boxes = torch.nan_to_num(boxes, nan=0.0, posinf=0.0, neginf=0.0)
-    left_top = boxes[..., :2]
-    right_bottom = torch.max(boxes[..., 2:], left_top)
-    return torch.cat([left_top, right_bottom], dim=-1)
-
-
 def generalized_box_iou(boxes1, boxes2):
     """
     Generalized IoU from https://giou.stanford.edu/
@@ -75,12 +87,6 @@ def generalized_box_iou(boxes1, boxes2):
     Returns a [N, M] pairwise matrix, where N = len(boxes1)
     and M = len(boxes2)
     """
-    # Sanitize degenerate/NaN boxes defensively. This replaces the previous
-    # hard asserts so that transient numerical issues (e.g. fp16 overflow in
-    # predictions) don't crash training. Upstream code should still avoid
-    # producing NaN in the first place — this is a safety net, not a fix.
-    boxes1 = _sanitize_boxes_xyxy(boxes1)
-    boxes2 = _sanitize_boxes_xyxy(boxes2)
     iou, union = box_iou(boxes1, boxes2)
 
     lt = torch.min(boxes1[:, None, :2], boxes2[:, :2])
