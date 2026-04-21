@@ -201,11 +201,10 @@ and the exported model does not predict them.
 
 ### YOLO format
 
-For the [YOLO](https://labelformat.com/formats/instance-segmentation/yolov8/) format,
-every image has a corresponding label file with the `.txt` extension. Each line in the
-label file represents one object and contains the class ID followed by normalized
-polygon coordinates `(x1, y1, x2, y2, ...)`. An example annotation file for an image
-with two objects looks like this:
+For the YOLO format, every image has a corresponding label file with the `.txt`
+extension. Each line in the label file represents one object and contains the class ID
+followed by normalized polygon coordinates `(x1, y1, x2, y2, ...)`. An example
+annotation file for an image with two objects looks like this:
 
 ```text
 0 0.782016 0.986521 0.937078 0.874167 0.957297 0.782021 0.950562 0.739333
@@ -303,10 +302,9 @@ lightly_train.train_instance_segmentation(
 
 ### COCO format
 
-For the [COCO](https://labelformat.com/formats/instance-segmentation/coco/) format,
-every split has a separate annotations JSON file. It specifies which images and classes
-belong to the split and contains the polygon masks. The structure of such a file is as
-follows:
+For the COCO format, every split has a separate annotations JSON file. It specifies
+which images and classes belong to the split and contains the polygon masks. The
+structure of such a file is as follows:
 
 ```json
 {
