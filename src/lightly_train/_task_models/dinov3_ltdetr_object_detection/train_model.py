@@ -215,6 +215,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             loss_names=self.loss_names,
         )
 
+        
+        self._val_step: int = 0
+        self._val_epoch: int = 0
+
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
@@ -258,6 +262,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.criterion.train()  # TODO (Lionel, 10/25): Check if this is necessary.
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
+
+    def on_validation_epoch_start(self) -> None:
+        self._val_step = 0
+        self._val_epoch += 1
 
     def training_step(
         self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
@@ -314,7 +322,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             self.train_metrics.update_with_predictions(results, targets)
 
         # Visualization of training labels (first 3 steps only)
-        if step < 3 and fabric.global_rank == 0:
+        if step < 3:
             try:
                 save_fname = f"train_step{step}"
                 orig_target_sizes = batch["original_size"]
@@ -350,8 +358,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self,
         fabric: Fabric,
         batch: ObjectDetectionBatch,
-        val_step: int = 0,
-        train_step: int = 0,
     ) -> TaskStepResult:
         samples, boxes, classes, orig_target_sizes = (
             batch["image"],
@@ -415,10 +421,11 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         )
         self.val_metrics.update_with_predictions(results, targets)
 
-        # Track validation steps within epoch for visualization (first 3 steps only)
-        if val_step < 3:
+        # Track validation steps and epochs for visualization purposes.
+        # Visualize the first 3 validation steps of the first 10 validation epochs.
+        if self._val_epoch < 10 and self._val_step < 3:
             try:
-                save_fname = f"train_step{train_step}_val_step{val_step}.jpg"
+                save_fname = f"val_epoch{self._val_epoch}_val_step{self._val_step}"
                 self._prepare_visualization_data(
                     fabric=fabric,
                     batch=batch,
@@ -431,6 +438,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 # Log the error but don't interrupt validation.
                 print(f"Warning: Failed to prepare visualization data: {e}")
 
+        self._val_step += 1
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
