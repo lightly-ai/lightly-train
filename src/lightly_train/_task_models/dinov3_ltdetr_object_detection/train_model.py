@@ -215,7 +215,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             loss_names=self.loss_names,
         )
 
-        
         self._val_step: int = 0
         self._val_epoch: int = 0
 
