@@ -158,19 +158,23 @@ def test_rendered_template_runs_training_with_defaults(tmp_path: Path) -> None:
     out = tmp_path / "out"
     helpers.create_coco_object_detection_dataset(data, num_files=4)
 
-    result = _render(
+    template_args = dict(
         out=str(out),
         train_annotations=str(data / "train.json"),
         train_images=str(data / "train"),
         val_annotations=str(data / "val.json"),
         val_images=str(data / "val"),
-        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
-        # Override steps, batch_size, num_workers, and devices to keep the test fast.
+        # Override model, steps, batch_size, num_workers, and devices to keep the test fast.
+        model="dinov3/vitt16-notpretrained-ltdetr",
         steps=2,
         batch_size=2,
         num_workers=2,
         devices=1,
     )
+    if sys.platform.startswith("darwin"):
+        template_args["accelerator"] = "cpu"
+
+    result = _render(**template_args)
 
     exec(compile(result, "<template>", "exec"))
 
@@ -202,15 +206,15 @@ def test_rendered_template_runs_training_with_all_params(tmp_path: Path) -> None
         precision="32",
         seed=42,
         devices=1,
-        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+        accelerator="cpu",
         num_nodes=1,
         strategy="auto",
         resume_interrupted=False,
         save_checkpoint_args={"save_last": True},
-        logger_args=None,
-        transform_args=None,
-        metric_args=None,
-        torch_compile_args=None,
+        logger_args={"log_every_num_steps": 1},
+        transform_args={"image_size": "auto"},
+        metric_args={"classwise": False},
+        torch_compile_args={"disable": True},
     )
 
     exec(compile(result, "<template>", "exec"))
