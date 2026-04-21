@@ -5,9 +5,13 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+import sys
 from pathlib import Path
 
+import pytest
 from jinja2 import Environment, FileSystemLoader
+
+from .. import helpers
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 
@@ -63,13 +67,13 @@ class TestTrainObjectDetectionTemplate:
         assert '"images": "/train_imgs"' in result
         assert '"images": "/val_imgs"' in result
         assert '"skip_if_annotations_missing": False' in result
-        assert 'batch_size="32"' in result
-        assert 'num_workers="4"' in result
+        assert "batch_size=32" in result
+        assert "num_workers=4" in result
         assert 'model="rtdetr_r18vd_6x_coco"' in result
         assert "steps=1000" in result
         assert 'precision="32"' in result
         assert "seed=42" in result
-        assert 'devices="2"' in result
+        assert "devices=2" in result
         assert 'accelerator="gpu"' in result
         assert "num_nodes=2" in result
         assert 'strategy="ddp"' in result
@@ -145,3 +149,72 @@ class TestTrainObjectDetectionTemplate:
         )
         # Should parse without SyntaxError.
         compile(result, "<template>", "exec")
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
+def test_rendered_template_runs_training_with_defaults(tmp_path: Path) -> None:
+    """Integration test: render with default parameters (except model) and run."""
+    data = tmp_path / "data"
+    out = tmp_path / "out"
+    helpers.create_coco_object_detection_dataset(data, num_files=4)
+
+    result = _render(
+        out=str(out),
+        train_annotations=str(data / "train.json"),
+        train_images=str(data / "train"),
+        val_annotations=str(data / "val.json"),
+        val_images=str(data / "val"),
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+        # Override steps, batch_size, num_workers, and devices to keep the test fast.
+        steps=2,
+        batch_size=2,
+        num_workers=2,
+        devices=1,
+    )
+
+    exec(compile(result, "<template>", "exec"))
+
+    assert out.exists()
+    assert (out / "train.log").exists()
+    assert (out / "exported_models" / "exported_last.pt").exists()
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
+def test_rendered_template_runs_training_with_all_params(tmp_path: Path) -> None:
+    """Integration test: render with all parameters set explicitly and run."""
+    data = tmp_path / "data"
+    out = tmp_path / "out"
+    helpers.create_coco_object_detection_dataset(data, num_files=4)
+
+    result = _render(
+        out=str(out),
+        overwrite=False,
+        train_annotations=str(data / "train.json"),
+        train_images=str(data / "train"),
+        val_annotations=str(data / "val.json"),
+        val_images=str(data / "val"),
+        skip_if_annotations_missing=True,
+        batch_size=2,
+        num_workers=2,
+        model="dinov3/vitt16-notpretrained-ltdetr",
+        model_args=None,
+        steps=2,
+        precision="32",
+        seed=42,
+        devices=1,
+        accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
+        num_nodes=1,
+        strategy="auto",
+        resume_interrupted=False,
+        save_checkpoint_args={"save_last": True},
+        logger_args=None,
+        transform_args=None,
+        metric_args=None,
+        torch_compile_args=None,
+    )
+
+    exec(compile(result, "<template>", "exec"))
+
+    assert out.exists()
+    assert (out / "train.log").exists()
+    assert (out / "exported_models" / "exported_last.pt").exists()

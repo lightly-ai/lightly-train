@@ -32,9 +32,9 @@ lightly_train.train_object_detection(
     },
 
     ## Global batch size across all devices. "auto" selects based on available memory.
-    batch_size="{{ batch_size or 'auto' }}",
+    batch_size={% if batch_size is number %}{{ batch_size }}{% else %}"{{ batch_size or 'auto' }}"{% endif %},
     ## Number of data loading workers. "auto" selects based on available CPUs.
-    num_workers="{{ num_workers or 'auto' }}",
+    num_workers={% if num_workers is number %}{{ num_workers }}{% else %}"{{ num_workers or 'auto' }}"{% endif %},
 
     # Model
     ## Name of the object detection model architecture to use.
@@ -54,7 +54,7 @@ lightly_train.train_object_detection(
 
     # Hardware
     ## Number of devices (GPUs) to use. "auto" uses all available.
-    devices="{{ devices or 'auto' }}",
+    devices={% if devices is number %}{{ devices }}{% else %}"{{ devices or 'auto' }}"{% endif %},
     ## Hardware accelerator type (e.g. "gpu", "cpu"). "auto" selects automatically.
     accelerator="{{ accelerator or 'auto' }}",
     ## Number of compute nodes for distributed training.
