@@ -337,8 +337,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
         self,
         fabric: Fabric,
         batch: ObjectDetectionBatch,
-        val_step: int,
-        train_step: int,
     ) -> TaskStepResult:
         """Perform a validation step."""
         images = batch["image"]

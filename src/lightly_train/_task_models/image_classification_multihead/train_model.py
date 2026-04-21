@@ -278,8 +278,6 @@ class ImageClassificationMultiheadTrain(TrainModel):
         self,
         fabric: Fabric,
         batch: ImageClassificationBatch,
-        val_step: int,
-        train_step: int,
     ) -> TaskStepResult:
         images = batch["image"]
         classes = batch["classes"]
