@@ -1,0 +1,87 @@
+import lightly_train
+
+# Documentation: https://docs.lightly.ai/train/stable/settings/train_settings.html#train-settings
+
+lightly_train.train_object_detection(
+
+    # Output
+    ## Output directory where checkpoints, logs, and exported models are written.
+    out="{{ out }}",
+    ## Whether to overwrite the output directory if it already exists.
+    overwrite={{ overwrite|default(False) }},
+
+    # Data
+    ## Dataset configuration dict, or path to a YAML file containing the dataset configuration.
+    data={
+        # Dataset format (e.g. "coco").
+        "format": "coco",
+        "train": {
+            # Path to the training annotations file in COCO format.
+            "annotations": "{{ train_annotations }}",
+            # Path to the training images directory. Defaults to None (inferred from annotations).
+            "images": {% if train_images %}"{{ train_images }}"{% else %}None{% endif %}
+        },
+        "val": {
+            # Path to the validation annotations file in COCO format.
+            "annotations": "{{ val_annotations }}",
+            # Path to the validation images directory. Defaults to None (inferred from annotations).
+            "images": {% if val_images %}"{{ val_images }}"{% else %}None{% endif %}
+        },
+        # Skip images that have no matching annotations instead of raising an error.
+        "skip_if_annotations_missing": {{ skip_if_annotations_missing|default(True) }},
+    },
+
+    ## Global batch size across all devices. "auto" selects based on available memory.
+    batch_size={% if batch_size is number %}{{ batch_size }}{% else %}"{{ batch_size or 'auto' }}"{% endif %},
+    ## Number of data loading workers. "auto" selects based on available CPUs.
+    num_workers={% if num_workers is number %}{{ num_workers }}{% else %}"{{ num_workers or 'auto' }}"{% endif %},
+
+    # Model
+    ## Name of the object detection model architecture to use.
+    ## See https://docs.lightly.ai/train/stable/object_detection.html#model
+    model="{{ model or 'dinov3/vitt16-ltdetr-coco' }}",
+    ## Dictionary with model-specific training parameters. The available keys vary by architecture.
+    model_args={{ model_args|default(None) }},
+
+    # Training loop
+    ## Total number of training steps. The default is "auto", which selects a model-dependent value.
+    steps={% if steps is number %}{{ steps }}{% else %}"{{ steps or 'auto' }}"{% endif %},
+
+    ## Floating point precision for training (e.g. "bf16-mixed", "32").
+    precision="{{ precision or 'bf16-mixed' }}",
+    ## Controls reproducibility for data order, augmentation randomness, and initialization. Default is 0.
+    seed={{ seed|default(0) }},
+
+    # Hardware
+    ## Number of devices (GPUs) to use. "auto" uses all available.
+    devices={% if devices is number %}{{ devices }}{% else %}"{{ devices or 'auto' }}"{% endif %},
+    ## Hardware accelerator type (e.g. "gpu", "cpu"). "auto" selects automatically.
+    accelerator="{{ accelerator or 'auto' }}",
+    ## Number of compute nodes for distributed training.
+    num_nodes={{ num_nodes|default(1) }},
+    ## Distributed training strategy (e.g. "ddp"). "auto" selects automatically.
+    strategy="{{ strategy or 'auto' }}",
+
+    # Resume Training
+    ## Whether to resume from the last checkpoint if training was interrupted.
+    resume_interrupted={{ resume_interrupted|default(False) }},
+    ## Configuration for checkpoint saving (e.g. save interval, save last, save best). None uses defaults.
+    save_checkpoint_args={{ save_checkpoint_args|default(None) }},
+
+    # Logging
+    ## Configuration for experiment loggers (MLflow, W&B, TensorBoard). None uses defaults.
+    logger_args={{ logger_args|default(None) }},
+
+    # Transforms
+    ## Configuration for data augmentation transforms (e.g. image size, flips, color jitter). None uses defaults.
+    transform_args={{ transform_args|default(None) }},
+
+    # Metrics
+    ## Configuration for evaluation metrics (e.g. per-class metrics, watch metric). None uses defaults.
+    metric_args={{ metric_args|default(None) }},
+
+    # Compilation
+    ## Torch compile configuration for model optimization. None disables compilation.
+    torch_compile_args={{ torch_compile_args|default(None) }},
+
+)
