@@ -98,6 +98,7 @@ class DINOv2ViTPackage(Package):
             "vit_small": vits.vit_small,
             "vit_base": vits.vit_base,
             "vit_large": vits.vit_large,
+            "vit_so400m": vits.vit_so400m,
             "vit_giant2": vits.vit_giant2,
         }
         model_builder = model_builders.get(cfg.student.arch, None)

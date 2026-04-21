@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import numpy as np
 import torch
 
 from lightly_train import _distributed as distributed_helpers
@@ -56,7 +57,12 @@ def load_weights(
 
     # Load the checkpoint.
     if checkpoint_path.exists():
-        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-        model.load_state_dict(ckpt, strict=True)
+        if checkpoint_path.suffix == ".npz":
+            npz_data = np.load(checkpoint_path, allow_pickle=False)
+            state_dict = {key: torch.from_numpy(arr) for key, arr in npz_data.items()}
+            model.load_state_dict(state_dict, strict=True)
+        else:
+            ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+            model.load_state_dict(ckpt, strict=True)
         logger.info(f"Loaded teacher weights from '{checkpoint_path}'")
     return model
