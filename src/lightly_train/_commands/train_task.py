@@ -1690,6 +1690,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 # Reset GPU memory tracking before val phase.
                 timer.reset_gpu_max_memory("val")
 
+                train_model.on_validation_epoch_start()
                 val_dataloader_iter = iter(val_dataloader)
                 # TODO (Lionel, 02/26): Average metrics during validation instead of
                 # only singular metrics at the end of the epoch.
@@ -1710,8 +1711,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         val_result = train_model.validation_step(
                             fabric=fabric,
                             batch=val_batch,
-                            val_step=val_step,
-                            train_step=step,
                         )
 
                     timer.end_step("val_step")
