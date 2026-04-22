@@ -10,6 +10,7 @@ from __future__ import annotations
 import functools
 import itertools
 import json
+import sys
 from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
@@ -121,7 +122,12 @@ class InstanceSegmentationDataset(TaskDataset):
                 )
                 mask_list.append(mask)
             elif isinstance(segment, dict):
-                # RLE format.
+                # RLE format. pycocotools is only available for Python >= 3.9.
+                if sys.version_info < (3, 9):
+                    raise RuntimeError(
+                        "RLE encoded segmentation requires Python >= 3.9 "
+                        "for pycocotools support."
+                    )
                 from pycocotools import mask as coco_mask
 
                 mask_list.append(
@@ -480,7 +486,6 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                     elif isinstance(segmentation, dict):
                         # RLE encoded segmentation. pycocotools is only
                         # available for Python >= 3.9.
-                        import sys
 
                         if sys.version_info < (3, 9):
                             raise RuntimeError(
